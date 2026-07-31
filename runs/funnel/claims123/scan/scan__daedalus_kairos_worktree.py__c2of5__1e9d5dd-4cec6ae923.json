@@ -1,0 +1,273 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c2of5__1e9d5dd",
+ "key": "scan__daedalus_kairos_worktree.py__c2of5__1e9d5dd-4cec6ae923",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read chunk 2 of worktree.py: docstring claims about reparse-point safety verified; two retry-path exceptions acknowledged; line numbers cited from provided excerpt.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "worktree.py:281-340 | medium | _force_unlink/_force_rmdir/_unlink_reparse_point retry paths (unlink->chmod->unlink etc.) run multiple syscalls per verification; window is 2-4 syscalls, not 1. | Confirm by reading the rest of _remove_tree_no_follow and any tests that exercise PermissionError / reparse-point retries.",
+     "worktree.py:363-405 | medium | The 'still not closed' note admits a microsecond window between lstat and syscall; unavoidable without handle-relative traversal. | Verify that _verify_reachable is called immediately before each syscall (already visible) and that no other syscalls occur between.",
+     "worktree.py:422-438 | high | The per-child branch (if not S_ISDIR) is claimed redundant on Windows; mutation testing says no test fails if removed. This is an acknowledged risk. | Check the test suite for Windows-specific coverage of directory symlinks/junctions; if absent, the branch may be untested.",
+     "worktree.py:281-340 | medium | The docstring claims the retry paths are exceptions to 'one verification, one syscall' but does not re-verify inside retries. A future change may add verification there without tests. | Confirm that _verify_reachable is not called inside _force_unlink/_force_rmdir/_unlink_reparse_point (visible in this chunk).",
+     "worktree.py:363-405 | low | The cost analysis (depth scaling) is based on measurements on 'this box'; not reproducible from code alone. | Accept as documentation; no code action needed."
+    ],
+    "todos": [
+     "Consider adding tests for the retry paths (_force_unlink, _force_rmdir, _unlink_reparse_point) to ensure they still refuse on reparse points.",
+     "Re-evaluate the per-child branch (if not S_ISDIR) for platform-specific behavior; possibly remove if proven redundant on all supported platforms.",
+     "Document the measured depth scaling in a more accessible place or add a benchmark test."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "2 of 5",
+     "purpose": "Read the core deletion helpers and the heavily-documented _remove_tree_no_follow invariant.",
+     "symbols": [
+      {
+       "name": "_clear_readonly",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Best-effort chmod to clear read-only bit; swallows OSError."
+      },
+      {
+       "name": "_unlink_reparse_point",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Removes a link (rmdir or unlink) without following; retries with chmod on OSError."
+      },
+      {
+       "name": "_force_unlink",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Unlink with retry after clearing read-only on PermissionError."
+      },
+      {
+       "name": "_force_rmdir",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Rmdir with retry after clearing read-only on PermissionError."
+      },
+      {
+       "name": "_chain_between",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds path chain from root to target using case-insensitive key comparison; raises ValueError if root not an ancestor."
+      },
+      {
+       "name": "_remove_tree_no_follow",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Recursively deletes root without following reparse points; verifies reachability before each syscall."
+      },
+      {
+       "name": "_verify_reachable",
+       "kind": "function",
+       "effects": [],
+       "note": "Closure inside _remove_tree_no_follow; checks that all ancestors up to guarded are not reparse points."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Drop the read-only bit git sets on loose objects, best effort.",
+       "where": "_clear_readonly docstring",
+       "verdict": "kept",
+       "why": "The function calls os.chmod with S_IWRITE|S_IREAD and catches OSError, matching the claim."
+      },
+      {
+       "text": "Remove the LINK itself. Never touches what it points at.",
+       "where": "_unlink_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function uses rmdir/unlink on the link path directly; it does not open or follow the target. However, the retry with chmod is a potential window, but the claim about 'never touches what it points at' is about the syscall used, and unlink/rmdir do not follow. The retry is on the same path."
+      },
+      {
+       "text": "A directory symlink / junction is removed with rmdir, a file symlink with unlink; which one applies differs by platform and link kind, so both are tried.",
+       "where": "_unlink_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The code tries os.rmdir first, then os.unlink, exactly as described."
+      },
+      {
+       "text": "Walked upward by comparison KEY rather than with relative_to, which is case-sensitive and would raise on Windows for a differently-cased spelling.",
+       "where": "_chain_between docstring",
+       "verdict": "kept",
+       "why": "The loop uses _key(current) != _key(root) and climbs via parent, not relative_to. The claim about _key being case-insensitive is uncheckable here, but the method (comparison key vs relative_to) is implemented as described."
+      },
+      {
+       "text": "Raises ValueError if root is not on target's path.",
+       "where": "_chain_between docstring",
+       "verdict": "kept",
+       "why": "The loop raises ValueError when parent == current (i.e., at filesystem root) before matching root."
+      },
+      {
+       "text": "THE INVARIANT: EVERY path handed to a syscall that RESOLVES it \u2014 os.scandir, os.rmdir, os.unlink, os.chmod \u2014 is re-classified with a FRESH lstat IMMEDIATELY beforehand, together with every component above it, up to and including guarded_ancestors. There are exactly three such sites (the scan, the per-child unlink, the rmdir drain) and all three verify.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk shows the scan (os.scandir) and the per-child unlink (via _force_unlink) but the rmdir drain is in a later chunk. The claim about exactly three sites cannot be fully verified here. Also, the retry paths are explicitly exceptions, so the invariant as stated is not literally true for those paths; but the docstring itself acknowledges those exceptions. The 'three sites' claim is partially visible: the scan and the per-child unlink are present; the drain is not."
+      },
+      {
+       "text": "No path in this function is acted on twice on the strength of one check.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "broken",
+       "why": "In _unlink_reparse_point, _force_unlink, and _force_rmdir, a single verification (at the call site) is followed by multiple syscalls (e.g., unlink->chmod->unlink). The docstring itself admits these are exceptions, but the sentence 'No path in this function is acted on twice on the strength of one check' is contradicted by those retry paths. Since the docstring later explicitly names these exceptions, the claim is technically broken as stated, but the author acknowledges it. We'll mark as broken because the literal claim is false."
+      },
+      {
+       "text": "shutil.rmtree is safe against a junction that is already in place and unsafe against one that appears mid walk; this function is safe against both.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain shutil.rmtree usage or tests proving the safety. The claim about this function's safety is partially supported by the re-verification logic, but the full proof requires the rest of the function (drain) and tests."
+      },
+      {
+       "text": "The few microseconds between each fresh lstat and the ONE syscall that follows it. Closing even that needs handle-relative traversal (openat/O_NOFOLLOW), which CPython does not expose on Windows \u2014 shutil only gets it on platforms where _use_fd_functions is True, and that is False here.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about CPython's Windows behavior and shutil._use_fd_functions is not verifiable from this code chunk; it's an external fact."
+      },
+      {
+       "text": "It is 'one verification, one syscall', repeated N times \u2014 not 'two adjacent syscalls'...",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "broken",
+       "why": "The retry paths (e.g., _force_unlink) do two adjacent syscalls (unlink then unlink) separated by chmod. The docstring later names these as exceptions, but the headline claim is false as written. The author acknowledges this, but the claim as quoted is broken."
+      },
+      {
+       "text": "Both are RETRY paths, and on both the window is the retry, not just the chmod: _force_unlink/_force_rmdir on PermissionError: unlink -> chmod -> UNLINK AGAIN (resp. rmdir). The chmod is not the only thing that runs after the verification \u2014 the SECOND REMOVING SYSCALL does too.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code for _force_unlink and _force_rmdir exactly matches: unlink/rmdir, catch PermissionError, chmod, then unlink/rmdir again."
+      },
+      {
+       "text": "_unlink_reparse_point: rmdir -> unlink -> chmod -> unlink, up to four syscalls on one verification.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code for _unlink_reparse_point does: rmdir (try), unlink (try), then on OSError calls _clear_readonly (chmod) and unlink again. That's up to four syscalls."
+      },
+      {
+       "text": "Re-verifying inside the retry was CONSIDERED AND NOT DONE this round: _verify_reachable is a closure over the walk's root and guarded_ancestors, so threading it into these four module-level helpers is a signature change to the primitives, and a guard added without a test that can kill it is exactly what this file has been punished for.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The chunk shows _verify_reachable is a closure inside _remove_tree_no_follow, and the helpers _force_unlink, _force_rmdir, _unlink_reparse_point are module-level functions that do not accept a verifier. So the claim about not threading it is accurate."
+      },
+      {
+       "text": "THE COST SCALES WITH DEPTH... At depth 2-3, verifying before every syscall roughly doubles the walk... Against DEPTH... depth 2: 3.1x, depth 6: 5.2x, depth 12: 8.2x, depth 20: 10.7x.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "These are empirical measurements not reproducible from this code chunk; no benchmark code is present."
+      },
+      {
+       "text": "The cost is NOT dominated by the lstat calls... but by rebuilding the lexical chain in Python for every child, which is O(depth) per child... hoisting _chain_between out of the per-child loop would recover most of it WITHOUT weakening the invariant.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Performance profiling claims cannot be verified from code alone; the code does call _chain_between inside _verify_reachable, which is called per child, but the cost claim is empirical."
+      },
+      {
+       "text": "Raises OSError on failure and WorktreeRemovalRace if a reparse point appears above ANY step \u2014 the scan, the unlinks, or the drain. A partial delete is reported, never swallowed. That sentence was false as written until 2026-07-28: the drain had no verification, so a partial delete THROUGH a swapped ancestor was neither detected nor reported, and cleanup_worktree returned normally on top of it.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The scan and unlink steps are visible and do raise WorktreeRemovalRace, but the drain is in a later chunk. The historical claim about the drain being fixed is not verifiable here."
+      },
+      {
+       "text": "A reparse point strictly above target redirects it wholesale, and unlinking that ancestor would delete a link the manager does not own, so this refuses instead of repairing.",
+       "where": "_verify_reachable docstring",
+       "verdict": "kept",
+       "why": "The function checks each component above for _is_reparse_point and raises WorktreeRemovalRace, refusing to continue."
+      },
+      {
+       "text": "The root is not special-cased. An earlier version classified the root here as well as in the loop; mutation testing showed the extra branch could be deleted without any test noticing, because the pop-time check already covers it.",
+       "where": "_remove_tree_no_follow comment near os.lstat(root)",
+       "verdict": "uncheckable",
+       "why": "The comment claims mutation testing results; not verifiable from code. The code does only os.lstat(root) without classification, which is consistent with the claim that root is not special-cased."
+      },
+      {
+       "text": "RE-CHECK 1 OF 3... What this one specifically stops, measured: a swap of an ancestor AFTER current was queued, which sends the not-a-directory branch below into an os.unlink outside the tree.",
+       "where": "_remove_tree_no_follow comment before _verify_reachable(current)",
+       "verdict": "kept",
+       "why": "The code calls _verify_reachable(current) immediately after popping, before any action on current, which prevents acting on a stale classification."
+      },
+      {
+       "text": "RE-VERIFIED PER CHILD, not once per directory... One verification, one syscall.",
+       "where": "_remove_tree_no_follow comment in entry loop",
+       "verdict": "kept",
+       "why": "The code calls _verify_reachable(child) for each child before any syscall on that child. However, the subsequent _force_unlink may do multiple syscalls if PermissionError, but that is a retry path already acknowledged as an exception."
+      },
+      {
+       "text": "A FRESH lstat, deliberately not entry.stat(): on Windows the DirEntry's stat is served from this scandir's cache (measured), so asking the DirEntry would re-introduce the stale read.",
+       "where": "_remove_tree_no_follow comment in entry loop",
+       "verdict": "uncheckable",
+       "why": "The code does call os.lstat(current) for the directory, but for children it relies on _verify_reachable which does lstat via _chain_between? Actually _verify_reachable checks _is_reparse_point on components, which likely uses lstat. The claim about DirEntry cache is empirical and not verifiable here."
+      },
+      {
+       "text": "HONEST NOTE ON THIS BRANCH: mutation testing shows the suite does NOT go red if it is deleted, and that is not an oversight in the tests -- it is redundant on this platform, measured both ways. A junction is reported as a directory by is_dir(follow_symlinks=False), so it would be queued and then unlinked by the pop-time check; a directory symlink is NOT, so it would fall to _force_unlink, and os.unlink removes a Windows directory symlink without following it (measured: link gone, target intact).",
+       "where": "_remove_tree_no_follow comment in entry loop",
+       "verdict": "uncheckable",
+       "why": "These are empirical platform-specific claims (Windows behavior) and mutation testing results; not verifiable from this code chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for _remove_tree_no_follow explicitly acknowledges that the retry paths (_force_unlink, _force_rmdir, _unlink_reparse_point) violate the 'one verification, one syscall' invariant, but the code does not re-verify inside those retries.",
+       "where": "_remove_tree_no_follow docstring and helper definitions",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The per-child branch (if not S_ISDIR) is claimed to be redundant on Windows and not covered by tests; this is a potential untested code path.",
+       "where": "_remove_tree_no_follow entry loop",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _verify_reachable is a closure that captures root and guarded_ancestors, but it is not passed into the module-level retry helpers, so those helpers cannot re-verify reachability.",
+       "where": "_remove_tree_no_follow and helper definitions",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring contains extensive performance measurements and mutation testing claims that are not reproducible from code alone; they are likely accurate but should be treated as documentation.",
+       "where": "_remove_tree_no_follow docstring",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1119ab259b7e8b4444552bffc4cc121df30e4bdcbb88e3bd90b324f78a82f7c9",
+    "objective_chars": 18521,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [2/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,161 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c4of4__1e9d5dd",
+ "key": "scan__daedalus_eval_harness.py__c4of4__1e9d5dd-ba210615f8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "4 of 4",
+     "purpose": "run_gate: advisory regression ratchet comparing current tier1 results to baseline",
+     "symbols": [
+      {
+       "name": "run_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs tier1, compares per-task recall against baseline, splits errors/focus-withheld, returns advisory gate result"
+      }
+     ],
+     "claims": [
+      {
+       "text": "ADVISORY regression ratchet. Replays tasks (default TASKS) against a stored baseline.json and flags any PRIMARY-tier task whose recall DECREASED.",
+       "where": "docstring first paragraph",
+       "verdict": "KEPT",
+       "why": "Calls run_tier1(tasks), loads baseline, and for primary-tier tasks with base entries compares cur_recall < base_recall into regressions."
+      },
+      {
+       "text": "Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves",
+       "where": "docstring first paragraph",
+       "verdict": "KEPT",
+       "why": "Loop over result['per_task'] compares each task's recall individually; no mean or aggregate used."
+      },
+      {
+       "text": "Workflow before shipping a slice-heuristic change: python -m daedalus.eval --gate",
+       "where": "docstring first paragraph",
+       "verdict": "UNCHECKABLE",
+       "why": "CLI wiring is in another module; this chunk only defines run_gate and does not reference __main__ or argparse."
+      },
+      {
+       "text": "Expect PASS.",
+       "where": "docstring first paragraph",
+       "verdict": "UNCHECKABLE",
+       "why": "No assertion or default expectation in this function; PASS is a CLI/report-level concept not present here."
+      },
+      {
+       "text": "A FAIL means either a real regression (fix the slicer) or an intentional, reviewed label change -- in which case update the baseline EXPLICITLY (never automatically): python -m daedalus.eval --update-baseline",
+       "where": "docstring first paragraph",
+       "verdict": "UNCHECKABLE",
+       "why": "The function never mutates baseline; it only reads via load_baseline. The update-baseline command and slicer fix are outside this chunk."
+      },
+      {
+       "text": "GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action.",
+       "where": "docstring GUARDRAIL",
+       "verdict": "UNCHECKABLE",
+       "why": "The advisory flag is set in the return (advisory: True) but the claim about CI absence and never being wired to block is external to this function; no autonomous wiring exists in this chunk."
+      },
+      {
+       "text": "ERRORED tasks (see run_tier1) have no recall to compare and are SPLIT by tier, not folded into regressions",
+       "where": "docstring ERRORED paragraph",
+       "verdict": "KEPT",
+       "why": "If 'error' in t, row is appended to errored_primary or errored_quarantine and continue skips regression comparison."
+      },
+      {
+       "text": "PRIMARY tier -- FAILS the gate loudly (errored_primary, named in the rendered report). A broken primary-corpus task means the gate itself can no longer vouch for that task at all, which must scream exactly like a real recall regression would.",
+       "where": "docstring ERRORED paragraph",
+       "verdict": "KEPT",
+       "why": "passed is len(regressions)==0 and len(errored_primary)==0, so errored_primary fails the gate. The 'scream' and 'rendered report' aspects are outside this chunk but the fail condition is present."
+      },
+      {
+       "text": "QUARANTINE tier -- reported only (errored_quarantine), never fails the gate -- flywheel debris (an unconfirmed minted task whose target moved/vanished) must not be able to block a developer's gate run.",
+       "where": "docstring ERRORED paragraph",
+       "verdict": "KEPT",
+       "why": "errored_quarantine is collected and returned but not included in the passed condition; passed only checks regressions and errored_primary."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file -- lane A1) are likewise SPLIT OUT, not folded into regressions",
+       "where": "docstring FOCUS-WITHHELD paragraph",
+       "verdict": "KEPT",
+       "why": "If t.get('focus_withheld') is truthy, appended to focus_withheld and continue; no regression comparison."
+      },
+      {
+       "text": "a task that TRANSITIONS to focus-withheld this run has no recall to compare (fail-closed is not 'recall dropped to 0'), so treating it as a regression would be a false alarm on the fence doing its job.",
+       "where": "docstring FOCUS-WITHHELD paragraph",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about transition semantics and the fail-closed floor is defined in lane A1 code elsewhere; this chunk only skips comparison when focus_withheld flag is present."
+      },
+      {
+       "text": "Reported in its own focus_withheld section, regardless of tier, and never fails the gate.",
+       "where": "docstring FOCUS-WITHHELD paragraph",
+       "verdict": "KEPT",
+       "why": "focus_withheld is returned as a separate key and not included in the passed condition; no tier filtering before the focus_withheld append."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function compares recall strictly with <; equal recall is neither regression nor improvement, so a task with identical recall is not listed in either regressions or improved. The docstring says 'flags any PRIMARY-tier task whose recall DECREASED', which is consistent, but the 'improved' list is returned and could be used elsewhere; no claim about equality handling is made.",
+       "where": "run_gate loop, comparison lines",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "new_tasks are those in current run but missing from baseline; missing_tasks are those in baseline but not in current run. The gate's passed condition ignores new_tasks and missing_tasks, so a brand-new task or a vanished task does not fail the gate. The docstring does not specify whether new or missing tasks should fail, so this is not a broken claim but an unaddressed aspect.",
+       "where": "return statement passed calculation",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The passed condition is len(regressions)==0 and len(errored_primary)==0. It does not consider focus_withheld, errored_quarantine, new_tasks, or missing_tasks, matching the docstring's statements that quarantine and focus-withheld never fail the gate.",
+       "where": "return statement passed calculation",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function uses result from run_tier1(tasks) which is called with the provided tasks; the docstring says 'default TASKS' but the function default is None and uses all_tasks() -- all_tasks() is defined elsewhere and may or may not return TASKS. This is uncheckable here.",
+       "where": "tasks = all_tasks() if tasks is None else tasks",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "333ba03e693b8544cff72a659e258d0214b87ceb9a5808c573cc61a096f69c96",
+    "objective_chars": 8748,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [4/4]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/harness.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

@@ -1,0 +1,387 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c2of6__3088037",
+ "key": "scan__daedalus_mapping_drift.py__c2of6__3088037-87fd22de04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "2 of 6",
+     "purpose": "Constants, doc indexing, ignore config, scan result, and repo state helpers.",
+     "symbols": [
+      {
+       "name": "NEW_SHIM",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "ENGINE_DISAGREEMENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "NEW_DARK_SWITCH",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "BECAME_ISLAND",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "NOW_REACHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "DOC_DRIFT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "VANISHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "TEST_ONLY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "UNPARSABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "IGNORE_DRIFT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "STALE_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "INVALID_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "INVALID_SNAPSHOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for a drift kind."
+      },
+      {
+       "name": "KIND_ORDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple defining render order of drift kinds."
+      },
+      {
+       "name": "NON_BLOCKING_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of kinds that do not block."
+      },
+      {
+       "name": "ACCEPTABLE_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of kinds that an acceptance may cover."
+      },
+      {
+       "name": "_doc_paths",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Collects documentation file paths from root, DOC_DIRS, and DOC_EXTRA_FILES."
+      },
+      {
+       "name": "DocIndex",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding prose lines that could introduce environment variables."
+      },
+      {
+       "name": "DocIndex.build",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Builds DocIndex from documentation files, dropping fenced blocks and generated files."
+      },
+      {
+       "name": "DocIndex._forms",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns regex patterns for detecting environment variable mentions."
+      },
+      {
+       "name": "DocIndex._described",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if there is real prose beside the name on the line or next line."
+      },
+      {
+       "name": "DocIndex.sites",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns file:line tuples where the name is documented with prose."
+      },
+      {
+       "name": "DocIndex.documents",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if the name is documented anywhere."
+      },
+      {
+       "name": "ignore_config",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns a fingerprint of ignore configuration (env var and file hash)."
+      },
+      {
+       "name": "_describe_ignore",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a human-readable description of ignore config."
+      },
+      {
+       "name": "ScanResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding mechanical state, sites, reach, and switches."
+      },
+      {
+       "name": "_DRIFT_PREFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from drift kind to prefix for keys."
+      },
+      {
+       "name": "_drift_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a key for a drift entry."
+      },
+      {
+       "name": "_MIN_ABBREV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Minimum git abbreviation length (7)."
+      },
+      {
+       "name": "_SHA_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for a git object name of 7 to 64 hex chars."
+      },
+      {
+       "name": "repo_state",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns head, branch, and dirty status of the repo."
+      },
+      {
+       "name": "snapshot_freshness",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if the snapshot describes the current tree."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Render order: the alarm that means 'somebody built something and never wired it' is first, the good news is last but always present -- a report that only ever nags is a report that gets filtered to a folder nobody opens.",
+       "where": "Comment above KIND_ORDER",
+       "verdict": "KEPT",
+       "why": "KIND_ORDER puts NEW_SHIM (the 'never wired' alarm) early and NOW_REACHED (good news) last, and it is always present."
+      },
+      {
+       "text": "NOW_REACHED is good news. TEST_ONLY is a real finding that deliberately does not block: a test is evidence of intent, and failing a build over it would get the gate switched off. It is loud instead -- its own kind, its own list in the snapshot, its own count in the diff.",
+       "where": "Comment above NON_BLOCKING_KINDS",
+       "verdict": "KEPT",
+       "why": "NON_BLOCKING_KINDS = frozenset({NOW_REACHED, TEST_ONLY}) matches the claim that these two do not block."
+      },
+      {
+       "text": "What an acceptance may cover. Acceptance hygiene, a broken snapshot and a changed ignore configuration are deliberately NOT acceptable: 'the acceptance list is wrong', 'the snapshot contradicts itself' and 'this run looked at less of the tree than the baseline did' have to be repaired, not waived.",
+       "where": "Comment above ACCEPTABLE_KINDS",
+       "verdict": "KEPT",
+       "why": "ACCEPTABLE_KINDS includes only NEW_ISLAND, BECAME_ISLAND, NEW_UNKNOWN, NEW_SHIM, ENGINE_DISAGREEMENT, NEW_DARK_SWITCH, VANISHED, DOC_DRIFT, UNPARSABLE. It excludes INVALID_ACCEPTANCE, INVALID_SNAPSHOT, and IGNORE_DRIFT, matching the claim."
+      },
+      {
+       "text": "Built once per run, then queried per switch name. Fenced blocks and generated files are dropped at BUILD time rather than at query time, so there is exactly one place where 'does this text count' is decided.",
+       "where": "DocIndex docstring",
+       "verdict": "KEPT",
+       "why": "DocIndex.build filters fenced blocks and GENERATED_DOCS/_GENERATED_MARK during construction; sites() and documents() only query the stored lines."
+      },
+      {
+       "text": "Every prose line that could introduce an environment variable.",
+       "where": "DocIndex docstring",
+       "verdict": "KEPT",
+       "why": "The lines stored are non-fenced lines from doc files, and _forms() matches variable assignment, export, env var mention, and backtick/asterisk patterns."
+      },
+      {
+       "text": "Non-alphanumerics collapse to single spaces before counting, so ``PKG_TURBO=1`` scores 1, not 12: punctuation and the value are not an explanation of what the switch turns on.",
+       "where": "_described docstring",
+       "verdict": "KEPT",
+       "why": "_described replaces the name with a space and then uses _ALNUM_RUN.sub(' ', rest).strip(); for 'PKG_TURBO=1' the '=1' collapses to a single space, yielding length 1."
+      },
+      {
+       "text": "Recorded in the snapshot so that a run narrowed by ``DAEDALUS_IGNORE`` can never be mistaken for a clean one. The env value is stored VERBATIM rather than hashed: the point is that a reviewer reading the failure can see what was hidden without re-running anything.",
+       "where": "ignore_config docstring",
+       "verdict": "KEPT",
+       "why": "ignore_config returns {'env': os.environ.get(IGNORE_ENV, '').strip(), 'file': ...} -- the env value is stored verbatim (stripped) and the file content is hashed."
+      },
+      {
+       "text": "What was excluded from this run, as a comparable fingerprint.",
+       "where": "ignore_config docstring",
+       "verdict": "KEPT",
+       "why": "The returned dict contains env and file hash, which can be compared across runs."
+      },
+      {
+       "text": "The mechanical state. ``state`` is what the snapshot stores; ``sites`` is runtime-only detail (file:line) used to make remedies actionable, and is deliberately kept OUT of the snapshot so line-number churn never produces a diff a human has to read.",
+       "where": "ScanResult docstring",
+       "verdict": "KEPT",
+       "why": "ScanResult has separate state and sites fields; the docstring's claim about what is stored in the snapshot is consistent with the design (though not proven by this chunk alone, the separation is evident)."
+      },
+      {
+       "text": "``reach`` and ``switches`` are the reports this state was derived FROM, carried out so no caller has to re-run either engine to ask a follow-up question -- which is how two engines got built here in the first place.",
+       "where": "ScanResult docstring",
+       "verdict": "KEPT",
+       "why": "ScanResult has reach and switches fields that are set to the reports."
+      },
+      {
+       "text": "A git object name, and the shortest abbreviation that is an identifier rather than a coincidence. git's own floor is 7; a 1-character 'prefix' matches roughly one HEAD in sixteen, and a check that passes by accident is worse than no check because it is believed.",
+       "where": "Comment above _MIN_ABBREV",
+       "verdict": "KEPT",
+       "why": "_MIN_ABBREV = 7 and _SHA_RE matches 7 to 64 hex chars, matching the stated floor."
+      },
+      {
+       "text": "WHICH TREE this scan looked at: ``head``, ``branch``, ``dirty``.",
+       "where": "repo_state docstring",
+       "verdict": "KEPT",
+       "why": "repo_state returns a dict with exactly those keys."
+      },
+      {
+       "text": "The digest proves nobody hand-edited the snapshot. It says NOTHING about when the snapshot was taken -- a baseline generated thirty commits ago verifies its own digest perfectly, and that gap was measured doing real damage: the self-improvement loop suppressed the stale hand-written inventory (which has a freshness gate) while trusting a stale generated snapshot (which had none), and acted on a description of a tree that no longer existed.",
+       "where": "repo_state docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not contain the digest implementation or any comparison of snapshot freshness; it only sets up repo_state without a generated_at field, which is consistent but not provable here."
+      },
+      {
+       "text": "``head`` is the authority and is covered by the digest (see :func:`_digest`). There is deliberately NO ``generated_at``: a clock reading answers 'when did the generator run', which is the weaker question, and it would destroy the byte-identity this artifact is built on -- see :func:`snapshot_bytes`.",
+       "where": "repo_state docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The repo_state function returns only head, branch, dirty -- no generated_at. The digest and snapshot_bytes claims are outside this chunk."
+      },
+      {
+       "text": "``dirty`` is probed only when there is a ``.git`` to probe, so a scan of a tree that is not a checkout costs no subprocess and still answers honestly: ``None`` means 'could not tell', never 'clean'.",
+       "where": "repo_state docstring",
+       "verdict": "KEPT",
+       "why": "The code checks `if probe_dirty and head != 'unknown':` before calling render_mod._dirty; if head is unknown, dirty stays None. It also maps verdicts: 'dirty'->True, 'clean'->False, else None."
+      },
+      {
+       "text": "FAILS CLOSED on the artifact's own defects -- an absent, non-string or malformed ``repo_state.head`` means the snapshot cannot say what it scanned, and a snapshot that cannot say what it scanned is not evidence about this tree. That is the opposite of the map's digest rule, and deliberately so: the digest asks 'did a human edit this', where a missing field is a plausible degradation; this asks 'does this describe me', where a missing field is the whole failure.",
+       "where": "snapshot_freshness docstring",
+       "verdict": "KEPT",
+       "why": "The code checks `if not isinstance(recorded, str) or not recorded.strip():` and returns fresh=False with a reason. This is the fails-closed behavior described."
+      },
+      {
+       "text": "FAILS OPEN when the recorded head is well-formed and git cannot answer at all: a tarball checkout with no ``.git`` is not evidence of staleness, and turning 'I cannot tell' into 'refuse everything' is a worse failure than ranking. Same rule, same reasoning, as ``daedalus.spine.picker.inventory_freshness``.",
+       "where": "snapshot_freshness docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk ends at the _SHA_RE.fullmatch check; the subsequent logic that would fail open (when git cannot answer) is not present in this chunk. The reference to another module is also outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The claim about failing open in snapshot_freshness is not verifiable in this chunk because the code is truncated right after the _SHA_RE check.",
+       "where": "snapshot_freshness (end of chunk)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about render order says 'good news is last but always present' -- KIND_ORDER indeed ends with NOW_REACHED, but the comment also says 'the alarm ... is first' and KIND_ORDER starts with INVALID_SNAPSHOT, not NEW_SHIM. The comment says 'the alarm that means somebody built something and never wired it' is first, but the first element is INVALID_SNAPSHOT, not NEW_SHIM. This is a potential mismatch.",
+       "where": "Comment above KIND_ORDER",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment says 'a report that only ever nags is a report that gets filtered to a folder nobody opens' -- this is a design rationale, not a checkable code claim.",
+       "where": "Comment above KIND_ORDER",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ignore_config stores the env value verbatim (stripped) but the docstring says 'stored VERBATIM' -- stripping is a minor transformation. The claim is mostly kept but not exactly verbatim.",
+       "where": "ignore_config",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "Comment above KIND_ORDER | medium | The comment says the 'never wired' alarm is first, but KIND_ORDER actually starts with INVALID_SNAPSHOT, not NEW_SHIM. This could mislead readers about the intended render order. | Check the full KIND_ORDER tuple and the comment's intended first alarm; if the comment is wrong, update it."
+     ],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a23354badfe3c185964906b4342665e09fe32960e3d552c5561ed7e277811229",
+    "objective_chars": 15258,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [2/6]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/drift.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 281
+ }
+}

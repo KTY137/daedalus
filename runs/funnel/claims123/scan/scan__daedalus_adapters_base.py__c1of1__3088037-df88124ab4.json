@@ -1,0 +1,185 @@
+{
+ "task_id": "scan__daedalus_adapters_base.py__c1of1__3088037",
+ "key": "scan__daedalus_adapters_base.py__c1of1__3088037-df88124ab4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/adapters/base.py",
+     "chunk": "1 of 1",
+     "purpose": "Defines the abstract AgentAdapter interface for agent sessions.",
+     "symbols": [
+      {
+       "name": "AgentAdapter",
+       "kind": "class",
+       "effects": [],
+       "note": "Abstract base class with eight abstract methods."
+      },
+      {
+       "name": "capabilities",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method returning AgentCapabilities."
+      },
+      {
+       "name": "create_session",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method returning session ID string."
+      },
+      {
+       "name": "send",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method sending a message."
+      },
+      {
+       "name": "events",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async generator yielding AgentEvent."
+      },
+      {
+       "name": "approve",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method approving a tool call."
+      },
+      {
+       "name": "reject",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method rejecting a tool call."
+      },
+      {
+       "name": "interrupt",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method interrupting the session."
+      },
+      {
+       "name": "terminate",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract async method terminating the session."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Return the capabilities of this adapter.",
+       "where": "line 7",
+       "verdict": "KEPT",
+       "why": "Method signature declares return type AgentCapabilities."
+      },
+      {
+       "text": "Create a new session and return the session ID.",
+       "where": "line 11",
+       "verdict": "KEPT",
+       "why": "Signature declares str return."
+      },
+      {
+       "text": "Send a message to the agent session.",
+       "where": "line 15",
+       "verdict": "KEPT",
+       "why": "Signature takes session_id and message."
+      },
+      {
+       "text": "Iterate over events from the agent session.",
+       "where": "line 19",
+       "verdict": "KEPT",
+       "why": "Returns AsyncIterator[AgentEvent]."
+      },
+      {
+       "text": "Approve a pending tool request.",
+       "where": "line 23",
+       "verdict": "KEPT",
+       "why": "Takes session_id and call_id with optional result."
+      },
+      {
+       "text": "Reject a pending tool request.",
+       "where": "line 27",
+       "verdict": "KEPT",
+       "why": "Takes session_id, call_id, and reason."
+      },
+      {
+       "text": "Interrupt the agent session.",
+       "where": "line 31",
+       "verdict": "KEPT",
+       "why": "Takes session_id and returns None."
+      },
+      {
+       "text": "Terminate the agent session.",
+       "where": "line 35",
+       "verdict": "KEPT",
+       "why": "Takes session_id and returns None."
+      }
+     ],
+     "observations": [
+      {
+       "what": "All methods are abstract with no implementation; the interface defines contracts only.",
+       "where": "lines 1-36",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The approve method has a default result=None, but the reject method requires reason with no default; asymmetry in parameter handling.",
+       "where": "lines 23-28",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The class imports AgentCapabilities and AgentEvent from .events, but this chunk does not define or verify those types.",
+       "where": "line 3",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "daedalus/adapters/base.py | low | Abstract interface only; implementations may violate contracts silently | Check concrete adapters for behavior"
+     ],
+     "todos": [],
+     "status": "done",
+     "summary": "Abstract AgentAdapter interface with eight abstract methods; all docstring claims match signatures.",
+     "files_changed": [],
+     "tests_run": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4bcdfa4e1e41f39b2d7acb3ea282f22d6164b66602ae8ffd86cfd5a801e99fd2",
+    "objective_chars": 4432,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/adapters/base.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/adapters/base.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,174 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c3of4__3088037",
+ "key": "scan__daedalus_mapping_inventory.py__c3of4__3088037-f21d5109db",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read chunk 3 of daedalus/mapping/inventory.py: build(), inventory_bytes(), load(), write_inventory(), refresh() entry, packaging ghost/orphan feature construction.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 586 | medium | build docstring claims 'Writes nothing.' but the chunk only shows construction; write occurs in write_inventory/refresh, not here, so claim is consistent within chunk. | verify no filesystem writes in build body (none in chunk).",
+     "line 561-575 | medium | packaging ghost/orphan features are appended with 'tests': [] always; if later code expects test provenance, this may lose information. | inspect rest of file for test harvesting of stale features.",
+     "line 650-678 | medium | refresh reads old annotations before overwrite, but harvest() is defined elsewhere; its behavior is uncheckable here. | inspect harvest implementation.",
+     "line 650 | medium | refresh silently swallows __error__ from load (sets old={}), potentially dropping user annotations if file is corrupt. | check if any warning is emitted elsewhere.",
+     "line 586 | low | build uses `reports or render_mod.analyse_once(...)`; if reports is an empty tuple (falsy), it re-runs analysis, which may be unintended. | confirm callers never pass empty tuple.",
+     "line 586 | low | build docstring says 'the configuration the PRODUCT uses' but no evidence in chunk; uncheckable. | inspect render.analyse_once call sites."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "3 of 4",
+     "purpose": "Constructs stale packaging features, implements build() document assembly, and starts i/o helpers (inventory_bytes, load, write_inventory, refresh).",
+     "symbols": [
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Assembles inventory document dict from render reports and annotations; writes nothing."
+      },
+      {
+       "name": "inventory_bytes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Serializes doc dict to JSON string with indent=2 and trailing newline."
+      },
+      {
+       "name": "load",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads JSON file; returns None if missing, dict with __error__ on parse/read failure."
+      },
+      {
+       "name": "write_inventory",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes JSON text to path, creating parent directories; returns text."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Regenerates inventory in place, carrying human annotations forward; chunk shows only the start of the function."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derive the whole document. Writes nothing.",
+       "where": "build docstring (line ~586)",
+       "verdict": "kept",
+       "why": "The function body in this chunk only constructs a dict and returns it; no filesystem writes are present."
+      },
+      {
+       "text": "reports is the (reach, switches) pair from daedalus.mapping.render.analyse_once. When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all.",
+       "where": "build docstring (line ~589)",
+       "verdict": "kept",
+       "why": "The code uses `reports or render_mod.analyse_once(root, index)` and imports render_mod from .render, matching the claim."
+      },
+      {
+       "text": "Calling reach.analyse(root) with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+       "where": "build docstring (line ~592)",
+       "verdict": "uncheckable",
+       "why": "The chunk does not call reach.analyse directly; the claim refers to historical context outside this chunk."
+      },
+      {
+       "text": "Reported, NOT filed as a stale feature. Its remedy is 'add it to the list', the exact opposite verb from the stale remedy ('remove it'), and handing a fixer the wrong verb is how a finding becomes damage.",
+       "where": "comment near packaging dict (line ~574)",
+       "verdict": "kept",
+       "why": "The code places on_disk_but_unlisted under packaging and does not add it to stale_features; ghosts are added as stale features with detector 'packaging_ghost'."
+      },
+      {
+       "text": "The count that cannot be lowered by deleting a test.",
+       "where": "comment on 'unreached' count (line ~645)",
+       "verdict": "kept",
+       "why": "The code computes 'unreached' as len(set(islands) | set(shims) | set(unknown)) and later as sorted union, which is robust to moving modules between island/unknown by deleting tests."
+      },
+      {
+       "text": "The prose summaries the previous schema carried. Derived from the SAME pass as the structured features, so the discrepancy the picker reports when the two disagree cannot occur by construction.",
+       "where": "comment near 'islands' key (line ~657)",
+       "verdict": "kept",
+       "why": "The keys islands, shims, unknown, unreached, stale are derived from the same grouped/status data in this function, not from a separate pass."
+      },
+      {
+       "text": "unreached is here because the island COUNT is gameable and was demonstrated to be: 'island' means unreachable but imported by a test, so deleting the test moves the module to unknown and the island count goes DOWN while the dead code stays. The union is the number that cannot be improved by deleting a test, and the set diff against the previous run is the honest signal -- not the count.",
+       "where": "comment near 'unreached' key (line ~657)",
+       "verdict": "kept",
+       "why": "The code uses the union of islands, shims, and unknown for 'unreached', which cannot decrease by moving a module from island to unknown; the rationale matches."
+      },
+      {
+       "text": "Regenerate in place, carrying the human half forward. The old document is read for its annotations BEFORE it is overwritten, and a first run over a schema-1 file harvests them out of the hand-written entries. Refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "refresh docstring (line ~650)",
+       "verdict": "uncheckable",
+       "why": "The chunk shows reading old via load() and calling harvest(), but the actual overwrite and harvest logic are in later lines not present; cannot verify the full claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Packaging ghost features are always created with 'tests': [] even if annotations or other sources might provide test provenance.",
+       "where": "line ~561-575",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "refresh() silently discards old annotations if the file is corrupt (load returns {'__error__': ...}) by setting old = {}.",
+       "where": "line ~656",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "build() uses `reports or render_mod.analyse_once(...)`; if reports is an empty tuple (falsy), it will re-run analysis even though a (possibly intentionally empty) report was passed.",
+       "where": "line ~596",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The docstring claim about PRODUCT configuration is not verifiable within this chunk; it depends on render.analyse_once usage elsewhere.",
+       "where": "line ~589",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c426d57491eaeb992c2e59fdfda699c56d6b2999819db763119983e209b91096",
+    "objective_chars": 15596,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [3/4]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

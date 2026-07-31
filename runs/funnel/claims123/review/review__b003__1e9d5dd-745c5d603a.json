@@ -1,0 +1,300 @@
+{
+ "task_id": "review__b003__1e9d5dd",
+ "key": "review__b003__1e9d5dd-745c5d603a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "hypothesis": "independence-weights-vs-endpoints",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied, so the claim that independence_class is the only place independence is determined cannot be verified; the hypothesis itself admits enforcement may vary, but without the actual code there is no evidence of a defect.",
+       "check": "Inspect daedalus/council/vendors/model_family.py and daedalus/council/vendors.py; grep for 'independence_class' and check all call sites."
+      },
+      {
+       "hypothesis": "liveness-quality-exit-code-leak",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the hypothesis is speculative about inconsistent severity handling without showing any concrete divergence. The refuting condition (a shared classifier) is plausible but unverified.",
+       "check": "Inspect all probe checkers and find the function that sets exit code; verify it uses a single severity classifier."
+      },
+      {
+       "hypothesis": "trusted-lane-inconsistency",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the two claims could be consistent (e.g., default lane is trusted but the egress allow-list disable is still enforced). The hypothesis does not demonstrate a contradiction.",
+       "check": "Inspect vendors module for OllamaAdapter default lane and the trusted lane implementation."
+      },
+      {
+       "hypothesis": "recall_A==1.0-dependency",
+       "verdict": "NARROWED",
+       "line": 0,
+       "why": "The strict '>' comparison depends on the invariant recall_A==1.0, which is data-dependent. Without seeing the task data, the claim is plausible but not confirmed. The narrow version is that the comparison is fragile if the invariant changes.",
+       "check": "Search for hand_reachable tasks and verify recall_A is always 1.0; if not, the comparison may be wrong."
+      },
+      {
+       "hypothesis": "reporting-contract-broken",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The code snippet shows _type_edge_keys returns empty set on error without logging, but the docstring promise might be fulfilled by a caller or wrapper outside the chunk. Without the full module, cannot confirm the contract is broken.",
+       "check": "Read the full _type_edge_keys function and search for any logging or reporting mechanism; also inspect callers to see if they handle the empty result."
+      },
+      {
+       "hypothesis": "prompt-size-computation-truncation",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The function body is truncated, so it's unknown whether the implementation matches the docstring. The hypothesis is speculative; need the full implementation to judge.",
+       "check": "Read the full dry_run_plan function and verify it builds a sample body and measures its size."
+      },
+      {
+       "hypothesis": "promote-candidates-never-raises",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The chunk shows it catches PromotionUnavailable, but it's not shown whether _promote_locked and GitWorktreeManager exceptions are caught. Without the full function, cannot confirm the contract is violated.",
+       "check": "Read the full promote_candidates function and check if all exceptions from _promote_locked and GitWorktreeManager are caught."
+      },
+      {
+       "hypothesis": "architecture-map-scan-performance",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the claim is about performance which is not verifiable from the chunk. The hypothesis is speculative and lacks evidence of a defect.",
+       "check": "Read the scan() implementation and measure its performance on a typical repository."
+      },
+      {
+       "hypothesis": "exception-type-mismatch",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "Call sites are not visible, so it's unknown if they catch PrimaryCheckoutTouch. The hypothesis is speculative; need to inspect call sites.",
+       "check": "Search for callers of _refuse_primary_checkout and verify they catch PrimaryCheckoutTouch."
+      },
+      {
+       "hypothesis": "path-safety-inconsistency",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The claim about _remove_tree_no_follow having only two verification sites is based on partial code; the drain is not shown. Also, council_store_path validation may be stricter than described. Need full implementations.",
+       "check": "Read the full _remove_tree_no_follow and council_store_path to verify the number of verification sites and the validation regex."
+      },
+      {
+       "hypothesis": "reporting-contract-broken (type_edge_keys and pyproject_packages)",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "Both modules return empty on error without visible reporting, but the docstring promises reporting. The reporting could be done by callers or in omitted bodies. Need full implementations.",
+       "check": "Read the full functions and search for logging or side-channel reporting; inspect callers."
+      },
+      {
+       "hypothesis": "broken-verification-invariant",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The rmdir drain is not shown, so the third verification site may exist. Also, chmod calls might be preceded by verification in the omitted code. Need full implementation.",
+       "check": "Read the full _remove_tree_no_follow and verify the drain contains a fresh lstat and all chmod calls are preceded by verification."
+      },
+      {
+       "hypothesis": "never-raises-contradictions",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The unguarded operations may be protected by try/except in the full function bodies. The docstring promises may be accurate. Need full implementations.",
+       "check": "Read the full functions evaluate_change, graph_brief, and write_baseline to see if exceptions are caught."
+      },
+      {
+       "hypothesis": "deleted-file-slice-target",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The logic for anchor_pool construction is not fully shown; it may filter out deleted files. The hypothesis is plausible but not confirmed from the excerpt.",
+       "check": "Read the full _mint_from_diffs and resolve_task_repo to see if deleted files are filtered from anchor_pool."
+      },
+      {
+       "hypothesis": "duplicated-guards-diverge",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the hypothesis is a general pattern without specific evidence of divergence. The refuting condition (shared module) is plausible.",
+       "check": "Search for shared guard implementations and verify all paths use the same module."
+      },
+      {
+       "hypothesis": "cross-language-family-consistency",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the family definitions are in the same module as the filter, so consistency is likely. The hypothesis is speculative.",
+       "check": "Inspect mint.py to confirm _language_family is used only in that module for filtering."
+      },
+      {
+       "hypothesis": "vendor-keys-duplication",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "Without the actual modules, it's unknown if VENDOR_KEYS is duplicated or imported. The hypothesis is plausible but unverified.",
+       "check": "Inspect council/session.py and adapter.py to see if VENDOR_KEYS is imported or defined separately."
+      },
+      {
+       "hypothesis": "gate-relay-authority",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The _relay_gate implementation is not shown; it may not run a second verify. The hypothesis is speculative.",
+       "check": "Read the full _relay_gate function to see if it runs any test command."
+      },
+      {
+       "hypothesis": "uncheckable-contract-drift",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "This is a general pattern without specific evidence. Without source, cannot confirm any drift.",
+       "check": "Search for shared tests or type checks that enforce cross-module contracts."
+      },
+      {
+       "hypothesis": "fail-closed-promise-not-enforced",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The enforcement mechanisms are not visible; there might be a shared helper or call-site discipline. The hypothesis is plausible but unverified.",
+       "check": "Inspect the implementations of _PromotionLock, write_baseline, and _CumulativeGateCancelled to see if enforcement is centralized."
+      },
+      {
+       "hypothesis": "never-raises-vs-unguarded-subscript",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The unguarded KeyError in eval_task_tier1 might be caught by a wrapper or decorator. The hypothesis is plausible but not confirmed without seeing the full function and its callers.",
+       "check": "Read the full eval_task_tier1 and check if task['repo'] is guarded by try/except or if a shared decorator catches exceptions."
+      },
+      {
+       "hypothesis": "fails-open-contract-not-visible",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The code that implements fail-open is not in the chunk, so it's unknown if it exists. The hypothesis is speculative.",
+       "check": "Read the full snapshot_freshness function and picker.inventory_freshness to see if they fail open."
+      },
+      {
+       "hypothesis": "subprocess-isolation-claims",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source file was supplied; the modules may each have their own isolation strategy but that doesn't imply a defect. The hypothesis is a general concern without evidence.",
+       "check": "Inspect each module's subprocess spawning code and verify isolation."
+      },
+      {
+       "hypothesis": "recheck-count-mismatch",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The drain is not shown, so the third re-check may exist. The hypothesis is plausible but not confirmed.",
+       "check": "Read the full _remove_tree_no_follow including the drain to count re-checks."
+      },
+      {
+       "hypothesis": "secret-floor-bypass",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The provider implementation and secret_floor_rule are not in the chunk, so the cross-module interaction is unverified. The hypothesis is plausible but not confirmed.",
+       "check": "Inspect providers/deepseek.py and the secret_floor_rule implementation to verify the claim."
+      },
+      {
+       "hypothesis": "lane-default-divergence",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "Without the actual code, it's unknown if the council overrides lane defaults from a single source. The hypothesis is plausible but unverified.",
+       "check": "Inspect adapters.py, runtime_registry.py, and council.py to see where lane defaults are set and used."
+      },
+      {
+       "hypothesis": "same-word-different-meaning",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "This is a meta-claim about terminology, not a concrete defect. Without source, cannot confirm any inconsistency.",
+       "check": "Review the codebase for a consistent definition of 'never' in design docs."
+      },
+      {
+       "hypothesis": "configure-valueerror-missing",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The registry functions may raise ValueError for invalid specs, fulfilling the promise. The hypothesis is plausible but not confirmed without seeing those functions.",
+       "check": "Inspect the registry functions called by configure to see if they raise ValueError on invalid specs."
+      },
+      {
+       "hypothesis": "historical-claims-without-provenance",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "This is a concern about documentation, not a code defect. The claims may be true even if not in the code. The hypothesis is not actionable.",
+       "check": "Search the repository for incident reports or commit messages that corroborate the historical claims."
+      },
+      {
+       "hypothesis": "blanket-never-contradictions",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The contradictions are based on partial code; the actual implementations may ensure the guarantees. Need full code to confirm.",
+       "check": "Read the full implementations of screen_egress, publish_to_pr, record_attempt, WorktreeManager, and drift to verify the claims."
+      },
+      {
+       "hypothesis": "evidence-vs-verdict",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The two modules may refer to different councils or the verdict may be produced downstream. Without the full code, cannot confirm ambiguity.",
+       "check": "Inspect the two council modules to see if they are the same council and how the output is used."
+      },
+      {
+       "hypothesis": "fail-closed-guards-inconsistent",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The exact string compare on role may be intentional and documented. Without seeing the full code, cannot confirm inconsistency.",
+       "check": "Inspect _is_focus_withheld and the docstring to see if the comparison is intended."
+      },
+      {
+       "hypothesis": "ollama-host-routing-contradiction",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The implementation is not fully visible, so it's unknown if OLLAMA_HOST is read elsewhere. The hypothesis is plausible but unverified.",
+       "check": "Search the codebase for OLLAMA_HOST usage and verify it is not read for routing."
+      },
+      {
+       "hypothesis": "cumulative-gate-cancellation-confusion",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The caller may check the exception type and reason string. Without seeing the caller code, cannot confirm confusion.",
+       "check": "Inspect promote_candidates and run_write_wave to see how they handle _CumulativeGateCancelled."
+      },
+      {
+       "hypothesis": "unavailable-vs-failure-misclassification",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The gate may explicitly exclude 'unavailable' from failure, or graph_brief's missing index may not reach the gate. Without the full gate logic, cannot confirm inconsistency.",
+       "check": "Inspect render_gate to see how it treats 'unavailable' statuses from canary and graph_brief."
+      },
+      {
+       "hypothesis": "council-dedupe-policy-vs-transcript-append",
+       "verdict": "NEEDS_EVIDENCE",
+       "line": 0,
+       "why": "The append logic is not visible, so it's unknown if it deduplicates. The hypothesis is plausible but unverified.",
+       "check": "Read the append logic in council.py to see if it checks for existing bodies."
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "753b49ded7db893b56d38bad95a95807754b35509af8682e3cb8b6532513550b",
+    "objective_chars": 41383,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 3 (36 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 3,
+  "inputs": 36
+ }
+}

@@ -1,0 +1,319 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c1of3__1e9d5dd",
+ "key": "scan__daedalus_eval_graph_delta.py__c1of3__1e9d5dd-d244cb70df",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/eval/graph_delta.py: module motivation, corpus loader, dataclasses, AST reference/literal layers; most claims uncheckable pending later chunks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/graph_delta.py",
+     "chunk": "1 of 3",
+     "purpose": "Introduces the module's motivation and implements corpus loading, LayerDelta/DeltaResult dataclasses, and AST-based reference/literal extraction layers.",
+     "symbols": [
+      {
+       "name": "DELTA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Module-level string constant set to \"1\"."
+      },
+      {
+       "name": "load_mutations",
+       "kind": "function",
+       "effects": [],
+       "note": "Imports tools/gate_discrimination.py via importlib, registers it in sys.modules before exec, and returns tuple(mod.MUTATIONS)."
+      },
+      {
+       "name": "LayerDelta",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with layer, added, removed; moved property returns len(added)+len(removed); to_dict returns dict."
+      },
+      {
+       "name": "DeltaResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Mutable dataclass with mutation_id, defect_class, file, applied, layers, skipped_reason; SCORING_LAYERS constant; detected and detected_leaky properties; to_dict method."
+      },
+      {
+       "name": "_ast_refs",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses text with ast, returns (set of ref strings, error string). Counts Name and Attribute occurrences per function, excluding docstrings, and flattens as multiset."
+      },
+      {
+       "name": "_literals_by_function",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses text with ast, returns dict mapping function name to Counter of repr(clipped) constant values, excluding docstrings and Ellipsis."
+      },
+      {
+       "name": "_module_literals",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses text with ast, returns set of repr(clipped) constant values from module-level Assign/AnnAssign statements, flattened as multiset."
+      },
+      {
+       "name": "_literal_keys",
+       "kind": "function",
+       "effects": [],
+       "note": "Combines _module_literals and _literals_by_function into a set of keys with function prefix."
+      },
+      {
+       "name": "_structure_by_function",
+       "kind": "function",
+       "effects": [],
+       "note": "Starts parsing with ast and returns dict; the rest of the function is not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the layered graph carries a second, independent signal",
+       "where": "module docstring line 8",
+       "verdict": "uncheckable",
+       "why": "The claim about the graph's signal is tested by the rest of the module (measure, run, etc.) which is not in this chunk."
+      },
+      {
+       "text": "a graph delta can tell them apart AND say what changed",
+       "where": "module docstring line 12",
+       "verdict": "uncheckable",
+       "why": "The module's measurement functions are in later chunks; this chunk only provides the data structures and extraction layers."
+      },
+      {
+       "text": "The obvious corpus is the 91 attempts in runs/spine/spine.sqlite3. It cannot answer the question: 69 of the 82 completed attempts carry a diff and all 69 are state=clean",
+       "where": "module docstring lines 15-17",
+       "verdict": "uncheckable",
+       "why": "The claims about the corpus (91 attempts, 82 completed, 69 clean) refer to data in runs/spine/spine.sqlite3, which is not present in this chunk."
+      },
+      {
+       "text": "Mutation.predicted_survive exists in the corpus for exactly this reason",
+       "where": "module docstring line 23",
+       "verdict": "uncheckable",
+       "why": "The Mutation class and its fields are defined in tools/gate_discrimination.py, not in this chunk."
+      },
+      {
+       "text": "a mutation that DELETES A CALL ( _verify_reachable(...) -> pass ) should be visible \u2014 an edge disappears",
+       "where": "module docstring line 27",
+       "verdict": "uncheckable",
+       "why": "This is a prediction about the behavior of the full measurement (measure, run) which is in later chunks; this chunk only implements _ast_refs."
+      },
+      {
+       "text": "a mutation that makes a condition vacuous ( if X not in Y: -> if False: ) should be visible \u2014 the identifiers X and Y leave that function's body",
+       "where": "module docstring line 29",
+       "verdict": "uncheckable",
+       "why": "Same as above: the prediction depends on measure/run, not on the extraction functions in this chunk."
+      },
+      {
+       "text": "a mutation that only changes a DATA LITERAL (adding \"claude_cli\" to a tuple) should be INVISIBLE \u2014 no edge moves, and I expect this layer to miss it",
+       "where": "module docstring line 31",
+       "verdict": "uncheckable",
+       "why": "The prediction about the layer's behavior is about the full measurement, which is in later chunks. However, the literal layers here would see the change, but the claim says 'this layer' (likely the name-based layer) \u2014 the prediction is about the overall module result."
+      },
+      {
+       "text": "a mutation that inserts an early return should be INVISIBLE to a name-based view \u2014 the following statements are still lexically present, so nothing is deleted. Catching it needs control flow, which this repo does not build.",
+       "where": "module docstring lines 33-35",
+       "verdict": "uncheckable",
+       "why": "The prediction is about the name-based view (_ast_refs) and the overall module; the control-flow claim is about the repo's capabilities, which are not fully visible in this chunk."
+      },
+      {
+       "text": "It is not a gate. Nothing here blocks, scores a candidate, or moves a picker band.",
+       "where": "module docstring lines 41-43",
+       "verdict": "kept",
+       "why": "In this chunk, only load_mutations, dataclasses, and extraction helpers are defined; no gating, scoring, or picker logic is present."
+      },
+      {
+       "text": "It produces a measurement and the evidence behind it",
+       "where": "module docstring line 43",
+       "verdict": "uncheckable",
+       "why": "The measurement functions (measure, run) are not in this chunk."
+      },
+      {
+       "text": "Import the corpus from tools/gate_discrimination.py rather than copying it. One corpus, one definition \u2014 a second copy would drift and then the two measurements would disagree for a bookkeeping reason.",
+       "where": "load_mutations docstring lines 50-52",
+       "verdict": "kept",
+       "why": "load_mutations uses importlib to load tools/gate_discrimination.py and returns mod.MUTATIONS, avoiding a copy."
+      },
+      {
+       "text": "Register BEFORE exec: @dataclass resolves annotations through sys.modules[cls.__module__], so a module that is not registered yet makes every dataclass in the imported file raise on definition.",
+       "where": "load_mutations comment lines 61-63",
+       "verdict": "kept",
+       "why": "The code registers mod in sys.modules before executing the module via spec.loader.exec_module(mod)."
+      },
+      {
+       "text": "What moved in one layer. Counts plus the names, so a finding is inspectable.",
+       "where": "LayerDelta docstring line 78",
+       "verdict": "kept",
+       "why": "LayerDelta stores layer, added, removed, and moved is computed from them; to_dict includes all."
+      },
+      {
+       "text": "Detected means a SCORING layer moved. It does NOT mean the defect was understood \u2014 only that the graph is not blind to it.",
+       "where": "DeltaResult.detected docstring line 112",
+       "verdict": "kept",
+       "why": "detected returns True only if any layer in SCORING_LAYERS has moved, and the docstring explicitly says it doesn't mean understood."
+      },
+      {
+       "text": "What the measurement would claim if comments counted. Reported so the artefact has a number instead of a footnote.",
+       "where": "DeltaResult.detected_leaky docstring line 118",
+       "verdict": "kept",
+       "why": "detected_leaky returns True if any layer moved, regardless of SCORING_LAYERS, which matches the docstring."
+      },
+      {
+       "text": "Layers that may count toward a detection. code.refs.leaky is deliberately excluded: it scans raw source, so the corpus's own \"SEEDED DEFECT\" comments move it for every single mutation and a verdict built on it would be a tautology.",
+       "where": "DeltaResult.SCORING_LAYERS comment lines 101-106",
+       "verdict": "kept",
+       "why": "SCORING_LAYERS does not include 'code.refs.leaky'; it includes 'code.refs.ast', 'literals', 'structure', 'types', 'data.literals'."
+      },
+      {
+       "text": "THE ARTEFACT THIS EXISTS TO REMOVE. The first run of this module reported 10/12 detected, and every single detection contained the tokens SEEDED and DEFECT \u2014 the marker words the corpus writes into its own replacement comments. graph.identifiers scans raw source, so comments are tokens, and the measurement was detecting the LABEL rather than the defect.",
+       "where": "_ast_refs docstring lines 137-143",
+       "verdict": "uncheckable",
+       "why": "The claim about graph.identifiers and the first run's results refers to behavior outside this chunk; _ast_refs itself does use ast and skips docstrings."
+      },
+      {
+       "text": "Comments do not exist in an AST, and docstrings are skipped explicitly, so what remains is names the program actually uses.",
+       "where": "_ast_refs docstring line 145",
+       "verdict": "kept",
+       "why": "The code uses ast.parse, which excludes comments, and skips docstrings by dropping the first Expr-Constant-Str in function bodies."
+      },
+      {
+       "text": "MULTISET, not a set. Set semantics erase the deletion of a call that still occurs elsewhere in the same function -- and \"this function now calls _verify_reachable once instead of twice\" is exactly the kind of change a seeded defect makes. Counting is independently correct, not a tune to the answer: it was wrong before the result was known.",
+       "where": "_ast_refs comment lines 153-157",
+       "verdict": "kept",
+       "why": "The code uses Counter and flattens with multiplicity (#i), so it is a multiset."
+      },
+      {
+       "text": "Constant VALUES per function \u2014 the layer that closes the data-only blind spot.",
+       "where": "_literals_by_function docstring line 173",
+       "verdict": "kept",
+       "why": "The function extracts constant values per function from the AST."
+      },
+      {
+       "text": "Three of the five mutations the reference layer missed change no name at all: FREE_LANES gains \"claude_cli\"; a host constant gains localhost; an argv list loses --no-textconv. A name-based view is structurally blind to every one of them, because the identifiers are identical before and after.",
+       "where": "_literals_by_function docstring lines 175-178",
+       "verdict": "uncheckable",
+       "why": "The specific mutations and the reference layer's misses are not in this chunk; the claim is about the overall module's results."
+      },
+      {
+       "text": "Constants are a multiset per function, like references, so losing one of two identical flags is visible.",
+       "where": "_literals_by_function docstring line 180",
+       "verdict": "kept",
+       "why": "The function uses Counter and adds per occurrence, so it is a multiset."
+      },
+      {
+       "text": "Values are stored as repr and CLIPPED: this layer must never become a way for a secret in a literal to travel into a report.",
+       "where": "_literals_by_function docstring lines 181-182",
+       "verdict": "kept",
+       "why": "The code uses repr(sub.value) and clips to MAX_REPR=80 with ellipsis."
+      },
+      {
+       "text": "Constants at MODULE level too \u2014 FREE_LANES = (...) is a module assignment, so a function-scoped walk would never see it change.",
+       "where": "_module_literals docstring line 201",
+       "verdict": "kept",
+       "why": "The function walks only tree.body and handles Assign/AnnAssign, which covers module-level assignments."
+      },
+      {
+       "text": "All constants, function-scoped and module-scoped, as comparable keys.",
+       "where": "_literal_keys docstring line 217",
+       "verdict": "kept",
+       "why": "The function combines _module_literals and _literals_by_function into a set."
+      },
+      {
+       "text": "Statement SHAPE per function \u2014 the layer for the control-flow blind spot.",
+       "where": "_structure_by_function docstring line 221",
+       "verdict": "uncheckable",
+       "why": "The function body is not in this chunk; only the beginning is visible."
+      },
+      {
+       "text": "The two mutations that neither references nor literals can see change only the shape of the code: one inserts an early return, the other inverts a condition. In both, the identifier multiset and the constant multiset are byte-identical before and after, because nothing is named or valued differently \u2014 only the control flow moved.",
+       "where": "_structure_by_function docstring lines 223-226",
+       "verdict": "uncheckable",
+       "why": "The specific mutations and the behavior of references/literals layers are not in this chunk; the claim is about the overall module's results."
+      },
+      {
+       "text": "So this layer records node TYPES and their nesting depth, deliberately discarding every name and every value. That makes it orthogonal to the other two by construction rather than by hope: a change that renames a variable",
+       "where": "_structure_by_function docstring lines 228-230",
+       "verdict": "uncheckable",
+       "why": "The implementation of _structure_by_function is not in this chunk; the claim about discarding names/values cannot be verified here."
+      },
+      {
+       "text": "MULTISET, not a set. Set semantics erase the deletion of a call that still occurs elsewhere in the same function",
+       "where": "comment lines 153-157",
+       "verdict": "kept",
+       "why": "The code uses Counter and flattens with multiplicity (#i)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The 'detected' property only checks SCORING_LAYERS, but 'detected_leaky' checks all layers. The distinction is intentional per the docstring, but the SCORING_LAYERS tuple includes 'code.refs.ast' while the leaky layer 'code.refs.leaky' is excluded. This is consistent.",
+       "where": "DeltaResult.SCORING_LAYERS and detected/detected_leaky",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module imports sys as _sys inside load_mutations, shadowing the module-level import list that includes sys. This is fine but unusual.",
+       "where": "load_mutations line 62",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_module_literals and _literals_by_function both use a hardcoded clipping length 80 (one uses MAX_REPR, the other uses literal 80). The two are identical but the constant is not shared.",
+       "where": "_literals_by_function line 191 and _module_literals line 211",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module docstring claims 'three of five detected, two missed' as a prediction, but the actual measurement code is not in this chunk. The prediction is not checkable here.",
+       "where": "module docstring lines 36-37",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The chunk ends in the middle of _structure_by_function's docstring; the implementation is not visible. Any claim about its behavior is uncheckable.",
+       "where": "end of chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "module docstring lines 27-37 | medium | Predictions about detection are stated as if they are results, but the measurement code is not in this chunk; a reader might mistake predictions for findings. | Read the later chunks to see if the predictions are confirmed."
+     ],
+     "todos": [
+      "Verify that _structure_by_function in the next chunk discards names and values as its docstring claims."
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c8fcd30fe59852140ab94010f411f13d4123bf19cd814ffc967406316d407eca",
+    "objective_chars": 16219,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [1/3]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

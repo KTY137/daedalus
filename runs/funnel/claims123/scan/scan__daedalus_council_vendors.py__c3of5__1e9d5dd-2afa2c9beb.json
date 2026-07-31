@@ -1,0 +1,295 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c3of5__1e9d5dd",
+ "key": "scan__daedalus_council_vendors.py__c3of5__1e9d5dd-2afa2c9beb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "3 of 5",
+     "purpose": "CouncilAdapter.ask/assemble/_reply/_dispatch plumbing, _CliAdapter subprocess handling, Claude/Codex adapters.",
+     "symbols": [
+      {
+       "name": "CouncilAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates lane against LANES, defaults model/cli_version."
+      },
+      {
+       "name": "CouncilAdapter.actor",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns actor_id(vendor, model)."
+      },
+      {
+       "name": "CouncilAdapter.independence_class",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns (vendor, model_family(model))."
+      },
+      {
+       "name": "CouncilAdapter.assemble",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds prompt text; withholds blocked evidence paths/files."
+      },
+      {
+       "name": "CouncilAdapter.ask",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Floor check, token ceiling, dispatch via _dispatch, returns VendorReply."
+      },
+      {
+       "name": "CouncilAdapter._reply",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs VendorReply with common fields."
+      },
+      {
+       "name": "CouncilAdapter._dispatch",
+       "kind": "function",
+       "effects": [],
+       "note": "Raises NotImplementedError."
+      },
+      {
+       "name": "_CliAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Loads profile, asserts safety, sets vendor and runner."
+      },
+      {
+       "name": "_CliAdapter.argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds argv from profile command/args/model_arg."
+      },
+      {
+       "name": "_CliAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs runner with stdin text, cwd, env; interprets result."
+      },
+      {
+       "name": "_CliAdapter._interpret",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps spawn errors, timeouts, auth failures, nonzero exit."
+      },
+      {
+       "name": "_CliAdapter._auth_failure",
+       "kind": "function",
+       "effects": [],
+       "note": "Base returns empty string."
+      },
+      {
+       "name": "_CliAdapter._parse_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Base returns status ok with stdout content."
+      },
+      {
+       "name": "_AUTH_MARKERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of authentication failure substrings."
+      },
+      {
+       "name": "_looks_unauthenticated",
+       "kind": "function",
+       "effects": [],
+       "note": "Lowercases blobs, checks for markers."
+      },
+      {
+       "name": "ClaudeAdapter._auth_failure",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks nonzero returncode and markers."
+      },
+      {
+       "name": "ClaudeAdapter._parse_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses JSON output; handles errors and usage."
+      },
+      {
+       "name": "CodexAdapter",
+       "kind": "class",
+       "effects": [],
+       "note": "Profile openai, endpoint cli:codex, local False."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Build the outbound text HERE, so withholding is structural.",
+       "where": "assemble docstring line ~563",
+       "verdict": "KEPT",
+       "why": "assemble filters evidence_paths and evidence_files by blocked set; contents of withheld files never rendered."
+      },
+      {
+       "text": "a gate that only REPORTS withheld paths while the caller ships the bytes anyway is worse than no gate: it produces a record saying the council did not see a file it did in fact see.",
+       "where": "assemble docstring line ~565",
+       "verdict": "KEPT",
+       "why": "The only caller in this chunk is ask, which passes withheld into assemble; assemble excludes withheld contents."
+      },
+      {
+       "text": "Withheld files are named but their contents are never rendered.",
+       "where": "assemble docstring line ~566",
+       "verdict": "KEPT",
+       "why": "Blocked paths are skipped in both evidence_paths and evidence_files loops; only names appear in WITHHELD section."
+      },
+      {
+       "text": "FLOOR FIRST, on the raw caller inputs, before anything is assembled: the runner must not be reachable from a refused call.",
+       "where": "ask comment line ~600",
+       "verdict": "KEPT",
+       "why": "floor_check called before assemble and before _dispatch; refusal returns immediately."
+      },
+      {
+       "text": "The runner is NOT invoked. The secret never leaves the process, and the recorded reason names the rule, never the bytes.",
+       "where": "ask comment line ~603",
+       "verdict": "KEPT",
+       "why": "On refusal, returns _reply without calling _dispatch; reason is refusal.rule, not content."
+      },
+      {
+       "text": "Charged BEFORE dispatch from the assembled prompt: a per-call timeout does not bound token spend, and reconciling after the call is not a budget.",
+       "where": "ask comment line ~614",
+       "verdict": "KEPT",
+       "why": "count_tokens(text) and ceiling check occur before _dispatch call."
+      },
+      {
+       "text": "a vendor must never take the council down",
+       "where": "ask comment line ~626",
+       "verdict": "KEPT",
+       "why": "Catches Exception around _dispatch and returns error reply."
+      },
+      {
+       "text": "Shared plumbing for CLI vendors: argv build, spawn, exit-code mapping.",
+       "where": "_CliAdapter docstring",
+       "verdict": "KEPT",
+       "why": "Implements argv, _dispatch, _interpret covering these."
+      },
+      {
+       "text": "ALWAYS read-only.  There is no constructor switch for the sandbox mode: a reviewer that can write is not a reviewer, and an option is a thing someone sets.",
+       "where": "CodexAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The sandbox mode is in profile config (COUNCIL_PROFILES), not in this chunk; no switch visible here."
+      },
+      {
+       "text": "Anthropic, via ``claude -p --output-format json`` with tools disallowed.",
+       "where": "ClaudeAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "Command and args come from profile, not defined in this chunk."
+      },
+      {
+       "text": "OpenAI, via ``codex exec --sandbox read-only``.",
+       "where": "CodexAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "Command and args come from profile, not defined in this chunk."
+      },
+      {
+       "text": "A non-JSON body from --output-format json means the contract moved under us; that is an error, not silently-usable prose.",
+       "where": "ClaudeAdapter._parse_ok comment",
+       "verdict": "KEPT",
+       "why": "json.loads failure returns status error bad_response."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "ClaudeAdapter._parse_ok",
+       "verdict": "KEPT",
+       "why": "If payload lacks 'result' key, str(payload.get('result') or '') yields empty content with status ok, silently treating missing field as absent rather than error."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "_CliAdapter._interpret",
+       "verdict": "KEPT",
+       "why": "The branch `if result.returncode != 0` after auth check is reachable only if returncode is nonzero and not an auth failure; it's not a tautology. However, `_auth_failure` base returns empty string, so the `if auth` branch is unreachable in base class, but subclasses override; not a self-comparison."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "ask floor refusal",
+       "verdict": "UNCHECKABLE",
+       "why": "The floor_check rules are defined elsewhere; this chunk only invokes it. No repair path is mentioned in the refusal reply here."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "assemble",
+       "verdict": "KEPT",
+       "why": "Withholding is structural: it blocks the specific evidence content while permitting the prompt and names; no inversion observed."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ClaudeAdapter._parse_ok treats a missing 'result' key as empty content with status ok, not as an error; if the vendor changes the JSON shape to omit 'result', the adapter reports success with empty content.",
+       "where": "ClaudeAdapter._parse_ok line ~690",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The token ceiling check uses count_tokens(text) on the assembled text, but the prompt sent to the vendor may include additional model-specific formatting or system tokens not counted here; the ceiling may not bound actual spend.",
+       "where": "ask token ceiling line ~616",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _CliAdapter._dispatch, council_env() is called each time; if it depends on mutable global state, repeated calls could vary; but no evidence in this chunk.",
+       "where": "_CliAdapter._dispatch line ~650",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _interpret method checks spawn_error before timed_out; if a spawn error also contains a timeout message, the timeout is never reported.",
+       "where": "_CliAdapter._interpret line ~655",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "ClaudeAdapter._parse_ok | medium | Missing 'result' key yields empty content with status ok, silently masking format drift | Add an explicit check for 'result' key presence and return bad_response when absent"
+     ],
+     "todos": [],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dae5b5cc3f855f1a4d47b14de89faa85aaf89df50e4879fe012b64c024c40571",
+    "objective_chars": 14568,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [3/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/council/vendors.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

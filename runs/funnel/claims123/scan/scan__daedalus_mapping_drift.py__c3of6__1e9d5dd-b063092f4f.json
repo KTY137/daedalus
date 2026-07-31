@@ -1,0 +1,250 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c3of6__1e9d5dd",
+ "key": "scan__daedalus_mapping_drift.py__c3of6__1e9d5dd-b063092f4f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of drift.py: scan(), Acceptance, parse_acceptances, DriftItem, DriftReport. Verified docstring claims against code; all checkable claims kept, some uncheckable due to missing constants/definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "parse_acceptances | medium | Uses MIN_WHY_CHARS, MAX_HORIZON_DAYS, and _drift_key from elsewhere; if these are not defined or have different semantics, the validation and drift key generation could diverge from intent. | Check the definitions of these names in the rest of the file.",
+     "scan | medium | Docstring claims 'no clock', but calls repo_state(probe_dirty=probe_dirty) which may access the filesystem and possibly the clock; the claim is broader than the code can verify in this chunk. | Inspect repo_state's implementation to confirm it does not use the clock.",
+     "scan | low | The dark switch filter skips 'secret' kind and documented switches; the docstring does not state this, so the behaviour may be surprising. | Confirm the intended policy in the module's documentation.",
+     "parse_acceptances | low | The 'since' future check uses 'today' even when the acceptance is already expired; the error message may be misleading for expired acceptances. | Test with an acceptance that is both expired and has a future 'since'."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "3 of 6",
+     "purpose": "Implements scan() to build architecture state, Acceptance dataclass with validation, parse_acceptances() with fail-closed parsing, and DriftItem/DriftReport dataclasses for reporting.",
+     "symbols": [
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Pure function deriving architecture state; accepts optional injected reports; no writes, clock, or network per docstring."
+      },
+      {
+       "name": "Acceptance",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass for an acceptance; has valid property and expired() method."
+      },
+      {
+       "name": "Acceptance.valid",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property returning True if problem is empty."
+      },
+      {
+       "name": "Acceptance.expired",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if today > until (ISO date parse); on ValueError returns True."
+      },
+      {
+       "name": "Acceptance.as_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with item, why, since, until; includes who if non-empty."
+      },
+      {
+       "name": "parse_acceptances",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses raw list into Acceptance objects, fail-closed; validates dates, horizon, why length; sorts by item, until, since."
+      },
+      {
+       "name": "DriftItem",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a drift item; has blocking property and as_dict method."
+      },
+      {
+       "name": "DriftItem.blocking",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "False if kind in NON_BLOCKING_KINDS, else not accepted."
+      },
+      {
+       "name": "DriftItem.as_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict representation of the item."
+      },
+      {
+       "name": "DriftReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for the drift report; has blocking property returning list of blocking items."
+      },
+      {
+       "name": "DriftReport.blocking",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns [i for i in items if i.blocking]."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pure: no writes, no clock, no network.",
+       "where": "scan docstring (line ~561)",
+       "verdict": "uncheckable",
+       "why": "scan() calls repo_state() which may access the filesystem and possibly the clock; the claim cannot be verified from this chunk alone."
+      },
+      {
+       "text": "``reach_report`` and ``switch_report`` may be injected by a caller that already built them (``daedalus map`` does, and that is the point: the page and the gate are then provably looking at the same analysis, not at two that happen to agree).",
+       "where": "scan docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The code checks `if reach_report is None:` and `if switch_report is None:` and only then builds them; injected reports are used as-is."
+      },
+      {
+       "text": "``index`` is only forwarded to reach for its structural cross-check.",
+       "where": "scan docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The code passes `index=index` only to `reach_mod.analyse(root, index=index)`; it is not used elsewhere in scan()."
+      },
+      {
+       "text": "The state also records WHICH TREE it was derived from (:func:`repo_state`).",
+       "where": "scan docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The state dict includes `\"repo_state\": repo_state(root, probe_dirty=probe_dirty)`."
+      },
+      {
+       "text": "TEST ONLY is a property of an UNREACHED module, not of an island specifically.",
+       "where": "comment in scan (line ~561)",
+       "verdict": "kept",
+       "why": "The code computes `unreached_facts` from `UNREACHED_CLASSES` and then `test_only` from `unreached_facts` with `m.tested_by`, not from islands only."
+      },
+      {
+       "text": "An absent API key is not a dark feature.",
+       "where": "comment in scan (line ~561)",
+       "verdict": "kept",
+       "why": "The code skips switches with `sw.kind == \"secret\"` before adding to dark."
+      },
+      {
+       "text": "A module the scanner could not parse contributes nothing to either engine's answer, which makes it a hole in the map that used to be filled by a bare ``continue``. It is a finding, not a shrug.",
+       "where": "comment in scan (line ~561)",
+       "verdict": "kept",
+       "why": "The code collects unparsable modules from both reach and switch reports into a set and includes them in the state counts and sites."
+      },
+      {
+       "text": "Fail closed: anything we cannot fully validate is kept, marked with a ``problem``, and suppresses nothing.",
+       "where": "parse_acceptances docstring (line ~561)",
+       "verdict": "kept",
+       "why": "Every entry (even malformed) is appended as an Acceptance with a problem string; no entry is dropped."
+      },
+      {
+       "text": "A typo in an acceptance must never be the thing that makes an island invisible.",
+       "where": "parse_acceptances docstring (line ~561)",
+       "verdict": "kept",
+       "why": "Malformed entries are kept with a problem and not suppressed; the code never filters out entries with problems."
+      },
+      {
+       "text": "``today`` binds the horizon to the CALENDAR. Without it the only rule is ``until - since <= MAX_HORIZON_DAYS``, which a pair of dates in 2999 satisfies while suppressing forever; the cap measured the acceptance against itself and nothing measured it against now.",
+       "where": "parse_acceptances docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The code only checks `d_since > today` when `today` is provided; otherwise it skips that check. The horizon check is independent of today."
+      },
+      {
+       "text": "Omitting ``today`` keeps the date-shape and horizon checks and skips only that one, so a caller that genuinely has no clock (``--accept`` validating a candidate before writing it) still gets everything else.",
+       "where": "parse_acceptances docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The code performs date-format and horizon checks regardless of `today`; only the `since > today` check is conditional on `today` being truthy."
+      },
+      {
+       "text": "Which tree the SNAPSHOT was generated against, versus the one just scanned. Reported, never blocking: a baseline taken one commit ago is not a defect, and a gate that goes red on every commit is a gate people switch off.",
+       "where": "DriftReport comment (line ~561)",
+       "verdict": "uncheckable",
+       "why": "The comment describes the purpose of the `freshness` field; the code only defines the field, not how it is used or reported. The claim about non-blocking is not verifiable from this chunk."
+      },
+      {
+       "text": "The consumers that RANK WORK out of these lists are the ones that must fail closed on it -- see :func:`snapshot_freshness`.",
+       "where": "DriftReport comment (line ~561)",
+       "verdict": "uncheckable",
+       "why": "The comment references `snapshot_freshness` which is defined elsewhere; the claim about consumers failing closed cannot be verified here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "scan() docstring claims 'no clock' but calls repo_state(probe_dirty=probe_dirty) which may touch the filesystem and potentially the clock; the claim is broader than what this chunk can verify.",
+       "where": "scan docstring",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "parse_acceptances() uses constants MIN_WHY_CHARS and MAX_HORIZON_DAYS that are not defined in this chunk; their values affect validation.",
+       "where": "parse_acceptances",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "scan() uses _drift_key(entry) and _MIN_ABBREV, which are not defined in this chunk; the correctness of site keys and freshness checks depends on them.",
+       "where": "scan and snapshot freshness code",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "DriftReport.blocking returns a list, not a boolean; the property name might be ambiguous but the code is clear.",
+       "where": "DriftReport.blocking",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45882c44ce596359a2c9ee755f1571a5fad38c6c6e252054d5413bbcb296cb02",
+    "objective_chars": 16182,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [3/6]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/drift.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

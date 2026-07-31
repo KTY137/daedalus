@@ -1,0 +1,148 @@
+{
+ "task_id": "research__b003__3088037",
+ "key": "research__b003__3088037-6b7384cbf5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 64 uncheckable claims identifies recurring patterns of delegated contracts, duplicated guarantees with drift risk, and unverifiable historical claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Delegated contracts across modules are often unverifiable from single chunks, risking silent divergence.",
+     "Duplicated promises (e.g., NEVER RAISES, deterministic formatting) may drift as implementations evolve.",
+     "Historical measurements and security incidents cited in docstrings cannot be confirmed from code alone."
+    ],
+    "todos": [
+     "Verify each delegated contract by inspecting the referenced modules.",
+     "Audit duplicated guarantees for consistency across implementations.",
+     "Establish a mechanism to validate historical claims in docstrings against current code."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "delegated-contract-drift",
+       "claim": "Several functions delegate their core contract to imported modules (e.g., live_egress_seats, lane_for_host, is_correctness_task, _as_predicate, secret_floor_rule) without local enforcement, so the guarantee's validity depends entirely on the external module \u2014 a change there silently breaks the local promise.",
+       "spans": [
+        "subprocess_adapter",
+        "session",
+        "sensitivity",
+        "daedalus.eval.tasks",
+        "daedalus.spine.attempt",
+        "daedalus.kairos.gated_writes"
+       ],
+       "mechanism": "Docstrings in these chunks promise behaviors (e.g., locality predicate, lane derivation, correctness detection, cancel normalization, floor-rule application) that are implemented in other modules. The local code only imports or references them; no local check or fallback exists. If the external module changes its semantics, the local guarantee silently changes too.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If each referenced module is found to be stable and versioned, or if local code includes defensive checks that would catch semantic drift.",
+       "evidence": [
+        "subprocess_adapter:from_name (docstring line 9)",
+        "session:live_egress_seats (imported, not defined locally)",
+        "sensitivity:slice_egress_rule (referenced, not local)",
+        "daedalus.eval.tasks:is_correctness_task (delegated)",
+        "daedalus.spine.attempt:_as_predicate (normalization external)",
+        "sensitivity:secret_floor_rule (called in _mint_from_diffs, not visible)"
+       ]
+      },
+      {
+       "id": "duplicated-guarantee-drift",
+       "claim": "Multiple modules independently claim the same guarantee (e.g., 'NEVER RAISES', 'deterministic formatting', 'read-only', 'same shape') without a shared enforcement mechanism, so one module can improve its implementation while others silently fall behind \u2014 the exact per-provider copy pattern this repo has already measured.",
+       "spans": [
+        "eval_task_arms",
+        "save_correctness_tasks",
+        "CodexAdapter",
+        "Vendor adapters"
+       ],
+       "mechanism": "Docstrings in different modules assert identical contracts (e.g., eval_task_arms NEVER RAISES, save_correctness_tasks deterministic formatting, CodexAdapter read-only, all adapters same ask shape). These are implemented independently per module; there is no shared base class or central validator. Updating one module's behavior to meet its claim does not propagate to others.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a shared utility or base class enforces these contracts centrally, or if the modules are generated from a common template that is always kept in sync.",
+       "evidence": [
+        "eval_task_arms:docstring (NEVER RAISES)",
+        "save_correctness_tasks:docstring (same contract as harness.write_baseline)",
+        "CodexAdapter:docstring (read-only, no constructor switch)",
+        "Vendor adapters:module docstring (same ask shape)"
+       ]
+      },
+      {
+       "id": "exception-type-mismatch",
+       "claim": "A function promises to preserve a specific exception type (PrimaryCheckoutTouch) for callers and tests, but the actual call sites are in other modules that may not catch it correctly, and the exception's construction is not visible in this chunk \u2014 so the contract may be broken if the exception is raised in a context that doesn't handle it.",
+       "spans": [
+        "_refuse_primary_checkout",
+        "call sites in later chunks"
+       ],
+       "mechanism": "_refuse_primary_checkout's docstring asserts that callers catch PrimaryCheckoutTouch, implying a stable exception contract. However, the call sites are not in this chunk, and the exception is raised somewhere downstream. If a call site doesn't catch it (or catches a broader exception first), the contract fails silently.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If inspection of call sites shows they all explicitly catch PrimaryCheckoutTouch, or if the exception is part of a documented public API with tests enforcing it.",
+       "evidence": [
+        "_refuse_primary_checkout:docstring (exception type preserved)",
+        "later chunks:call sites (not visible)"
+       ]
+      },
+      {
+       "id": "historical-measurement-unverifiable",
+       "claim": "Several docstrings cite specific historical measurements (e.g., 40/40 tracked files destroyed, 1/43 mislabels, 6/43 leaky arm) that are not encoded in the code and cannot be reproduced from the current source, making them unverifiable claims that may be outdated or incorrect.",
+       "spans": [
+        "_path_identity",
+        "module docstring for rename-blind measurement",
+        "held_out docstring"
+       ],
+       "mechanism": "These claims are used to justify design decisions (e.g., using lstat over stat, setting min_count thresholds). If the measurements are wrong or stale, the design rationale is undermined. Since the numbers are not in the code, there is no automated way to validate them.",
+       "severity": "low",
+       "confidence": "possible",
+       "refuted_by": "If the measurements are backed by reproducible scripts or fixtures in the repository, or if the code contains assertions that would fail if the numbers were wrong.",
+       "evidence": [
+        "_path_identity:docstring (40/40 tracked files destroyed)",
+        "module docstring (MEASURED CLOSE 2026-07-21)",
+        "held_out:docstring (scoring logic not shown)"
+       ]
+      },
+      {
+       "id": "keyerror-unguarded",
+       "claim": "eval_task_arms claims NEVER RAISES but only catches (ValueError, OSError); the subscript task['repo'] can raise KeyError if the task dict lacks that key, so the claim is false unless callers guarantee the key exists \u2014 a cross-module contract that is not documented.",
+       "spans": [
+        "eval_task_arms",
+        "callers of eval_task_arms"
+       ],
+       "mechanism": "The function's docstring promises no exceptions, but the code accesses task['repo'] without a guard. If a caller passes a task without 'repo', a KeyError escapes. The guarantee therefore depends on an undocumented caller-side invariant.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all callers are verified to always include 'repo', or if the function actually uses .get() or a defaultdict that prevents KeyError.",
+       "evidence": [
+        "eval_task_arms:docstring (NEVER RAISES)",
+        "eval_task_arms:line 407 (task['repo'] subscript)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "06328de388bb4dfe802019584c08c5a325dd038b9e201c1116b3afb30ef8478f",
+    "objective_chars": 28346,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 3 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 3,
+  "inputs": 64
+ }
+}

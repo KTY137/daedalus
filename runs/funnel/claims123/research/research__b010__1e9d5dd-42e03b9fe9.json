@@ -1,0 +1,149 @@
+{
+ "task_id": "research__b010__1e9d5dd",
+ "key": "research__b010__1e9d5dd-42e03b9fe9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 104 claim rows found 6 hypotheses of shared broken guarantees, duplicated assumptions, and boundary leaks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypotheses are based on claim rows that may be incomplete or out of context; refutation conditions are not yet checked against actual code.",
+     "Some hypotheses may be refuted by code not visible in the provided rows."
+    ],
+    "todos": [
+     "Verify each hypothesis against the full codebase by checking the specific evidence lines.",
+     "For each hypothesis, run the refutation condition check (e.g., search for other definitions of READ_STATUSES, _recall, etc.).",
+     "If a hypothesis survives refutation, escalate to the appropriate module owner for deeper analysis."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "status-enum-contract-mismatch",
+       "claim": "The contract that a refusal is a STATUS, not an exception, is declared in one module (CouncilAdapter docstring) but the actual status codes and their semantics are defined in another module (READ_STATUSES) that is not visible in the same chunk. This creates a risk that the two modules disagree on what statuses exist or what they mean.",
+       "spans": [
+        "CouncilAdapter",
+        "read_pr_thread"
+       ],
+       "mechanism": "CouncilAdapter's docstring promises that a refusal is a status, not an exception. However, the status codes themselves (READ_STATUSES) are defined in a different module (read_pr_thread) and are not visible in the same chunk. If the two modules are maintained separately, they could diverge: e.g., READ_STATUSES might not include a status that CouncilAdapter expects, or vice versa. This is a cross-file contract that is not enforced by any shared definition.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If READ_STATUSES is defined in the same module as CouncilAdapter (or in a shared module imported by both), or if CouncilAdapter does not reference READ_STATUSES at all.",
+       "evidence": [
+        "CouncilAdapter docstring: 'A refusal is a STATUS, not an exception'",
+        "read_pr_thread docstring: 'Never raises for an operational failure; every outcome is a status in READ_STATUSES'"
+       ]
+      },
+      {
+       "id": "vacuous-recall-consistency",
+       "claim": "The claim that scoring a correctness task with harness._recall would return a vacuous 1.0 is repeated in two different modules (evaluation and correctness task handling), but the actual behavior of harness._recall is not visible. This suggests a duplicated assumption that may not hold if harness._recall changes.",
+       "spans": [
+        "harness._recall",
+        "correctness task handling"
+       ],
+       "mechanism": "Two separate modules both assert that harness._recall returns 1.0 for correctness tasks (because they lack must_include). This is a shared assumption about a function defined elsewhere. If harness._recall is ever modified to return something else for such tasks, both modules would silently break the promise that correctness tasks are not scored with _recall. The duplication means that a change in one place might not be reflected in the other.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If harness._recall is defined in one of the two modules and its behavior is visible, or if the correctness task handling explicitly checks for the absence of must_include before calling _recall.",
+       "evidence": [
+        "Module docstring: 'scoring one with harness._recall would return the vacuous 1.0'",
+        "Docstring lines 55-57: 'a correctness task carries no must_include, so scoring one with harness._recall would return the vacuous 1.0'"
+       ]
+      },
+      {
+       "id": "recheck-count-mismatch",
+       "claim": "A comment in one module claims there are three re-checks for safe deletion, but the visible code only shows two. This suggests either the third re-check is in a different module (the drain) or the comment is stale. If the drain's re-check is not actually present, the safety guarantee is weaker than documented.",
+       "spans": [
+        "_remove_tree_no_follow",
+        "drain"
+       ],
+       "mechanism": "In _remove_tree_no_follow, a comment says 'RE-CHECK 1 OF 3 (the others are in the entry loop and the drain)'. Only two re-checks are visible in this chunk (pop-time and per-child in the entry loop). The drain is not shown, so the third re-check may or may not exist. If the drain is in another module and does not perform the re-check, then the safety property (safe against junction appearing mid-walk) is not as strong as claimed.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the drain is in the same module and contains the third re-check, or if the comment is acknowledged as outdated and the drain's re-check is not load-bearing.",
+       "evidence": [
+        "_remove_tree_no_follow comment: 'RE-CHECK 1 OF 3 (the others are in the entry loop and the drain)'",
+        "docstring: 'shutil.rmtree is safe against a junction that is already in place and unsafe against one that appears mid walk; this function is safe against both.'"
+       ]
+      },
+      {
+       "id": "atomic-write-consistency",
+       "claim": "Multiple modules claim that results are published atomically (via daedalus.atomic), but the actual write call is not visible in the same chunk. This raises the risk that some modules use a different write mechanism, breaking the atomicity guarantee for tailing readers.",
+       "spans": [
+        "daedalus.atomic",
+        "fan_out"
+       ],
+       "mechanism": "Module docstring claims 'RESULTS ARE PUBLISHED, NOT WRITTEN. Via daedalus.atomic'. However, the write call is in fan_out's body, which is in a different chunk. If fan_out does not actually use daedalus.atomic, or uses it inconsistently, the guarantee of atomic publication is broken. The cross-file claim is that the atomic write is a shared contract, but its enforcement is not visible from the module that declares it.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If fan_out's body is shown to call write_text_atomic, or if the module docstring is the only place that claims atomicity and fan_out is not part of the publication path.",
+       "evidence": [
+        "Module docstring: 'RESULTS ARE PUBLISHED, NOT WRITTEN. Via daedalus.atomic'",
+        "Module docstring: 'write_text_atomic is imported'"
+       ]
+      },
+      {
+       "id": "guard-optionality-mismatch",
+       "claim": "One module states that a budget guard is 'not optional here and not a parameter', but the actual guard installation is not visible in that chunk. This suggests the guard might be installed elsewhere, and if that installation is conditional or missing, the guarantee is violated.",
+       "spans": [
+        "budget guard module",
+        "fan_out"
+       ],
+       "mechanism": "Module docstring says 'The guard is not optional here and not a parameter -- a fan-out is exactly the shape that turns a missing guard into a bill.' However, no install_process_guard call appears in the chunk, implying the guard is installed in fan_out (next chunk). If fan_out does not install the guard, or installs it only under certain conditions, the guarantee is broken. The cross-file contract is that the guard is always present for fan-out, but it is not enforced in the declaring module.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If fan_out's body is shown to unconditionally install the guard, or if the guard is installed at import time in the declaring module.",
+       "evidence": [
+        "Module docstring: 'The guard is not optional here and not a parameter'",
+        "Module docstring: 'No install_process_guard call appears in this chunk'"
+       ]
+      },
+      {
+       "id": "secret-floor-rule-label-only",
+       "claim": "The claim that a secret-floor rule returns only a label (never matched text) is made in two different modules (screen_egress and VendorReply.reason), but the actual enforcement is not visible. There is a risk that one module leaks more than the label.",
+       "spans": [
+        "screen_egress",
+        "VendorReply.reason"
+       ],
+       "mechanism": "screen_egress docstring claims the returned rule is a fixed label/path fragment from sensitivity, never matched text. VendorReply.reason comment says the reason is either a machine reason from UNAVAILABLE_REASONS or a secret-floor rule LABEL (never the matched bytes). Both rely on the same underlying function (secret_floor_rule) whose implementation is not visible. If that function ever returns matched text, both modules would violate their documented contract. This is a shared assumption that is not enforced at the call sites.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If secret_floor_rule is defined in one of the two modules and its return is visible, or if there is a test that asserts the return is always a label.",
+       "evidence": [
+        "screen_egress docstring: 'The returned rule is a fixed label / path fragment from sensitivity -- never matched text'",
+        "VendorReply.reason comment: 'or a secret-floor rule LABEL (never the matched bytes)'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "636b4d3df8f420a8d53a60ee3da02503f1f399a7cb50a2a1be3046552903501f",
+    "objective_chars": 41451,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 10 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 10,
+  "inputs": 104
+ }
+}

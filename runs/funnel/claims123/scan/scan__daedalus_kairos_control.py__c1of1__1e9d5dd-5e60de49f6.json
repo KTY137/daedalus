@@ -1,0 +1,303 @@
+{
+ "task_id": "scan__daedalus_kairos_control.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_kairos_control.py__c1of1__1e9d5dd-5e60de49f6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/kairos/control.py (chunk 1 of 1): all docstrings are thin and no behavioral claims are made; all functions are pass-through wrappers so claims about core behavior are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 55 | medium | main_models indexes payload['models'] directly; if core.model_resources returns a dict without that key, it raises KeyError instead of a clean error | inspect core.model_resources() return shape",
+     "line 78 | medium | main_watcher indexes payload['running'] directly; if core.watcher_status omits that key, it raises KeyError | inspect core.watcher_status() return shape",
+     "line 98 | medium | main_review_diff prints payload['queued']; if core.review_diff omits that key, it raises KeyError | inspect core.review_diff() return shape",
+     "line 94 | low | --project is required but the parser error is not caught; a user mistake produces a traceback instead of a friendly message | confirm desired UX and handle argparse error",
+     "line 80 | low | main_watcher uses subparsers with a single 'status' subcommand; the check for args.command is correct but if another subcommand is added later it will be silently ignored | confirm no other subcommands are planned"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/control.py",
+     "chunk": "1 of 1",
+     "purpose": "CLI entry points that delegate to core functions and print JSON or human-readable summaries.",
+     "symbols": [
+      {
+       "name": "dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.get_dashboard(project)."
+      },
+      {
+       "name": "ollama_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.model_resources()."
+      },
+      {
+       "name": "queue_timeline",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.get_queue(limit=limit)."
+      },
+      {
+       "name": "watcher_status",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.watcher_status(project)."
+      },
+      {
+       "name": "squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.get_squads(project)."
+      },
+      {
+       "name": "quality_gates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.get_quality(project)."
+      },
+      {
+       "name": "review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Thin wrapper: returns core.review_diff(project, lane)."
+      },
+      {
+       "name": "_print_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Prints payload as indented JSON with default=str."
+      },
+      {
+       "name": "main_dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Argparse CLI for dashboard; --json prints JSON, otherwise prints selected_project."
+      },
+      {
+       "name": "main_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Argparse CLI for models; --json prints JSON, otherwise prints each model name and size_gb."
+      },
+      {
+       "name": "main_squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Argparse CLI for squads; --json prints JSON, otherwise prints a header line."
+      },
+      {
+       "name": "main_watcher",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Argparse CLI for watcher status; subcommand 'status' prints running/not running or JSON."
+      },
+      {
+       "name": "main_review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Argparse CLI for review_diff; --project required; prints queued value or JSON."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Mission Control dashboard JSON.",
+       "where": "line 19 (parser description)",
+       "verdict": "kept",
+       "why": "The parser description is a label; the command outputs JSON when --json is used, which is consistent with the description."
+      },
+      {
+       "text": "Ollama model resources.",
+       "where": "line 37 (parser description)",
+       "verdict": "kept",
+       "why": "The parser description is a label; the command outputs model resource info."
+      },
+      {
+       "text": "Project squad configuration.",
+       "where": "line 53 (parser description)",
+       "verdict": "kept",
+       "why": "The parser description is a label; the command outputs squad configuration."
+      },
+      {
+       "text": "Bridge watcher status.",
+       "where": "line 69 (parser description)",
+       "verdict": "kept",
+       "why": "The parser description is a label; the command outputs watcher status."
+      },
+      {
+       "text": "Queue a local advisory review of the current diff.",
+       "where": "line 90 (parser description)",
+       "verdict": "kept",
+       "why": "The parser description is a label; the command calls review_diff which presumably queues a review (core behavior not visible here)."
+      },
+      {
+       "text": "dashboard(project) returns core.get_dashboard(project)",
+       "where": "line 10",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "ollama_models() returns core.model_resources()",
+       "where": "line 13",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "queue_timeline(limit=30) returns core.get_queue(limit=limit)",
+       "where": "line 16",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "watcher_status(project) returns core.watcher_status(project)",
+       "where": "line 19",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "squads(project) returns core.get_squads(project)",
+       "where": "line 22",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "quality_gates(project) returns core.get_quality(project)",
+       "where": "line 25",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "review_diff(project, lane='local_only') returns core.review_diff(project, lane)",
+       "where": "line 28",
+       "verdict": "kept",
+       "why": "The function body is exactly that return."
+      },
+      {
+       "text": "_print_json prints json.dumps(payload, indent=2, default=str)",
+       "where": "line 32",
+       "verdict": "kept",
+       "why": "The function body is exactly that print."
+      },
+      {
+       "text": "main_dashboard parses --project and --json, prints JSON or selected_project",
+       "where": "lines 35-43",
+       "verdict": "kept",
+       "why": "The code does exactly that."
+      },
+      {
+       "text": "main_models parses --json, prints JSON or model name/size",
+       "where": "lines 46-57",
+       "verdict": "kept",
+       "why": "The code does exactly that, assuming payload has 'models' key."
+      },
+      {
+       "text": "main_squads parses --project and --json, prints JSON or header",
+       "where": "lines 60-67",
+       "verdict": "kept",
+       "why": "The code does exactly that."
+      },
+      {
+       "text": "main_watcher parses subcommand status with --project and --json, prints running/not running or JSON",
+       "where": "lines 70-83",
+       "verdict": "kept",
+       "why": "The code does exactly that, assuming payload has 'running' key."
+      },
+      {
+       "text": "main_review_diff requires --project, parses --lane with choices and --json, prints queued or JSON",
+       "where": "lines 86-99",
+       "verdict": "kept",
+       "why": "The code does exactly that, assuming payload has 'queued' key."
+      }
+     ],
+     "observations": [
+      {
+       "what": "main_models indexes payload['models'] without checking; if core.model_resources returns a dict without that key, it raises KeyError.",
+       "where": "line 55",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "main_watcher indexes payload['running'] without checking; if core.watcher_status omits that key, it raises KeyError.",
+       "where": "line 78",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "main_review_diff indexes payload['queued'] without checking; if core.review_diff omits that key, it raises KeyError.",
+       "where": "line 98",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "main_review_diff uses parser.add_argument('--project', required=True); if the user omits it, argparse exits with an error, but the exit is not caught, so the CLI prints a traceback.",
+       "where": "line 94",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main_watcher uses subparsers with a single subcommand 'status'; the check for args.command is correct, but if a future subcommand is added it would be silently ignored (no else branch for unknown subcommand because argparse would error).",
+       "where": "line 80",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c6fc13464d01b980709f0013e60c587f81aef4efc605aeb960d3b8121e2a6d73",
+    "objective_chars": 6374,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/control.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/control.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

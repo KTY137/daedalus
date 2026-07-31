@@ -1,0 +1,183 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c2of4__3088037",
+ "key": "scan__daedalus_mapping_inventory.py__c2of4__3088037-69a68bf1a2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 4 of daedalus/mapping/inventory.py: functions _packages_on_disk, _orphan_bytecode, _clean_annotation, annotation_overreach, _module_targets, harvest, _feature, and start of _stale_features. Claims largely kept; two uncheckable; no broken found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_module_targets | medium | The docstring says 'ALL of them, not the first', but the code deduplicates with 'if cand not in hits', so a module named twice in different entrypoints is reported once. The claim 'ALL of them' refers to distinct modules, not occurrences; still, a reader might expect duplicates. | Check whether the kairos-rename feature names the same module twice in one entrypoint list; if so, the deduplication loses the duplicate occurrence, but the rationale is still attached once."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "2 of 4",
+     "purpose": "Inventory parsing and harvesting functions: package discovery, orphan bytecode detection, annotation cleaning, module target resolution, and the lossless harvest of human annotations.",
+     "symbols": [
+      {
+       "name": "_packages_on_disk",
+       "kind": "function",
+       "effects": [],
+       "note": "Walks the root for directories named by the first dotted segment of listed packages; returns sorted dotted paths containing __init__.py, skipping stale dirs and dot-dirs."
+      },
+      {
+       "name": "_orphan_bytecode",
+       "kind": "function",
+       "effects": [],
+       "note": "Walks root; for each __pycache__ dir with .pyc files and no sibling .py files, returns (relative path, pyc count) sorted."
+      },
+      {
+       "name": "_clean_annotation",
+       "kind": "function",
+       "effects": [],
+       "note": "Filters a mapping to allowed string keys with non-empty stripped values."
+      },
+      {
+       "name": "annotation_overreach",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of strings describing annotation keys whose value is not an object or whose keys are not in the allowed human fields."
+      },
+      {
+       "name": "_module_targets",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves entrypoint tokens to known module paths; handles .py and dotted package forms; deduplicates."
+      },
+      {
+       "name": "harvest",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts human annotations and narrative features from an old inventory; returns (annotations, narrative, stats). Lossless by contract for schema-2 or older docs."
+      },
+      {
+       "name": "_feature",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a feature dict from facts and annotation, merging human fields for display."
+      },
+      {
+       "name": "_stale_features",
+       "kind": "function",
+       "effects": [],
+       "note": "Identifies stale packages (ghosts and gaps) and orphan bytecode; returns (features, packaging picture). Only the beginning of this function is in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Dotted packages that exist under the distribution roots the metadata already names. Scoped to those roots on purpose: every directory in the repo with an `__init__.py` is not a candidate for the wheel, and treating a fixture or a runs/ directory as one would manufacture findings.",
+       "where": "_packages_on_disk docstring",
+       "verdict": "KEPT",
+       "why": "The function derives roots from the first dotted segment of listed packages (line 288) and walks only those roots (line 290). It also skips stale dirs and dot-dirs (line 293)."
+      },
+      {
+       "text": "`__pycache__` directories holding bytecode whose sources are gone. ... only one with NO sibling `.py` at all.",
+       "where": "_orphan_bytecode docstring",
+       "verdict": "KEPT",
+       "why": "The function checks that the directory name is '__pycache__' (line 315), that there is at least one .pyc (line 316), and that the parent has no .py files (lines 318-322)."
+      },
+      {
+       "text": "Annotation keys carrying fields a human is NOT allowed to set. Reported rather than silently dropped.",
+       "where": "annotation_overreach docstring",
+       "verdict": "KEPT",
+       "why": "The function collects keys whose value is not a Mapping or whose keys are outside the allowed set (lines 344-349)."
+      },
+      {
+       "text": "Silently dropping is how a person concludes the field works; naming it is how they learn the rule.",
+       "where": "annotation_overreach docstring",
+       "verdict": "KEPT",
+       "why": "The function returns descriptive strings like 'key: not an object' and 'key: extra1, extra2', which are the named findings."
+      },
+      {
+       "text": "The build ignores these fields either way -- an annotation that could set `status` would hand the hand-written file's exact power back through a side door.",
+       "where": "annotation_overreach docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not contain the build code that consumes annotations; it only defines the overreach detector. The claim about the build's behavior is outside this window."
+      },
+      {
+       "text": "Every module a hand-written feature's entrypoints resolve to. ALL of them, not the first: the kairos-rename shim entry names five modules in one feature, and attaching its rationale to only one of them would lose the reason for the other four.",
+       "where": "_module_targets docstring",
+       "verdict": "KEPT",
+       "why": "The code iterates over all entrypoints and all tokens, collecting every matching known module (lines 357-367). It does not stop at the first hit."
+      },
+      {
+       "text": "Lift the human half out of a previous inventory. LOSSLESS by contract. Returns `(annotations, narrative_features, stats)`. Every feature in the old document ends up in exactly one of the two: an annotation keyed to the module(s) its entrypoints name, or a verbatim narrative feature. Nothing is dropped...",
+       "where": "harvest docstring",
+       "verdict": "KEPT",
+       "why": "For old schema-2 documents, annotations and narrative_features are passed through (lines 394-403). For older documents, each feature either has module targets and becomes an annotation, or has no targets and becomes a narrative feature (lines 408-423). The code also joins multiple features targeting the same module (lines 424-430)."
+      },
+      {
+       "text": "Already-schema-2 documents pass their blocks straight through; the harvest only has work to do the first time.",
+       "where": "harvest docstring",
+       "verdict": "KEPT",
+       "why": "The function checks `old.get(\"schema\") == SCHEMA` and returns early after copying annotations and narrative_features (lines 394-403)."
+      },
+      {
+       "text": "The two mechanically-detectable kinds of staleness, plus the packaging picture they come from. Deliberately only two. ... They stay in `narrative_features`, where a human signed them.",
+       "where": "_stale_features docstring",
+       "verdict": "KEPT",
+       "why": "The function only computes ghosts (listed but not on disk) and gaps (on disk but not listed) from packaging metadata, plus orphan bytecode; it does not try to guess intent. The comment explicitly says only two kinds."
+      },
+      {
+       "text": "Two hand-written features naming one module. Both reasons are kept, joined, rather than one silently winning.",
+       "where": "harvest comment inside loop",
+       "verdict": "KEPT",
+       "why": "The code checks the existing annotation; if a field is empty it fills it, otherwise it appends the new value with ' | ' separator (lines 425-430)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for _module_targets says 'ALL of them', but the implementation deduplicates module paths, so if the same module appears in multiple entrypoints it is reported only once. The claim likely refers to distinct modules, but the wording could be read as including duplicates.",
+       "where": "_module_targets lines 358-367",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _orphan_bytecode, the walk mutates dirnames to exclude stale skip dirs, but does not exclude dot-directories; however, the parent check for .py siblings and the __pycache__ name check make dot-dirs unlikely to be findings.",
+       "where": "_orphan_bytecode lines 314-315",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The harvest function's losslessness claim is only verifiable for the schema-2 and legacy paths within this chunk; the behavior for other schema versions or malformed old documents is not fully covered, but the function does validate that old is a Mapping and non-empty.",
+       "where": "harvest lines 387-389",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6eabf1b93c90bcf6fdb4bb02d92e543d9ad09c602ebca72b6270fa52529c5347",
+    "objective_chars": 14932,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [2/4]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 281
+ }
+}

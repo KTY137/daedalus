@@ -1,0 +1,295 @@
+{
+ "task_id": "scan__daedalus_gui_lint.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_gui_lint.py__c1of1__1e9d5dd-9d0dc5539a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/gui/lint.py; verified docstring claims against code, identified a few discrepancies.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "analyse() | medium | metric values may be negative or unrealistic if capture keys missing; no validation | inspect a real capture",
+     "compare() | medium | assumes all reports share identical metric keys; heterogeneous reports will KeyError | test with mismatched reports",
+     "main() | low | writes report.json to runs/gui relative to CWD; may overwrite existing | check CWD expectations"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/gui/lint.py",
+     "chunk": "1 of 1",
+     "purpose": "Compute objective and proxy metrics over a DOM/CSSOM capture; compare reports and write evidence.",
+     "symbols": [
+      {
+       "name": "BANNED_FACES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of font-family names treated as generated defaults."
+      },
+      {
+       "name": "_looks_like_identifier",
+       "kind": "function",
+       "effects": [],
+       "note": "Heuristic: single-word lowercase strings with underscores, or raw JSON-like text."
+      },
+      {
+       "name": "_lum",
+       "kind": "function",
+       "effects": [],
+       "note": "Relative luminance per WCAG, using sRGB linearization."
+      },
+      {
+       "name": "contrast_ratio",
+       "kind": "function",
+       "effects": [],
+       "note": "WCAG contrast ratio between two RGB tuples."
+      },
+      {
+       "name": "Metric",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding a measurement and its evidence; to_dict truncates offenders to 12."
+      },
+      {
+       "name": "_sel",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a short selector string from element dict."
+      },
+      {
+       "name": "_is_panel",
+       "kind": "function",
+       "effects": [],
+       "note": "True if element has borderSides >=1 and size >=56x24."
+      },
+      {
+       "name": "_contains",
+       "kind": "function",
+       "effects": [],
+       "note": "Geometric containment with strict area ordering."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes all metrics from a capture dict; returns report dict."
+      },
+      {
+       "name": "_fmt",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats a number with %g."
+      },
+      {
+       "name": "compare",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a side-by-side text table of metric values across reports."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "CLI entry: reads capture JSON files, writes runs/gui/report.json, prints comparison."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Reads a capture from probe.js and computes metrics over the DOM/CSSOM.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "analyse() takes a capture dict and computes metrics from element geometry and computed style fields."
+      },
+      {
+       "text": "No pixels are inspected; every number here is derived from geometry and computed style",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "All metrics use fields like w, h, x, y, fontSize, fontWeight, fg, bgEff, radiusPx, etc.; no image data is referenced."
+      },
+      {
+       "text": "Tier A metrics (contrast, overflow, target size, banned faces) measure things that are true or false. They can gate.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Those four metrics are tagged tier 'A' and are counts of objective conditions."
+      },
+      {
+       "text": "Tier B metrics are PROXIES ... Each proxy carries its own agreement record ... a proxy that stops tracking the human verdict gets retired rather than defended.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not include any agreement record or retirement mechanism; only metric objects with note fields."
+      },
+      {
+       "text": "every metric returns its count AND the elements behind it",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Each Metric includes an offenders list; even when empty, the list is present."
+      },
+      {
+       "text": "Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED. Right now the corpus is n=4 (three rejected surfaces, one approved)",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "No threshold stamping or corpus size is present in this chunk."
+      },
+      {
+       "text": "stdlib only, by design",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Imports are json, math, collections.Counter, dataclasses, pathlib; no third-party imports."
+      },
+      {
+       "text": "A framed surface, not a hairline divider or a text run.",
+       "where": "_is_panel docstring",
+       "verdict": "KEPT",
+       "why": "Requires borderSides >=1 and size >=56x24, which excludes hairlines and text runs."
+      },
+      {
+       "text": "WCAG AA: 4.5:1 body, 3.0:1 large",
+       "where": "contrast_failures note",
+       "verdict": "KEPT",
+       "why": "need is 4.5 unless large (fontSize >=18 or >=14 bold), then 3.0."
+      },
+      {
+       "text": "interactive targets should reach 44x44",
+       "where": "small_targets note",
+       "verdict": "KEPT",
+       "why": "Flags elements with w<44 or h<44."
+      },
+      {
+       "text": "grotesk defaults that mark a generated page",
+       "where": "banned_faces note",
+       "verdict": "KEPT",
+       "why": "Checks first font family against BANNED_FACES."
+      },
+      {
+       "text": "a broken page is not a design question",
+       "where": "console_errors note",
+       "verdict": "KEPT",
+       "why": "Counts consoleErrors from capture."
+      },
+      {
+       "text": "raw density of what is on screen at once",
+       "where": "visible_elements note",
+       "verdict": "KEPT",
+       "why": "Uses cap['elementsKept'] as count."
+      },
+      {
+       "text": "when everything is a bordered box, nothing is elevated",
+       "where": "framed_panels note",
+       "verdict": "KEPT",
+       "why": "Counts panels identified by _is_panel."
+      },
+      {
+       "text": "more than two or three corner radii reads as unconsidered",
+       "where": "distinct_radii note",
+       "verdict": "KEPT",
+       "why": "Counts distinct rounded radius values among panels."
+      },
+      {
+       "text": "frames inside frames inside frames",
+       "where": "panel_nesting_depth note",
+       "verdict": "KEPT",
+       "why": "Computes deepest geometric nesting chain."
+      },
+      {
+       "text": "shouted micro-labels used as decoration rather than hierarchy",
+       "where": "allcaps_text_share note",
+       "verdict": "KEPT",
+       "why": "Measures share of uppercase-transformed or all-caps text."
+      },
+      {
+       "text": "if everything is flagged, nothing is flagged",
+       "where": "status_pills_visible note",
+       "verdict": "KEPT",
+       "why": "Counts small pill-like elements with borders or background."
+      },
+      {
+       "text": "an N-equal-tile metric row is the most recognisable trope in the category",
+       "where": "largest_equal_tile_row note",
+       "verdict": "KEPT",
+       "why": "Finds largest group of same-size elements in a row band."
+      },
+      {
+       "text": "distinct 30-degree hue families in use, semantic colour included",
+       "where": "accent_hue_families note",
+       "verdict": "KEPT",
+       "why": "Buckets hues by //30 and counts families with >=2 occurrences."
+      },
+      {
+       "text": "internal field names and raw JSON rendered as user-facing text",
+       "where": "identifier_leaks note",
+       "verdict": "KEPT",
+       "why": "Uses _looks_like_identifier to flag such strings."
+      },
+      {
+       "text": "Side-by-side table. The point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?",
+       "where": "compare docstring",
+       "verdict": "KEPT",
+       "why": "Prints a table with optional human verdicts row."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Metric values are not clamped; e.g. allcaps_text_share can exceed 100% if caps_len > total_text, and contrast_ratio can be infinite if lo=0.",
+       "where": "analyse() allcaps_text_share and contrast_ratio",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "compare() assumes all reports have identical metric keys and same order; if not, next() raises StopIteration.",
+       "where": "compare() line ~203",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() writes to 'runs/gui/report.json' relative to CWD, not necessarily the module directory; may overwrite an existing report.",
+       "where": "main()",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_looks_like_identifier rejects strings with spaces, so multi-word identifiers or JSON with spaces are not flagged; the docstring says 'raw JSON on the glass' but only checks for leading '{\"' or '{ \"'.",
+       "where": "_looks_like_identifier",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The 'visible_elements' metric uses cap['elementsKept'] without checking existence, unlike other cap.get() calls; a capture missing that key raises KeyError.",
+       "where": "analyse() line ~112",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "225d93b05f3b1721e1c29004fac56e89aba3097146c45ca3eb941597013c0b0a",
+    "objective_chars": 14411,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/gui/lint.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/gui/lint.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

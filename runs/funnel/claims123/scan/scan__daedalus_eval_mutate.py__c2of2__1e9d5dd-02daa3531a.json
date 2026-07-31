@@ -1,0 +1,178 @@
+{
+ "task_id": "scan__daedalus_eval_mutate.py__c2of2__1e9d5dd",
+ "key": "scan__daedalus_eval_mutate.py__c2of2__1e9d5dd-02daa3531a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of mutate.py: verified operator mutation logic, generate() sampling/filtering pipeline, and docstring claims against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 306-313 | high | EARLY_RETURN mutation: removes last statement and falls back to removing first statement if that leaves empty block; may produce semantically large changes not matching 'control-flow' class | inspect full _mutate_tree for branch coverage",
+     "line 320-325 | medium | CHANGE_CONSTANT appends '_x' to strings; may not be parseable if string is f-string or bytes; ast.parse after mutation will catch SyntaxError but not semantic breakage | check mutation on f-string literals",
+     "line 330-336 | medium | DROP_ARGUMENT only pops last positional arg, ignores keyword args; may not reflect real-world argument drops | review operator intent",
+     "line 352-360 | medium | generate() uses rng.choice(OPERATORS) with uniform distribution; no weighting toward defect classes; may skew corpus | check operator distribution requirements",
+     "line 411-413 | high | generate.last_rejected and generate.last_filtered are function attributes, not instance state; if generate() is called concurrently or re-entrantly, state is overwritten | confirm single-threaded usage",
+     "line 397-402 | medium | trivially_equivalent check runs after ast.parse(mutated); if trivially_equivalent is expensive, it runs on every mutation, even those that are parseable but semantically identical | measure performance impact"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mutate.py",
+     "chunk": "2 of 2",
+     "purpose": "Implements the mutation operators and the generate() driver that samples functions and creates Mutant records.",
+     "symbols": [
+      {
+       "name": "OPERATORS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of operator constants: DROP_CALL, INVERT_CONDITION, WEAKEN_COMPARISON, CHANGE_CONSTANT, DROP_ARGUMENT, EARLY_RETURN."
+      },
+      {
+       "name": "OPERATOR_CLASS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maps each operator to a defect class string: guard-removed, logic, boundary, data, data, control-flow."
+      },
+      {
+       "name": "generate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Deterministically generates up to count Mutant objects from Python files under include. Samples sites after collecting them, applies a random operator, filters invalid/trivial mutations, and records rejection/filter counts on the function object."
+      },
+      {
+       "name": "_refuse",
+       "kind": "function",
+       "effects": [],
+       "note": "Nested helper inside generate() that increments a counter in the 'filtered' dict for a given refusal reason."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Generate `count` parseable mutants over real functions. Deterministic.",
+       "where": "docstring of generate()",
+       "verdict": "kept",
+       "why": "The function uses random.Random(seed) and sorts files by path, ensuring deterministic sampling. It parses each mutated source with ast.parse and skips mutations that fail, so the output contains only parseable mutants."
+      },
+      {
+       "text": "Collect candidate (file, function) sites once, then sample from them, so a big file cannot dominate merely by being walked first.",
+       "where": "comment above sites list",
+       "verdict": "kept",
+       "why": "The code builds the full 'sites' list first, then calls rng.shuffle(sites) before iterating to select mutants, so file size does not bias the sample."
+      },
+      {
+       "text": "Why each site was refused. Reported rather than discarded, because a filter nobody can see the effect of is the same shape of defect as a filter nobody calls -- see below.",
+       "where": "comment above filtered dict",
+       "verdict": "kept",
+       "why": "The 'filtered' dict is populated by _refuse() and later exposed as generate.last_filtered, so refusal reasons are observable."
+      },
+      {
+       "text": "MEASURED 2026-07-30: these filters were defined, documented as built, and CALLED FROM NOWHERE. Every one of SKIP_PATH_PARTS, SKIP_FUNCTIONS, _is_display_constant, _looks_like_a_guard, _in_main_block and covered_lines appeared exactly once in this file -- its own definition.",
+       "where": "comment inside generate()",
+       "verdict": "uncheckable",
+       "why": "This claim refers to the state of other parts of the file (definitions of SKIP_PATH_PARTS, SKIP_FUNCTIONS, etc.) that are not in this chunk. The chunk shows that SKIP_PATH_PARTS and SKIP_FUNCTIONS are used here, but the claim about 'exactly once' cannot be verified from this window."
+      },
+      {
+       "text": "The corpus behind the published 75.3% detection figure was therefore minted without any of them, including on __repr__ bodies and log strings, which is precisely what they exist to exclude.",
+       "where": "comment inside generate()",
+       "verdict": "uncheckable",
+       "why": "This claim references historical measurement and the published detection figure, which is not in this chunk. The code does show that SKIP_PATH_PARTS and SKIP_FUNCTIONS are active now, but the historical claim cannot be checked here."
+      },
+      {
+       "text": "Sites the no-go filters refused BEFORE a mutation was ever attempted. Published for the same reason as ``last_rejected``: a filter whose effect nobody can observe is one refactor away from being a filter nobody calls, which is exactly the state these were found in.",
+       "where": "comment above generate.last_filtered",
+       "verdict": "kept",
+       "why": "The code sets generate.last_filtered = dict(sorted(filtered.items())) after the loop, and the comment is consistent with that behavior."
+      },
+      {
+       "text": "a syntax error is a typo, not a defect",
+       "where": "comment near ast.parse(mutated)",
+       "verdict": "kept",
+       "why": "The code explicitly catches SyntaxError and continues, so mutations that produce syntax errors are discarded rather than treated as valid mutants."
+      },
+      {
+       "text": "Undetectable by construction. Keeping it would depress every score measured against this corpus for a reason that is not the detector's fault, which is exactly how a metric starts lying.",
+       "where": "comment near trivially_equivalent check",
+       "verdict": "kept",
+       "why": "The code rejects mutations that are trivially_equivalent to the original and records them in rejected['trivially_equivalent'], so they are not included in the output."
+      },
+      {
+       "text": "inspectable, not silent",
+       "where": "comment after generate.last_rejected assignment",
+       "verdict": "kept",
+       "why": "The function stores last_rejected as a public attribute, making the rejection counts inspectable after the call."
+      }
+     ],
+     "observations": [
+      {
+       "what": "EARLY_RETURN operator removes the last statement; if that leaves an empty block, it falls back to removing the first statement. This is a heuristic that may not always produce a meaningful mutation.",
+       "where": "lines 293-314",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "CHANGE_CONSTANT appends '_x' to strings, which may not be a valid mutation for f-strings or bytes literals, though ast.parse would catch syntax errors.",
+       "where": "lines 320-325",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "DROP_ARGUMENT only pops the last positional argument; keyword-only arguments are not considered, which may miss a class of real-world argument drops.",
+       "where": "lines 330-336",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "generate() uses rng.choice(OPERATORS) with uniform probability, so the distribution of defect classes in the corpus is not controlled; some classes may be over- or under-represented.",
+       "where": "line 363",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "generate.last_rejected and generate.last_filtered are function attributes, not instance state; if generate() is called concurrently or re-entrantly, the state is overwritten.",
+       "where": "lines 411-413",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The comment about 'MEASURED 2026-07-30' is a historical note that cannot be verified from this chunk; it may be stale or inaccurate.",
+       "where": "lines 373-378",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f3f6777f11ffc8fdb8c2910136557b0d98fb2f45d3d6a0ae0b2c7b704c6404ac",
+    "objective_chars": 8936,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mutate.py [2/2]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/mutate.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

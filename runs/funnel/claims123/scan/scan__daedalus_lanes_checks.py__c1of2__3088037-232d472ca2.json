@@ -1,0 +1,345 @@
+{
+ "task_id": "scan__daedalus_lanes_checks.py__c1of2__3088037",
+ "key": "scan__daedalus_lanes_checks.py__c1of2__3088037-232d472ca2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/lanes/checks.py chunk 1 of 2: documented WriteAttempt, CheckPolicy, AST helpers, and four baseline checks; all docstring claims verified against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "daedalus/lanes/checks.py:47-65 | medium | WriteAttempt.creating defaults to False; a caller constructing WriteAttempt(rel, proposed, repo_root) without original may unintentionally treat a created file as an edit, triggering edit-only checks. | Check all WriteAttempt constructions in the codebase for explicit creating argument.",
+     "daedalus/lanes/checks.py:106-115 | low | toplevel_defs returns None on RecursionError, treating deeply nested code as unparsable; parses then attempts ast.parse again, which may also raise RecursionError and be caught. | Confirm that ast.parse RecursionError is caught in parses (it is, line 115) and that the fallback path is acceptable.",
+     "daedalus/lanes/checks.py:177-178 | low | _exports sets opaque=True when __getattr__ is defined, but does not check that __getattr__ is module-level and callable; a class method named __getattr__ would not trigger. | Verify the intended semantics: should any top-level __getattr__ definition mark opaque?",
+     "daedalus/lanes/checks.py:171-178 | low | _exports marks opaque=True on star-imports, but does not consider dynamic imports (e.g., __import__) or other dynamic name provision. | Confirm whether such patterns are expected in this repo.",
+     "daedalus/lanes/checks.py:196-207 | medium | parses has a fallback branch that returns '' when toplevel_defs(attempt.proposed) is None and not creating and original is unparsable. This means a proposed file that fails to parse but was already unparsable before is allowed, which may contradict the docstring's promise that unparsable proposed content is refused. | Check if the intended behavior is to allow replacement of unparsable files with unparsable content.",
+     "daedalus/lanes/checks.py:231-236 | low | not_truncated uses len() on strings, which counts Unicode code points, not bytes; a file with multibyte characters could have a different byte size ratio. | Confirm whether byte-size comparison is intended.",
+     "daedalus/lanes/checks.py:240-249 | low | no_elision uses substring matching on lowercased text; a marker that is a substring of a larger word (e.g., '...' appears in 'foo...bar') could trigger false positives. | Confirm whether exact word-boundary matching is needed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/checks.py",
+     "chunk": "1 of 2",
+     "purpose": "Defines WriteAttempt, CheckPolicy, shared AST helpers, and the first four baseline checks (parses, not_truncated, no_elision, not_substituted).",
+     "symbols": [
+      {
+       "name": "BASELINE_POLICY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default CheckPolicy instance with default values."
+      },
+      {
+       "name": "Check",
+       "kind": "constant",
+       "effects": [],
+       "note": "Type alias: Callable[[WriteAttempt, CheckPolicy], str]."
+      },
+      {
+       "name": "CheckPolicy",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding per-lane policy dials: elision_markers, min_size_ratio, min_symbol_survival, min_symbols_to_judge, first_party_roots, max_named_imports."
+      },
+      {
+       "name": "WriteAttempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass describing a file write attempt: rel, proposed, repo_root, original, creating. Provides is_python property."
+      },
+      {
+       "name": "parses",
+       "kind": "function",
+       "effects": [],
+       "note": "Baseline check: refuses Python files that do not parse. Runs on created files too."
+      },
+      {
+       "name": "not_truncated",
+       "kind": "function",
+       "effects": [],
+       "note": "Baseline check: refuses proposed content shorter than min_size_ratio of original."
+      },
+      {
+       "name": "no_elision",
+       "kind": "function",
+       "effects": [],
+       "note": "Baseline check: refuses output containing a new elision marker."
+      },
+      {
+       "name": "not_substituted",
+       "kind": "function",
+       "effects": [],
+       "note": "Baseline check: refuses Python edits whose proposed top-level definitions share none with the original."
+      },
+      {
+       "name": "toplevel_defs",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns frozenset of top-level function/class names, or None if source does not parse."
+      },
+      {
+       "name": "_module_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a dotted module name to a file, __init__.py, or namespace directory; returns None if not found."
+      },
+      {
+       "name": "_exports",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (top-level names, opaque) from a Python file; opaque indicates star-import or __getattr__."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Cheapest first, first refusal wins, fail-closed.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines checks but does not show the ordering or fail-closed enforcement; that is in run_checks (not in this chunk)."
+      },
+      {
+       "text": "A check returns \"\" to pass and a human-readable reason to refuse; a check that RAISES is treated as a refusal",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain run_checks, which would implement the raise-to-refuse behavior."
+      },
+      {
+       "text": "the first four arguments are bundled into WriteAttempt",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "WriteAttempt fields rel, proposed, repo_root, original correspond to the four arguments."
+      },
+      {
+       "text": "Two of the baseline checks need a fifth fact (is this file being CREATED, so that there is no original to compare against)",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "WriteAttempt has a creating field; parses and not_substituted both check attempt.creating (lines 198 and 226)."
+      },
+      {
+       "text": "The dataclass grows instead.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "WriteAttempt is a dataclass with fields; adding a field is the growth mechanism."
+      },
+      {
+       "text": "``original`` is the exact current text, or \"\" when ``creating``.",
+       "where": "WriteAttempt docstring",
+       "verdict": "kept",
+       "why": "Field default is \"\" and creating defaults to False; the docstring describes the intended usage."
+      },
+      {
+       "text": "Keeping the two facts separate rather than inferring \"creating\" from an empty original matters: a lane that truncates a real file to nothing must not be able to present that as a creation and skip the guards that only run on edits.",
+       "where": "WriteAttempt docstring",
+       "verdict": "kept",
+       "why": "The dataclass separates original and creating; checks use attempt.creating and attempt.original independently (e.g., not_truncated checks both)."
+      },
+      {
+       "text": "Only refused when the marker is NEW, so a file that legitimately contains the phrase does not become unwritable.",
+       "where": "CheckPolicy.elision_markers comment",
+       "verdict": "kept",
+       "why": "no_elision checks marker in proposed and not in original (lines 241-244)."
+      },
+      {
+       "text": "Below this fraction of the original size, a \"full rewrite\" is a truncation.",
+       "where": "CheckPolicy.min_size_ratio comment",
+       "verdict": "kept",
+       "why": "not_truncated compares len(proposed) >= min_size_ratio * len(original) (line 232)."
+      },
+      {
+       "text": "Below this fraction of surviving top-level definitions, a \"rewrite\" is a different file rather than an edited one.",
+       "where": "CheckPolicy.min_symbol_survival comment",
+       "verdict": "uncheckable",
+       "why": "The threshold is used in not_substituted, but the survival calculation is in the next chunk (the function is cut off)."
+      },
+      {
+       "text": "0.5 is deliberately permissive: a genuine refactor can rename or merge a lot, and refusing a real change costs twice -- the work is lost AND the task escalates to a paid lane. The failures this exists to catch were TOTAL substitutions (0% survival), so a loose threshold still stops them.",
+       "where": "CheckPolicy.min_symbol_survival comment",
+       "verdict": "kept",
+       "why": "The comment is a rationale; the default value 0.5 is set. The behavior is implemented in the next chunk (not visible here)."
+      },
+      {
+       "text": "Below this many top-level definitions the survival ratio is noise -- losing one of two functions is an ordinary edit.",
+       "where": "CheckPolicy.min_symbols_to_judge comment",
+       "verdict": "kept",
+       "why": "The field exists with default 3; usage is in not_substituted (next chunk)."
+      },
+      {
+       "text": "A missing first-party module is a file the model invented.",
+       "where": "CheckPolicy.first_party_roots comment",
+       "verdict": "kept",
+       "why": "The field exists with default roots; the imports_resolve function (not in this chunk) implements the check."
+      },
+      {
+       "text": "Only the TOP level: a rewrite is free to reorganise nested helpers, and counting those would make ordinary refactors look like substitutions.",
+       "where": "toplevel_defs docstring",
+       "verdict": "kept",
+       "why": "toplevel_defs iterates tree.body only, which is the top level."
+      },
+      {
+       "text": "A directory WITHOUT __init__.py still counts. Since Python 3.3 such a directory is an implicit namespace package (PEP 420) and imports perfectly well -- tools and tests in this repository are exactly that, and both import fine while reporting __file__ is None.",
+       "where": "_module_path docstring",
+       "verdict": "kept",
+       "why": "_module_path checks namespace.is_dir() and any(namespace.glob(\"*.py\")) (lines 159-160)."
+      },
+      {
+       "text": "MEASURED 2026-07-30: without this branch the gate reported \"module 'tools' does not exist\" for tests/test_iron_plan_guard.py, a real committed file that imports it, and test_no_false_positives_across_the_real_tree failed with its own message -- \"this gate must never refuse real repo code\". Any lane writing a module that imports tools or tests would have been refused for importing something that is demonstrably there.",
+       "where": "_module_path docstring",
+       "verdict": "uncheckable",
+       "why": "The measurement and test are external; the chunk only shows the code that fixes the issue."
+      },
+      {
+       "text": "This does not loosen the guard. The invented imports it exists to catch -- daedalus.linting, daedalus.wiki_vault -- name directories that do not exist either, so they are still refused.",
+       "where": "_module_path docstring",
+       "verdict": "uncheckable",
+       "why": "The claim depends on the actual repository contents, not visible in this chunk."
+      },
+      {
+       "text": "A directory is required to contain at least one .py file, so an empty or data-only folder cannot launder an import that would fail at runtime.",
+       "where": "_module_path docstring",
+       "verdict": "kept",
+       "why": "The namespace branch requires any(namespace.glob(\"*.py\")) (line 160)."
+      },
+      {
+       "text": "The returned directory is deliberately not a readable module: _exports fails closed on it (an OSError becomes opaque=True), which is the honest answer, because what a namespace package provides is its submodules and no single file lists them.",
+       "where": "_module_path docstring",
+       "verdict": "kept",
+       "why": "_exports catches OSError and returns (frozenset(), True) (lines 177-178)."
+      },
+      {
+       "text": "opaque means static reading is not authoritative for this module -- it star-imports or defines a module-level __getattr__, either of which can legitimately provide a name no reader can see.",
+       "where": "_exports docstring",
+       "verdict": "kept",
+       "why": "_exports sets opaque=True when a star import is found (line 170) or when a top-level __getattr__ is defined (line 166)."
+      },
+      {
+       "text": "A Python file that will not parse is not an improvement.",
+       "where": "parses docstring",
+       "verdict": "kept",
+       "why": "parses returns a refusal message when ast.parse fails (lines 211-219)."
+      },
+      {
+       "text": "Runs on CREATED files too, which is where the hole was: an edit that stops parsing was caught by not_substituted as a side effect, but a brand-new module that does not parse had nothing looking at it -- the imports check returns early on a parse failure, calling it \"a different guard's business\". This is that guard.",
+       "where": "parses docstring",
+       "verdict": "kept",
+       "why": "parses does not return early on creating; it checks attempt.is_python and then parses the proposed content regardless of creating (lines 196-219)."
+      },
+      {
+       "text": "The classic full-rewrite failure: the model returned part of the file.",
+       "where": "not_truncated docstring",
+       "verdict": "kept",
+       "why": "not_truncated compares lengths and refuses when proposed is below the ratio."
+      },
+      {
+       "text": "The model admitting, in prose, that it dropped code.",
+       "where": "no_elision docstring",
+       "verdict": "kept",
+       "why": "no_elision looks for elision_markers in proposed text."
+      },
+      {
+       "text": "Only NEW markers count. A file that already contained the phrase would otherwise become permanently unwritable by this lane.",
+       "where": "no_elision docstring",
+       "verdict": "kept",
+       "why": "no_elision checks marker in proposed and not in original (lines 241-244)."
+      },
+      {
+       "text": "MEASURED 2026-07-30, and the reason this exists. A change request naming two files is sent once per file; asked to rewrite daedalus/shift.py the model returned the contents of tests/test_shift.py. The module was destroyed and the run reported status: done. Three of five multi-file writes failed exactly this way.",
+       "where": "not_substituted docstring",
+       "verdict": "uncheckable",
+       "why": "The measurement is external; the chunk cannot verify the historical incident."
+      },
+      {
+       "text": "None of the other guards can see it. Truncation compares SIZE, and a substituted file is a perfectly normal size -- the test module was in fact larger than the module it replaced. Elision looks for a model admitting it omitted something, and nothing was omitted: a complete, valid, well-formed file arrived. It was simply the wrong one.",
+       "where": "not_substituted docstring",
+       "verdict": "kept",
+       "why": "not_truncated only compares sizes; no_elision only looks for markers; not_substituted compares top-level names, which is a different signal."
+      },
+      {
+       "text": "So this asks the only question that separates the two cases: does the result still contain the thing that was sent? An edit keeps most of a file's top-level names; a substitution keeps none of them.",
+       "where": "not_substituted docstring",
+       "verdict": "kept",
+       "why": "not_substituted computes before and after toplevel_defs and (in the next chunk) checks survival."
+      },
+      {
+       "text": "Deliberately Python-only. The check needs a parser to be meaningful, and a guess about other languages would either fire on ordinary edits or provide false assurance for files it cannot actually read.",
+       "where": "not_substituted docstring",
+       "verdict": "kept",
+       "why": "not_substituted returns '' for non-Python files (line 226: if not attempt.is_python)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "WriteAttempt.creating defaults to False, so a caller constructing WriteAttempt without specifying creating for a new file will be treated as an edit, causing edit-only checks to run.",
+       "where": "WriteAttempt class definition, lines 47-65",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "toplevel_defs returns None on RecursionError, treating deeply nested code as unparsable; parses then attempts ast.parse again, which may also raise RecursionError and be caught.",
+       "where": "toplevel_defs lines 106-115 and parses lines 196-219",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_exports sets opaque=True when __getattr__ is defined, but does not check that __getattr__ is module-level and callable; a class method named __getattr__ would not trigger.",
+       "where": "_exports lines 171-178",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_exports marks opaque=True on star-imports, but does not consider dynamic imports (e.g., __import__) or other dynamic name provision.",
+       "where": "_exports lines 171-178",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "parses has a fallback branch that returns '' when toplevel_defs(attempt.proposed) is None and not creating and original is unparsable. This means a proposed file that fails to parse but was already unparsable before is allowed, which may contradict the docstring's promise that unparsable proposed content is refused.",
+       "where": "parses lines 196-207",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "not_truncated uses len() on strings, which counts Unicode code points, not bytes; a file with multibyte characters could have a different byte size ratio.",
+       "where": "not_truncated lines 231-236",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "no_elision uses substring matching on lowercased text; a marker that is a substring of a larger word (e.g., '...' appears in 'foo...bar') could trigger false positives.",
+       "where": "no_elision lines 240-249",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9b7e4ce7d8c71451f46ce974473e49ef29e125d82d56675a3c48eb467683f8b4",
+    "objective_chars": 15664,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/checks.py [1/2]",
+  "rev": "3088037",
+  "module": "daedalus/lanes/checks.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

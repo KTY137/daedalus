@@ -1,0 +1,49 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c1of4__3088037",
+ "key": "scan__daedalus_council_publish.py__c1of4__3088037-85831b36ba",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. secret content: credential assigned a quoted literal value",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Route this task to Claude or local Ollama."
+    ],
+    "handoff": {
+     "offending": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64ce58b0a0249af1a03fd5cf10bb9169a4c3202ab507524b51270a0c8d9b2919",
+    "objective_chars": 15992,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [1/4]",
+  "rev": "3088037",
+  "module": "daedalus/council/publish.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

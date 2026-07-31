@@ -1,0 +1,235 @@
+{
+ "task_id": "scan__daedalus_eval_report.py__c2of2__3088037",
+ "key": "scan__daedalus_eval_report.py__c2of2__3088037-3e46e823ba",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/eval/report.py: render_tier2, render_gate, render. All docstring claims kept; no defects found in this chunk. Several claims about behavior outside this chunk are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_gate | low | The comment about errored tasks says 'always absent -> no lines added when there are none' but the code uses result.get with a fallback, which is fine; no risk.",
+     "render_tier2 | low | The ratio computation divides by tok_b; if tok_b is 0 it prints 'n/a', but the aggregate line still shows B (sent) = 0. No division by zero occurs.",
+     "render_gate | low | The advisory nature of the gate is only in the docstring and the rendered text; the actual enforcement (if any) is elsewhere, so this chunk cannot verify that it never blocks.",
+     "render_gate | low | The focus-withheld comment references harness.run_gate semantics; the actual classification of focus-withheld as 'not a recall regression' is implemented elsewhere, so this chunk cannot verify the claim.",
+     "render_gate | low | The comment about hand-built pre-existing gate result dicts lacking keys is consistent with the use of result.get, but the actual presence or absence of those keys in such dicts is not observable in this chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/report.py",
+     "chunk": "2 of 2",
+     "purpose": "Rendering functions for tier2, gate, and combined report output.",
+     "symbols": [
+      {
+       "name": "render_tier2",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders TIER 2 LLM task-success comparison between distilled slice A and whole-repo concat B. Handles skipped case, per-task table, aggregate, truncation warning, and errored tasks."
+      },
+      {
+       "name": "render_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders ADVISORY regression-ratchet gate report. Includes regressions, improved, new, missing, errored primary/quarantine, focus-withheld, and a success message if no regressions/errored primary. Includes an explicit update-baseline hint."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [],
+       "note": "Combines render_tier1, optional render_arms, and optional render_tier2 into a single string, joining with newlines."
+      }
+     ],
+     "claims": [
+      {
+       "text": "TIER 2 -- LLM task-success (distilled slice A vs whole-repo concat B).",
+       "where": "render_tier2 header comment line 282",
+       "verdict": "kept",
+       "why": "The rendered header exactly matches this text."
+      },
+      {
+       "text": "SKIPPED: {reason}",
+       "where": "render_tier2 lines 282-285",
+       "verdict": "kept",
+       "why": "When result.get('skipped') is truthy, the function returns a string containing 'SKIPPED: {result['reason']}'."
+      },
+      {
+       "text": "TOK_B is what was actually sent to the model (may be truncated to fit the context window); TOK_B(true) is the real, untruncated whole-repo size.",
+       "where": "render_tier2 lines 299-301",
+       "verdict": "kept",
+       "why": "The table uses t['tokens_B'] for TOK_B and t.get('tokens_B_true', t['tokens_B']) for TOK_B(true). The explanatory text matches this."
+      },
+      {
+       "text": "the win: A ~= B success at a fraction of B's tokens.",
+       "where": "render_tier2 line 298",
+       "verdict": "kept",
+       "why": "The text is rendered verbatim."
+      },
+      {
+       "text": "AGGREGATE over {n_tasks} tasks: success A = {success_A}/{n_tasks} success B = {success_B}/{n_tasks}",
+       "where": "render_tier2 lines 305-307",
+       "verdict": "kept",
+       "why": "The aggregate line renders exactly these values from result['n_tasks'], result['success_A'], result['success_B']."
+      },
+      {
+       "text": "tokens: A = {tok_a} B (sent) = {tok_b} B (true, untruncated) = {tokens_B_true} (A is {ratio} of B-sent)",
+       "where": "render_tier2 lines 308-310",
+       "verdict": "kept",
+       "why": "The line renders exactly those values, with ratio computed as 100*tok_a/tok_b percent, or 'n/a' if tok_b is 0."
+      },
+      {
+       "text": "WARNING: B was TRUNCATED to fit the model's context window for at least one task -- B (sent) above understates the real whole-repo baseline; a truncated baseline is a WEAKER one, not a fair comparison.",
+       "where": "render_tier2 lines 311-314",
+       "verdict": "kept",
+       "why": "The warning is appended only when result.get('b_truncated_any') is truthy, and the text matches."
+      },
+      {
+       "text": "ERRORED TASKS -- resolution failed before an LLM call was made, SKIPPED (not counted in the aggregate above)",
+       "where": "render_tier2 lines 315-320",
+       "verdict": "kept",
+       "why": "The errored tasks section is rendered with that header, listing each errored task's id, target, label_provenance/label_tier, and error."
+      },
+      {
+       "text": "ADVISORY regression-ratchet report -- see harness.run_gate docstring. This never blocks anything by itself; it is a local developer command.",
+       "where": "render_gate docstring lines 324-326",
+       "verdict": "uncheckable",
+       "why": "The function renders an advisory report, but whether it never blocks anything by itself depends on callers elsewhere; this chunk cannot observe that."
+      },
+      {
+       "text": "GATE -- counterfactual per-task recall regression ratchet (ADVISORY ONLY, never wired to block autonomous actions).",
+       "where": "render_gate lines 330-331",
+       "verdict": "kept",
+       "why": "The banner line is rendered verbatim."
+      },
+      {
+       "text": "baseline: {baseline_path}",
+       "where": "render_gate line 332",
+       "verdict": "kept",
+       "why": "The line renders result['baseline_path']."
+      },
+      {
+       "text": "checked {n_checked} primary-tier task(s) against the stored baseline.",
+       "where": "render_gate line 333",
+       "verdict": "kept",
+       "why": "The line renders result['n_checked']."
+      },
+      {
+       "text": "REGRESSIONS -- recall DECREASED vs baseline",
+       "where": "render_gate lines 337-340",
+       "verdict": "kept",
+       "why": "When result['regressions'] is non-empty, the section is rendered with that header and each regression shows baseline_recall -> current_recall with delta and missed list."
+      },
+      {
+       "text": "IMPROVED -- recall increased vs baseline",
+       "where": "render_gate lines 341-344",
+       "verdict": "kept",
+       "why": "When result['improved'] is non-empty, the section is rendered with that header and each improved task shows baseline_recall -> current_recall."
+      },
+      {
+       "text": "NEW (no baseline entry yet, not gated)",
+       "where": "render_gate lines 345-346",
+       "verdict": "kept",
+       "why": "When result['new_tasks'] is non-empty, the line is rendered with the list of new task ids."
+      },
+      {
+       "text": "IN BASELINE BUT NOT IN THIS RUN",
+       "where": "render_gate lines 347-348",
+       "verdict": "kept",
+       "why": "When result['missing_tasks'] is non-empty, the line is rendered with the list."
+      },
+      {
+       "text": "PRIMARY TASK(S) FAILED TO RESOLVE -- this FAILS the gate (a broken primary corpus must scream)",
+       "where": "render_gate lines 351-355",
+       "verdict": "uncheckable",
+       "why": "The function renders the message, but whether this actually fails the gate depends on the gate logic in harness.run_gate, which is outside this chunk."
+      },
+      {
+       "text": "ERRORED QUARANTINE TASK(S) -- reported only, does NOT fail the gate",
+       "where": "render_gate lines 356-359",
+       "verdict": "uncheckable",
+       "why": "The function renders the message, but the actual gate outcome logic is outside this chunk."
+      },
+      {
+       "text": "FOCUS-WITHHELD -- secret floor fail-closed on the focus file; NOT a recall regression, reported only",
+       "where": "render_gate lines 363-367",
+       "verdict": "uncheckable",
+       "why": "The function renders the message, but the classification of focus-withheld as not a recall regression is defined in harness.run_gate, outside this chunk."
+      },
+      {
+       "text": "No primary-tier task lost recall vs the stored baseline.",
+       "where": "render_gate lines 368-369",
+       "verdict": "kept",
+       "why": "This line is appended only when result['regressions'] is empty and errored_primary is empty, matching the claim."
+      },
+      {
+       "text": "Run 'python -m daedalus.eval --update-baseline' to intentionally accept the current numbers as the new baseline (explicit only, never automatic).",
+       "where": "render_gate lines 370-372",
+       "verdict": "uncheckable",
+       "why": "The line is rendered verbatim, but whether the update is explicit-only and never automatic depends on the CLI implementation elsewhere."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_tier2 computes a ratio by dividing tok_a by tok_b; if tok_b is 0 it prints 'n/a' instead of crashing, which is safe.",
+       "where": "render_tier2 line 291",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "render_gate uses result.get for optional keys (errored_primary, errored_quarantine, focus_withheld) with a fallback to empty lists, so hand-built pre-existing gate dicts without those keys are handled gracefully.",
+       "where": "render_gate lines 351-367",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment on line 350 says 'always absent -> no lines added when there are none', but the code uses result.get with a fallback, which is consistent with that behavior.",
+       "where": "render_gate line 350",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The focus-withheld comment references harness.run_gate semantics; this chunk cannot verify that the classification matches the actual behavior.",
+       "where": "render_gate lines 362-367",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The advisory-only nature of the gate is claimed in the docstring and rendered text, but actual enforcement (if any) is outside this chunk.",
+       "where": "render_gate docstring and lines 330-331",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "01b6e7908e756513703e5c5ac679abc8c2e41832c5f15dab71e0074b70ba647c",
+    "objective_chars": 10117,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/report.py [2/2]",
+  "rev": "3088037",
+  "module": "daedalus/eval/report.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

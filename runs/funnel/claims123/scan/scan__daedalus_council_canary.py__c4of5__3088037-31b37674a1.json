@@ -1,0 +1,20 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c4of5__3088037",
+ "key": "scan__daedalus_council_canary.py__c4of5__3088037-31b37674a1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 0,
+ "answers": [],
+ "errors": [
+  "vote 1: TimeoutError: The read operation timed out\nTimeoutError: The read operation timed out\n"
+ ],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [4/5]",
+  "rev": "3088037",
+  "module": "daedalus/council/canary.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

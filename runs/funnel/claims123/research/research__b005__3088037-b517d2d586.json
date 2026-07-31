@@ -1,0 +1,144 @@
+{
+ "task_id": "research__b005__3088037",
+ "key": "research__b005__3088037-b517d2d586",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-chunk analysis identifies recurring uncheckable claims: many docstrings assert invariants, measurements, and cross-module guarantees that are not verifiable from the provided chunks, with several broken verification claims and duplicated guard patterns.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Numerous claims in the codebase are unverifiable from the code alone, relying on external measurements or cross-module behavior.",
+     "Some docstrings assert invariants that are not enforced in the visible code, risking silent contract violations.",
+     "Per-provider duplicated guards may drift, as already observed in the past."
+    ],
+    "todos": [
+     "Verify the three verification sites in _remove_tree_no_follow and add the missing rmdir drain verification.",
+     "Add tests for the absolute-path fast path in _safe_join to confirm the containment comparison catches all cases.",
+     "Establish a central mechanism for verifying cross-module invariants to prevent drift.",
+     "Investigate the claims about external measurements (e.g., 202/526 edges, 6479 chars) and ensure they are reproducible."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "broken-verification-invariant",
+       "claim": "The invariant that every path handed to a resolving syscall is re-classified with a fresh lstat immediately beforehand is not fully implemented: the rmdir drain lacks verification, and chmod calls are not preceded by fresh verification.",
+       "spans": [
+        "_remove_tree_no_follow",
+        "docstring invariant"
+       ],
+       "mechanism": "The docstring claims three verification sites (scan, per-child unlink, rmdir drain) and includes chmod among the sites. The visible code shows only the scan and per-child unlink verification, and chmod calls inside _force_unlink/_force_rmdir/_unlink_reparse_point are not preceded by a fresh verification. The rmdir drain is not shown in the chunk.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "The rmdir drain code actually contains a fresh verification and all chmod calls are preceded by lstat verification.",
+       "evidence": [
+        "_remove_tree_no_follow: docstring",
+        "_remove_tree_no_follow: while loop pop-time check",
+        "_remove_tree_no_follow: per-child check",
+        "_remove_tree_no_follow: _force_unlink/_force_rmdir/_unlink_reparse_point (chmod calls)"
+       ]
+      },
+      {
+       "id": "per-provider-guard-drift",
+       "claim": "Security guards are duplicated per-provider (deepseek.py and ollama.py) with a known history of drift, and the pattern suggests that future guard updates may continue to be applied inconsistently across providers.",
+       "spans": [
+        "providers/deepseek.py",
+        "providers/ollama.py",
+        "provider adapter system"
+       ],
+       "mechanism": "The claim row notes that two new guards (content substitution, invented first-party imports) went into deepseek.py and not into ollama.py within the same hours. This indicates a per-provider copy pattern rather than a shared guard layer, which is a known source of silent drift.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "A shared guard helper exists that all providers call, and the deepseek/ollama difference was a temporary transition.",
+       "evidence": [
+        "providers/deepseek.py: docstring line 7",
+        "providers/ollama.py: (referenced in the claim)"
+       ]
+      },
+      {
+       "id": "unverifiable-measurements-as-ground-truth",
+       "claim": "Several docstrings cite specific measurements (e.g., 202/526 internal edges, 6479 characters, 900s timeout, 4146 tests, 765s) as ground truth, but these numbers are not reproducible from the code and may become stale, yet they are used to justify design decisions.",
+       "spans": [
+        "module docstrings",
+        "design decisions"
+       ],
+       "mechanism": "The claims reference measurements taken on a particular date (2026-07-30) and are embedded as comments/docstrings. They are not computed or verified by the code, so if the repository changes, these numbers become misleading but remain as authoritative comments.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "A test or script exists that recomputes these measurements and fails if they drift.",
+       "evidence": [
+        "module docstring: 202/526 edges (DEEP_EDGE_MARK)",
+        "comment at DEFAULT_BUDGET_CHARS: 6479 characters",
+        "comment above DEFAULT_CONCURRENCY: 900s timeout, 4146 tests, 765s",
+        "ReferenceAudit docstring: 42 unresolvable paths"
+       ]
+      },
+      {
+       "id": "cross-module-contract-not-enforced",
+       "claim": "Several docstrings assert cross-module contracts (e.g., 'never raises for an operational failure', 'the only load path', 'the only place a set is built') that are not enforced by any visible code or test, making them unverifiable and prone to silent violation.",
+       "spans": [
+        "publish_to_pr",
+        "load_minted_tasks",
+        "freeze_selection",
+        "gate_candidates"
+       ],
+       "mechanism": "These claims are stated as invariants in docstrings but the enforcing code or tests are not present in the visible chunks. For example, publish_to_pr claims to never raise, but no test verifies that all branches return a PublishResult. load_minted_tasks claims to be the only load path, but other modules could also load tasks without this function knowing.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "A test exists that verifies these invariants (e.g., a test that checks publish_to_pr never raises, or a search that confirms no other load path).",
+       "evidence": [
+        "publish_to_pr: docstring",
+        "load_minted_tasks: docstring",
+        "freeze_selection: docstring",
+        "gate_candidates: docstring (request-scoped cancel)"
+       ]
+      },
+      {
+       "id": "absolute-path-fast-path-misleading",
+       "claim": "The absolute-path branch in _safe_join is labeled a fast path, not a guard, but its presence may lead readers to trust it as a security boundary, and the docstring's claim that disabling it does not change verdicts is unverified.",
+       "spans": [
+        "_safe_join",
+        "containment comparison"
+       ],
+       "mechanism": "The docstring explains that the absolute-path branch is a fast path because the containment comparison underneath catches all cases. However, this is a measurement claim not reproducible from the code, and the branch could be mistakenly relied upon as a guard by future maintainers.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "A test that disables the absolute-path branch and shows a change in verdict, or a code review that confirms the branch is never used as a guard.",
+       "evidence": [
+        "_safe_join: docstring",
+        "_safe_join: containment comparison"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bcc2f48b48b299dbaea5466d494b36079230cd29b7505e49eeb3b8a674b85942",
+    "objective_chars": 27391,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 5 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 5,
+  "inputs": 64
+ }
+}

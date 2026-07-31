@@ -1,0 +1,279 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c3of4__3088037",
+ "key": "scan__daedalus_council_publish.py__c3of4__3088037-48f48558fc",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed publish.py chunk 3 of 4, enumerating all claims and observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "screen_egress | medium | secret_floor_rule called with empty text for paths; if floor treats empty as no-match, empty paths silently pass; if it matches empty, every call refuses. | Inspect secret_floor_rule to see how it handles empty input.",
+     "_classify_failure | medium | Substring matching on lowercased stderr/stdout may match 'not found' in unrelated context (e.g., 'file not found' from a different tool), misclassifying as PR not found. | Add a test with a stderr containing 'not found' but not related to PR.",
+     "load_for_publish verdict vendors_answered | medium | When answered is empty, vendors_answered becomes requested, implying all requested answered when none did. | Confirm whether empty answered should yield empty list instead of fallback to requested.",
+     "_parse_comment | low | Tolerant parsing may silently drop fields if gh changes shape; author fallback to 'user' may mask missing author. | Add a test with a comment lacking both author and user fields."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "3 of 4",
+     "purpose": "Egress gate, failure classification, load_for_publish, publish_to_pr, read_pr_thread.",
+     "symbols": [
+      {
+       "name": "screen_egress",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs secret_floor_rule on evidence paths and channel texts; returns (channel, rule) for first hit or None."
+      },
+      {
+       "name": "_gh_argv",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Appends --repo flag to base argv if repo is provided."
+      },
+      {
+       "name": "_classify_failure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps a failed RunResult to (status, detail) using substring matching on stderr/stdout."
+      },
+      {
+       "name": "_first_url",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts first http(s) URL token from text."
+      },
+      {
+       "name": "STATUS_NO_TRANSCRIPT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Status string 'no_transcript'."
+      },
+      {
+       "name": "load_for_publish",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reconstructs (verdict, turns) from a stored bus transcript via bus.load_transcript."
+      },
+      {
+       "name": "publish_to_pr",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "spend"
+       ],
+       "note": "Renders markdown, runs egress gate, and posts comment via gh subprocess unless dry_run."
+      },
+      {
+       "name": "read_pr_thread",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Reads PR comments via gh subprocess and parses into PRTurn tuples."
+      },
+      {
+       "name": "_parse_comment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses one gh comment object into a PRTurn; tolerant of author shapes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Returns ``(channel, rule)`` for the FIRST hit, or None if clean.",
+       "where": "screen_egress docstring",
+       "verdict": "KEPT",
+       "why": "Code iterates paths then channels, returning on first hit; returns None at end."
+      },
+      {
+       "text": "The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text, so a refusal can be logged and reported without re-leaking the secret it refused (memstore's ``_scan_secret`` posture, same floor, same reason).",
+       "where": "screen_egress docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The nature of secret_floor_rule's return value is not visible in this chunk; it is defined in another module."
+      },
+      {
+       "text": "Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.",
+       "where": "_classify_failure docstring",
+       "verdict": "KEPT",
+       "why": "The auth checks appear before the not-found checks in the if/elif chain."
+      },
+      {
+       "text": "``(verdict, turns)`` reconstructed from a stored bus transcript.",
+       "where": "load_for_publish docstring",
+       "verdict": "KEPT",
+       "why": "load_for_publish calls bus.load_transcript and builds a verdict dict from the records."
+      },
+      {
+       "text": "Only what the bus actually recorded. The council package stores no ``outcome`` and no ``convergence`` field -- by construction, because it promotes nothing -- so none is invented here, and :func:`render_markdown` prints \"(not recorded)\" for them.",
+       "where": "load_for_publish docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The absence of outcome/convergence fields in the bus and render_markdown's behavior are not observable in this chunk."
+      },
+      {
+       "text": "Quorum comes from the roster records' ``participants``: a vendor is ANSWERED only if it actually produced a turn, not if it was merely seated.",
+       "where": "load_for_publish docstring",
+       "verdict": "KEPT",
+       "why": "Code only adds to answered when a turn's status is 'spoke' and the vendor is present; roster participants are added to requested only."
+      },
+      {
+       "text": "That is the distinction the degraded-quorum banner is built on, so deriving it from the seat list would silently upgrade every short council to a full one.",
+       "where": "load_for_publish docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The degraded-quorum banner logic is not in this chunk."
+      },
+      {
+       "text": "Render the deliberation and post it as a PR comment. Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.",
+       "where": "publish_to_pr docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about never raising depends on render_markdown and other functions not shown; the function itself only returns PublishResult, but exceptions could propagate from render_markdown or screen_egress."
+      },
+      {
+       "text": "``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.",
+       "where": "publish_to_pr docstring",
+       "verdict": "KEPT",
+       "why": "When dry_run is True, the function returns PublishResult(status=STATUS_DRY_RUN, markdown=body) before calling the runner."
+      },
+      {
+       "text": "The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.",
+       "where": "publish_to_pr docstring",
+       "verdict": "KEPT",
+       "why": "screen_egress is invoked before the dry_run check."
+      },
+      {
+       "text": "The body goes to gh on STDIN via ``--body-file -``: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.",
+       "where": "publish_to_pr docstring",
+       "verdict": "KEPT",
+       "why": "argv is ['gh', 'pr', 'comment', pr, '--body-file', '-'] and run(argv, body) passes body as stdin."
+      },
+      {
+       "text": "Read the PR's comments back as structured turns, so a later council round can consume what a human or another agent replied.",
+       "where": "read_pr_thread docstring",
+       "verdict": "KEPT",
+       "why": "read_pr_thread parses comments into PRTurn objects and returns them in ThreadResult."
+      },
+      {
+       "text": "Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.",
+       "where": "read_pr_thread docstring",
+       "verdict": "KEPT",
+       "why": "All paths return ThreadResult; no exceptions are raised in the visible code (json.loads is caught)."
+      },
+      {
+       "text": "Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.",
+       "where": "read_pr_thread docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The bus appending behavior is not in this chunk."
+      },
+      {
+       "text": "One gh comment object -> one PRTurn. Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).",
+       "where": "_parse_comment docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The implementation is cut off at the end of the chunk; the author-shape handling is not fully visible."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No such check is present in this chunk."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No such refusal is present in this chunk."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No such rule is present in this chunk."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "_parse_comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The parsing code is incomplete in this chunk; cannot determine if it silently defaults on shape changes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In screen_egress, paths are passed to secret_floor_rule with empty string as the second argument. If secret_floor_rule expects a text to scan, an empty text may always match or never match depending on implementation.",
+       "where": "screen_egress, line ~566-570",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _classify_failure, the substring 'not found' is used to classify PR not found. This could match unrelated errors like 'file not found' from a different tool, causing misclassification.",
+       "where": "_classify_failure, line ~600",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In load_for_publish, when answered is empty, vendors_answered is set to requested, which would report all requested vendors as answered. This could be misleading if no vendor actually spoke.",
+       "where": "load_for_publish, line ~650-655",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "In publish_to_pr, the egress gate runs before checking for a PR reference. This means a dry_run with no PR will still run the gate, which is fine, but the detail message for dry run does not mention the missing PR.",
+       "where": "publish_to_pr, line ~700",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In read_pr_thread, the egress gate runs before checking for a PR reference. This means a read with no PR will still run the gate, which is fine, but the detail message for missing PR does not mention the gate.",
+       "where": "read_pr_thread, line ~730",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7492892379c2f0f58bd2151a81101fc5df491f3da1ca7498348fa8c182e5b21b",
+    "objective_chars": 17367,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [3/4]",
+  "rev": "3088037",
+  "module": "daedalus/council/publish.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

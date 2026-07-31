@@ -1,0 +1,239 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c4of5__3088037",
+ "key": "scan__daedalus_council_vendors.py__c4of5__3088037-8e60124c2d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of daedalus/council/vendors.py: AntigravityAdapter, OllamaAdapter, VendorAvailability, available_vendors; claims mostly kept, one uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "AntigravityAdapter._dispatch | medium | 'not_on_path' check relies on result.spawn_error prefix, but error format from run_managed is not pinned in this chunk; if prefix changes, status misreported. | Inspect run_managed's spawn_error contract.",
+     "OllamaAdapter._dispatch | medium | ProviderHTTPError message matching ('timed out', 'cannot reach') is fragile; error text format not pinned here. | Inspect ProviderHTTPError implementation.",
+     "available_vendors | low | ollama availability probe uses http_probe with path='/api/version', but no verification that response body indicates success; false positives possible. | Check server_reachable implementation."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "4 of 5",
+     "purpose": "Review AntigravityAdapter, OllamaAdapter, VendorAvailability, and available_vendors for consistency with docstring claims.",
+     "symbols": [
+      {
+       "name": "AntigravityAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Adapter for Google agy over ssh; disabled by default unless signed_in=True."
+      },
+      {
+       "name": "AntigravityAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Sets default lane='untrusted', stores ssh_target, effort, signed_in, ssh_command, runner; endpoint derived from ssh_target."
+      },
+      {
+       "name": "AntigravityAdapter.argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds ssh argv with -T, BatchMode=yes, ConnectTimeout=5, StrictHostKeyChecking=yes; runs 'agy -p -' with prompt on stdin; includes --model if model is not unknown."
+      },
+      {
+       "name": "AntigravityAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Dispatches via runner with stdin text; handles spawn errors, timeouts, auth, connect, not_on_path, nonzero exit, JSON parsing; returns status dict."
+      },
+      {
+       "name": "OllamaAdapter",
+       "kind": "class",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Adapter for local/bench Ollama over /api/chat; refuses over-budget prompts; lane defaults to trusted."
+      },
+      {
+       "name": "OllamaAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Sets host, output_reserve, chat, endpoint; computes local via lane_for_host(host)=='trusted'."
+      },
+      {
+       "name": "OllamaAdapter.independence_class",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns ('local', model_family(self.model)), deliberately not keyed on host."
+      },
+      {
+       "name": "OllamaAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Checks token budget, calls native_chat, handles ProviderHTTPError and TimeoutError/OSError; returns status dict."
+      },
+      {
+       "name": "VendorAvailability",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass describing availability probe result without invoking a model."
+      },
+      {
+       "name": "available_vendors",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Cheap probe to determine available vendors: checks CLI paths, ssh presence, agy sign-in flag, and Ollama host reachability."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Google/Antigravity ``agy`` on the RTX bench, over ssh.",
+       "where": "class AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "The class uses ssh_command and ssh_target, and the argv constructs an ssh invocation."
+      },
+      {
+       "text": "The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.",
+       "where": "AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "argv includes 'agy', '-p', '-' and _dispatch passes stdin_text=text."
+      },
+      {
+       "text": "ssh with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.",
+       "where": "AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "The adapter uses ssh with a trailing command ('agy ...') and passes the prompt via stdin, consistent with the claim."
+      },
+      {
+       "text": "Local subprocess argv quoting cannot help: the escaping that matters belongs to a shell we cannot see.",
+       "where": "AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "The prompt is never placed in argv; it is sent via stdin, so local quoting is irrelevant."
+      },
+      {
+       "text": "agy has not completed its one-time interactive sign-in on this machine, so this adapter is DISABLED BY DEFAULT: it reports unavailable / not_authenticated immediately rather than hanging on an auth prompt.",
+       "where": "AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "signed_in defaults to False; _dispatch returns status='unavailable' reason='not_authenticated' when signed_in is False."
+      },
+      {
+       "text": "An operator asserts sign-in with signed_in=True; nothing here probes it, because probing means invoking a model.",
+       "where": "AntigravityAdapter docstring",
+       "verdict": "KEPT",
+       "why": "The adapter only checks the signed_in flag; it never attempts a probe call."
+      },
+      {
+       "text": "Local or bench Ollama over the native /api/chat contract.",
+       "where": "OllamaAdapter docstring",
+       "verdict": "KEPT",
+       "why": "_dispatch calls self._chat with messages, which is native_chat by default; the endpoint is the host."
+      },
+      {
+       "text": "The host is passed EXPLICITLY per call. OLLAMA_HOST is never read for routing and never written",
+       "where": "OllamaAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not show OLLAMA_HOST being read or written; it only shows host passed explicitly to _chat."
+      },
+      {
+       "text": "local is sensitivity.lane_for_host(host) == 'trusted' -- numeric loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.",
+       "where": "OllamaAdapter docstring",
+       "verdict": "KEPT",
+       "why": "self.local = lane_for_host(self.host) == 'trusted' is computed directly in __init__."
+      },
+      {
+       "text": "Over-budget prompts are REFUSED LOUDLY. Ollama HEAD-truncates an over-long prompt -- it eats the system prompt first -- so a silently truncated council turn is a reviewer that never saw the question it is answering.",
+       "where": "OllamaAdapter docstring",
+       "verdict": "KEPT",
+       "why": "_dispatch checks tokens > window and returns status='error' reason='over_context_budget' with a detailed stderr message."
+      },
+      {
+       "text": "The budget is _ollama_native.effective_input_window() (full num_ctx minus the generation reserve), reused rather than reinvented.",
+       "where": "OllamaAdapter docstring",
+       "verdict": "KEPT",
+       "why": "_dispatch calls effective_input_window() (with reserve if provided) and num_ctx_value() in the error message."
+      },
+      {
+       "text": "Cheap probe result. No model is invoked to produce this.",
+       "where": "VendorAvailability docstring",
+       "verdict": "KEPT",
+       "why": "The dataclass only holds data; available_vendors uses which() and http_probe() only, no model calls."
+      },
+      {
+       "text": "Which vendors could be seated, established by CHEAP PROBES ONLY. Does the binary exist; does the Ollama host answer /api/version. No model is invoked, no prompt is sent, nothing is billed.",
+       "where": "available_vendors docstring",
+       "verdict": "KEPT",
+       "why": "The function uses shutil.which for claude, codex, ssh; and http_probe for Ollama /api/version. No model calls."
+      },
+      {
+       "text": "agy is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.",
+       "where": "available_vendors docstring",
+       "verdict": "KEPT",
+       "why": "agy availability is determined by ssh_path and agy_signed_in flag; if not signed in, reason='not_authenticated'."
+      },
+      {
+       "text": "Both callables are injectable so a test can establish availability with no CLI on PATH and no network.",
+       "where": "available_vendors docstring",
+       "verdict": "KEPT",
+       "why": "which and http_probe are parameters with defaults, allowing injection."
+      }
+     ],
+     "observations": [
+      {
+       "what": "AntigravityAdapter._dispatch checks result.spawn_error.startswith('not_on_path') to decide reason, but the format of spawn_error is not pinned in this chunk.",
+       "where": "AntigravityAdapter._dispatch",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "OllamaAdapter._dispatch matches ProviderHTTPError message substrings 'timed out' and 'cannot reach' to decide status; error text format is not pinned here.",
+       "where": "OllamaAdapter._dispatch",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "available_vendors probes Ollama via http_probe with path='/api/version' but does not verify response content; a non-200 response might still be considered reachable depending on server_reachable implementation.",
+       "where": "available_vendors",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e37abff6bcacaaf6b1c3e3706a9a51375f927cf4b8e1089730451aa426883665",
+    "objective_chars": 15857,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [4/5]",
+  "rev": "3088037",
+  "module": "daedalus/council/vendors.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

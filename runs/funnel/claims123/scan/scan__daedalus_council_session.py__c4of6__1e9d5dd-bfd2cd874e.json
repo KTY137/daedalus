@@ -1,0 +1,278 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c4of6__1e9d5dd",
+ "key": "scan__daedalus_council_session.py__c4of6__1e9d5dd-bfd2cd874e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of 6 of daedalus/council/session.py: dry_run_plan, _role_for, _is_local_http, default_participants, LiveCouncilRefused, live_egress_seats, and start of convene. Claims assessed; most kept, some uncheckable, no broken found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "default_participants | medium | The docstring claims lanes come from council profiles, but the code derives the local lane from the resolved host, not from any profile; the claim is a documentation/behavior mismatch that could mislead about lane provenance. | Check the council profile code in another module to see if lanes are ever read; if not, the docstring is misleading.",
+     "live_egress_seats | medium | The function relies on _SHIPPED_TRANSPORTS and _vendors being defined elsewhere; if the name resolution changes, the hook test could be skipped or the class check could fail open. | Inspect the definitions of _SHIPPED_TRANSPORTS and _vendors in the vendors module to confirm they exist and are populated correctly.",
+     "convene | medium | The live gate checks only HTTP endpoints for trusted-lane downgrade; a trusted lane over a non-HTTP remote transport (e.g., SSH) would not be caught. | Confirm whether non-HTTP remote transports are possible; if so, the check is incomplete.",
+     "convene | low | The docstring says the refusal happens 'before the council id, before the store, before the roster is chained', but the code only shows the gate before those lines; the actual ordering depends on the rest of the function. | Read the remainder of convene to verify the ordering."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "4 of 6",
+     "purpose": "Examines dry_run_plan, _role_for, _is_local_http, default_participants, LiveCouncilRefused, live_egress_seats, and the opening of convene, verifying docstring claims against the code.",
+     "symbols": [
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds an advisory plan dict without making any vendor calls; only uses pure identity properties."
+      },
+      {
+       "name": "_role_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Deterministically assigns a role from the pool using (index + round_no - 1) modulo pool length."
+      },
+      {
+       "name": "VENDOR_KEYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of vendor keys: anthropic, openai, google, local."
+      },
+      {
+       "name": "_HTTP_HOST_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to extract the host from an HTTP(S) URL."
+      },
+      {
+       "name": "_LOCAL_HOSTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of loopback hostnames: 127.0.0.1, ::1, localhost."
+      },
+      {
+       "name": "_is_local_http",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True only if the endpoint matches an HTTP(S) URL and the resolved host is in _LOCAL_HOSTS."
+      },
+      {
+       "name": "default_participants",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds the default roster of adapters from vendor keys, with explicit host and lane handling for the local adapter."
+      },
+      {
+       "name": "LiveCouncilRefused",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Exception raised when a live seat is offered without live=True; deliberately not a ValueError."
+      },
+      {
+       "name": "live_egress_seats",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a tuple of seat descriptions that could reach a real vendor, fail-closed."
+      },
+      {
+       "name": "convene",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs the council and returns a CouncilRecord; enforces live gate, duplicate identity check, and trusted lane adjustments."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Exactly what :func:`convene` would do, WITHOUT calling anything. No adapter method that could reach a vendor is touched: only the identity properties (actor, independence class, lane), which are pure.",
+       "where": "dry_run_plan docstring",
+       "verdict": "kept",
+       "why": "The function only reads actor, independence_class, lane, and other pure data; it never calls adapter methods or vendor endpoints."
+      },
+      {
+       "text": "True only for a loopback HTTP endpoint. ``localhost``-ish and nothing else.",
+       "where": "_is_local_http docstring",
+       "verdict": "kept",
+       "why": "The regex matches only http/https URLs and the host must be in _LOCAL_HOSTS (127.0.0.1, ::1, localhost)."
+      },
+      {
+       "text": "\"Local\" was a property of an environment variable nobody had ever set; here it is a property of the RESOLVED host, checked, not asserted.",
+       "where": "_is_local_http docstring",
+       "verdict": "kept",
+       "why": "The function checks the resolved host from the URL, not an environment variable; it uses regex matching and a frozenset membership test."
+      },
+      {
+       "text": "Lanes come from the council profiles, NOT from a default argument here: ``codex`` and ``agy`` are ``untrusted`` (allow-list tier ON) unless the operator opts in per council.",
+       "where": "default_participants docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not show council profiles or how codex/agy lanes are set; it only shows the local adapter's lane being set explicitly based on host."
+      },
+      {
+       "text": "The Ollama host is passed EXPLICITLY and ``OLLAMA_HOST`` is neither read for routing nor written -- normalising a remote Ollama into this process would retroactively falsify ``offload.py``'s ``lane=\"trusted\"`` justification from a code path nobody edited.",
+       "where": "default_participants docstring",
+       "verdict": "kept",
+       "why": "The function takes ollama_host as an explicit parameter and does not read OLLAMA_HOST; it passes host to OllamaAdapter and sets lane based on _is_local_http."
+      },
+      {
+       "text": "LANE DERIVED FROM THE RESOLVED HOST, not from the provider name.",
+       "where": "default_participants local branch comment",
+       "verdict": "kept",
+       "why": "The lane is set to 'trusted' if _is_local_http(host) else 'untrusted', independent of the provider name 'local'."
+      },
+      {
+       "text": "``OllamaAdapter`` defaults to ``lane=\"trusted\"`` whatever host it is given, and \"trusted\" means the tier-2 allow-list is OFF and ``withheld`` is empty -- correct ONLY while no bytes leave the machine.",
+       "where": "default_participants local branch comment",
+       "verdict": "uncheckable",
+       "why": "The default lane of OllamaAdapter is not visible in this chunk; the comment claims it defaults to trusted, but that is defined in the vendors module."
+      },
+      {
+       "text": "Deliberately NOT a ``ValueError``: every other refusal in :func:`convene` is a malformed-roster complaint, and \"you were about to spend money\" must be catchable on its own.",
+       "where": "LiveCouncilRefused docstring",
+       "verdict": "kept",
+       "why": "LiveCouncilRefused subclasses RuntimeError, not ValueError, and the code raises it for live seats, distinct from ValueError for other roster issues."
+      },
+      {
+       "text": "Name every seat that could actually reach a vendor.  FAIL-CLOSED.",
+       "where": "live_egress_seats docstring",
+       "verdict": "kept",
+       "why": "The function counts a seat as live unless it is not a shipped class, its _dispatch is overridden, or its hooks are substituted; otherwise it is live."
+      },
+      {
+       "text": "The question is not \"is this class from :mod:`vendors`\" -- it is \"if ``ask()`` runs, does SHIPPED transport code execute\".",
+       "where": "live_egress_seats docstring",
+       "verdict": "kept",
+       "why": "The function checks whether the adapter is an instance of shipped classes and whether _dispatch is defined in _vendors, and whether hooks are in _SHIPPED_TRANSPORTS."
+      },
+      {
+       "text": "A seat is therefore counted as LIVE unless one of these is demonstrably true: it is not one of the shipped concrete adapters at all; its ``_dispatch`` is defined OUTSIDE :mod:`daedalus.council.vendors`; its ``runner`` / ``chat`` hook is not one of :data:`_SHIPPED_TRANSPORTS`.",
+       "where": "live_egress_seats docstring",
+       "verdict": "kept",
+       "why": "The code checks each condition: not isinstance of shipped_classes, dispatch module != _vendors.__name__, and hook not in _SHIPPED_TRANSPORTS; otherwise appends to live."
+      },
+      {
+       "text": "If :data:`_SHIPPED_TRANSPORTS` ever resolves empty (vendors renamed something), the hook test is SKIPPED rather than trivially satisfied, so the failure lands on the safe side.",
+       "where": "live_egress_seats docstring",
+       "verdict": "kept",
+       "why": "The code wraps the hook check in `if _SHIPPED_TRANSPORTS:` so if it is empty, the check is skipped, and the seat is still counted live (fail-closed)."
+      },
+      {
+       "text": "``participants`` are :class:`vendors.CouncilAdapter` instances -- read-only, tool-less, spawned outside the repo.  Every one of them is REQUESTED, and every requested participant produces exactly one chained turn per round even when it is missing: skipping an unavailable vendor would let a two-vendor council render identically to a four-vendor one.",
+       "where": "convene docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not show the chaining logic that would produce one turn per round; it only shows the start of convene."
+      },
+      {
+       "text": "``trusted_vendors`` is the OPERATOR OPT-IN that lifts a vendor off the untrusted allow-list for this council only.  It is recorded per participant, because deciding OpenAI or Google is trusted with this repo's IP is a policy decision and a default argument must not make it.",
+       "where": "convene docstring",
+       "verdict": "kept",
+       "why": "The code sets adapter.lane = 'trusted' for vendors in trusted_vendors, and trusted_vendors defaults to () so no vendor is trusted by default."
+      },
+      {
+       "text": "``live`` is the SPEND OPT-IN and defaults to False.  Any seat that still carries a shipped vendor transport (:func:`live_egress_seats`) raises :class:`LiveCouncilRefused` here -- before the council id, before the store, before the roster is chained, before one byte is dispatched.",
+       "where": "convene docstring",
+       "verdict": "kept",
+       "why": "The code checks `if not live:` and calls live_egress_seats; if seats are found, it raises LiveCouncilRefused before generating council_id or store path."
+      },
+      {
+       "text": "Offline adapters (fakes, injected runners) are unaffected, so the replay harness never has to ask for permission it does not need.",
+       "where": "convene docstring",
+       "verdict": "kept",
+       "why": "live_egress_seats only counts seats with shipped transports; fakes or injected runners would be filtered out, so they would not trigger the refusal."
+      },
+      {
+       "text": "Materialised ONCE, before anything inspects it: the live-wire gate below iterates the roster, and a one-shot iterator would arrive here full, be drained by the gate, and reach `sorted()` empty -- a council of nobody, chained as if it were real.",
+       "where": "convene comment before participants = tuple(participants)",
+       "verdict": "kept",
+       "why": "The code converts participants to a tuple immediately, ensuring it is not a one-shot iterator before the gate and sorted() calls."
+      },
+      {
+       "text": "Two seats with one identity: local qwen2.5-coder:7b and BENCH qwen2.5-coder:7b are the same weights on two sockets and would land as one indistinguishable pair of turns. Refuse loudly rather than let the transcript claim two voices it cannot tell apart.",
+       "where": "convene duplicate identity comment",
+       "verdict": "kept",
+       "why": "The code checks for duplicate actor identities and raises ValueError if found, refusing to proceed."
+      },
+      {
+       "text": "A trusted lane over an HTTP endpoint on ANOTHER MACHINE turns the tier-2 allow-list off and reports ``withheld=[]`` while full repo source crosses the tailnet. That is precisely the justification ``offload.py:193-197`` rests on (\"no bytes leave the machine\"), borrowed by a host it was never written for. Fail closed and make ...",
+       "where": "convene trusted lane comment",
+       "verdict": "kept",
+       "why": "The code checks if adapter.lane == 'trusted' and endpoint is remote HTTP, then presumably downgrades to untrusted (the rest of the logic is truncated but the condition is present)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The default_participants docstring claims lanes come from council profiles, but the code only sets the local adapter's lane explicitly based on host; the claim may be misleading about the source of lanes for other adapters.",
+       "where": "default_participants docstring and local branch",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "live_egress_seats relies on _SHIPPED_TRANSPORTS and _vendors being defined elsewhere; if they are not populated correctly, the hook test could be skipped or the class check could fail open.",
+       "where": "live_egress_seats",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The trusted-lane downgrade in convene only checks HTTP endpoints via _HTTP_HOST_RE; non-HTTP remote transports (e.g., SSH) would not be caught.",
+       "where": "convene trusted lane check",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The docstring for convene claims the live refusal happens before council id and store, but the code only shows the gate before those lines; the rest of the function is not in this chunk.",
+       "where": "convene docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2530b88e22f2706344669a3736c6a0497969eaae224d93746da1a2fe4955a8fd",
+    "objective_chars": 17441,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [4/6]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/council/session.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

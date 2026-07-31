@@ -1,0 +1,80 @@
+{
+ "task_id": "research__b014__3088037",
+ "key": "research__b014__3088037-85913b5ea0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified cross-file patterns in the claim rows: duplicated guard logic, semantic drift, and unverifiable contract claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Potential semantic drift in duplicated guard logic across modules",
+     "Unverifiable contract claims may indicate missing tests or documentation"
+    ],
+    "todos": [
+     "Investigate actual implementations of duplicated guards",
+     "Verify the semantic consistency of terms like 'must_include' and 'gate' across modules"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "pattern": "Multiple modules claim a fail-closed guard for similar concepts (e.g., 'must_include' non-emptiness, secret-floor role checks) but the actual enforcement may be duplicated and inconsistent, as seen in the broken role comparison.",
+       "evidence": [
+        "_is_focus_withheld line 99: exact string compare on role",
+        "docstring claims case-insensitive 'role==\"focus\"'",
+        "mint module docstring: re-checks non-emptiness after filtering",
+        "correctness task: no must_include, vacuous 1.0 risk"
+       ],
+       "refuted_if": "A shared helper enforces all these guards consistently, or the exact string compare is intentional and documented."
+      },
+      {
+       "pattern": "The term 'gate' is used across multiple modules to mean different things: one is a pytest exit-code check, another is a correctness delta check, and another is a gate for concurrent writes. This semantic drift could lead to incorrect assumptions about what a gate guarantees.",
+       "evidence": [
+        "spine.attempt.pytest_gate: 'did the suite exit 0'",
+        "correctness_gate docstring: 'did the previously-RED tests go GREEN'",
+        "gate_concurrent_writes: runs writes through TaskAttempt"
+       ],
+       "refuted_if": "All uses of 'gate' refer to the same underlying mechanism or are explicitly namespaced to avoid ambiguity."
+      },
+      {
+       "pattern": "Several modules claim to enforce isolation or safety properties (e.g., process tree death, worktree deletion safety) but the actual enforcement is delegated to other modules not visible in the chunks. This creates a chain of unverifiable promises.",
+       "evidence": [
+        "run_managed: claims process tree dies on timeout, but ManagedProcess.cancel() is not in chunk",
+        "cleanup_worktree: claims WorktreeRemovalRace, but exception not defined in chunk",
+        "GitWorktreeManager: claims refuse to delete unallocated worktrees, but behavior not in chunk"
+       ],
+       "refuted_if": "The delegated modules actually implement these guarantees and are themselves verified."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9bd05c9a71cc229c61e04b604c35814a5b453960bbdd259ea8ed63d2b9e7ef80",
+    "objective_chars": 25594,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 14 (63 inputs)",
+  "rev": "3088037",
+  "bucket": 14,
+  "inputs": 63
+ }
+}

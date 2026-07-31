@@ -1,0 +1,185 @@
+{
+ "task_id": "scan__daedalus_kairos_control.py__c1of1__3088037",
+ "key": "scan__daedalus_kairos_control.py__c1of1__3088037-295618b04f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/kairos/control.py chunk 1 of 1: thin CLI wrappers around core functions; claims about behavior are mostly uncheckable here.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "main_models | medium | The human-readable branch assumes payload['models'] is a list of dicts with 'name' and 'size_gb' keys; if core.model_resources returns a different shape, it raises KeyError/TypeError without a helpful message. | Inspect core.model_resources to confirm the payload shape.",
+     "main_watcher | medium | The human-readable branch assumes payload['running'] is a boolean; if core.watcher_status returns a different shape, it raises KeyError/TypeError. | Inspect core.watcher_status to confirm the payload shape.",
+     "main_review_diff | medium | The human-readable branch assumes payload['queued'] exists; if core.review_diff returns a different shape, it raises KeyError. | Inspect core.review_diff to confirm the payload shape."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/control.py",
+     "chunk": "1 of 1",
+     "purpose": "Thin CLI wrappers around core dashboard, model, queue, watcher, squad, quality, and review-diff functions.",
+     "symbols": [
+      {
+       "name": "dashboard",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.get_dashboard(project)."
+      },
+      {
+       "name": "ollama_models",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.model_resources()."
+      },
+      {
+       "name": "queue_timeline",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.get_queue(limit=limit), default limit 30."
+      },
+      {
+       "name": "watcher_status",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.watcher_status(project)."
+      },
+      {
+       "name": "squads",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.get_squads(project)."
+      },
+      {
+       "name": "quality_gates",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.get_quality(project)."
+      },
+      {
+       "name": "review_diff",
+       "kind": "function",
+       "effects": [],
+       "note": "Delegates to core.review_diff(project, lane)."
+      },
+      {
+       "name": "_print_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Prints JSON with indent=2 and default=str."
+      },
+      {
+       "name": "main_dashboard",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI for dashboard; --project and --json flags."
+      },
+      {
+       "name": "main_models",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI for ollama_models; --json flag; human-readable branch prints model names and sizes."
+      },
+      {
+       "name": "main_squads",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI for squads; --project and --json flags."
+      },
+      {
+       "name": "main_watcher",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI for watcher_status; subcommand 'status' with --project and --json flags."
+      },
+      {
+       "name": "main_review_diff",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI for review_diff; required --project, --lane choices, --json flag."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Mission Control dashboard JSON.",
+       "where": "main_dashboard docstring (line 43)",
+       "verdict": "uncheckable",
+       "why": "The docstring describes the CLI output; the actual dashboard payload comes from core.get_dashboard, not visible in this chunk."
+      },
+      {
+       "text": "Ollama model resources.",
+       "where": "main_models docstring (line 55)",
+       "verdict": "uncheckable",
+       "why": "The payload comes from core.model_resources; the docstring is a description, not a checkable behavior in this chunk."
+      },
+      {
+       "text": "Project squad configuration.",
+       "where": "main_squads docstring (line 67)",
+       "verdict": "uncheckable",
+       "why": "The payload comes from core.get_squads; the docstring is a description, not a checkable behavior in this chunk."
+      },
+      {
+       "text": "Bridge watcher status.",
+       "where": "main_watcher docstring (line 79)",
+       "verdict": "uncheckable",
+       "why": "The payload comes from core.watcher_status; the docstring is a description, not a checkable behavior in this chunk."
+      },
+      {
+       "text": "Queue a local advisory review of the current diff.",
+       "where": "main_review_diff docstring (line 94)",
+       "verdict": "uncheckable",
+       "why": "The behavior of queueing/reviewing is delegated to core.review_diff; this chunk only prints the result."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The human-readable branch of main_models assumes payload['models'] is a list of dicts with 'name' and 'size_gb' keys; if core.model_resources returns a different shape, it raises KeyError/TypeError without a helpful message.",
+       "where": "line 64",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The human-readable branch of main_watcher assumes payload['running'] is a boolean; if core.watcher_status returns a different shape, it raises KeyError/TypeError.",
+       "where": "line 89",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The human-readable branch of main_review_diff assumes payload['queued'] exists; if core.review_diff returns a different shape, it raises KeyError.",
+       "where": "line 105",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c6fc13464d01b980709f0013e60c587f81aef4efc605aeb960d3b8121e2a6d73",
+    "objective_chars": 6374,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/control.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/control.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

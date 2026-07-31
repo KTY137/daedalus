@@ -1,0 +1,209 @@
+{
+ "task_id": "scan__daedalus_kairos_evolution.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_kairos_evolution.py__c1of1__1e9d5dd-7f52f41dd9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/kairos/evolution.py chunk 1 of 1: enumerated 15 claims, 3 risks, 1 todo.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "generate_candidates | medium | asyncio.gather with return_exceptions=True swallows all exceptions per-task; unexpected non-Exception results (e.g., a sentinel) are silently dropped, making population_size a soft limit. | Add a test where run_task returns a non-CandidateBranch, non-Exception value and assert that it is excluded and logged.",
+     "evaluate_candidates | medium | If evaluate_single raises before setting candidate.score (e.g., check_import_provenance itself raises an unexpected exception), the candidate is left unscored and the enclosing try/except logs only a generic message without naming the candidate. | Add a test that makes check_import_provenance raise and assert candidate.score is set to a failure marker and candidate.error is populated.",
+     "evaluate_candidates | medium | The timeout kill path uses process.kill() then process.wait() without a second timeout; if the process ignores SIGKILL (rare on POSIX but possible on some platforms), the gather could still hang. | Add a test with a subprocess that ignores SIGKILL and assert the timeout path completes within a bounded wall time."
+    ],
+    "todos": [
+     "Add a regression test that verifies a timeout kills the subprocess and that the candidate.score is 0.0 and candidate.error contains 'timed out'."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/evolution.py",
+     "chunk": "1 of 1",
+     "purpose": "EvolutionaryOrchestrator generates, evaluates, and selects candidate branches with provenance verification and pytest subprocess.",
+     "symbols": [
+      {
+       "name": "DEFAULT_EVAL_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Wall-clock ceiling for one candidate's test run, set to 600.0 seconds."
+      },
+      {
+       "name": "EvolutionaryOrchestrator",
+       "kind": "class",
+       "effects": [],
+       "note": "Runs candidate branches in isolated worktrees, evaluates them with pytest, and selects the best scoring candidate."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Stores a factory callable that returns ShadowShellManager instances."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.generate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns N ShadowShellManager instances in parallel via asyncio.gather and returns only CandidateBranch results."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.evaluate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Evaluates candidates concurrently using sys.executable -m pytest in each worktree, with provenance check and timeout handling."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.select_best",
+       "kind": "function",
+       "effects": [],
+       "note": "Selects the candidate with the highest score among those completed, error-free, and scoring >= 100.0."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Wall-clock ceiling for ONE candidate's test run. Without it a candidate that hangs -- an agent that left an input() or an unbounded loop in the tree -- blocks the whole `gather` below forever, and the run has no way to end.",
+       "where": "lines 14-16",
+       "verdict": "KEPT",
+       "why": "DEFAULT_EVAL_TIMEOUT_S is passed as timeout to asyncio.wait_for inside evaluate_single, bounding each candidate's run."
+      },
+      {
+       "text": "This is not autonomous code evolution and it is not a promotion boundary. A trusted verifier still has to inspect a candidate before it can be merged into the primary workspace.",
+       "where": "class docstring lines 19-22",
+       "verdict": "KEPT",
+       "why": "The code only generates, evaluates, and selects candidates; it performs no merge or promotion, and the docstring's claim matches the code's scope."
+      },
+      {
+       "text": "Spawns N ShadowShellManager instances in parallel to attempt the task.",
+       "where": "generate_candidates docstring line 28",
+       "verdict": "KEPT",
+       "why": "The loop creates population_size managers and awaits asyncio.gather on all run_task coroutines, which runs them concurrently."
+      },
+      {
+       "text": "Evaluates candidates using pytest concurrently. Populates candidate.score and candidate.error.",
+       "where": "evaluate_candidates docstring line 47",
+       "verdict": "KEPT",
+       "why": "evaluate_single sets candidate.score and candidate.error in all branches, and tasks run via asyncio.gather."
+      },
+      {
+       "text": "THE INTERPRETER IS PART OF THE MEASUREMENT. This shells out to ``sys.executable -m pytest``, never to a bare ``pytest``",
+       "where": "evaluate_candidates docstring lines 49-50",
+       "verdict": "KEPT",
+       "why": "Line 110 uses sys.executable, '-m', 'pytest' in create_subprocess_exec."
+      },
+      {
+       "text": "``-m`` puts the working directory on ``sys.path[0]``, ahead of ``PathFinder``, which is ahead of ``_EditableFinder`` -- so the candidate's code wins, as it must.",
+       "where": "evaluate_candidates docstring lines 61-63",
+       "verdict": "UNCHECKABLE",
+       "why": "This claim concerns Python's import system behavior and the editable install's finder ordering, which this chunk cannot observe directly; it is a stated rationale without code here to verify."
+      },
+      {
+       "text": "Until this changed, every score this class produced described the primary checkout's code running the candidate's tests.",
+       "where": "evaluate_candidates docstring line 65",
+       "verdict": "UNCHECKABLE",
+       "why": "Historical claim about past behavior; the current code uses sys.executable -m pytest, but the past behavior is not observable from this chunk."
+      },
+      {
+       "text": "This is still a BINARY, whole-suite signal and it is still not a promotion boundary -- see ``docs/adrs/015-ariadne-preconditions.md``.",
+       "where": "evaluate_candidates docstring lines 67-68",
+       "verdict": "KEPT",
+       "why": "The code sets score to 100.0 or 0.0 (binary) based on the entire pytest run, and performs no promotion."
+      },
+      {
+       "text": "The stronger measurement (``daedalus.eval.correctness.evaluate_change``, which freezes the selection before candidate code runs and reports five outcomes with precedence) is the intended replacement; this fix makes the interim signal describe the right tree, nothing more.",
+       "where": "evaluate_candidates docstring lines 69-72",
+       "verdict": "UNCHECKABLE",
+       "why": "References another module and its behavior; this chunk only contains the interim signal and cannot verify the replacement's claims."
+      },
+      {
+       "text": "A failure here VOIDS THE EVALUATION and is not a candidate score. -1.0 is this module's own \"not evaluated\" marker (used above for an incomplete candidate); 0.0 would mean \"measured, and bad\", which would let an unrunnable evaluation argue against a candidate nobody actually judged.",
+       "where": "lines 85-91",
+       "verdict": "KEPT",
+       "why": "On provenance failure, the code sets candidate.score = -1.0 and candidate.error, and returns early, so the candidate is not measured."
+      },
+      {
+       "text": "Run pytest inside the worktree asynchronously. `-m` is load-bearing: see the docstring.",
+       "where": "line 107",
+       "verdict": "KEPT",
+       "why": "The subprocess uses sys.executable, '-m', 'pytest' with cwd set to the worktree path."
+      },
+      {
+       "text": "A hung candidate is a FAILED candidate, never an unscored one left to block the gather. Kill it and say why.",
+       "where": "lines 128-129",
+       "verdict": "KEPT",
+       "why": "On TimeoutError, the code sets score = 0.0, sets an error message, and kills the process."
+      },
+      {
+       "text": "Selects the best candidate based on the score.",
+       "where": "select_best docstring line 145",
+       "verdict": "KEPT",
+       "why": "The method filters candidates by completion, no error, and score >= 100.0, sorts descending by score, and returns the first."
+      },
+      {
+       "text": "Sort by score in descending order",
+       "where": "line 153",
+       "verdict": "KEPT",
+       "why": "valid.sort(key=lambda c: c.score, reverse=True) sorts descending."
+      },
+      {
+       "text": "best = valid[0]",
+       "where": "line 155",
+       "verdict": "KEPT",
+       "why": "The first element after descending sort is the highest score, and it is returned."
+      }
+     ],
+     "observations": [
+      {
+       "what": "generate_candidates uses asyncio.gather with return_exceptions=True, but only handles CandidateBranch and Exception results; any other unexpected result type (e.g., a sentinel or a different object) is silently dropped without logging, so the returned list may be smaller than population_size with no diagnostic.",
+       "where": "lines 40-53",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In evaluate_candidates, if evaluate_single raises an unexpected exception before setting candidate.score (e.g., check_import_provenance itself raises), the candidate is left unscored and the outer except only logs a generic message without naming the candidate or setting a failure marker.",
+       "where": "lines 96-99 and 140-142",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The timeout kill path uses process.kill() then await process.wait() without a second timeout; if the process ignores SIGKILL (rare on POSIX but possible on some platforms), the gather could still hang.",
+       "where": "lines 130-134",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5c14a2621c5a57006879c86f368a3df19db320513e2fbc0267935543ab216373",
+    "objective_chars": 11014,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/evolution.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/evolution.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

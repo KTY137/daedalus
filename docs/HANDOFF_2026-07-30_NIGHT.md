@@ -500,11 +500,19 @@ ahead of origin, nothing pushed. HEAD is `fe634b5` (MEASURED,
 
 ---
 
-## 9. Night shift follow-up — 30 July, five commits landed
+## 9. Night shift follow-up — 30/31 July, nine commits landed
 
-Five commits landed during the gate run (22ffbf9..51fe781), fixing structural defects found
-by focused review. The gate continues executing against HEAD; these items close work from
-§2 and §4 of the TODO, with measurements.
+Nine commits, `22ffbf9..1e9d5dd`. The first five landed during the gate run on
+30 July, fixing structural defects found by focused review; four more landed on
+31 July (`f6c9470`, `32ddb4f`, `3088037`, `1e9d5dd`). These close work from §2
+and §4 of the TODO, with measurements.
+
+Every entry below names the commit that made it true. Numbers are stamped
+**[MEASURED]** (re-run while writing this section, command given),
+**[INHERITED]** (from the commit message or an earlier document, not re-run —
+the source is named) or **[ASSUMED]**. The 31 July entries were re-measured at
+HEAD `1e9d5dd`; the 30 July entries are inherited from the commits that wrote
+them and were not re-run.
 
 ### 22ffbf9 — pytest ANSI escape bug fix (2026-07-30, 23:24)
 
@@ -591,20 +599,142 @@ Three findings:
 
 **fix(providers): a backslash no longer costs the whole answer**
 
-The claims123 funnel died upward along its own tiers — scan 5/100, research
-8/15, review 6/6 blocked with "Invalid \escape" (MEASURED 2026-07-31): models
-quoting backslash-bearing source emit escapes JSON forbids, and extract_json
-refused the whole answer. Fixed with a lossless lookbehind-guarded repair
-recorded as `handoff.harness_repairs`; plus coerce_report no longer refuses an
-evidence-bearing answer for a missing summary (`summary_was_defaulted`).
-**MEASURED: 13 new regression tests (the shared helpers' first in-suite
-coverage), 126 provider-suite tests green.** Still open from the same run: the
-fan-out counts a blocked unit as ok, and resume serves persisted blocked
-answers forever.
+Two fixes to the one parser all three non-agentic lanes share: a lossless,
+lookbehind-guarded repair for the escapes JSON forbids, recorded as
+`handoff.harness_repairs`; and `coerce_report` no longer refusing an
+evidence-bearing answer that omitted a summary, recorded as
+`summary_was_defaulted` (both symbols verified present — `_report.py:162`,
+`deepseek.py:573`).
+
+**[MEASURED] by me, 2026-07-31, at HEAD 1e9d5dd:** 13 new regression tests in
+`tests/test_providers_report.py` (counted from the commit diff — these are the
+shared helpers' first in-suite coverage), and
+`python3 -m pytest tests/test_providers_report.py tests/test_codex_provider.py
+tests/test_deepseek_substitution_guard.py tests/test_deepseek_write_toggle.py
+tests/test_ollama_native.py tests/test_ollama_rescue_reason.py -q`
+→ **126 passed, 12 subtests passed in 43.11 s**. The 126 figure reproduces.
+
+**CORRECTION — the headline fix is not the one that was doing the damage.**
+The earlier version of this entry read "scan 5/100, research 8/15, review 6/6
+blocked with *Invalid \escape*", attributing every block to the escape defect.
+That attribution is wrong. Reading the reason out of each blocked answer in
+`runs/funnel/claims123/**/*51fe781*.json` (**[MEASURED] 2026-07-31**) gives:
+
+| tier | egress refusal | missing summary | `Invalid \escape` | blocked |
+|---|---|---|---|---|
+| scan | 4 | 1 | 0 | 5 of 100 |
+| research | 0 | 8 | 0 | 8 of 15 |
+| review | 0 | 5 | 1 | 6 of 6 |
+| **total** | **4** | **14** | **1** | **19** |
+
+So of the 15 blocks this commit could address, **14 were the missing-summary
+refusal and exactly 1 was the escape defect**. The remaining 4 are
+`sensitivity.py` refusing to send the file off the machine — correct behaviour,
+not a defect, and they are still blocked today because they are supposed to be.
+
+The re-run confirms the corrected reading from the other side: across 122
+answers of the 3088037 re-run, `handoff.harness_repairs` fired **0 times** while
+`summary_was_defaulted` fired **31 times** (28 scan, 1 research, 2 review). The
+escape repair's only evidence remains its 13 unit tests — this run never
+exercised it. See TODO §2.1 for the full before/after.
+
+### 32ddb4f — the multigraph verdict and this chronicle's catch-up (2026-07-31, 13:17)
+
+**docs: the multigraph verdict, the refined gate path, and the chronicle catch-up**
+
+Answers the owner's question — are the data graph and the code graph the same
+AST graph — in
+`docs/research/MULTIGRAPH_VERDICT_AND_REFINED_GATE_PLAN_2026-07-31.md` (227
+lines, new). Only the code plane is the AST projection; the type plane is a
+different graph over the same source; the data plane's members often have no
+AST node at all, which is why the Gate 1 ignition slice has to cross Python,
+Markdown and CSV to mean anything. The knowledge plane connects by
+proposed-then-verified cross-plane edges, never by node merging.
+
+The load-bearing number in that note — **53.6% pair-adjacency under naive
+merging** — is **[INHERITED]** from `forest`'s own measurement as cited in the
+commit message. I did not re-run it and this document should not be read as
+having confirmed it.
+
+Docs-only otherwise: no test surface changed. The commit also retains the
+claims123 funnel spec (`funnels/claims123/funnel.json`, 66 lines) and its run
+artifacts deliberately, as the constitution's §7 negative-evidence rule
+requires — those artifacts are what made the correction above provable.
+
+### 3088037 — the labeled-property-graph projection (2026-07-31, 13:26)
+
+**feat(structcore): the property-graph projection the forest already implied**
+
+`daedalus/structcore/lpg.py` (162 lines, new): a pure, deterministic,
+read-only projection of the Forest onto the labeled-property-graph model that
+GQL, SQL/PGQ, Neo4j import and CPG tooling speak. Deliberately not a graph
+database — a mutable store would reintroduce the partial-graph-state problem
+that invariant 6 (atomic revisions) exists to close, and would drift into being
+a parallel source of truth. Wired into the existing structcore CLI as `--lpg`
+rather than left as an island.
+
+Three mapping decisions carry the honesty, each regression-locked: a clone
+group of N members becomes ONE reified hyperedge node plus N memberships, never
+N*(N-1)/2 pairwise edges the index does not assert; an undirected edge is ONE
+relationship carrying `directed=false`, not a mirrored pair that doubles every
+degree count; labels are node kinds as the forest asserts them, and an unknown
+kind gets no plane at all.
+
+**[MEASURED] by me, 2026-07-31:** `python3 -m pytest tests/test_structcore_lpg.py
+-q` → **11 passed in 1.22 s**. Reproduces.
+
+**The live-fire counts do NOT reproduce, and that is correct behaviour.** The
+commit records 174 files → 2,714 nodes / 114 hyperedges / 4,171 relationships.
+Re-running `python3 -m daedalus.structcore daedalus --documents --types --lpg
+<path>` today gave 175 files → 2,721 / 110 / 4,195, then 2,723 / 112 / 4,186
+minutes later. The cause is not nondeterminism: other agents were committing to
+`daedalus/` during the measurement (`spine/promotion_approval.py` untracked,
+`tools/vet.py` modified, HEAD moving 3088037 → 1e9d5dd mid-run).
+
+I checked rather than assumed. Holding the tree still and isolating the two
+stages — build the index once, project it twice; then build the index twice —
+gives **PROJECTION DETERMINISTIC: True** and **INDEX DETERMINISTIC: True**
+(identical `forest_sha256`, node and relationship digests; **[MEASURED]**
+2026-07-31, probe retained at
+`C:\Users\nukei\.claude\jobs\6520e1ed\tmp\det_probe.py`). So the commit's
+"digest-stable across rebuilds" claim holds.
+
+**The calibration worth keeping: an absolute node count is not a property of
+`daedalus/`, it is a property of an exact tree state.** Only `forest_sha256`
+makes such a number checkable, which is precisely why the projection binds one.
+Quote these counts only with the commit that produced them.
+
+### 1e9d5dd — the fan-out no longer audits a refusal (2026-07-31, 13:37)
+
+**fix(lanes): a refusal is no longer audited, and no longer immortal**
+
+**This closes the two items the previous version of this section listed as
+still open.** They landed at 13:37 today, after the briefing that called them
+"in progress" was written — recorded here because a handoff is the most
+invisible inherited context there is.
+
+Both defects were one sentence apart in `daedalus/lanes/fanout.py` (+45 lines):
+
+1. `ok` meant "the transport produced answers", so the claims123 review tier —
+   6 of 6 units refused — reported `ok=6`. `ok` now means at least one answer
+   carries evidence, and refusals are counted apart under a new `blocked` key
+   in the progress line, the summary and both refusal-path summaries, so the
+   three outcomes are disjoint.
+2. `resume` served any persisted result with a non-empty `answers` array
+   without reading what the answers said, so an all-refused unit was served
+   forever and never retried. An all-blocked result is now retried; a partially
+   blocked one is still served, because partial evidence is evidence.
+
+A report that is not a dict deliberately does not count as a refusal — a
+refusal that cannot be read is not one that can be proven.
+
+**[MEASURED] by me, 2026-07-31:** `python3 -m pytest tests/test_lanes_fanout.py
+-q` → **27 passed, 4 subtests passed in 30.87 s**, including the four new
+regression tests. Reproduces the commit's claim exactly.
 
 ---
 
-## 9. Receipt facts
+## 10. Receipt facts
 
 **Receipt #1 (2026-07-30, night shift):** 12 planted, 12 killed, 0 survived,
 whole-suite scope, at `fe634b58`. `host: None` (the host-stamping commit

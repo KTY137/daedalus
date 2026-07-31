@@ -1,0 +1,402 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c2of5__1e9d5dd",
+ "key": "scan__daedalus_council_vendors.py__c2of5__1e9d5dd-c56280cc56",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "2 of 5",
+     "purpose": "Floor check, withheld paths, process containment, runner, council profiles, and base adapter entry",
+     "symbols": [
+      {
+       "name": "floor_check",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs secret floor rule over evidence paths, evidence files, and prompt; returns first FloorRefusal or None."
+      },
+      {
+       "name": "_withheld_paths",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes allow-list withheld paths for untrusted lanes using slice_egress_rule."
+      },
+      {
+       "name": "council_env",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns environment copy with OLLAMA_HOST stripped."
+      },
+      {
+       "name": "council_cwd",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Creates temporary directory, cleans up, raises if inside repo_root."
+      },
+      {
+       "name": "run_managed",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Default runner using ManagedProcess with stdin file, timeout, and tree kill."
+      },
+      {
+       "name": "Runner",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Type alias for callable returning RunResult."
+      },
+      {
+       "name": "CouncilProfile",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass for council CLI profile."
+      },
+      {
+       "name": "FORBIDDEN_ARG_FRAGMENTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of forbidden CLI flags."
+      },
+      {
+       "name": "_CLAUDE_DENIED_TOOLS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Comma-separated denied tools string for Claude."
+      },
+      {
+       "name": "COUNCIL_PROFILES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dictionary mapping vendor to CouncilProfile."
+      },
+      {
+       "name": "_assert_profile_safe",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Raises ValueError if profile command/args contain forbidden fragments."
+      },
+      {
+       "name": "CouncilAdapter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Base adapter defining common shape; class body starts at end of chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Run the secret floor before anything leaves the process.",
+       "where": "floor_check docstring line 286",
+       "verdict": "KEPT",
+       "why": "Function is called before subprocess spawning in this module's flow; no evidence of other calls but within this chunk it is the only floor invocation."
+      },
+      {
+       "text": "sensitivity.secret_floor_rule has two INDEPENDENT channels: path markers checked against path, value-shaped regexes checked against text.",
+       "where": "floor_check docstring line 288",
+       "verdict": "UNCHECKABLE",
+       "why": "The implementation calls secret_floor_rule with (path, \"\") and (path, text), but the internal behavior of secret_floor_rule is not in this chunk."
+      },
+      {
+       "text": "A council prompt is question + evidence + a multi-file diff, so there is no single path.",
+       "where": "floor_check docstring line 289",
+       "verdict": "UNCHECKABLE",
+       "why": "The prompt construction is not in this chunk; only the floor_check function is visible."
+      },
+      {
+       "text": "the tempting secret_floor_rule(\"\", prompt) kills the path tier outright: a patch that ADDS .env or config/id_rsa sails through, because the only trace of the filename is diff --git a/.env b/.env inside text, which no content regex matches.",
+       "where": "floor_check docstring lines 289-292",
+       "verdict": "UNCHECKABLE",
+       "why": "The behavior of secret_floor_rule and the regex patterns are not in this chunk; the claim about what the floor rule matches cannot be verified."
+      },
+      {
+       "text": "So the channels are driven separately and PER FILE, exactly as the floor's own docstring requires:",
+       "where": "floor_check docstring line 293",
+       "verdict": "KEPT",
+       "why": "The code iterates evidence_paths individually and evidence_files as (path, text) pairs, calling secret_floor_rule per item."
+      },
+      {
+       "text": "evidence_paths -- every changed path (PatchArtifact.changed_paths) and every evidence file path, each through the PATH channel alone;",
+       "where": "floor_check docstring line 295",
+       "verdict": "UNCHECKABLE",
+       "why": "The caller's argument construction (PatchArtifact) is not in this chunk; the function does call secret_floor_rule(path, \"\") for each path."
+      },
+      {
+       "text": "evidence_files -- (path, text) pairs, both channels, per file;",
+       "where": "floor_check docstring line 296",
+       "verdict": "KEPT",
+       "why": "The function calls secret_floor_rule(path, text or \"\") for each pair, which uses both path and text."
+      },
+      {
+       "text": "prompt -- a content-channel BACKSTOP for a credential pasted into the question itself. It is a backstop, never the whole check.",
+       "where": "floor_check docstring line 297",
+       "verdict": "KEPT",
+       "why": "The prompt is checked last and only if no earlier refusal; it is called with empty path and the prompt text."
+      },
+      {
+       "text": "Returns the first FloorRefusal, or None.",
+       "where": "floor_check docstring line 298",
+       "verdict": "KEPT",
+       "why": "Each rule hit returns immediately; if no rule hits, returns None."
+      },
+      {
+       "text": "A hit means REFUSE -- there is no redact-and-send.",
+       "where": "floor_check docstring line 299",
+       "verdict": "KEPT",
+       "why": "Function returns the FloorRefusal without any redaction or alternative."
+      },
+      {
+       "text": "Tier-2 allow-list result for an untrusted participant, per path.",
+       "where": "_withheld_paths docstring line 315",
+       "verdict": "KEPT",
+       "why": "Function returns tuple of paths where slice_egress_rule returns true for untrusted lanes."
+      },
+      {
+       "text": "Not a decision made by a default argument: an untrusted lane means OpenAI / Google get the allow-list",
+       "where": "_withheld_paths docstring line 316",
+       "verdict": "UNCHECKABLE",
+       "why": "The mapping of lane to specific vendors is not in this chunk; only the lane check is visible."
+      },
+      {
+       "text": "and every withheld path is named on the reply so a reader can see what the council did NOT see.",
+       "where": "_withheld_paths docstring line 317",
+       "verdict": "UNCHECKABLE",
+       "why": "The reply construction is not in this chunk; only the computation of withheld paths is visible."
+      },
+      {
+       "text": "Environment for a council subprocess, with OLLAMA_HOST STRIPPED.",
+       "where": "council_env docstring line 333",
+       "verdict": "KEPT",
+       "why": "Function copies os.environ and pops OLLAMA_HOST unconditionally."
+      },
+      {
+       "text": "Never set, never mutated, never inherited -- see the module docstring.",
+       "where": "council_env docstring line 334",
+       "verdict": "UNCHECKABLE",
+       "why": "The module docstring is not in this chunk; the function only strips OLLAMA_HOST, does not set or mutate the input."
+      },
+      {
+       "text": "A council that normalises a remote Ollama into a shared environment silently invalidates offload.py's trusted-lane justification repo-wide.",
+       "where": "council_env docstring line 335",
+       "verdict": "UNCHECKABLE",
+       "why": "offload.py is not in this chunk; the function's effect on that file cannot be verified."
+      },
+      {
+       "text": "A fresh, EMPTY temp directory to spawn a council subprocess in.",
+       "where": "council_cwd docstring line 344",
+       "verdict": "KEPT",
+       "why": "Function creates a TemporaryDirectory with prefix 'dcouncil-cwd-' which is empty and fresh per call."
+      },
+      {
+       "text": "Not the repo, not a worktree, containing no repo files.",
+       "where": "council_cwd docstring line 345",
+       "verdict": "KEPT",
+       "why": "The temp directory is created by tempfile.TemporaryDirectory, not from repo; no repo files are copied in."
+      },
+      {
+       "text": "Returned as a context manager so the directory is fresh per call and removed after.",
+       "where": "council_cwd docstring line 346",
+       "verdict": "KEPT",
+       "why": "Returns a TemporaryDirectory object which is a context manager and cleans up after exit."
+      },
+      {
+       "text": "Raises if the system temp dir somehow sits under repo_root, because a reviewer rooted in the checkout is the failure this exists to prevent.",
+       "where": "council_cwd docstring line 347",
+       "verdict": "KEPT",
+       "why": "Function checks if root is in here.parents and raises ValueError with cleanup."
+      },
+      {
+       "text": "Default runner: spawn argv under spine.cancel.ManagedProcess.",
+       "where": "run_managed docstring line 365",
+       "verdict": "KEPT",
+       "why": "Function uses ManagedProcess with argv, cwd, env."
+      },
+      {
+       "text": "THE PROMPT IS NEVER IN argv.",
+       "where": "run_managed docstring line 367",
+       "verdict": "KEPT",
+       "why": "argv is passed through; the prompt is written to in_path and given as stdin, not in argv."
+      },
+      {
+       "text": "It is staged to a temp file and handed over as the child's stdin.",
+       "where": "run_managed docstring line 368",
+       "verdict": "KEPT",
+       "why": "Function writes stdin_text to in_path and opens it as fin, passed as stdin."
+      },
+      {
+       "text": "A file rather than a pipe because a CLI that never drains stdin deadlocks the writer OUTSIDE every timeout",
+       "where": "run_managed docstring line 369",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about deadlock behavior is not observable in this chunk; the code uses a file, which is consistent."
+      },
+      {
+       "text": "and because on the ssh path a command-line prompt is re-parsed by the remote login shell, which turns any backtick or $(...) in a diff into remote code execution with no adversarial model required.",
+       "where": "run_managed docstring lines 369-371",
+       "verdict": "UNCHECKABLE",
+       "why": "The ssh path is not in this chunk; the function just uses stdin file."
+      },
+      {
+       "text": "The whole process TREE dies on timeout.",
+       "where": "run_managed docstring line 372",
+       "verdict": "UNCHECKABLE",
+       "why": "The function calls proc.cancel() when timeout, but the behavior of cancel (whether it kills the whole tree) is in ManagedProcess, not in this chunk."
+      },
+      {
+       "text": "Popen.terminate reaches the immediate child only; a hung vendor's grandchildren outlive it.",
+       "where": "run_managed docstring line 373",
+       "verdict": "UNCHECKABLE",
+       "why": "This is a claim about Popen.terminate; the code uses ManagedProcess.cancel, not Popen. The behavior of Popen is not in this chunk."
+      },
+      {
+       "text": "Fail closed: a child we could not contain must never be left running.",
+       "where": "run_managed except block line 392",
+       "verdict": "KEPT",
+       "why": "On CancellationUnavailable or OSError, the function returns a RunResult with spawn_error, not leaving any process (since ManagedProcess context manager would have cleaned up)."
+      },
+      {
+       "text": "A read-only, tool-less, one-shot invocation of a vendor CLI.",
+       "where": "CouncilProfile docstring line 401",
+       "verdict": "UNCHECKABLE",
+       "why": "The profile definitions show tool denial flags, but the actual CLI behavior is not in this chunk."
+      },
+      {
+       "text": "args never contains the prompt: stdin_prompt is always true here and the shape is enforced by test, not by convention.",
+       "where": "CouncilProfile docstring line 402-403",
+       "verdict": "UNCHECKABLE",
+       "why": "The test enforcement is not in this chunk; the profiles defined here show stdin_prompt=True and args do not contain prompt, but the claim about tests cannot be verified."
+      },
+      {
+       "text": "Forbidden anywhere in a council argv. workspace-write and dontAsk are the two flags that turn a reviewer into an agent with an editor.",
+       "where": "FORBIDDEN_ARG_FRAGMENTS comment line 415",
+       "verdict": "KEPT",
+       "why": "The tuple contains 'workspace-write' and 'dontAsk' among others, and _assert_profile_safe checks for them."
+      },
+      {
+       "text": "Tools are named explicitly rather than allow-listing nothing: the variadic --allowed-tools <tools...> would swallow the next flag if given an empty value, so the denial is expressed with the = form, which cannot slurp.",
+       "where": "_CLAUDE_DENIED_TOOLS comment lines 420-423",
+       "verdict": "KEPT",
+       "why": "The profile uses '--disallowed-tools=...' form with explicit list, not '--allowed-tools'."
+      },
+      {
+       "text": "read-only sandbox + approvals never; --skip-git-repo-check because the council cwd is a bare temp dir by design and codex otherwise refuses.",
+       "where": "COUNCIL_PROFILES comment line 444",
+       "verdict": "KEPT",
+       "why": "The openai profile includes '--sandbox', 'read-only', '--ask-for-approval', 'never', and '--skip-git-repo-check'."
+      },
+      {
+       "text": "Common shape. Subclasses implement _dispatch only.",
+       "where": "CouncilAdapter docstring line 475",
+       "verdict": "UNCHECKABLE",
+       "why": "The class body is cut off; only the docstring and initial attributes are visible."
+      },
+      {
+       "text": "ask is the ONLY entry point, and it always: charges the token ceiling, runs the secret floor, computes withheld paths for an untrusted lane, times the call, and maps every failure onto STATUSES.",
+       "where": "CouncilAdapter docstring lines 476-478",
+       "verdict": "UNCHECKABLE",
+       "why": "The ask method is not in this chunk; only the class declaration and docstring are visible."
+      },
+      {
+       "text": "A refusal is a STATUS, not an exception -- a council must never lose a participant to a traceback, because a missing turn is indistinguishable from a turn that was never sought.",
+       "where": "CouncilAdapter docstring lines 478-480",
+       "verdict": "UNCHECKABLE",
+       "why": "The failure mapping is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "council_cwd checks if repo_root is a parent of the temp dir, but not if repo_root is a child of the temp dir; the docstring says 'system temp dir somehow sits under repo_root', which is exactly what is checked, so no issue.",
+       "where": "council_cwd lines 350-355",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run_managed catches FileNotFoundError and (CancellationUnavailable, OSError) separately; the first returns spawn_error 'not_on_path', the second 'spawn_failed'. Both are fail-closed.",
+       "where": "run_managed lines 389-393",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The timeout loop polls every 0.02 seconds; if timeout_s is 0, deadline is started, so it may immediately cancel after first poll, which is fine.",
+       "where": "run_managed lines 378-385",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The floor_check returns FloorRefusal with channel 'path' for path-only hits, and for evidence_files it determines channel by rule.startswith('secret path marker') else 'content'. This matches the docstring's two-channel model.",
+       "where": "floor_check lines 303-311",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The COUNCIL_PROFILES are validated at module load via _assert_profile_safe, which checks only the command and args strings; this is a static check that cannot catch runtime flag parsing issues.",
+       "where": "lines 463-465",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e94db18294c4106f91597167266b1e9c15731dfaa90d5c21f62773d7066ea6e0",
+    "objective_chars": 14564,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [2/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/council/vendors.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

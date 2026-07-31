@@ -1,0 +1,175 @@
+{
+ "task_id": "scan__daedalus_kairos_shadow_shell.py__c1of1__3088037",
+ "key": "scan__daedalus_kairos_shadow_shell.py__c1of1__3088037-babfebb650",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/shadow_shell.py",
+     "chunk": "1 of 1",
+     "purpose": "Run a task in a worktree via an adapter and return a CandidateBranch.",
+     "symbols": [
+      {
+       "name": "CandidateBranch",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding branch name, worktree path, task, completion flag, error, and score."
+      },
+      {
+       "name": "ShadowShellManager",
+       "kind": "class",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Spawns an adapter in a worktree and commits changes."
+      },
+      {
+       "name": "run_task",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Creates a worktree, runs the agent, commits changes if any, and returns a CandidateBranch."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Represents a completed task on a dedicated git branch.",
+       "where": "line 12 (CandidateBranch docstring)",
+       "verdict": "UNCHECKABLE",
+       "why": "The class fields only store data; completion is set by run_task, not by the class itself. Whether it 'represents' completion depends on how the field is used elsewhere."
+      },
+      {
+       "text": "Spawns an adapter and runs the agent inside a given GitWorktree.",
+       "where": "line 20 (class docstring)",
+       "verdict": "KEPT",
+       "why": "run_task calls adapter.create_session with cwd set to the worktree path and iterates over adapter.events, which is consistent with spawning and running inside the worktree."
+      },
+      {
+       "text": "Executes the agent task inside a new worktree and returns a CandidateBranch.",
+       "where": "line 30 (run_task docstring)",
+       "verdict": "KEPT",
+       "why": "run_task creates a worktree, passes the task as prompt, and returns a CandidateBranch instance."
+      },
+      {
+       "text": "The task is the initial one-shot prompt.",
+       "where": "line 45 (comment)",
+       "verdict": "KEPT",
+       "why": "session_config['prompt'] is set to the task string on line 47."
+      },
+      {
+       "text": "cwd is the worktree, and the adapter is required to honor it at process launch.",
+       "where": "line 45 (comment)",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk sets session_config['cwd'] to the worktree path, but whether the adapter honors it is outside this file; the adapter interface is not defined here."
+      },
+      {
+       "text": "agent session ended without a process result",
+       "where": "line 59 (error message)",
+       "verdict": "UNCHECKABLE",
+       "why": "The code raises this error if no SessionEnded event is seen, but the exact semantics of 'process result' depend on SessionEnded's definition in another module."
+      },
+      {
+       "text": "agent exited with code {exit_code}: {detail}",
+       "where": "line 63 (error message)",
+       "verdict": "KEPT",
+       "why": "The code raises RuntimeError with this message when exit_code is non-zero, using stderr or 'no stderr'."
+      },
+      {
+       "text": "agent completed without changing the candidate worktree",
+       "where": "line 67 (error message)",
+       "verdict": "KEPT",
+       "why": "The code raises RuntimeError with this message when worktree_manager.has_changes returns false."
+      },
+      {
+       "text": "Commit any changes the agent made in the worktree",
+       "where": "line 69 (comment)",
+       "verdict": "KEPT",
+       "why": "The code calls worktree_manager.commit_candidate on line 71 with a message."
+      },
+      {
+       "text": "Shadow shell output for task: {task}",
+       "where": "line 71 (commit message)",
+       "verdict": "KEPT",
+       "why": "The commit message is formatted exactly as shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The adapter is terminated in the finally block, but the terminate call is awaited. If terminate raises, it is caught by the outer except and stored as an error, which could mask the original error or mark a completed candidate as failed.",
+       "where": "lines 78-80",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "If the agent returns exit code 0 but produces no changes, the worktree is cleaned up because candidate.completed is false. This is consistent with the error message but might discard useful output.",
+       "where": "lines 65-67, 80-82",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The branch name uses uuid4().hex[:8], which is only 8 hex chars, potentially increasing collision risk in high-volume scenarios.",
+       "where": "line 33",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The session_config is a shallow copy of self.config; nested mutable values are shared with the original config, so the adapter could mutate the caller's config indirectly.",
+       "where": "line 46",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "lines 78-80 | medium | terminate() raising could overwrite the original error or fail a completed candidate; check the adapter's terminate contract and whether it can raise after a successful run.",
+      "lines 65-67, 80-82 | low | A zero-exit run with no changes is treated as failure and the worktree is cleaned; verify that this matches intended policy for no-op tasks.",
+      "line 33 | low | 8 hex chars from uuid4 gives ~4 billion combinations; under heavy concurrent use collisions are possible; consider longer prefix or a counter.",
+      "line 46 | medium | Shallow copy of config means nested dicts/lists are shared; if the adapter mutates them, the caller's config changes; consider deep copy."
+     ],
+     "todos": [],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "34b2f0e94fdb015ff32beabf31283983154124e129f927371c3bb8e12bddc6e7",
+    "objective_chars": 6277,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/shadow_shell.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/shadow_shell.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

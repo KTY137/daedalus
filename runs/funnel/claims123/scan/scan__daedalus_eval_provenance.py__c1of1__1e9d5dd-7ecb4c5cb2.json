@@ -1,0 +1,295 @@
+{
+ "task_id": "scan__daedalus_eval_provenance.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_eval_provenance.py__c1of1__1e9d5dd-7ecb4c5cb2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/provenance.py",
+     "chunk": "1 of 1",
+     "purpose": "Verify that an evaluation would score the candidate's own worktree by asking the candidate's interpreter where daedalus resolves, fail-closed on any ambiguity.",
+     "symbols": [
+      {
+       "name": "ProvenanceCheck",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding the verdict (ok), the expected root, the resolved daedalus location, a reason string, and the raw probe output."
+      },
+      {
+       "name": "as_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats the failure as an EVALUATION VOID message, deliberately never mentioning 'candidate'."
+      },
+      {
+       "name": "_under",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks whether a child path resolves inside a parent directory; returns False on any resolution error."
+      },
+      {
+       "name": "check_import_provenance",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns the candidate's interpreter with PROBE_SOURCE, parses the JSON report, and returns a ProvenanceCheck."
+      },
+      {
+       "name": "PROBE_SOURCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Python source run in the candidate's interpreter; reports sys.argv[0], sys.executable, sys.path[0], daedalus.__file__, daedalus.__path__, or an import error."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the evolution runner called a bare ``pytest`` ... The loop graded the host against itself",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The historical runner behavior is not in this chunk; only the fix and the reason for this module are described."
+      },
+      {
+       "text": "That was closed on 2026-07-29: the runner now uses ``sys.executable -m pytest`` with ``cwd`` set to the worktree, which puts the worktree on ``sys.path[0]``",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The runner invocation lives in another module; this chunk cannot observe it."
+      },
+      {
+       "text": "The candidate wins.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Depends on the runner behavior described above, not present in this chunk."
+      },
+      {
+       "text": "This module exists because that is a MECHANISM, not a VERIFICATION.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The module's only function runs a live probe rather than reasoning about import order."
+      },
+      {
+       "text": "It stops holding if: ``PYTHONPATH`` is set in the environment the evaluator inherits;",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The probe runs with the inherited environment (no env override in check_import_provenance), so a PYTHONPATH entry ahead of sys.path[0] could shadow the worktree and the probe would report an outside resolution."
+      },
+      {
+       "text": "a candidate worktree has no ``daedalus/`` directory at all",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "If daedalus cannot be imported, raw['import_error'] is set and check_import_provenance returns ok=False."
+      },
+      {
+       "text": "a future refactor changes how the editable install registers itself;",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The probe reports whatever __file__/__path__ the interpreter finds; any change that moves resolution outside the worktree is caught by the _under check."
+      },
+      {
+       "text": "somebody \"simplifies\" the invocation back to bare ``pytest``",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The invocation is in the runner, not here."
+      },
+      {
+       "text": "In every one of those cases the failure is the WORST shape available: the tests pass, the score is high, and it describes the wrong tree.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The probe returns ok=False when daedalus resolves outside the worktree, so the evaluation is voided rather than scored."
+      },
+      {
+       "text": "a failed check voids the EVALUATION rather than scoring the candidate",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "as_error returns a message starting with 'EVALUATION VOID (not a candidate failure)'."
+      },
+      {
+       "text": "Those are different outcomes and conflating them is the actual bug: a candidate scored 0 looks bad, while an evaluation that could not run is *unknown*",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The error message explicitly distinguishes the two outcomes."
+      },
+      {
+       "text": "Cheap: one interpreter start, ~0.3 s, against a suite run of seconds to minutes.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The function spawns exactly one subprocess with a short timeout default of 60 s."
+      },
+      {
+       "text": "Run in the CANDIDATE's interpreter, cwd and environment -- not here.",
+       "where": "PROBE_SOURCE comment",
+       "verdict": "kept",
+       "why": "check_import_provenance passes cwd=str(base) and does not alter the environment, and uses executable or sys.executable."
+      },
+      {
+       "text": "Reporting what ``daedalus`` resolves to in *this* process would answer a different question",
+       "where": "PROBE_SOURCE comment",
+       "verdict": "kept",
+       "why": "The probe is run in a subprocess, not in the current process."
+      },
+      {
+       "text": "Reports rather than asserts, so the caller decides.",
+       "where": "PROBE_SOURCE comment",
+       "verdict": "kept",
+       "why": "The probe prints JSON and exits 0 even on import failure; check_import_provenance interprets the output and returns a ProvenanceCheck."
+      },
+      {
+       "text": "A probe that exited non-zero on mismatch would be indistinguishable from a probe that failed to start",
+       "where": "PROBE_SOURCE comment",
+       "verdict": "kept",
+       "why": "The probe never exits non-zero on mismatch; it always prints a JSON object, and failures to start are detected via returncode by the caller."
+      },
+      {
+       "text": "Whether an evaluation in ``root`` would score the code in ``root``.",
+       "where": "ProvenanceCheck docstring",
+       "verdict": "kept",
+       "why": "ok is True only when a resolved daedalus path is under root."
+      },
+      {
+       "text": "The message an evaluator should record when this fails.",
+       "where": "as_error docstring",
+       "verdict": "kept",
+       "why": "The method returns a formatted string suitable for recording."
+      },
+      {
+       "text": "Deliberately says \"evaluation\" and never \"candidate\"",
+       "where": "as_error docstring",
+       "verdict": "kept",
+       "why": "The returned string contains 'EVALUATION VOID' and no occurrence of 'candidate'."
+      },
+      {
+       "text": "FAIL-CLOSED in every direction. A probe that will not start, times out, returns unparseable output, or cannot import ``daedalus`` at all reports ``ok=False``",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "Each of those cases returns ProvenanceCheck(False, ...): subprocess errors, non-zero returncode, unparseable JSON, and import_error."
+      },
+      {
+       "text": "because \"we could not establish which tree would be scored\" and \"the wrong tree would be scored\" have the same consequence",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "All failure paths return ok=False; the reason string differs but the verdict is the same."
+      },
+      {
+       "text": "A probe that will not start",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "OSError and subprocess.SubprocessError are caught and return ok=False."
+      },
+      {
+       "text": "times out",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "subprocess.run raises TimeoutExpired (a subclass of SubprocessError) which is caught, or if not, the exception is caught by the broad SubprocessError clause."
+      },
+      {
+       "text": "returns unparseable output",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "json.loads is wrapped in try/except ValueError and returns ok=False."
+      },
+      {
+       "text": "cannot import ``daedalus`` at all",
+       "where": "check_import_provenance docstring",
+       "verdict": "kept",
+       "why": "raw['import_error'] is checked and returns ok=False."
+      },
+      {
+       "text": "Not necessarily fatal for the repo -- but it IS fatal for this evaluation",
+       "where": "check_import_provenance comment",
+       "verdict": "kept",
+       "why": "The comment correctly notes the import failure voids the evaluation even if the repo itself is fine."
+      },
+      {
+       "text": "__path__ is checked too: a namespace package has no __file__, and a candidate whose package dir lost its __init__.py would otherwise resolve to None",
+       "where": "check_import_provenance comment",
+       "verdict": "kept",
+       "why": "candidates includes both daedalus_file and daedalus_path entries, so a namespace package or a missing __init__.py is still caught via __path__."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The probe's JSON report format is not pinned; the parser only reads the last non-empty line and treats missing fields as absent.",
+       "where": "lines 83-93",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The probe reports sys.path[0] but check_import_provenance never inspects it; only daedalus_file and daedalus_path are used.",
+       "where": "PROBE_SOURCE and check_import_provenance",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The probe does not report the environment, so a PYTHONPATH override that resolves daedalus outside the worktree would be caught only via the resolved path, not diagnosed.",
+       "where": "PROBE_SOURCE",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The probe does not report sys.path in full, only sys.path[0]; if a later sys.path entry shadows the worktree, the resolved path would still be caught, but the diagnosis would be less informative.",
+       "where": "PROBE_SOURCE",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The probe catches all exceptions during import and serializes the error message; a malicious or buggy daedalus could print extra lines before the JSON, but the parser reads only the last line, which could be the JSON if it is printed last.",
+       "where": "PROBE_SOURCE and lines 83-93",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "line 83-93 | medium | The parser assumes the last non-empty stdout line is valid JSON; if the probe or daedalus prints anything after the JSON, the parse fails and the evaluation is voided, which is fail-closed but could be a false negative.",
+      "line 83-93 | medium | The parser does not validate that the JSON contains the expected keys; if the probe output changes shape, missing keys are read as None and the check may report 'resolved to nothing' rather than 'unreadable'.",
+      "line 83-93 | medium | The parser reads only the last line; if the probe's stdout contains a trailing newline and the JSON is on the last line, it works, but any interleaved output from daedalus import (e.g., a print in a top-level module) could corrupt the parse.",
+      "line 83-93 | medium | The probe's output format is not pinned by a schema or version; a future change to the probe could silently change the meaning of fields.",
+      "PROBE_SOURCE | low | The probe reports sys.path[0] but the checker never uses it, so a misdiagnosis could occur if daedalus resolves inside the worktree via a different mechanism than sys.path[0].",
+      "PROBE_SOURCE | low | The probe does not report the environment, so a PYTHONPATH issue is only detected via the resolved path, not diagnosed as such."
+     ],
+     "todos": [
+      "Consider pinning the probe output format with a schema or version field to avoid silent parser drift.",
+      "Consider having the probe report the full sys.path to aid diagnosis of import-order issues.",
+      "Consider adding a test that the probe output is parseable and contains the expected keys."
+     ],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fac5022b8ccda2ca10fdc9c6754e86e1d8bc841356243954591c83cec7e8ef48",
+    "objective_chars": 9812,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/provenance.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/provenance.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

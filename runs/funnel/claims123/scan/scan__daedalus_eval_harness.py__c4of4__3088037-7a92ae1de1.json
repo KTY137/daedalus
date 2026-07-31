@@ -1,0 +1,126 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c4of4__3088037",
+ "key": "scan__daedalus_eval_harness.py__c4of4__3088037-7a92ae1de1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "4 of 4",
+     "purpose": "Run the advisory regression gate comparing current tier1 results to a stored baseline.",
+     "symbols": [
+      {
+       "name": "run_gate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Loads baseline, runs tier1, classifies per-task results into regressions/improved/new/errored/focus_withheld, returns a report dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "ADVISORY regression ratchet. Replays ``tasks`` (default TASKS) against a stored baseline.json and flags any PRIMARY-tier task whose recall DECREASED.",
+       "where": "run_gate docstring lines 841-845",
+       "verdict": "KEPT",
+       "why": "Tasks default to all_tasks() (line 861); baseline loaded from baseline_path (line 862-863); per_task iterated (line 874); primary-tier tasks with current recall < baseline recall appended to regressions (lines 894-899)."
+      },
+      {
+       "text": "Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves (see tests/test_eval_oracle.py for the mean-preserving-swap test that proves this).",
+       "where": "run_gate docstring lines 845-848",
+       "verdict": "KEPT",
+       "why": "Loop compares each task's recall individually (lines 894-899); no aggregate mean is computed anywhere in this chunk."
+      },
+      {
+       "text": "Workflow before shipping a slice-heuristic change: python -m daedalus.eval --gate. Expect PASS.",
+       "where": "run_gate docstring lines 848-850",
+       "verdict": "UNCHECKABLE",
+       "why": "CLI entry point and flag parsing are outside this chunk; only the function body is visible."
+      },
+      {
+       "text": "A FAIL means either a real regression (fix the slicer) or an intentional, reviewed label change -- in which case update the baseline EXPLICITLY (never automatically): python -m daedalus.eval --update-baseline",
+       "where": "run_gate docstring lines 850-853",
+       "verdict": "UNCHECKABLE",
+       "why": "The update-baseline command is not in this chunk; no automatic baseline write occurs here (only load_baseline is called)."
+      },
+      {
+       "text": "GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action.",
+       "where": "run_gate docstring lines 854-857",
+       "verdict": "UNCHECKABLE",
+       "why": "The advisory flag is set in the return dict (line 914), but whether it is wired to block anything is external to this chunk; CI absence is unverifiable here."
+      },
+      {
+       "text": "ERRORED tasks (see ``run_tier1``) have no recall to compare and are SPLIT by tier, not folded into ``regressions``: * PRIMARY tier -- FAILS the gate loudly (``errored_primary``, named in the rendered report).",
+       "where": "run_gate docstring lines 858-862",
+       "verdict": "KEPT",
+       "why": "Error rows are appended to errored_primary or errored_quarantine based on _is_primary_tier (lines 878-883); passed requires len(errored_primary)==0 (line 913); errored_primary is in the return dict (line 918)."
+      },
+      {
+       "text": "QUARANTINE tier -- reported only (``errored_quarantine``), never fails the gate -- flywheel debris (an unconfirmed minted task whose target moved/vanished) must not be able to block a developer's gate run.",
+       "where": "run_gate docstring lines 862-865",
+       "verdict": "KEPT",
+       "why": "Non-primary error rows go to errored_quarantine (line 883) and are excluded from the passed calculation (line 913 only checks regressions and errored_primary)."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file -- lane A1) are likewise SPLIT OUT, not folded into ``regressions``: a task that TRANSITIONS to focus-withheld this run has no ``recall`` to compare (fail-closed is not \"recall dropped to 0\"), so treating it as a regression would be a false alarm on the fence doing its job.",
+       "where": "run_gate docstring lines 866-872",
+       "verdict": "KEPT",
+       "why": "If t.get(\"focus_withheld\") is truthy, the task is appended to focus_withheld and skipped via continue (lines 884-886), so it never reaches the regression comparison."
+      },
+      {
+       "text": "Reported in its own ``focus_withheld`` section, regardless of tier, and never fails the gate.",
+       "where": "run_gate docstring lines 872-873",
+       "verdict": "KEPT",
+       "why": "focus_withheld list is populated for any tier (line 885, no tier check), included in return dict (line 921), and not referenced in passed computation (line 913)."
+      },
+      {
+       "text": "quarantine is never gated, see module docstring",
+       "where": "comment line 889",
+       "verdict": "KEPT",
+       "why": "After error and focus_withheld handling, non-primary tasks are skipped via continue (lines 888-889), so they cannot enter regressions."
+      }
+     ],
+     "observations": [],
+     "risks": [],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "333ba03e693b8544cff72a659e258d0214b87ceb9a5808c573cc61a096f69c96",
+    "objective_chars": 8748,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [4/4]",
+  "rev": "3088037",
+  "module": "daedalus/eval/harness.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

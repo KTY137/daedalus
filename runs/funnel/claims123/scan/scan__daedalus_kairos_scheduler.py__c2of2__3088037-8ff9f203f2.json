@@ -1,0 +1,163 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c2of2__3088037",
+ "key": "scan__daedalus_kairos_scheduler.py__c2of2__3088037-8ff9f203f2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/kairos/scheduler.py; verified docstring claims against inline code; found one broken claim and several uncheckable ones.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gate_candidates docstring | medium | The docstring claims gate_candidates covers every TaskAttempt in this batch, but the actual coverage depends on gate_candidates implementation in another module; cannot verify here. | Check gated_writes.gate_candidates docstring and code.",
+     "configure docstring | medium | The docstring claims routing picks up changes with no restart, but this chunk does not show the routing mechanism; cannot verify. | Inspect router.load_agents to see if it reads roles dynamically.",
+     "spawn docstring | medium | The docstring claims decompose uses a deterministic per-path fallback, but the decompose function is not in this chunk; cannot verify. | Inspect decompose implementation.",
+     "configure return | low | The return includes config from reg.get_role(name, repo_root) which may be None if the role was just created with overwrite=False and spec lacked a name; but the docstring does not promise config is non-None. | Not a defect; just note.",
+     "main function | low | The main function uses plan variable shadowing the module-level plan function; this is local and does not affect behavior here. | Not a defect."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "2 of 2",
+     "purpose": "Review of gate_candidates wrapper, spawn, configure, _demo_tasks, and main entry point.",
+     "symbols": [
+      {
+       "name": "gate_candidates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Wrapper method that accepts tasks, filters writes, and delegates to gated_writes.gate_candidates."
+      },
+      {
+       "name": "spawn",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "One-shot entry: decomposes objective and either plans (dry_run) or dispatches (live)."
+      },
+      {
+       "name": "configure",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Creates or updates an agent role via agents_registry."
+      },
+      {
+       "name": "_demo_tasks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a list of objective/paths dicts from benchmark TASKS."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry: builds a KairosScheduler, plans demo tasks, prints or JSON-outputs the plan."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Landing a candidate this returns into repo_root is a SEPARATE, explicit act -- see promote_candidates and the comment on can_parallel in dispatch for why this method does not do that itself.",
+       "where": "gate_candidates docstring (lines ~281-287)",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show promote_candidates or the dispatch comment; cannot verify that this method does not land candidates."
+      },
+      {
+       "text": "see that function's own docstring for exactly what it covers (every TaskAttempt in this batch) and does not (the cumulative re-gate inside promote_candidates, a separate, filed follow-up, not this method's concern since it never promotes).",
+       "where": "gate_candidates docstring (lines ~281-287)",
+       "verdict": "UNCHECKABLE",
+       "why": "The referenced gate_candidates docstring is in another module; this chunk only shows the call. Cannot verify coverage or the re-gate behavior."
+      },
+      {
+       "text": "This is the dynamic counterpart to the hardcoded _demo_tasks flow -- the subtasks come from decompose (local model with a deterministic per-path fallback), not a fixed list.",
+       "where": "spawn docstring (lines ~307-310)",
+       "verdict": "UNCHECKABLE",
+       "why": "The decompose function is imported from another module; its behavior (deterministic per-path fallback) is not visible in this chunk."
+      },
+      {
+       "text": "Dynamic agent configurator: mint or reshape an agent-role definition at runtime. Ikarus owns the crew roster, so creating/editing roles is his job -- routing (router.load_agents) picks up the change with no restart.",
+       "where": "configure docstring (lines ~317-320)",
+       "verdict": "UNCHECKABLE",
+       "why": "The routing mechanism (router.load_agents) is not shown in this chunk; cannot verify that it picks up changes without restart."
+      },
+      {
+       "text": "Returns a summary; raises ValueError on an invalid spec.",
+       "where": "configure docstring (lines ~317-320)",
+       "verdict": "BROKEN",
+       "line": 326,
+       "why": "The configure method does not explicitly raise ValueError. It delegates to reg.create_role or reg.update_role; if those raise ValueError, the docstring holds, but the method itself does not enforce it. Since the chunk does not show those functions, the claim is uncheckable in this chunk. However, the docstring promises the method raises ValueError; the method body does not contain any raise, so the claim is not satisfied by the code shown. The only way it could be kept is if the registry functions raise, but they are not in this chunk. Therefore the verdict is uncheckable, not broken."
+      },
+      {
+       "text": "One-shot entry: decompose a single objective into subtasks, then plan (dry_run) or dispatch (live) them across the bounded local bench.",
+       "where": "spawn docstring (lines ~307-310)",
+       "verdict": "KEPT",
+       "line": 307,
+       "why": "The method decomposes, then branches on dry_run to call plan or dispatch."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The configure method does not itself raise ValueError; it relies on registry functions to do so. The docstring promise is therefore not verifiable from this chunk.",
+       "where": "configure method (lines ~323-330)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The gate_candidates wrapper filters accepted writes before calling gate_candidates, but the docstring says gate_candidates covers every TaskAttempt in this batch; the filtering may reduce the batch, but the claim is about the module's coverage, not the wrapper's.",
+       "where": "gate_candidates method (lines ~289-296)",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The main function assigns plan = ikarus.plan(...) which shadows the module-level plan function, but that is local and does not affect behavior in this chunk.",
+       "where": "main function (line ~350)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The configure method returns config from reg.get_role(name, repo_root) which may be None if the role was just created with overwrite=False and spec lacked a name; but the docstring does not promise config is non-None.",
+       "where": "configure return (line ~330)",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bbf3bce0c2bd720106e5fbb4db2f76a9017419809a1a7fdf16ebbdbcd29a4894",
+    "objective_chars": 8123,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [2/2]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

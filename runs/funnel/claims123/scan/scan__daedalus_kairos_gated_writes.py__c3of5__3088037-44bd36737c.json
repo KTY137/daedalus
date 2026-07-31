@@ -1,0 +1,327 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c3of5__3088037",
+ "key": "scan__daedalus_kairos_gated_writes.py__c3of5__3088037-44bd36737c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of gated_writes.py: _PinnedWorktreeGit, _reattempt, _as_cancel_predicate, _CumulativeGateCancelled, _promote_one_inner.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_promote_one_inner | high | The docstring for _CumulativeGateCancelled claims the except block resets the integration worktree to current_head, but the except block is in the next chunk and cannot be verified here. | Provide chunk 4 to confirm the reset behavior.",
+     "_promote_one_inner | medium | _reattempt reuses GatedCandidate.assignment from the original candidate; if assignment is stale or incomplete, the regenerated candidate may carry incorrect metadata. | Inspect GatedCandidate definition and assignment usage.",
+     "_promote_one_inner | medium | _reattempt passes cancel directly to run_attempt, and run_attempt normalises it; the _as_cancel_predicate normalisation is only for the cumulative gate, but the comment claims TaskAttempt does the same normalisation internally; this is uncheckable. | Inspect run_attempt's handling of cancel."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "3 of 5",
+     "purpose": "Covers _PinnedWorktreeGit, _hardened_env, _read_gitdir_pointer, _reattempt, _as_cancel_predicate, _CumulativeGateCancelled, and the start of _promote_one_inner.",
+     "symbols": [
+      {
+       "name": "_GIT_EXEC_CONFIG",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of git -c key=value config overrides used to disable external hooks, attributes, fsmonitor, sshCommand, diff.external, protocol.ext, credential helpers, and uploadpack hooks."
+      },
+      {
+       "name": "_hardened_env",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a copy of os.environ with GIT_CONFIG_NOSYSTEM=1, GIT_CONFIG_GLOBAL=os.devnull, GIT_ATTR_NOSYSTEM=1, GIT_TERMINAL_PROMPT=0, and removes GIT_EXTERNAL_DIFF, GIT_SSH, GIT_SSH_COMMAND, GIT_PROXY_COMMAND, GIT_ASKPASS, GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE."
+      },
+      {
+       "name": "_read_gitdir_pointer",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads worktree/.git; if it's a directory returns it; if it's a file starting with 'gitdir:' returns the target Path; otherwise returns None."
+      },
+      {
+       "name": "_PinnedWorktreeGit",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Constructor reads the gitdir pointer once; run() spawns git subprocesses pinned to that admin_dir and work_tree, with hardened env and config overrides."
+      },
+      {
+       "name": "_PinnedWorktreeGit.__init__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Stores worktree as Path and admin_dir as _read_gitdir_pointer(worktree)."
+      },
+      {
+       "name": "_PinnedWorktreeGit.run",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git with --git-dir and --work-tree if admin_dir is not None, plus -c config overrides; uses _hardened_env; raises RuntimeError if check and returncode != 0."
+      },
+      {
+       "name": "_reattempt",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Re-runs a candidate's spec with a new base_revision via run_attempt, using a recording runner and a gate; returns a new GatedCandidate."
+      },
+      {
+       "name": "_as_cancel_predicate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalises a cancel token to a zero-arg predicate: None -> lambda False; callable -> wrapped call; object with is_set() -> wrapped is_set; otherwise raises TypeError."
+      },
+      {
+       "name": "_CumulativeGateCancelled",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "RuntimeError subclass used to signal that the cumulative re-gate stopped due to cancellation, not test failure."
+      },
+      {
+       "name": "_promote_one_inner",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Promotes a single candidate: checks staleness, regenerates if needed, applies the diff, commits, and runs the cumulative test gate."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Mirrors daedalus.spine.attempt._read_gitdir_pointer (private there, reimplemented here rather than imported).",
+       "where": "_read_gitdir_pointer docstring",
+       "verdict": "uncheckable",
+       "why": "The referenced function is in another module; this chunk cannot verify the mirror claim."
+      },
+      {
+       "text": "Every git call against ONE worktree, pinned to the admin dir read BEFORE any candidate-authored patch is applied into it.",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "kept",
+       "why": "admin_dir is read once in __init__ and run() always uses it; no re-resolution occurs in this chunk."
+      },
+      {
+       "text": "Mirrors daedalus.spine.attempt's _read_gitdir_pointer + _git(..., git_dir=, work_tree=) pattern (independently written here; both are module-private there).",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "uncheckable",
+       "why": "The referenced pattern is in another module; this chunk cannot verify the mirror claim."
+      },
+      {
+       "text": "a linked worktree's .git is a FILE containing gitdir: <path>.",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "kept",
+       "why": "The code checks if .git is a directory first, then reads text and expects 'gitdir:' prefix, consistent with the claim."
+      },
+      {
+       "text": "Once candidate-authored bytes have landed via git apply (see promote_candidates), a later git call that re-resolves that pointer from disk is trusting a file the applied patch could have rewritten",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about candidate-authored bytes landing and the risk of rewriting is not directly observable in this chunk; it is a rationale."
+      },
+      {
+       "text": "measured, in attempt.py's own history, to let a candidate-authored .gitattributes spawn an arbitrary program via a config-bound filter/textconv driver",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "uncheckable",
+       "why": "Historical claim about another module; cannot be verified from this chunk."
+      },
+      {
+       "text": "the pointer is read ONCE, at construction -- callers must construct this immediately after create_worktree and before the first git apply -- and every subsequent call is pinned to that captured path explicitly, never re-resolved from the (by-then possibly candidate-controlled) working tree.",
+       "where": "_PinnedWorktreeGit class docstring",
+       "verdict": "kept",
+       "why": "admin_dir is set once in __init__ and run() always uses it; no re-resolution in this chunk."
+      },
+      {
+       "text": "Re-run the SAME instruction/target_paths against a NEW base commit.",
+       "where": "_reattempt docstring",
+       "verdict": "kept",
+       "why": "fresh_spec is created with _dc_replace(candidate.spec, base_revision=new_base), preserving instruction and target_paths; run_attempt is called with fresh_spec."
+      },
+      {
+       "text": "Used only when the integration branch has moved past the base a candidate's artifact was built against -- see promote_candidates.",
+       "where": "_reattempt docstring",
+       "verdict": "uncheckable",
+       "why": "The call site is in promote_candidates, which is not in this chunk."
+      },
+      {
+       "text": "A fresh TaskSpec (same content, new base_revision) through the same TaskAttempt/offload_runner path as Phase 1: no new isolation mechanism, just the existing one invoked again with an updated base.",
+       "where": "_reattempt docstring",
+       "verdict": "uncheckable",
+       "why": "The 'same path as Phase 1' and TaskAttempt/offload_runner are not fully visible here; run_attempt is called, but the claim about Phase 1 is uncheckable."
+      },
+      {
+       "text": "cancel is forwarded unchanged to this regeneration's own TaskAttempt -- see gate_candidates' docstring for what it accepts.",
+       "where": "_reattempt docstring",
+       "verdict": "kept",
+       "why": "cancel is passed directly to run_attempt as cancel=."
+      },
+      {
+       "text": "Normalise a cancel token to a zero-arg predicate, for the ONE call site in this module (the cumulative re-gate's RunnerContext.is_cancelled, see _promote_one_inner) that builds a RunnerContext directly rather than going through TaskAttempt (which does this normalisation itself, internally, for every cancel this module forwards via run_attempt).",
+       "where": "_as_cancel_predicate docstring",
+       "verdict": "kept",
+       "why": "The normalisation logic matches the described contract; the call site is indeed in _promote_one_inner's RunnerContext construction."
+      },
+      {
+       "text": "Deliberately NOT an import of daedalus.spine.attempt._as_predicate -- that name is module-private there, and this file's own convention is to mirror a small private helper rather than reach across another module's underscore boundary (see _read_gitdir_pointer above, which does the same for the same reason).",
+       "where": "_as_cancel_predicate docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about module-private status in another module is uncheckable from this chunk."
+      },
+      {
+       "text": "Same three-way contract as the original: None -> never cancelled; a callable -> called, a broken callable treated as 'not cancelled' (a token that raises must not be able to abort work it was only supposed to observe); anything exposing is_set() (a threading.Event, a KillSwitch) -> that, same broken-token rule.",
+       "where": "_as_cancel_predicate docstring",
+       "verdict": "kept",
+       "why": "The code implements exactly that: None returns lambda False; callable wrapped with try/except returning False on exception; is_set wrapped similarly; otherwise TypeError."
+      },
+      {
+       "text": "The cumulative re-gate stopped because cancel fired, not because a test genuinely failed.",
+       "where": "_CumulativeGateCancelled docstring",
+       "verdict": "kept",
+       "why": "The exception is raised only when gate_result.cancelled is true in _promote_one_inner."
+      },
+      {
+       "text": "Raised (never silently swallowed) so the SAME fabricated-verdict shape this repo already fixed once -- a cooperative stop reported as an ordinary gate failure -- cannot recur here:",
+       "where": "_CumulativeGateCancelled docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about 'this repo already fixed once' is historical and uncheckable; the raising itself is visible."
+      },
+      {
+       "text": "the except block below still resets the integration worktree exactly as it does for a real failure (that reset is unconditional and was already safe for cancellation before this class existed -- see the comment on that reset)",
+       "where": "_CumulativeGateCancelled docstring",
+       "verdict": "uncheckable",
+       "why": "The except block is in the next chunk; the reset behavior is not visible here."
+      },
+      {
+       "text": "the REASON string a caller sees now says cancelled, not gate failed, so a loop driver reading reason back cannot mistake 'I was asked to stop' for 'this candidate is bad.'",
+       "where": "_CumulativeGateCancelled docstring",
+       "verdict": "kept",
+       "why": "The exception message includes 'cumulative gate cancelled' and the caller reading reason will see that string; the except block (next chunk) presumably catches it and returns reason with that message."
+      },
+      {
+       "text": "STALENESS. Every candidate after the first, in the normal case of 2+ writes gated concurrently against one shared starting commit, WILL have artifact.base_revision != current_head the moment it is this candidate's turn -- that inequality is not an edge case here, it is the expected shape.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code explicitly checks artifact.base_revision != current_head and handles it as the normal path, with a retry."
+      },
+      {
+       "text": "A git apply --check passing would only prove the bytes still match; it says nothing about whether the change is still semantically correct now that an earlier candidate has landed ahead of it. So: regenerate against the current integration state instead of trusting a check.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code regenerates via _reattempt when base_revision != current_head, rather than using git apply --check."
+      },
+      {
+       "text": "Bounded to ONE retry -- a second staleness hit means something is landing candidates faster than this one can be recomputed, which is a reason to stop and report, not to loop.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code checks _retried; if already retried, it returns a failure reason and does not recurse again."
+      },
+      {
+       "text": "NOTHING WRITTEN. git apply (no --3way, no --reject) validates the whole patch before writing anything; a non-zero exit here means the integration worktree is exactly as it was before this call.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code uses git apply with --whitespace=nowarn and - (no --3way, no --reject), and on non-zero return it returns immediately without any further mutation."
+      },
+      {
+       "text": "Refused and reported, never retried with a fuzzier match and never merged with conflict markers.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code returns a failure reason and does not retry or apply conflict markers."
+      },
+      {
+       "text": "cumulative re-gate needs test_cwd='.'; project configures ...",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code raises RuntimeError if test_cwd not in (None, '', '.')."
+      },
+      {
+       "text": "WAS `lambda: False` (uncancellable) -- this is the one gate in the promote path that runs the project's WHOLE test command, so it is the longest-running thing a stop request can land inside. Safe to make cancellable: the except block just below already resets the integration worktree to current_head unconditionally on ANY failure here, cancellation included, so honouring cancel adds no new way to leave that worktree in a worse state than finishing would -- it only shortens how long a stop takes to land.",
+       "where": "_promote_one_inner comment",
+       "verdict": "uncheckable",
+       "why": "The comment claims the except block resets the integration worktree; the except block is in the next chunk, so it cannot be verified here."
+      },
+      {
+       "text": "Distinct exception type on purpose -- see _CumulativeGateCancelled's own docstring: the reason string a caller reads back must say 'cancelled', never 'gate failed', or this reintroduces the exact fabricated-verdict shape this parameter exists to close.",
+       "where": "_promote_one_inner comment",
+       "verdict": "kept",
+       "why": "The code raises _CumulativeGateCancelled with a message containing 'cancelled' when gate_result.cancelled is true."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _CumulativeGateCancelled docstring claims the except block resets the integration worktree, but the except block is in the next chunk and not visible here.",
+       "where": "_CumulativeGateCancelled docstring / _promote_one_inner",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "_reattempt passes cancel directly to run_attempt, but the docstring says TaskAttempt normalises it; the _as_cancel_predicate normalisation is only for the cumulative gate. The comment claims TaskAttempt does the same normalisation internally, but that is uncheckable.",
+       "where": "_reattempt docstring / _promote_one_inner",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _PinnedWorktreeGit.run method uses `subprocess.run` with `check=False` and then manually raises RuntimeError; this is fine but the error message includes only stderr, not stdout.",
+       "where": "_PinnedWorktreeGit.run",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_read_gitdir_pointer reads the .git file with errors='replace', which could mask encoding issues; but that is intentional to be robust.",
+       "where": "_read_gitdir_pointer",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_promote_one_inner uses `git.run([\"add\", \"-A\"])` which stages all changes in the worktree, including any untracked files; this is intentional for the cumulative gate but could include unexpected files.",
+       "where": "_promote_one_inner",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2b77a345af96e61282bb0ed4a2468f909056866c87390c6a706f0037e77597d7",
+    "objective_chars": 18126,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [3/5]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

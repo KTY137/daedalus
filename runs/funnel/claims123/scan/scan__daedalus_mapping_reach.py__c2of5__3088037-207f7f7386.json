@@ -1,0 +1,271 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c2of5__3088037",
+ "key": "scan__daedalus_mapping_reach.py__c2of5__3088037-207f7f7386",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 5 of daedalus/mapping/reach.py: dataclass _Src, path walking, main-guard detection, branch literal extraction, dispatch chain detection, dead-branch/import-error handling, import splitting, module-level bindings, shim detection.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "2 of 5",
+     "purpose": "Source scanning utilities: _Src scratch, file walking, main-guard, branch literals, dispatch chains, dead-branch/import-error handling, import splitting, module-level bindings, shim detection.",
+     "symbols": [
+      {
+       "name": "_Src",
+       "kind": "class",
+       "effects": [],
+       "note": "Mutable scratch for one parsed module; fields for records, function-scoped records, names, calls, loops, dispatch, main-guard flag, shim flag, literals, dynamic, weak imports, toplevel names."
+      },
+      {
+       "name": "_py_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a relative .py path to dotted module name: strips last 3 chars and replaces '/' with '.'."
+      },
+      {
+       "name": "_iter_py",
+       "kind": "function",
+       "effects": [],
+       "note": "Walks a root Path, yields sorted list of relative .py paths."
+      },
+      {
+       "name": "_walk",
+       "kind": "function",
+       "effects": [],
+       "note": "Wrapper around os.walk that sorts dirnames and filenames, filters out _IGNORE_DIRS and dot-directories."
+      },
+      {
+       "name": "_is_main_guard",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if node is an ast.If with test `__name__ == '__main__'` (single comparison, constant string)."
+      },
+      {
+       "name": "_branch_literals",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts string literals from a branch condition: from Compare (left and comparators), BoolOp recursively, and Call to str.startswith/endswith."
+      },
+      {
+       "name": "_dispatch_chains",
+       "kind": "function",
+       "effects": [],
+       "note": "Finds flat if/elif chains inside a function, returns list of chains of (literal, node) pairs, only chains with at least _MIN_DISPATCH_BRANCHES."
+      },
+      {
+       "name": "_DEAD_BRANCH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Reason string for dead branches."
+      },
+      {
+       "name": "_SUPPRESSED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Reason string for suppressed ImportError."
+      },
+      {
+       "name": "_IMPORT_ERRORS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of import error names: ImportError, ModuleNotFoundError."
+      },
+      {
+       "name": "_is_never_true",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True for `if False:` / `if 0:` \u2014 ast.Constant that is falsy."
+      },
+      {
+       "name": "_catches_import_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if a try node has a handler that names ImportError or ModuleNotFoundError (or attribute thereof)."
+      },
+      {
+       "name": "_split_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (live, weak) import records for a subtree, with context-sensitive handling of dead branches and suppressed ImportError."
+      },
+      {
+       "name": "_import_records_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns only live import records from a node."
+      },
+      {
+       "name": "_toplevel_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns set of names bound at module import time, descending into if/try/with up to depth 3."
+      },
+      {
+       "name": "_module_level_bindings",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps module-level import-bound names to import records."
+      },
+      {
+       "name": "_shim_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if module body re-exports and does nothing else; structural detection."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A branch we cannot read contributes nothing rather than a guess.",
+       "where": "Docstring of _branch_literals",
+       "verdict": "KEPT",
+       "why": "The function only appends literals when it recognizes specific AST shapes (Compare, BoolOp, Call with startswith/endswith); unrecognized shapes yield no literals."
+      },
+      {
+       "text": "Covers the two shapes real dispatch chains use: `x == \"literal\"` and `x.startswith(\"/api/\")`",
+       "where": "Docstring of _branch_literals",
+       "verdict": "KEPT",
+       "why": "The function handles Compare (which includes x == literal) and Call with startswith/endswith attributes."
+      },
+      {
+       "text": "A chain is only a command table when it is long enough (`_MIN_DISPATCH_BRANCHES`); shorter ones are ordinary conditionals and reporting them as subcommands would fabricate entry points.",
+       "where": "Docstring of _dispatch_chains",
+       "verdict": "KEPT",
+       "why": "The function only appends a chain to the result if len(chain) >= _MIN_DISPATCH_BRANCHES."
+      },
+      {
+       "text": "`if False:` / `if 0:` -- a branch the interpreter deletes. Deliberately literal-only. Inferring that some NAME is falsy would make the walk guess, and a guess in this direction silently deletes real edges.",
+       "where": "Docstring of _is_never_true",
+       "verdict": "KEPT",
+       "why": "The function returns True only for ast.Constant with falsy value; it does not handle Name or other expressions."
+      },
+      {
+       "text": "Only handlers that NAME ImportError (or ModuleNotFoundError) count. A bare `except Exception` around an import is usually a lazy-optional-dependency idiom too, but widening this rule reclassifies real edges on evidence that is not there.",
+       "where": "Docstring of _catches_import_error",
+       "verdict": "KEPT",
+       "why": "The function only returns True if handler type is a Name or Attribute whose id/attr is in _IMPORT_ERRORS; bare except Exception (type None) is skipped."
+      },
+      {
+       "text": "Structural descent rather than `ast.walk` because the whole point is the CONTEXT an import sits in: the same statement is evidence in one branch and not in another.",
+       "where": "Docstring of _split_imports",
+       "verdict": "KEPT",
+       "why": "The implementation uses a recursive rec() that descends via ast.iter_child_nodes, with special handling for If (dead branch) and Try (suppressed import), which ast.walk would not provide."
+      },
+      {
+       "text": "The else IS the live branch",
+       "where": "Comment in _split_imports for dead-branch handling",
+       "verdict": "KEPT",
+       "why": "In the dead-branch case, the orelse is recursively processed with the same 'why', making it live."
+      },
+      {
+       "text": "the handler's own import is the fallback that actually runs",
+       "where": "Comment in _split_imports for try/except handling",
+       "verdict": "KEPT",
+       "why": "The handler body is recursively processed with the original 'why' (empty if no prior suppression), so those imports become live."
+      },
+      {
+       "text": "LIVE import records only. Weak ones are reachable only via :func:`_split_imports`, so no caller can pick them up by accident.",
+       "where": "Docstring of _import_records_of",
+       "verdict": "KEPT",
+       "why": "The function returns only the first element of _split_imports, which is the live list."
+      },
+      {
+       "text": "Names a module binds at import time. Descends one level into `if` and `try` because conditional definitions are ordinary in this codebase.",
+       "where": "Docstring of _toplevel_names",
+       "verdict": "KEPT",
+       "why": "The function collects names from FunctionDef, AsyncFunctionDef, ClassDef, Assign, AnnAssign, AugAssign, Import, ImportFrom, and recurses into If, Try, With, AsyncWith with depth limit 3."
+      },
+      {
+       "text": "MODULE LEVEL ONLY, and that restriction is load-bearing. ... Binding names from every scope made `m` resolve to all sixty modules, so every subcommand appeared to reach every other subcommand's target and the whole dispatch collapsed into one blob. A branch's own imports are handled separately, from that branch's own records.",
+       "where": "Docstring of _module_level_bindings",
+       "verdict": "KEPT",
+       "why": "The function iterates only over tree.body (module-level statements), not nested scopes. Branch-level imports are handled elsewhere (presumably by _split_imports)."
+      },
+      {
+       "text": "Detected structurally, never guessed: no def, no class, no executable statement beyond imports, `__all__` and plain alias assignments.",
+       "where": "Docstring of _shim_body",
+       "verdict": "UNCHECKABLE",
+       "why": "The function body shown is incomplete; it only shows the start of the loop, not the full logic that checks for defs, classes, or executable statements beyond imports. The claim extends beyond the visible code."
+      },
+      {
+       "text": "A shim is worth naming because it is the one module class where \"nothing reaches it\" is expected rather than alarming.",
+       "where": "Docstring of _shim_body",
+       "verdict": "UNCHECKABLE",
+       "why": "This is a rationale comment, not a checkable behavioral claim within this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_walk uses os.walk directly, not the imported os module at top; it imports os locally inside the function.",
+       "where": "Line 313",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_iter_py sorts the resulting list, while _walk already sorts filenames; double sorting is redundant but harmless.",
+       "where": "Line 306",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_is_main_guard only handles `__name__ == '__main__'` with a single comparison; it does not handle other forms like `__name__ != '__main__'` or reversed operands.",
+       "where": "Lines 321-329",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_branch_literals handles `startswith`/`endswith` but not `in` or regex patterns; it may miss some dispatch conditions.",
+       "where": "Lines 334-347",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_split_imports treats the handler body as live even if the try has no ImportError suppression; it only applies the suppression to the try body and orelse, not the handler body.",
+       "where": "Lines 382-397",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_toplevel_names has a depth limit of 3; deeper nested conditional definitions may be missed.",
+       "where": "Lines 405-424",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9fad5dba28c5ef914aca043990aca8e380cd14e85516a7847875fa02a3798409",
+    "objective_chars": 15675,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [2/5]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/reach.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

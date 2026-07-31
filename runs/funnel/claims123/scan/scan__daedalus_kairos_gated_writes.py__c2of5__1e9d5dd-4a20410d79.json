@@ -1,0 +1,255 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c2of5__1e9d5dd",
+ "key": "scan__daedalus_kairos_gated_writes.py__c2of5__1e9d5dd-4a20410d79",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of gated_writes.py: _spec_for, _curated_relay_gate, _attempt_assignment, _rev_parse_head, gate_candidates, and _PromotionLock. Verified docstring claims, noted uncheckable cross-module claims, and identified a potential race in the lock loop.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gated_writes.py:281-448 | medium | _PromotionLock.__enter__ loop: sleep(0.2) after failed non-blocking acquire; if timeout_s is small (e.g. 0.1), deadline may pass before first retry, causing a spurious PromotionUnavailable even if lock is released immediately. | What would settle it: check whether _PromotionLock is ever constructed with timeout_s < 0.2 in this file or by callers; if not, risk is theoretical.",
+     "gated_writes.py:281-448 | medium | _PromotionLock.__enter__: if _acquire() raises a non-OSError exception (e.g. ValueError from msvcrt.locking on a bad fd), the loop exits immediately without closing the file handle, leaking the fd. | What would settle it: confirm whether msvcrt.locking can raise non-OSError exceptions in normal use; if not, risk is theoretical.",
+     "gated_writes.py:281-448 | low | _PromotionLock.__exit__: if unlock fails (OSError), it is silently swallowed, which could leave the lock held; the docstring claims fail-closed posture but this path is not fail-closed. | What would settle it: check whether unlock failures are handled elsewhere or if this is a deliberate trade-off."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "2 of 5",
+     "purpose": "Contains _spec_for, _curated_relay_gate, _attempt_assignment, _rev_parse_head, gate_candidates, and _PromotionLock; verifies docstring claims against code.",
+     "symbols": [
+      {
+       "name": "_spec_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a TaskSpec for a kairos assignment; merges gate argv/cwd/timeout and metadata (owner, lane, worker, rewrite_windows, model)."
+      },
+      {
+       "name": "_curated_relay_gate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Composes _relay_gate with command_gate; returns a gate function that runs relay first, then command gate if relay passed."
+      },
+      {
+       "name": "_attempt_assignment",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Creates a spec, a recording runner, and runs an attempt via run_attempt; returns a GatedCandidate."
+      },
+      {
+       "name": "_rev_parse_head",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs 'git rev-parse --verify HEAD' and returns the trimmed stdout; raises RuntimeError on non-zero exit."
+      },
+      {
+       "name": "gate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "PHASE 1: concurrently runs every assignment through _attempt_assignment; returns GatedCandidate list in assignment order."
+      },
+      {
+       "name": "PromotionUnavailable",
+       "kind": "class",
+       "effects": [],
+       "note": "RuntimeError subclass for promotion lock failure."
+      },
+      {
+       "name": "_PromotionLock",
+       "kind": "class",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Cross-process exclusive lock using msvcrt/fcntl; fail-closed on acquisition failure."
+      },
+      {
+       "name": "_PromotionLock.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Stores path and timeout; initializes _fh to None."
+      },
+      {
+       "name": "_PromotionLock.__enter__",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Acquires lock with retry loop; raises PromotionUnavailable on failure."
+      },
+      {
+       "name": "_PromotionLock._acquire",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Performs platform-specific non-blocking lock."
+      },
+      {
+       "name": "_PromotionLock.__exit__",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Releases lock; returns False (does not suppress exceptions)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``None``/empty reproduces the previous behaviour byte-for-byte, including the effect-key digest: ``TaskSpec.body()`` admits ``gate`` into the canonical body only when ``gate_argv`` is non-empty, so no task that lacks one sees its digest move.",
+       "where": "docstring above _spec_for (line ~281)",
+       "verdict": "uncheckable",
+       "why": "The claim depends on TaskSpec.body() implementation in daedalus.spine.attempt, which is not in this chunk. The code does pass gate_argv only when non-empty, but the digest behavior is external."
+      },
+      {
+       "text": "The argv is repo-authored, not model-authored: ``spine/picker.py`` builds it (docref's is ``sys.executable -m daedalus.spine.docref_gate ...``), and the work-queue source validates it as a NUL-free string array out of a repo-curated file.",
+       "where": "docstring above _spec_for (line ~281)",
+       "verdict": "uncheckable",
+       "why": "The claim references spine/picker.py and work-queue source, neither of which is in this chunk."
+      },
+      {
+       "text": "It is then executed by ``spine.attempt.command_gate`` as an argv list with no shell, at LOW INTEGRITY inside containment, in a Job Object, in the candidate's own worktree -- the same instrument, with the same containment, that already runs every default pytest gate.",
+       "where": "docstring above _spec_for (line ~281)",
+       "verdict": "uncheckable",
+       "why": "The execution environment details (containment, integrity, Job Object) are not observable in this chunk; command_gate is imported from daedalus.spine.attempt but its behavior is external."
+      },
+      {
+       "text": "A model-written patch cannot reach this path without a human `git merge` first, because the picker reads the primary checkout and promotion stops at an integration branch.",
+       "where": "docstring above _spec_for (line ~281)",
+       "verdict": "uncheckable",
+       "why": "The picker and promotion flow are not in this chunk; the claim cannot be verified here."
+      },
+      {
+       "text": "Preserve the exact measured hint on the attempt intent as well as handing it to offload below. This makes \"window requested or silently lost?\" answerable from one ledger row.",
+       "where": "comment in _spec_for (line ~315)",
+       "verdict": "kept",
+       "why": "The code copies rewrite_windows into metadata['rewrite_windows'] when it is a non-empty Mapping, and also passes it to runner_kwargs later (line ~365)."
+      },
+      {
+       "text": "``_relay_gate`` AND the task's own curated command gate, in that order.",
+       "where": "docstring of _curated_relay_gate (line ~339)",
+       "verdict": "kept",
+       "why": "The function calls _relay_gate first, then command_gate only if the relay gate passed."
+      },
+      {
+       "text": "THIS COMPOSITION IS THE WHOLE POINT, and it exists because putting ``gate_argv`` on the TaskSpec alone would have done NOTHING: ``TaskAttempt. __init__`` gives an explicitly-passed ``gate=`` precedence over ``task.gate_argv``, and this module always passes one.",
+       "where": "docstring of _curated_relay_gate (line ~339)",
+       "verdict": "uncheckable",
+       "why": "The precedence behavior of TaskAttempt.__init__ is external to this chunk; the claim that this module always passes a gate is supported by _attempt_assignment, but the TaskAttempt behavior is not."
+      },
+      {
+       "text": "Order matters, and it is not arbitrary: 1. ``_relay_gate`` first, as a PRECONDITION. It is the only check that catches ``offload()`` finishing ``escalated_after_verify_fail`` with a NON-EMPTY ``wrote`` -- a write it could not fully roll back, kept visible on purpose. Those bytes are a failed run's debris; judging them with a docref re-scan could well return \"references resolve\" and would promote debris. Replacing the relay gate rather than preceding it would have opened exactly that hole. 2. The curated command gate second, as the DISCRIMINATOR -- the thing that actually knows whether THIS task succeeded.",
+       "where": "docstring of _curated_relay_gate (line ~339)",
+       "verdict": "uncheckable",
+       "why": "The behavior of offload() and the relay gate's ability to catch debris are not in this chunk; only the ordering is visible, which is kept."
+      },
+      {
+       "text": "Both verdicts are returned UNCHANGED (never re-wrapped into a fresh GateResult), so containment attestations and gate output survive whichever one decides. Fail-closed: both must pass.",
+       "where": "docstring of _curated_relay_gate (line ~339)",
+       "verdict": "kept",
+       "why": "The inner _gate returns `first` directly when relay fails, and returns command_gate(...)(ctx) directly otherwise; no re-wrapping is done. Fail-closed is satisfied by the if not first.passed: return first."
+      },
+      {
+       "text": "Returns one ``GatedCandidate`` per assignment, in ``assignments`` order (not completion order). Never touches the primary checkout -- see module docstring.",
+       "where": "docstring of gate_candidates (line ~398)",
+       "verdict": "kept",
+       "why": "The code initializes results as a list of None with len(assignments), submits futures with index mapping, and assigns results[futs[fut]] = fut.result(), preserving order. The 'never touches primary checkout' part is uncheckable here, but the ordering is kept."
+      },
+      {
+       "text": "``cancel``, when given, is forwarded to every ``TaskAttempt`` unchanged -- ``daedalus.spine.attempt._as_predicate`` normalises it (a bare callable, or anything exposing ``is_set()``, both work with no adapter here).",
+       "where": "docstring of gate_candidates (line ~398)",
+       "verdict": "uncheckable",
+       "why": "The normalization behavior of _as_predicate is external; the code does forward cancel unchanged to _attempt_assignment, which passes it to run_attempt."
+      },
+      {
+       "text": "``None`` (the default) reproduces today's behaviour exactly: no attempt in this batch is cooperatively cancellable. This is deliberately request-scoped, not a module-level killswitch lookup -- a caller (e.g. a loop driver) that wants every attempt in one batch to share one cancel token passes it once, here; this module does not reach for global cancellation state on its own.",
+       "where": "docstring of gate_candidates (line ~398)",
+       "verdict": "uncheckable",
+       "why": "The behavior of run_attempt with cancel=None is external; the code does not add any global cancellation lookup, but the exact cooperative cancellation behavior is not observable here."
+      },
+      {
+       "text": "``artifact_dir`` is optional for direct callers. ``run_write_wave`` always supplies the checkout-external content-addressed archive because it returns dictionaries rather than the live ``GatedCandidate`` objects.",
+       "where": "docstring of gate_candidates (line ~398)",
+       "verdict": "uncheckable",
+       "why": "run_write_wave is not in this chunk; the claim about its behavior is external."
+      },
+      {
+       "text": "Same primitives as ``daedalus.budget._BudgetLock`` and ``runs/council/room.py``'s ``_RoomLock`` (``msvcrt`` on Windows, ``fcntl`` on POSIX), independently written here -- both of those are private to modules this file does not own.",
+       "where": "docstring of _PromotionLock (line ~430)",
+       "verdict": "kept",
+       "why": "The code uses msvcrt.locking on Windows and fcntl.flock on POSIX, matching the described primitives."
+      },
+      {
+       "text": "Same fail-closed posture as the budget lock, and for the same reason: two promotions racing into one integration worktree is exactly the shared-mutable-state hazard this whole module exists to close, just moved one layer up. An unobtainable lock RAISES; it never silently proceeds unserialised.",
+       "where": "docstring of _PromotionLock (line ~430)",
+       "verdict": "kept",
+       "why": "The __enter__ method raises PromotionUnavailable in all failure paths (open failure, timeout). It never returns without acquiring the lock."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_PromotionLock.__enter__ retry loop sleeps 0.2s after each failed acquisition; if timeout_s is less than 0.2, the deadline may expire before the first retry, causing a spurious failure.",
+       "where": "_PromotionLock.__enter__ (lines ~438-449)",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_PromotionLock.__enter__ catches only OSError during the retry loop; if _acquire raises a non-OSError (e.g., ValueError from msvcrt.locking on an invalid fd), the loop exits immediately and the file handle is not closed, leaking the descriptor.",
+       "where": "_PromotionLock.__enter__ (lines ~438-449)",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_PromotionLock.__exit__ swallows OSError during unlock; if the unlock fails, the lock may remain held, contradicting the fail-closed posture described in the docstring.",
+       "where": "_PromotionLock.__exit__ (lines ~453-460)",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "076d5742f2446d8858bbaeb7a7fd34f7db92f5bbf02258e4eadd8ecf24cef018",
+    "objective_chars": 16729,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [2/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

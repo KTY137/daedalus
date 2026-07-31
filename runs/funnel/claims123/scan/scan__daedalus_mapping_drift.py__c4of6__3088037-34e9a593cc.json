@@ -1,0 +1,253 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c4of6__3088037",
+ "key": "scan__daedalus_mapping_drift.py__c4of6__3088037-34e9a593cc",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read chunk 4 of drift.py (lines 841-1020): render, snapshot digest/i/o, write_snapshot, _remedy; verified docstring claims and identified one broken acceptance-counts claim.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "write_snapshot counts | high | 'counts' in the written snapshot recomputes 'modules' from state['modules'] after filtering, but the docstring claims accepted items are excluded from the baseline; if any accepted item is a module, the count still includes it, contradicting the exclusion promise. | Inspect the full file for whether 'modules' can ever contain accepted items; if not, the claim is kept, otherwise broken."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "4 of 6",
+     "purpose": "Render drift report, snapshot digest/io, write_snapshot with acceptance filtering, and remedy strings.",
+     "symbols": [
+      {
+       "name": "counts",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns a dict of kind->count, sorted by kind."
+      },
+      {
+       "name": "render",
+       "kind": "method",
+       "effects": [],
+       "note": "Produces the human-readable drift report; handles first-run vs subsequent runs, accepted/blocking markers, and acceptance instructions."
+      },
+      {
+       "name": "_SNAPSHOT_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Template note embedded in snapshots."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Key for the digest in snapshot dicts."
+      },
+      {
+       "name": "_MECHANICAL_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of keys included in the digest."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes a SHA-256 digest over mechanical fields, excluding acceptances and note."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks whether the snapshot's digest matches its mechanical fields."
+      },
+      {
+       "name": "snapshot_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes a snapshot dict to JSON string with sorted keys and trailing newline."
+      },
+      {
+       "name": "load_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads and parses a snapshot file; returns None if missing, or an error dict on parse failure."
+      },
+      {
+       "name": "write_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes a baseline snapshot, filtering accepted items out of most lists, and returns the text."
+      },
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the remedy string for a given drift kind."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A hash over the mechanical half only. ``acceptances`` is excluded because it is the one part a human is SUPPOSED to write; ``note`` because it is a constant. Canonical JSON with sorted keys, so the digest is a function of the values and not of the writer's key order -- two runs over an unchanged tree still produce identical bytes.",
+       "where": "_digest docstring",
+       "verdict": "kept",
+       "why": "The function builds body from _MECHANICAL_KEYS (which excludes 'acceptances' and 'note'), uses json.dumps with sort_keys=True and fixed separators, so the digest is deterministic and excludes those fields."
+      },
+      {
+       "text": "``repo_state`` is INSIDE, and that is not an accident. It is the field that says which tree was scanned, and a freshness stamp anybody can rewrite without invalidating the signature is decorative. The cost is that the digest changes on every commit even when no list moved -- which is correct: the snapshot really does describe a different tree.",
+       "where": "_digest docstring",
+       "verdict": "kept",
+       "why": "repo_state is listed in _MECHANICAL_KEYS, so it is included in the digest body."
+      },
+      {
+       "text": "Public because it is not only :func:`check`'s business. Any verb that INHERITS lists from an existing snapshot rather than rescanning has to ask this first and refuse on a mismatch -- otherwise it re-signs whatever a text editor left behind and turns a caught hand-edit into a valid baseline. ``daedalus map --accept`` is exactly such a verb.",
+       "where": "digest_ok docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about other verbs (daedalus map --accept) is outside this chunk; we can only verify that digest_ok compares doc.get(DIGEST_KEY) to _digest(doc) and returns False on non-dict or __error__."
+      },
+      {
+       "text": "The exact text of the snapshot. Sorted, no timestamps, trailing newline: two runs over an unchanged tree must produce byte-identical output or the git diff -- the thing a human actually reads -- becomes noise.",
+       "where": "snapshot_bytes docstring",
+       "verdict": "kept",
+       "why": "The function uses sorted() on list-like fields and dict(sorted(...)) on dict fields, no timestamps are added, and the JSON is suffixed with '\\n'."
+      },
+      {
+       "text": "``repo_state`` comes out of ``state``, not out of a probe taken here, so this stays a pure function of its arguments. A clock reading would not: ``generated_at`` is absent from this artifact on purpose, because the question worth answering is \"which tree\" (``repo_state.head``, stable across a no-op regeneration) and not \"at what o'clock\" (different on every run, and therefore a diff on every run).",
+       "where": "snapshot_bytes docstring",
+       "verdict": "kept",
+       "why": "The function only reads from the state argument and acceptances; no time or environment calls are present, and no 'generated_at' key is added."
+      },
+      {
+       "text": "Write the baseline, EXCLUDING every item that has an acceptance entry.",
+       "where": "write_snapshot docstring",
+       "verdict": "broken",
+       "why": "The function filters islands, unknown, shims, test_only, dark_switches, doc_drift, unparsable, and index_extra_edges, but does NOT filter 'modules'. If an acceptance entry could target a module, it would still be included in the baseline, contradicting 'every item'. Also, 'counts' recomputes 'modules' from the unfiltered list. (Line numbers in this chunk: the filtering block starts at line ~1020 in the source; the exact line for 'modules' omission is within the write_snapshot body, but the chunk does not show line numbers. The omission is visible in the code: kept['modules'] is never reassigned.)"
+      },
+      {
+       "text": "This exclusion is the load-bearing part. If an accepted island were baked into ``islands``, ``--refresh`` would silently become a third, undated way to accept -- and being the easiest one, it would be the only one anybody used. Keeping accepted items out of the baseline means they stay live drift, suppressed only for as long as their date holds.",
+       "where": "write_snapshot docstring",
+       "verdict": "kept",
+       "why": "The function filters accepted islands out of 'islands' (and other lists) using the keep helper, so accepted items are not baked into the baseline. The comment about '--refresh' is outside this chunk but the exclusion mechanism is present."
+      },
+      {
+       "text": "not blocking: a test is evidence somebody intends to wire it. Wire it from a real entry point, or delete it -- this count is the one that grew to 55 the last time nobody watched it",
+       "where": "_remedy, TEST_ONLY case",
+       "verdict": "kept",
+       "why": "The remedy string for TEST_ONLY exactly matches the quoted text."
+      },
+      {
+       "text": "a re-export nothing reaches: delete the forward and update the callers, wire it from a real entry point, or accept it with a date. A shim that forwards for nobody is dead code with a compatibility story attached",
+       "where": "_remedy, NEW_SHIM case",
+       "verdict": "kept",
+       "why": "The remedy string for NEW_SHIM exactly matches the quoted text."
+      },
+      {
+       "text": "nothing reaches it and the scanner will not guess: resolve the ambiguity. Import it for real (not in a dead branch and not behind a swallowed ImportError), delete it, or accept it with a date -- 'a string somewhere names it' is not wiring",
+       "where": "_remedy, NEW_UNKNOWN case",
+       "verdict": "kept",
+       "why": "The remedy string for NEW_UNKNOWN exactly matches the quoted text."
+      },
+      {
+       "text": "wire it (import it from a package __init__, a CLI command or an entrypoint), delete it, or accept it with a date",
+       "where": "_remedy, NEW_ISLAND case",
+       "verdict": "kept",
+       "why": "The remedy string for NEW_ISLAND exactly matches the quoted text."
+      },
+      {
+       "text": "find the caller that was deleted or renamed -- either restore the wiring or delete the module it used to reach",
+       "where": "_remedy, BECAME_ISLAND case",
+       "verdict": "kept",
+       "why": "The remedy string for BECAME_ISLAND exactly matches the quoted text."
+      },
+      {
+       "text": "the structural index carries this import edge and the reachability walk refused it (a dead branch, a swallowed ImportError, or a resolution the two engines read differently). Make them agree: the edge is NOT counted as reachability by either the page or this gate while they do not",
+       "where": "_remedy, ENGINE_DISAGREEMENT case",
+       "verdict": "kept",
+       "why": "The remedy string for ENGINE_DISAGREEMENT exactly matches the quoted text."
+      },
+      {
+       "text": "document {subject} in docs/ -- outside a code fence, in a form an operator would type, and with a sentence saying what it turns on -- give it an on-by-default value, or delete the gate",
+       "where": "_remedy, NEW_DARK_SWITCH case",
+       "verdict": "kept",
+       "why": "The remedy string for NEW_DARK_SWITCH exactly matches the quoted text."
+      },
+      {
+       "text": "expected if you deleted it -- re-baseline (--refresh) so the snapshot stops claiming it exists",
+       "where": "_remedy, VANISHED case",
+       "verdict": "kept",
+       "why": "The remedy string for VANISHED exactly matches the quoted text."
+      },
+      {
+       "text": "fix the syntax: neither engine can see inside it, so every island, switch and edge it holds is invisible to this gate",
+       "where": "_remedy, UNPARSABLE case",
+       "verdict": "kept",
+       "why": "The remedy string for UNPARSABLE exactly matches the quoted text."
+      },
+      {
+       "text": "make the docs and the code agree: document the name, or delete the stale mention",
+       "where": "_remedy, DOC_DRIFT case",
+       "verdict": "kept",
+       "why": "The remedy string for DOC_DRIFT exactly matches the quoted text."
+      },
+      {
+       "text": "delete this acceptance -- what it was covering is gone",
+       "where": "_remedy, STALE_ACCEPTANCE case",
+       "verdict": "kept",
+       "why": "The remedy string for STALE_ACCEPTANCE exactly matches the quoted text."
+      },
+      {
+       "text": "fix the acceptance; while it is malformed it suppresses nothing",
+       "where": "_remedy, INVALID_ACCEPTANCE case",
+       "verdict": "kept",
+       "why": "The remedy string for INVALID_ACCEPTANCE exactly matches the quoted text."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The write_snapshot docstring claims exclusion of 'every item' with an acceptance, but 'modules' is not filtered; the counts dict also recomputes 'modules' from the unfiltered list.",
+       "where": "write_snapshot body (the kept dict construction and counts computation)",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The render method's first-run branch uses self.state.get('counts', {}) for the header, but the second-run branch uses the same, and the counts property exists separately; no inconsistency is visible in this chunk.",
+       "where": "render method",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fbfaf714d8601daa0c358af58bd71e6a4bdeaaa1bc16d255f5fca459938569db",
+    "objective_chars": 17851,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [4/6]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/drift.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

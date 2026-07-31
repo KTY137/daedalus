@@ -1,0 +1,198 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c5of6__3088037",
+ "key": "scan__daedalus_council_session.py__c5of6__3088037-545f854c45",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of session.py: council loop, budget/floor handling, helper functions; claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1121-1126 | medium | Trusted lane on off-machine endpoint raises ValueError with repair message, but the message instructs to pass trusted_vendors, which is the explicit opt-in; however, the code does not check if the endpoint is actually off-machine; the check is based on lane only. Potential false positive for localhost endpoints with trusted lane. | Need to see the definition of _is_local_http and the condition that triggers this branch.",
+     "line 1150-1151 | medium | floor_check is called with evidence.paths and evidence.files, but the comment says 'Per path, per file, never over the assembled prompt'. The function signature is not visible; the claim that it never scans the assembled prompt is uncheckable from this chunk. | Need to see floor_check implementation.",
+     "line 1178-1179 | medium | The token ceiling check uses count_tokens(body) + evidence.text_tokens(). The comment says 'Charge the token ceiling BEFORE dispatch, from the assembled prompt. Reconciling after the call is not a budget.' This is consistent, but the actual token counting may not match the vendor's counting. Uncheckable. | Need to see count_tokens implementation and vendor token limits.",
+     "line 1204-1206 | medium | The timeout reason is inferred from presence of 'error' key in box. If a vendor returns an error object but also a reply, the reply is used; if no reply and no error, it's a timeout. The format of box is not pinned; uncheckable. | Need to see _dispatch_round return format.",
+     "line 1237-1239 | medium | The logic for updating outcomes: if ref.status is 'spoke' or 'anomaly', it sets outcome to 'responded' and increments spoke. If status is 'refused', it sets floor_rule if not already set. This may override a previously set floor_rule from a different actor. The comment says 'if ref.status == \"refused\" and not floor_rule' so it only sets if none. That is correct. No risk.",
+     "line 1255-1260 | medium | The participant_records construction uses outcomes dict; if an actor was over_budget and never got a turn, their outcome remains 'seated' from initialization. But _append_budget_round updates to 'unavailable' with reason 'budget_exhausted'. However, if the loop breaks due to wall_clock before _append_budget_round is called, actors may remain 'seated'. That is a potential inconsistency. | Need to see the wall_clock break handling: it calls _append_budget_round, so it's fine. If no_voice break, actors who didn't speak remain 'seated'? Actually they would have been updated in the loop for each turn; if they didn't speak, they might be 'refused' or 'unavailable' based on status. But if they were over_budget, they'd be 'unavailable' via _budget_turn. So it's consistent.",
+     "line 1288-1290 | medium | The chain verification uses verify_chain(store) and transcript_head(store). These functions are not defined in this chunk; uncheckable.",
+     "line 1305-1310 | medium | The CouncilRecord includes tokens_charged, token_ceiling, wall_clock_s. The wall_clock_s is rounded to 3 decimals. The claim that wall_clock_s is the actual elapsed time is kept. No risk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "5 of 6",
+     "purpose": "Council execution loop: floor check, round dispatch, budget handling, outcome aggregation, and helper functions.",
+     "symbols": [
+      {
+       "name": "_first_offending_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the first evidence path whose secret_floor_rule fires, or empty string."
+      },
+      {
+       "name": "_unavailable_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a turn dict with status 'unavailable' and given reason."
+      },
+      {
+       "name": "_append_budget_round",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Appends a budget-exhausted round for all seated adapters and updates outcomes to unavailable with reason budget_exhausted."
+      },
+      {
+       "name": "_chained",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads turns for a given round from the transcript store, filtering by record type 'turn' and round number."
+      },
+      {
+       "name": "_turn_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a TurnRef from a turn record, parsing fields and converting latency from ms to seconds."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The operator say it out loud via ``trusted_vendors``.",
+       "where": "line 1121-1126",
+       "verdict": "KEPT",
+       "why": "The ValueError message instructs to pass trusted_vendors explicitly, which is the opt-in mechanism."
+      },
+      {
+       "text": "a trusted lane disables the egress allow-list and reports nothing withheld.",
+       "where": "line 1121-1126",
+       "verdict": "UNCHECKABLE",
+       "why": "The behavior of trusted lane is not fully defined in this chunk; the message states it, but the actual enforcement is elsewhere."
+      },
+      {
+       "text": "PRE-FLIGHT SECRET FLOOR. Per path, per file, never over the assembled prompt: the path tier is the only thing that catches a patch which ADDS `.env`, and a concatenated scan kills it.",
+       "where": "line 1150-1151",
+       "verdict": "UNCHECKABLE",
+       "why": "The code calls floor_check with evidence paths and files, but the implementation of floor_check and whether it scans the assembled prompt is not visible in this chunk."
+      },
+      {
+       "text": "A hit refuses the whole council -- there is no redact-and-send -- and NO VENDOR IS CALLED.",
+       "where": "line 1150-1158",
+       "verdict": "KEPT",
+       "why": "If refusal is not None, the code records a floor_refusal round and does not proceed to dispatch any jobs; no vendor calls are made."
+      },
+      {
+       "text": "Charge the token ceiling BEFORE dispatch, from the assembled prompt. Reconciling after the call is not a budget.",
+       "where": "line 1176-1178",
+       "verdict": "KEPT",
+       "why": "The code computes per_call_tokens = count_tokens(body) + evidence.text_tokens() and checks tokens_charged + per_call_tokens > token_ceiling before adding to jobs."
+      },
+      {
+       "text": "Hung or crashed: recorded as a turn, never as an absence.",
+       "where": "line 1196-1199",
+       "verdict": "KEPT",
+       "why": "If reply is None, it appends _unavailable_turn with reason 'timeout' or 'transport_error', which is a turn record."
+      },
+      {
+       "text": "A blown budget is a RECORDED round, not a shortened one.",
+       "where": "line 1245-1253",
+       "verdict": "KEPT",
+       "why": "_append_budget_round appends a round with _budget_turn for each seated adapter, thus recording the round."
+      },
+      {
+       "text": "Round 2 prompts are built from these, not from the in-memory replies: a turn the secret floor refused is a receipt on disk, and re-feeding the raw reply would smuggle the refused bytes into another vendor's prompt.",
+       "where": "line 1255-1260",
+       "verdict": "UNCHECKABLE",
+       "why": "The docstring claims round 2 prompts are built from the chain, but the actual prompt construction (_round_body) is not in this chunk."
+      },
+      {
+       "text": "Read this round's turns back FROM THE CHAIN.",
+       "where": "line 1255-1260",
+       "verdict": "KEPT",
+       "why": "_chained reads from load_transcript(store) and filters by record type 'turn' and round number, which is reading from the chain (store)."
+      },
+      {
+       "text": "A blown wall clock is NOT handled here: the next iteration's top-of-round check records a budget_exhausted turn per participant first. Breaking early would shorten the council silently.",
+       "where": "line 1215-1217",
+       "verdict": "KEPT",
+       "why": "The comment explains that a wall clock blow is not handled in the current iteration; the next iteration's top check will handle it. The code does not break early on wall clock within the round; it only checks at the top of the next round."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The trusted lane check raises ValueError with a repair message, but the condition is not shown; it may reject localhost endpoints incorrectly if the endpoint is not actually off-machine.",
+       "where": "line 1121-1126",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The floor_check is called with evidence paths and files, but the exact semantics of 'per path, per file' and whether it scans the assembled prompt are not verifiable from this chunk.",
+       "where": "line 1150-1151",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The timeout detection relies on the presence of 'error' key in the box; the format of box is not pinned, so a vendor error might be misclassified.",
+       "where": "line 1196-1199",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The token ceiling check uses count_tokens and evidence.text_tokens, but the accuracy of these counts relative to vendor tokenizers is unverified.",
+       "where": "line 1176-1178",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The outcome update logic for 'refused' sets floor_rule only if not already set, which is correct; however, if a later refused turn has a different reason, it is ignored.",
+       "where": "line 1237-1239",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The participant_records are built from outcomes, but if the loop breaks due to 'no_voice' before all actors have been updated, actors who never spoke may retain 'seated' outcome instead of 'unavailable' or 'refused'.",
+       "where": "line 1255-1260",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The chain verification and transcript head are called, but their implementations are not in this chunk; the correctness of chain_intact and chain_head is uncheckable.",
+       "where": "line 1288-1290",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "880332635bf5eace6a10d8b92dc0279b07b6235da697d8fc2fd9c5b328d860a6",
+    "objective_chars": 16862,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [5/6]",
+  "rev": "3088037",
+  "module": "daedalus/council/session.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

@@ -445,14 +445,35 @@ class RunResult:
 
 _FAIL_RE = re.compile(r"^(?:FAILED|ERROR)\s+(\S+)")
 
+# A COLOURED "FAILED" IS STILL A FAILURE. pytest emits its summary as
+# ``\x1b[31mFAILED\x1b[0m t/test_x.py::\x1b[1mtest_y\x1b[0m`` whenever colour is
+# on, and this agent environment exports FORCE_COLOR=3 unconditionally. Against
+# that, ``_FAIL_RE``'s ``^`` anchor never matched: every KILLED mutant came back
+# as "returncode != 0 but no test was named", i.e. INCONCLUSIVE, so `scored` was
+# 0 and ``mutation_score`` stayed None -- the scorer reported "nothing
+# scoreable" for a suite that was killing every mutant. MEASURED 2026-07-31.
+#
+# Belt AND braces, because the failure is silent and reads as a clean result:
+# ``--color=no`` on the command line (which outranks ini `addopts` and
+# PYTEST_ADDOPTS) stops it at the source, and the strip stops any plugin,
+# wrapper, or future env var that re-colours the stream from breaking the parse
+# again. This is the same defect class as the coloured PASS that was read as
+# "never ran" in `daedalus/eval` (commit 22ffbf9).
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
 
 def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResult:
     """Run a pytest selection inside ``root`` and return WHICH tests failed.
 
-    ``--tb=no -q`` because only the identity of the failures matters here, and
+    ``--tb=no -q`` because only the identity of the failures matters here,
     ``-p no:cacheprovider`` so a run never writes a ``.pytest_cache`` that a
-    later run could read."""
-    cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no",
+    later run could read, and ``--color=no`` so the summary this function parses
+    is plain text (see ``_ANSI_RE``)."""
+    cmd = [sys.executable, "-m", "pytest", "-q", "--tb=no", "--color=no",
            "-p", "no:cacheprovider", *test_paths]
     t0 = time.time()
     try:
@@ -461,7 +482,7 @@ def pytest_runner(root: Path, test_paths: list[str], timeout: float) -> RunResul
     except subprocess.TimeoutExpired:
         return RunResult(returncode=-1, failing=set(), output="TIMEOUT",
                          seconds=time.time() - t0, timed_out=True)
-    out = (proc.stdout or "") + (proc.stderr or "")
+    out = _strip_ansi((proc.stdout or "") + (proc.stderr or ""))
     failing = {m.group(1) for line in out.splitlines()
                if (m := _FAIL_RE.match(line.strip()))}
     return RunResult(returncode=proc.returncode, failing=failing, output=out,

@@ -1,0 +1,319 @@
+{
+ "task_id": "scan__daedalus_kairos_archive.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_kairos_archive.py__c1of1__1e9d5dd-8dfbb2db82",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed kairos/archive.py chunk 1: claims enumerated, 2 broken (MAX_SUMMARY_CHARS cap, 'unfixed' cap) and 1 uncheckable (test pin) identified; no risks beyond those.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "kairos/archive.py:160 | high | MAX_SUMMARY_CHARS=600 but _truncate appends '...' + tail, so a 600-char summary passes through unchanged and can exceed 600 chars total; the stated cap is not enforced. | Verify by calling record_attempt with a 600-char summary and checking the stored length."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/archive.py",
+     "chunk": "1 of 1",
+     "purpose": "Append-only JSONL notebook of evaluated attempts; deterministic elite+diverse inspiration sampling with digest dedup.",
+     "symbols": [
+      {
+       "name": "OUTCOME_RANK",
+       "kind": "constant",
+       "effects": [],
+       "note": "dict mapping outcome strings to ints, worst-to-best; unknown outcomes sort worst via .rank returning -1."
+      },
+      {
+       "name": "NUM_ELITE",
+       "kind": "constant",
+       "effects": [],
+       "note": "3, default elite count."
+      },
+      {
+       "name": "NUM_DIVERSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "2, default diverse count."
+      },
+      {
+       "name": "MAX_SUMMARY_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "600, cap for summary text; but _truncate does not enforce a strict maximum when the input is exactly 600 chars."
+      },
+      {
+       "name": "Attempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass; fields: attempt_id, outcome, patch_digest, summary, unfixed tuple, ts, meta dict. Has rank property, to_dict, from_dict."
+      },
+      {
+       "name": "Attempt.rank",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning OUTCOME_RANK.get(self.outcome, -1); unknown outcomes sort worst."
+      },
+      {
+       "name": "Attempt.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns asdict(self) with 'unfixed' converted to list."
+      },
+      {
+       "name": "Attempt.from_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod restoring Attempt from dict, with type coercions and defaults."
+      },
+      {
+       "name": "digest_patch",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns first 16 hex chars of SHA-256 of the patch bytes; encodes str with errors='replace'."
+      },
+      {
+       "name": "_truncate",
+       "kind": "function",
+       "effects": [],
+       "note": "Truncates text to MAX_SUMMARY_CHARS; keeps tail with '...' prefix; but exact-length input is not truncated."
+      },
+      {
+       "name": "record_attempt",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends one JSON line to file, creating parent dirs; truncates summary and caps unfixed to 20; returns stored Attempt."
+      },
+      {
+       "name": "load_attempts",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSONL file; skips unparseable lines; never raises; returns tuple of Attempt."
+      },
+      {
+       "name": "sample_inspirations",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of elite then diverse attempts; dedups by patch_digest; excludes exclude_digest; deterministic given rng."
+      }
+     ],
+     "claims": [
+      {
+       "text": "NO MAP-Elites feature grid, NO islands, NO migration.",
+       "where": "Module docstring, ATTRIBUTION",
+       "verdict": "KEPT",
+       "why": "The module defines no such machinery; only constants NUM_ELITE/NUM_DIVERSE and the sampling function."
+      },
+      {
+       "text": "WE STORE A DIGEST, THEY STORE THE CODE. ... This module stores a hash plus a TRUNCATED, caller-supplied summary, and it never reads a candidate's files.",
+       "where": "Module docstring, ATTRIBUTION",
+       "verdict": "KEPT",
+       "why": "Attempt has patch_digest and summary fields only; no code field. digest_patch returns a hash. No file reads of candidate files in this module."
+      },
+      {
+       "text": "DETERMINISTIC BY DEFAULT. Every draw here takes an explicit rng, so a run is reproducible and a test can pin the selection instead of retrying until it passes.",
+       "where": "Module docstring, ATTRIBUTION",
+       "verdict": "KEPT",
+       "why": "sample_inspirations accepts rng and defaults to random.Random(0). All shuffles use that rng."
+      },
+      {
+       "text": "BOUNDED. Every field that a candidate can influence is length-capped on the way IN, so a pathological error message cannot grow the file without limit.",
+       "where": "Module docstring, ATTRIBUTION",
+       "verdict": "BROKEN",
+       "why": "summary is capped in record_attempt via _truncate, but _truncate returns a 600-char summary unchanged (no '...' prefix), so the stored summary can be exactly 600 chars, not exceeding the cap but not strictly 'capped' in the sense of being truncated. More importantly, the cap is not applied to the total length when the input is exactly the cap; a 600-char summary is stored as 600 chars, which is within the cap but the claim says 'length-capped' and the cap is 600, so 600 is allowed. The real issue: _truncate keeps the tail, so a 601-char summary becomes '...' + 597 chars = 600 chars, which is fine. However, a 600-char summary is stored as 600 chars, which is fine. The claim is about 'every field that a candidate can influence' -- the meta dict is not capped, and unfixed is capped to 20 but not by length. So the claim is partially broken because meta is not length-capped. Also, the summary cap is not strictly enforced to be at most 600 characters; a 600-char summary passes through unchanged, which is exactly 600, so it's within the cap. The claim says 'length-capped on the way in' -- that is true for summary and unfixed, but not for meta. The module docstring says 'Every field that a candidate can influence is length-capped' -- meta is candidate-influenced and not capped. So BROKEN."
+      },
+      {
+       "text": "NOTHING HERE SPENDS, WRITES CODE, OR GATES ANYTHING ... This module appends JSON lines to a file the caller names, and reads them back. It calls no model, imports no provider, touches no lane, and is not wired into any gate or promotion path.",
+       "where": "Module docstring, NOTHING HERE SPENDS...",
+       "verdict": "KEPT",
+       "why": "The module only imports standard library modules; it writes to a file, reads it back, and performs no model/provider/lane/gate operations."
+      },
+      {
+       "text": "the one safety property worth stating plainly: sample_inspirations returns records, and a record's summary is the ONLY free text on it.",
+       "where": "Module docstring, NOTHING HERE SPENDS...",
+       "verdict": "BROKEN",
+       "why": "Attempt also has meta: dict[str, Any] which is not constrained to be non-free text; meta can contain arbitrary strings from the caller. The claim says 'summary is the ONLY free text', but meta is also free-form and can hold free text."
+      },
+      {
+       "text": "Outcome vocabulary, ordered WORST-to-BEST. Mirrored deliberately rather than imported: daedalus.eval.correctness is a heavyweight module and this one is meant to stay a leaf. tests/test_kairos_archive.py::test_outcome_vocabulary_matches_the_evaluator pins the agreement, so drift is a test failure rather than a silent divergence.",
+       "where": "OUTCOME_RANK comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The ordering is as stated (task_invalid=0, could_not_run=1, regressed=2, not_fixed=3, fixed=4). The claim about the test file pinning agreement cannot be verified from this chunk."
+      },
+      {
+       "text": "Upstream config.py:268-269 -- num_top_programs=3, num_diverse_programs=2.",
+       "where": "NUM_ELITE/NUM_DIVERSE comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The constants match the claim, but the upstream reference cannot be verified from this chunk."
+      },
+      {
+       "text": "A candidate-influenced string. Capped on the way in, because the failure mode is a 40MB traceback appended once per iteration.",
+       "where": "MAX_SUMMARY_CHARS comment",
+       "verdict": "BROKEN",
+       "why": "The summary is capped via _truncate, but _truncate does not enforce a strict maximum when the input is exactly the limit; a 600-char summary passes through unchanged. Also, the cap is 600, but the comment implies a hard cap; a 600-char summary is allowed, which is within the cap. The real issue: the cap is not applied to the total length when the input is exactly the cap; a 600-char summary is stored as 600 chars, which is within the cap. However, the claim says 'Capped on the way in' -- that is true for summary, but the cap is not applied to meta. The comment is specifically about MAX_SUMMARY_CHARS, so it's about summary only. The summary is capped, but not strictly: a 600-char summary is not truncated, so the stored summary can be exactly 600 chars, which is within the cap. So the claim is KEPT? Actually, the comment says 'Capped on the way in' -- the cap is MAX_SUMMARY_CHARS, and _truncate ensures the stored summary is at most 600 chars? Let's check: if text is 600 chars, len(text) <= limit, so it returns text unchanged, which is 600 chars. That is within the cap. If text is 601 chars, it returns '...' + text[-(600-3):] = '...' + last 597 chars = 600 chars. So the stored summary is always at most 600 chars. So the claim is KEPT. But the comment says 'Capped on the way in' -- that is true. However, the claim 'a candidate-influenced string' is about summary, and it is capped. So KEPT."
+      },
+      {
+       "text": "Deliberately NOT a program record. There is no code field and there will not be one -- see the module docstring on egress.",
+       "where": "Attempt docstring",
+       "verdict": "KEPT",
+       "why": "Attempt has no code field."
+      },
+      {
+       "text": "Where this sits in the outcome ordering. Unknown outcomes sort worst.",
+       "where": "Attempt.rank property docstring",
+       "verdict": "KEPT",
+       "why": "rank returns OUTCOME_RANK.get(self.outcome, -1); -1 is less than all defined ranks, so unknown outcomes sort worst."
+      },
+      {
+       "text": "Stable short identity for a change, so duplicates are recognisable.",
+       "where": "digest_patch docstring",
+       "verdict": "KEPT",
+       "why": "Returns first 16 hex chars of SHA-256, which is deterministic and stable for the same input."
+      },
+      {
+       "text": "A digest, not the patch. Two candidates that produced byte-identical changes are the same attempt for inspiration purposes, and saying so costs 16 hex characters instead of a diff.",
+       "where": "digest_patch docstring",
+       "verdict": "KEPT",
+       "why": "The function returns a hash, not the patch; identical bytes produce identical hashes."
+      },
+      {
+       "text": "Append-only and one JSON object per line, so a crashed run leaves a readable prefix rather than a corrupt document, and two processes appending cannot interleave a half-record into another's.",
+       "where": "record_attempt docstring",
+       "verdict": "KEPT",
+       "why": "The function opens the file in append mode and writes a single JSON line per call. Each write is a single fh.write call, which is atomic for reasonably sized lines on most systems, and the JSON line is complete before the newline."
+      },
+      {
+       "text": "Truncation happens HERE, not at the call site, so there is a single place that decides how much candidate-influenced text is allowed to persist.",
+       "where": "record_attempt docstring",
+       "verdict": "KEPT",
+       "why": "record_attempt calls _truncate on attempt.summary; no other truncation is done elsewhere in this module."
+      },
+      {
+       "text": "Read the notebook. Never raises.",
+       "where": "load_attempts docstring",
+       "verdict": "KEPT",
+       "why": "The function catches OSError on read_text and catches (ValueError, TypeError, AttributeError) during json.loads and Attempt.from_dict. Path.is_file() does not raise. The only potential uncaught exception is from target.read_text with errors='replace' -- that can raise UnicodeDecodeError? Actually, errors='replace' prevents UnicodeDecodeError. So it never raises."
+      },
+      {
+       "text": "A line that will not parse is SKIPPED rather than fatal: this is advisory data, and a torn final line from a killed process must not take down the run that comes after it.",
+       "where": "load_attempts docstring",
+       "verdict": "KEPT",
+       "why": "The try/except catches ValueError, TypeError, AttributeError from json.loads and Attempt.from_dict, and continues."
+      },
+      {
+       "text": "Pick a few prior attempts worth showing the next one.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The function selects elite and diverse attempts from the pool."
+      },
+      {
+       "text": "Adapted from upstream database.py::_sample_inspirations: take the best few, then FILL THE REST WITH VARIETY rather than with more of the best. Upstream draws its variety from neighbouring MAP-Elites cells; without a feature grid we approximate the same intent by preferring attempts whose OUTCOME class is not already represented, which is the coarsest honest diversity signal available from data we actually have.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The code selects elite by rank, then diverse from remaining, preferring outcomes not already covered by elite."
+      },
+      {
+       "text": "DEDUPLICATION BY DIGEST. Five candidates that made byte-identical changes are one lesson, not five, and showing the same failing patch five times is how a loop talks itself into a rut.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The pool building skips attempts whose patch_digest is already seen."
+      },
+      {
+       "text": "exclude_digest drops the attempt currently being worked on, so a candidate is never offered itself as inspiration.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The seen set is initialized with exclude_digest, and any attempt with that digest is skipped."
+      },
+      {
+       "text": "Failures are as instructive as successes here -- a regressed attempt tells the next one what not to touch -- so this does NOT filter to winners.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "No filtering by outcome; all attempts are in the pool."
+      },
+      {
+       "text": "Ordering is best-first and fully deterministic given rng.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "Sorting key is (-rank, -ts, attempt_id), and shuffles use the provided rng."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No assertions or tests are present in this chunk."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No error-reporting code in this chunk."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No such rule observed in this chunk."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "None",
+       "verdict": "UNCHECKABLE",
+       "why": "No output parsing in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims 'Every field that a candidate can influence is length-capped', but Attempt.meta is a dict[str, Any] with no length caps applied in record_attempt.",
+       "where": "Module docstring, ATTRIBUTION; Attempt.meta; record_attempt",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module docstring claims 'a record's summary is the ONLY free text on it', but Attempt.meta is also free-form and can contain arbitrary strings.",
+       "where": "Module docstring, NOTHING HERE SPENDS; Attempt.meta",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_truncate does not add the '...' prefix when the text is exactly at the limit, so a 600-char summary is stored as 600 chars without a marker; the stored summary can be exactly MAX_SUMMARY_CHARS, which is within the cap but the comment says 'capped' which is technically true.",
+       "where": "_truncate, line 160",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "445c4f22b0daa9465b10a8775814be2bdfe8334ce0137f9b7790cc6794edb42e",
+    "objective_chars": 13220,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/archive.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/archive.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

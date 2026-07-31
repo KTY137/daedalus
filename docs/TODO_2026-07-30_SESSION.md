@@ -19,9 +19,16 @@ ceiling), **egress** (`sensitivity.py`, what may leave the machine), and
 toward **Ariadne**, a code-evolution engine, gated behind nine written
 preconditions (`docs/adrs/015-ariadne-preconditions.md`).
 
-Scale, MEASURED: 169 tracked `daedalus/**/*.py` modules, 3.8 MB, **4,152 tests**
-(`python -m pytest tests --collect-only -q`). Suite runtime **765 s** idle on the
-dev box — an Intel i7-10510U, 4 physical cores, a 15 W 2019 laptop part.
+Scale, **[MEASURED] 2026-07-31 at HEAD `1e9d5dd`**: **173** tracked
+`daedalus/**/*.py` modules (`git ls-files 'daedalus/*.py' 'daedalus/**/*.py' | wc -l`)
+and **4,496 tests** (`python3 -m pytest tests --collect-only -q`, 15.90 s).
+Both grew during 30–31 July: this section previously read 169 modules / 4,152
+tests, measured 2026-07-30.
+
+Suite runtime **765 s** idle on the dev box — an Intel i7-10510U, 4 physical
+cores, a 15 W 2019 laptop part. **[INHERITED]** from the 2026-07-30 measurement
+at HEAD `93f1ce3`; not re-run today, and 344 tests have been added since, so
+treat it as a floor rather than a current figure.
 
 ---
 
@@ -62,10 +69,69 @@ apply. See §4.2.
 
 #### Still open
 
-- **Fire the re-run** with `TEMPERATURE=0.7`, `AUDIT_SYSTEM`, `paths=()` and the
-  claim-extraction question. Built, not yet run. ~750 calls.
+- **Fire the audit-swarm re-run** with `TEMPERATURE=0.7`, `AUDIT_SYSTEM`,
+  `paths=()` and the claim-extraction question. Built, not yet run. ~750 calls.
   `DAEDALUS_BUDGET_USD` and `DAEDALUS_BUDGET_MAX_CALLS` must BOTH be raised —
   they are independent axes and the second one is what stopped two runs.
+  **This is still open.** It is a different run from the claims123 funnel below;
+  do not read one as the other.
+
+#### The claims123 funnel re-run — FIRED today against the repaired parser
+
+Not the audit swarm: a 123-agent funnel over `daedalus/`, spec at
+`funnels/claims123/funnel.json`, artifacts under `runs/funnel/claims123/`. The
+old run is tagged `51fe781` in each filename, today's re-run `3088037`.
+
+**[MEASURED] 2026-07-31 (mine), from the artifacts on disk:**
+
+| tier | old, blocked | new, blocked |
+|---|---|---|
+| scan | 5 of 100 (5.0%) | 5 of 99 (5.1%) |
+| research | 8 of 15 (53.3%) | **0 of 15** |
+| review | 6 of 6 (100%) | **0 of 6** |
+| plan | — (tier absent) | 0 of 2 |
+
+**Read the two rows differently — they have different causes.**
+
+- The **upper tiers are genuinely rescued**, and by the *second* of `f6c9470`'s
+  two fixes, not its headline. Reading the reason out of each old blocked
+  answer: 14 of the 15 addressable blocks were `invalid model report: summary
+  must be a non-empty string`, and exactly **1** was `Invalid \escape`. In the
+  re-run, `summary_was_defaulted` fired 31 times across 122 answers and
+  `handoff.harness_repairs` fired **0** times. The escape repair is real and
+  unit-tested (13 tests) but **has never yet fired on live traffic**. See the
+  handoff's corrected `f6c9470` entry.
+- The **scan tier did not change and should not have.** 4 of its 5 blocks are
+  `sensitivity.py` refusing to send the file off the machine (`council/publish.py`,
+  `council/session.py`, `kairos/decompose.py`, `mapping/reach.py`). That is the
+  egress floor working. Counting it as a funnel defect would be the error.
+
+**Caveat: the 3088037-tagged re-run was still in flight when counted.** Scan had
+99 of 100 units and the plan tier 2. Do not quote those as final totals.
+
+**A third run, at HEAD `1e9d5dd`, closes the question. [INHERITED]** from the
+session lead, 2026-07-31, not counted by me: scan **ok=95 / blocked=4 /
+failed=1**, research **15/15**. This is the first run whose counts can be read
+literally, because `1e9d5dd` is the commit that made `ok` and `blocked` disjoint.
+
+**The four blocked are the secret-floor refusals, and this is now corroborated
+from two directions.** The lead reports them as secret-floor refusals on our own
+source, not a transport defect. That matches, independently, the four I
+identified by reading the old run's artifacts before hearing it: `council/publish.py`,
+`council/session.py`, `kairos/decompose.py`, `mapping/reach.py`, each blocked
+with "Refused: task contains sensitive/proprietary content that must not leave
+the machine". Two measurements, taken separately, name the same four modules for
+the same reason. **The egress floor is doing its job; nothing here is a funnel
+defect to fix.** The remaining `failed=1` is a transport failure and is a
+different class from both.
+
+- **Both funnel defects previously listed here as open have LANDED**, as
+  `1e9d5dd` (2026-07-31 13:37), `fix(lanes): a refusal is no longer audited, and
+  no longer immortal`. Fan-out no longer counts a blocked unit as `ok` (refusals
+  get their own disjoint `blocked` key), and resume no longer serves an
+  all-blocked persisted result forever — it retries. **[MEASURED] by me:**
+  `python3 -m pytest tests/test_lanes_fanout.py -q` → **27 passed, 4 subtests**.
+  §2.3's "A blocked unit counts as audited" bullet is closed by this commit.
 
 ### 2.2 Two real defects the swarm did find — both FIXED (f0392fc, 2026-07-30)
 **MEASURED 2026-07-30:** Closed by commit f0392fc `fix(providers): evidence survives a report the schema did not expect`.
@@ -85,9 +151,13 @@ apply. See §4.2.
   **Do not weaken the floor.** Make it precise, and make the refusal
   *attributable*: `handoff.offending` is `[]`, so nothing tells an operator which
   line refused.
-- **A blocked unit counts as audited.** `status: "blocked"` lands in the same
-  `answers` array as a real result, so the unit is `ok`, `resume` never retries
-  it, and it reads as clean in every aggregate. 21 of 249 units.
+- ~~**A blocked unit counts as audited.**~~ **FIXED 2026-07-31, `1e9d5dd`.**
+  `status: "blocked"` used to land in the same `answers` array as a real result,
+  so the unit was `ok`, `resume` never retried it, and it read as clean in every
+  aggregate — 21 of 249 units. `ok` now requires at least one answer carrying
+  evidence, refusals are counted apart under a disjoint `blocked` key, and an
+  all-blocked result is retried instead of served forever. **[MEASURED]**
+  `python3 -m pytest tests/test_lanes_fanout.py -q` → 27 passed, 4 subtests.
 - **`.captures/.../Login Data` is not caught by path.** The floor knows `.env`.
   Today's protection was structural (`git ls-files` excludes gitignored paths),
   not a check.
@@ -166,8 +236,11 @@ accidents, and each pays for itself with no reference to the cycle:
   `docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md`. Needs a quiet box.
 - **`runs/spine/` is gitignored**, so the receipt cannot be committed. An
   artefact whose whole purpose is "bound to this commit" cannot say which one.
-- **arch memory is stale** and the `post-commit` hook that rebuilds it ends in
-  `|| true`, so it failed silently — exactly as its own comment predicts.
+- **arch memory is stale** — but not for the reason recorded here. The
+  `post-commit` hook's trailing `|| true` is real; it is *not* what makes the
+  numbers old. **Superseded by §2.10**, which measures the actual cause: the
+  advertised rebuild command only re-stamps a pointer and cannot re-measure the
+  tree.
 
 ### 2.8 Audit corpus decision and new open items (2026-07-30 night)
 
@@ -192,6 +265,95 @@ accidents, and each pays for itself with no reference to the cycle:
   the receipt shape unchanged; regeneration VOIDS an approval and returns the candidate to pending-owner.
   See docs/GATE0_SEALED_OWNER_APPROVAL.md §4-5 for full reasoning.
 
+### 2.9 Island status re-verified at HEAD — 2026-07-31
+
+`docs/architecture-narrative.md` §Drift (lines 230–235) lists islands measured
+**2026-07-28** by a nine-agent read. Everything below is **[MEASURED] by grep at
+HEAD `1e9d5dd`, 2026-07-31**, with `build/lib/` and `runs/` excluded (the former
+holds 142 stale package copies that double every naive count).
+
+**Four of the seven are still islands; three have been wired since.**
+
+| # | item | narrative said (2026-07-28) | at HEAD `1e9d5dd` | evidence |
+|---|---|---|---|---|
+| 1 | `daedalus/memstore.py` | ISLAND, "zero non-test importers" (`:230`) | **STILL ISLAND** | 4 importers, all under `tests/`: `test_council_bus.py:31`, `test_council_session.py:605`, `test_memstore.py:27`; the fourth (`test_council_vendors.py:676`) is a *negative* assertion that the name is absent. Zero production importers. |
+| 2 | `kairos/worktree.py` `reap_branches` | ISLAND, "zero production callers" (`:231`) | **SINCE-WIRED** | 3 production callers: `eval/correctness.py:717`, `kairos/gated_writes.py:987`, `spine/attempt.py:1247` — all in cleanup paths. Also registered at `spine/effect_boundary.py:591` and `:846`. |
+| 3 | `daedalus/adapters/*` | ISLAND, "nothing in the CLI, API, core.py or offload imports any of them" (`:233`) | **SINCE-WIRED** | `memory/embeddings.py:93` imports `adapters.events`; importing any submodule executes `adapters/__init__.py:18-26`, which pulls in `base` and `subprocess_adapter`. Reached from entrypoints via `context_plan.py:29`, `health.py:894`, `web_api.py:1373`, `gui_catalogue.py:771`. |
+| 4 | `kairos/shadow_shell.py` | ISLAND (`:233`) | **STILL ISLAND** | Its only production importer is `kairos/evolution.py:8` — itself an island (row 5). Everything else is `tests/`. |
+| 5 | `kairos/evolution.py` | ISLAND (`:233`) | **STILL ISLAND** | Zero non-test importers. `EvolutionaryOrchestrator` is referenced only by its own definition and by `test_eval_provenance.py`, `test_evolution_baseline.py`, `test_kairos_archive.py`, `test_kairos_evolution.py`. |
+| 6 | `council/publish.py` | ISLAND, "no Python caller, no CLI subcommand, no main()" (`:234`) | **SINCE-WIRED** | `cli.py:711` does `from .council import publish as cp` inside a real CLI subcommand. "No `main()`" is *still true* — grep for `def main`/`__main__` in that file returns nothing. |
+| 7 | structcore markdown wikilink parser | (not listed as an island) | **WIRED** | `structcore/index.py:49` imports it; called at `:707`, `:727` `parse_document`, `:728` `internal_links`, `:735` `knowledge_links`, `:772`, `:896`, `:929`. Wiki links are published as their own layer at `:961`, deliberately never merged into `document_links`. |
+
+**Two traps this exercise turned up, worth more than the table:**
+
+1. **A registry entry is not an import edge.** `spine/effect_boundary.py` names
+   `subprocess_adapter` at `:305`, `:440`, `:447` and `:454` — but only as
+   *strings* (`"daedalus.adapters.subprocess_adapter:SubprocessAdapter.send"`).
+   That creates no reachability. The adapters lane is reached through
+   `memory/embeddings.py`, not through the effect boundary that names it.
+2. **The adapters chain has independent corroboration, and it is a crash
+   report.** `budget.py:1123` documents `daedalus web` reaching asyncio
+   "through context_plan -> memory.embeddings -> adapters" as a MEASURED
+   production failure. A module that crashed a live command is not an island,
+   whatever a scanner says.
+
+**Doc-vs-code drift to fix in `docs/architecture-narrative.md` (both sides cited):**
+
+- `:231` asserts "zero production callers" for `reap_branches`. **False at HEAD**
+  — see row 2. Its line reference is stale too: it cites `worktree.py:685`; the
+  definition is at `worktree.py:1117`. Note `docs/HANDOFF.md:878` already says
+  "`reap_branches()` is wired", so the narrative also contradicts a sibling doc.
+- `:233` asserts the adapters lane is entirely unreached. **Half false** — true
+  for `shadow_shell.py` and `evolution.py`, false for `daedalus/adapters/*`.
+- `:234` asserts publish.py has "no Python caller, no CLI subcommand". **False
+  at HEAD** — `cli.py:711`. The "no `main()`" half stands.
+
+These three lines should be *rewritten*, not footnoted: git preserves the
+2026-07-28 reading, and a narrative carrying a refuted claim gets it
+re-discovered and re-scheduled.
+
+**The map engine agrees, independently.** `python -m daedalus.mapping.drift`
+(read-only check, exit 1) reports `council/publish.py`, `preservation.py` and
+`skills.py` under **NOW REACHED**, and reclassifies `memstore.py` as **TEST
+ONLY** — a reclassification, not a wiring; it still has zero production
+importers.
+
+### 2.10 The architecture snapshot is stale, and the advertised rebuild cannot fix it
+
+**[MEASURED] 2026-07-31.** The session hook prints `ARCH MEMORY IS STALE: built
+at <X>, HEAD is now <Y> -- rebuild: python -m daedalus.arch_memory`. Running
+that command **re-stamps the HEAD pointer and changes nothing else** — the body
+was byte-identical before and after, and the second line still read
+`ARCHITECTURE: STALE -- measured at 79553172`.
+
+The reason is structural, not a bug in the command: `arch_memory.py:117` *reads*
+`docs/architecture-state.json`; it never measures the tree. The real measurement
+is `daedalus.mapping.drift`, which `arch_memory.py:128` already names in its own
+no-snapshot message. So the hook advertises a command that cannot clear the
+staleness the hook is reporting.
+
+**How far the snapshot has drifted** (baseline `79553172` vs HEAD, from the
+read-only check — the snapshot was NOT re-baselined, so this is still visible to
+whoever picks it up):
+
+| | snapshot | now | |
+|---|---|---|---|
+| modules | 144 | 202 | inflated by 3 committed `runs/eval/deepseek_lab/wrecked/*.py` copies |
+| islands | 8 | 13 | |
+| shims | 3 | 5 | `observe/__init__.py`, `wiki/__init__.py` — re-exports nothing reaches |
+| unreached | 12 | 20 | |
+| doc_drift | 2 | 20 | 18 env vars the code reads and no document mentions |
+| dark_switches | 0 | 1 | `CI`, an off-by-default env gate at `tools/iron_plan_guard.py:799` |
+| index_extra_edges | 0 | 1 | `eval/graph_delta.py -> structcore/artifacts.py`: the structural index has the edge, the reachability walk refuses it |
+
+**27 blocking.** One is `daedalus/compaction.py`, VANISHED — in the snapshot, not
+on disk. Deciding what to re-baseline is a reviewed diff, not a chore: `--refresh`
+banks all 27 at once and the count moves silently. Deliberately not run here.
+
+This supersedes §2.7's one-line "arch memory is stale" bullet, which described
+the symptom and blamed the `|| true` in the post-commit hook. The hook's `|| true`
+is real, but it is not why the numbers are old.
+
 ---
 
 ## 3. Do NOT reschedule — checked and false, or already fixed
@@ -204,8 +366,9 @@ accidents, and each pays for itself with no reference to the cycle:
    edges, 0 cycles — a strict DAG**, and only **3 of 23** deferred imports are
    load-bearing. The cycle was never felt because it was never *visible*.
 4. **"The suite takes 105 s."** STALE (it is in `docs/HANDOFF_2026-07-30_NIGHT.md`
-   and cost hours twice). It is 765 s / 4,152 tests. The "mysterious" 18 min per
-   gate mutation is simply 765 s plus overhead.
+   and cost hours twice). It is 765 s, measured 2026-07-30 over 4,152 tests —
+   now **4,496** tests (§0), so the true figure is higher still. The
+   "mysterious" 18 min per gate mutation is simply the suite plus overhead.
 5. **"The ledger says we spent $5.85."** No. Every entry is `basis:
    worst_case`, `kind: reserve`, priced at a deliberate over-estimate of $0.05 a
    call. Real cost is ~10x lower. A ledger total is a CEILING, never an invoice.
@@ -328,6 +491,30 @@ python -m daedalus.eval.graph_delta . --held-out --count 300
 python -c "from daedalus.structcore import cycle_report; import json; \
            print(json.dumps(cycle_report(repo_root='.'), indent=1))"
 ```
+
+Added 2026-07-31, for §2.9 and §2.10:
+
+```bash
+python -m daedalus.mapping.drift            # read-only architecture check, exit 1 on drift
+python -m daedalus.mapping.drift --refresh  # RE-BASELINES the snapshot -- a reviewed diff, not a chore
+python -m daedalus.arch_memory              # re-stamps the pointer ONLY; does not re-measure (see §2.10)
+python3 -m daedalus.structcore daedalus --documents --types --lpg <path>   # the LPG projection
+python3 -m pytest tests/test_lanes_fanout.py tests/test_structcore_lpg.py -q
+```
+
+**Interpreter gotcha, [MEASURED] 2026-07-31 — this costs a few minutes every
+time.** Bare `python` in this checkout resolves to
+`.venv-dspy/Scripts/python.exe`, which **has no pytest** (`No module named
+pytest`). The suite runs under `python3` → the WindowsApps Python 3.10 with
+pytest 9.1.1. The `daedalus.*` module commands work under either.
+
+**Second gotcha: the workflow guard substring-matches inside script text, not
+just paths.** A `bash` heredoc whose *body* contained `daedalus` was refused with
+"Protected Iron Plan artifact(s) cannot change in ordinary work: <directory:
+daedalus>" while writing a read-only probe to a temp directory outside the repo.
+This is the same false-positive class as §2.8's commit-message instance, in a
+new place. It fails closed, which is correct, but the workaround (write the file
+with a non-shell tool) should be known rather than rediscovered.
 
 Numbers without a command in this document are marked INHERITED or ASSUMED. After
 today, a number without a command is treated as no number.

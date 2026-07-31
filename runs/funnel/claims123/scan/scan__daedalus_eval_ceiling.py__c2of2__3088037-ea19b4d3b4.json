@@ -1,0 +1,205 @@
+{
+ "task_id": "scan__daedalus_eval_ceiling.py__c2of2__3088037",
+ "key": "scan__daedalus_eval_ceiling.py__c2of2__3088037-ea19b4d3b4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/eval/ceiling.py: per-task classification, summary/ceiling computation, render_ceiling, and main. Claims verified, no defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/ceiling.py",
+     "chunk": "2 of 2",
+     "purpose": "Finalize per-task classification, compute summaries and ceilings, render output, and CLI entrypoint.",
+     "symbols": [
+      {
+       "name": "_def_count",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Defines a closure count_of that sums counts over sorted aliases for a given arm revision."
+      },
+      {
+       "name": "count_of",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Closure returned by _def_count; returns sum of counts for all aliases of a definition."
+      },
+      {
+       "name": "_summary",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Aggregates per-task class values into a sorted count dict for a given key ('classes_clean' or 'classes_leaky')."
+      },
+      {
+       "name": "_ceiling",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns REACHABLE count divided by denominator, or 0.0 if denominator is zero."
+      },
+      {
+       "name": "render_ceiling",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds an ASCII-only report string from the result dict, including summaries, ceilings, static-edge warnings, reachable labels, notes, and reopen signal."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entrypoint: parses --min-count, calls temporal_ceiling, renders, prints with ASCII fallback."
+      }
+     ],
+     "claims": [
+      {
+       "text": "ASCII-only (raw Windows console), honest-framing render.",
+       "where": "render_ceiling docstring, line 281",
+       "verdict": "kept",
+       "why": "All literal strings are ASCII; the UnicodeEncodeError fallback in main confirms the ASCII-only intent."
+      },
+      {
+       "text": "None parents == probe failed / no sha; [] cannot happen for a resolvable sha (a root commit yields [''] -> filtered to []).",
+       "where": "Comment in per_task dict, lines 315-316",
+       "verdict": "kept",
+       "why": "The code assigns backtest_rev_reason based on has_rev and sha; the comment describes the data invariant, which is consistent with the logic shown."
+      },
+      {
+       "text": "The lane A2 reopen trigger, stated by the machine so a future session cannot misread the close: the clean rename-aware ceiling must clear the materiality floor (share OR breadth), not merely be non-zero -- the 2026-07-21 close measured exactly one recoverable label, and one label must read as 'stay closed' (see REOPEN_MIN_* rationale).",
+       "where": "Comment in return dict, lines 349-354",
+       "verdict": "kept",
+       "why": "reopen_temporal_lane is computed as ceiling_clean >= REOPEN_MIN_SHARE or n_tasks_reachable_clean >= REOPEN_MIN_TASKS, matching the claim. The historical note is uncheckable but the logic matches."
+      },
+      {
+       "text": "min_count=2; 1 = most permissive ceiling, any single prior co-commit.",
+       "where": "main help text, line 336",
+       "verdict": "kept",
+       "why": "The help string explicitly states default 2 and that 1 is the most permissive; this matches the code."
+      },
+      {
+       "text": "The gap between the two arms is the self-prediction artifact: coupling that exists only because the minted commit is counted.",
+       "where": "render_ceiling comment, lines 292-294",
+       "verdict": "kept",
+       "why": "The leaky arm includes the mint commit while clean arm excludes it; the comment accurately describes the gap."
+      },
+      {
+       "text": "STATIC_EDGE misses present: a missed label's defining file is ALREADY a static neighbour of the focus. That is edge-but-dropped -- a slicer defect, strictly more important than anything temporal.",
+       "where": "render_ceiling, lines 300-302",
+       "verdict": "kept",
+       "why": "The code detects STATIC_EDGE in summaries and prints the warning and lists affected tasks."
+      },
+      {
+       "text": "clean-arm REACHABLE labels (audit these -- each is a claim that pre-mint history named the file).",
+       "where": "render_ceiling, lines 309-310",
+       "verdict": "kept",
+       "why": "The code collects and prints REACHABLE labels from classes_clean, matching the claim."
+      },
+      {
+       "text": "note: {id} minted at a MERGE commit; clean arm is first-parent history only.",
+       "where": "render_ceiling, lines 318-319",
+       "verdict": "kept",
+       "why": "The code prints this note when merge_commit is true."
+      },
+      {
+       "text": "note: {id} has no backtest rev ({reason}); clean arm not scored.",
+       "where": "render_ceiling, lines 320-322",
+       "verdict": "kept",
+       "why": "The code prints this note when backtest_rev_reason is truthy."
+      },
+      {
+       "text": "rename-alias probe(s) failed: those files were scored rename-BLIND and the ceiling may be understated.",
+       "where": "render_ceiling, lines 323-325",
+       "verdict": "kept",
+       "why": "The code prints this warning when alias_probe_failures is truthy."
+      },
+      {
+       "text": "REOPEN signal: clean rename-aware ceiling clears the materiality floor ({floor}) -- the temporal-enrichment lane may be worth reopening (see module docstring).",
+       "where": "render_ceiling, lines 330-332",
+       "verdict": "kept",
+       "why": "The code prints this when reopen_temporal_lane is true."
+      },
+      {
+       "text": "...measured at min_count=1, BELOW the reopen threshold: a single co-occurrence is one data point, not a pattern (churn.py). The reopen condition is defined at min_count >= 2.",
+       "where": "render_ceiling, lines 333-335",
+       "verdict": "kept",
+       "why": "The code prints this when min_count < 2 and reopen_temporal_lane is true."
+      },
+      {
+       "text": "reopen signal: none -- N clean-reachable label(s) in M task(s) is below the materiality floor ({floor}); the temporal lane stays closed.",
+       "where": "render_ceiling, lines 336-339",
+       "verdict": "kept",
+       "why": "The code prints this when not reopen_temporal_lane but n_reach > 0."
+      },
+      {
+       "text": "reopen signal: none -- clean ceiling is zero; the temporal lane stays closed.",
+       "where": "render_ceiling, lines 340-341",
+       "verdict": "kept",
+       "why": "The code prints this when n_reach is zero and reopen_temporal_lane is false."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The leaky arm classification uses _def_count(leaky_counts, None) and includes the minted commit, while the clean arm uses _def_count(clean_counts, rev) excluding it. This matches the documented self-prediction artifact.",
+       "where": "lines 285-290",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The ceiling_clean denominator is n_scored_clean (labels excluding NO_BACKTEST_REV), while ceiling_leaky uses n_labels. This is consistent with the clean arm not being scored for some tasks.",
+       "where": "lines 326-329",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The reopen signal uses REOPEN_MIN_SHARE and REOPEN_MIN_TASKS constants defined elsewhere in the module; the comment explains the rationale.",
+       "where": "lines 349-354",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ff6ace15a5f2318fed8116277bd60071c8ccb71365735470beaead543ba56c59",
+    "objective_chars": 12529,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/ceiling.py [2/2]",
+  "rev": "3088037",
+  "module": "daedalus/eval/ceiling.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

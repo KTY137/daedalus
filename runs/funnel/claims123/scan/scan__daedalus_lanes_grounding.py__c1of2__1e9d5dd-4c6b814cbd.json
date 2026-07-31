@@ -1,0 +1,278 @@
+{
+ "task_id": "scan__daedalus_lanes_grounding.py__c1of2__1e9d5dd",
+ "key": "scan__daedalus_lanes_grounding.py__c1of2__1e9d5dd-4c6b814cbd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/lanes/grounding.py chunk 1; enumerated 10 claims, all KEPT; observations on regex pitfalls and uncheckable semantics.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "defined_in | medium | _ASSIGN_RE matches module-level assignments but also matches annotated assignments with type comments? (see note) | test with type comments and walrus",
+     "imported_in | medium | _IMPORT_RE may mis-parse parenthesized multi-line imports; could produce false names | test with multi-line from import",
+     "module_names | medium | ast.Name with Store context includes loop targets and with-as names, which are not definitions | test with loops and with statements",
+     "audit_references | medium | anchor check uses PurePosixPath(cited_path).parts[0]; on Windows, absolute paths with drive letters may be mis-split | test on Windows with absolute paths",
+     "audit_references | low | symbol resolution accepts any digit string as resolved, even if not a line number | test with symbol='99999'",
+     "judge | medium | _NAME regex may miss snake_case names with trailing digits or single-letter names | test with names like 'foo2' or 'x'"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/grounding.py",
+     "chunk": "1 of 2",
+     "purpose": "Implements reference and existence claim auditing against a repository file list.",
+     "symbols": [
+      {
+       "name": "__all__",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of public exports: ReferenceAudit, audit_references, claim_text, defined_in, imported_in, judge, module_names."
+      },
+      {
+       "name": "_DEF_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex matching def/class at line start."
+      },
+      {
+       "name": "_ASSIGN_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex matching module-level assignments."
+      },
+      {
+       "name": "_IMPORT_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex matching import statements."
+      },
+      {
+       "name": "defined_in",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns frozenset of names defined by def/class/assignment."
+      },
+      {
+       "name": "imported_in",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns frozenset of imported names."
+      },
+      {
+       "name": "module_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns all def/class/assigned/imported names at any depth via AST."
+      },
+      {
+       "name": "_REFERENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for file:path citations."
+      },
+      {
+       "name": "ReferenceAudit",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding citation audit results."
+      },
+      {
+       "name": "audit_references",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves cited paths/symbols against tracked file list."
+      },
+      {
+       "name": "_ABSENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for absence phrasings."
+      },
+      {
+       "name": "_SELF_SCOPED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for self-scoped absence claims."
+      },
+      {
+       "name": "_NAME",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for identifier extraction."
+      },
+      {
+       "name": "_SEVERITIES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of severity levels."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One module, one question. It has two shapes: a model cites daedalus/spine/attempt.py:run_attempt -- is that file there, is that symbol in it? (audit_references) and a model says \"X is never defined\" -- can that be refuted mechanically? (judge)",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "audit_references resolves file/symbol citations; judge is defined in the next chunk (uncheckable here) but the module docstring describes the split, and audit_references implements the citation check."
+      },
+      {
+       "text": "They were briefly implemented twice -- once in lanes/checks.py for reports and once in tools/funnel_report.py for funnel output -- and the two agreed numerically, which is the flattering way to describe duplication. This module is the merge.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim refers to external files and historical agreement; not verifiable from this chunk."
+      },
+      {
+       "text": "checks.py asks whether a file a lane is about to WRITE is intact -- it runs before bytes hit the disk and returns a refusal. This asks whether a model's PROSE corresponds to the tree, and it returns a measurement.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim contrasts with checks.py, which is not in this chunk; the behavior of audit_references (returns a measurement) is consistent with this chunk."
+      },
+      {
+       "text": "A GRAMMAR check. It answers \"does this name exist\", never \"is this claim true\".",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "audit_references checks existence of paths and symbols; judge (next chunk) checks existence of names. No semantic truth evaluation is implemented here."
+      },
+      {
+       "text": "MEASURED 2026-07-30: a finding whose every reference resolved, which survived an adversarial review tier and ranked first in the resulting plan, was false -- derive_task_from_commit does populate the fields it was accused of ignoring, at correctness.py:1444. Nothing here would have caught that.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The example refers to external files and a historical measurement; not verifiable from this chunk."
+      },
+      {
+       "text": "It is also, deliberately, an OBSERVATION rather than a refusal. A report may legitimately name a runtime path or a file in another repository, and a fence that refused those would be wrong far more often than right.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "audit_references returns a measurement (ReferenceAudit) and does not raise or refuse; it skips paths not anchored to the repository."
+      },
+      {
+       "text": "Names this file DEFINES: def, class, module-level assignment.",
+       "where": "defined_in docstring",
+       "verdict": "KEPT",
+       "why": "defined_in uses _DEF_RE for def/class and _ASSIGN_RE for assignments; returns union of both."
+      },
+      {
+       "text": "Kept apart from defined_in on purpose. A finding saying \"X is not defined here\" about a name the file imports is loose rather than false, and a metric whose whole job is proving things false must not spend its credibility on that distinction being blurred.",
+       "where": "imported_in docstring",
+       "verdict": "KEPT",
+       "why": "imported_in is a separate function; defined_in does not include imports."
+      },
+      {
+       "text": "Every def/class at ANY depth, plus module-level bindings and imports. Unlike checks.toplevel_defs, this descends: a citation naming events.py:TransportRecord.from_dict is naming a method, and a top-level-only reading would report every method in the repository absent.",
+       "where": "module_names docstring",
+       "verdict": "KEPT",
+       "why": "module_names uses ast.walk to find FunctionDef/AsyncFunctionDef/ClassDef at any depth, plus Store names and aliases."
+      },
+      {
+       "text": "What a report's file/symbol citations resolve to. The split is the whole value. MEASURED 2026-07-30 over a four-tier advisory funnel: of 42 unresolvable paths in its planning tier, 19 were a real file with its directory dropped, 1 shared a basename with another file, and 22 named a file that exists nowhere. Those need opposite responses -- repair, refuse to guess, discard -- and one number for all three is worth little.",
+       "where": "ReferenceAudit docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The measurement is historical and external; the class fields (repaired, ambiguous, invented) correspond to the described categories."
+      },
+      {
+       "text": "tracked is the authoritative file list -- pass git ls-files output, never a filesystem walk, so ignored artefacts and a contributor's scratch files cannot make an invented path look real.",
+       "where": "audit_references docstring",
+       "verdict": "KEPT",
+       "why": "audit_references uses the tracked set as the only source of truth for paths; it never scans the filesystem for existence."
+      },
+      {
+       "text": "The repository's own top-level directories, derived from the file list rather than hardcoded. A cited path is an ASSERTION ABOUT THIS REPOSITORY only when it starts inside one of them. Without this anchor the audit reported the docstring example a/b.py, the runtime path RUN_DIR/last_report.json and the written type Any/typing.Any as invented files -- all measured, all noise.",
+       "where": "comment in audit_references",
+       "verdict": "KEPT",
+       "why": "anchors are derived from tracked paths; audit_references skips cited paths whose first part is not in anchors."
+      },
+      {
+       "text": "Phrasings that assert a name is absent. Deliberately narrow: this judges only claims it can decide, and a wider net would score claims about BEHAVIOUR as if they were claims about EXISTENCE.",
+       "where": "comment for _ABSENCE",
+       "verdict": "KEPT",
+       "why": "_ABSENCE regex covers common absence phrasings and is deliberately specific; no behavioral claims are matched."
+      },
+      {
+       "text": "`do|does` and not just `does`: a gold set caught \"_body_sha and _entry_sha, which do not exist\" scoring undecided while the singular scored false. A judge that sees one grammatical number has a blind spot nobody would think to look for.",
+       "where": "comment for _ABSENCE",
+       "verdict": "KEPT",
+       "why": "_ABSENCE includes (?:do|does|did) to handle plural and past tense."
+      },
+      {
+       "text": "A statement that scopes its own absence claim to the window it was shown. MEASURED: the first version of this judge marked \"AgentCapabilities and AgentEvent are not defined in this chunk\" as provably false, because the names are imported by the file. That finding is TRUE and honest -- it names the scope it was given, and several such findings go on to say \"expected to be defined elsewhere\". Scoring a correct self-limited observation as a lie is the same cry-wolf failure this metric exists to count: 461 of them in one run, before this rule.",
+       "where": "comment for _SELF_SCOPED",
+       "verdict": "KEPT",
+       "why": "_SELF_SCOPED regex matches phrases like 'in this chunk', 'not visible', 'defined elsewhere', 'outside this file'. The historical measurement is uncheckable but the regex implements the described rule."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring claims 'One module, one question' but the module actually handles two distinct kinds of checks (citations and existence). The phrasing is metaphorical.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_ASSIGN_RE may match annotated assignments with type comments incorrectly, but it is a regex that can mis-parse complex assignments.",
+       "where": "_ASSIGN_RE",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_IMPORT_RE may mis-parse multi-line parenthesized imports, potentially missing names.",
+       "where": "_IMPORT_RE",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "module_names includes loop targets and with-as names as Store names, which are not definitions; may over-report.",
+       "where": "module_names",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "audit_references uses PurePosixPath(cited_path).parts[0] for anchor check; on Windows, absolute paths with drive letters may be mis-split.",
+       "where": "audit_references",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "In audit_references, symbol.isdigit() accepts any digit string as resolved, even if not a valid line number; could over-count resolved symbols.",
+       "where": "audit_references",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The judge function is not defined in this chunk; its behavior is uncheckable here.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "68b49f257fdbdc3682c1fff33149fe0203b1a061d25e4f3c10a5f999f24ea7cf",
+    "objective_chars": 15122,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/grounding.py [1/2]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/lanes/grounding.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,213 @@
+{
+ "task_id": "scan__daedalus_kairos_evolution.py__c1of1__3088037",
+ "key": "scan__daedalus_kairos_evolution.py__c1of1__3088037-59d94ca0cd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed evolution.py chunk 1: docstrings and code cross-checked; claims enumerated with verdicts.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "evaluate_candidates | high | catch-all except Exception in outer gather may mask per-candidate failures that escape evaluate_single; but evaluate_single catches most exceptions, so residual risk is low | inspect whether any exception can escape evaluate_single",
+     "evaluate_candidates | medium | comment says 'pytest not found' but FileNotFoundError could also be raised by sys.executable missing, which is unlikely; message may mislead | confirm sys.executable always exists",
+     "generate_candidates | low | return_exceptions=True means exceptions are per-task, but outer try/except is mostly redundant; no harm | none needed"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/evolution.py",
+     "chunk": "1 of 1",
+     "purpose": "EvolutionaryOrchestrator: generate, evaluate, and select candidate branches.",
+     "symbols": [
+      {
+       "name": "DEFAULT_EVAL_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Wall-clock ceiling for one candidate's test run, set to 600.0 seconds."
+      },
+      {
+       "name": "EvolutionaryOrchestrator",
+       "kind": "class",
+       "effects": [],
+       "note": "Experimental candidate runner: generate isolated branches, run configured test command, retain only passing candidate."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Stores shell_manager_factory callable."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.generate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns N ShadowShellManager instances in parallel via asyncio.gather to attempt the task."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.evaluate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Evaluates candidates concurrently using sys.executable -m pytest inside each worktree; sets score and error."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.select_best",
+       "kind": "function",
+       "effects": [],
+       "note": "Selects best candidate with completed, no error, and score >= 100.0, sorted descending."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Wall-clock ceiling for ONE candidate's test run. Without it a candidate that hangs blocks the whole gather below forever, and the run has no way to end.",
+       "where": "DEFAULT_EVAL_TIMEOUT_S comment (lines 11-14)",
+       "verdict": "KEPT",
+       "why": "DEFAULT_EVAL_TIMEOUT_S is used as timeout in asyncio.wait_for inside evaluate_single, and the timeout handler kills the process; the gather in evaluate_candidates awaits all evaluate_single tasks, so a hung candidate would not block forever because wait_for raises TimeoutError."
+      },
+      {
+       "text": "This is not autonomous code evolution and it is not a promotion boundary. A trusted verifier still has to inspect a candidate before it can be merged into the primary workspace.",
+       "where": "class docstring (lines 17-22)",
+       "verdict": "UNCHECKABLE",
+       "why": "The class only runs tests and selects best; it does not merge or promote. The claim about needing a trusted verifier is a policy statement not enforced by this code, but the code indeed does not promote. So the 'not a promotion boundary' part is kept, but the 'trusted verifier' requirement is uncheckable from this chunk."
+      },
+      {
+       "text": "Spawns N ShadowShellManager instances in parallel to attempt the task.",
+       "where": "generate_candidates docstring (line 27)",
+       "verdict": "KEPT",
+       "why": "The code creates population_size managers and runs manager.run_task(task) concurrently via asyncio.gather."
+      },
+      {
+       "text": "Evaluates candidates using pytest concurrently. Populates candidate.score and candidate.error.",
+       "where": "evaluate_candidates docstring (line 55)",
+       "verdict": "KEPT",
+       "why": "The code spawns pytest processes concurrently via asyncio.gather and sets candidate.score and candidate.error in all paths."
+      },
+      {
+       "text": "THE INTERPRETER IS PART OF THE MEASUREMENT. This shells out to sys.executable -m pytest, never to a bare pytest, and the difference is not cosmetic -- it decides WHICH TREE gets scored.",
+       "where": "evaluate_candidates docstring (lines 57-58)",
+       "verdict": "KEPT",
+       "why": "The subprocess call on line 139 uses sys.executable, '-m', 'pytest' with cwd set to the worktree path."
+      },
+      {
+       "text": "MEASURED 2026-07-29, running the same test file two ways inside a worktree that shadows daedalus/: bare pytest -> daedalus resolved to the PRIMARY checkout; python -m pytest -> daedalus resolved to the WORKTREE copy.",
+       "where": "evaluate_candidates docstring (lines 60-61)",
+       "verdict": "UNCHECKABLE",
+       "why": "This is an empirical claim about Python import resolution behavior, not directly testable from this code chunk. The code does use -m, which is consistent with the claim, but the measurement itself is external."
+      },
+      {
+       "text": "The editable install pins daedalus to the primary checkout by absolute path via an _EditableFinder on sys.meta_path. Bare pytest puts only each test file's own basedir on sys.path, never the worktree root, so nothing shadows that finder and the candidate's edits are invisible to its own tests. -m puts the working directory on sys.path[0], ahead of PathFinder, which is ahead of _EditableFinder -- so the candidate's code wins, as it must.",
+       "where": "evaluate_candidates docstring (lines 63-67)",
+       "verdict": "UNCHECKABLE",
+       "why": "These are claims about Python import machinery and sys.path ordering that cannot be verified from this code alone. The code does use -m, which is consistent, but the detailed behavior is external."
+      },
+      {
+       "text": "Until this changed, every score this class produced described the primary checkout's code running the candidate's tests.",
+       "where": "evaluate_candidates docstring (line 69)",
+       "verdict": "UNCHECKABLE",
+       "why": "Historical claim about previous behavior; not verifiable from current code."
+      },
+      {
+       "text": "This is still a BINARY, whole-suite signal and it is still not a promotion boundary -- see docs/adrs/015-ariadne-preconditions.md. The stronger measurement (daedalus.eval.correctness.evaluate_change, which freezes the selection before candidate code runs and reports five outcomes with precedence) is the intended replacement; this fix makes the interim signal describe the right tree, nothing more.",
+       "where": "evaluate_candidates docstring (lines 71-74)",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about being binary and whole-suite is true from the code (score 100 or 0 based on returncode), but the references to ADR and evaluate_change are external and cannot be checked here."
+      },
+      {
+       "text": "A failure here VOIDS THE EVALUATION and is not a candidate score. -1.0 is this module's own 'not evaluated' marker (used above for an incomplete candidate); 0.0 would mean 'measured, and bad', which would let an unrunnable evaluation argue against a candidate nobody actually judged.",
+       "where": "comment in evaluate_single (lines 89-94)",
+       "verdict": "KEPT",
+       "why": "When check_import_provenance fails, candidate.score is set to -1.0 and candidate.error is set, and the function returns. This distinguishes from a measured failure (score 0.0)."
+      },
+      {
+       "text": "Run pytest inside the worktree asynchronously. `-m` is load-bearing: see the docstring.",
+       "where": "comment in evaluate_single (line 112)",
+       "verdict": "KEPT",
+       "why": "The subprocess command uses sys.executable, '-m', 'pytest' with cwd set to candidate.worktree_path."
+      },
+      {
+       "text": "A hung candidate is a FAILED candidate, never an unscored one left to block the gather. Kill it and say why.",
+       "where": "comment in TimeoutError handler (lines 130-131)",
+       "verdict": "KEPT",
+       "why": "On TimeoutError, candidate.score is set to 0.0, error is set, and the process is killed and awaited."
+      },
+      {
+       "text": "Selects the best candidate based on the score.",
+       "where": "select_best docstring (line 157)",
+       "verdict": "KEPT",
+       "why": "The method filters candidates with completed, no error, and score >= 100.0, sorts descending by score, and returns the first."
+      },
+      {
+       "text": "This is not autonomous code evolution and it is not a promotion boundary.",
+       "where": "class docstring (line 19)",
+       "verdict": "KEPT",
+       "why": "The class only generates and evaluates candidates; it does not merge or promote. The method select_best returns a candidate but does not apply it."
+      },
+      {
+       "text": "A trusted verifier still has to inspect a candidate before it can be merged into the primary workspace.",
+       "where": "class docstring (line 20)",
+       "verdict": "UNCHECKABLE",
+       "why": "This is a policy statement about external process; not verifiable from this code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In generate_candidates, the outer try/except catches Exception from asyncio.gather, but since return_exceptions=True is used, gather itself rarely raises. Exceptions from individual tasks are already handled in the loop. The outer catch is mostly redundant but harmless.",
+       "where": "generate_candidates lines 34-43",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In evaluate_candidates, the outer try/except around asyncio.gather catches Exception, but evaluate_single is designed to catch all exceptions internally. However, if a candidate object is malformed (e.g., missing attributes), evaluate_single could raise an AttributeError that is not caught inside, and then the outer catch would log and swallow it, leaving that candidate unscored.",
+       "where": "evaluate_candidates lines 146-151 and evaluate_single lines 106-145",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The FileNotFoundError handler sets candidate.error to 'pytest not found', but FileNotFoundError could also be raised if sys.executable does not exist, which is essentially impossible. The message is specific enough.",
+       "where": "evaluate_single line 143",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims that the class is not a promotion boundary, and the code indeed does not promote. select_best returns a candidate but does not apply it.",
+       "where": "class docstring and select_best",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5c14a2621c5a57006879c86f368a3df19db320513e2fbc0267935543ab216373",
+    "objective_chars": 11014,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/evolution.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/evolution.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

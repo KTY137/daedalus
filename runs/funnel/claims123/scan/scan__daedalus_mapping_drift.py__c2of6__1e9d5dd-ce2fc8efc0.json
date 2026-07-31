@@ -1,0 +1,720 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c2of6__1e9d5dd",
+ "key": "scan__daedalus_mapping_drift.py__c2of6__1e9d5dd-ce2fc8efc0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "2 of 6",
+     "purpose": "Constants, doc scanning, ignore config, scan state, repo state, and snapshot freshness checks.",
+     "symbols": [
+      {
+       "name": "NEW_SHIM",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'NEW UNREACHED SHIM'"
+      },
+      {
+       "name": "ENGINE_DISAGREEMENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'ENGINE DISAGREEMENT'"
+      },
+      {
+       "name": "NEW_DARK_SWITCH",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'NEW DARK SWITCH'"
+      },
+      {
+       "name": "BECAME_ISLAND",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'BECAME ISLAND'"
+      },
+      {
+       "name": "NOW_REACHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'NOW REACHED'"
+      },
+      {
+       "name": "DOC_DRIFT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'DOC DRIFT'"
+      },
+      {
+       "name": "VANISHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'VANISHED'"
+      },
+      {
+       "name": "TEST_ONLY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'TEST ONLY'"
+      },
+      {
+       "name": "UNPARSABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'UNPARSABLE'"
+      },
+      {
+       "name": "IGNORE_DRIFT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'IGNORE CONFIG CHANGED'"
+      },
+      {
+       "name": "STALE_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'STALE ACCEPTANCE'"
+      },
+      {
+       "name": "INVALID_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'INVALID ACCEPTANCE'"
+      },
+      {
+       "name": "INVALID_SNAPSHOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'INVALID SNAPSHOT'"
+      },
+      {
+       "name": "KIND_ORDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple ordering report kinds; INVALID_SNAPSHOT first, NOW_REACHED last"
+      },
+      {
+       "name": "NON_BLOCKING_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of NOW_REACHED and TEST_ONLY"
+      },
+      {
+       "name": "ACCEPTABLE_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of kinds an acceptance may cover"
+      },
+      {
+       "name": "_doc_paths",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Collects doc file paths from root and configured dirs"
+      },
+      {
+       "name": "DocIndex",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding doc lines; build, _forms, _described, sites, documents methods"
+      },
+      {
+       "name": "DocIndex.build",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Classmethod building DocIndex from doc files, skipping fenced blocks and generated docs"
+      },
+      {
+       "name": "DocIndex._forms",
+       "kind": "function",
+       "effects": [],
+       "note": "Static method returning regex patterns for detecting name usage"
+      },
+      {
+       "name": "DocIndex._described",
+       "kind": "function",
+       "effects": [],
+       "note": "Static method checking for prose near the name"
+      },
+      {
+       "name": "DocIndex.sites",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns file:line tuples where the name is documented"
+      },
+      {
+       "name": "DocIndex.documents",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if any sites exist for the name"
+      },
+      {
+       "name": "ignore_config",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns fingerprint of ignore env and file"
+      },
+      {
+       "name": "_describe_ignore",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats ignore config for display"
+      },
+      {
+       "name": "ScanResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding scan state, sites, reach, switches"
+      },
+      {
+       "name": "_DRIFT_PREFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping of drift kinds to prefixes"
+      },
+      {
+       "name": "_drift_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a string key for a drift entry"
+      },
+      {
+       "name": "_MIN_ABBREV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Minimum SHA abbreviation length, 7"
+      },
+      {
+       "name": "_SHA_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for SHA-like strings"
+      },
+      {
+       "name": "repo_state",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns head, branch, dirty; probes git via render_mod"
+      },
+      {
+       "name": "snapshot_freshness",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks snapshot freshness against actual head; incomplete in this chunk"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Render order: the alarm that means 'somebody built something and never wired it' is first, the good news is last but always present",
+       "where": "comment above KIND_ORDER",
+       "verdict": "KEPT",
+       "why": "KIND_ORDER starts with INVALID_SNAPSHOT and ends with NOW_REACHED; the comment's stated order matches the tuple"
+      },
+      {
+       "text": "NOW_REACHED is good news. TEST_ONLY is a real finding that deliberately does not block",
+       "where": "comment above NON_BLOCKING_KINDS",
+       "verdict": "KEPT",
+       "why": "NON_BLOCKING_KINDS contains exactly NOW_REACHED and TEST_ONLY, consistent with the claim"
+      },
+      {
+       "text": "the acceptance list is wrong, the snapshot contradicts itself and this run looked at less of the tree than the baseline did have to be repaired, not waived",
+       "where": "comment above ACCEPTABLE_KINDS",
+       "verdict": "KEPT",
+       "why": "ACCEPTABLE_KINDS excludes INVALID_ACCEPTANCE, INVALID_SNAPSHOT, and IGNORE_DRIFT, matching the claim"
+      },
+      {
+       "text": "Fenced blocks and generated files are dropped at BUILD time rather than at query time, so there is exactly one place where 'does this text count' is decided",
+       "where": "DocIndex docstring",
+       "verdict": "KEPT",
+       "why": "build() skips GENERATED_DOCS and fenced lines; sites() only queries the built lines"
+      },
+      {
+       "text": "Non-alphanumerics collapse to single spaces before counting, so PKG_TURBO=1 scores 1, not 12",
+       "where": "_described docstring",
+       "verdict": "KEPT",
+       "why": "_described uses _ALNUM_RUN.sub(' ', rest).strip() and compares to MIN_DOC_DESC_CHARS; the example's punctuation and value collapse to a single word"
+      },
+      {
+       "text": "The env value is stored VERBATIM rather than hashed: the point is that a reviewer reading the failure can see what was hidden without re-running anything",
+       "where": "ignore_config docstring",
+       "verdict": "KEPT",
+       "why": "ignore_config stores os.environ.get(IGNORE_ENV,'').strip() directly as 'env'"
+      },
+      {
+       "text": "state is what the snapshot stores; sites is runtime-only detail (file:line) used to make remedies actionable, and is deliberately kept OUT of the snapshot",
+       "where": "ScanResult docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk defines the dataclass but does not show where state is serialized or sites is excluded; the claim about snapshot storage is beyond this chunk"
+      },
+      {
+       "text": "reach and switches are the reports this state was derived FROM, carried out so no caller has to re-run either engine to ask a follow-up question",
+       "where": "ScanResult docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The dataclass has fields reach and switches, but the claim about derivation and caller convenience is not observable in this chunk"
+      },
+      {
+       "text": "git's own floor is 7; a 1-character 'prefix' matches roughly one HEAD in sixteen, and a check that passes by accident is worse than no check because it is believed",
+       "where": "comment above _MIN_ABBREV",
+       "verdict": "KEPT",
+       "why": "_MIN_ABBREV is set to 7 and the comment explains the rationale; the value matches the claim"
+      },
+      {
+       "text": "The digest proves nobody hand-edited the snapshot. It says NOTHING about when the snapshot was taken -- a baseline generated thirty commits ago verifies its own digest perfectly",
+       "where": "repo_state docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The digest behavior is in _digest, not in this chunk; the claim about what the digest proves is not verifiable here"
+      },
+      {
+       "text": "There is deliberately NO generated_at: a clock reading answers 'when did the generator run', which is the weaker question, and it would destroy the byte-identity this artifact is built on",
+       "where": "repo_state docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "repo_state returns only head, branch, dirty; the absence of generated_at is visible, but the rationale about byte-identity refers to snapshot_bytes, not in this chunk"
+      },
+      {
+       "text": "dirty is probed only when there is a .git to probe, so a scan of a tree that is not a checkout costs no subprocess and still answers honestly: None means 'could not tell', never 'clean'",
+       "where": "repo_state docstring",
+       "verdict": "KEPT",
+       "why": "repo_state only calls render_mod._dirty when probe_dirty and head != 'unknown'; dirty is set to None when verdict is neither dirty nor clean"
+      },
+      {
+       "text": "FAILS CLOSED on the artifact's own defects -- an absent, non-string or malformed repo_state.head means the snapshot cannot say what it scanned",
+       "where": "snapshot_freshness docstring",
+       "verdict": "KEPT",
+       "why": "snapshot_freshness returns {'fresh': False} when recorded is not a non-empty string"
+      },
+      {
+       "text": "FAILS OPEN when the recorded head is well-formed and git cannot answer at all: a tarball checkout with no .git is not evidence of staleness",
+       "where": "snapshot_freshness docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk cuts off at the _SHA_RE.fullmatch check; the fail-open branch is not visible in this chunk"
+      },
+      {
+       "text": "Same rule, same reasoning, as daedalus.spine.picker.inventory_freshness",
+       "where": "snapshot_freshness docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The referenced module is not in this chunk; cannot compare"
+      }
+     ],
+     "observations": [
+      {
+       "what": "snapshot_freshness is cut off mid-function; the rest of its logic (fail-open branch, actual_head comparison) is not in this chunk",
+       "where": "line 281-end",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocIndex.build catches OSError on read_text and continues, silently skipping unreadable files; a missing doc file is treated as absent rather than unreadable",
+       "where": "DocIndex.build, read_text call",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "repo_state imports render_mod inside the function, not at module top; this is a local import that may hide circular import issues",
+       "where": "repo_state, 'from . import render as render_mod'",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment above KIND_ORDER says 'the alarm that means somebody built something and never wired it is first' but the first entry is INVALID_SNAPSHOT, which is about snapshot corruption, not unwired builds; the comment may refer to a different kind not shown in this chunk",
+       "where": "comment above KIND_ORDER",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "NON_BLOCKING_KINDS and ACCEPTABLE_KINDS are defined but not used in this chunk; their enforcement is elsewhere",
+       "where": "lines 281-300",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "DocIndex.build | medium | Unreadable doc files are silently skipped, so a permissions error makes documentation appear absent; a reviewer could believe a switch is undocumented when the file was simply unreadable | Check whether the caller distinguishes missing from unreadable, or whether errors should propagate"
+     ],
+     "todos": [
+      "Complete snapshot_freshness in next chunk; verify fail-open behavior and actual_head comparison"
+     ],
+     "handoff": {
+      "module": "daedalus/mapping/drift.py",
+      "chunk": "2 of 6",
+      "purpose": "Constants, doc scanning, ignore config, scan state, repo state, and snapshot freshness checks.",
+      "symbols": [
+       {
+        "name": "NEW_SHIM",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'NEW UNREACHED SHIM'"
+       },
+       {
+        "name": "ENGINE_DISAGREEMENT",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'ENGINE DISAGREEMENT'"
+       },
+       {
+        "name": "NEW_DARK_SWITCH",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'NEW DARK SWITCH'"
+       },
+       {
+        "name": "BECAME_ISLAND",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'BECAME ISLAND'"
+       },
+       {
+        "name": "NOW_REACHED",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'NOW REACHED'"
+       },
+       {
+        "name": "DOC_DRIFT",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'DOC DRIFT'"
+       },
+       {
+        "name": "VANISHED",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'VANISHED'"
+       },
+       {
+        "name": "TEST_ONLY",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'TEST ONLY'"
+       },
+       {
+        "name": "UNPARSABLE",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'UNPARSABLE'"
+       },
+       {
+        "name": "IGNORE_DRIFT",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'IGNORE CONFIG CHANGED'"
+       },
+       {
+        "name": "STALE_ACCEPTANCE",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'STALE ACCEPTANCE'"
+       },
+       {
+        "name": "INVALID_ACCEPTANCE",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'INVALID ACCEPTANCE'"
+       },
+       {
+        "name": "INVALID_SNAPSHOT",
+        "kind": "constant",
+        "effects": [],
+        "note": "String constant 'INVALID SNAPSHOT'"
+       },
+       {
+        "name": "KIND_ORDER",
+        "kind": "constant",
+        "effects": [],
+        "note": "Tuple ordering report kinds; INVALID_SNAPSHOT first, NOW_REACHED last"
+       },
+       {
+        "name": "NON_BLOCKING_KINDS",
+        "kind": "constant",
+        "effects": [],
+        "note": "Frozenset of NOW_REACHED and TEST_ONLY"
+       },
+       {
+        "name": "ACCEPTABLE_KINDS",
+        "kind": "constant",
+        "effects": [],
+        "note": "Frozenset of kinds an acceptance may cover"
+       },
+       {
+        "name": "_doc_paths",
+        "kind": "function",
+        "effects": [
+         "filesystem_read"
+        ],
+        "note": "Collects doc file paths from root and configured dirs"
+       },
+       {
+        "name": "DocIndex",
+        "kind": "class",
+        "effects": [],
+        "note": "Dataclass holding doc lines; build, _forms, _described, sites, documents methods"
+       },
+       {
+        "name": "DocIndex.build",
+        "kind": "function",
+        "effects": [
+         "filesystem_read"
+        ],
+        "note": "Classmethod building DocIndex from doc files, skipping fenced blocks and generated docs"
+       },
+       {
+        "name": "DocIndex._forms",
+        "kind": "function",
+        "effects": [],
+        "note": "Static method returning regex patterns for detecting name usage"
+       },
+       {
+        "name": "DocIndex._described",
+        "kind": "function",
+        "effects": [],
+        "note": "Static method checking for prose near the name"
+       },
+       {
+        "name": "DocIndex.sites",
+        "kind": "function",
+        "effects": [],
+        "note": "Returns file:line tuples where the name is documented"
+       },
+       {
+        "name": "DocIndex.documents",
+        "kind": "function",
+        "effects": [],
+        "note": "Returns True if any sites exist for the name"
+       },
+       {
+        "name": "ignore_config",
+        "kind": "function",
+        "effects": [
+         "filesystem_read"
+        ],
+        "note": "Returns fingerprint of ignore env and file"
+       },
+       {
+        "name": "_describe_ignore",
+        "kind": "function",
+        "effects": [],
+        "note": "Formats ignore config for display"
+       },
+       {
+        "name": "ScanResult",
+        "kind": "class",
+        "effects": [],
+        "note": "Dataclass holding scan state, sites, reach, switches"
+       },
+       {
+        "name": "_DRIFT_PREFIX",
+        "kind": "constant",
+        "effects": [],
+        "note": "Mapping of drift kinds to prefixes"
+       },
+       {
+        "name": "_drift_key",
+        "kind": "function",
+        "effects": [],
+        "note": "Builds a string key for a drift entry"
+       },
+       {
+        "name": "_MIN_ABBREV",
+        "kind": "constant",
+        "effects": [],
+        "note": "Minimum SHA abbreviation length, 7"
+       },
+       {
+        "name": "_SHA_RE",
+        "kind": "constant",
+        "effects": [],
+        "note": "Regex for SHA-like strings"
+       },
+       {
+        "name": "repo_state",
+        "kind": "function",
+        "effects": [
+         "process_spawn"
+        ],
+        "note": "Returns head, branch, dirty; probes git via render_mod"
+       },
+       {
+        "name": "snapshot_freshness",
+        "kind": "function",
+        "effects": [],
+        "note": "Checks snapshot freshness against actual head; incomplete in this chunk"
+       }
+      ],
+      "claims": [
+       {
+        "text": "Render order: the alarm that means 'somebody built something and never wired it' is first, the good news is last but always present",
+        "where": "comment above KIND_ORDER",
+        "verdict": "KEPT",
+        "why": "KIND_ORDER starts with INVALID_SNAPSHOT and ends with NOW_REACHED; the comment's stated order matches the tuple"
+       },
+       {
+        "text": "NOW_REACHED is good news. TEST_ONLY is a real finding that deliberately does not block",
+        "where": "comment above NON_BLOCKING_KINDS",
+        "verdict": "KEPT",
+        "why": "NON_BLOCKING_KINDS contains exactly NOW_REACHED and TEST_ONLY, consistent with the claim"
+       },
+       {
+        "text": "the acceptance list is wrong, the snapshot contradicts itself and this run looked at less of the tree than the baseline did have to be repaired, not waived",
+        "where": "comment above ACCEPTABLE_KINDS",
+        "verdict": "KEPT",
+        "why": "ACCEPTABLE_KINDS excludes INVALID_ACCEPTANCE, INVALID_SNAPSHOT, and IGNORE_DRIFT, matching the claim"
+       },
+       {
+        "text": "Fenced blocks and generated files are dropped at BUILD time rather than at query time, so there is exactly one place where 'does this text count' is decided",
+        "where": "DocIndex docstring",
+        "verdict": "KEPT",
+        "why": "build() skips GENERATED_DOCS and fenced lines; sites() only queries the built lines"
+       },
+       {
+        "text": "Non-alphanumerics collapse to single spaces before counting, so PKG_TURBO=1 scores 1, not 12",
+        "where": "_described docstring",
+        "verdict": "KEPT",
+        "why": "_described uses _ALNUM_RUN.sub(' ', rest).strip() and compares to MIN_DOC_DESC_CHARS; the example's punctuation and value collapse to a single word"
+       },
+       {
+        "text": "The env value is stored VERBATIM rather than hashed: the point is that a reviewer reading the failure can see what was hidden without re-running anything",
+        "where": "ignore_config docstring",
+        "verdict": "KEPT",
+        "why": "ignore_config stores os.environ.get(IGNORE_ENV,'').strip() directly as 'env'"
+       },
+       {
+        "text": "state is what the snapshot stores; sites is runtime-only detail (file:line) used to make remedies actionable, and is deliberately kept OUT of the snapshot",
+        "where": "ScanResult docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "This chunk defines the dataclass but does not show where state is serialized or sites is excluded; the claim about snapshot storage is beyond this chunk"
+       },
+       {
+        "text": "reach and switches are the reports this state was derived FROM, carried out so no caller has to re-run either engine to ask a follow-up question",
+        "where": "ScanResult docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "The dataclass has fields reach and switches, but the claim about derivation and caller convenience is not observable in this chunk"
+       },
+       {
+        "text": "git's own floor is 7; a 1-character 'prefix' matches roughly one HEAD in sixteen, and a check that passes by accident is worse than no check because it is believed",
+        "where": "comment above _MIN_ABBREV",
+        "verdict": "KEPT",
+        "why": "_MIN_ABBREV is set to 7 and the comment explains the rationale; the value matches the claim"
+       },
+       {
+        "text": "The digest proves nobody hand-edited the snapshot. It says NOTHING about when the snapshot was taken -- a baseline generated thirty commits ago verifies its own digest perfectly",
+        "where": "repo_state docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "The digest behavior is in _digest, not in this chunk; the claim about what the digest proves is not verifiable here"
+       },
+       {
+        "text": "There is deliberately NO generated_at: a clock reading answers 'when did the generator run', which is the weaker question, and it would destroy the byte-identity this artifact is built on",
+        "where": "repo_state docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "repo_state returns only head, branch, dirty; the absence of generated_at is visible, but the rationale about byte-identity refers to snapshot_bytes, not in this chunk"
+       },
+       {
+        "text": "dirty is probed only when there is a .git to probe, so a scan of a tree that is not a checkout costs no subprocess and still answers honestly: None means 'could not tell', never 'clean'",
+        "where": "repo_state docstring",
+        "verdict": "KEPT",
+        "why": "repo_state only calls render_mod._dirty when probe_dirty and head != 'unknown'; dirty is set to None when verdict is neither dirty nor clean"
+       },
+       {
+        "text": "FAILS CLOSED on the artifact's own defects -- an absent, non-string or malformed repo_state.head means the snapshot cannot say what it scanned",
+        "where": "snapshot_freshness docstring",
+        "verdict": "KEPT",
+        "why": "snapshot_freshness returns {'fresh': False} when recorded is not a non-empty string"
+       },
+       {
+        "text": "FAILS OPEN when the recorded head is well-formed and git cannot answer at all: a tarball checkout with no .git is not evidence of staleness",
+        "where": "snapshot_freshness docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "The chunk cuts off at the _SHA_RE.fullmatch check; the fail-open branch is not visible in this chunk"
+       },
+       {
+        "text": "Same rule, same reasoning, as daedalus.spine.picker.inventory_freshness",
+        "where": "snapshot_freshness docstring",
+        "verdict": "UNCHECKABLE",
+        "why": "The referenced module is not in this chunk; cannot compare"
+       }
+      ],
+      "observations": [
+       {
+        "what": "snapshot_freshness is cut off mid-function; the rest of its logic (fail-open branch, actual_head comparison) is not in this chunk",
+        "where": "line 281-end",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "DocIndex.build catches OSError on read_text and continues, silently skipping unreadable files; a missing doc file is treated as absent rather than unreadable",
+        "where": "DocIndex.build, read_text call",
+        "severity": "medium",
+        "confidence": "certain"
+       },
+       {
+        "what": "repo_state imports render_mod inside the function, not at module top; this is a local import that may hide circular import issues",
+        "where": "repo_state, 'from . import render as render_mod'",
+        "severity": "low",
+        "confidence": "likely"
+       },
+       {
+        "what": "The comment above KIND_ORDER says 'the alarm that means somebody built something and never wired it is first' but the first entry is INVALID_SNAPSHOT, which is about snapshot corruption, not unwired builds; the comment may refer to a different kind not shown in this chunk",
+        "where": "comment above KIND_ORDER",
+        "severity": "low",
+        "confidence": "possible"
+       },
+       {
+        "what": "NON_BLOCKING_KINDS and ACCEPTABLE_KINDS are defined but not used in this chunk; their enforcement is elsewhere",
+        "where": "lines 281-300",
+        "severity": "low",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "DocIndex.build | medium | Unreadable doc files are silently skipped, so a permissions error makes documentation appear absent; a reviewer could believe a switch is undocumented when the file was simply unreadable | Check whether the caller distinguishes missing from unreadable, or whether errors should propagate"
+      ],
+      "todos": [
+       "Complete snapshot_freshness in next chunk; verify fail-open behavior and actual_head comparison"
+      ]
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a23354badfe3c185964906b4342665e09fe32960e3d552c5561ed7e277811229",
+    "objective_chars": 15258,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [2/6]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/drift.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 281
+ }
+}

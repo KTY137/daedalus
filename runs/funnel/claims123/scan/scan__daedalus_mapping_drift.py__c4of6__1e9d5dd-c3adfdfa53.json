@@ -1,0 +1,273 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c4of6__1e9d5dd",
+ "key": "scan__daedalus_mapping_drift.py__c4of6__1e9d5dd-c3adfdfa53",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "4 of 6",
+     "purpose": "Render drift report; snapshot digest, bytes, load/write; remedy text per drift kind.",
+     "symbols": [
+      {
+       "name": "counts",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns sorted dict of counts per item kind."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders human-readable drift report; first-run and normal branches."
+      },
+      {
+       "name": "_SNAPSHOT_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant note embedded in snapshot; says only acceptances may be hand-edited."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String key 'digest' used in snapshot dict."
+      },
+      {
+       "name": "_MECHANICAL_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of keys covered by digest; excludes acceptances and note."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes sha256 digest over mechanical keys with canonical JSON."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks whether doc's digest matches computed digest; handles non-dict and __error__."
+      },
+      {
+       "name": "snapshot_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes snapshot dict with sorted fields, digest, trailing newline."
+      },
+      {
+       "name": "load_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSON file; returns dict or None; returns {'__error__': str} on OSError/ValueError."
+      },
+      {
+       "name": "write_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Writes baseline snapshot excluding accepted items; creates parent dirs."
+      },
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns remediation text for each drift kind."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A hash over the mechanical half only. ``acceptances`` is excluded because it is the one part a human is SUPPOSED to write; ``note`` because it is a constant.",
+       "where": "_digest docstring",
+       "verdict": "KEPT",
+       "why": "_MECHANICAL_KEYS does not include 'acceptances' or 'note'; body built only from those keys."
+      },
+      {
+       "text": "Canonical JSON with sorted keys, so the digest is a function of the values and not of the writer's key order -- two runs over an unchanged tree still produce identical bytes.",
+       "where": "_digest docstring",
+       "verdict": "KEPT",
+       "why": "json.dumps uses sort_keys=True and fixed separators; body keys are fixed by _MECHANICAL_KEYS."
+      },
+      {
+       "text": "``repo_state`` is INSIDE, and that is not an accident.",
+       "where": "_digest docstring",
+       "verdict": "KEPT",
+       "why": "'repo_state' is in _MECHANICAL_KEYS and included in body."
+      },
+      {
+       "text": "the digest changes on every commit even when no list moved -- which is correct: the snapshot really does describe a different tree.",
+       "where": "_digest docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "Whether repo_state changes on every commit depends on the caller's state; not observable in this chunk."
+      },
+      {
+       "text": "Any verb that INHERITS lists from an existing snapshot rather than rescanning has to ask this first and refuse on a mismatch -- otherwise it re-signs whatever a text editor left behind and turns a caught hand-edit into a valid baseline. ``daedalus map --accept`` is exactly such a verb.",
+       "where": "digest_ok docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The docstring names callers outside this chunk; digest_ok itself only returns a boolean."
+      },
+      {
+       "text": "The exact text of the snapshot. Sorted, no timestamps, trailing newline: two runs over an unchanged tree must produce byte-identical output or the git diff -- the thing a human actually reads -- becomes noise.",
+       "where": "snapshot_bytes docstring",
+       "verdict": "KEPT",
+       "why": "All list fields are sorted; no timestamp key is added; json.dumps output ends with '\\n'."
+      },
+      {
+       "text": "``repo_state`` comes out of ``state``, not out of a probe taken here, so this stays a pure function of its arguments.",
+       "where": "snapshot_bytes docstring",
+       "verdict": "KEPT",
+       "why": "Only state.get('repo_state') is used; no I/O or clock in this function."
+      },
+      {
+       "text": "A clock reading would not: ``generated_at`` is absent from this artifact on purpose",
+       "where": "snapshot_bytes docstring",
+       "verdict": "KEPT",
+       "why": "No 'generated_at' key is added to doc."
+      },
+      {
+       "text": "Write the baseline, EXCLUDING every item that has an acceptance entry.",
+       "where": "write_snapshot docstring",
+       "verdict": "KEPT",
+       "why": "keep() filters each list against accepted_keys; accepted items are removed from the kept dict."
+      },
+      {
+       "text": "If an accepted island were baked into ``islands``, ``--refresh`` would silently become a third, undated way to accept -- and being the easiest one, it would be the only one anybody used.",
+       "where": "write_snapshot docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "Whether --refresh is a way to accept depends on callers of write_snapshot outside this chunk."
+      },
+      {
+       "text": "Keeping accepted items out of the baseline means they stay live drift, suppressed only for as long as their date holds.",
+       "where": "write_snapshot docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The 'date holds' behavior depends on check() and acceptance expiry logic not in this chunk."
+      },
+      {
+       "text": "the one that grew to 55 the last time nobody watched it",
+       "where": "_remedy TEST_ONLY",
+       "verdict": "UNCHECKABLE",
+       "why": "Historical/anecdotal claim; no supporting data in this chunk."
+      },
+      {
+       "text": "'since' may not be in the future and 'until' may be at most MAX_HORIZON_DAYS days after 'since'; the item comes back when it passes.",
+       "where": "render output lines",
+       "verdict": "UNCHECKABLE",
+       "why": "The enforcement of these rules is in acceptance parsing/validation not shown here; render only prints the text."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render() reads self.state.get('counts') rather than using self.counts property; if state lacks 'counts', head is empty even though self.counts would compute it.",
+       "where": "render, line 843",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In render(), the first-run branch prints 'unknown (nothing reaches them...)' label but uses key 'unknown'; the label text says 'unknown' and the key is 'unknown' -- consistent.",
+       "where": "render, line 857",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In render(), the 'shims nothing reaches' label uses key 'shims' but the label says 'shims nothing reaches'; the data may include shims that are reached, but the label is just descriptive.",
+       "where": "render, line 858",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "write_snapshot's keep() prefix concatenation assumes item strings start with the prefix; if a state value is not prefixed, it is always kept.",
+       "where": "write_snapshot, keep function",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "write_snapshot recomputes counts after filtering; but the 'modules' count is taken from kept.get('modules') which is not filtered by acceptances, so accepted modules are still counted.",
+       "where": "write_snapshot, kept['counts']",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In snapshot_bytes, 'repo_state' is sorted with dict(sorted(...)) which sorts by key; if repo_state contains non-string keys, sorting may raise TypeError, but repo_state is expected to be a dict of strings.",
+       "where": "snapshot_bytes, line 906",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_digest uses ensure_ascii=False; if any value contains non-ASCII characters, the byte representation is UTF-8; this is deterministic but might differ from a reader's expectation of ASCII.",
+       "where": "_digest, line 896",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "digest_ok returns False for non-dict or __error__; it does not distinguish 'no digest' from 'mismatch' -- both return False.",
+       "where": "digest_ok",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "write_snapshot writes with newline='\\n' but uses p.write_text(text) where text already ends with '\\n'; the newline parameter may not affect the text written, but the output ends with exactly one newline as documented.",
+       "where": "write_snapshot, line 946",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_remedy has no default/else branch; if a new kind is added without a corresponding remedy, it returns None, which would be rendered as 'None' in output.",
+       "where": "_remedy",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "render | low | head uses state.get('counts') not self.counts; if state lacks counts, report shows empty head even though counts property would compute it | check whether render is ever called with state missing 'counts'",
+      "write_snapshot | medium | modules count is not filtered by acceptances; accepted modules still count as modules in baseline | inspect whether modules can be accepted; if not, this is harmless",
+      "_remedy | medium | no default branch; unknown kind yields None and render prints 'None' | check whether all possible kinds are covered; if new kinds are added, this breaks",
+      "digest_ok | low | returns False both for missing digest and mismatch; callers cannot distinguish | check whether callers need to distinguish",
+      "snapshot_bytes | low | sorting repo_state may raise if keys are not comparable | verify repo_state is always a dict with string keys"
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fbfaf714d8601daa0c358af58bd71e6a4bdeaaa1bc16d255f5fca459938569db",
+    "objective_chars": 17851,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [4/6]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/drift.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

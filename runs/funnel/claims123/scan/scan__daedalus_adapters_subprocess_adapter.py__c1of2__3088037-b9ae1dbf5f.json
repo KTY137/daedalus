@@ -1,0 +1,275 @@
+{
+ "task_id": "scan__daedalus_adapters_subprocess_adapter.py__c1of2__3088037",
+ "key": "scan__daedalus_adapters_subprocess_adapter.py__c1of2__3088037-b9ae1dbf5f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of subprocess_adapter.py: dataclasses, profiles, session creation, publishing, send. Claims mostly kept, a few uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "create_session | medium | prompt_mode 'argument' with empty prompt silently drops prompt; docstring implies prompt always sent; test would clarify expected behavior.",
+     "create_session | medium | stdin_prompt_marker appended even when prompt is empty; codex gets '-' with no prompt; test would clarify intended behavior.",
+     "create_session | low | prompt_mode 'none' with empty prompt is allowed; docstring says profile does not accept a prompt, but empty prompt passes; test would confirm intent.",
+     "_publish | medium | metadata uses self._sessions[session_id] without checking existence; a race or bad session id raises KeyError; test would exercise missing session.",
+     "create_session | low | stderr_task reads entire stderr into memory unbounded; large output could exhaust memory; test with large stderr would settle.",
+     "create_session | low | session_id uses command stem which may not be unique across different runtimes; uuid suffix reduces collision; test with same stem different runtimes."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/adapters/subprocess_adapter.py",
+     "chunk": "1 of 2",
+     "purpose": "Define RuntimeConfig, runtime profiles, _Session, SubprocessAdapter constructor, factory methods, capabilities, create_session, stdin writing, send, and event publish.",
+     "symbols": [
+      {
+       "name": "PromptMode",
+       "kind": "constant",
+       "effects": [],
+       "note": "Type alias: Literal[\"argument\", \"stdin\", \"none\"]"
+      },
+      {
+       "name": "RuntimeConfig",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding verified process-launch contract: command, args, streaming, resume, hidden state, output format, prompt mode, markers, args, env, timeout."
+      },
+      {
+       "name": "RUNTIME_PROFILES",
+       "kind": "constant",
+       "effects": [],
+       "note": "dict[str, RuntimeConfig] with 'claude' and 'codex' profiles; comment says one-shot, non-interactive invocations."
+      },
+      {
+       "name": "_Session",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding process, cwd, stderr_task, started_at, timeout_s."
+      },
+      {
+       "name": "SubprocessAdapter",
+       "kind": "class",
+       "effects": [],
+       "note": "AgentAdapter subclass; runs configured CLI in bounded working directory; normalizes output."
+      },
+      {
+       "name": "__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructor; accepts config or command; validates repo_root; initializes sessions, sink, runtime_name, sequences."
+      },
+      {
+       "name": "claude",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod factory using RUNTIME_PROFILES['claude']."
+      },
+      {
+       "name": "codex",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod factory using RUNTIME_PROFILES['codex']."
+      },
+      {
+       "name": "from_name",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod factory from profile name; raises ValueError for unknown name."
+      },
+      {
+       "name": "capabilities",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns AgentCapabilities with streaming from config, resume from config, hidden_state_access False."
+      },
+      {
+       "name": "create_session",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Spawns subprocess, stores session, writes prompt to stdin if prompt_mode is stdin, publishes input message."
+      },
+      {
+       "name": "_write_stdin",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Writes text plus newline to process stdin; raises if session missing or stdin closed."
+      },
+      {
+       "name": "send",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Publishes user message and writes text to stdin."
+      },
+      {
+       "name": "_publish",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Publishes transport record via sink with sequence and metadata; no-op if sink is None."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This is a process/event normalization layer, not a universal agent protocol: each CLI still needs a verified command profile and provider-specific event parser.",
+       "where": "module docstring lines 1-6",
+       "verdict": "uncheckable",
+       "why": "The chunk defines profiles and adapter but does not show event parsing or verification; reaches beyond this chunk."
+      },
+      {
+       "text": "Built-in profiles are limited to CLIs whose local --help contract is exercised by tests and whose execution is one-shot.",
+       "where": "module docstring lines 4-6",
+       "verdict": "uncheckable",
+       "why": "No tests or --help verification in this chunk; profiles are one-shot in design but no evidence of tests."
+      },
+      {
+       "text": "Antigravity isn't listed: no agy executable or stable JSON protocol exists on this machine, and a desktop/IDE session does not imply a callable CLI contract.",
+       "where": "comment above RUNTIME_PROFILES lines 51-55",
+       "verdict": "uncheckable",
+       "why": "The absence of 'agy' is observable in this chunk, but the reason (no executable, no protocol) is external; cannot verify machine state."
+      },
+      {
+       "text": "These profiles describe one-shot, non-interactive invocations.",
+       "where": "comment above RUNTIME_PROFILES line 51",
+       "verdict": "kept",
+       "why": "Profiles use --print, --verbose, --input-format text, --output-format stream-json, --permission-mode dontAsk for claude; codex uses exec --json --ask-for-approval never --sandbox workspace-write; these are one-shot, non-interactive."
+      },
+      {
+       "text": "Run a configured CLI in a bounded working directory and normalize output.",
+       "where": "SubprocessAdapter docstring line 81",
+       "verdict": "uncheckable",
+       "why": "Bounded working directory is implemented (cwd resolution, session cwd), but output normalization is in chunk 2 (events parsing)."
+      },
+      {
+       "text": "Either config or command must be provided",
+       "where": "ValueError in __init__ line 99",
+       "verdict": "kept",
+       "why": "If config is None and command falsy, raises ValueError with message 'Either config or command must be provided'."
+      },
+      {
+       "text": "repo_root is not a directory",
+       "where": "ValueError in __init__ line 106",
+       "verdict": "kept",
+       "why": "If root.is_dir() is False, raises ValueError with that message."
+      },
+      {
+       "text": "Unknown or unverified runtime ... Pass an explicit RuntimeConfig for a custom CLI.",
+       "where": "from_name ValueError lines 130-134",
+       "verdict": "kept",
+       "why": "If profile is None, raises ValueError with message including 'Unknown or unverified runtime' and 'Pass an explicit RuntimeConfig for a custom CLI.'"
+      },
+      {
+       "text": "session cwd is not a directory",
+       "where": "create_session ValueError line 144",
+       "verdict": "kept",
+       "why": "If resolved cwd is not a directory, raises ValueError with that message."
+      },
+      {
+       "text": "timeout_s must be positive",
+       "where": "create_session ValueError line 150",
+       "verdict": "kept",
+       "why": "If timeout_s <= 0, raises ValueError with that message."
+      },
+      {
+       "text": "profile has no model option",
+       "where": "create_session ValueError line 157",
+       "verdict": "kept",
+       "why": "If model given and model_arg is None, raises ValueError with message containing 'profile has no model option'."
+      },
+      {
+       "text": "profile does not accept a prompt",
+       "where": "create_session ValueError line 166",
+       "verdict": "kept",
+       "why": "If prompt_mode is 'none' and prompt is truthy, raises ValueError with message containing 'profile does not accept a prompt'."
+      },
+      {
+       "text": "session {session_id} not found or stdin unavailable",
+       "where": "_write_stdin RuntimeError lines 205-206",
+       "verdict": "kept",
+       "why": "If session is None or process.stdin is None, raises RuntimeError with that message."
+      },
+      {
+       "text": "session {session_id} stdin is closed",
+       "where": "_write_stdin RuntimeError line 208",
+       "verdict": "kept",
+       "why": "If process.stdin.is_closing() is True, raises RuntimeError with that message."
+      }
+     ],
+     "observations": [
+      {
+       "what": "create_session: when prompt_mode is 'argument' and prompt is empty, the prompt is neither appended to cmd nor published; the input message is not sent.",
+       "where": "create_session lines 163-171",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "When prompt_mode is 'stdin' and stdin_prompt_marker is set, the marker is appended even when prompt is empty; codex gets '-' with no prompt.",
+       "where": "create_session lines 165-167",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "When prompt_mode is 'none' and prompt is empty, no error is raised; the docstring says the profile does not accept a prompt, but empty prompt is allowed.",
+       "where": "create_session lines 163-168",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_publish uses self._sessions[session_id] without checking existence; a missing session id raises KeyError.",
+       "where": "_publish line 229",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "stderr_task reads entire stderr into memory; large stderr could exhaust memory.",
+       "where": "create_session line 197",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "session_id uses command stem, which may be shared across different runtimes; uuid suffix reduces but does not eliminate collision risk.",
+       "where": "create_session line 169",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "085aa0838cda6119dd4f74c8ba29ca32f4e8fdfaa6f2348ba7c9279ab3ea85eb",
+    "objective_chars": 13143,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/adapters/subprocess_adapter.py [1/2]",
+  "rev": "3088037",
+  "module": "daedalus/adapters/subprocess_adapter.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

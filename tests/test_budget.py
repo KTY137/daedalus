@@ -676,6 +676,14 @@ _NOT_BILLABLE = {
                                    "a status probe (_get_json)",
     "daedalus/health.py": "git, a local /api/tags probe, and shutil.which() "
                           "presence checks; invokes no vendor",
+    "daedalus/spine/effect_boundary.py":
+        "the Gate-0 static conformance scanner. It imports NO spawn module at "
+        "all (no subprocess, urllib, http.client, socket, os) -- verified by "
+        "reading its import block. The `subprocess.run`/`http.client.*` matches "
+        "are dict KEYS in `_HIGH_IMPACT_CALLS`, the table it uses to classify "
+        "what OTHER modules do via ast; the vendor tokens are the "
+        "`Surface.CLAUDE`/`Surface.CODEX` enum values and a module-NAME "
+        "casefold test in `_class_surface`. It reads source, it never runs it",
 }
 
 

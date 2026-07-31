@@ -200,6 +200,26 @@ KNOWN_UNGUARDED_ENTRYPOINTS = {
         "NOT BILLABLE: spawns `python -m daedalus.cli web` and "
         "`daedalus.file_bridge watch`; the `claude` token is a room SPEAKER "
         "NAME passed to `room.py say`, which only appends to the transcript",
+    # Added 2026-07-30 (commit 15fbcd2), which is why the 2026-07-29 sweep above
+    # had never seen it. INSPECTED 2026-07-31: all four of its `subprocess.run`
+    # sites hardcode argv[0] == "git" (`_git_index_mode`, the core.hooksPath
+    # read, `_git_path`, and `git_run`, whose signature is `["git", *args]` so a
+    # caller cannot substitute the executable). classify_argv returns None for
+    # each. It is ALSO a protected policy artifact: installing the guard inside
+    # it would be an edit to a guard, which section 15 forbids outside an
+    # approved amendment -- so the ledger entry is the correct disposition, not
+    # a deferral.
+    #
+    # NOTE for the next reader: docs/SPEND_AND_EGRESS_COVERAGE.md, cited four
+    # times in this module (and in test_egress_coverage.py) as "the decision
+    # record", has NEVER existed -- `git log --diff-filter=A` finds no commit
+    # that ever added it. These in-file reasons are therefore the only record
+    # there is. Do not read those citations as a promise that a fuller writeup
+    # exists somewhere.
+    "tools/iron_plan_guard.py":
+        "NOT BILLABLE: spawns only `git` (ls-files, config, rev-parse, show, "
+        "diff) with a hardcoded argv[0]; the `claude`/`codex` tokens are hook "
+        "PLATFORM names and the `.claude/` path prefix, never an executable",
 }
 
 # Test modules are excluded from the entry-point scan, and this is the reason,

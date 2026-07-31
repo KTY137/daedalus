@@ -23,6 +23,35 @@ Handles both funnel shapes:
   document  findings live in `risks` as "<claim> | <severity> | <what> | <check>"
             and are ranked by how many DIFFERENT lenses hit the same claim
   codebase  findings live in `handoff` as hypotheses -> verdicts -> plan items
+
+TUNING THE INSTRUMENT (added 2026-07-31)
+----------------------------------------
+Everything above answers "what did this run find". Tuning needs a different
+question -- "is this run better than the last one" -- and four things were
+missing for it. Each was added because a hand-written claim about these runs
+turned out to be wrong in a way a standing instrument makes impossible:
+
+* **One directory can hold several runs.** `fan_out` resumes by task id and a
+  task id carries the revision, so two runs of one spec sit side by side under
+  the same folder. Reporting their union averages a fixed defect together with
+  the run that still had it. `--rev` splits them; a mixed directory says so.
+* **`blocked` is two opposite things.** A unit the egress fence refused before
+  the wire and a unit whose answer failed to parse both land as `blocked`. One
+  is the safety fence working exactly as designed, is permanent, costs nothing,
+  and no prompt will move it; the other is a defect and is fixable. Counting
+  them together produced the claim "run 2 had zero blocked units" about a run
+  with five.
+* **A model can put its answer in three places.** The field itself,
+  `handoff.unexpected_keys` where `coerce_report` parks keys the schema
+  refused, and a nested `handoff.handoff` where the model wrapped its payload
+  one layer too deep. Reading only the first undercounts; reading all three
+  naively DOUBLE-counts, because the nested copy is usually a duplicate.
+* **Grounding is not path existence.** `audit_references` repairs a cited path
+  by unique basename, deliberately, so that a moved file does not read as an
+  invention. That is the right answer to "is this finding about this repo" and
+  the wrong answer to "can a human open this path", which is the only thing a
+  plan tier's paths are for. Both are reported; the gap between them is itself
+  the measurement.
 """
 from __future__ import annotations
 
@@ -30,6 +59,7 @@ import argparse
 import collections
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -45,8 +75,47 @@ from daedalus.lanes.grounding import (  # noqa: E402
 
 SEVERITY = {"critical": 0, "high": 1, "medium": 2, "low": 3, "none": 4}
 
+#: Where each tier keeps its rows, and the vocabulary its prompt actually
+#: states. A verdict outside the set is not merely untidy: `funnel.from_tier`
+#: filters with `drop_where` on an exact match, so an unlisted spelling passes
+#: through a rule written to stop it. "PARTIALLY KEPT" survives
+#: `drop_where: {"verdict": ["KEPT"]}` and reaches the next tier as a defect.
+VOCABULARY = {
+    "claims": {"KEPT", "BROKEN", "UNCHECKABLE"},
+    "verdicts": {"REFUTED", "NARROWED", "CONFIRMED", "NEEDS_EVIDENCE"},
+    "hypotheses": set(),     # raised, not adjudicated: no verdict field
+    "work": set(),
+    "items": set(),
+}
+ROW_FIELDS = tuple(VOCABULARY)
 
-def read_tier(tier_dir: Path) -> list[dict]:
+#: An egress refusal is a decision taken before the call, by the safety fence.
+_REFUSED = re.compile(r"^\s*Refused:", re.IGNORECASE)
+
+#: Any token shaped like a repository path. Wider than grounding's resolver on
+#: purpose: the invented paths are the ones no allowlist of roots predicts.
+_PATH = re.compile(
+    r"\b((?:[\w.\-]+/)+[\w.\-]+"
+    r"\.(?:py|md|json|jsonl|toml|ya?ml|txt|ts|tsx|cfg|ini|sh))\b")
+
+#: What a tier is told to write when it cannot know a path. Counting these as
+#: inventions would punish the tier for obeying the instruction.
+_ABSTAIN = {"UNKNOWN", "N/A", "NONE", "", "-", "TBD"}
+
+
+def normalize(value: object) -> str:
+    """One spelling per verdict: upper-cased, separators folded to underscore.
+
+    `NEEDS-EVIDENCE` and `NEEDS_EVIDENCE` are one verdict the model spelled two
+    ways -- 20 rows and 14 rows of the same thing in the 2026-07-31 run. This
+    is also what `funnel.from_tier` must apply before comparing against
+    `drop_where`, and the two normalisers must agree, or a row this report
+    calls dropped will not be.
+    """
+    return re.sub(r"[\s\-]+", "_", str(value).strip()).upper()
+
+
+def read_tier(tier_dir: Path, rev: str = "") -> list[dict]:
     rows = []
     if not tier_dir.is_dir():
         return rows
@@ -54,11 +123,82 @@ def read_tier(tier_dir: Path) -> list[dict]:
         if p.suffix != ".json":
             continue
         try:
-            rows.append(json.loads(p.read_text(encoding="utf-8")))
+            unit = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             rows.append({"task_id": p.stem, "answers": [],
                          "errors": [f"unreadable: {exc}"], "meta": {}})
+            continue
+        if rev and str((unit.get("meta") or {}).get("rev", "")) != rev:
+            continue
+        rows.append(unit)
     return rows
+
+
+def revisions(root: Path) -> list[str]:
+    """Every revision with units under this run directory."""
+    seen: dict[str, None] = {}
+    for tier in sorted(p for p in root.iterdir() if p.is_dir()) or [root]:
+        for p in tier.glob("*.json"):
+            try:
+                meta = json.loads(p.read_text(encoding="utf-8")).get("meta") or {}
+            except (OSError, ValueError):
+                continue
+            seen.setdefault(str(meta.get("rev") or "?"), None)
+    return sorted(seen)
+
+
+def harvest(handoff: dict, field: str) -> list:
+    """Rows for `field` from every place a model has been observed to put them.
+
+    De-duplicates on the row's own JSON, because the nested copy is normally
+    identical: in the 2026-07-31 run all 101 rows found under a nested
+    `handoff.handoff` were byte-identical to their outer copies. Counting both
+    would have reported a yield gain no model produced.
+    """
+    if not isinstance(handoff, dict):
+        return []
+    sources = [handoff]
+    for extra in (handoff.get("unexpected_keys"), handoff.get("handoff")):
+        if isinstance(extra, dict):
+            sources.append(extra)
+    found, seen = [], set()
+    for source in sources:
+        rows = source.get(field)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
+            if key not in seen:
+                seen.add(key)
+                found.append(row)
+    return found
+
+
+def strict_paths(rows: list, repo: Path) -> dict:
+    """Every path the rows cite, judged ONLY by whether the file is on disk.
+
+    No basename repair, no benefit of the doubt. `daedalus/eval.py` is the
+    obvious name for a module in this project, parses cleanly, sits under a
+    real directory, and has never existed; the only question that separates it
+    from a usable reference is whether a human can open it.
+    """
+    cited: collections.Counter = collections.Counter()
+    abstained = 0
+    for row in rows:
+        if isinstance(row, dict):
+            for key in ("path", "file"):
+                value = row.get(key)
+                if isinstance(value, str) and normalize(value) in _ABSTAIN:
+                    abstained += 1
+        blob = json.dumps(row, ensure_ascii=False, default=str)
+        for hit in _PATH.findall(blob):
+            cited[hit] += 1
+    real = {p: n for p, n in cited.items() if (repo / p).is_file()}
+    fake = {p: n for p, n in cited.items() if p not in real}
+    return {"distinct": len(cited), "real": real, "fake": fake,
+            "abstained": abstained,
+            "citations": sum(cited.values()),
+            "citations_real": sum(real.values())}
 
 
 def lane_health(name: str, rows: list[dict]) -> dict:
@@ -69,16 +209,51 @@ def lane_health(name: str, rows: list[dict]) -> dict:
     bodies = collections.Counter(
         hashlib.sha256(json.dumps(a.get("report") or {}, sort_keys=True).encode()
                        ).hexdigest() for a in answers)
-    blocked = sum(1 for a in answers
-                  if (a.get("report") or {}).get("status") == "blocked")
+    # A blocked unit lands in the same `answers` array as a real result: the
+    # unit counts as done, resume never retries it, and it reads as clean in
+    # every aggregate. An earlier audit lost 21 of 249 units this way and could
+    # not say to what -- so refusals are attributed, never merely counted.
+    #
+    # They are also SPLIT, because `blocked` covers two opposite events. The
+    # egress fence refusing to send a chunk is the fence doing its job: it
+    # costs nothing, it is stable across runs, and no prompt or chunk-size
+    # change will move it. A transport or schema failure is a defect with a
+    # fix. Summing them is how "run 2 blocked nothing" got written about a run
+    # that blocked five.
+    refused, failed = [], []
+    for r in rows:
+        label = (r.get("meta") or {}).get("label") or r.get("task_id", "?")
+        for a in (r.get("answers") or []):
+            rep = a.get("report") or {}
+            if rep.get("status") != "blocked":
+                continue
+            summary = str(rep.get("summary", ""))
+            (refused if _REFUSED.match(summary) else failed).append(
+                (label, summary[:120]))
     kinds = collections.Counter(
         (e.split(":")[1].strip().split(".")[0] if ":" in e else e[:30])
         for e in errors)
+    repairs = collections.Counter()
+    for a in answers:
+        h = (a.get("report") or {}).get("handoff")
+        if not isinstance(h, dict):
+            continue
+        if h.get("status_was_defaulted"):
+            repairs["status defaulted"] += 1
+        if h.get("summary_was_defaulted"):
+            repairs["summary defaulted"] += 1
+        if isinstance(h.get("unexpected_keys"), dict):
+            repairs["keys rescued from top level"] += 1
+        if isinstance(h.get("handoff"), dict):
+            repairs["payload nested one layer deep"] += 1
     top = bodies.most_common(1)[0][1] if bodies else 0
     health = {
         "units": len(rows), "answers": len(answers),
         "empty": sum(1 for r in rows if not (r.get("answers") or [])),
-        "errors": len(errors), "error_kinds": dict(kinds), "blocked": blocked,
+        "errors": len(errors), "error_kinds": dict(kinds),
+        "blocked": len(refused) + len(failed),
+        "refused_egress": len(refused), "failed_transport": len(failed),
+        "repairs": dict(repairs),
         "distinct_prompts": len(digests), "distinct_bodies": len(bodies),
         "top_body_copies": top,
         "temperatures": sorted({s.get("temperature") for s in sent} - {None}),
@@ -89,19 +264,19 @@ def lane_health(name: str, rows: list[dict]) -> dict:
           f"   (empty {health['empty']}, blocked {health['blocked']})")
     if errors:
         print(f"  errors                 : {len(errors)}  {dict(kinds)}")
-    if blocked:
-        # ATTRIBUTABILITY. A blocked unit lands in the same `answers` array as
-        # a real result: the unit counts as done, resume never retries it, and
-        # it reads as clean in every aggregate. An earlier audit lost 21 of 249
-        # units this way and could not say to what. So the refusal reasons are
-        # printed, not just counted -- a refusal you cannot attribute is
-        # indistinguishable from a finding of nothing.
-        why = collections.Counter(
-            (a.get("report") or {}).get("summary", "")[:110]
-            for r in rows for a in (r.get("answers") or [])
-            if (a.get("report") or {}).get("status") == "blocked")
-        for reason, n in why.most_common(4):
-            print(f"      blocked x{n}: {reason}")
+    if refused:
+        print(f"  REFUSED BY THE FENCE   : {len(refused)}   "
+              "(a decision, not a defect: never sent, never charged)")
+        for label, why in refused[:6]:
+            print(f"      {label}: {why}")
+    if failed:
+        print(f"  FAILED IN TRANSPORT    : {len(failed)}   (a defect, fixable)")
+        for label, why in failed[:6]:
+            print(f"      {label}: {why}")
+    if repairs:
+        print("  harness repairs        : "
+              + ", ".join(f"{k} x{v}" for k, v in sorted(repairs.items()))
+              + "   (the model did not answer in the shape it was asked for)")
     ok = health["distinct_prompts"] == health["answers"]
     print(f"  distinct prompts       : {health['distinct_prompts']} of "
           f"{health['answers']}   {'OK' if ok else '<< NOT INDEPENDENT'}")
@@ -123,37 +298,190 @@ def payloads(rows: list[dict]) -> list[dict]:
             for r in rows for a in (r.get("answers") or [])]
 
 
+def bar(n: int, total: int, width: int = 22) -> str:
+    return "" if not total else "#" * round(width * n / total) + "." * (
+        width - round(width * n / total))
+
+
+def tier_yield(name: str, rows: list[dict], repo: Path, tracked: list[str],
+               top: int = 10) -> dict:
+    """Rows produced, how they are spelled, and whether their paths open.
+
+    The verdict table shows the normalised count and every raw spelling that
+    folded into it. Both matter and for different reasons: the normalised
+    number is the finding, the spelling count is a defect in the prompt, and a
+    value outside the tier's stated vocabulary is a defect in the FILTER --
+    `drop_where` compares exact strings, so an unlisted spelling walks through
+    a rule written to stop it.
+    """
+    harvested = {f: [x for r in payloads(rows) for x in harvest(r, f)]
+                 for f in ROW_FIELDS}
+    harvested = {f: v for f, v in harvested.items() if v}
+    everything = [x for v in harvested.values() for x in v]
+    strict = strict_paths(everything, repo)
+
+    print(f"\n--- yield {name} ---")
+    for field, items in harvested.items():
+        print(f"  rows.{field:<11} {len(items)}")
+        raw = collections.Counter(
+            str(x.get("verdict")) for x in items
+            if isinstance(x, dict) and x.get("verdict") is not None)
+        if not raw:
+            continue
+        vocab = VOCABULARY.get(field, set())
+        folded = collections.Counter()
+        for spelling, n in raw.items():
+            folded[normalize(spelling)] += n
+        for value, n in folded.most_common():
+            spellings = sorted({s for s in raw if normalize(s) == value})
+            flag = ""
+            if vocab and value not in vocab:
+                flag += "   <<< OUTSIDE THIS TIER'S STATED VOCABULARY"
+            if len(spellings) > 1:
+                flag += ("   <<< %d spellings: %s"
+                         % (len(spellings), ", ".join(map(repr, spellings))))
+            print(f"    {value:<18} {n:>5}  {bar(n, len(items))}{flag}")
+
+    if strict["distinct"]:
+        blob = json.dumps(everything, ensure_ascii=False, default=str)
+        lenient = audit_references(blob, tracked, str(repo))
+        pct = 100.0 * len(strict["real"]) / strict["distinct"]
+        print(f"  paths on disk          : {len(strict['real'])}/"
+              f"{strict['distinct']} distinct cited paths exist ({pct:.0f}%)"
+              + (f", {strict['abstained']} rows wrote UNKNOWN"
+                 if strict["abstained"] else ""))
+        if lenient.cited:
+            print(f"  paths grounded (lenient): {lenient.resolved}/"
+                  f"{lenient.cited} resolve once basenames are repaired "
+                  f"({lenient.rate:.0%})   -- the gap is renamed-or-moved, "
+                  "not invented")
+        if strict["fake"]:
+            worst = sorted(strict["fake"].items(), key=lambda kv: -kv[1])[:top]
+            print("      cited but NOT ON DISK: "
+                  + ", ".join(f"{p} x{n}" for p, n in worst))
+    return {"rows": {f: len(v) for f, v in harvested.items()},
+            "verdicts": {f: dict(collections.Counter(
+                normalize(x.get("verdict")) for x in v
+                if isinstance(x, dict) and x.get("verdict") is not None))
+                for f, v in harvested.items()},
+            "paths_real": len(strict["real"]),
+            "paths_cited": strict["distinct"],
+            "paths_fake": sorted(strict["fake"])}
+
+
+def diff(now: dict, before: dict, label_now: str, label_before: str) -> None:
+    """What changed between two runs of the same spec.
+
+    Only counts, never conclusions. A tier that produced more rows may have
+    lowered its bar, and this cannot tell the difference -- but it can show
+    that the number moved, which is the thing no ad-hoc script ever preserved
+    long enough to compare.
+    """
+    def d(a: int, b: int) -> str:
+        return (f"{b:>5} -> {a:<5}" +
+                ("" if a == b else f"  {'+' if a > b else ''}{a - b}"))
+
+    print("\n" + "=" * 74)
+    print(f"DIFF   {label_before}   ->   {label_now}")
+    print("=" * 74)
+    for tier in sorted(set(now) | set(before)):
+        a, b = now.get(tier), before.get(tier)
+        if not a or not b:
+            print(f"\n-- {tier}: present in only one run "
+                  f"({'now' if a else 'before'} only)")
+            continue
+        print(f"\n-- {tier}")
+        for key, label in (("units", "units"), ("answers", "answers"),
+                           ("refused_egress", "refused by fence"),
+                           ("failed_transport", "failed (defect)"),
+                           ("empty", "no answer at all")):
+            av, bv = a["health"].get(key, 0), b["health"].get(key, 0)
+            if av or bv:
+                print(f"   {label:<18} {d(av, bv)}")
+        for field in sorted(set(a["yield"]["rows"]) | set(b["yield"]["rows"])):
+            print(f"   rows.{field:<13} "
+                  f"{d(a['yield']['rows'].get(field, 0), b['yield']['rows'].get(field, 0))}")
+            va = a["yield"]["verdicts"].get(field, {})
+            vb = b["yield"]["verdicts"].get(field, {})
+            for value in sorted(set(va) | set(vb)):
+                print(f"     {value:<16} {d(va.get(value, 0), vb.get(value, 0))}")
+        if a["yield"]["paths_cited"] or b["yield"]["paths_cited"]:
+            def rate(y):
+                return (100.0 * y["paths_real"] / y["paths_cited"]
+                        if y["paths_cited"] else 0.0)
+            print(f"   paths on disk      {b['yield']['paths_real']}/"
+                  f"{b['yield']['paths_cited']} ({rate(b['yield']):.0f}%)"
+                  f"  ->  {a['yield']['paths_real']}/"
+                  f"{a['yield']['paths_cited']} ({rate(a['yield']):.0f}%)")
+
+
+def survey(root: Path, rev: str, repo: Path, tracked: list[str],
+           top: int) -> tuple[dict, dict]:
+    """Health and yield for one run. Returns (raw units per tier, summary)."""
+    tiers = [p for p in sorted(root.iterdir()) if p.is_dir()] or [root]
+    print("=" * 74)
+    print(f"LANE HEALTH -- {root}" + (f" @ {rev}" if rev else "")
+          + " -- read this before any finding below")
+    print("=" * 74)
+    data, summary = {}, {}
+    for tier in tiers:
+        rows = read_tier(tier, rev)
+        if not rows:
+            continue
+        data[tier.name] = rows
+        summary[tier.name] = {"health": lane_health(tier.name, rows)}
+    for name, rows in data.items():
+        summary[name]["yield"] = tier_yield(name, rows, repo, tracked, top)
+    return data, summary
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="tools.funnel_report")
     ap.add_argument("run_dir", help="runs/funnel/<name>, or a single tier dir")
     ap.add_argument("--top", type=int, default=20)
     ap.add_argument("--min-lenses", type=int, default=1,
                     help="document funnels: only claims hit by N distinct lenses")
+    ap.add_argument("--rev", default="",
+                    help="report only units whose meta.rev is this revision")
+    ap.add_argument("--against", default="",
+                    help="a prior run directory to diff against")
+    ap.add_argument("--against-rev", default="",
+                    help="revision to select in --against; with no --against "
+                         "it selects a second revision from the SAME directory, "
+                         "which is where a resumed rerun lands")
+    ap.add_argument("--repo", default=".", help="repository root for path checks")
     args = ap.parse_args(argv)
 
     root = Path(args.run_dir)
     if not root.is_dir():
         print(f"no such directory: {root}", file=sys.stderr)
         return 2
-    tiers = [p for p in sorted(root.iterdir()) if p.is_dir()] or [root]
+    repo = Path(args.repo).resolve()
+    tracked = repo_files()
 
-    print("=" * 74)
-    print("LANE HEALTH -- read this before any finding below")
-    print("=" * 74)
-    data = {}
-    for tier in tiers:
-        rows = read_tier(tier)
-        if not rows:
-            continue
-        lane_health(tier.name, rows)
-        data[tier.name] = rows
+    revs = revisions(root)
+    if len(revs) > 1 and not (args.rev or args.against_rev):
+        print(f"NOTE: {root} holds {len(revs)} revisions -- {', '.join(revs)}.\n"
+              "      They are being reported MERGED, which averages a fixed "
+              "defect together\n      with the run that still had it. To "
+              f"compare them instead:\n"
+              f"        --rev {revs[-1]} --against-rev {revs[0]}\n")
 
+    data, summary = survey(root, args.rev, repo, tracked, args.top)
     if not data:
         print("no results yet", file=sys.stderr)
         return 2
 
+    if args.against or args.against_rev:
+        other = Path(args.against) if args.against else root
+        print()
+        _, before = survey(other, args.against_rev, repo, tracked, args.top)
+        if before:
+            diff(summary, before,
+                 f"{root}{'@' + args.rev if args.rev else ''}",
+                 f"{other}{'@' + args.against_rev if args.against_rev else ''}")
+
     # ---- grounding: do the cited files and symbols exist? -----------------
-    tracked = repo_files()
     print("\n" + "=" * 74)
     print("GROUNDING -- do the cited files and symbols exist in this repo?")
     print("=" * 74)
@@ -236,15 +564,20 @@ def main(argv: list[str] | None = None) -> int:
 
     # ---- attrition: the funnel's whole justification ----------------------
     hyps = [h for r in payloads(data.get("research", []))
-            for h in (r.get("hypotheses") or [])]
+            for h in harvest(r, "hypotheses")]
     verdicts = [v for r in payloads(data.get("review", []))
-                for v in (r.get("verdicts") or [])]
+                for v in harvest(r, "verdicts")]
+    # A plan tier writes `items` (steps with a `file` each) or `work` (one
+    # `path` per row) depending on which spec produced the run. Reading only
+    # the first reported "0 plan items" for a run that produced forty.
     items = [i for r in payloads(data.get("plan", []))
-             for i in (r.get("items") or [])]
+             for i in harvest(r, "items")]
+    work = [w for r in payloads(data.get("plan", []))
+            for w in harvest(r, "work")]
     if hyps or verdicts:
-        vc = collections.Counter(str(v.get("verdict", "?")).lower()
+        vc = collections.Counter(normalize(v.get("verdict", "?"))
                                  for v in verdicts)
-        killed = vc.get("refuted", 0)
+        killed = vc.get("REFUTED", 0)
         print("\n" + "=" * 74)
         print("ATTRITION -- a review tier that refutes nothing has not reviewed")
         print("=" * 74)
@@ -253,7 +586,44 @@ def main(argv: list[str] | None = None) -> int:
         if verdicts:
             print(f"  refuted             : {killed} "
                   f"({killed / len(verdicts):.0%})")
-        print(f"  plan items produced : {len(items)}")
+        print(f"  plan items produced : {len(items) + len(work)}"
+              + (f"  ({len(items)} as items, {len(work)} as work rows)"
+                 if items and work else ""))
+
+    # ---- content: the work list, with every path checked ------------------
+    if work:
+        # The `work` shape carries ONE path per row, and the tier is told to
+        # write UNKNOWN when the input it received never named one. That
+        # instruction is the finding: a row that abstains is the tier working
+        # correctly, and separating those from inventions is the difference
+        # between "the tier lies" and "the tier is being asked a question its
+        # input cannot answer".
+        real, invented, unknown = [], [], []
+        for row in work:
+            path = str(row.get("path", "")).strip()
+            if normalize(path) in _ABSTAIN:
+                unknown.append(row)
+            elif (Path(args.repo) / path).is_file():
+                real.append(row)
+            else:
+                invented.append(row)
+        print("\n" + "=" * 74)
+        print("WORK -- surviving findings, with every cited path opened")
+        print("=" * 74)
+        print(f"  {len(real)} rows name a path that exists, "
+              f"{len(invented)} name one that does not, "
+              f"{len(unknown)} correctly wrote UNKNOWN")
+        if invented:
+            bad = collections.Counter(str(r.get("path")) for r in invented)
+            print("  invented: "
+                  + ", ".join(f"{p} x{n}" for p, n in bad.most_common(8)))
+        for row in real[: args.top]:
+            print(f"\n[{row.get('path')}] {str(row.get('what_breaks',''))[:150]}")
+            print(f"   fix   : {str(row.get('smallest_fix',''))[:150]}")
+            print(f"   check : {str(row.get('check',''))[:150]}")
+            if row.get("cost_if_wrong"):
+                print(f"   cost  : {str(row['cost_if_wrong'])[:100]}")
+        return 0
 
     # ---- content: codebase shape -----------------------------------------
     if items:

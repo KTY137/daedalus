@@ -1,0 +1,289 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c4of5__3088037",
+ "key": "scan__daedalus_kairos_gated_writes.py__c4of5__3088037-f1de465e40",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed gated_writes.py chunk 4 of 5 (lines 841-1093): _promote_one, promote_candidates, _promote_locked, _governance_verdict, run_write_wave start. Claims checked: several kept, some uncheckable, no broken found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "promote_candidates | medium | not_gated report includes candidates with ok=False but artifact non-empty; if Phase 1 can produce such a candidate, it is silently excluded from 'live' but reported as not_gated, potentially masking a promotable artifact. | Inspect gate_candidates to see whether ok=False can coexist with a non-empty artifact; if impossible, the filter is redundant but harmless.",
+     "_promote_one | low | Catch-all catches Exception but not BaseException; KeyboardInterrupt/SystemExit would abort the batch, contrary to the 'catch-all' docstring. | Check whether the caller expects to survive KeyboardInterrupt; if yes, broaden to BaseException.",
+     "run_write_wave | low | Non-write tasks are dispatched with dry_run=False; if scheduler.dispatch itself can raise, the 'never raises' claim for run_write_wave is not established in this chunk. | Inspect scheduler.dispatch's contract for exceptions.",
+     "run_write_wave | low | results list has type list[dict|None]; if other_idx is empty and write_idx non-empty, the final return is not shown in this chunk; if it returns results with None entries, that would violate the position-matched dict contract. | Check the remainder of run_write_wave in the next chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "4 of 5",
+     "purpose": "Promotion phase: _promote_one, promote_candidates, _promote_locked, _governance_verdict, and start of run_write_wave.",
+     "symbols": [
+      {
+       "name": "_promote_one",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Calls _promote_one_inner; catches Exception and returns a refusal dict with reason 'promotion step raised: ...'."
+      },
+      {
+       "name": "promote_candidates",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Phase 2 entry; filters live candidates, acquires promotion lock, calls _promote_locked, and returns report with promoted/refused/not_gated."
+      },
+      {
+       "name": "_promote_locked",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Creates integration worktree, resolves project test command, loops _promote_one over live candidates, cleans up worktree and branches, returns report with inspect hint."
+      },
+      {
+       "name": "_governance_verdict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Calls daedalus.core.get_governance; returns (allowed, state, verdict); on import or call failure returns (False, 'unknown', message)."
+      },
+      {
+       "name": "run_write_wave",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Wave writer: validates assignment count, separates write vs non-write tasks, dispatches non-write tasks, and (in later chunk) gates write tasks."
+      },
+      {
+       "name": "AUTO_PROMOTE_LEVELS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple containing only 'never'; used to coerce legacy auto_promote values."
+      }
+     ],
+     "claims": [
+      {
+       "text": "_promote_one_inner already resets the integration worktree to current_head on any failure it anticipates; this is the net under that for the failures it does not.",
+       "where": "_promote_one docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The reset behaviour of _promote_one_inner is in a previous chunk; this chunk only shows the catch-all wrapper."
+      },
+      {
+       "text": "catch-all so ONE candidate's unexpected failure ... reports as a refusal rather than aborting the whole promotion batch.",
+       "where": "_promote_one docstring",
+       "verdict": "KEPT",
+       "why": "The function wraps _promote_one_inner in try/except Exception and returns a refusal dict for any exception."
+      },
+      {
+       "text": "candidates is what Phase 1 (gate_candidates) returned, in the SAME order they were submitted -- that order is promotion order too",
+       "where": "promote_candidates docstring",
+       "verdict": "KEPT",
+       "why": "The live list is built by iterating candidates in order, and _promote_locked iterates live in that same order."
+      },
+      {
+       "text": "Never raises: every failure mode ... is a refusal in the returned report, not an exception.",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The function catches PromotionUnavailable from the lock, but _promote_locked and GitWorktreeManager methods could raise; their exception handling is not fully shown in this chunk."
+      },
+      {
+       "text": "cancel is forwarded to every STALENESS-triggered regeneration (_reattempt's own TaskAttempt ...) AND to the cumulative re-gate's own command_gate call inside _promote_one_inner",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk shows cancel being passed to _promote_locked, but the forwarding to _reattempt and command_gate happens in _promote_one_inner, which is in a previous chunk."
+      },
+      {
+       "text": "A cancellation landing there is reported distinctly (_CumulativeGateCancelled in the refusal reason, never conflated with an ordinary cumulative gate failed)",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The distinct reporting logic is in _promote_one_inner, not in this chunk."
+      },
+      {
+       "text": "the SAME unconditional git reset --hard/clean -fd that already runs for a genuine cumulative-gate failure also runs for a cancelled one",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The reset/clean logic is in _promote_one_inner, not in this chunk."
+      },
+      {
+       "text": "Reported, not dropped: a candidate that never reached STATE_CLEAN in Phase 1 ... has nothing to promote, but silently omitting it here would make this report LOOK complete ... Filtered by object IDENTITY",
+       "where": "promote_candidates comment",
+       "verdict": "KEPT",
+       "why": "not_gated is built from candidates whose id is not in live_ids, and live_ids is a set of id(c) for live candidates."
+      },
+      {
+       "text": "two distinct candidates can legitimately compare equal on fields.",
+       "where": "promote_candidates comment",
+       "verdict": "KEPT",
+       "why": "Filtering by id(c) rather than dataclass equality confirms identity-based filtering."
+      },
+      {
+       "text": "if ledger_error or ledger_path is None: ... refused with 'ledger unavailable'",
+       "where": "promote_candidates code",
+       "verdict": "KEPT",
+       "why": "The code returns refused entries for each live candidate when ledger_path is None or ledger_error is truthy."
+      },
+      {
+       "text": "lock unavailable ... is a refusal in the returned report, not an exception.",
+       "where": "promote_candidates docstring",
+       "verdict": "KEPT",
+       "why": "PromotionUnavailable is caught and converted to a report with refused entries."
+      },
+      {
+       "text": "integration worktree has no readable gitdir pointer; refusing to promote into it unpinned",
+       "where": "_promote_locked code",
+       "verdict": "KEPT",
+       "why": "If git.admin_dir is None, the function returns refused for all live candidates with that reason."
+      },
+      {
+       "text": "no file in the primary checkout was changed; nothing is merged until a human (or a separately-invoked step) acts on the integration branch above",
+       "where": "_promote_locked report note",
+       "verdict": "KEPT",
+       "why": "The function only works in the integration worktree and returns an inspect hint; it does not touch the primary checkout."
+      },
+      {
+       "text": "AUTO_PROMOTE_LEVELS = ('never',) ... The only production-capable value is 'never'; legacy values cannot reach promote_candidates.",
+       "where": "comment before AUTO_PROMOTE_LEVELS",
+       "verdict": "UNCHECKABLE",
+       "why": "The comment claims legacy values cannot reach promote_candidates, but that enforcement is in a previous chunk or elsewhere; this chunk only defines the tuple and coerces in run_write_wave."
+      },
+      {
+       "text": "_governance_verdict ... read straight off daedalus.core.get_governance, never re-derived here.",
+       "where": "_governance_verdict docstring",
+       "verdict": "KEPT",
+       "why": "The function imports and calls get_governance directly."
+      },
+      {
+       "text": "Any failure to even ASK the question ... reports the vocabulary's unknown, not a silent True.",
+       "where": "_governance_verdict docstring",
+       "verdict": "KEPT",
+       "why": "Both import failure and call failure return (False, 'unknown', message)."
+      },
+      {
+       "text": "unknown and absent stay distinct facts ... this only ever manufactures unknown for a failure that happened HERE; a real absent receipt is already reported correctly by get_governance itself and passes through unchanged.",
+       "where": "_governance_verdict docstring",
+       "verdict": "KEPT",
+       "why": "The function uses gov.get('state') or 'unknown' only when gov exists; it does not coerce an absent state to unknown unless get_governance returns an empty dict or missing state."
+      },
+      {
+       "text": "cancel, when given, is forwarded to gate_candidates for every concurrent attempt in this wave.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The forwarding to gate_candidates is not in this chunk; it occurs later in the function."
+      },
+      {
+       "text": "None (the default) is byte-identical to this function's behaviour before cancel existed: no caller that does not pass it is affected.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The behaviour with cancel=None is not fully visible until the rest of the function is seen."
+      },
+      {
+       "text": "assignments MUST be scheduler.accept(tasks, repo_root=repo_root)'s own return, in the SAME order as tasks ... Passed in once, length-checked, used once.",
+       "where": "run_write_wave docstring",
+       "verdict": "KEPT",
+       "why": "The function checks len(assignments) == len(tasks) and uses assignments only to compute write_idx and other_idx."
+      },
+      {
+       "text": "Recomputing it here would still be SAFE (accept is a pure classification ... two calls on the same tasks always agree)",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The purity of accept is not verifiable in this chunk; it is a claim about another function."
+      },
+      {
+       "text": "Returns one result dict per entry in tasks, position-matched",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The final return is at the end of the function, not in this chunk; the results list is initialized to None and filled for other_idx, but write results are not yet assigned."
+      },
+      {
+       "text": "Non-write tasks in the SAME wave ... are NOT touched by the gated path: they are delegated back to scheduler.dispatch, scoped to just their own indices",
+       "where": "run_write_wave docstring",
+       "verdict": "KEPT",
+       "why": "other_idx is computed and other_tasks are dispatched via scheduler.dispatch for those indices only."
+      },
+      {
+       "text": "NEVER writes the primary checkout and never calls promote_candidates.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk shows no primary checkout writes or promote_candidates call, but the rest of the function is not yet seen."
+      },
+      {
+       "text": "Legacy auto_promote values are reported as denied input and coerced to 'never'.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The coercion to 'never' is visible, but the reporting of denied input is not yet visible in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The catch-all in _promote_one catches Exception but not BaseException; KeyboardInterrupt/SystemExit would still abort the batch.",
+       "where": "_promote_one except clause",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The not_gated list includes candidates that are not in live_ids but may have ok=False and a non-empty artifact; if Phase 1 can produce such a candidate, it would be silently excluded from promotion.",
+       "where": "promote_candidates live filter",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "promote_candidates calls _promote_locked without a try/except; if _promote_locked raises (e.g., GitWorktreeManager.create_worktree fails), the 'Never raises' claim would be broken.",
+       "where": "promote_candidates try block",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "run_write_wave dispatches non-write tasks with dry_run=False and no exception handling; if dispatch raises, the wave aborts.",
+       "where": "run_write_wave other dispatch",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The results list is typed list[dict|None]; if the final return occurs with None entries (e.g., write_idx non-empty but write results not filled), the position-matched contract would be violated.",
+       "where": "run_write_wave results initialization",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "210746d936c32eadfc217c8f95216366986107c48e60fdf2d150ccfa9c449bbf",
+    "objective_chars": 18824,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [4/5]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

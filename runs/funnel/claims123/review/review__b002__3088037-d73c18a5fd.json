@@ -1,0 +1,167 @@
+{
+ "task_id": "review__b002__3088037",
+ "key": "review__b002__3088037-d73c18a5fd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "hypothesis": "advisory-gate-escape",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited docstrings and call sites are not present, so the claim is unverifiable from the provided source.",
+       "check": "grep -n 'advisory' daedalus/spine/run_gate.py daedalus/**/*.py"
+      },
+      {
+       "hypothesis": "trusted-lane-secrecy-vs-env-normalization",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited ValueError message and council_env docstring are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'trusted lane' daedalus/ | head -20"
+      },
+      {
+       "hypothesis": "delegated-contract-drift",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited imports and docstrings are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'live_egress_seats\\|is_correctness_task\\|secret_floor_rule' daedalus/"
+      },
+      {
+       "hypothesis": "digest-protection-duplicated",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited module docstring and Selection class are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'digest' daedalus/inventory.py daedalus/spine/picker.py"
+      },
+      {
+       "hypothesis": "per-provider-guard-drift",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited provider files are not present, so the claim is unverifiable.",
+       "check": "diff <(grep 'guard' providers/deepseek.py) <(grep 'guard' providers/ollama.py)"
+      },
+      {
+       "hypothesis": "deleted-file-slice-target",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited _mint_from_diffs logic is not present, so the claim is unverifiable.",
+       "check": "grep -n 'deleted\\|anchor_pool' daedalus/eval/mint.py"
+      },
+      {
+       "hypothesis": "lifecycle-misrepresentation",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited _parse_typed_event is not present, so the claim is unverifiable.",
+       "check": "grep -n '_parse_typed_event' daedalus/events.py"
+      },
+      {
+       "hypothesis": "snapshot-freshness-fail-closed",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited DriftReport and snapshot_freshness are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'snapshot_freshness' daedalus/"
+      },
+      {
+       "hypothesis": "abstract-claim",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited abstract method is not present, so the claim is unverifiable.",
+       "check": "grep -rn 'abstractmethod' daedalus/"
+      },
+      {
+       "hypothesis": "exclusive-writer-claims",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited freeze_selection and write_baseline docstrings are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'only place\\|only thing' daedalus/"
+      },
+      {
+       "hypothesis": "mint-store-exclusivity",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited mint module and CLI flags are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'mint-commit\\|confirm-mint' daedalus/"
+      },
+      {
+       "hypothesis": "same-word-different-meaning",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited docstrings are not present, so the claim is unverifiable.",
+       "check": "grep -rn '\\bnever\\b' daedalus/ | head -50"
+      },
+      {
+       "hypothesis": "configure-valueerror-missing",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited configure function is not present, so the claim is unverifiable.",
+       "check": "grep -n 'def configure' daedalus/ -A 20"
+      },
+      {
+       "hypothesis": "unchecked-subscript-contract",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited eval_task_tier1 is not present, so the claim is unverifiable.",
+       "check": "grep -n 'def eval_task_tier1' daedalus/ -A 30"
+      },
+      {
+       "hypothesis": "liveness-quality-confusion",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited docstrings are not present, so the claim is unverifiable.",
+       "check": "grep -rn 'liveness\\|quality' daedalus/"
+      },
+      {
+       "hypothesis": "retry-never-raises-promise-broken",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited promote_candidates is not present, so the claim is unverifiable.",
+       "check": "grep -n 'def promote_candidates' daedalus/promote.py -A 20"
+      },
+      {
+       "hypothesis": "secret-floor-path-vs-assembled-prompt",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No file content supplied; the cited floor.py is not present, so the claim is unverifiable.",
+       "check": "grep -n 'floor_check' daedalus/lanes/floor.py -A 20"
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "31f0f51f9362fff7a65411c906514c1476bcdb22dd1a0cea3ed033ba9b403cdb",
+    "objective_chars": 21135,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 2 (17 inputs)",
+  "rev": "3088037",
+  "bucket": 2,
+  "inputs": 17
+ }
+}

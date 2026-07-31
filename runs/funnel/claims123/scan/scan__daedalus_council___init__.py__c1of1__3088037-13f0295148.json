@@ -1,0 +1,460 @@
+{
+ "task_id": "scan__daedalus_council___init__.py__c1of1__3088037",
+ "key": "scan__daedalus_council___init__.py__c1of1__3088037-13f0295148",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package docstring and re-export of bus.py symbols; declares no-write policy and falsification protocol.",
+     "symbols": [
+      {
+       "name": "ENTRY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .bus; version marker for council transcript entries."
+      },
+      {
+       "name": "TURN_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .bus; status vocabulary for transcript turns."
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; returns an actor identifier."
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from .bus; appends roster to transcript."
+      },
+      {
+       "name": "append_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from .bus; appends a round to transcript."
+      },
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from .bus; appends a turn to transcript."
+      },
+      {
+       "name": "council_store_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; computes council store path."
+      },
+      {
+       "name": "evidence_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; builds evidence reference."
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; loads transcript."
+      },
+      {
+       "name": "transcript_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; returns transcript head."
+      },
+      {
+       "name": "verify_chain",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .bus; verifies hash chain."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This package may read, prompt, record and verify. It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise",
+       "where": "lines 3-5",
+       "verdict": "uncheckable",
+       "why": "This chunk only re-exports bus functions; it does not define or forbid write/edit/apply/promote operations. The claim is about the whole package, not observable here."
+      },
+      {
+       "text": "The same structural property spine/attempt.py earned with 'THERE IS NO APPLY PATH'",
+       "where": "lines 5-6",
+       "verdict": "uncheckable",
+       "why": "No spine/attempt.py code is in this chunk; the referenced property cannot be verified."
+      },
+      {
+       "text": "A council's product is a queue of CHECKS for the existing deterministic gate (tests, fences, diffs) to run; the gate's result is the only verdict",
+       "where": "lines 6-8",
+       "verdict": "uncheckable",
+       "why": "No gate, checks, or product-construction code appears in this chunk; this is a package-level behavioural claim."
+      },
+      {
+       "text": "Dissent is recorded verbatim and is never averaged away",
+       "where": "lines 8-9",
+       "verdict": "uncheckable",
+       "why": "The transcript functions (append_turn etc.) are re-exported but their implementation is in bus.py, not here; verbatim recording and averaging behaviour cannot be observed."
+      },
+      {
+       "text": "Nothing in this package carries an approve / reject / score / majority / consensus / confidence field",
+       "where": "lines 9-11",
+       "verdict": "uncheckable",
+       "why": "This chunk defines no fields at all; whether any symbol in the package carries such fields is not determinable from this file alone."
+      },
+      {
+       "text": "Advisory-by-docstring is not a control; ABSENCE OF THE FIELD is the control",
+       "where": "lines 11-12",
+       "verdict": "uncheckable",
+       "why": "This is a design principle stated in the docstring; no code in this chunk implements or contradicts it."
+      },
+      {
+       "text": "FALSIFICATION PROTOCOL (stated in advance, before any wiring) -- The premise ... is plausible and UNTESTED. It is measured before session.py is wired into any real review workflow, and the module is deleted if it fails",
+       "where": "lines 14-17",
+       "verdict": "uncheckable",
+       "why": "No session.py or measurement/wiring code exists in this chunk; cannot verify that measurement precedes wiring or that deletion would happen."
+      },
+      {
+       "text": "ARM A: four vendors (anthropic / openai / google / local), one round each",
+       "where": "lines 18-19",
+       "verdict": "uncheckable",
+       "why": "No vendor configuration or round logic in this chunk."
+      },
+      {
+       "text": "CONTROL: ONE vendor asked twice under two different role prompts",
+       "where": "lines 19-20",
+       "verdict": "uncheckable",
+       "why": "No control logic or role-prompt handling in this chunk."
+      },
+      {
+       "text": "GROUND TRUTH: spine.attempt.GateResult.passed and AttemptResult.state -- already recorded, free to harvest",
+       "where": "lines 20-22",
+       "verdict": "uncheckable",
+       "why": "No spine.attempt code or data harvesting in this chunk; the referenced symbols are not present."
+      },
+      {
+       "text": "INDEPENDENCE: pairwise agreement rate BETWEEN vendors versus WITHIN one vendor across two calls",
+       "where": "lines 24-25",
+       "verdict": "uncheckable",
+       "why": "No agreement-rate computation in this chunk."
+      },
+      {
+       "text": "FALSIFIER: if inter-vendor agreement is within noise of intra-vendor agreement on N patches, THIS MODULE IS DELETED",
+       "where": "lines 25-26",
+       "verdict": "uncheckable",
+       "why": "No deletion logic or agreement comparison in this chunk."
+      },
+      {
+       "text": "SMALL-N CAVEAT, stated in advance: the independent corpus is ~17-20 tasks",
+       "where": "lines 27-28",
+       "verdict": "uncheckable",
+       "why": "No corpus size or task list in this chunk."
+      },
+      {
+       "text": "bus.py -- the transcript: an append-only, hash-chained, offline-verifiable dcouncil/1 store at runs/council/<council_id>.jsonl",
+       "where": "lines 31-33",
+       "verdict": "uncheckable",
+       "why": "The store format, path, and hash-chaining are implemented in bus.py; this chunk only re-exports functions and constants. The path pattern runs/council/<council_id>.jsonl is not asserted here."
+      },
+      {
+       "text": "It is a SEPARATE store from the memory ledger and shares no code path with it",
+       "where": "lines 33-34",
+       "verdict": "uncheckable",
+       "why": "No memory-ledger code or shared-path analysis is possible from this chunk."
+      },
+      {
+       "text": "Council turns are model chatter, and promoting model chatter to certified memory (three agreeing turns is three confirmations) is the fabrication failure this project treats as the worst one",
+       "where": "lines 34-36",
+       "verdict": "uncheckable",
+       "why": "No memory-promotion logic or turn-count rule in this chunk."
+      },
+      {
+       "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL",
+       "where": "lines 36-37",
+       "verdict": "uncheckable",
+       "why": "No memory-recall code in this chunk; cannot verify the input policy."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk is purely a docstring and re-export; every substantive claim about package behaviour reaches into bus.py, session.py, spine/attempt.py, or memory code that is not present here.",
+       "where": "lines 1-37",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The __all__ list matches the imported names exactly, so re-exports are consistent within this file.",
+       "where": "lines 39-52",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring asserts a structural no-write property, but this file itself does not enforce it; enforcement, if any, lives in bus.py and other modules. The claim is uncheckable here, not broken.",
+       "where": "lines 3-5",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "lines 3-37 | medium | Docstring makes strong package-level structural claims (no write path, separate store, no memory input) that cannot be verified from this re-export-only chunk; a reader may assume enforcement exists without checking bus.py and session.py | Inspect bus.py and session.py to confirm no write/apply path, store separation, and memory-input prohibition"
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/council/__init__.py",
+      "chunk": "1 of 1",
+      "purpose": "Package docstring and re-export of bus.py symbols; declares no-write policy and falsification protocol.",
+      "symbols": [
+       {
+        "name": "ENTRY_VERSION",
+        "kind": "constant",
+        "effects": [],
+        "note": "Re-exported from .bus; version marker for council transcript entries."
+       },
+       {
+        "name": "TURN_STATUS",
+        "kind": "constant",
+        "effects": [],
+        "note": "Re-exported from .bus; status vocabulary for transcript turns."
+       },
+       {
+        "name": "actor_id",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; returns an actor identifier."
+       },
+       {
+        "name": "append_roster",
+        "kind": "function",
+        "effects": [
+         "filesystem_write"
+        ],
+        "note": "Re-exported from .bus; appends roster to transcript."
+       },
+       {
+        "name": "append_round",
+        "kind": "function",
+        "effects": [
+         "filesystem_write"
+        ],
+        "note": "Re-exported from .bus; appends a round to transcript."
+       },
+       {
+        "name": "append_turn",
+        "kind": "function",
+        "effects": [
+         "filesystem_write"
+        ],
+        "note": "Re-exported from .bus; appends a turn to transcript."
+       },
+       {
+        "name": "council_store_path",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; computes council store path."
+       },
+       {
+        "name": "evidence_ref",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; builds evidence reference."
+       },
+       {
+        "name": "load_transcript",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; loads transcript."
+       },
+       {
+        "name": "transcript_head",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; returns transcript head."
+       },
+       {
+        "name": "verify_chain",
+        "kind": "function",
+        "effects": [],
+        "note": "Re-exported from .bus; verifies hash chain."
+       }
+      ],
+      "claims": [
+       {
+        "text": "This package may read, prompt, record and verify. It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise",
+        "where": "lines 3-5",
+        "verdict": "uncheckable",
+        "why": "This chunk only re-exports bus functions; it does not define or forbid write/edit/apply/promote operations. The claim is about the whole package, not observable here."
+       },
+       {
+        "text": "The same structural property spine/attempt.py earned with 'THERE IS NO APPLY PATH'",
+        "where": "lines 5-6",
+        "verdict": "uncheckable",
+        "why": "No spine/attempt.py code is in this chunk; the referenced property cannot be verified."
+       },
+       {
+        "text": "A council's product is a queue of CHECKS for the existing deterministic gate (tests, fences, diffs) to run; the gate's result is the only verdict",
+        "where": "lines 6-8",
+        "verdict": "uncheckable",
+        "why": "No gate, checks, or product-construction code appears in this chunk; this is a package-level behavioural claim."
+       },
+       {
+        "text": "Dissent is recorded verbatim and is never averaged away",
+        "where": "lines 8-9",
+        "verdict": "uncheckable",
+        "why": "The transcript functions (append_turn etc.) are re-exported but their implementation is in bus.py, not here; verbatim recording and averaging behaviour cannot be observed."
+       },
+       {
+        "text": "Nothing in this package carries an approve / reject / score / majority / consensus / confidence field",
+        "where": "lines 9-11",
+        "verdict": "uncheckable",
+        "why": "This chunk defines no fields at all; whether any symbol in the package carries such fields is not determinable from this file alone."
+       },
+       {
+        "text": "Advisory-by-docstring is not a control; ABSENCE OF THE FIELD is the control",
+        "where": "lines 11-12",
+        "verdict": "uncheckable",
+        "why": "This is a design principle stated in the docstring; no code in this chunk implements or contradicts it."
+       },
+       {
+        "text": "FALSIFICATION PROTOCOL (stated in advance, before any wiring) -- The premise ... is plausible and UNTESTED. It is measured before session.py is wired into any real review workflow, and the module is deleted if it fails",
+        "where": "lines 14-17",
+        "verdict": "uncheckable",
+        "why": "No session.py or measurement/wiring code exists in this chunk; cannot verify that measurement precedes wiring or that deletion would happen."
+       },
+       {
+        "text": "ARM A: four vendors (anthropic / openai / google / local), one round each",
+        "where": "lines 18-19",
+        "verdict": "uncheckable",
+        "why": "No vendor configuration or round logic in this chunk."
+       },
+       {
+        "text": "CONTROL: ONE vendor asked twice under two different role prompts",
+        "where": "lines 19-20",
+        "verdict": "uncheckable",
+        "why": "No control logic or role-prompt handling in this chunk."
+       },
+       {
+        "text": "GROUND TRUTH: spine.attempt.GateResult.passed and AttemptResult.state -- already recorded, free to harvest",
+        "where": "lines 20-22",
+        "verdict": "uncheckable",
+        "why": "No spine.attempt code or data harvesting in this chunk; the referenced symbols are not present."
+       },
+       {
+        "text": "INDEPENDENCE: pairwise agreement rate BETWEEN vendors versus WITHIN one vendor across two calls",
+        "where": "lines 24-25",
+        "verdict": "uncheckable",
+        "why": "No agreement-rate computation in this chunk."
+       },
+       {
+        "text": "FALSIFIER: if inter-vendor agreement is within noise of intra-vendor agreement on N patches, THIS MODULE IS DELETED",
+        "where": "lines 25-26",
+        "verdict": "uncheckable",
+        "why": "No deletion logic or agreement comparison in this chunk."
+       },
+       {
+        "text": "SMALL-N CAVEAT, stated in advance: the independent corpus is ~17-20 tasks",
+        "where": "lines 27-28",
+        "verdict": "uncheckable",
+        "why": "No corpus size or task list in this chunk."
+       },
+       {
+        "text": "bus.py -- the transcript: an append-only, hash-chained, offline-verifiable dcouncil/1 store at runs/council/<council_id>.jsonl",
+        "where": "lines 31-33",
+        "verdict": "uncheckable",
+        "why": "The store format, path, and hash-chaining are implemented in bus.py; this chunk only re-exports functions and constants. The path pattern runs/council/<council_id>.jsonl is not asserted here."
+       },
+       {
+        "text": "It is a SEPARATE store from the memory ledger and shares no code path with it",
+        "where": "lines 33-34",
+        "verdict": "uncheckable",
+        "why": "No memory-ledger code or shared-path analysis is possible from this chunk."
+       },
+       {
+        "text": "Council turns are model chatter, and promoting model chatter to certified memory (three agreeing turns is three confirmations) is the fabrication failure this project treats as the worst one",
+        "where": "lines 34-36",
+        "verdict": "uncheckable",
+        "why": "No memory-promotion logic or turn-count rule in this chunk."
+       },
+       {
+        "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL",
+        "where": "lines 36-37",
+        "verdict": "uncheckable",
+        "why": "No memory-recall code in this chunk; cannot verify the input policy."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The chunk is purely a docstring and re-export; every substantive claim about package behaviour reaches into bus.py, session.py, spine/attempt.py, or memory code that is not present here.",
+        "where": "lines 1-37",
+        "severity": "medium",
+        "confidence": "certain"
+       },
+       {
+        "what": "The __all__ list matches the imported names exactly, so re-exports are consistent within this file.",
+        "where": "lines 39-52",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The docstring asserts a structural no-write property, but this file itself does not enforce it; enforcement, if any, lives in bus.py and other modules. The claim is uncheckable here, not broken.",
+        "where": "lines 3-5",
+        "severity": "medium",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "lines 3-37 | medium | Docstring makes strong package-level structural claims (no write path, separate store, no memory input) that cannot be verified from this re-export-only chunk; a reader may assume enforcement exists without checking bus.py and session.py | Inspect bus.py and session.py to confirm no write/apply path, store separation, and memory-input prohibition"
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ee04a1af797f6ef00442944e2ae61c23435d2b5276d1157fe391c5926270c077",
+    "objective_chars": 6319,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/__init__.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/council/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

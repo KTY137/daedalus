@@ -1,0 +1,273 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c1of5__3088037",
+ "key": "scan__daedalus_kairos_gated_writes.py__c1of5__3088037-e8b8fa7b02",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/kairos/gated_writes.py: module docstring, constants, rebase helpers, GatedCandidate, artifact root, relay gate, recording runner, provider receipt, spec builder start.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "rebase_declared_path | medium | resolve() follows symlinks; a symlink inside primary_root pointing outside is rebased as outside and returned unchanged, potentially bypassing scope enforcement. | Add a test with a symlink inside primary_root pointing outside.",
+     "_artifact_root_for | low | Uses LOCALAPPDATA on Windows via os.environ; on non-Windows it falls back to tempfile.gettempdir(). The path is not verified to be on a durable filesystem. | Confirm the environment and filesystem semantics.",
+     "_relay_gate | medium | The gate's ok condition requires action == 'offloaded' and bool(wrote). If offload returns a different success action or wrote is empty but the write was valid, it would be rejected. | Verify offload's return contract.",
+     "_provider_receipt | low | The receipt drops the top-level 'status' and only keeps report_status; if the caller expects status it is missing. | Confirm the expected keys.",
+     "_spec_for | low | The chunk ends mid-function; the behavior of the returned TaskSpec is incomplete. | Review the rest of the function."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, constants, declared-path rebasing, Phase 1 gating helpers (GatedCandidate, artifact root, relay gate, recording runner, provider receipt), and start of _spec_for.",
+     "symbols": [
+      {
+       "name": "_DEFAULT_GATE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Fallback timeout for curated command gate; mirrors spine.attempt.DEFAULT_GATE_TIMEOUT_S without importing at module scope."
+      },
+      {
+       "name": "rebase_declared_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts an absolute path under primary_root to repo-relative POSIX; returns unchanged if not absolute or outside primary_root."
+      },
+      {
+       "name": "rebase_declared_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps rebase_declared_path over a collection of paths, returning a tuple."
+      },
+      {
+       "name": "GatedCandidate",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding assignment, spec, and result from Phase 1."
+      },
+      {
+       "name": "_artifact_root_for",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Returns a durable, checkout-external directory for patch artifacts, namespaced by repo root hash."
+      },
+      {
+       "name": "_relay_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a TaskAttempt gate callable that judges by offload's own result stored in a mutable box."
+      },
+      {
+       "name": "_recording_runner",
+       "kind": "function",
+       "effects": [],
+       "note": "Wraps offload_runner to record its result into a box before returning."
+      },
+      {
+       "name": "_provider_receipt",
+       "kind": "function",
+       "effects": [],
+       "note": "Projects a small operational subset from an offload runner result, omitting prompts and content."
+      },
+      {
+       "name": "_spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a TaskSpec for one assignment; body incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An earlier draft of this module hand-rolled worktree creation, commit, and patch capture for each concurrent write task. That was wrong: it duplicated daedalus.spine.attempt.TaskAttempt, which already does exactly that -- isolated worktree (GitWorktreeManager), a runner (offload() via offload_runner), hardened patch capture (git diff --no-ext-diff --no-textconv, with --git-dir/--work-tree pinned to a pointer read BEFORE the runner executes, so a candidate cannot redirect it by rewriting <worktree>/.git), a gate, and cleanup -- and it is independently tested to leave the primary checkout byte-identical (tests/test_spine_attempt.py::test_happy_path_artifact_and_primary_untouched) and to expose NO apply/promote/land path (tests/test_spine_attempt.py::test_module_exposes_no_apply_path). This module does not repeat any of that.",
+       "where": "module docstring, BACKGROUND",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the earlier draft, spine.attempt internals, or the referenced tests. It does show that this module uses GitWorktreeManager and offload_runner, but cannot verify the historical claims or the tests."
+      },
+      {
+       "text": "Phase 1 -- CONCURRENT GATING (gate_candidates). Turn each write Assignment into a TaskSpec, run it through TaskAttempt with offload() as the runner (offload's own verify+rollback cascade stays the authority for per-task correctness -- see _relay_gate), fanned out across a thread pool, every attempt in its own worktree. Output: one GatedCandidate per assignment, each carrying an AttemptResult whose .artifact is a PatchArtifact (inert bytes) when the candidate is clean. The primary checkout is untouched -- that is TaskAttempt's own structural guarantee, not something re-implemented or re-verified here.",
+       "where": "module docstring, PHASE 1",
+       "verdict": "uncheckable",
+       "why": "gate_candidates is not defined in this chunk; only helpers (_relay_gate, _recording_runner, _spec_for) are present, and the full flow is not observable."
+      },
+      {
+       "text": "run_write_wave additionally asks Phase 1 to persist those bytes in the checkout-external Daedalus artifact archive. That is load-bearing for a held candidate: its attempt branch is reaped before this function returns, so an in-memory-only patch could not honestly be described as waiting for review.",
+       "where": "module docstring, PHASE 1",
+       "verdict": "uncheckable",
+       "why": "run_write_wave is not in this chunk; _artifact_root_for shows the intended archive location but the persistence call is elsewhere."
+      },
+      {
+       "text": "Phase 2 -- PROMOTION (promote_candidates; opt-in, a separate call, NOT wired into KairosScheduler.dispatch()'s default path -- see daedalus/kairos/scheduler.py).",
+       "where": "module docstring, PHASE 2",
+       "verdict": "uncheckable",
+       "why": "promote_candidates and scheduler.py are not in this chunk; the claim about wiring cannot be checked."
+      },
+      {
+       "text": "promotion is: guarded by ONE cross-process lock (_PromotionLock, the same msvcrt/fcntl pattern as daedalus.budget._BudgetLock and runs/council/room.py's _RoomLock, independently written here because both of those are private to modules this file does not own), applied into ONE dedicated \"integration\" worktree, one candidate at a time, NEVER into the primary checkout, cumulatively RE-GATED after every apply (the project's configured test command, re-run against the integration state via daedalus.spine.attempt.command_gate -- not just a syntactic git apply --check), and for any candidate whose artifact was captured against a base the integration branch has since moved past -- true for EVERY candidate after the first, whenever 2+ writes were gated concurrently against the same starting commit, which is the normal case this module exists for -- RE-ATTEMPTED (a fresh TaskAttempt, same objective, base_revision = the current integration HEAD) rather than force-applied stale.",
+       "where": "module docstring, PHASE 2",
+       "verdict": "uncheckable",
+       "why": "Promotion machinery (_PromotionLock, integration worktree, re-gating, re-attempt) is not in this chunk; only the module docstring describes it."
+      },
+      {
+       "text": "This is a deliberate correction (cross-vendor review, Codex, 2026-07-29) to an earlier draft that proposed git apply --check as the sole conflict detector: a check that passes only proves the bytes still match: it does not prove the SEMANTIC content is still correct once an earlier candidate has landed ahead of it.",
+       "where": "module docstring, PHASE 2",
+       "verdict": "uncheckable",
+       "why": "The earlier draft is not present; the correction is historical and cannot be verified from this chunk."
+      },
+      {
+       "text": "Phase 3 -- SEALED HANDOFF (run_write_wave). Earlier revisions allowed a per-repo setting to call promote_candidates automatically after gating. That still crossed the candidate -> integration boundary without an owner, even though primary merge remained manual. The adopted Iron Plan closes that path: a write wave may gate and persist candidates, but it always returns them held. promote_candidates remains a separate explicit owner operation.",
+       "where": "module docstring, PHASE 3",
+       "verdict": "uncheckable",
+       "why": "run_write_wave and promote_candidates are not in this chunk; the behavior described cannot be observed here."
+      },
+      {
+       "text": "Fallback timeout for a curated command gate that names none. Mirrors daedalus.spine.attempt.DEFAULT_GATE_TIMEOUT_S without importing it at module scope -- this module imports spine.attempt lazily inside functions (see _spec_for/_attempt_assignment) and adding a top-level import would change that deliberate import order.",
+       "where": "_DEFAULT_GATE_TIMEOUT_S comment",
+       "verdict": "uncheckable",
+       "why": "The value 900.0 is present, but the claim about mirroring spine.attempt.DEFAULT_GATE_TIMEOUT_S and the import order cannot be verified without that module."
+      },
+      {
+       "text": "Assignment.paths are collected from whatever the caller supplied to KairosScheduler -- kairos/decompose.py's own system prompt asks the local model for \"repo-relative path\", but other callers (the web API, an editor extension) hand through whatever the client sent, which can be an ABSOLUTE path into the PRIMARY checkout.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about callers and decompose.py is outside this chunk."
+      },
+      {
+       "text": "That matters here because TaskSpec.target_paths is compared, verbatim, against PatchArtifact.changed_paths -- which are always repo-relative POSIX strings from git diff --name-only inside the WORKTREE (see daedalus.spine.attempt.TaskAttempt._capture_patch/the \"escaped target_paths\" check in _run_with_ledger). An absolute path never equals a relative one, so an un-rebased absolute path would make every correctly-scoped write look like it \"escaped\" its declared scope and get refused as GATES_FAILED -- a silent, wrong task failure, not a silent bypass, but still unacceptable for a P0 concurrency fix.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "uncheckable",
+       "why": "The comparison behavior and spine.attempt internals are not in this chunk; only the rebase function itself is present."
+      },
+      {
+       "text": "An absolute path that resolves under primary_root is rebased to its repo-relative form.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "kept",
+       "why": "Lines 126-133: if p.is_absolute(), resolves and relative_to primary_root.resolve(); on success returns rel.as_posix()."
+      },
+      {
+       "text": "An absolute path that resolves OUTSIDE primary_root is returned unchanged -- out of scope for rebasing, and left for downstream guards (offload's own path confinement) to refuse exactly as they do today.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "kept",
+       "why": "Lines 129-132: except ValueError returns raw unchanged."
+      },
+      {
+       "text": "spec is retained (not just result) because AttemptResult does not carry the originating TaskSpec -- and Phase 2's staleness retry needs to re-attempt the SAME instruction/target_paths against a NEW base_revision, which requires the original spec, not just its result.",
+       "where": "GatedCandidate docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about AttemptResult not carrying a spec and Phase 2's needs is outside this chunk; the dataclass does retain spec as shown."
+      },
+      {
+       "text": "A held candidate cannot live only in AttemptResult.artifact: run_write_wave returns plain dictionaries and TaskAttempt reaps its candidate branch, so those bytes otherwise disappear as soon as the call returns. Keep the archive beside the worktree/control state, namespaced by checkout identity, and let TaskAttempt._persist apply its primary-tree fence before it creates or writes anything.",
+       "where": "_artifact_root_for docstring",
+       "verdict": "uncheckable",
+       "why": "run_write_wave, TaskAttempt._persist, and the archive location relative to worktree/control state are not in this chunk; the function does compute a namespaced path under LOCALAPPDATA or tempdir."
+      },
+      {
+       "text": "A gate callable only ever receives a RunnerContext (worktree/branch/base/task/is_cancelled) -- never the runner's return value -- so there is no direct way to ask \"did offload() call this clean\".",
+       "where": "_relay_gate docstring",
+       "verdict": "uncheckable",
+       "why": "The RunnerContext interface is not in this chunk; the gate closure does receive ctx and ignores it, reading from box instead."
+      },
+      {
+       "text": "box is a mutable cell the paired runner (_recording_runner) writes its result into before returning; this closure reads it back.",
+       "where": "_relay_gate docstring",
+       "verdict": "kept",
+       "why": "Lines 211-213: _recording_runner sets box['result'] after base_runner returns; _relay_gate's _gate reads box.get('result') on line 190."
+      },
+      {
+       "text": "Why not TaskAttempt's own default (pytest_gate(task.gate_paths), a bare python -m pytest)? It assumes pytest, which is not every project's test runner -- offload()'s own verify() already runs the PROJECT'S configured test_command, whatever that is. Running it again here would be a SECOND, independent verify of the same change, which is the \"raw provider call\" the standing orders say must not happen: offload's verify+rollback cascade is meant to stay the one authority for per-task correctness.",
+       "where": "_relay_gate docstring",
+       "verdict": "uncheckable",
+       "why": "The claims about TaskAttempt's default gate, offload's verify, and standing orders are outside this chunk."
+      },
+      {
+       "text": "This still catches a real failure mode a bare \"is the diff non-empty\" check would miss: offload can finish with action == \"escalated_after_verify_fail\" while wrote is NON-EMPTY, because a write it could not fully roll back is reported in dirty_unreverted and kept in wrote so it stays visible. That leaves a non-empty artifact for a run offload itself considers FAILED, and only checking action == \"offloaded\" (not \"artifact exists\") refuses it.",
+       "where": "_relay_gate docstring",
+       "verdict": "kept",
+       "why": "Lines 190-192: the gate sets ok = res.get('action') == 'offloaded' and bool(res.get('wrote')); an action of 'escalated_after_verify_fail' would fail the action check even if wrote is non-empty."
+      },
+      {
+       "text": "offload_runner(**offload_kwargs), wrapped to remember its own result. Returns (runner, box). box[\"result\"] is set the instant the runner returns, which is always BEFORE TaskAttempt calls the gate (see daedalus.spine.attempt.TaskAttempt._run_with_ledger: runner, then artifact capture, then gate) -- so _relay_gate reading box always sees this attempt's own result, never a stale or missing one.",
+       "where": "_recording_runner docstring",
+       "verdict": "uncheckable",
+       "why": "The ordering guarantee depends on TaskAttempt._run_with_ledger, which is not in this chunk; the wrapper does set box['result'] immediately after base_runner returns."
+      },
+      {
+       "text": "The full provider result lives on AttemptResult.runner_detail. The write-wave projection used to drop it, collapsing every provider refusal into \"the runner produced no change to gate\". Keep only routing/action facts, measured writes, and rewrite activation/skip provenance -- never prompts, repository content, or arbitrary model prose.",
+       "where": "_provider_receipt docstring",
+       "verdict": "uncheckable",
+       "why": "AttemptResult.runner_detail is not in this chunk; the function does read detail.get('report') and detail keys, but the historical claim about the projection is unverifiable."
+      },
+      {
+       "text": "The TaskSpec for one assignment.",
+       "where": "_spec_for docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk; the returned TaskSpec cannot be inspected."
+      }
+     ],
+     "observations": [
+      {
+       "what": "rebase_declared_path uses resolve() which follows symlinks; a symlink inside primary_root pointing outside will be treated as outside and returned unchanged, potentially bypassing scope enforcement.",
+       "where": "rebase_declared_path lines 126-133",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_artifact_root_for uses LOCALAPPDATA on Windows and tempdir elsewhere; the path is not verified to be on a durable filesystem.",
+       "where": "_artifact_root_for lines 157-166",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_relay_gate's ok condition requires action == 'offloaded' and bool(wrote). If offload's contract includes other successful actions or wrote can be empty for a valid write, the gate would reject.",
+       "where": "_relay_gate lines 190-192",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_provider_receipt drops the top-level 'status' key from detail and only keeps 'report_status' from report; if callers expect 'status', it is missing.",
+       "where": "_provider_receipt lines 231-249",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The chunk ends mid-function in _spec_for; the full behavior is incomplete.",
+       "where": "_spec_for line 254",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "060f36f45ba428843ff6ddec60ee76cefc0753ee1620e864cc26eedae46b8672",
+    "objective_chars": 17474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [1/5]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

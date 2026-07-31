@@ -1,0 +1,239 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c2of4__3088037",
+ "key": "scan__daedalus_eval_harness.py__c2of4__3088037-1b81d5c91a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/eval/harness.py: eval_task_tier1 tail, _whole_repo_text, _target_query, _repo_chunks, _bm25_tokenize, _bm25_scores, _bm25_context, eval_task_arms. Claims mostly kept, one uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "eval_task_arms | high | Focus-withheld handling is inconsistent: the function checks _is_focus_withheld(res) and returns _focus_withheld_row, but the surrounding eval_task_tier1 loop also checks t.get(\"focus_withheld\") after eval_task_tier1; if eval_task_tier1 returns a focus_withheld row, it will be excluded from healthy, but eval_task_arms' own row may not be present in per_task unless the caller (eval_task_tier1) also handles it. This chunk does not show eval_task_tier1's handling, so the interaction is uncheckable. | Inspect eval_task_tier1 to see whether it calls eval_task_arms and how it handles _focus_withheld_row.",
+     "eval_task_arms | medium | The docstring promises that recall_C >= recall_A is reported as c_beats_a, but the code chunk cuts off before the return statement that would include that field. The field is not present in the visible code, so the claim is uncheckable from this chunk. | Read the rest of eval_task_arms to verify c_beats_a is computed and returned.",
+     "_bm25_context | medium | The docstring says the single best-ranked chunk is always included even if it alone exceeds budget, but the code's loop condition is `if picked and total + t > budget_tokens`. For the first chunk (picked is empty), it always adds it regardless of size. This matches the claim, but the `truncated` flag semantics: if the first chunk exceeds budget and there are more chunks, the loop breaks on the second chunk and sets truncated=True, which is correct. However, if the first chunk itself is over budget and there are no more chunks, truncated stays False. The docstring says truncated is True iff a lower-ranked chunk existed that did not fit the remaining budget; that is satisfied. No issue found. | No action needed.",
+     "_whole_repo_text | low | The docstring says `cap_chars=None` walks the ENTIRE repo untruncated, and the code does that. But the function's `truncated` return is always False when uncapped, which matches. No issue.",
+     "_bm25_scores | low | The docstring says ties are broken by the caller using chunk label, but `_bm25_scores` itself returns scores without tie-breaking. The caller `_bm25_context` sorts by `(-scores[i], chunks[i][0])`, which does break ties by label. This is consistent. No issue."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "2 of 4",
+     "purpose": "Implement Tier 1 aggregation with quarantine/focus-withheld/error handling, whole-repo text, BM25 retrieval, and A/B/C arms evaluation.",
+     "symbols": [
+      {
+       "name": "_whole_repo_text",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Walks repo directory, reads files, concatenates with headers. Optional character cap. Returns (text, truncated)."
+      },
+      {
+       "name": "_target_query",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds BM25 query from target: symbol after '::' or file stem."
+      },
+      {
+       "name": "_repo_chunks",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Walks repo, extracts units via extract_units, falls back to whole file. Returns list of (label, text)."
+      },
+      {
+       "name": "_BM25_TOKEN_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for BM25 tokenization: [A-Za-z_][A-Za-z0-9_]*"
+      },
+      {
+       "name": "_bm25_tokenize",
+       "kind": "function",
+       "effects": [],
+       "note": "Lowercases all regex matches."
+      },
+      {
+       "name": "_bm25_scores",
+       "kind": "function",
+       "effects": [],
+       "note": "Okapi BM25 scoring with k1=1.2, b=0.75. Returns list of floats."
+      },
+      {
+       "name": "_bm25_context",
+       "kind": "function",
+       "effects": [],
+       "note": "Top-k BM25 retrieval up to token budget. Returns dict with text, counts, truncated, tokens."
+      },
+      {
+       "name": "_DEFAULT_MODEL_CAP_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default model cap for Tier 2 B arm, set to 120,000."
+      },
+      {
+       "name": "eval_task_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Evaluates A/B/C arms for a single task. Returns dict with recall and token metrics. Never raises on resolution errors."
+      }
+     ],
+     "claims": [
+      {
+       "text": "No top-level blended recall/compression: see by_provenance for the honest, per-provenance-tier numbers. tier == \"quarantine\" tasks are counted in n_quarantine_tasks and reported inside by_provenance, but never inside a go/no-go figure.",
+       "where": "docstring lines preceding eval_task_tier1 return",
+       "verdict": "KEPT",
+       "why": "The return dict has n_quarantine_tasks, by_provenance is computed from healthy rows only, and no blended aggregate is present in this chunk."
+      },
+      {
+       "text": "A single unresolvable task (bad repo label, or a target no longer in the index -- the quarantined-mint-task crash this guards against) is caught here too, not just inside eval_task_tier1: this loop resolves the repo/builds the index ITSELF (for the cross-task index cache) before calling eval_task_tier1, so that resolution step needs its own guard.",
+       "where": "docstring lines preceding eval_task_tier1 return",
+       "verdict": "KEPT",
+       "why": "The loop calls resolve_task_repo and cached_index inside a try/except (ValueError, OSError) and appends _task_error_row on failure."
+      },
+      {
+       "text": "ERRORED rows land in both per_task (never silently dropped -- \"a degraded measurement is reported, never silent\") and the dedicated errored list, and are excluded from by_provenance (every mean/recall/compression aggregate) -- see _by_provenance's docstring.",
+       "where": "docstring lines preceding eval_task_tier1 return",
+       "verdict": "KEPT",
+       "why": "errored = [t for t in per_task if \"error\" in t] and healthy excludes those rows; by_provenance is called with healthy only. per_task includes all rows."
+      },
+      {
+       "text": "n_tasks/n_primary_tasks/n_quarantine_tasks remain simple total-attempted counts over label alone (unaffected by error status, and therefore byte-identical to before this existed for any store with zero errored tasks); n_errored_tasks is new and additive.",
+       "where": "docstring lines preceding eval_task_tier1 return",
+       "verdict": "KEPT",
+       "why": "n = len(per_task) includes all rows regardless of error; n_primary uses _is_primary_tier on label_tier; n_quarantine = n - n_primary; n_errored_tasks = len(errored) is separate."
+      },
+      {
+       "text": "FOCUS-WITHHELD (lane A1): the fence fail-closed on the task's own focus file -- not a resolution error (excluded above), not a recall outcome either. Excluded from `healthy` (therefore from every mean/miss count in by_provenance) same as errored rows, and separately counted/named so it is reported, never silently folded into either a pass or a miss.",
+       "where": "comment in eval_task_tier1 loop",
+       "verdict": "KEPT",
+       "why": "focus_withheld = [t for t in per_task if t.get(\"focus_withheld\")]; healthy excludes them; n_focus_withheld and focus_withheld_ids are reported."
+      },
+      {
+       "text": "Naive whole-repo concatenation (Repomix/Gitingest style): every source file under root glued together with a header. cap_chars=None (the new default) walks the ENTIRE repo untruncated -- the TRUE size of the baseline. Pass an int to cap it (what Tier 2 actually hands a model). Returns (text, truncated); truncated is always False when uncapped.",
+       "where": "_whole_repo_text docstring",
+       "verdict": "KEPT",
+       "why": "The function walks all files, concatenates with headers, and returns (\"\".join(parts), truncated) where truncated is only set True when cap_chars is not None and the cap is hit. When cap_chars is None, truncated remains False."
+      },
+      {
+       "text": "BM25 query fallback when a task has no question: the target symbol name, or the file's stem for a file-level target.",
+       "where": "_target_query docstring",
+       "verdict": "KEPT",
+       "why": "If '::' in target, returns the part after '::' (symbol name). Otherwise returns the file stem (last path component, stripping extension if present)."
+      },
+      {
+       "text": "Retrieval units for arm C: one chunk per extractable unit (function or class), else the whole file when nothing is extractable -- \"the repo's files/units\" the BM25 baseline retrieves over. Same source-file universe as _whole_repo_text. Unlike _whole_repo_text, dirnames ARE sorted here: this is new code with no prior byte-order contract to preserve, and BM25 tie-breaking needs a deterministic candidate order (see _bm25_context).",
+       "where": "_repo_chunks docstring",
+       "verdict": "KEPT",
+       "why": "Uses extract_units and falls back to whole file if no units. os.walk with sorted dirnames. Same filtering (_IGNORE_DIRS, dot dirs, spec_for) as _whole_repo_text."
+      },
+      {
+       "text": "Okapi BM25 over pre-tokenized docs -- no new dependency, no network. Standard k1=1.2 / b=0.75. Ties are broken by the CALLER (chunk label, not insertion order) so retrieval order stays deterministic regardless of dict/set iteration order (PYTHONHASHSEED).",
+       "where": "_bm25_scores docstring",
+       "verdict": "KEPT",
+       "why": "Implements standard BM25 formula with k1=1.2, b=0.75. No external calls. Ties are not broken here; the caller _bm25_context sorts by (-scores[i], chunks[i][0]) which uses label."
+      },
+      {
+       "text": "Top-k BM25 retrieval up to budget_tokens -- arm C. Chunks are taken whole, never split mid-chunk; the single best-ranked chunk is always included even if it alone exceeds budget (an empty context is a strictly worse baseline than a slightly-over one). truncated is True iff a lower-ranked chunk existed that did not fit the remaining budget.",
+       "where": "_bm25_context docstring",
+       "verdict": "KEPT",
+       "why": "The loop adds the first chunk unconditionally (picked is empty), never splits blocks, and sets truncated=True only when a subsequent chunk does not fit. If no lower-ranked chunk exists, truncated remains False. The condition `if picked and total + t > budget_tokens` ensures the first chunk is always added."
+      },
+      {
+       "text": "Deterministic A/B/C comparison for one task: recall (model-free, via _recall) AND true token cost, side by side, for every arm. No LLM.",
+       "where": "eval_task_arms docstring",
+       "verdict": "KEPT",
+       "why": "It computes recall and token counts for all three arms without any LLM calls in this chunk."
+      },
+      {
+       "text": "A = the distilled semantic slice (today's product). B = naive whole-repo concat. Recall is measured against the TRUE, FULL, UNTRUNCATED text (tokens_B) -- beating a baseline you truncated is not a win. tokens_B_capped_at_default/b_truncated_at_cap additionally report what Tier 2 would actually hand a model (capped at _DEFAULT_MODEL_CAP_TOKENS), so that weakening is visible, not hidden inside a smaller B that looks stronger than it is.",
+       "where": "eval_task_arms docstring",
+       "verdict": "KEPT",
+       "why": "text_b_full uses cap_chars=None, tokens_b = count_tokens(text_b_full). text_b_capped uses cap_chars=_DEFAULT_MODEL_CAP_TOKENS * 4, tokens_b_capped = count_tokens(text_b_capped). b_truncated_at_cap is returned from _whole_repo_text. The docstring mentions tokens_B_capped_at_default and b_truncated_at_cap; the code computes tokens_b_capped and b_truncated_at_cap, but the field name tokens_B_capped_at_default is not visible in this chunk (the return statement is cut off). However, the computation is present."
+      },
+      {
+       "text": "C = BM25 top-k retrieval, budgeted to the SAME token count as A (token_budget_C == tokens_A) -- the \"dumb retrieval\" baseline that matters commercially. c_beats_a is TIE-INCLUSIVE (recall_C >= recall_A, matching the report's \"C>=A\" column and this module's own docstring promise that a tie is \"reported loudly, not smoothed over\") and reported plainly either way; nothing here is tuned to make A win.",
+       "where": "eval_task_arms docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "budget_c = max(tokens_a, 1) is set, and recall_c is computed. However, the c_beats_a field is not present in the visible code (the return statement is cut off). The tie-inclusive comparison cannot be verified from this chunk."
+      },
+      {
+       "text": "NEVER RAISES: same per-task resolution guard as eval_task_tier1 -- a ValueError/OSError resolving the repo or slicing the target returns an ERRORED row (_task_error_row) instead of propagating. A CORRECTNESS task is likewise refused (_correctness_task_row) rather than scored: all three arms here go through _recall, so a task with no must_include would read as a perfect 1.0 in every arm at once.",
+       "where": "eval_task_arms docstring",
+       "verdict": "KEPT",
+       "why": "The function catches (ValueError, OSError) around resolve_task_repo, cached_index, _repo_chunks, and semantic_slice, and returns _task_error_row. It also checks is_correctness_task first and returns _correctness_task_row. However, the catch does not cover KeyError from task[\"repo\"] or task[\"target\"], but the docstring specifically mentions ValueError/OSError, so that is kept."
+      },
+      {
+       "text": "Refused BEFORE the repo is resolved, not only inside eval_task_tier1: this loop does its own resolution for the index cache, and a correctness task is not required to carry anything this harness can resolve. The refusal must not depend on the task being sliceable.",
+       "where": "comment in eval_task_tier1 loop",
+       "verdict": "KEPT",
+       "why": "The loop checks is_correctness_task(task) before resolve_task_repo and appends _correctness_task_row without resolving the repo."
+      },
+      {
+       "text": "Focus-withheld is excluded from healthy (therefore from every mean/miss count in by_provenance) same as errored rows, and separately counted/named so it is reported, never silently folded into either a pass or a miss.",
+       "where": "comment in eval_task_tier1 loop",
+       "verdict": "KEPT",
+       "why": "focus_withheld list is built, healthy excludes them, and n_focus_withheld/focus_withheld_ids are returned."
+      }
+     ],
+     "observations": [
+      {
+       "what": "eval_task_arms computes tokens_b_capped but the docstring mentions tokens_B_capped_at_default; the return statement is cut off, so the field name cannot be verified.",
+       "where": "eval_task_arms, around line 420 (before return)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The c_beats_a field promised in the docstring is not visible in this chunk; the return statement is truncated.",
+       "where": "eval_task_arms, end of chunk",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_bm25_context's truncated flag is only set when a lower-ranked chunk does not fit, which matches the docstring. However, if the first chunk alone exceeds budget and there are no other chunks, truncated remains False, which is consistent with the docstring (no lower-ranked chunk existed).",
+       "where": "_bm25_context, loop",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The eval_task_tier1 loop catches only ValueError/OSError around resolve_task_repo and cached_index, but eval_task_arms also calls _repo_chunks and semantic_slice which could raise other exceptions; however, the docstring only promises ValueError/OSError guarding.",
+       "where": "eval_task_arms try/except",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "be494605d3585e805f1cd75b84af783716200ef6bcf2c49fef479c8af972df81",
+    "objective_chars": 16972,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [2/4]",
+  "rev": "3088037",
+  "module": "daedalus/eval/harness.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 281
+ }
+}

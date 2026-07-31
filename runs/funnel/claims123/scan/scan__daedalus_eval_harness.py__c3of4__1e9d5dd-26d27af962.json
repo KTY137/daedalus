@@ -1,0 +1,294 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c3of4__1e9d5dd",
+ "key": "scan__daedalus_eval_harness.py__c3of4__1e9d5dd-26d27af962",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of daedalus/eval/harness.py: arms aggregate, run_arms, tier2, provider detection, baseline load/snapshot/write. Claims mostly kept; two uncheckable due to out-of-chunk references.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "run_arms | medium | _correctness_task_row may not include 'focus_withheld' or 'error' keys, but code filters on them; if absent, tasks are treated as healthy. | Verify _correctness_task_row output includes those keys.",
+     "run_tier2 | medium | _whole_repo_text called twice per repo (capped and uncapped); if it is not idempotent or expensive, double work; also tokens_B_true may be inconsistent if repo changes between calls. | Inspect _whole_repo_text implementation.",
+     "run_tier2 | low | _ask catches all exceptions and returns empty string; empty answer may be scored as success if answer_contains is empty. | Check task answer_contains invariants.",
+     "snapshot_baseline | medium | Snapshot contains label_provenance and tier fields but run_gate may expect different keys; schema version is 1 but no validation. | Check run_gate's expected schema.",
+     "write_baseline | low | The docstring claims deterministic formatting (sorted keys) but the chunk does not show the write call; json.dump may not sort by default. | Inspect the write call after line 561.",
+     "detect_provider | low | Probe uses urllib.request.urlopen without explicit timeout for DNS resolution; may hang beyond 2s. | Test with unreachable host.",
+     "detect_provider | low | If OLLAMA_MODEL is set but not in models, silently falls back to first model, possibly surprising. | Check callers' expectations."
+    ],
+    "todos": [
+     "Verify _correctness_task_row includes 'focus_withheld' and 'error' keys.",
+     "Inspect _whole_repo_text for idempotency and performance.",
+     "Confirm write_baseline uses sorted keys (json.dump sort_keys=True).",
+     "Check run_gate's expected baseline schema and snapshot fields."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "3 of 4",
+     "purpose": "Arms aggregation, Tier 2 LLM comparison, provider detection, baseline load/snapshot/write.",
+     "symbols": [
+      {
+       "name": "_arms_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregates per-task arm rows into summary counts and means."
+      },
+      {
+       "name": "run_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs A/B/C comparison over tasks, using cached index and chunks; handles correctness tasks and errors."
+      },
+      {
+       "name": "_score",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if all expected substrings appear case-insensitively; returns success bool and fraction."
+      },
+      {
+       "name": "detect_provider",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Probes local Ollama /api/tags with 2s timeout; returns provider descriptor or None."
+      },
+      {
+       "name": "_ask",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Sends single LLM chat completion via OpenAI-compatible endpoint; never raises, returns empty string on failure."
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Opt-in Tier 2 comparison of distilled slice vs whole-repo concat; skips if no provider; tracks truncated B and true token counts."
+      },
+      {
+       "name": "DEFAULT_BASELINE_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to baseline.json next to this file."
+      },
+      {
+       "name": "load_baseline",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads baseline.json or returns empty baseline if missing."
+      },
+      {
+       "name": "snapshot_baseline",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds baseline structure from run_tier1 results, excluding errored and focus-withheld tasks; does not write disk."
+      },
+      {
+       "name": "write_baseline",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes baseline to disk using snapshot_baseline; explicit-only per docstring; returns path."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Model-free (recall via _recall), offline, no LLM -- safe to run alongside Tier 1.",
+       "where": "run_arms docstring",
+       "verdict": "KEPT",
+       "why": "run_arms calls _recall (via eval_task_arms) and does not invoke _ask or any LLM; it only uses cached_index and _repo_chunks."
+      },
+      {
+       "text": "See eval_task_arms for what each arm measures and by_provenance for the (never-blended) per-provenance-tier breakdown.",
+       "where": "run_arms docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "eval_task_arms and by_provenance are defined elsewhere; this chunk cannot verify their contents."
+      },
+      {
+       "text": "if C ties or beats A ... that is reported loudly, not smoothed over",
+       "where": "comment near c_beats_a",
+       "verdict": "KEPT",
+       "why": "c_beats_a uses >=, so ties are counted as beats; comment explicitly explains the tie-inclusive choice."
+      },
+      {
+       "text": "Tie-inclusive on purpose: a strict '>' here silently counted a BM25 tie as an A win, contradicting the 'C>=A' column header (report.py) and this function's own docstring",
+       "where": "comment near c_beats_a",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim refers to report.py's column header and the function's docstring, neither of which is present in this chunk."
+      },
+      {
+       "text": "recall_A==1.0 on every current hand_reachable task makes a strict C win impossible, so with '>' the tie case -- dumb retrieval matching the product at equal cost, the commercially damning one -- was the ONLY case that could ever fire and it was being absorbed into 'no'.",
+       "where": "comment near c_beats_a",
+       "verdict": "UNCHECKABLE",
+       "why": "This claim depends on actual task data (recall_A values) and the definition of hand_reachable; not verifiable from this chunk alone."
+      },
+      {
+       "text": "Success = every expected substring appears (case-insensitive). Also return the fraction present for a softer signal.",
+       "where": "_score docstring",
+       "verdict": "KEPT",
+       "why": "The code lowercases answer and each substring, checks presence, returns (present == len, present/len)."
+      },
+      {
+       "text": "Only a local Ollama HTTP endpoint is probed (free, no key, no egress). The probe is a 2s GET to /api/tags -- it does nothing unless Tier 2 is requested.",
+       "where": "detect_provider docstring",
+       "verdict": "KEPT",
+       "why": "The function only probes when called (run_tier2 calls it); it uses urlopen with timeout=2 to host + '/api/tags'; no other network calls."
+      },
+      {
+       "text": "Single text-only turn against the provider. Never raises to the caller.",
+       "where": "_ask docstring",
+       "verdict": "KEPT",
+       "why": "The entire body is wrapped in try/except Exception, returning '' on any failure; it sends one chat_completion call."
+      },
+      {
+       "text": "Opt-in Tier 2. Compares distilled-slice (A) vs whole-repo-concat (B) task success + tokens. Cleanly skipped (never crashes) when no provider is up.",
+       "where": "run_tier2 docstring",
+       "verdict": "KEPT",
+       "why": "If detect_provider returns None, returns a skipped dict immediately; otherwise proceeds with semantic_slice and whole text; errors are caught per task."
+      },
+      {
+       "text": "B's tokens were ALREADY measured with the real tokenizer before this change (count_tokens is exact whenever tiktoken is installed) -- that part was honest.",
+       "where": "run_tier2 docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about 'before this change' and tiktoken exactness cannot be verified from this chunk; count_tokens is imported but its implementation is elsewhere."
+      },
+      {
+       "text": "What was NOT honest: B is capped at cap_tokens * 4 chars before being measured, so tokens_B silently reflected a TRUNCATED text, not the real whole-repo size.",
+       "where": "run_tier2 docstring",
+       "verdict": "KEPT",
+       "why": "The code sets cap_chars = cap_tokens * 4 and calls _whole_repo_text(repo, cap_chars) to get ctx_b; tokens_B is count_tokens(ctx_b) on the truncated text."
+      },
+      {
+       "text": "tokens_B_true (added here) is the untruncated whole-repo token count, so a truncated B can never be mistaken for the real baseline.",
+       "where": "run_tier2 docstring",
+       "verdict": "KEPT",
+       "why": "The code calls _whole_repo_text(repo, cap_chars=None) to get full_text and counts tokens with count_tokens(full_text), storing in tokens_B_true."
+      },
+      {
+       "text": "Read baseline.json, or an empty baseline if it does not exist yet (a fresh repo checkout before the first --update-baseline run).",
+       "where": "load_baseline docstring",
+       "verdict": "KEPT",
+       "why": "If os.path.exists(p) is False, returns {'schema': 1, 'tasks': {}}; otherwise reads and json.loads."
+      },
+      {
+       "text": "Pure: build the baseline structure for the CURRENT recall of tasks (default TASKS). Does not touch disk -- see write_baseline.",
+       "where": "snapshot_baseline docstring",
+       "verdict": "KEPT",
+       "why": "The function only calls run_tier1 and builds a dict; no file I/O in this function."
+      },
+      {
+       "text": "Every task is snapshotted (including quarantine ones) so quarantine promotion is still comparable later; only PRIMARY tasks are ever gated (see run_gate).",
+       "where": "snapshot_baseline docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not show quarantine handling nor run_gate; cannot verify that all tasks are snapshotted or that gating is primary-only."
+      },
+      {
+       "text": "ERRORED tasks (run_tier1) have no recall to snapshot and are skipped here -- they simply get no baseline entry, which makes them a 'new task' (not silently a pass) the next time run_gate sees them resolve successfully.",
+       "where": "snapshot_baseline docstring",
+       "verdict": "KEPT",
+       "why": "The dict comprehension filters out tasks where 'error' in t, so errored tasks get no entry."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file) are skipped for the same reason: there is no recall key to snapshot, and re-baselining a fence-refused task would silently launder 'never measured' into 'passing'.",
+       "where": "snapshot_baseline docstring",
+       "verdict": "KEPT",
+       "why": "The comprehension filters out t.get('focus_withheld'), so such tasks are excluded."
+      },
+      {
+       "text": "EXPLICIT-ONLY baseline write. Never call this from an automatic code path -- a baseline that updates itself is not a ratchet, it is a no-op. Only the '--update-baseline' CLI flag (a human decision) should reach this.",
+       "where": "write_baseline docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show the CLI flag or any callers; cannot verify that only the flag reaches this function."
+      },
+      {
+       "text": "Returns the path written. Deterministic formatting (sorted keys) so the diff is meaningful in review.",
+       "where": "write_baseline docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The function body is truncated at the open() call; the return and json.dump call are not visible, so deterministic formatting cannot be confirmed."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_arms_aggregate uses _mean on lists that could be empty if n=0; _mean may divide by zero.",
+       "where": "_arms_aggregate line ~561",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "c_beats_a uses >=, which is intentional per comment; but the comment is long and may be mistaken for a defect by future readers.",
+       "where": "c_beats_a",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_tier2 calls _whole_repo_text twice per repo (capped and uncapped); if _whole_repo_text is expensive or not idempotent, this doubles work and may produce inconsistent results.",
+       "where": "run_tier2",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "detect_provider uses urllib.request.urlopen without a socket-level timeout; DNS resolution could hang beyond the 2s timeout.",
+       "where": "detect_provider",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "snapshot_baseline stores 'label_provenance' and 'tier' but run_gate may expect different field names; schema version 1 is not validated.",
+       "where": "snapshot_baseline",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "write_baseline's docstring claims deterministic formatting but the actual write call is not shown; json.dump may not sort keys unless sort_keys=True.",
+       "where": "write_baseline",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run_arms filters on 'focus_withheld' and 'error' keys; if _correctness_task_row does not include those keys, correctness tasks may be misclassified as healthy.",
+       "where": "run_arms",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ed22da0d2f9661e20b0b0775edd83a2ca90bd9872f4b2331ed36c7395c7ef374",
+    "objective_chars": 16965,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [3/4]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/harness.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

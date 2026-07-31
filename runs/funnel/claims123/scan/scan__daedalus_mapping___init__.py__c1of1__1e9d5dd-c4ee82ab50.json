@@ -1,0 +1,129 @@
+{
+ "task_id": "scan__daedalus_mapping___init__.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_mapping___init__.py__c1of1__1e9d5dd-c4ee82ab50",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Mapping package init: re-exports reach symbols; docstring claims about two halves and reach.analyse are uncheckable here.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 9 | medium | Docstring claims reach.analyse answers structural reachability but the function body is in another module; uncheckable in this chunk. | Read daedalus/mapping/reach.py to verify."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package initializer that re-exports public symbols from the reach submodule.",
+     "symbols": [
+      {
+       "name": "CLASSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; value not defined in this chunk."
+      },
+      {
+       "name": "ENTRY_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; value not defined in this chunk."
+      },
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; value not defined in this chunk."
+      },
+      {
+       "name": "EntryPoint",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; definition not in this chunk."
+      },
+      {
+       "name": "ModuleFacts",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; definition not in this chunk."
+      },
+      {
+       "name": "ReachReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; definition not in this chunk."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from daedalus.mapping.reach; implementation not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "mapping \u2014 the GENERATED half of the architecture artifact.",
+       "where": "line 1 (module docstring)",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk only contains this package __init__; it does not contain the generation machinery that would make the 'GENERATED' claim checkable."
+      },
+      {
+       "text": "Two halves, deliberately separated: MECHANICAL (here): what exists, what reaches it, what is dark, what is an island, and the counts. Derived on every run from the tree itself, so it cannot go stale between the moment it is written and the moment it is read.",
+       "where": "lines 3-7 (module docstring)",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk contains no derivation logic; it only re-exports from .reach. The 'derived on every run' claim refers to code outside this file."
+      },
+      {
+       "text": "NARRATIVE (docs/adrs/*.md, the invariants): WHY a thing is the way it is. No scanner derives that, and pretending otherwise is how hand-maintained inventories rot.",
+       "where": "lines 8-10 (module docstring)",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not include docs/adrs/*.md or any scanner; the claim is about files and behaviour outside this chunk."
+      },
+      {
+       "text": "``reach.analyse`` answers the question the structural index cannot: not \"X imports Y\" but \"can a human or a tool get here at all\".",
+       "where": "lines 12-14 (module docstring)",
+       "verdict": "UNCHECKABLE",
+       "why": "The function is imported from .reach but its implementation is not in this chunk; the behavioural claim cannot be verified here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Docstring claims about derivation, staleness, and reach.analyse's behaviour all refer to code outside this chunk; they are uncheckable here.",
+       "where": "lines 1-14",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "deb3fbc8d0afdda0a56bade051ae13936b594884b499154da3261d75afc0e891",
+    "objective_chars": 3966,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/__init__.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,224 @@
+{
+ "task_id": "research__b015__3088037",
+ "key": "research__b015__3088037-5841d50189",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified 10 cross-file hypotheses spanning duplicated guards, inconsistent unavailable/failure semantics, broken never-raises promises, nonce reuse risks, baseline update conflicts, duplicated junk filtering, error row format assumptions, council dedupe policy, secret floor path handling, and selection resolution timing.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Duplicate per-module guards may drift, leading to security or correctness inconsistencies.",
+     "Inconsistent classification of 'unavailable' could cause non-fatal conditions to fail the gate.",
+     "The 'never raises' promise in promote_candidates may be violated by uncaught exceptions.",
+     "Nonce reuse across probes/lanes could weaken anchoring protections.",
+     "Automatic mint promotion might bypass the explicit baseline update flow.",
+     "Duplicated junk filtering logic could diverge, affecting label handling.",
+     "Renderer assumes an error row format that may not be stable.",
+     "Council transcript dedupe policy may be violated by append logic.",
+     "Secret floor per-path scanning might be implemented over assembled prompts.",
+     "Selection may not actually contain the resolved base SHA, affecting result reproducibility."
+    ],
+    "todos": [
+     "Audit all per-module guard implementations to ensure they use shared helpers.",
+     "Define a single classification for 'unavailable' across canary, graph_brief, and gate.",
+     "Review promote_candidates exception handling to catch all lock-related exceptions.",
+     "Verify nonce call sites to ensure fresh nonce per probe per lane.",
+     "Check whether mint promotion updates the baseline and align with explicit update command.",
+     "Consolidate junk label filtering into a single implementation.",
+     "Add tests for error row format stability.",
+     "Inspect council transcript append logic for accidental deduplication.",
+     "Ensure secret floor scanning is strictly per-path.",
+     "Confirm Selection constructor resolves base SHA before freezing."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-guard-copy-drift",
+       "claim": "The same security guarantee (e.g., secret floor, path containment, no-dedupe) is declared as a per-module invariant in multiple files, but only one module actually enforces it, so the others silently fall behind if the enforcing module changes.",
+       "spans": [
+        "daedalus/lanes/floor.py",
+        "daedalus/lanes/providers/deepseek.py",
+        "daedalus/council.py",
+        "daedalus/worktree.py"
+       ],
+       "mechanism": "The claim rows show several modules each assert a policy in their docstrings: the secret floor is 'in EVERY lane, no bypass' (deepseek.py), the council transcript must never dedupe identical bodies (council.py), and the worktree removal walk stops partway on purpose (worktree.py). Each of these is stated as a local invariant, but the enforcement code is not visible in the chunks. If each module implements its own copy of the guard (as the repository has previously measured for per-provider guards), then a change to one copy (e.g., adding a bypass, or fixing a race) will not propagate to the others, causing the guarantees to diverge.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the enforcement for all these invariants lives in a single shared helper (e.g., a common secret_floor_rule function, a shared transcript append function, a common worktree walker) that all modules call, then there is no per-module copy to drift.",
+       "evidence": [
+        "daedalus/lanes/providers/deepseek.py:docstring 'calls secret_floor_rule per path independently of classify_data'",
+        "daedalus/council.py:docstring 'there is NO dedupe'",
+        "daedalus/worktree.py:docstring 'the walk stopped partway, on purpose'"
+       ]
+      },
+      {
+       "id": "unavailable-vs-failure-misclassification",
+       "claim": "Multiple modules classify an 'unavailable' condition (e.g., bench asleep, CLI not installed, missing index) as either a non-failure (canary) or a silent default (graph_brief), but a third module (the gate) treats the same condition as a failure, causing an inconsistent verdict across the pipeline.",
+       "spans": [
+        "daedalus/canary.py",
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/eval/gate.py"
+       ],
+       "mechanism": "The canary module states 'unavailable is NOT a failure and never trips the exit code' and that CANARY_STATUSES is closed. The graph_brief module says 'Never raises for a missing or unreadable index: a lane that cannot get a brief must still be able to run with none.' However, the gate module (in render_gate) classifies a 'focus-withheld' condition as 'secret floor fail-closed' and reports it as a gate failure. If the gate consumes the output of canary or graph_brief and treats 'unavailable' as a failure, then the same underlying condition (e.g., a missing index or an asleep bench) will be non-fatal in one module but fatal in another, producing inconsistent verdicts.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the gate explicitly checks the canary status group and excludes 'unavailable' from failure (i.e., the gate's failure logic mirrors the canary's closed set), or if graph_brief's missing index is never propagated to the gate as a failure.",
+       "evidence": [
+        "daedalus/canary.py:docstring 'unavailable ... is NOT a failure and never trips the exit code'",
+        "daedalus/lanes/graph_brief.py:docstring 'Never raises for a missing or unreadable index'",
+        "daedalus/eval/gate.py:render_gate 'FOCUS-WITHHELD -- secret floor fail-closed on the focus file; NOT a recall regression, reported only'"
+       ]
+      },
+      {
+       "id": "retry-never-raises-promise-broken",
+       "claim": "The promote_candidates function claims 'Never raises', but its implementation only catches PromotionUnavailable, so any other exception from the lock acquisition (e.g., TimeoutExpired) will propagate, violating the documented contract.",
+       "spans": [
+        "daedalus/promote.py"
+       ],
+       "mechanism": "The claim row for promote_candidates says 'Never raises: every failure mode ... is a refusal in the returned report, not an exception.' The code catches PromotionUnavailable and returns a report, but it does not catch other exceptions from _PromotionLock, such as TimeoutExpired if it is not a subclass of PromotionUnavailable. Therefore, any unexpected exception from the lock will escape, breaking the 'never raises' promise.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If _PromotionLock is designed to only ever raise PromotionUnavailable (e.g., all its failure modes are wrapped in that exception), then the catch-all is sufficient.",
+       "evidence": [
+        "daedalus/promote.py:promote_candidates docstring 'Never raises: every failure mode ... is a refusal'",
+        "daedalus/promote.py:promote_candidates implementation 'catches PromotionUnavailable'"
+       ]
+      },
+      {
+       "id": "per-probe-nonce-vs-caller-pattern",
+       "claim": "The nonce generation function is documented as requiring a fresh nonce per probe per lane, but the actual call sites may reuse a nonce across lanes or probes, undermining the anchoring protection.",
+       "spans": [
+        "daedalus/lanes/nonce.py",
+        "daedalus/lanes/probe.py"
+       ],
+       "mechanism": "The docstring of new_nonce says 'Fresh PER PROBE PER LANE, not per run: a reused nonce cannot distinguish a lane that answered from a lane that echoed somebody else's answer.' The function itself just generates a random nonce each call, but the claim is about how it is called. If the caller (e.g., in probe.py) generates a nonce once per run and passes it to multiple probes or lanes, the protection is lost. Since the calling pattern is not visible in the chunks, we cannot confirm it is correct, and the docstring warns exactly about this risk.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the call sites in probe.py call new_nonce for each probe and each lane, or if the nonce is derived from a per-probe/per-lane seed.",
+       "evidence": [
+        "daedalus/lanes/nonce.py:docstring 'Fresh PER PROBE PER LANE, not per run'"
+       ]
+      },
+      {
+       "id": "baseline-update-explicit-vs-automatic",
+       "claim": "The eval gate claims that baseline updates are only explicit (--update-baseline), but another module (mint) may automatically promote a candidate to primary at a threshold, effectively updating the baseline without explicit user action.",
+       "spans": [
+        "daedalus/eval/gate.py",
+        "daedalus/eval/mint.py"
+       ],
+       "mechanism": "The gate's run_gate docstring says 'update the baseline EXPLICITLY (never automatically): python -m daedalus.eval --update-baseline'. However, the mint module's --confirm-mint help says 'promoting it to primary at daedalus.eval.mint.MINT_CONFIRM_THRESHOLD.' If 'promoting to primary' changes what the baseline is (e.g., the primary checkout becomes the new reference), then the mint operation effectively updates the baseline without going through the explicit --update-baseline command, contradicting the gate's promise.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If 'promoting to primary' does not change the baseline used by the gate (i.e., the baseline is stored separately and only --update-baseline writes it), or if the mint promotion requires a separate explicit confirmation that is equivalent to --update-baseline.",
+       "evidence": [
+        "daedalus/eval/gate.py:run_gate docstring 'update the baseline EXPLICITLY (never automatically)'",
+        "daedalus/eval/mint.py:argument help 'promoting it to primary at daedalus.eval.mint.MINT_CONFIRM_THRESHOLD'"
+       ]
+      },
+      {
+       "id": "junk-label-filtering-duplicated",
+       "claim": "The junk label filtering logic (dropping names that fail _is_junk_label) is described in two separate docstrings, suggesting it may be implemented in two places, risking divergence.",
+       "spans": [
+        "daedalus/eval/labels.py",
+        "daedalus/eval/mint.py"
+       ],
+       "mechanism": "Two claim rows mention the same behavior: 'JUNK: a diffed name that fails _is_junk_label never becomes a must_include entry -- dropped names land in labels_filtered_junk (sorted).' One is in a module docstring (lines 42-47) and another in a docstring at line ~55. If these two docstrings belong to different modules (labels.py and mint.py), then the filtering logic might be implemented in both places, each with its own copy of _is_junk_label. If one is updated and the other is not, the behavior diverges, affecting which names are filtered.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If both docstrings refer to the same module (e.g., both are in labels.py), or if the filtering logic lives in a single shared function that both modules call.",
+       "evidence": [
+        "daedalus/eval/labels.py:docstring lines 42-47 'JUNK: a diffed name that fails _is_junk_label ...'",
+        "daedalus/eval/mint.py:docstring line ~55 'JUNK: a diffed name that fails _is_junk_label ...'"
+       ]
+      },
+      {
+       "id": "error-row-format-assumed-but-not-defined",
+       "claim": "The render_tier1 comment assumes a specific error row format from harness._task_error_row, but the harness module may produce a different format, leading to rendering errors or silent misreporting.",
+       "spans": [
+        "daedalus/eval/render.py",
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "In render_tier1, a comment says 'Errored rows carry no recall/compression/slice_tokens/... at all (see harness._task_error_row) -- they get their own ERRORED section below, not a row in this recall/compression table.' This assumes that harness._task_error_row returns a row with no such fields. If the harness changes to include some of those fields (e.g., for debugging), the renderer might still try to access them, causing a KeyError or displaying incorrect values. Since harness is not in this chunk, the assumption is unverified.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If harness._task_error_row is explicitly documented and stable, or if the renderer checks for the presence of fields before accessing them.",
+       "evidence": [
+        "daedalus/eval/render.py:render_tier1 comment 'Errored rows carry no recall/compression/slice_tokens/... at all (see harness._task_error_row)'"
+       ]
+      },
+      {
+       "id": "council-dedupe-policy-vs-transcript-append",
+       "claim": "The council transcript explicitly prohibits deduplication, but the underlying append logic (in later chunks) might inadvertently deduplicate identical bodies, violating the stated policy.",
+       "spans": [
+        "daedalus/council.py"
+       ],
+       "mechanism": "The council module docstring states 'there is NO dedupe. A council transcript is a log of EVENTS: two participants may legitimately emit byte-identical bodies, and deduping the second away would erase a voice from the record.' However, the actual append logic is in later chunks and not visible. If the append logic uses a set or checks for existing bodies, it would deduplicate, contradicting the documented guarantee. This is a cross-file concern because the policy is declared in the docstring but the enforcement is in another part of the module.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the append logic is shown to always append, even when a byte-identical body already exists (e.g., it uses a list and never checks for duplicates).",
+       "evidence": [
+        "daedalus/council.py:docstring 'there is NO dedupe'"
+       ]
+      },
+      {
+       "id": "secret-floor-path-vs-assembled-prompt",
+       "claim": "The secret floor is documented as per-path, never over the assembled prompt, but the floor_check implementation might scan the assembled prompt, either missing added .env files or falsely flagging content.",
+       "spans": [
+        "daedalus/lanes/floor.py"
+       ],
+       "mechanism": "A claim row says 'PRE-FLIGHT SECRET FLOOR. Per path, per file, never over the assembled prompt: the path tier is the only thing that catches a patch which ADDS .env, and a concatenated scan kills it.' The code calls floor_check with evidence paths and files, but the implementation of floor_check is not visible. If floor_check actually scans the assembled prompt (e.g., by joining all file contents), it would miss the .env addition because the filename is only in the diff text. This is a cross-file concern because the docstring promises per-path scanning, but the implementation could deviate.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If floor_check is implemented to iterate over the provided paths and files individually, never concatenating them into a single string for scanning.",
+       "evidence": [
+        "daedalus/lanes/floor.py:docstring 'Per path, per file, never over the assembled prompt'"
+       ]
+      },
+      {
+       "id": "selection-frozen-vs-late-resolution",
+       "claim": "The Selection class claims to include the RESOLVED base sha (not the ref that was typed), but the resolution might happen after the selection is frozen, meaning the selection actually contains the unresolved ref.",
+       "spans": [
+        "daedalus/eval/selection.py"
+       ],
+       "mechanism": "The Selection docstring says 'Everything a result depends on is in here: both node id lists, the RESOLVED base sha (not the ref that was typed), ...' This implies that when a Selection is constructed, the base_revision field is the resolved SHA. However, the construction logic is not in this chunk. If the Selection is created with the typed ref and the resolution happens later (e.g., during evaluation), then the Selection does not contain the resolved SHA, violating the documented contract and potentially causing the result to depend on a ref that may have moved.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the Selection constructor always resolves the base ref to a SHA before storing it (e.g., by calling a git rev-parse), or if the resolution is guaranteed to be stable.",
+       "evidence": [
+        "daedalus/eval/selection.py:Selection docstring 'the RESOLVED base sha (not the ref that was typed)'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9f900242eb1663f8e08d620c59d6200efff3cd5b680bc2a26c6e9f191ca602b3",
+    "objective_chars": 26202,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 15 (63 inputs)",
+  "rev": "3088037",
+  "bucket": 15,
+  "inputs": 63
+ }
+}

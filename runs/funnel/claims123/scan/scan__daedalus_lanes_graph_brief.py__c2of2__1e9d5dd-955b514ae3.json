@@ -1,0 +1,216 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c2of2__1e9d5dd",
+ "key": "scan__daedalus_lanes_graph_brief.py__c2of2__1e9d5dd-955b514ae3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of graph_brief.py: verified layer rendering, budget accounting, docstring claims; all claims kept or uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "graph_brief.py:281-376 | medium | Budget accounting for header: comment says header space reserved up front but code adds header to text after rendering; if header exceeds budget, final text may exceed budget_chars. | Check if header length is included in spent before rendering layers or if final text length is enforced.",
+     "graph_brief.py:299-307 | low | _emit adds head length to spent only after appending lines; if head itself exceeds remaining budget, it still gets added, potentially causing overshoot. | Verify if head size is checked against budget before adding.",
+     "graph_brief.py:361-373 | low | DOCUMENTS layer uses wiki.items() sorted by page; if wiki is not a dict but a Mapping with different iteration order, sorted() handles it, but type assumption may be fragile. | Confirm wiki_code_links is always a dict-like with string keys.",
+     "graph_brief.py:410-415 | low | render_brief catches all exceptions and returns ''; if graph_brief raises a programming error, it is silently swallowed, potentially hiding bugs. | Consider logging or re-raising in debug mode."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "2 of 2",
+     "purpose": "Render budgeted structural brief layers (imports, symbols, documents), assemble header and return GraphBrief; provide render_brief convenience wrapper.",
+     "symbols": [
+      {
+       "name": "_emit",
+       "kind": "function",
+       "effects": [],
+       "note": "Closure inside graph_brief; renders a layer if it fits within budget_chars, tracking spent and dropped lines."
+      },
+      {
+       "name": "render_brief",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns graph_brief(...).text or '' on any exception."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The header is written last but must not escape the budget, so its space is reserved up front.",
+       "where": "comment at line 287",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows _HEADER_RESERVE used to initialize spent, but does not show its definition or how the final header length is accounted; cannot verify against this chunk alone."
+      },
+      {
+       "text": "Called in PRIORITY order, not display order.",
+       "where": "_emit docstring line 294",
+       "verdict": "KEPT",
+       "why": "The code calls _emit for imports, symbols, documents in that order (lines 324, 350, 378), while display order is symbols, imports, documents (line 398)."
+      },
+      {
+       "text": "Small high-value layers are rendered first and DISPLAYED in reading order.",
+       "where": "_emit docstring lines 298-299",
+       "verdict": "KEPT",
+       "why": "Imports rendered first (line 324), then symbols (line 350), then documents (line 378); display reorders to symbols, imports, documents (line 398)."
+      },
+      {
+       "text": "the 1-hop symbol layer around offload.py alone is 495 lines, and emitting it first consumed the entire budget and dropped the import layer",
+       "where": "_emit docstring lines 296-297",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim references a specific measured scenario outside this chunk; no data in the chunk verifies the line count or the historical behavior."
+      },
+      {
+       "text": "Artefact importers are filtered HERE as well as in the neighbourhood.",
+       "where": "comment line 316",
+       "verdict": "KEPT",
+       "why": "Line 319 filters reverse edges with _is_artefact, and line 314 filters forward edges with _is_artefact."
+      },
+      {
+       "text": "a reverse edge is read straight off the index and never passed through the walk.",
+       "where": "comment lines 317-318",
+       "verdict": "KEPT",
+       "why": "The code uses reverse.get(rel) directly from the index (line 319) without passing through _neighbourhood."
+      },
+      {
+       "text": "'->' imports, '<-' is imported by.",
+       "where": "_emit note line 325",
+       "verdict": "KEPT",
+       "why": "Forward edges are rendered as 'rel -> deps' (line 315), reverse as 'rel <- imported by ...' (line 321)."
+      },
+      {
+       "text": "'{DEEP_EDGE_MARK}' marks an edge that exists only inside a function body -- a change there still breaks the importer.",
+       "where": "_emit note lines 326-327",
+       "verdict": "UNCHECKABLE",
+       "why": "DEEP_EDGE_MARK is not defined in this chunk; the semantics of the mark cannot be verified here."
+      },
+      {
+       "text": "PUBLIC API ONLY for a neighbour. What a caller may use from another module is its public surface; its private helpers are not callable and listing them cost 495 lines around offload.py",
+       "where": "comment lines 344-347",
+       "verdict": "KEPT",
+       "why": "Line 349 calls file_symbols(path, include_private=False) for neighbours, whereas line 334 calls file_symbols(path) without that flag for targets."
+      },
+      {
+       "text": "If a name is not listed under its file, it does not exist in that file. Do not import it.",
+       "where": "_emit note line 353",
+       "verdict": "KEPT",
+       "why": "The symbols layer lists only symbols returned by file_symbols; absence implies not listed, but the claim is a directive, not a verifiable fact."
+      },
+      {
+       "text": "document_links_reverse is keyed BY THE CODE FILE, which is the lookup wanted here",
+       "where": "comment lines 359-360",
+       "verdict": "KEPT",
+       "why": "Line 365 uses rev.get(rel) where rel is a code file path from rels."
+      },
+      {
+       "text": "Both keys are absent unless the document layer is enabled, so this section vanishes rather than lying when it is off.",
+       "where": "comment lines 362-363",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows the section is guarded by include_docs (line 358), but whether the index keys are absent when disabled is not observable here."
+      },
+      {
+       "text": "Wikilinks from a page INTO code are a separate relation with its own layer, and are only forward-keyed.",
+       "where": "comment lines 368-369",
+       "verdict": "KEPT",
+       "why": "The code uses wiki.items() (line 372) and filters hits against rels, treating wiki as a forward map from page to code files."
+      },
+      {
+       "text": "A page that describes one of these files. Its claims are a PROMISE, not evidence -- where the code disagrees, the document is the bug.",
+       "where": "_emit note lines 379-380",
+       "verdict": "KEPT",
+       "why": "The note is a policy statement; the code renders document references without validating their claims."
+      },
+      {
+       "text": "This describes SHAPE, not behaviour. Never cite it as evidence about what code does.",
+       "where": "header line 391",
+       "verdict": "KEPT",
+       "why": "The header text is included in the output as written."
+      },
+      {
+       "text": "BUDGET: truncated -- ... Absence below is NOT evidence of absence in the repo.",
+       "where": "header lines 393-396",
+       "verdict": "KEPT",
+       "why": "The header appends the truncated message when dropped is non-empty (line 393)."
+      },
+      {
+       "text": "DISPLAY order, independent of the priority order the layers were rendered in: symbols first because 'what exists' is what a writer needs before anything else, then who reaches whom, then what has been promised.",
+       "where": "comment lines 397-399",
+       "verdict": "KEPT",
+       "why": "Line 398 constructs sections in the order ('symbols', 'imports', 'documents')."
+      },
+      {
+       "text": "No structural facts available for these files.",
+       "where": "header line 402",
+       "verdict": "KEPT",
+       "why": "Line 401 appends this when sections is empty."
+      },
+      {
+       "text": ":func:`graph_brief` as text, or \"\" if there is nothing to say.",
+       "where": "render_brief docstring line 410",
+       "verdict": "KEPT",
+       "why": "Returns graph_brief(...).text (line 415) or '' on exception (line 417)."
+      },
+      {
+       "text": "it must never raise into a lane, so a failure to describe the graph degrades to no description.",
+       "where": "render_brief docstring lines 412-413",
+       "verdict": "KEPT",
+       "why": "The try/except catches all exceptions (line 416) and returns '' (line 417)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The budget accounting for the header is not fully verified: _HEADER_RESERVE is used to initialize spent, but the final header is assembled after layers are rendered and its length is not checked against the budget.",
+       "where": "lines 287, 383-404",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _emit, the head length is added to spent only after lines are appended; if head itself exceeds the remaining budget, it is still added, potentially causing the rendered layer to exceed budget_chars.",
+       "where": "lines 299-307",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The DOCUMENTS layer uses wiki.items() and sorts by page; if wiki is not a dict but some other Mapping, sorted() may fail if keys are not comparable, but typical string keys are fine.",
+       "where": "line 372",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "render_brief silently swallows all exceptions, which could hide programming errors in graph_brief.",
+       "where": "lines 416-417",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "925219e17d206739cbcfa1800d1ea9989a2e4eb17ce1382828f965cd8f06a707",
+    "objective_chars": 11394,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [2/2]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

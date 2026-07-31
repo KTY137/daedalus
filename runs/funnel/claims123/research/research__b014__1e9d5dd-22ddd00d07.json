@@ -1,0 +1,137 @@
+{
+ "task_id": "research__b014__1e9d5dd",
+ "key": "research__b014__1e9d5dd-22ddd00d07",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 104 claim rows: strongest pattern is a repeated 'never raises' contract that only one implementation honors; also found contract drift in 'free text', 'digest covers all', and 'no global state' claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Cross-file hypotheses rely on claim rows that were marked UNCHECKABLE; some evidence paths are approximate or inferred from docstrings.",
+     "Several hypotheses depend on external modules or historical context not present in the claim rows, reducing certainty.",
+     "The repository's documented pattern of per-provider guard copies may be present but not directly evidenced in the rows."
+    ],
+    "todos": [
+     "Verify the 'never raises' contracts in promote_candidates, eval_task_arms, and configure by inspecting the actual exception handling in the full modules.",
+     "Check whether a shared helper (e.g., lock acquisition wrapper) already catches all exceptions, which would refute the 'never raises' drift hypothesis.",
+     "Inspect the digest property implementation and its coverage to confirm whether the Selection digest truly covers all fields.",
+     "Look for module-level cancellation state in the full gate_candidates file to confirm the negative claim.",
+     "Search the codebase for other per-provider guard copies to see if the documented drift pattern is systemic."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "never-raises-contract-drift",
+       "claim": "Multiple modules declare a 'never raises' contract in their docstrings, but the implementations either lack the necessary exception handling or delegate to external functions that may raise, creating a systemic drift between documented guarantees and actual behavior.",
+       "spans": [
+        "promote_candidates",
+        "eval_task_arms",
+        "configure"
+       ],
+       "mechanism": "Each module's docstring promises that certain failure modes are returned as refusals or reports rather than exceptions. However, the implementations either do not catch all possible exceptions (e.g., _PromotionLock may raise TimeoutExpired not subclassing PromotionUnavailable; eval_task_arms does not catch KeyError from task['repo']; configure does not explicitly raise ValueError but delegates to registry functions that may) or rely on external code to enforce the contract. This creates a pattern where the contract is declared but not uniformly enforced.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a shared helper (e.g., a lock acquisition wrapper) already catches all exceptions on behalf of these modules, or if the external registry functions are guaranteed never to raise the relevant exceptions.",
+       "evidence": [
+        "promote_candidates docstring lines 1135-1140: 'Never raises: every failure mode is a refusal in the returned report'",
+        "eval_task_arms docstring lines 407-410: 'NEVER RAISES: ... returns an ERRORED row instead of propagating'",
+        "configure docstring lines 317-320: 'Returns a summary; raises ValueError on an invalid spec.'"
+       ]
+      },
+      {
+       "id": "free-text-contract-broken",
+       "claim": "The claim that 'a record's summary is the ONLY free text' is contradicted by the presence of a meta field that can hold arbitrary strings, indicating a contract about free-text containment that is not enforced across the data structure.",
+       "spans": [
+        "sample_inspirations",
+        "Attempt data class"
+       ],
+       "mechanism": "The module docstring for sample_inspirations states that the summary is the only free text on a record. However, the Attempt class (or its equivalent) includes a meta: dict[str, Any] field that is not constrained, allowing callers to inject arbitrary free text. This violates the documented invariant and could lead to downstream consumers assuming summary is the only free text when meta can carry additional free-form content.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the meta field is never populated with free text in practice, or if the claim refers only to the return type of sample_inspirations and not to the broader Attempt record.",
+       "evidence": [
+        "sample_inspirations docstring: 'a record's summary is the ONLY free text on it.'",
+        "Attempt has meta: dict[str, Any] (from BROKEN claim row)"
+       ]
+      },
+      {
+       "id": "digest-coverage-claim-overstated",
+       "claim": "The claim that 'digest covers all of it' for a Selection is not verifiable from the code and may be overstated, as the digest property is not defined in the visible chunk and the exact fields covered are unknown.",
+       "spans": [
+        "Selection class",
+        "correctness_gate"
+       ],
+       "mechanism": "The Selection docstring claims that changing any node id, base, overlay, or timeout changes the digest, enabling correctness_gate to refuse mismatches. However, the digest property is not implemented in the visible chunk, and whether it actually covers all listed fields is unverified. If the digest omits any of these fields, the gate would fail to detect certain changes, breaking the documented guarantee.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the digest property is implemented elsewhere and demonstrably includes all the listed fields (node ids, base, overlay, timeout).",
+       "evidence": [
+        "Selection class docstring: 'digest covers all of it. Change any node id, the base, the overlay or the timeout and the digest changes'",
+        "correctness_gate docstring: 'IT ALSO REFUSES A SELECTION THAT MOVED... recomputes this digest from the task as presented and refuses on any mismatch.'"
+       ]
+      },
+      {
+       "id": "no-global-state-negative-claim",
+       "claim": "The claim that gate_candidates does not reach for global cancellation state is a negative claim that cannot be verified from the visible chunk, and may be contradicted by other modules or a module-level state that exists elsewhere.",
+       "spans": [
+        "gate_candidates",
+        "loop driver"
+       ],
+       "mechanism": "The docstring for gate_candidates emphasizes that cancellation is request-scoped and that the module does not reach for global cancellation state on its own. However, this is a negative claim that requires inspecting the entire module and its dependencies. If any module-level cancellation state exists (e.g., a global variable or a singleton), the claim would be false. The visible chunk only shows cancel as a parameter, but the full file might contain a fallback or reference to a global state.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If a search of the full module reveals no reference to any module-level cancellation state or global variable.",
+       "evidence": [
+        "gate_candidates docstring lines 405-407: 'this module does not reach for global cancellation state on its own.'"
+       ]
+      },
+      {
+       "id": "per-provider-guard-drift",
+       "claim": "The repository may exhibit the documented pattern of per-provider guard copies where one provider's guard implementation improves while others lag, but this is not directly evidenced in the claim rows; only a hint of it exists in the evolve runner's historical context.",
+       "spans": [
+        "evolve runner",
+        "vendor adapters"
+       ],
+       "mechanism": "The module docstring for the evolve runner mentions a historical incident where the runner called bare pytest and graded the host against itself, indicating a per-provider guard that was later fixed. This pattern of per-provider guards (e.g., in vendor adapters) may still exist, where each vendor has its own copy of a guard (e.g., --help contract, refusal handling) and improvements are not propagated consistently. The claim rows show multiple uncheckable claims about vendor-specific behavior (e.g., 'OpenAI, via codex exec --sandbox read-only'), suggesting that such guards are scattered.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If a shared base class or helper provides the guards uniformly across all vendors, with no per-vendor overrides that could drift.",
+       "evidence": [
+        "evolve runner docstring: 'the evolution runner called a bare pytest ... The loop graded the host against itself'",
+        "CodexAdapter docstring: 'OpenAI, via codex exec --sandbox read-only'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6b5b331c1182cb07fb4ace3a3b720cf9400604266b80dcb553c89cb499e90b40",
+    "objective_chars": 41225,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 14 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 14,
+  "inputs": 104
+ }
+}

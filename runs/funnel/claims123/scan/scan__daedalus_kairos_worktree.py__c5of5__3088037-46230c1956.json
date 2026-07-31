@@ -1,0 +1,219 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c5of5__3088037",
+ "key": "scan__daedalus_kairos_worktree.py__c5of5__3088037-46230c1956",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "5 of 5",
+     "purpose": "Reap branches with provenance checks; commit and status helpers for allocated worktrees.",
+     "symbols": [
+      {
+       "name": "reap_branches",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Deletes branches only when both in-process allocation and git reachability prove safety; reports per-allocation outcomes; raises RuntimeError on delete failures."
+      },
+      {
+       "name": "_forget_allocation",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Removes allocation from in-memory dict and on-disk record."
+      },
+      {
+       "name": "_report_unverifiable_records",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Lists on-disk allocation records not allocated in this process; never acts on them; omits all file fields."
+      },
+      {
+       "name": "_refs_containing",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns refs other than the excluded branch whose history contains a given sha; fails closed on git errors."
+      },
+      {
+       "name": "_delete_unused_branch",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Deletes a branch with -d first, then -D only if tip unchanged since proof."
+      },
+      {
+       "name": "commit_candidate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Stages and commits all changes in an allocated worktree; optional author."
+      },
+      {
+       "name": "has_changes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns whether an allocated worktree has changes via git status --porcelain."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Reaping is a separate act, run by whoever knows the attempt is fully resolved.",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "This method does not resolve intents; it only deletes branches after checking allocation and reachability, and the docstring explains the separation."
+      },
+      {
+       "text": "A branch is deleted only when BOTH hold: 1. THIS manager object allocated it, in THIS process (:attr:`_allocations`, written by :meth:`create_worktree`), its worktree has been through :meth:`cleanup_worktree`, and its tip is byte-identical to the sha this manager itself read from git at allocation time. Nothing on disk contributes to this.",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "The loop only considers allocations from self._allocations, requires allocation['worktree_removed'] (set by cleanup_worktree), and compares tip from git rev-parse to allocation['branch_tip_at_creation']."
+      },
+      {
+       "text": "2. Some OTHER ref still contains that tip, so deleting the branch orphans no commit. This is git's answer, not ours",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "holders = self._refs_containing(tip, excluding=branch) is consulted and must be non-empty before deletion."
+      },
+      {
+       "text": "a branch leaked by a CRASHED run is never reaped, because the process that could vouch for it is gone",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "Only allocations in self._allocations (in-memory) are considered; on-disk records without a matching in-memory allocation are reported as unverifiable and never acted on."
+      },
+      {
+       "text": "Records left on disk are reported as ``unverifiable`` and acted on by nobody.",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "_report_unverifiable_records() appends rows with action 'unverifiable' and does not delete or modify them."
+      },
+      {
+       "text": "Returns: One dict per allocation examined, with ``branch``, ``action`` (``deleted`` / ``retained`` / ``absent`` / ``pending`` / ``unverifiable``) and ``reason``.",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "Each report dict contains 'branch', 'action', 'reason' (and 'path'/'record' in some rows); actions include all listed values."
+      },
+      {
+       "text": "Raises: RuntimeError: If any branch that was cleared for deletion could not be deleted. Every allocation is still examined first; the failures are reported together rather than aborting on the first one.",
+       "where": "docstring in reap_branches",
+       "verdict": "KEPT",
+       "why": "Failures are collected in a list and raised after the loop; the loop continues past each failure."
+      },
+      {
+       "text": "Never acts on them. Reported rather than ignored so the leak is visible; reported WITHOUT any field parsed out of the file",
+       "where": "docstring in _report_unverifiable_records",
+       "verdict": "KEPT",
+       "why": "The method only returns rows with branch=None, path=None and does not parse file contents; it never modifies or deletes records."
+      },
+      {
+       "text": "Refs OTHER than ``refs/heads/<excluding>`` whose history holds ``sha``.",
+       "where": "docstring in _refs_containing",
+       "verdict": "KEPT",
+       "why": "The function filters out the excluded ref by casefolded comparison and returns all other refs from for-each-ref --contains."
+      },
+      {
+       "text": "A FAILED CALL IS NOT AN ANSWER. ... none of them may license a delete.",
+       "where": "docstring in _refs_containing",
+       "verdict": "KEPT",
+       "why": "except RuntimeError returns [] and the caller retains the branch when holders is empty."
+      },
+      {
+       "text": "Compared case-INSENSITIVELY although git refs are case-sensitive: the only effect of a spurious match is that a ref is dropped from the holder list, which retains the branch.",
+       "where": "docstring in _refs_containing",
+       "verdict": "KEPT",
+       "why": "The excluded ref is casefolded and compared casefolded; a spurious match removes a ref from holders, causing retention."
+      },
+      {
+       "text": "``-d`` is tried first so git's own merged-check applies. If git refuses anyway -- it compares against the current HEAD, which may have moved somewhere unrelated -- the sha proof (re-taken here, so the branch cannot have moved in between) is what authorises ``-D``. The force flag is never reached without that proof.",
+       "where": "docstring in _delete_unused_branch",
+       "verdict": "KEPT",
+       "why": "The method tries git branch -d first; on failure re-reads tip and compares to proven_tip before -D."
+      },
+      {
+       "text": "The path is proven to be an allocated worktree first: a swapped directory would otherwise turn ``git add -A`` + ``git commit`` into a commit of the developer's working tree.",
+       "where": "docstring in commit_candidate",
+       "verdict": "KEPT",
+       "why": "target = self._require_allocated_worktree(path) is called before any git commands."
+      },
+      {
+       "text": "Return whether the candidate worktree differs from its HEAD.",
+       "where": "docstring in has_changes",
+       "verdict": "KEPT",
+       "why": "Returns bool(self._run_git(\"status\", \"--porcelain\", cwd=target)); empty output means no changes, non-empty means changes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "reap_branches checks allocation['worktree_removed'] but does not verify that cleanup_worktree actually ran in this process; it relies on the in-memory flag set by cleanup_worktree, which is consistent with the trust model.",
+       "where": "reap_branches loop",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_refs_containing uses casefold on git refs; a branch named 'Feature' and 'feature' are distinct in git but treated as same here, potentially dropping a holder and retaining the branch -- aligned with fail-closed direction.",
+       "where": "_refs_containing",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "commit_candidate stages with 'add -A' which includes deletions and untracked files; if the worktree contains submodules or ignored files, behavior may differ, but no claim in the docstring pins that.",
+       "where": "commit_candidate",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "reap_branches | low | Relies on cleanup_worktree having set worktree_removed; if cleanup_worktree is bypassed, a worktree still in use could be reaped. | Check whether cleanup_worktree is always called before reap_branches in the intended flow."
+     ],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f8d02cfdbd029c276fe1ea913cb93359cb976162dffd9eee947479680fc54da7",
+    "objective_chars": 16384,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [5/5]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

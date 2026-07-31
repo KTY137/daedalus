@@ -1,0 +1,159 @@
+{
+ "task_id": "research__b007__1e9d5dd",
+ "key": "research__b007__1e9d5dd-3d0567f900",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file patterns: unverifiable claims are pervasive; strongest signal is duplicated protections and unenforced guarantees spanning modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Many claims are explicitly uncheckable from single chunks; cross-file inference is limited without full source.",
+     "Potential for over-interpretation of docstring claims as code behavior."
+    ],
+    "todos": [
+     "Verify each hypothesis against full source code.",
+     "Check whether the duplicated guard mechanisms have diverged in behavior.",
+     "Investigate the per-provider copies of security and validation logic."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicated-guards-diverge",
+       "pattern": "Multiple modules implement similar guards independently (e.g., path identity, reparse-point detection, before-state verification) \u2014 a known failure mode where per-provider copies silently diverge.",
+       "evidence": [
+        "daedalus/primary_tree.py:_refuse_primary_checkout docstring (claims twin fails open vs closed)",
+        "daedalus/primary_tree.py:_is_reparse_point docstring (Windows-specific reparse tag check)",
+        "daedalus/primary_tree.py:_path_identity docstring (NTFS record identity)",
+        "daedalus/primary_tree.py:_remove_tree_no_follow (depth-based verification)",
+        "daedalus/primary_tree.py:reap_branches docstring (only acts on in-memory allocations)",
+        "daedalus/primary_tree.py:__init__ comment (on-disk allocation is candidate-writable)",
+        "daedalus/primary_tree.py:_record_allocation comment (identity recorded at creation)",
+        "daedalus/primary_tree.py:removal section comment (every caller re-verifies chain)"
+       ],
+       "refuted_if": "All these guards are implemented in a single shared module and called by all paths, or the docstrings' historical divergence claims are not about current code."
+      },
+      {
+       "id": "before-state-receipt-trust",
+       "pattern": "The before-state is claimed to be measured fresh every time, never read from a stored receipt, but multiple modules reference receipts and the enforcement may be split across modules, creating a gap where a stale receipt could be used.",
+       "evidence": [
+        "daedalus/eval/change.py:evaluate_change docstring (claims before-state never read from receipt)",
+        "daedalus/eval/change.py:correctness_gate docstring (refuses unverified task, implies receipt usage)",
+        "daedalus/eval/change.py:_gate (beginning only, refusal logic not shown)",
+        "daedalus/eval/change.py:BeforeState docstring (semantics of fields)",
+        "daedalus/eval/change.py:judge_before_state (not defined in chunk)"
+       ],
+       "refuted_if": "The receipt is only used for the after-state or the fresh measurement is enforced in a single place that all paths use."
+      },
+      {
+       "id": "liveness-vs-quality-boundary",
+       "pattern": "The distinction between liveness (exit-code tripping) and quality (loud but non-fatal) is declared in module docstrings but the enforcement is spread across modules; a regression in one could silently change the other's behavior.",
+       "evidence": [
+        "daedalus/eval/change.py:module docstring (liveness vs quality separation)",
+        "daedalus/eval/change.py:new_nonce docstring (per-probe-per-lane freshness)",
+        "daedalus/eval/change.py:quality probes docstring (quality reported loudly, does not trip exit code)"
+       ],
+       "refuted_if": "The exit-code logic and quality reporting are implemented in the same module and cannot be bypassed by another module."
+      },
+      {
+       "id": "floor-refusal-integrity",
+       "pattern": "Claims about floor refusal (dropping content, refusing calls) are made in module docstrings, but the actual enforcement is in separate modules; a bypass could allow offending bytes to reach the file.",
+       "evidence": [
+        "daedalus/floor.py:module docstring (hit REFUSES, no redact-and-send)",
+        "daedalus/floor.py:_floor_refusal_turn docstring (receipt drops content, refs, evidence)",
+        "daedalus/floor.py:secret_floor_rule comment (regex behavior unobservable)"
+       ],
+       "refuted_if": "The floor logic is fully contained in this module and no other code path can write without going through it."
+      },
+      {
+       "id": "ollama-host-normalization",
+       "pattern": "Multiple modules claim OLLAMA_HOST is neither read nor written, but the actual routing may happen elsewhere; a normalization could retroactively falsify lane='trusted' justifications.",
+       "evidence": [
+        "daedalus/lanes/ollama.py:module docstring (OLLAMA_HOST never set, mutated, inherited)",
+        "daedalus/lanes/ollama.py:default_participants docstring (explicit host, not OLLAMA_HOST)",
+        "daedalus/lanes/ollama.py:DEFAULT_LOCAL_OLLAMA_HOST comment (avoids IPv6 miss, same as providers/ollama.py)"
+       ],
+       "refuted_if": "No other module reads OLLAMA_HOST for routing, or the explicit host is always used consistently."
+      },
+      {
+       "id": "identity-vs-path-semantics",
+       "pattern": "The concept of 'identity' vs 'path string' appears in multiple modules (turn IDs, file system identity, slice targets). Different modules may use different definitions, leading to inconsistencies (e.g., a deleted file selected as slice target).",
+       "evidence": [
+        "daedalus/primary_tree.py:_path_identity docstring (NTFS record identity)",
+        "daedalus/primary_tree.py:_record_allocation comment (identity recorded at creation)",
+        "daedalus/eval/mint.py:_mint_from_diffs docstring (target must still EXIST after edit)",
+        "daedalus/eval/mint.py:anchor_pool construction (falls back to per_file including deleted files)",
+        "daedalus/transcript.py:module docstring (turn id is entry_sha[:16], not body_sha[:16])"
+       ],
+       "refuted_if": "All modules use the same identity definition and the deleted-file fallback is never reachable in practice (e.g., existing is never empty)."
+      },
+      {
+       "id": "cross-language-family-consistency",
+       "pattern": "The language family grouping for cross-language filtering is defined in one module but applied in another; if the family definitions change or are inconsistently applied, the filter could misclassify.",
+       "evidence": [
+        "daedalus/eval/mint.py:module docstring (CROSS-LANGUAGE: family must match target)",
+        "daedalus/eval/mint.py:_language_family and _LANGUAGE_FAMILIES defined here",
+        "daedalus/eval/mint.py:labels_filtered_cross_language (populated in _mint_from_diffs, not in chunk)"
+       ],
+       "refuted_if": "The family definitions are only used in one place and the application is directly in the same module."
+      },
+      {
+       "id": "aggregation-path-uniqueness",
+       "pattern": "Claims that _by_provenance is the ONLY aggregation path and there is no blended mean, but this is stated in one module while the arms comparison may use a different path.",
+       "evidence": [
+        "daedalus/eval/aggregate.py:_by_provenance docstring (ONLY aggregation path, no blended mean)",
+        "daedalus/eval/aggregate.py:run_arms docstring (calls _by_provenance(healthy, _arms_aggregate))"
+       ],
+       "refuted_if": "All arms and tier1 paths call _by_provenance, or a top-level blended mean exists elsewhere."
+      },
+      {
+       "id": "checkable-field-consistency",
+       "pattern": "The Claim dataclass has a 'checkable' field, but the logic that sets it is in a truncated _parse_claims; if two modules interpret 'checkable' differently, the same claim could be treated as checkable in one and not in another.",
+       "evidence": [
+        "daedalus/eval/claims.py:Claim docstring (checkable true only when concrete deterministic check)",
+        "daedalus/eval/claims.py:_parse_claims (truncated, not visible)"
+       ],
+       "refuted_if": "The checkable field is only set in one place and read consistently across all consumers."
+      },
+      {
+       "id": "promotion-scope-boundary",
+       "pattern": "Claims about promotion (AUTO_PROMOTE_LEVELS only 'never', reported not dropped) are made in one module, but the actual promotion logic is in another; a bug could promote candidates that should not be promoted.",
+       "evidence": [
+        "daedalus/spine/promote.py:promote_candidates comment (candidates not in STATE_CLEAN have nothing to promote, but are reported)",
+        "daedalus/spine/promote.py:AUTO_PROMOTE_LEVELS comment (only production-capable value is 'never')"
+       ],
+       "refuted_if": "The promotion logic is fully contained in this module and the state machine is enforced elsewhere consistently."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c576911a63cfa97f3da620590bb0e6aacf03e399e1b99715a92d6d306c84a75c",
+    "objective_chars": 42840,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 7 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 7,
+  "inputs": 104
+ }
+}

@@ -1,0 +1,178 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c3of4__1e9d5dd",
+ "key": "scan__daedalus_mapping_inventory.py__c3of4__1e9d5dd-0121f80952",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "3 of 4",
+     "purpose": "finalize stale feature packaging, build the document, and provide serialization/load/refresh helpers",
+     "symbols": [
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [],
+       "note": "Derives the whole document; writes nothing. Accepts optional reports; calls analyse_once if not supplied. Builds entry points, env switches, module census, areas, stale features, counts, and digest."
+      },
+      {
+       "name": "inventory_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes the document dict to JSON with indent=2, ensure_ascii=False, and a trailing newline."
+      },
+      {
+       "name": "load",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads a JSON file; returns None if missing, a dict on success, or {'__error__': str} on OSError/ValueError."
+      },
+      {
+       "name": "write_inventory",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Serializes the doc, creates parent directories, writes the file with UTF-8 and newline='\\n', and returns the text."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Regenerates the inventory in place, carrying annotations forward; reads old doc before overwriting and harvests annotations from schema-1 files."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derive the whole document. Writes nothing.",
+       "where": "build docstring",
+       "verdict": "KEPT",
+       "why": "The build function only constructs and returns a dict; no filesystem writes occur in this chunk."
+      },
+      {
+       "text": "When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all.",
+       "where": "build docstring",
+       "verdict": "KEPT",
+       "why": "Line: reports or render_mod.analyse_once(root, index) is called when reports is falsy, matching the claim."
+      },
+      {
+       "text": "Calling reach.analyse(root) with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+       "where": "build docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim refers to historical behavior and other modules; this chunk only shows the current call to analyse_once with index."
+      },
+      {
+       "text": "The count that cannot be lowered by deleting a test.",
+       "where": "build comment near counts['unreached']",
+       "verdict": "KEPT",
+       "why": "The count is len(set(islands) | set(shims) | set(unknown)), a union that is not affected by deleting tests, as the comment explains."
+      },
+      {
+       "text": "The union is the number that cannot be improved by deleting a test, and the set diff against the previous run is the honest signal -- not the count.",
+       "where": "build comment near unreached key",
+       "verdict": "UNCHECKABLE",
+       "why": "The set diff against the previous run is not computed in this chunk; only the union is present."
+      },
+      {
+       "text": "Refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "refresh docstring",
+       "verdict": "KEPT",
+       "why": "The function reads the old document before overwriting and harvests annotations; it does not silently discard them."
+      },
+      {
+       "text": "The old document is read for its annotations BEFORE it is overwritten",
+       "where": "refresh docstring",
+       "verdict": "KEPT",
+       "why": "Line: old = load(target) or {} occurs before any write; the write is not shown in this chunk but the read is prior."
+      },
+      {
+       "text": "a first run over a schema-1 file harvests them out of the hand-written entries.",
+       "where": "refresh docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The harvest call is present but its implementation is in another module (harvest is imported from this file's earlier chunk or elsewhere)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "build returns a dict but its docstring says 'Derive the whole document' without mentioning the return type; the docstring is accurate about no writes.",
+       "where": "build function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load returns {'__error__': str} on OSError/ValueError but does not catch other exceptions like TypeError from malformed JSON; the error key is a string, not a nested error object.",
+       "where": "load function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "write_inventory uses Path.write_text with newline='\\n' and UTF-8, matching inventory_bytes' ensure_ascii=False; no atomic write or fsync is performed.",
+       "where": "write_inventory function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "refresh calls harvest(old, modules, env_names) but the result is not used in this chunk; the function continues after the shown code.",
+       "where": "refresh function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The doc's 'unreached' count is computed as len(set(islands) | set(shims) | set(unknown)) and also stored as a list; the count is duplicated in the 'counts' dict and the list is in the top-level doc.",
+       "where": "build function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "build | low | docstring says 'Writes nothing' but build could be extended later to write; current code confirms no write in this chunk. | Check if any write call exists later in the function or in called functions.",
+      "load | low | Only catches OSError and ValueError; a TypeError from non-string keys in JSON could propagate. | Test with a JSON object having non-string keys.",
+      "write_inventory | medium | No atomic write or fsync; a crash could leave a partial file. | Inspect if the caller expects atomicity or durability.",
+      "refresh | low | The result of harvest is unused in this chunk, but it may be used later; the function is incomplete in this window. | Read the rest of refresh to see how annotations/narrative/stats are used.",
+      "build | low | The 'unreached' count and list are both derived from the same set, but the count is in 'counts' and the list is at top level; no inconsistency observed. | Verify the digest includes both consistently."
+     ],
+     "todos": [],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c426d57491eaeb992c2e59fdfda699c56d6b2999819db763119983e209b91096",
+    "objective_chars": 15596,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [3/4]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

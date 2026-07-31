@@ -1,0 +1,148 @@
+{
+ "task_id": "research__b011__3088037",
+ "key": "research__b011__3088037-2727595c09",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of claim rows identifies recurring patterns: duplicated guarantees, inconsistent semantics, and unverifiable cross-module claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicated-promise-drift",
+       "claim": "Multiple modules independently declare the same guarantee (e.g., 'no redact-and-send', 'never writes', 'read-only'), but the actual enforcement is scattered and not shared, so a change in one module can silently violate the others' promises.",
+       "spans": [
+        "egress/floor",
+        "adapters/codex",
+        "write/phase1",
+        "council"
+       ],
+       "mechanism": "The codebase repeats safety invariants as docstrings in several modules (floor_check in egress, CodexAdapter read-only, write wave persistence, council memory exclusion). Each module implements its own guard or relies on external behavior not visible in the chunk. There is no shared enforcement layer; each module's promise is only as strong as its own code, and cross-module dependencies (e.g., runner not invoked, memory not fed from council) are not centrally verified.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence of a single shared enforcement module or integration test that verifies all these promises together; or explicit documentation that these are design intents not guarantees.",
+       "evidence": [
+        "egress/floor: module docstring claims per-file floor check and no redact-and-send",
+        "adapters/codex: CodexAdapter docstring claims always read-only",
+        "write/phase1: run_write_wave docstring claims persistence is load-bearing",
+        "council: line 27 claims council records never input to memory recall"
+       ]
+      },
+      {
+       "id": "same-word-different-meaning",
+       "claim": "The term 'never' is used in multiple modules to mean different levels of guarantee: sometimes it means 'by construction' (no code path exists), sometimes 'by promise' (docstring claim), and sometimes 'not in this chunk' (unverifiable). This ambiguity makes cross-module reasoning unsafe.",
+       "spans": [
+        "egress/floor",
+        "adapters/codex",
+        "council",
+        "write/phase1"
+       ],
+       "mechanism": "Docstrings across modules assert 'never' for behaviors. In some cases the implementation is absent from the chunk (e.g., floor_check logic not shown), in others it is present but not fully verified (e.g., CodexAdapter read-only depends on CLI args not shown). The same word is used for both structural and promissory guarantees, leading to false confidence when modules are composed.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "A consistent definition of 'never' in the codebase, or a single source of truth for invariants (e.g., a design doc or type system) that clarifies each usage.",
+       "evidence": [
+        "egress/floor: 'there is no redact-and-send' (promissory, implementation not shown)",
+        "adapters/codex: 'ALWAYS read-only' (depends on CLI args not shown)",
+        "council: 'NEVER AN INPUT' (no code showing memory recall inputs)",
+        "write/phase1: 'legitimately writes nothing' (design statement, not enforced)"
+       ]
+      },
+      {
+       "id": "unverifiable-cross-module-claims",
+       "claim": "Many claims in the codebase depend on behavior in other modules that are not visible in the scanned chunks, making them unverifiable from the code alone. This indicates a lack of local reasoning: the invariants are not enforced at the point of use, but rely on distant modules that could change independently.",
+       "spans": [
+        "spine/attempt",
+        "eval/harness",
+        "write/promote",
+        "worktree"
+       ],
+       "mechanism": "Docstrings reference functions and contracts in other modules (e.g., TaskAttempt gate precedence, harness._recall semantics, accept purity, GitWorktreeManager safety). These cross-module dependencies are not checked locally; a change in the referenced module could break the claim without any local test catching it. The claim rows show many 'uncheckable' verdicts precisely because the verification logic lives elsewhere.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If all such cross-module claims are covered by integration tests that run both modules together, or if the referenced modules are stable and never change.",
+       "evidence": [
+        "spine/attempt: gate precedence claim unverifiable from chunk",
+        "eval/harness: recall semantics claim unverifiable",
+        "write/promote: accept purity claim unverifiable",
+        "worktree: GitWorktreeManager safety claim unverifiable"
+       ]
+      },
+      {
+       "id": "docstring-contract-vs-implementation",
+       "claim": "Several docstrings claim guarantees that the implementation in the same chunk does not actually provide, indicating a pattern of documentation drift where promises are written but not enforced.",
+       "spans": [
+        "refusal receipt",
+        "evaluate_change",
+        "refs_by_function",
+        "write_snapshot",
+        "system message logging"
+       ],
+       "mechanism": "Specific examples: refusal receipt claims 'LABEL only' but includes meta and identity fields; evaluate_change claims 'never raises' but has unguarded dict access; refs_by_function claims qualification by line but uses only name; write_snapshot claims excluding every item with acceptance but fails to filter modules; system message logging claims 'kept whole' but stores hash and length. These are all within the same file, but the pattern is that docstrings are aspirational rather than descriptive, and the implementation is not updated to match.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If these docstrings are explicitly marked as design intent rather than current behavior, or if the implementations are actually correct (e.g., the claims are misinterpreted).",
+       "evidence": [
+        "refusal receipt: claim 'LABEL only' but includes meta fields",
+        "evaluate_change: claim 'never raises' but unguarded subscript",
+        "refs_by_function: claim 'qualify by line' but uses name only",
+        "write_snapshot: claim 'excluding every item' but misses modules",
+        "system message logging: claim 'kept whole' but stores hash only"
+       ]
+      },
+      {
+       "id": "duplicated-mechanism-with-variation",
+       "claim": "The same safety mechanism (e.g., path validation, secret checking, worktree deletion) is duplicated in multiple modules, and the copies have diverged, leading to inconsistent guarantees.",
+       "spans": [
+        "council_id validation",
+        "worktree removal",
+        "path safety",
+        "secret floor"
+       ],
+       "mechanism": "For example, council_id validation is permissive and claims filename-safety by validation, while worktree removal has a custom no-follow delete to avoid junction following. These are separate implementations of similar safety concerns. The duplication means that if one is improved, the others may not be, and the guarantees differ across modules.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all such mechanisms are centralized in a shared utility or that each is independently fully safe.",
+       "evidence": [
+        "council_id validation: permissive regex, no sanitization",
+        "worktree removal: custom _remove_tree_no_follow to avoid junction following",
+        "path safety: multiple checks for reparse points",
+        "secret floor: per-file checks, but implementation not shown"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f5ee6332415cb2ee589ced06397d7360733d9e49c2fcd9270873477d2772293d",
+    "objective_chars": 27572,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 11 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 11,
+  "inputs": 64
+ }
+}

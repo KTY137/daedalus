@@ -1,0 +1,208 @@
+{
+ "task_id": "research__b007__3088037",
+ "key": "research__b007__3088037-59045539c9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified cross-file patterns: unverifiable claims rely on absent modules, lifecycle events misrepresented, falsifiers unenforced, and duplicated private helpers with inconsistent enforcement.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Claims marked uncheckable may hide real broken contracts; without cross-module verification, silent regressions are possible.",
+     "Duplicated lock and helper implementations may drift, leading to inconsistent behavior across modules.",
+     "The system's reliance on unverifiable claims suggests incomplete test coverage for cross-module invariants."
+    ],
+    "todos": [
+     "Verify cross-module claims by inspecting the referenced modules.",
+     "Enforce falsifier conditions or remove unfalsifiable claims.",
+     "Refactor duplicated private helpers into shared utilities to prevent drift."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "lifecycle-misrepresentation",
+       "claim": "Lifecycle events are misrepresented as model messages due to fallback in _parse_typed_event.",
+       "spans": [
+        "_parse_typed_event",
+        "event system"
+       ],
+       "mechanism": "Unknown event types are returned as AgentMessage with role='system', contradicting the comment that they are not misrepresented.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a separate lifecycle event type is emitted elsewhere or the fallback is never reached for lifecycle events.",
+       "evidence": [
+        "_parse_typed_event:349"
+       ]
+      },
+      {
+       "id": "falsifier-unenforced",
+       "claim": "Falsifier conditions are declared but not enforced in code, allowing modules to persist despite failing their own criteria.",
+       "spans": [
+        "module docstrings",
+        "gate logic"
+       ],
+       "mechanism": "Falsifier statements appear as comments/docstrings without corresponding deletion or halt logic.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If deletion logic exists in another module that is triggered by the falsifier condition.",
+       "evidence": [
+        "lines 25-26",
+        "line 19"
+       ]
+      },
+      {
+       "id": "vendor-keys-duplication",
+       "claim": "VENDOR_KEYS is defined in multiple modules with potential drift, violating single-source-of-truth.",
+       "spans": [
+        "council.session",
+        "adapter module"
+       ],
+       "mechanism": "council.session defines VENDOR_KEYS; adapter module defines its own, with no cross-check.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If one module imports VENDOR_KEYS from the other, or a test ensures equality.",
+       "evidence": [
+        "council.session.VENDOR_KEYS",
+        "VENDOR_KEYS at line 141-142"
+       ]
+      },
+      {
+       "id": "read-only-adapter-claim",
+       "claim": "CodexAdapter is read-only with no sandbox mode, but constructor is inherited and may allow it.",
+       "spans": [
+        "CodexAdapter",
+        "_CliAdapter"
+       ],
+       "mechanism": "Docstring claims no constructor switch, but if _CliAdapter has a sandbox parameter, the claim is false.",
+       "severity": "low",
+       "confidence": "possible",
+       "refuted_by": "If _CliAdapter constructor does not accept a sandbox parameter or CodexAdapter overrides __init__ to disallow it.",
+       "evidence": [
+        "CodexAdapter docstring line ~745"
+       ]
+      },
+      {
+       "id": "lock-implementation-duplication",
+       "claim": "PromotionLock duplicates _BudgetLock and _RoomLock with independent implementation, risking drift.",
+       "spans": [
+        "_PromotionLock",
+        "_BudgetLock",
+        "_RoomLock"
+       ],
+       "mechanism": "Three separate lock implementations using same primitives but no shared code.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If they all delegate to a common shared lock class.",
+       "evidence": [
+        "_PromotionLock lines 424-426"
+       ]
+      },
+      {
+       "id": "worktree-containment-unverified",
+       "claim": "Worktree containment is claimed but not verifiable in this chunk; may be enforced inconsistently.",
+       "spans": [
+        "worktree module",
+        "containment checks"
+       ],
+       "mechanism": "Docstring promises strict containment, but implementation is not visible; other modules may bypass.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If containment logic is present in another chunk and all removal paths call it.",
+       "evidence": [
+        "WorktreeContainmentError docstring"
+       ]
+      },
+      {
+       "id": "snapshot-freshness-fail-closed",
+       "claim": "snapshot_freshness fails closed on missing schema, but not verified; other consumers may not fail closed.",
+       "spans": [
+        "snapshot_freshness",
+        "DriftReport"
+       ],
+       "mechanism": "DriftReport comment says consumers must fail closed, but snapshot_freshness is not in this chunk; if it doesn't, consumers may proceed with stale data.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If snapshot_freshness is implemented to raise or return error on missing schema in another chunk.",
+       "evidence": [
+        "DriftReport comment line ~720",
+        "SCHEMA_VERSION comment line 88"
+       ]
+      },
+      {
+       "id": "trace-id-never-mints",
+       "claim": "current_trace_id never mints new IDs, but behavior is unverified; if it does, FanoutResult.trace_id semantics break.",
+       "spans": [
+        "current_trace_id",
+        "FanoutResult"
+       ],
+       "mechanism": "FanoutResult.trace_id comment relies on current_trace_id returning None when no trace; if it mints, None never occurs.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If current_trace_id is implemented to return None when no trace in scope.",
+       "evidence": [
+        "FanoutResult.trace_id comment line ~91-93"
+       ]
+      },
+      {
+       "id": "gate-relay-authority",
+       "claim": "offload's verify is the sole authority for per-task correctness, but _relay_gate may run a second verify.",
+       "spans": [
+        "_relay_gate",
+        "offload"
+       ],
+       "mechanism": "_relay_gate docstring argues against a second verify, but if it does run one, it violates the authority contract.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If _relay_gate does not run any test command and only relays the gate result.",
+       "evidence": [
+        "_relay_gate docstring"
+       ]
+      },
+      {
+       "id": "self-scoped-unfalsifiable",
+       "claim": "Self-scoped absence claims are honest, but some may be unfalsifiable without external verification.",
+       "spans": [
+        "_SELF_SCOPED",
+        "judge"
+       ],
+       "mechanism": "Regex matches 'in this chunk' but cannot verify if the name is actually defined elsewhere; the claim may be unfalsifiable.",
+       "severity": "low",
+       "confidence": "certain",
+       "refuted_by": "If all such claims are accompanied by explicit evidence of absence in other chunks.",
+       "evidence": [
+        "_SELF_SCOPED comment"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2015ab9bb8d92edfddec8b4962f7635d1b5ddaf3d7f1be28bb309f0087a93031",
+    "objective_chars": 24669,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 7 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 7,
+  "inputs": 64
+ }
+}

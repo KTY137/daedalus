@@ -238,6 +238,49 @@ class AnchorTests(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+# reading the runner's output -- a coloured FAILED is still a failure          #
+# --------------------------------------------------------------------------- #
+class OutputParsingTests(unittest.TestCase):
+    """RED-VERIFIED against the pre-fix runner: with FORCE_COLOR set (this agent
+    environment exports FORCE_COLOR=3), pytest wraps its summary in SGR codes,
+    ``_FAIL_RE``'s ``^`` anchor missed every one, and each KILLED mutant was
+    filed as INCONCLUSIVE -- leaving `mutation_score` None for a suite that was
+    in fact killing everything. The scorer silently measured nothing."""
+
+    COLOURED = (
+        "\x1b[31mFAILED\x1b[0m t/test_goodmod.py::\x1b[1mtest_big_denied\x1b[0m"
+        " - AssertionError: assert True is False\n"
+        "\x1b[31mERROR\x1b[0m t/test_other.py::\x1b[1mtest_boom\x1b[0m\n"
+        "\x1b[31m\x1b[1m1 failed\x1b[0m, \x1b[32m5 passed\x1b[0m in 0.64s\n"
+    )
+
+    def test_ansi_is_stripped_before_the_summary_is_parsed(self):
+        plain = ms._strip_ansi(self.COLOURED)
+        self.assertNotIn("\x1b", plain)
+        failing = {m.group(1) for line in plain.splitlines()
+                   if (m := ms._FAIL_RE.match(line.strip()))}
+        self.assertEqual(failing, {"t/test_goodmod.py::test_big_denied",
+                                   "t/test_other.py::test_boom"})
+
+    def test_the_raw_coloured_form_is_what_defeated_the_parse(self):
+        """The control: without the strip, the same input yields NOTHING. If
+        this ever starts matching, the bug this guards has changed shape."""
+        failing = {m.group(1) for line in self.COLOURED.splitlines()
+                   if (m := ms._FAIL_RE.match(line.strip()))}
+        self.assertEqual(failing, set())
+
+    def test_plain_output_is_unchanged_by_the_strip(self):
+        plain = "FAILED t/test_x.py::test_y - boom\n1 failed in 0.1s\n"
+        self.assertEqual(ms._strip_ansi(plain), plain)
+
+    def test_the_runner_disables_colour_at_the_source(self):
+        """Stripping is the second line of defence; not asking for colour is the
+        first. Pinned so a future edit cannot drop it and rely on the strip."""
+        import inspect
+        self.assertIn('"--color=no"', inspect.getsource(ms.pytest_runner))
+
+
+# --------------------------------------------------------------------------- #
 # classification, without paying for real pytest                              #
 # --------------------------------------------------------------------------- #
 class ClassificationTests(unittest.TestCase):

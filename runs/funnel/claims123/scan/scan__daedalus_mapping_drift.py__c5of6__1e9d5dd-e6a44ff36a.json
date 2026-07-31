@@ -1,0 +1,328 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c5of6__1e9d5dd",
+ "key": "scan__daedalus_mapping_drift.py__c5of6__1e9d5dd-e6a44ff36a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "5 of 6",
+     "purpose": "Implements check(): snapshot validation, integrity checks, and drift classification",
+     "symbols": [
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Compares generated state against committed snapshot; writes snapshot when write_missing is set"
+      }
+     ],
+     "claims": [
+      {
+       "text": "A missing snapshot FAILS unless ``write_missing`` is set, which is the explicit \"record a baseline\" action rather than the default.",
+       "where": "docstring of check",
+       "verdict": "kept",
+       "why": "When snapshot is None, ok=wrote and wrote is True only if write_missing; otherwise ok=False."
+      },
+      {
+       "text": "The previous default -- write it and report OK -- meant ``rm docs/architecture-state.json`` was a green run, and a green run against nothing is exactly what this file exists to make impossible.",
+       "where": "docstring of check",
+       "verdict": "kept",
+       "why": "The code explicitly returns ok=False when snapshot is missing and write_missing is False."
+      },
+      {
+       "text": "the lists in a schema-{stored_schema!r} snapshot were derived by a different engine and do not mean the same thing",
+       "where": "comment above schema check",
+       "verdict": "kept",
+       "why": "The code compares stored_schema to SCHEMA_VERSION and returns INVALID_SNAPSHOT if they differ."
+      },
+      {
+       "text": "the mechanical lists do not match the digest written with them: something was hand-edited.",
+       "where": "comment above digest check",
+       "verdict": "kept",
+       "why": "The code compares stored_digest to recomputed _digest(snapshot) and appends INVALID_SNAPSHOT if they differ."
+      },
+      {
+       "text": "Pre-seeding an item into 'islands' or 'dark_switches' is not a way to accept it -- an acceptance is dated and an acceptance is reviewed",
+       "where": "comment above digest check",
+       "verdict": "kept",
+       "why": "The digest check catches any hand-edit to the lists, and phantom checks below catch entries not backed by modules or read names."
+      },
+      {
+       "text": "The exact failure this whole module exists to prevent: a number in an artifact that no longer matches the list beside it.",
+       "where": "comment above counts check",
+       "verdict": "kept",
+       "why": "The code compares stored_counts[key] to real_counts[key] and appends INVALID_SNAPSHOT if they differ."
+      },
+      {
+       "text": "A count matching its own list proves only internal arithmetic. These check the lists against reality and against each other, so an entry cannot be pre-seeded to suppress a finding that has not landed yet.",
+       "where": "comment above phantom checks",
+       "verdict": "kept",
+       "why": "The code checks phantom_islands, phantom for unknown/shims, phantom_test_only, and phantom_dark against other lists or read names."
+      },
+      {
+       "text": "every test-only module is an unreached module first",
+       "where": "comment above phantom_test_only",
+       "verdict": "kept",
+       "why": "The code checks that phantom_test_only is a subset of old_islands|old_unknown|old_shims, otherwise flags it."
+      },
+      {
+       "text": "a switch cannot be baselined before the code that reads it exists",
+       "where": "comment above phantom_dark",
+       "verdict": "kept",
+       "why": "The code checks phantom_dark against read_names from result.switches.env_switches."
+      },
+      {
+       "text": "An accepted island is deliberately absent from the baseline (:func:`write_snapshot`), so the baseline alone would read it as \"reached\" and call it BECAME ISLAND the moment the module also appears in ``modules``. The acceptance is itself a record that it is an island, so it counts toward what the snapshot knows -- without suppressing anything.",
+       "where": "comment above accepted_keys",
+       "verdict": "kept",
+       "why": "accepted_keys is built from acceptances; known_unreached includes accepted keys for island/unknown/shim, preventing BECAME_ISLAND for them."
+      },
+      {
+       "text": "What the BASELINE actually establishes. Intersecting with ``modules`` is the teeth behind the subset rule above: an island entry the snapshot's own module list does not back is a hand-edit, and a hand-edit must not be able to suppress the finding it was written to hide.",
+       "where": "comment above baselined_islands",
+       "verdict": "kept",
+       "why": "baselined_islands = old_islands & old_modules; phantom_islands check flags entries not in old_modules."
+      },
+      {
+       "text": "BECAME ISLAND means \"it was REACHED and is not any more\". A module the snapshot recorded as unknown or as an unreached shim was never reached, so it must not be described that way when it degrades into an island.",
+       "where": "comment above known_unreached",
+       "verdict": "kept",
+       "why": "known_unreached includes old_islands|old_unknown|old_shims intersected with old_modules, plus accepted keys; was_reached is computed as mod in old_modules and not in known_unreached."
+      },
+      {
+       "text": "Same shape as islands, deliberately not merged into them: the finding a reader gets has to say WHICH kind of unreached this is, because the three remedies are three different sentences. What they share is the property that used to be missing entirely -- a module nothing reaches is COUNTED, is named, and blocks until somebody explains it.",
+       "where": "comment above the loop for unknown/shims",
+       "verdict": "kept",
+       "why": "The loop iterates over (\"unknown\", \"unknown:\", NEW_UNKNOWN, old_unknown, ...) and (\"shims\", \"shim:\", NEW_SHIM, old_shims, ...) separately, producing distinct kinds."
+      },
+      {
+       "text": "It is reported, never merged: merging it is how a dead-branch import used to make its target 'reachable'",
+       "where": "comment above ENGINE_DISAGREEMENT loop",
+       "verdict": "kept",
+       "why": "The code only appends ENGINE_DISAGREEMENT for edges in new_index_extra - old_index_extra; it does not add them to any reachability set."
+      },
+      {
+       "text": "``new_unreached``, not ``new_islands``: a module that moved from island to shim (or to unknown) is still reached by nothing, and announcing \"something reaches it now\" would be the same false-green in a new costume.",
+       "where": "comment above NOW_REACHED loop",
+       "verdict": "kept",
+       "why": "The loop checks if mod not in new_unreached, where new_unreached = new_islands|new_unknown|new_shims, so a module still in any unreached class is not reported as NOW_REACHED."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The snapshot integrity checks (digest, counts, phantom) are performed in order, but the function returns early only on the first INVALID_SNAPSHOT for schema or unreadable; digest/counts/phantom issues are accumulated into items but the function continues to compute drift findings.",
+       "where": "check function, lines 1135-1215",
+       "severity": "low",
+       "confidence": "certain",
+       "what would settle it": "Confirm whether returning multiple INVALID_SNAPSHOT items alongside drift findings is intended; the docstring does not specify early return on these."
+      },
+      {
+       "what": "The phantom_test_only check compares old_test_only against old_islands|old_unknown|old_shims, but does not consider that a test-only module might also be in old_modules (which is the case for all old_islands etc. since they are intersected with old_modules in baselined_islands). This could flag a test-only module that is also in old_modules but not in the unreached lists, which is contradictory.",
+       "where": "check function, line 1203-1207",
+       "severity": "medium",
+       "confidence": "possible",
+       "what would settle it": "Check whether test-only modules can appear in old_modules without being in unreached lists; if so, the check would incorrectly flag them."
+      },
+      {
+       "what": "The NOW_REACHED loop iterates over old_set & new_modules, but for the \"island:\" prefix it uses old_islands which may include entries not in old_modules (phantom islands). However, those would have been flagged as INVALID_SNAPSHOT already, but the loop still processes them and could report NOW_REACHED for a phantom island that appears in new_modules.",
+       "where": "check function, lines 1255-1260",
+       "severity": "medium",
+       "confidence": "possible",
+       "what would settle it": "Check whether phantom islands can appear in new_modules; if so, they would be reported as NOW_REACHED despite being invalid snapshot entries."
+      },
+      {
+       "what": "The check for phantom_dark uses read_names from result.switches.env_switches, but the snapshot may have been written with a different set of switches. If the snapshot is valid but the current tree has fewer read switches, phantom_dark would flag entries that were valid at baseline time. This is a potential false positive.",
+       "where": "check function, lines 1210-1215",
+       "severity": "medium",
+       "confidence": "possible",
+       "what would settle it": "Confirm whether the snapshot is expected to be re-baselined when switches are removed; if not, this check would incorrectly flag valid baseline entries."
+      }
+     ],
+     "risks": [
+      "check function, lines 1203-1207 | medium | The phantom_test_only check may flag test-only modules that are in old_modules but not in unreached lists, which could be a false positive if such modules exist. | Check whether test-only modules can be in old_modules without being in islands/unknown/shims."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/mapping/drift.py",
+      "chunk": "5 of 6",
+      "purpose": "Implements check(): snapshot validation, integrity checks, and drift classification",
+      "symbols": [
+       {
+        "name": "check",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "Compares generated state against committed snapshot; writes snapshot when write_missing is set"
+       }
+      ],
+      "claims": [
+       {
+        "text": "A missing snapshot FAILS unless ``write_missing`` is set, which is the explicit \"record a baseline\" action rather than the default.",
+        "where": "docstring of check",
+        "verdict": "kept",
+        "why": "When snapshot is None, ok=wrote and wrote is True only if write_missing; otherwise ok=False."
+       },
+       {
+        "text": "The previous default -- write it and report OK -- meant ``rm docs/architecture-state.json`` was a green run, and a green run against nothing is exactly what this file exists to make impossible.",
+        "where": "docstring of check",
+        "verdict": "kept",
+        "why": "The code explicitly returns ok=False when snapshot is missing and write_missing is False."
+       },
+       {
+        "text": "the lists in a schema-{stored_schema!r} snapshot were derived by a different engine and do not mean the same thing",
+        "where": "comment above schema check",
+        "verdict": "kept",
+        "why": "The code compares stored_schema to SCHEMA_VERSION and returns INVALID_SNAPSHOT if they differ."
+       },
+       {
+        "text": "the mechanical lists do not match the digest written with them: something was hand-edited.",
+        "where": "comment above digest check",
+        "verdict": "kept",
+        "why": "The code compares stored_digest to recomputed _digest(snapshot) and appends INVALID_SNAPSHOT if they differ."
+       },
+       {
+        "text": "Pre-seeding an item into 'islands' or 'dark_switches' is not a way to accept it -- an acceptance is dated and an acceptance is reviewed",
+        "where": "comment above digest check",
+        "verdict": "kept",
+        "why": "The digest check catches any hand-edit to the lists, and phantom checks below catch entries not backed by modules or read names."
+       },
+       {
+        "text": "The exact failure this whole module exists to prevent: a number in an artifact that no longer matches the list beside it.",
+        "where": "comment above counts check",
+        "verdict": "kept",
+        "why": "The code compares stored_counts[key] to real_counts[key] and appends INVALID_SNAPSHOT if they differ."
+       },
+       {
+        "text": "A count matching its own list proves only internal arithmetic. These check the lists against reality and against each other, so an entry cannot be pre-seeded to suppress a finding that has not landed yet.",
+        "where": "comment above phantom checks",
+        "verdict": "kept",
+        "why": "The code checks phantom_islands, phantom for unknown/shims, phantom_test_only, and phantom_dark against other lists or read names."
+       },
+       {
+        "text": "every test-only module is an unreached module first",
+        "where": "comment above phantom_test_only",
+        "verdict": "kept",
+        "why": "The code checks that phantom_test_only is a subset of old_islands|old_unknown|old_shims, otherwise flags it."
+       },
+       {
+        "text": "a switch cannot be baselined before the code that reads it exists",
+        "where": "comment above phantom_dark",
+        "verdict": "kept",
+        "why": "The code checks phantom_dark against read_names from result.switches.env_switches."
+       },
+       {
+        "text": "An accepted island is deliberately absent from the baseline (:func:`write_snapshot`), so the baseline alone would read it as \"reached\" and call it BECAME ISLAND the moment the module also appears in ``modules``. The acceptance is itself a record that it is an island, so it counts toward what the snapshot knows -- without suppressing anything.",
+        "where": "comment above accepted_keys",
+        "verdict": "kept",
+        "why": "accepted_keys is built from acceptances; known_unreached includes accepted keys for island/unknown/shim, preventing BECAME_ISLAND for them."
+       },
+       {
+        "text": "What the BASELINE actually establishes. Intersecting with ``modules`` is the teeth behind the subset rule above: an island entry the snapshot's own module list does not back is a hand-edit, and a hand-edit must not be able to suppress the finding it was written to hide.",
+        "where": "comment above baselined_islands",
+        "verdict": "kept",
+        "why": "baselined_islands = old_islands & old_modules; phantom_islands check flags entries not in old_modules."
+       },
+       {
+        "text": "BECAME ISLAND means \"it was REACHED and is not any more\". A module the snapshot recorded as unknown or as an unreached shim was never reached, so it must not be described that way when it degrades into an island.",
+        "where": "comment above known_unreached",
+        "verdict": "kept",
+        "why": "known_unreached includes old_islands|old_unknown|old_shims intersected with old_modules, plus accepted keys; was_reached is computed as mod in old_modules and not in known_unreached."
+       },
+       {
+        "text": "Same shape as islands, deliberately not merged into them: the finding a reader gets has to say WHICH kind of unreached this is, because the three remedies are three different sentences. What they share is the property that used to be missing entirely -- a module nothing reaches is COUNTED, is named, and blocks until somebody explains it.",
+        "where": "comment above the loop for unknown/shims",
+        "verdict": "kept",
+        "why": "The loop iterates over (\"unknown\", \"unknown:\", NEW_UNKNOWN, old_unknown, ...) and (\"shims\", \"shim:\", NEW_SHIM, old_shims, ...) separately, producing distinct kinds."
+       },
+       {
+        "text": "It is reported, never merged: merging it is how a dead-branch import used to make its target 'reachable'",
+        "where": "comment above ENGINE_DISAGREEMENT loop",
+        "verdict": "kept",
+        "why": "The code only appends ENGINE_DISAGREEMENT for edges in new_index_extra - old_index_extra; it does not add them to any reachability set."
+       },
+       {
+        "text": "``new_unreached``, not ``new_islands``: a module that moved from island to shim (or to unknown) is still reached by nothing, and announcing \"something reaches it now\" would be the same false-green in a new costume.",
+        "where": "comment above NOW_REACHED loop",
+        "verdict": "kept",
+        "why": "The loop checks if mod not in new_unreached, where new_unreached = new_islands|new_unknown|new_shims, so a module still in any unreached class is not reported as NOW_REACHED."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The snapshot integrity checks (digest, counts, phantom) are performed in order, but the function returns early only on the first INVALID_SNAPSHOT for schema or unreadable; digest/counts/phantom issues are accumulated into items but the function continues to compute drift findings.",
+        "where": "check function, lines 1135-1215",
+        "severity": "low",
+        "confidence": "certain",
+        "what would settle it": "Confirm whether returning multiple INVALID_SNAPSHOT items alongside drift findings is intended; the docstring does not specify early return on these."
+       },
+       {
+        "what": "The phantom_test_only check compares old_test_only against old_islands|old_unknown|old_shims, but does not consider that a test-only module might also be in old_modules (which is the case for all old_islands etc. since they are intersected with old_modules in baselined_islands). This could flag a test-only module that is also in old_modules but not in the unreached lists, which is contradictory.",
+        "where": "check function, lines 1203-1207",
+        "severity": "medium",
+        "confidence": "possible",
+        "what would settle it": "Check whether test-only modules can appear in old_modules without being in unreached lists; if so, the check would incorrectly flag them."
+       },
+       {
+        "what": "The NOW_REACHED loop iterates over old_set & new_modules, but for the \"island:\" prefix it uses old_islands which may include entries not in old_modules (phantom islands). However, those would have been flagged as INVALID_SNAPSHOT already, but the loop still processes them and could report NOW_REACHED for a phantom island that appears in new_modules.",
+        "where": "check function, lines 1255-1260",
+        "severity": "medium",
+        "confidence": "possible",
+        "what would settle it": "Check whether phantom islands can appear in new_modules; if so, they would be reported as NOW_REACHED despite being invalid snapshot entries."
+       },
+       {
+        "what": "The check for phantom_dark uses read_names from result.switches.env_switches, but the snapshot may have been written with a different set of switches. If the snapshot is valid but the current tree has fewer read switches, phantom_dark would flag entries that were valid at baseline time. This is a potential false positive.",
+        "where": "check function, lines 1210-1215",
+        "severity": "medium",
+        "confidence": "possible",
+        "what would settle it": "Confirm whether the snapshot is expected to be re-baselined when switches are removed; if not, this check would incorrectly flag valid baseline entries."
+       }
+      ],
+      "risks": [
+       "check function, lines 1203-1207 | medium | The phantom_test_only check may flag test-only modules that are in old_modules but not in unreached lists, which could be a false positive if such modules exist. | Check whether test-only modules can be in old_modules without being in islands/unknown/shims."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b3be8a0878a32e7f409a56e11e766c8176abb5d8951edd86bbff5184a8b38ee5",
+    "objective_chars": 18866,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [5/6]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/drift.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

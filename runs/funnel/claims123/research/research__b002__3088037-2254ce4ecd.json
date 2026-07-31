@@ -1,0 +1,109 @@
+{
+ "task_id": "research__b002__3088037",
+ "key": "research__b002__3088037-2254ce4ecd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified 4 cross-file patterns: duplicated falsification protocol, trust-lane secrecy vs normalization, snapshot digest vs freshness, and duplicated report logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "falsification-protocol-copy",
+       "claim": "The falsification protocol \u2014 'measured before wiring, module deleted if it fails' \u2014 is declared in at least two separate docstrings (the 'FALSIFICATION PROTOCOL' and the 'premise ... UNTESTED' rows) as if each module owns it. Either two modules independently promise the same pre-wiring measurement (duplication that can drift), or one module copied the other's promise without the implementation, making the promise a narrative claim rather than a live guard.",
+       "spans": [
+        "module docstring (lines 14-17)",
+        "module docstring (lines 10-12)"
+       ],
+       "mechanism": "Two different code chunks each contain a docstring claiming a falsification protocol: one says 'measured before session.py is wired into any real review workflow, and the module is deleted if it fails'; the other says the premise is 'UNTESTED' and repeats the same measurement/deletion promise. Since neither chunk contains the actual measurement or deletion logic, the promises are unverifiable from the code itself. If both chunks are from the same module, the protocol is stated twice; if from different modules, the same promise is copied without a shared enforcement mechanism.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the two docstrings are in the same module and the module contains a single, well-defined measurement hook and a deletion path, or if one docstring is a stale duplicate that has been removed in the current version.",
+       "evidence": [
+        "docstring lines 14-17: 'FALSIFICATION PROTOCOL ... measured before session.py is wired ... deleted if it fails'",
+        "docstring lines 10-12: 'premise ... UNTESTED ... measured before session.py is wired ... deleted if it fails'"
+       ]
+      },
+      {
+       "id": "trusted-lane-secrecy-vs-env-normalization",
+       "claim": "A trusted lane's core guarantee \u2014 'disables the egress allow-list and reports nothing withheld' \u2014 is silently invalidated by any normalization of a remote Ollama into a shared environment, because that normalization would reintroduce environment mutation that the trusted-lane justification explicitly forbids. The two claims live in different modules: one in a ValueError comment, the other in a council_env docstring, and neither module references the other's guard, so the invariant is upheld only by documentation, not by code.",
+       "spans": [
+        "ValueError message (lines 1123-1125)",
+        "council_env docstring"
+       ],
+       "mechanism": "Module A states that a trusted lane disables the egress allow-list and reports nothing withheld (in a ValueError message). Module B states that a council that normalizes a remote Ollama into a shared environment 'silently invalidates offload.py's trusted-lane justification repo-wide.' If both modules are active in the same process, nothing in either module checks that the other's precondition holds \u2014 the trusted-lane behavior is assumed, and the environment normalization is assumed to be safe. The only thing connecting them is the docstring warning, which is not enforced.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If there is a shared helper that enforces the trusted-lane environment isolation (e.g., a check that OLLAMA_HOST is never set when a trusted lane is active), or if the two modules cannot be active in the same process (e.g., they are mutually exclusive entry points).",
+       "evidence": [
+        "ValueError message (lines 1123-1125): 'A trusted lane disables the egress allow-list and reports nothing withheld.'",
+        "council_env docstring: 'A council that normalises a remote Ollama into a shared environment silently invalidates offload.py's trusted-lane justification repo-wide.'"
+       ]
+      },
+      {
+       "id": "snapshot-digest-vs-freshness",
+       "claim": "The snapshot digest proves integrity but says nothing about freshness, and the repository has already measured the damage of trusting a stale generated snapshot. This is a cross-file pattern: the digest implementation (in repo_state) and the freshness gate (in the hand-written inventory) are separate, and the generated snapshot lacks a freshness gate by design. Any code that consumes the snapshot (e.g., the self-improvement loop) must check both, but the docstring warns that the digest alone is insufficient \u2014 implying the consumer may not.",
+       "spans": [
+        "repo_state docstring",
+        "hand-written inventory freshness gate (referenced in repo_state docstring)"
+       ],
+       "mechanism": "The repo_state docstring states that the digest proves nobody hand-edited the snapshot but says nothing about when it was taken. It explicitly recounts an incident where the self-improvement loop suppressed a stale hand-written inventory (which had a freshness gate) while trusting a stale generated snapshot (which had none), acting on a description of a tree that no longer existed. This implies that the freshness check is not part of the snapshot verification path, and any consumer must independently check freshness. If a consumer only verifies the digest, it will accept a stale snapshot.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the snapshot format includes a generated_at field and the verification logic (in the same module or a shared helper) enforces a freshness threshold, or if the self-improvement loop explicitly checks freshness before using the snapshot.",
+       "evidence": [
+        "repo_state docstring: 'The digest proves nobody hand-edited the snapshot. It says NOTHING about when the snapshot was taken ... a baseline generated thirty commits ago verifies its own digest perfectly ... the self-improvement loop suppressed the stale hand-written inventory (which has a freshness gate) while trusting a stale generated snapshot (which had none)...'"
+       ]
+      },
+      {
+       "id": "duplicated-report-logic",
+       "claim": "The same report logic was implemented twice \u2014 once in lanes/checks.py for reports and once in tools/funnel_report.py for funnel output \u2014 and the two agreed numerically, which is called 'the flattering way to describe duplication.' This is a classic copy-paste pattern where the two implementations can drift apart, and the module docstring says this module is the merge. The risk is that the merge may not be complete, or the two original implementations still exist and are not both updated when the merged module changes.",
+       "spans": [
+        "module docstring (the merge)",
+        "lanes/checks.py",
+        "tools/funnel_report.py"
+       ],
+       "mechanism": "The module docstring explicitly states that the logic was 'briefly implemented twice' in two different files, and that the two agreed numerically. This is evidence of duplication that was later merged. The risk is that the merge is not total \u2014 the original files may still exist and be used in some paths, or the merged module may not be the single source of truth. The docstring calls the duplication 'flattering,' which suggests it was intentional but still a maintenance hazard.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If the original files (lanes/checks.py and tools/funnel_report.py) have been deleted or now simply re-export from the merged module, or if the merged module is the only place the logic exists.",
+       "evidence": [
+        "module docstring: 'They were briefly implemented twice -- once in lanes/checks.py for reports and once in tools/funnel_report.py for funnel output -- and the two agreed numerically, which is the flattering way to describe duplication. This module is the merge.'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6cc2caa0f43c9d7c1fd7d65589e3dda7ad94ee3162187e478474270e862251fb",
+    "objective_chars": 26623,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 2 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 2,
+  "inputs": 64
+ }
+}

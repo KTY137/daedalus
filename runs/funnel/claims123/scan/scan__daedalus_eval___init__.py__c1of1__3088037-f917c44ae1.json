@@ -1,0 +1,155 @@
+{
+ "task_id": "scan__daedalus_eval___init__.py__c1of1__3088037",
+ "key": "scan__daedalus_eval___init__.py__c1of1__3088037-f917c44ae1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read daedalus/eval/__init__.py chunk 1 of 1; module docstring claims are uncheckable against this import-only file.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "daedalus/eval/__init__.py | medium | Module docstring makes detailed claims about tier behavior, isolation, and gating that cannot be verified from this import-only file; downstream readers may assume guarantees not checked here. | Read .tasks and .harness to verify each claim."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package init re-exporting TASKS, resolve_task_repo, run_tier1, run_tier2; docstring describes the eval harness.",
+     "symbols": [
+      {
+       "name": "TASKS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from .tasks; not defined or used in this chunk."
+      },
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from .tasks; not defined or used in this chunk."
+      },
+      {
+       "name": "run_tier1",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from .harness; not defined or used in this chunk."
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from .harness; not defined or used in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "daedalus.eval -- a small, private eval harness for the distillation thesis.",
+       "where": "line 1",
+       "verdict": "uncheckable",
+       "why": "The chunk only imports from .tasks and .harness; no harness code is present to confirm size or privacy."
+      },
+      {
+       "text": "The claim under test: a distilled semantic slice (the focus symbol/file plus its dependency + caller neighborhood) carries enough context to act on a target at a fraction of the tokens of a naive whole-repo concatenation (Repomix / Gitingest style).",
+       "where": "lines 3-5",
+       "verdict": "uncheckable",
+       "why": "No slice construction or token measurement logic is in this chunk; the claim refers to behavior implemented elsewhere."
+      },
+      {
+       "text": "Distillation beats concatenation.",
+       "where": "line 5",
+       "verdict": "uncheckable",
+       "why": "No experimental evidence or comparison logic is present in this chunk."
+      },
+      {
+       "text": "This is a private, directional eval, NOT SWE-bench.",
+       "where": "line 7",
+       "verdict": "uncheckable",
+       "why": "No task definitions or evaluation methodology are present in this chunk."
+      },
+      {
+       "text": "Tier 1 (deterministic, no LLM -- the rigorous core): for each labelled task measure slice recall (did the distilled slice actually contain the symbols a competent answer needs?) and compression (how much smaller than the whole repo?).",
+       "where": "lines 9-11",
+       "verdict": "uncheckable",
+       "why": "The tier1 implementation is in .harness; not present in this chunk."
+      },
+      {
+       "text": "Recall is necessary, not sufficient -- it proves the slice didn't drop load-bearing context.",
+       "where": "line 11",
+       "verdict": "uncheckable",
+       "why": "The claim is about the semantics of recall measurement, which is implemented elsewhere."
+      },
+      {
+       "text": "Tier 2 (opt-in, needs a runtime): ask the same question against the distilled slice (A) and against the whole-repo concat (B) via a model, and compare task-success and tokens.",
+       "where": "lines 13-15",
+       "verdict": "uncheckable",
+       "why": "The tier2 implementation is in .harness; not present in this chunk."
+      },
+      {
+       "text": "The win is A ~= B success at a fraction of B's tokens.",
+       "where": "line 15",
+       "verdict": "uncheckable",
+       "why": "No success or token comparison logic is present in this chunk."
+      },
+      {
+       "text": "Gated: skipped cleanly when no provider is available.",
+       "where": "line 16",
+       "verdict": "uncheckable",
+       "why": "The gating logic is in .harness; not present in this chunk."
+      },
+      {
+       "text": "Isolated package: imports structcore's stable public API; never mutates it.",
+       "where": "line 18",
+       "verdict": "uncheckable",
+       "why": "This chunk makes no imports from structcore and contains no mutation code; the claim refers to the package as a whole."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk is purely an import/re-export module; none of the docstring's substantive claims can be verified here.",
+       "where": "lines 1-22",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "88954b111eed441acc39af06cc3b3e37f3f23ebc424f3af20eedba0e7855163c",
+    "objective_chars": 4419,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__init__.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/eval/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

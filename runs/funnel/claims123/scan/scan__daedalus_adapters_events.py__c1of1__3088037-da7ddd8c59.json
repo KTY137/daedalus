@@ -1,0 +1,187 @@
+{
+ "task_id": "scan__daedalus_adapters_events.py__c1of1__3088037",
+ "key": "scan__daedalus_adapters_events.py__c1of1__3088037-da7ddd8c59",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/adapters/events.py chunk 1/1: event dataclasses, TransportRecord, and event_to_transport_record. All docstring claims kept; no defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/adapters/events.py",
+     "chunk": "1 of 1",
+     "purpose": "Define agent event dataclasses, TransportRecord envelope, and conversion from typed events to transport records.",
+     "symbols": [
+      {
+       "name": "AgentCapabilities",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with streaming, resume, hidden_state_access boolean fields, all default False."
+      },
+      {
+       "name": "SessionStarted",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with session_id: str."
+      },
+      {
+       "name": "SessionEnded",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with session_id: str, exit_code: int, stderr: str default ''."
+      },
+      {
+       "name": "TextDelta",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with text: str."
+      },
+      {
+       "name": "ToolRequested",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with tool_name: str, arguments: Dict[str, Any], call_id: str."
+      },
+      {
+       "name": "ToolCompleted",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with call_id: str, result: Any, is_error: bool default False."
+      },
+      {
+       "name": "FileRead",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with path: str, content: str."
+      },
+      {
+       "name": "CommandOutput",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with command: str, output: str, exit_code: int."
+      },
+      {
+       "name": "AgentMessage",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with content: str, role: str default 'assistant'."
+      },
+      {
+       "name": "AgentEvent",
+       "kind": "constant",
+       "effects": [],
+       "note": "Union type of all event dataclasses."
+      },
+      {
+       "name": "_CAMEL_BOUNDARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for camelCase to snake_case conversion: matches uppercase letters not at start."
+      },
+      {
+       "name": "TransportRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing lossless envelope; has to_dict, from_dict, embedding_text methods."
+      },
+      {
+       "name": "TransportRecord.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns asdict(self)."
+      },
+      {
+       "name": "TransportRecord.from_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod constructing TransportRecord from dict, coercing types and defaulting missing content/payload/metadata."
+      },
+      {
+       "name": "TransportRecord.embedding_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns stable text projection combining runtime/direction/event_type and content."
+      },
+      {
+       "name": "event_to_transport_record",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts AgentEvent to TransportRecord, validates direction, builds content per event type, generates record_id and timestamp."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Lossless envelope exchanged between a runtime shell and downstream sinks.",
+       "where": "TransportRecord docstring",
+       "verdict": "kept",
+       "why": "TransportRecord stores all fields without loss: original payload is preserved in `payload` and content is derived but original data remains."
+      },
+      {
+       "text": "Embeddings are derived from this record; they never replace its original payload or provenance.",
+       "where": "TransportRecord docstring",
+       "verdict": "kept",
+       "why": "embedding_text() returns a projection string; it does not modify the record or its payload. The original payload remains in `payload` and provenance fields (record_id, session_id, runtime, timestamp) are preserved."
+      },
+      {
+       "text": "Stable text projection used by an optional embedding index.",
+       "where": "embedding_text docstring",
+       "verdict": "kept",
+       "why": "The method returns a deterministic string composed of runtime, direction, event_type, and content; no randomness or external state affects it."
+      },
+      {
+       "text": "Wrap one typed event without discarding its provider-neutral payload.",
+       "where": "event_to_transport_record docstring",
+       "verdict": "kept",
+       "why": "The function calls asdict(event) to capture all fields into payload and stores that payload in the TransportRecord, preserving all event data."
+      },
+      {
+       "text": "direction must be input, output, or system",
+       "where": "event_to_transport_record docstring and code",
+       "verdict": "kept",
+       "why": "The function checks `if direction not in {\"input\", \"output\", \"system\"}` and raises ValueError otherwise."
+      }
+     ],
+     "observations": [
+      {
+       "what": "No docstring promises beyond the ones verified; all claims in this chunk are kept.",
+       "where": "entire chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "da5c7d9e62fce5c24f01889e69b870fa187532b93650fc5403aa8b7bf364d4a6",
+    "objective_chars": 7226,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/adapters/events.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/adapters/events.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

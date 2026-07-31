@@ -1,0 +1,149 @@
+{
+ "task_id": "research__b009__3088037",
+ "key": "research__b009__3088037-f60f3518e7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file synthesis from 64 uncheckable claims: 6 hypotheses on duplicated guard logic, contract ambiguities, and unverifiable promises.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "dup-guard-copy",
+       "claim": "Multiple modules reimplement the same guard logic (worktree safety, subprocess isolation, egress policy) as per-module copies, risking silent divergence when one is improved.",
+       "spans": [
+        "worktree removal",
+        "subprocess spawning",
+        "egress policy"
+       ],
+       "mechanism": "The repo has a history of guards written as per-provider copies (one claim mentions this). Multiple uncheckable claims reference similar safety properties in different modules: worktree removal (chunks about _remove_tree_no_follow, git worktree remove --force, cleanup_worktree), subprocess isolation (council_cwd, sys.executable -m pytest with cwd set to worktree), and egress policy (policy passed to provider, Ollama write-guard). Each module appears to implement its own version of these protections, with no shared helper evident in the claims.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "A single shared helper (e.g., a common safety module) is used by all these modules for the respective concerns, and no module duplicates the logic.",
+       "evidence": [
+        "worktree-removal module: _remove_tree_no_follow docstring",
+        "subprocess-isolation module: council_cwd docstring",
+        "egress module: _one_call docstring (policy passed to provider)",
+        "Ollama write-guard claim in another module"
+       ]
+      },
+      {
+       "id": "worktree-removal-race",
+       "claim": "The worktree removal safety contract (raising WorktreeRemovalRace on reparse points above any step) is stated in one module but the actual enforcement (the drain) is missing or unverified, making the guarantee weaker than declared.",
+       "spans": [
+        "worktree removal module",
+        "spine.attempt"
+       ],
+       "mechanism": "The _remove_tree_no_follow docstring claims it raises WorktreeRemovalRace if a reparse point appears above any step (scan, unlinks, drain). However, the claim row marks it BROKEN because the drain is not present in the chunk and until a certain date the drain had no verification. This suggests the implementation may not actually detect reparse points during the drain, so a partial delete could be swallowed. This is a contract declared in one module but not fully enforced there.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "The drain code is present in the full module and includes a verification step that raises WorktreeRemovalRace if a reparse point appears during the drain.",
+       "evidence": [
+        "_remove_tree_no_follow docstring (BROKEN verdict)",
+        "claim about git worktree remove --force following a junction"
+       ]
+      },
+      {
+       "id": "subprocess-isolation-claims",
+       "claim": "Multiple modules claim subprocesses run in isolated environments (fresh temp dir, disposable worktree, cwd set to worktree), but the actual enforcement is delegated to different, potentially unverified, mechanisms.",
+       "spans": [
+        "council_cwd module",
+        "correctness_gate module",
+        "worktree module"
+       ],
+       "mechanism": "The council module claims every subprocess is spawned in a fresh empty temp directory. The correctness gate claims it runs pytest in a disposable worktree with cwd set to the worktree. The worktree module claims cleanup_worktree runs a recursive delete in a finally block. These are separate modules each with their own isolation strategy. If any of these rely on unverified or duplicated logic (e.g., council_cwd defined later, pytest runner implementation not shown), the guarantee may not hold uniformly.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "All these modules use a single, well-tested isolation helper (e.g., a common sandboxing utility) and the claims are verified by tests.",
+       "evidence": [
+        "council module docstring: fresh empty temp directory",
+        "correctness_gate docstring: runs pytest in disposable worktree",
+        "worktree module docstring: cleanup_worktree recursive delete"
+       ]
+      },
+      {
+       "id": "egress-policy-delegation",
+       "claim": "The egress policy contract is delegated to the provider, but the provider's handling is not visible in the same module, creating an ambiguity about whether the policy is actually enforced.",
+       "spans": [
+        "egress module",
+        "provider module"
+       ],
+       "mechanism": "The egress module's _one_call passes policy to provider.run, with the docstring claiming the provider passes it to daedalus.sensitivity.classify_data. However, the provider's handling is not in the same module, and the claim is marked UNCHECKABLE. Additionally, another module mentions an Ollama write-guard that enforces reduced rights. If the provider does not actually enforce the policy, the egress widening could be broader than intended.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "The provider module's code shows it passes the policy to classify_data and enforces the result, and there are tests verifying this.",
+       "evidence": [
+        "_one_call docstring (policy passed to provider.run)",
+        "Ollama write-guard claim in another module"
+       ]
+      },
+      {
+       "id": "mint-store-exclusivity",
+       "claim": "The mint store's write exclusivity is claimed by one module (only --mint-commit/--confirm-mint persist tasks), but no other module can verify this, leaving open the possibility of other writers.",
+       "spans": [
+        "mint module",
+        "CLI module"
+       ],
+       "mechanism": "The mint module docstring claims that only --mint-commit and --confirm-mint persist tasks to the mint store. However, the claim is UNCHECKABLE because the module cannot prove no other code writes to the store. If another module (e.g., a background process or a different CLI path) writes to the store, the exclusivity contract is broken.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "A repository-wide search shows no other code writes to the mint store, or the store has an access control mechanism that only allows those entry points.",
+       "evidence": [
+        "mint module docstring: only entry points persist tasks",
+        "CLI module: flags --mint-commit/--confirm-mint"
+       ]
+      },
+      {
+       "id": "recall-semantics",
+       "claim": "The term 'recall' is used with different semantics across modules: one says it is necessary-not-sufficient, another says it must not be blended with self-graded recall, and a third uses it for go/no-go decisions on minted tasks. This ambiguity could lead to incorrect interpretation.",
+       "spans": [
+        "recall measurement module",
+        "mint module",
+        "eval module"
+       ],
+       "mechanism": "The recall measurement module claims recall is necessary-not-sufficient and proves the slice didn't drop load-bearing context. The mint module claims minted tasks are barred from go/no-go recall numbers until confirmed. The eval module says hand_reachable recall is partly self-graded and must not be blended. These uses imply different definitions: one is a slice quality metric, another is a task readiness metric, and a third is an evaluation metric. Without a shared definition, a number labeled 'recall' might be used in the wrong context.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "All uses of 'recall' refer to the same underlying metric and are consistently documented, or the different uses are explicitly distinguished in code.",
+       "evidence": [
+        "recall measurement module: recall is necessary-not-sufficient",
+        "mint module: barred from go/no-go recall number",
+        "eval module: must not be blended"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "630751e6584a15a453202498a590939eebc7af77a5f414b5dedc3f58c5db339b",
+    "objective_chars": 26400,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 9 (64 inputs)",
+  "rev": "3088037",
+  "bucket": 9,
+  "inputs": 64
+ }
+}

@@ -1,0 +1,288 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c1of5__1e9d5dd",
+ "key": "scan__daedalus_kairos_worktree.py__c1of5__1e9d5dd-2db534ba6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/kairos/worktree.py; enumerated module docstring containment claims and helper function claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "module docstring (lines 1-72) | high | Claims about Windows junction behavior and measured outcomes are unverifiable from this chunk; they may be unsupported or inaccurate. | Consult the Windows test suite and platform-specific test files.",
+     "module docstring (lines 1-72) | medium | Claims about historical vulnerabilities and fixes (e.g., os.stat vs lstat, rmtree DirEntry cache) are unverifiable; the code here reflects current implementation. | Check git history and tests named in docstring.",
+     "_is_reparse_point (lines 155-171) | medium | 'st_reparse_tag' fallback may cause false positives on POSIX if a future Python adds the attribute; current platforms unaffected. | Review Python version support and platform-specific stat behavior.",
+     "_is_within (lines 146-152) | low | Uses os.sep and os.altsep; on Windows, altsep is '/', so both separators are handled, but on POSIX only os.sep is used, which is correct. | Verify on Windows with mixed separators."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, containment error classes, worktree root resolution, and no-follow path predicates.",
+     "symbols": [
+      {
+       "name": "WorktreeContainmentError",
+       "kind": "class",
+       "effects": [],
+       "note": "RuntimeError subclass for containment refusals; defined with only a docstring."
+      },
+      {
+       "name": "WorktreeRemovalRace",
+       "kind": "class",
+       "effects": [],
+       "note": "Subclass of WorktreeContainmentError for reparse points appearing above an ongoing removal."
+      },
+      {
+       "name": "_worktree_root_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves root directory for candidate worktrees; uses env override, LOCALAPPDATA, or tempdir; returns path keyed by SHA-256 digest of repo path."
+      },
+      {
+       "name": "_lexical",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns absolute normalized path without touching filesystem; uses normpath/abspath."
+      },
+      {
+       "name": "_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns comparison form: case-folded on Windows, normalized everywhere; uses normcase/normpath."
+      },
+      {
+       "name": "_is_within",
+       "kind": "function",
+       "effects": [],
+       "note": "Lexically checks if child is parent or under it; handles both os.sep and os.altsep."
+      },
+      {
+       "name": "_is_reparse_point",
+       "kind": "function",
+       "effects": [],
+       "note": "No-follow detection of symlinks and Windows junctions; uses lstat, S_ISLNK, islink, FILE_ATTRIBUTE_REPARSE_POINT, and st_reparse_tag."
+      },
+      {
+       "name": "_path_identity",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (st_dev, st_ino) from lstat, or None; no-follow identity for a path."
+      },
+      {
+       "name": "_lexists",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if lstat succeeds, False on OSError/ValueError."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A cleanup target is deleted only if the manager can prove it is the thing the manager itself allocated. Anything unproven raises WorktreeContainmentError and nothing is removed.",
+       "where": "module docstring, lines 10-14",
+       "verdict": "uncheckable",
+       "why": "The enforcement logic is in later chunks (e.g., _remove_tree_no_follow, cleanup_worktree); this chunk only defines the exception classes."
+      },
+      {
+       "text": "Path.resolve() before the safety check turns the link into its target, so the subsequent delete is handed a real directory (the primary checkout) and never sees a link at all. This is why nothing here resolves before it checks: check no-follow first, then operate on the unresolved path.",
+       "where": "module docstring, lines 23-27",
+       "verdict": "uncheckable",
+       "why": "The code in this chunk does not call resolve or perform deletions; the claim is about the module's overall approach, which is implemented in later chunks."
+      },
+      {
+       "text": "git worktree remove --force performs its own recursive delete and FOLLOWS a junction planted inside the worktree (measured: exit 0, empty stderr, target contents gone). So git's removal is not used at all any more.",
+       "where": "module docstring, lines 28-31",
+       "verdict": "uncheckable",
+       "why": "No git worktree remove call appears in this chunk; the claim is about code in later chunks and external git behavior."
+      },
+      {
+       "text": "shutil.rmtree is NOT a safe substitute either... It DOES refuse a junction that is already in place when the walk starts... But that classification is read from DirEntry.stat(follow_symlinks=False), which on Windows is served from the PARENT directory's scandir cache and is never refreshed: measured, a DirEntry for a path that has since become a junction still reports st_reparse_tag == 0, and _rmtree_isdir returns True for it. So a live process that swaps an ALREADY-ENUMERATED sibling for a junction is followed -- measured 3/3 victims destroyed against the last entry of a large directory.",
+       "where": "module docstring, lines 32-39",
+       "verdict": "uncheckable",
+       "why": "The chunk does not use shutil.rmtree; the claim concerns a library's behavior and is not directly verifiable here."
+      },
+      {
+       "text": "This module therefore owns the delete, via _remove_tree_no_follow, whose invariant is that every path handed to a syscall that RESOLVES it -- os.scandir, os.rmdir, os.unlink, os.chmod, all four of them -- is re-classified with a FRESH lstat immediately beforehand; git worktree prune then deregisters.",
+       "where": "module docstring, lines 40-43",
+       "verdict": "uncheckable",
+       "why": "_remove_tree_no_follow is defined in a later chunk; this chunk only contains helper predicates."
+      },
+      {
+       "text": "Path hygiene cannot see an attack that uses no path trickery at all: the candidate os.renames the primary checkout INTO its own worktree, and every check then passes honestly, because what the walker finds is a real directory in a place it really is entitled to delete (measured, 3/3, whole checkout gone, cleanup returned success).",
+       "where": "module docstring, lines 47-52",
+       "verdict": "uncheckable",
+       "why": "The claim is about observable attack scenarios and cleanup behavior, not implemented in this chunk."
+      },
+      {
+       "text": "That mitigation is an IDENTITY check... it now records the no-follow identity of the checkout AND of every directory the checkout is reached through... it reads os.lstat now. The honest statement is: it knows the no-follow identity of the checkout's chain as of the moment this manager was constructed, and forging one of those identities requires an object that does not exist yet to be handed an inode number that a live object still holds.",
+       "where": "module docstring, lines 55-66",
+       "verdict": "uncheckable",
+       "why": "The identity recording and the refusal method are in later chunks; this chunk only defines _path_identity."
+      },
+      {
+       "text": "Refusals RAISE. A silently skipped cleanup leaks worktrees; a silently followed one deletes a repository. Both are loud.",
+       "where": "module docstring, lines 68-70",
+       "verdict": "uncheckable",
+       "why": "The refusal behavior is implemented in later chunks; this chunk only defines exception classes."
+      },
+      {
+       "text": "Bookkeeping directory, inside the manager's own worktree root and therefore OUTSIDE every worktree, so it can never show up in a candidate's git status or captured patch.",
+       "where": "comment before ALLOC_DIRNAME, lines 78-82",
+       "verdict": "uncheckable",
+       "why": "The placement of the bookkeeping directory depends on the worktree root layout, which is implemented in later chunks; this chunk only defines the constant."
+      },
+      {
+       "text": "it is NOT hidden from candidate code. A candidate is handed its own worktree path, and this directory is that path's parent's sibling -- one .parent away from something the candidate is told. Assume every byte in here is candidate-readable AND candidate-writable; that is why reap_branches treats an on-disk record as an attacker-supplied string and authorises nothing on it.",
+       "where": "comment before ALLOC_DIRNAME, lines 84-90",
+       "verdict": "uncheckable",
+       "why": "The claim about the directory's location relative to worktree paths and reap_branches behavior is not verifiable from this chunk; those details are in later chunks."
+      },
+      {
+       "text": "Subclasses RuntimeError so existing callers that report a failed cleanup rather than crashing keep working; the distinct type exists so a test can assert the refusal happened for the containment reason and not because some unrelated rmtree happened to fail.",
+       "where": "WorktreeContainmentError docstring, lines 95-100",
+       "verdict": "kept",
+       "why": "The class definition on lines 93-100 inherits from RuntimeError as claimed."
+      },
+      {
+       "text": "Distinct from every other containment refusal, and the distinction is the whole point: the others mean 'nothing was removed', this one means 'the walk stopped partway, on purpose'. Once a directory the walk is standing on has been redirected, no path it is still holding can be trusted, so it refuses to finish rather than repairing and continuing. A partially removed worktree is a leak; finishing the walk through a redirected ancestor is a deleted repository.",
+       "where": "WorktreeRemovalRace docstring, lines 104-111",
+       "verdict": "uncheckable",
+       "why": "The docstring describes behavior of the removal walk, which is not in this chunk; the class itself only inherits from WorktreeContainmentError."
+      },
+      {
+       "text": "Worktrees must live OUTSIDE the primary checkout so they never pollute git status or whole-repo snapshot attribution.",
+       "where": "_worktree_root_for docstring, lines 116-117",
+       "verdict": "uncheckable",
+       "why": "The function returns a root path based on environment and repo digest; whether worktrees actually live outside the checkout depends on how the root is used, which is in later chunks."
+      },
+      {
+       "text": "Placement, in order: 1. DAEDALUS_WORKTREE_ROOT env override (still namespaced per repo). 2. %LOCALAPPDATA%/daedalus/worktrees. 3. tempfile.gettempdir()/daedalus/worktrees when LOCALAPPDATA is unset.",
+       "where": "_worktree_root_for docstring, lines 118-123",
+       "verdict": "kept",
+       "why": "The function checks DAEDALUS_WORKTREE_ROOT first; else uses LOCALAPPDATA/daedalus/worktrees; else tempfile.gettempdir()/daedalus/worktrees, exactly as claimed."
+      },
+      {
+       "text": "Each repo gets its own subdirectory keyed by a short digest of the resolved repo path so distinct checkouts never collide.",
+       "where": "_worktree_root_for docstring, lines 124-125",
+       "verdict": "kept",
+       "why": "The function computes SHA-256 digest of str(repo_path) and takes first 12 hex chars, returning base/digest."
+      },
+      {
+       "text": "os.path.normpath collapses .. textually; unlike resolve() it cannot be redirected by a symlink, which is exactly the property needed before a containment decision.",
+       "where": "_lexical docstring, lines 133-137",
+       "verdict": "kept",
+       "why": "The function uses os.path.normpath and os.path.abspath, both lexical and non-following, as described."
+      },
+      {
+       "text": "Comparison form: case-folded on Windows, normalised everywhere.",
+       "where": "_key docstring, line 141",
+       "verdict": "kept",
+       "why": "The function uses os.path.normcase, which case-folds on Windows and is identity on POSIX, and os.path.normpath."
+      },
+      {
+       "text": "True if child is parent or lies under it, lexically.",
+       "where": "_is_within docstring, line 145",
+       "verdict": "kept",
+       "why": "The function compares normalized keys and checks prefix with os.sep and os.altsep."
+      },
+      {
+       "text": "True for a symlink OR a Windows directory junction / mount point.",
+       "where": "_is_reparse_point docstring, line 154",
+       "verdict": "kept",
+       "why": "The function checks S_ISLNK, os.path.islink, FILE_ATTRIBUTE_REPARSE_POINT, and st_reparse_tag, covering both symlinks and junctions."
+      },
+      {
+       "text": "os.path.islink is NOT sufficient on Windows: a junction created with mklink /J has reparse tag IO_REPARSE_TAG_MOUNT_POINT, not ...SYMLINK, so islink returns False for it (measured on this machine).",
+       "where": "_is_reparse_point docstring, lines 155-157",
+       "verdict": "uncheckable",
+       "why": "The claim is about os.path.islink behavior on Windows, not directly verifiable from this code; the code does check the reparse attribute and tag as a supplement."
+      },
+      {
+       "text": "The FILE_ATTRIBUTE_REPARSE_POINT bit on lstat catches every reparse kind, including tags that do not exist yet.",
+       "where": "_is_reparse_point docstring, lines 158-159",
+       "verdict": "kept",
+       "why": "The code checks the FILE_ATTRIBUTE_REPARSE_POINT bit from lstat, which is a general reparse indicator."
+      },
+      {
+       "text": "THE FIRST LINE IS THE ONLY ONE THAT EXISTS OFF WINDOWS... st_file_attributes and st_reparse_tag are not members of a stat_result on Linux/macOS at all, so on those platforms both getattr calls yield the default and deleting the S_ISLNK/islink line turns this whole function into return False -- every symlink followed, every guard in this file silently open. That mutation SURVIVED the suite until 2026-07-28; it is killed now by test_reparse_detection_off_windows_rests_on_the_symlink_branch, which simulates the POSIX stat SHAPE rather than skipping off Windows.",
+       "where": "_is_reparse_point docstring, lines 160-169",
+       "verdict": "uncheckable",
+       "why": "The claim describes platform-specific stat_result attributes and a test that is not in this chunk; the code uses getattr defaults, but the claim about test coverage is unverifiable here."
+      },
+      {
+       "text": "(st_dev, st_ino) for path ITSELF, or None if it is not there. NO-FOLLOW, and that is the whole point. It reads os.lstat, not os.stat.",
+       "where": "_path_identity docstring, lines 175-177",
+       "verdict": "kept",
+       "why": "The function uses os.lstat and returns (st_dev, st_ino) or None."
+      },
+      {
+       "text": "An earlier version used os.stat, which FOLLOWS a reparse point, and that made the identity FORGEABLE by the one primitive this module exists to defend against -- measured on this box, against the manager's own repo_path: os.stat (real directory) ino=7318349396973012; os.stat (junction to it) ino=7318349396973012 -> identity MATCHES; os.lstat (junction to it) ino=7318349396973013 -> identity DIFFERS. So a candidate that renamed the checkout aside and hung a mklink /J junction on its name was answering the 'is the checkout still the directory I was created for?' question THROUGH its own decoy. Measured end to end before this was changed: 40/40 tracked work files, SENTINEL.txt and .git destroyed, with the containment layer never refusing (the RuntimeError that came back was git worktree prune noticing afterwards that the repository was gone).",
+       "where": "_path_identity docstring, lines 178-190",
+       "verdict": "uncheckable",
+       "why": "The claim is about historical behavior and measured outcomes; the current code uses lstat, but the measurements and past behavior cannot be verified from this chunk."
+      },
+      {
+       "text": "Measured on this box (Windows 11, CPython 3.10.11): lstat populates both fields for a DIRECTORY, os.rename PRESERVES them (same NTFS record under a new name -- so a renamed directory keeps its record and a fresh object cannot be handed that record while the renamed one still holds it), and a fresh directory OR JUNCTION created at the vacated name gets a different st_ino. So this distinguishes 'the same directory, still there' from 'moved away', from 'replaced by something wearing its name', and now from 'replaced by a link TO ITSELF wearing its name' -- none of which path text can.",
+       "where": "_path_identity docstring, lines 191-199",
+       "verdict": "uncheckable",
+       "why": "The claim is about OS behavior and measurements, not directly verifiable from this code."
+      },
+      {
+       "text": "st_ino is 0 on filesystems that do not expose one (FAT, some network mounts). Callers must treat a zero st_ino as NO identity rather than as a comparable value; see GitWorktreeManager._refuse_if_the_primary_checkout_moved, which is why that method also has a check that does not depend on inodes.",
+       "where": "_path_identity docstring, lines 200-204",
+       "verdict": "uncheckable",
+       "why": "The claim about st_ino behavior and the referenced method is not verifiable from this chunk; the function returns whatever lstat gives."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring makes numerous detailed claims about Windows junction behavior, measured outcomes, and historical vulnerabilities, but none of the enforcement code is in this chunk. These claims are unverifiable from the current chunk and may rely on external tests or other modules.",
+       "where": "module docstring, lines 1-72",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_is_reparse_point uses getattr(st, 'st_reparse_tag', 0) as a final fallback. On POSIX, st_reparse_tag is not present, so the fallback returns 0, which is safe. However, if a future Python version adds st_reparse_tag on POSIX with a non-zero value for some reason, it could cause false positives. This is a theoretical concern.",
+       "where": "_is_reparse_point, lines 168-170",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_is_within uses os.sep and os.altsep. On Windows, altsep is '/', so both separators are handled; on POSIX, altsep is None, so only os.sep is used. This is correct but relies on os.altsep being set appropriately.",
+       "where": "_is_within, lines 149-151",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fb7f956770c0d4621f08fb3ed4cc06ec2327d8353d4e2dec84514ba41535147f",
+    "objective_chars": 18265,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [1/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

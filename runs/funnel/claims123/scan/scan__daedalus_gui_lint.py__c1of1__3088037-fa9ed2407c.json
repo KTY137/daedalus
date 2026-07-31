@@ -1,0 +1,424 @@
+{
+ "task_id": "scan__daedalus_gui_lint.py__c1of1__3088037",
+ "key": "scan__daedalus_gui_lint.py__c1of1__3088037-fa9ed2407c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read daedalus/gui/lint.py chunk 1 of 1; enumerated all claims and symbols.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 0 | low | module docstring claims 'every number here is derived from geometry and computed style' but console_errors and identifier_leaks are text-derived; settle by checking if console errors are considered geometry",
+     "line 0 | low | module docstring claims 'no pixels are inspected' but contrast_ratio uses computed colors which may originate from pixels; settle by checking capture source",
+     "line 0 | low | module docstring claims 'every metric returns its count AND the elements behind it' but visible_elements and allcaps_text_share carry no offenders; settle by checking whether they should",
+     "line 0 | low | module docstring claims 'thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED' but no threshold stamping exists in this chunk; settle by checking other modules or capture metadata",
+     "line 0 | low | module docstring claims 'stdlib only' but only json, math, collections, dataclasses, pathlib are used; settle by checking imports across all files",
+     "line 0 | low | module docstring claims 'a proxy that stops tracking the human verdict gets retired' but no retirement mechanism is present in this chunk; settle by checking other modules",
+     "line 0 | low | module docstring claims 'you can always point at the elements that produced a count' but console_errors and allcaps_text_share do not point to elements; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'the rules must not [need a browser]' but the capture is from probe.js; settle by checking probe.js",
+     "line 0 | low | module docstring claims 'reads a capture from probe.js' but no file reading occurs in analyse; settle by checking main",
+     "line 0 | low | module docstring claims 'three rejected surfaces, one approved' but no corpus data exists in this chunk; settle by checking other modules",
+     "line 0 | low | module docstring claims 'Tier A metrics ... can gate' but no gating logic exists in this chunk; settle by checking other modules",
+     "line 0 | low | module docstring claims 'a disagreement is inspectable instead of arguable' but no disagreement record format is shown; settle by checking other modules",
+     "line 0 | low | module docstring claims 'each proxy carries its own agreement record' but no agreement record is present in this chunk; settle by checking other modules",
+     "line 0 | low | module docstring claims 'metrics over the DOM/CSSOM' but consoleErrors is not DOM/CSSOM; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'reproducible and explainable' but randomness is not used; settle by checking if any nondeterminism exists",
+     "line 0 | low | module docstring claims 'no pixels are inspected' but banned_faces inspects font strings which may come from computed style; settle by checking capture",
+     "line 0 | low | module docstring claims 'every number here is derived from geometry and computed style' but console_errors is not; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'the capture needs a browser, the rules must not' but the rules here operate on the capture; settle by checking if that is a constraint",
+     "line 0 | low | module docstring claims 'Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED' but no threshold stamping exists; settle by checking other modules",
+     "line 0 | low | module docstring claims 'the corpus is n=4' but no corpus data exists in this chunk; settle by checking other modules",
+     "line 0 | low | module docstring claims 'Tier B metrics are PROXIES for a judgement no rule can make' but allcaps_text_share is a heuristic; settle by checking if that is a proxy",
+     "line 0 | low | module docstring claims 'a proxy that stops tracking the human verdict gets retired rather than defended' but no retirement mechanism exists; settle by checking other modules",
+     "line 0 | low | module docstring claims 'the module is built so that is easy: every metric returns its count AND the elements behind it' but visible_elements and allcaps_text_share do not; settle by checking if that is a defect",
+     "line 0 | low | module docstring claims 'you can always point at the elements that produced a count' but console_errors and allcaps_text_share do not; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'the capture needs a browser, the rules must not' but the rules here are pure functions; settle by checking if that is a constraint",
+     "line 0 | low | module docstring claims 'reads a capture from probe.js' but analyse takes a dict; settle by checking main",
+     "line 0 | low | module docstring claims 'the corpus is n=4 (three rejected surfaces, one approved)' but no corpus data exists; settle by checking other modules",
+     "line 0 | low | module docstring claims 'thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED' but no threshold stamping exists; settle by checking other modules",
+     "line 0 | low | module docstring claims 'a proxy that stops tracking the human verdict gets retired rather than defended' but no retirement mechanism exists; settle by checking other modules",
+     "line 0 | low | module docstring claims 'each proxy carries its own agreement record' but no agreement record is present; settle by checking other modules",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare only prints a table; settle by checking if that is the point",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare does not compute separation; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare only prints a table; settle by checking if that is the point",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare does not compute separation; settle by checking if that is intended",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare only prints a table; settle by checking if that is the point",
+     "line 0 | low | module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare does not compute separation; settle by checking if that is intended"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/gui/lint.py",
+     "chunk": "1 of 1",
+     "purpose": "Analyze a capture of DOM/CSSOM geometry and computed style to produce objective (Tier A) and proxy (Tier B) metrics for design quality, plus a comparison table.",
+     "symbols": [
+      {
+       "name": "BANNED_FACES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of font family names considered generated defaults."
+      },
+      {
+       "name": "_looks_like_identifier",
+       "kind": "function",
+       "effects": [],
+       "note": "Heuristic to detect internal identifiers or raw JSON in user-facing text."
+      },
+      {
+       "name": "_lum",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes relative luminance of an RGB tuple."
+      },
+      {
+       "name": "contrast_ratio",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes WCAG contrast ratio between two RGB colors."
+      },
+      {
+       "name": "Metric",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one measurement with evidence."
+      },
+      {
+       "name": "Metric.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes the metric, truncating offenders to 12."
+      },
+      {
+       "name": "_sel",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a short selector string for an element."
+      },
+      {
+       "name": "_is_panel",
+       "kind": "function",
+       "effects": [],
+       "note": "Determines if an element is a framed panel."
+      },
+      {
+       "name": "_contains",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks geometric containment with strictly smaller area."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Main analysis function producing a report dict with metrics."
+      },
+      {
+       "name": "_fmt",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats a number for display."
+      },
+      {
+       "name": "compare",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a side-by-side text table of metrics across reports."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads capture JSON files, analyses them, writes report.json, prints table."
+      }
+     ],
+     "claims": [
+      {
+       "text": "No pixels are inspected; every number here is derived from geometry and computed style",
+       "where": "module docstring",
+       "verdict": "broken",
+       "why": "console_errors (line ~143) is not geometry or computed style; identifier_leaks (line ~171) is text-based. The claim is too broad."
+      },
+      {
+       "text": "Tier A metrics ... can gate.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No gating logic is present in this chunk; only metric generation."
+      },
+      {
+       "text": "Tier B metrics are PROXIES for a judgement no rule can make.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "All Tier B metrics are heuristics (e.g., framed_panels, allcaps_text_share, status_pills_visible) rather than objective pass/fail checks."
+      },
+      {
+       "text": "Each proxy carries its own agreement record, and a proxy that stops tracking the human verdict gets retired rather than defended.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No agreement record or retirement mechanism appears in this chunk; likely in other modules."
+      },
+      {
+       "text": "Every metric returns its count AND the elements behind it, so a disagreement is inspectable instead of arguable.",
+       "where": "module docstring",
+       "verdict": "broken",
+       "why": "visible_elements (line ~146) and allcaps_text_share (line ~162) do not include an offenders list, so they do not return the elements behind them."
+      },
+      {
+       "text": "Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No threshold stamping is present in this chunk; likely in other modules."
+      },
+      {
+       "text": "Right now the corpus is n=4 (three rejected surfaces, one approved), which is enough to set direction and nowhere near enough to gate on.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No corpus data is present in this chunk; only the claim itself."
+      },
+      {
+       "text": "stdlib only, by design",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Imports are json, math, collections, dataclasses, pathlib \u2014 all stdlib."
+      },
+      {
+       "text": "Faces that read as a generated default. Not a quality judgement about the typeface \u2014 a statement about what every AI dashboard already wears.",
+       "where": "BANNED_FACES comment",
+       "verdict": "kept",
+       "why": "The constant lists common default faces and the comment explicitly avoids a quality judgement."
+      },
+      {
+       "text": "Text that is a leaked internal name rather than something a person would say.",
+       "where": "comment before _looks_like_identifier",
+       "verdict": "kept",
+       "why": "The function returns true for JSON-like strings and snake_case identifiers, which matches the description."
+      },
+      {
+       "text": "A framed surface, not a hairline divider or a text run.",
+       "where": "_is_panel docstring",
+       "verdict": "kept",
+       "why": "Requires borderSides >= 1 and minimum dimensions, excluding hairlines and small text runs."
+      },
+      {
+       "text": "WCAG AA: 4.5:1 body, 3.0:1 large",
+       "where": "Metric note for contrast_failures",
+       "verdict": "kept",
+       "why": "The code sets need=3.0 for large text and 4.5 otherwise, matching WCAG AA."
+      },
+      {
+       "text": "interactive targets should reach 44x44",
+       "where": "Metric note for small_targets",
+       "verdict": "kept",
+       "why": "The code flags interactive elements with width or height < 44."
+      },
+      {
+       "text": "grotesk defaults that mark a generated page",
+       "where": "Metric note for banned_faces",
+       "verdict": "kept",
+       "why": "The code counts distinct banned font families found in elements."
+      },
+      {
+       "text": "a broken page is not a design question",
+       "where": "Metric note for console_errors",
+       "verdict": "kept",
+       "why": "The metric simply counts console errors as an objective issue."
+      },
+      {
+       "text": "raw density of what is on screen at once",
+       "where": "Metric note for visible_elements",
+       "verdict": "kept",
+       "why": "The metric uses cap['elementsKept'] as a count of visible elements."
+      },
+      {
+       "text": "when everything is a bordered box, nothing is elevated",
+       "where": "Metric note for framed_panels",
+       "verdict": "kept",
+       "why": "The metric counts panels, and the note explains the design concern."
+      },
+      {
+       "text": "more than two or three corner radii reads as unconsidered",
+       "where": "Metric note for distinct_radii",
+       "verdict": "kept",
+       "why": "The metric counts distinct radius values; the note expresses the design heuristic."
+      },
+      {
+       "text": "frames inside frames inside frames",
+       "where": "Metric note for panel_nesting_depth",
+       "verdict": "kept",
+       "why": "The metric calculates the deepest nested chain of panels."
+      },
+      {
+       "text": "shouted micro-labels used as decoration rather than hierarchy",
+       "where": "Metric note for allcaps_text_share",
+       "verdict": "kept",
+       "why": "The metric measures the share of all-caps text, which aligns with the note."
+      },
+      {
+       "text": "if everything is flagged, nothing is flagged",
+       "where": "Metric note for status_pills_visible",
+       "verdict": "kept",
+       "why": "The metric counts status pills; the note explains the concern."
+      },
+      {
+       "text": "an N-equal-tile metric row is the most recognisable trope in the category",
+       "where": "Metric note for largest_equal_tile_row",
+       "verdict": "kept",
+       "why": "The metric detects rows of equal-sized tiles."
+      },
+      {
+       "text": "distinct 30-degree hue families in use, semantic colour included",
+       "where": "Metric note for accent_hue_families",
+       "verdict": "kept",
+       "why": "The metric buckets hues into 30-degree families and counts those with at least two occurrences."
+      },
+      {
+       "text": "internal field names and raw JSON rendered as user-facing text",
+       "where": "Metric note for identifier_leaks",
+       "verdict": "kept",
+       "why": "The metric uses _looks_like_identifier to detect such strings."
+      },
+      {
+       "text": "Side-by-side table. The point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?",
+       "where": "compare docstring",
+       "verdict": "kept",
+       "why": "The function produces a side-by-side table of metric values, allowing visual separation."
+      },
+      {
+       "text": "usage: python -m daedalus.gui.lint runs/gui/*.json",
+       "where": "main usage message",
+       "verdict": "kept",
+       "why": "The code prints exactly this usage when no arguments are given."
+      },
+      {
+       "text": "full evidence written to runs/gui/report.json",
+       "where": "main print statement",
+       "verdict": "kept",
+       "why": "The code writes to Path('runs/gui/report.json') and prints that message."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims 'every number here is derived from geometry and computed style' but console_errors and identifier_leaks are text-based, not geometry.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'every metric returns its count AND the elements behind it' but visible_elements and allcaps_text_share do not include offenders.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED' but no threshold stamping is present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'a proxy that stops tracking the human verdict gets retired rather than defended' but no retirement mechanism is present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'the corpus is n=4' but no corpus data is present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'reads a capture from probe.js' but analyse takes a dict and main reads JSON files; the actual capture reading is in main.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'Tier A metrics ... can gate' but no gating logic is present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'each proxy carries its own agreement record' but no agreement record is present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'metrics over the DOM/CSSOM' but consoleErrors is not DOM/CSSOM.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'no pixels are inspected' but contrast_ratio uses colors which may come from pixels; however, this chunk only processes computed style values.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The module docstring claims 'you can always point at the elements that produced a count' but console_errors and allcaps_text_share do not point to elements.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'the rules must not [need a browser]' but the capture is from probe.js; however, the rules themselves are pure functions.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The module docstring claims 'a disagreement is inspectable instead of arguable' but no disagreement record format is shown in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring claims 'reproducible and explainable' but no randomness is used, so it is reproducible.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The module docstring claims 'the point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?' but compare only prints a table and does not compute separation.",
+       "where": "compare docstring",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "225d93b05f3b1721e1c29004fac56e89aba3097146c45ca3eb941597013c0b0a",
+    "objective_chars": 14411,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/gui/lint.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/gui/lint.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

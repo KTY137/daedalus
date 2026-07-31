@@ -1,0 +1,508 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c3of3__1e9d5dd",
+ "key": "scan__daedalus_council_bus.py__c3of3__1e9d5dd-cd2d438c18",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "3 of 3",
+     "purpose": "Public append/read/verify API for the council transcript chain.",
+     "symbols": [
+      {
+       "name": "append_round",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Normalizes, secret-floors, sorts, and chains a round of turns; returns chained IDs. Raises ValueError on empty turns or duplicate actors."
+      },
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Convenience wrapper for append_round with a single turn; returns the first chained ID."
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Chains a roster accounting record with derived counts and a degraded flag; raises ValueError on invalid phase, actor, or outcome."
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads all JSON lines, skipping blank and unparseable lines; missing file yields []."
+      },
+      {
+       "name": "transcript_head",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns (record_count, last entry_sha) by loading the transcript; None head if empty."
+      },
+      {
+       "name": "read_anchor",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads the anchor file as JSON; returns None if missing or unparseable."
+      },
+      {
+       "name": "verify_chain",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Walks the chain, checking body_sha, entry_sha, and prev linkage; optionally checks count/head against anchor or explicit expectations."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Turns may arrive in ANY completion order.",
+       "where": "append_round docstring",
+       "verdict": "kept",
+       "why": "The function sorts by (actor, role, status, canonical_body_json) before chaining, so completion order is irrelevant to the chain."
+      },
+      {
+       "text": "Turns are normalised, secret-floored, then sorted by actor id and chained with seq assigned here -- so reversed completion order yields a byte-identical chain head.",
+       "where": "append_round docstring",
+       "verdict": "kept",
+       "why": "The sort key includes actor first and the chain is built from the sorted list; reversed input order produces the same sequence. Secret-flooring is done in _normalize_turn (defined elsewhere), but the claim about ordering is satisfied."
+      },
+      {
+       "text": "Returns the ids in CHAINED order.",
+       "where": "append_round docstring",
+       "verdict": "kept",
+       "why": "The function returns the result of _chain_records, which returns ids in chain order per the code at the top of this chunk."
+      },
+      {
+       "text": "Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice...",
+       "where": "append_round docstring",
+       "verdict": "kept",
+       "why": "The code counts actors and raises ValueError if any actor (excluding 'council.redacted.redacted') appears more than once."
+      },
+      {
+       "text": "...a missing participant must be recorded as an unavailable turn rather than skipped.",
+       "where": "append_round docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the code that enforces or documents the unavailable-turn requirement; it is a policy statement without a visible check here."
+      },
+      {
+       "text": "The offending bytes never reach the file -- not in the turn, and not in the receipt.",
+       "where": "append_round comment near _refusal_receipt",
+       "verdict": "uncheckable",
+       "why": "The refusal receipt is constructed and substituted, but the actual file write happens in _chain_records (defined elsewhere); this chunk cannot confirm the bytes never reach the file."
+      },
+      {
+       "text": "Canonical body is the final tiebreak so the order is TOTAL even when two anonymised refusal receipts collapse to the same actor: chaining must not inherit wall-clock completion order from anywhere.",
+       "where": "append_round comment",
+       "verdict": "kept",
+       "why": "The sort key includes canonical_body_json(r) as the last component, making the order total and deterministic."
+      },
+      {
+       "text": "Convenience over append_round; prefer the round form so ordering stays deterministic.",
+       "where": "append_turn docstring",
+       "verdict": "kept",
+       "why": "append_turn simply delegates to append_round with a single-turn list, so the ordering properties are inherited."
+      },
+      {
+       "text": "Chain the roster accounting: requested / seated / responded / unavailable with machine reasons, plus the DISTINCT INDEPENDENCE CLASS count and a degraded flag whenever fewer participants responded than were requested.",
+       "where": "append_roster docstring",
+       "verdict": "kept",
+       "why": "The record includes requested, seated, responded, unavailable, distinct_classes over heard_classes, and degraded = responded < requested."
+      },
+      {
+       "text": "Counts are DERIVED here, never accepted from the caller: '3 of 4' and '2 of 2' must not be able to render as the same string...",
+       "where": "append_roster docstring",
+       "verdict": "kept",
+       "why": "All counts (requested, seated, responded, unavailable, distinct_classes) are computed from the normalized participants, not taken from caller-supplied fields."
+      },
+      {
+       "text": "...a consumer that shows the participant count instead of the distinct-class count is showing a council of clones as a council.",
+       "where": "append_roster docstring",
+       "verdict": "uncheckable",
+       "why": "This is a policy statement about consumers; the chunk only defines the record fields, not how consumers display them."
+      },
+      {
+       "text": "Read all records, skipping a torn tail line (never fatal). Missing is [].",
+       "where": "load_transcript docstring",
+       "verdict": "kept",
+       "why": "The function returns [] when the file does not exist, and skips lines that fail json.loads (including a torn tail)."
+      },
+      {
+       "text": "(record_count, head_entry_sha) -- the tail anchor, recomputed from the file. Compare against read_anchor to catch a truncation.",
+       "where": "transcript_head docstring",
+       "verdict": "kept",
+       "why": "The function returns (len(records), records[-1].get('entry_sha')) from load_transcript, which reads the file."
+      },
+      {
+       "text": "Three independent checks per line: body_sha recomputed over the canonical body -- catches a content edit; entry_sha recomputed over (prev, stored body_sha, ts) -- catches a back-dated ts or a rewritten link where body_sha WAS updated; prev equals the previous line's entry_sha -- catches a deleted or reordered line...",
+       "where": "verify_chain docstring",
+       "verdict": "kept",
+       "why": "The loop compares _body_sha(rec) to stored_body, _entry_sha(rec.get('prev'), stored_body, rec.get('ts')) to stored_entry, and rec.get('prev') to prev_entry_sha."
+      },
+      {
+       "text": "TAIL truncation is the one deletion a per-line walk cannot catch... so the persisted anchor is consulted by default and a shortfall in count or head is NAMED. Explicit expected_count / expected_head override it; use_anchor=False verifies linkage only.",
+       "where": "verify_chain docstring",
+       "verdict": "kept",
+       "why": "The function reads the anchor when use_anchor and no explicit expectations, then appends failures for count/head mismatches; use_anchor=False skips the anchor read."
+      },
+      {
+       "text": "Never a bare False.",
+       "where": "verify_chain docstring",
+       "verdict": "kept",
+       "why": "The function always returns (ok, failures) where failures is a list, never returns a bare boolean."
+      },
+      {
+       "text": "Every failure NAMES the 1-indexed line and what mismatched.",
+       "where": "verify_chain docstring",
+       "verdict": "kept",
+       "why": "All failure strings include 'line {i}' or, for whole-file issues, describe the missing/truncated state with expected counts/heads."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "general prompt",
+       "verdict": "kept",
+       "why": "No such self-referential check exists in this chunk; all comparisons are against independently stored values."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "general prompt",
+       "verdict": "kept",
+       "why": "No such refusal exists; the only refusals are ValueError raises for bad input, and the refusal-receipt path substitutes a receipt rather than naming a forbidden fix."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "general prompt",
+       "verdict": "kept",
+       "why": "No inverted rule is present; the restrictions (phase, actor regex, outcome set) are narrow and the allowed paths are the intended ones."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "general prompt",
+       "verdict": "kept",
+       "why": "read_anchor returns None on JSONDecodeError, which could be considered 'absent' rather than 'unreadable', but the docstring does not promise to distinguish; load_transcript skips unparseable lines by design. No format is pinned here, so the claim is not violated."
+      }
+     ],
+     "observations": [
+      {
+       "what": "append_roster counts 'refused' as seated but not as responded; the 'degraded' flag is based on responded < requested, so a refused participant counts toward seated but not toward responded, which may understate degradation.",
+       "where": "append_roster lines 625-626 and 637",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "append_round excludes 'council.redacted.redacted' from duplicate detection but that actor could still appear in the chain; the comment says 'a duplicate is a caller bug', but this exclusion may allow intentional duplicates for redacted refusals.",
+       "where": "append_round line 579",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "verify_chain skips blank lines without incrementing n_records; a blank line between records does not break linkage but also does not affect the count, which could mask a tampered blank line.",
+       "where": "verify_chain line 690",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "read_anchor returns None on JSONDecodeError, conflating 'no anchor' with 'corrupt anchor'; verify_chain would then treat the anchor as absent and skip the truncation check.",
+       "where": "read_anchor line 665",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "load_transcript uses errors='replace' when reading, which can silently corrupt non-UTF8 bytes into replacement characters; a tampered file with invalid UTF-8 would be read as valid JSON lines with mangled content, potentially bypassing verification.",
+       "where": "load_transcript line 648",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "append_roster | low | Refused participants count as seated but not responded, so degraded may be true when all participants responded as refused; check whether refusal should count as a response for the degraded flag.",
+      "append_round | low | The duplicate-actor exclusion for 'council.redacted.redacted' could allow two redacted turns from the same actor, undermining the one-turn-per-actor rule; verify the refusal-receipt path prevents this.",
+      "verify_chain | low | Blank lines are skipped without affecting n_records; a tampered blank line inserted between records would not be flagged, though it does not break linkage.",
+      "read_anchor | medium | JSONDecodeError in read_anchor returns None, so a corrupt anchor file is treated as absent and truncation checks are silently skipped; consider distinguishing 'missing' from 'unreadable'.",
+      "load_transcript | medium | errors='replace' can silently replace invalid UTF-8 bytes, potentially allowing a tampered file to be read as valid JSON; consider using strict decoding or reporting corruption."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/council/bus.py",
+      "chunk": "3 of 3",
+      "purpose": "Public append/read/verify API for the council transcript chain.",
+      "symbols": [
+       {
+        "name": "append_round",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "Normalizes, secret-floors, sorts, and chains a round of turns; returns chained IDs. Raises ValueError on empty turns or duplicate actors."
+       },
+       {
+        "name": "append_turn",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "Convenience wrapper for append_round with a single turn; returns the first chained ID."
+       },
+       {
+        "name": "append_roster",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "Chains a roster accounting record with derived counts and a degraded flag; raises ValueError on invalid phase, actor, or outcome."
+       },
+       {
+        "name": "load_transcript",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Reads all JSON lines, skipping blank and unparseable lines; missing file yields []."
+       },
+       {
+        "name": "transcript_head",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Returns (record_count, last entry_sha) by loading the transcript; None head if empty."
+       },
+       {
+        "name": "read_anchor",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Reads the anchor file as JSON; returns None if missing or unparseable."
+       },
+       {
+        "name": "verify_chain",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Walks the chain, checking body_sha, entry_sha, and prev linkage; optionally checks count/head against anchor or explicit expectations."
+       }
+      ],
+      "claims": [
+       {
+        "text": "Turns may arrive in ANY completion order.",
+        "where": "append_round docstring",
+        "verdict": "kept",
+        "why": "The function sorts by (actor, role, status, canonical_body_json) before chaining, so completion order is irrelevant to the chain."
+       },
+       {
+        "text": "Turns are normalised, secret-floored, then sorted by actor id and chained with seq assigned here -- so reversed completion order yields a byte-identical chain head.",
+        "where": "append_round docstring",
+        "verdict": "kept",
+        "why": "The sort key includes actor first and the chain is built from the sorted list; reversed input order produces the same sequence. Secret-flooring is done in _normalize_turn (defined elsewhere), but the claim about ordering is satisfied."
+       },
+       {
+        "text": "Returns the ids in CHAINED order.",
+        "where": "append_round docstring",
+        "verdict": "kept",
+        "why": "The function returns the result of _chain_records, which returns ids in chain order per the code at the top of this chunk."
+       },
+       {
+        "text": "Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice...",
+        "where": "append_round docstring",
+        "verdict": "kept",
+        "why": "The code counts actors and raises ValueError if any actor (excluding 'council.redacted.redacted') appears more than once."
+       },
+       {
+        "text": "...a missing participant must be recorded as an unavailable turn rather than skipped.",
+        "where": "append_round docstring",
+        "verdict": "uncheckable",
+        "why": "This chunk does not contain the code that enforces or documents the unavailable-turn requirement; it is a policy statement without a visible check here."
+       },
+       {
+        "text": "The offending bytes never reach the file -- not in the turn, and not in the receipt.",
+        "where": "append_round comment near _refusal_receipt",
+        "verdict": "uncheckable",
+        "why": "The refusal receipt is constructed and substituted, but the actual file write happens in _chain_records (defined elsewhere); this chunk cannot confirm the bytes never reach the file."
+       },
+       {
+        "text": "Canonical body is the final tiebreak so the order is TOTAL even when two anonymised refusal receipts collapse to the same actor: chaining must not inherit wall-clock completion order from anywhere.",
+        "where": "append_round comment",
+        "verdict": "kept",
+        "why": "The sort key includes canonical_body_json(r) as the last component, making the order total and deterministic."
+       },
+       {
+        "text": "Convenience over append_round; prefer the round form so ordering stays deterministic.",
+        "where": "append_turn docstring",
+        "verdict": "kept",
+        "why": "append_turn simply delegates to append_round with a single-turn list, so the ordering properties are inherited."
+       },
+       {
+        "text": "Chain the roster accounting: requested / seated / responded / unavailable with machine reasons, plus the DISTINCT INDEPENDENCE CLASS count and a degraded flag whenever fewer participants responded than were requested.",
+        "where": "append_roster docstring",
+        "verdict": "kept",
+        "why": "The record includes requested, seated, responded, unavailable, distinct_classes over heard_classes, and degraded = responded < requested."
+       },
+       {
+        "text": "Counts are DERIVED here, never accepted from the caller: '3 of 4' and '2 of 2' must not be able to render as the same string...",
+        "where": "append_roster docstring",
+        "verdict": "kept",
+        "why": "All counts (requested, seated, responded, unavailable, distinct_classes) are computed from the normalized participants, not taken from caller-supplied fields."
+       },
+       {
+        "text": "...a consumer that shows the participant count instead of the distinct-class count is showing a council of clones as a council.",
+        "where": "append_roster docstring",
+        "verdict": "uncheckable",
+        "why": "This is a policy statement about consumers; the chunk only defines the record fields, not how consumers display them."
+       },
+       {
+        "text": "Read all records, skipping a torn tail line (never fatal). Missing is [].",
+        "where": "load_transcript docstring",
+        "verdict": "kept",
+        "why": "The function returns [] when the file does not exist, and skips lines that fail json.loads (including a torn tail)."
+       },
+       {
+        "text": "(record_count, head_entry_sha) -- the tail anchor, recomputed from the file. Compare against read_anchor to catch a truncation.",
+        "where": "transcript_head docstring",
+        "verdict": "kept",
+        "why": "The function returns (len(records), records[-1].get('entry_sha')) from load_transcript, which reads the file."
+       },
+       {
+        "text": "Three independent checks per line: body_sha recomputed over the canonical body -- catches a content edit; entry_sha recomputed over (prev, stored body_sha, ts) -- catches a back-dated ts or a rewritten link where body_sha WAS updated; prev equals the previous line's entry_sha -- catches a deleted or reordered line...",
+        "where": "verify_chain docstring",
+        "verdict": "kept",
+        "why": "The loop compares _body_sha(rec) to stored_body, _entry_sha(rec.get('prev'), stored_body, rec.get('ts')) to stored_entry, and rec.get('prev') to prev_entry_sha."
+       },
+       {
+        "text": "TAIL truncation is the one deletion a per-line walk cannot catch... so the persisted anchor is consulted by default and a shortfall in count or head is NAMED. Explicit expected_count / expected_head override it; use_anchor=False verifies linkage only.",
+        "where": "verify_chain docstring",
+        "verdict": "kept",
+        "why": "The function reads the anchor when use_anchor and no explicit expectations, then appends failures for count/head mismatches; use_anchor=False skips the anchor read."
+       },
+       {
+        "text": "Never a bare False.",
+        "where": "verify_chain docstring",
+        "verdict": "kept",
+        "why": "The function always returns (ok, failures) where failures is a list, never returns a bare boolean."
+       },
+       {
+        "text": "Every failure NAMES the 1-indexed line and what mismatched.",
+        "where": "verify_chain docstring",
+        "verdict": "kept",
+        "why": "All failure strings include 'line {i}' or, for whole-file issues, describe the missing/truncated state with expected counts/heads."
+       },
+       {
+        "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+        "where": "general prompt",
+        "verdict": "kept",
+        "why": "No such self-referential check exists in this chunk; all comparisons are against independently stored values."
+       },
+       {
+        "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+        "where": "general prompt",
+        "verdict": "kept",
+        "why": "No such refusal exists; the only refusals are ValueError raises for bad input, and the refusal-receipt path substitutes a receipt rather than naming a forbidden fix."
+       },
+       {
+        "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+        "where": "general prompt",
+        "verdict": "kept",
+        "why": "No inverted rule is present; the restrictions (phase, actor regex, outcome set) are narrow and the allowed paths are the intended ones."
+       },
+       {
+        "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+        "where": "general prompt",
+        "verdict": "kept",
+        "why": "read_anchor returns None on JSONDecodeError, which could be considered 'absent' rather than 'unreadable', but the docstring does not promise to distinguish; load_transcript skips unparseable lines by design. No format is pinned here, so the claim is not violated."
+       }
+      ],
+      "observations": [
+       {
+        "what": "append_roster counts 'refused' as seated but not as responded; the 'degraded' flag is based on responded < requested, so a refused participant counts toward seated but not toward responded, which may understate degradation.",
+        "where": "append_roster lines 625-626 and 637",
+        "severity": "low",
+        "confidence": "likely"
+       },
+       {
+        "what": "append_round excludes 'council.redacted.redacted' from duplicate detection but that actor could still appear in the chain; the comment says 'a duplicate is a caller bug', but this exclusion may allow intentional duplicates for redacted refusals.",
+        "where": "append_round line 579",
+        "severity": "low",
+        "confidence": "possible"
+       },
+       {
+        "what": "verify_chain skips blank lines without incrementing n_records; a blank line between records does not break linkage but also does not affect the count, which could mask a tampered blank line.",
+        "where": "verify_chain line 690",
+        "severity": "low",
+        "confidence": "likely"
+       },
+       {
+        "what": "read_anchor returns None on JSONDecodeError, conflating 'no anchor' with 'corrupt anchor'; verify_chain would then treat the anchor as absent and skip the truncation check.",
+        "where": "read_anchor line 665",
+        "severity": "medium",
+        "confidence": "likely"
+       },
+       {
+        "what": "load_transcript uses errors='replace' when reading, which can silently corrupt non-UTF8 bytes into replacement characters; a tampered file with invalid UTF-8 would be read as valid JSON lines with mangled content, potentially bypassing verification.",
+        "where": "load_transcript line 648",
+        "severity": "medium",
+        "confidence": "likely"
+       }
+      ],
+      "risks": [
+       "append_roster | low | Refused participants count as seated but not responded, so degraded may be true when all participants responded as refused; check whether refusal should count as a response for the degraded flag.",
+       "append_round | low | The duplicate-actor exclusion for 'council.redacted.redacted' could allow two redacted turns from the same actor, undermining the one-turn-per-actor rule; verify the refusal-receipt path prevents this.",
+       "verify_chain | low | Blank lines are skipped without affecting n_records; a tampered blank line inserted between records would not be flagged, though it does not break linkage.",
+       "read_anchor | medium | JSONDecodeError in read_anchor returns None, so a corrupt anchor file is treated as absent and truncation checks are silently skipped; consider distinguishing 'missing' from 'unreadable'.",
+       "load_transcript | medium | errors='replace' can silently replace invalid UTF-8 bytes, potentially allowing a tampered file to be read as valid JSON; consider using strict decoding or reporting corruption."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3428de200067578991c61ac56aa675ca0c319540af7638f622ba2c7a4493d3d7",
+    "objective_chars": 16486,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [3/3]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/council/bus.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

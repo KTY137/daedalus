@@ -1,0 +1,231 @@
+{
+ "task_id": "research__b011__1e9d5dd",
+ "key": "research__b011__1e9d5dd-0def5a65da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses extracted from 104 broken/uncheckable claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypotheses rely on inferred cross-module relationships; evidence symbols are from claims, not verified in code.",
+     "Some hypotheses may be refuted by code not visible in the provided chunks."
+    ],
+    "todos": [
+     "Verify each hypothesis against actual module implementations.",
+     "Check refutation conditions in the broader codebase."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-baseline-paths",
+       "claim": "Multiple modules define and persist baseline/mint store paths with the same 'JSON file, sorted keys, schema-versioned' contract but no shared implementation, risking divergence in schema or atomicity.",
+       "spans": [
+        "harness.py",
+        "mint_store.py",
+        "eval/tasks.py"
+       ],
+       "mechanism": "Each module independently implements its own load/save logic for JSON baselines (DEFAULT_BASELINE_PATH, DEFAULT_MINT_STORE_PATH). If one adds a schema version field and another does not, the files become mutually incompatible without any central check.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "A shared helper (e.g., in a common util module) is used by all baseline/mint store implementations, or there is a single source of truth for the schema.",
+       "evidence": [
+        "harness.py:DEFAULT_BASELINE_PATH",
+        "mint_store.py:DEFAULT_MINT_STORE_PATH",
+        "eval/tasks.py:TASKS"
+       ]
+      },
+      {
+       "id": "secret-floor-rule-bypass",
+       "claim": "The secret floor rule is described as having two independent channels (path markers and value-shaped regexes), but the actual enforcement is split across modules, allowing a bypass if one channel is missing in a particular call path.",
+       "spans": [
+        "sensitivity.py",
+        "mint.py",
+        "floor_check.py"
+       ],
+       "mechanism": "sensitivity.secret_floor_rule is invoked from mint.py's label source exclusion and from floor_check.py's checks. If one call site only passes text (not path) or vice versa, the other channel is never evaluated. The docstring claims both are always checked, but the call sites may not provide both inputs.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "All call sites pass both path and text to secret_floor_rule, or the function itself extracts path from text when not provided.",
+       "evidence": [
+        "sensitivity.py:secret_floor_rule",
+        "mint.py:_mint_from_diffs",
+        "floor_check.py:floor_check"
+       ]
+      },
+      {
+       "id": "process-tree-timeout",
+       "claim": "Timeout handling for subprocesses is inconsistent: some modules claim to kill the entire process tree, but the actual implementation only terminates the immediate child, leaving grandchildren alive.",
+       "spans": [
+        "managed_process.py",
+        "attempt.py",
+        "gate.py"
+       ],
+       "mechanism": "ManagedProcess.cancel() is documented to kill the whole tree, but if it uses Popen.terminate() only, the immediate child is killed and its children survive. Attempt and gate modules rely on this cancel to enforce timeouts, so hung vendor processes can outlive the timeout and continue consuming resources.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "ManagedProcess.cancel() uses process group kill or subprocess.run with timeout that kills the tree, or a shared utility is used that does so.",
+       "evidence": [
+        "managed_process.py:cancel()",
+        "attempt.py:run_attempt",
+        "gate.py:gate_candidates"
+       ]
+      },
+      {
+       "id": "selection-immutability",
+       "claim": "The immutability of the Selection is claimed to be structural (no code path can consult the task after freezing), but the enforcement is split across modules and may be violated by a runner that holds a task reference.",
+       "spans": [
+        "selection.py",
+        "runner.py",
+        "evaluate.py"
+       ],
+       "mechanism": "evaluate_change freezes a Selection and passes it to runners. The docstring claims no code path can consult the task again, but if a runner retains a reference to the original task dict, it can mutate it mid-evaluation. The structural guarantee is only as strong as the weakest module that holds the task.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "All modules that receive a Selection are verified to not hold the task dict, or the Selection itself is a copy that cannot be linked back to the task.",
+       "evidence": [
+        "evaluate.py:evaluate_change",
+        "runner.py:_run_lists",
+        "selection.py:Selection"
+       ]
+      },
+      {
+       "id": "advisory-write-nothing",
+       "claim": "Advisory-mode tasks are claimed to write nothing, but the persistence layer may not enforce this, allowing a proposal to be written to the artifact archive even in advisory mode.",
+       "spans": [
+        "scheduler.py",
+        "proposal_store.py",
+        "attempt.py"
+       ],
+       "mechanism": "The scheduler's advisory mode is documented to produce only proposals, but the proposal store may be called unconditionally by run_write_wave. If the advisory flag is not propagated to the persistence call, a proposal could be persisted as if it were a real write.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "The persistence call is explicitly guarded by a mode check, or the advisory mode never reaches the persistence layer.",
+       "evidence": [
+        "scheduler.py:run_write_wave",
+        "proposal_store.py:persist_proposal",
+        "attempt.py:run_attempt"
+       ]
+      },
+      {
+       "id": "lane-default-divergence",
+       "claim": "Lane trust defaults are defined per adapter and also in a runtime registry, but the two sources can disagree, leading to inconsistent security postures for the same vendor.",
+       "spans": [
+        "adapters.py",
+        "runtime_registry.py",
+        "council.py"
+       ],
+       "mechanism": "Adapters (e.g., CodexAdapter) set a default lane (untrusted) in their constructor, while runtime_registry.py marks codex_cli as trusted-with-IP and openai_api as not. The council profiles may rely on one source or the other, causing the same vendor to be treated differently depending on the path.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "The council explicitly overrides all lane defaults from a single source, or the runtime registry is the only source of truth and adapters do not set defaults.",
+       "evidence": [
+        "adapters.py:CodexAdapter.__init__",
+        "runtime_registry.py:codex_cli",
+        "council.py:default_participants"
+       ]
+      },
+      {
+       "id": "baseline-update-policy",
+       "claim": "Baseline updates are documented as explicit-only (human-invoked), but the write function itself does not enforce this, and an automatic caller could invoke it accidentally.",
+       "spans": [
+        "baseline.py",
+        "eval_cli.py",
+        "gate.py"
+       ],
+       "mechanism": "write_baseline is a public function with no guard against automatic calls. The docstring warns never to call it automatically, but nothing in the code prevents it. If any scheduler or gate calls it programmatically, the ratchet becomes a no-op.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "write_baseline checks a caller-supplied flag or the only call site is the CLI handler.",
+       "evidence": [
+        "baseline.py:write_baseline",
+        "eval_cli.py:--update-baseline"
+       ]
+      },
+      {
+       "id": "anomaly-status-authority",
+       "claim": "Anomaly statuses are recorded by the bus but the rendering and gating modules treat them inconsistently, sometimes as terminal refusals and sometimes as mere advisory flags.",
+       "spans": [
+        "bus.py",
+        "render.py",
+        "gate.py"
+       ],
+       "mechanism": "bus.py records statuses like 'anomaly' without dropping the vendor. render_markdown prints them, but gate logic may treat 'anomaly' as a failure or as a pass depending on the module. The docstring claims anomaly is not a detection, but a weak participant could invalidate an evidence set if the gate misinterprets it.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "All consumers of the status field treat 'anomaly' identically and according to the documented policy.",
+       "evidence": [
+        "bus.py:record_status",
+        "render.py:render_markdown",
+        "gate.py:check_status"
+       ]
+      },
+      {
+       "id": "focus-withheld-exclusion",
+       "claim": "Focus-withheld rows are excluded from reports, but the exclusion logic is not centralized, leading to inconsistent handling in different report renderers.",
+       "spans": [
+        "harness.py",
+        "render_tier1.py",
+        "render_gate.py"
+       ],
+       "mechanism": "harness._focus_withheld_row is referenced in render_tier1 but may not be used in render_gate. If the gate report includes focus-withheld rows as failures, it could falsely block a change that should be advisory.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "All report renderers call the same exclusion helper or the gate does not render focus-withheld rows at all.",
+       "evidence": [
+        "harness.py:_focus_withheld_row",
+        "render_tier1.py:render_tier1",
+        "render_gate.py:render_gate"
+       ]
+      },
+      {
+       "id": "safe-join-fast-path",
+       "claim": "The absolute-path fast path in _safe_join is documented as non-guard, but other modules may treat it as a security boundary, leading to path traversal if the fast path is removed or bypassed.",
+       "spans": [
+        "path_utils.py",
+        "worktree.py",
+        "attempt.py"
+       ],
+       "mechanism": "_safe_join has an absolute-path branch that returns early. The docstring says it's a fast path, not a guard, and the containment check underneath is the real security. If another module calls _safe_join and relies on the fast path to reject absolute paths, it may be vulnerable when the fast path is disabled.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "All callers of _safe_join also perform their own containment checks, or the fast path is never relied upon for security.",
+       "evidence": [
+        "path_utils.py:_safe_join",
+        "worktree.py:GitWorktreeManager",
+        "attempt.py:run_attempt"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "988d923f01fa5457c4eda33135bf22a4034bfba0582ad82a8434130c74f5f2f4",
+    "objective_chars": 44197,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 11 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 11,
+  "inputs": 104
+ }
+}

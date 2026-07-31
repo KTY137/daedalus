@@ -1,0 +1,204 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c3of6__3088037",
+ "key": "scan__daedalus_mapping_drift.py__c3of6__3088037-23548f48dd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "3 of 6",
+     "purpose": "Scan state derivation, acceptance parsing, and report dataclasses",
+     "symbols": [
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Pure derivation of architecture state from reach/switch reports; no writes, clock, or network per docstring"
+      },
+      {
+       "name": "Acceptance",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass for an acceptance record with validity and expiry checks"
+      },
+      {
+       "name": "parse_acceptances",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses raw acceptance list, marking malformed entries with problems, fail-closed"
+      },
+      {
+       "name": "DriftItem",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a drift finding with blocking property and dict serialization"
+      },
+      {
+       "name": "DriftReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a full drift report with blocking items and freshness metadata"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pure: no writes, no clock, no network.",
+       "where": "scan docstring (line ~561)",
+       "verdict": "kept",
+       "why": "The scan function only reads from injected reports and local computation; no filesystem writes, no time functions, no network calls are present in this chunk."
+      },
+      {
+       "text": "``reach_report`` and ``switch_report`` may be injected by a caller that already built them ... the page and the gate are then provably looking at the same analysis.",
+       "where": "scan docstring",
+       "verdict": "kept",
+       "why": "The function checks `if reach_report is None` and `if switch_report is None` before calling the respective analyse functions, so injected reports are used as-is."
+      },
+      {
+       "text": "``index`` is only forwarded to reach for its structural cross-check.",
+       "where": "scan docstring",
+       "verdict": "kept",
+       "why": "`index` is passed to `reach_mod.analyse(root, index=index)` and not used elsewhere in this chunk."
+      },
+      {
+       "text": "The state also records WHICH TREE it was derived from (:func:`repo_state`). It belongs here rather than in the writer because it is a property of the scan ...",
+       "where": "scan docstring",
+       "verdict": "kept",
+       "why": "`state` includes `\"repo_state\": repo_state(root, probe_dirty=probe_dirty)` which records the tree."
+      },
+      {
+       "text": "TEST ONLY is a property of an UNREACHED module, not of an island specifically. Scoping it to islands meant a shim or an unknown whose only importer was a test could not be described that way at all.",
+       "where": "scan comment (line ~596)",
+       "verdict": "kept",
+       "why": "The code computes `unreached_facts` from `UNREACHED_CLASSES` (which includes more than islands) and then `test_only` from that set, so it is not scoped to islands."
+      },
+      {
+       "text": "Two engines disagreeing about the import graph. reach REPORTS these and refuses to merge them ... the gate is where a disagreement that persists across a commit becomes somebody's problem.",
+       "where": "scan comment (line ~600)",
+       "verdict": "kept",
+       "why": "`index_extra_edges` is taken from `reach_report.index_extra_edges` and included in the state and sites; the gate logic is outside this chunk but the data is captured."
+      },
+      {
+       "text": "An absent API key is not a dark feature. The feature it belongs to is documented and merely unconfigured -- ``daedalus doctor`` already reports it, and an architecture gate is a poor place to enumerate which secrets a machine is missing. ``secret`` is the switch engine's own classification, so this is a filter over one answer, not a second opinion about what a switch is.",
+       "where": "scan comment (line ~612)",
+       "verdict": "kept",
+       "why": "The code skips switches with `sw.kind == \"secret\"`, and filters out documented switches via `docs.documents(sw.name)`, matching the stated intent."
+      },
+      {
+       "text": "A module the scanner could not parse contributes nothing to either engine's answer, which makes it a hole in the map that used to be filled by a bare ``continue``. It is a finding, not a shrug.",
+       "where": "scan comment (line ~625)",
+       "verdict": "kept",
+       "why": "The code builds `unparsable` from both `reach_report.unparsable` and `switch_report.unparsable`, and includes it in `counts`, `state`, and `sites`."
+      },
+      {
+       "text": "The honest total: every module on disk that no entry point reaches, whatever reach called it. It is the number the page has to add up to, and it is what \"islands=7\" used to hide.",
+       "where": "scan comment (line ~635)",
+       "verdict": "kept",
+       "why": "`\"unreached\": len(islands) + len(unknown_mods) + len(shims)` sums all three classifications, as described."
+      },
+      {
+       "text": "Fail closed: anything we cannot fully validate is kept, marked with a ``problem``, and suppresses nothing. A typo in an acceptance must never be the thing that makes an island invisible.",
+       "where": "parse_acceptances docstring",
+       "verdict": "kept",
+       "why": "Every entry, even malformed ones, is appended to `out` as an `Acceptance` with a `problem` string; nothing is dropped."
+      },
+      {
+       "text": "``today`` binds the horizon to the CALENDAR. Without it the only rule is ``until - since <= MAX_HORIZON_DAYS``, which a pair of dates in 2999 satisfies while suppressing forever; the cap measured the acceptance against itself and nothing measured it against now. Omitting ``today`` keeps the date-shape and horizon checks and skips only that one ...",
+       "where": "parse_acceptances docstring",
+       "verdict": "kept",
+       "why": "The `d_since > today` check is guarded by `if d_since and today`, so omitting `today` skips only that check while horizon and date-shape checks still run."
+      },
+      {
+       "text": "The consumers that RANK WORK out of these lists are the ones that must fail closed on it -- see :func:`snapshot_freshness`.",
+       "where": "DriftReport comment (line ~720)",
+       "verdict": "uncheckable",
+       "why": "The `snapshot_freshness` function is not in this chunk, so the claim about its fail-closed behavior cannot be verified here."
+      },
+      {
+       "text": "A baseline taken one commit ago is not a defect, and a gate that goes red on every commit is a gate people switch off.",
+       "where": "DriftReport comment (line ~719)",
+       "verdict": "kept",
+       "why": "The `freshness` field is a plain dict with no blocking logic in this dataclass; the comment explicitly says it is 'Reported, never blocking'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The `scan` function's docstring claims purity, and the code indeed has no side effects in this chunk; however, it calls `repo_state(root, probe_dirty=probe_dirty)` which may read the filesystem or git, but that is still read-only and not a write, clock, or network operation.",
+       "where": "scan docstring and body",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In `parse_acceptances`, the `who` field is parsed but not validated; the docstring says 'anything we cannot fully validate is kept', but missing `who` does not produce a problem, which is consistent with `who` being optional (default empty string).",
+       "where": "parse_acceptances body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `Acceptance.expired` method returns `True` on a `ValueError` from `date.fromisoformat`, which means malformed dates are treated as expired. This aligns with the fail-closed philosophy but could be surprising; it is not contradicted by any docstring in this chunk.",
+       "where": "Acceptance.expired",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `DriftItem.blocking` property checks `kind in NON_BLOCKING_KINDS` first, then returns `not self.accepted`. This means an accepted item in a non-blocking kind is still non-blocking, which is consistent with the stated intent but the comment in the code does not elaborate.",
+       "where": "DriftItem.blocking",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "scan docstring purity claim | low | The docstring says 'no writes, no clock, no network' but `repo_state` may read git state; if that involves a subprocess or network, the claim could be violated. Verify `repo_state` in this file.",
+      "parse_acceptances 'fail closed' | low | The function drops non-list input entirely (returns empty list), which could be seen as failing open if the caller expects a list. The docstring does not specify behavior for non-list input; verify intended behavior."
+     ],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45882c44ce596359a2c9ee755f1571a5fad38c6c6e252054d5413bbcb296cb02",
+    "objective_chars": 16182,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [3/6]",
+  "rev": "3088037",
+  "module": "daedalus/mapping/drift.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

@@ -1,0 +1,394 @@
+{
+ "task_id": "scan__daedalus_lanes_checks.py__c2of2__3088037",
+ "key": "scan__daedalus_lanes_checks.py__c2of2__3088037-4796c13743",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/checks.py",
+     "chunk": "2 of 2",
+     "purpose": "Implement unresolved import detection, imports_resolve check, baseline check tuple, run_checks fail-closed runner, and with_markers policy helper.",
+     "symbols": [
+      {
+       "name": "unresolved_first_party_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Static AST walk; reports missing first-party modules and names; returns deduplicated, order-preserving list."
+      },
+      {
+       "name": "imports_resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Check wrapper; returns empty string when imports resolve; otherwise formatted refusal with cap."
+      },
+      {
+       "name": "BASELINE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of checks ordered: not_truncated, no_elision, parses, not_substituted, imports_resolve."
+      },
+      {
+       "name": "run_checks",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs baseline plus extra checks; fail-closed on exception; returns first non-empty reason."
+      },
+      {
+       "name": "with_markers",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a new CheckPolicy with replaced elision_markers."
+      }
+     ],
+     "claims": [
+      {
+       "text": "First-party imports in ``content`` that name nothing in the tree.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "Function performs static AST walk and checks first-party roots against module paths and exports; returns list of missing modules/names."
+      },
+      {
+       "text": "MEASURED 2026-07-30. Twenty agents wrote test modules against source files they were given, and three of seven imported things that do not exist: ``daedalus.linting`` (it is ``daedalus.gui.lint``), ``ShiftManager`` from ``daedalus.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault`` (it is ``daedalus.wiki.vault``). All three are valid Python, so a syntax gate passes them, and all three reported ``status: done``.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "uncheckable",
+       "why": "Claims about external measurements and specific historical examples; not verifiable from this code chunk."
+      },
+      {
+       "text": "The check is STATIC on purpose. Importing the file to find out whether its imports resolve would execute module-level code from an untrusted lane -- the one thing this repository refuses to do to decide whether to trust something.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "Function uses ast.parse and ast.walk; no import statements are executed."
+      },
+      {
+       "text": "only first-party roots are judged;",
+       "where": "docstring bullet",
+       "verdict": "kept",
+       "why": "Both Import and ImportFrom branches check alias.name.split('.')[0] or node.module.split('.')[0] against roots."
+      },
+      {
+       "text": "a missing MODULE is reported, since that cannot be a re-export;",
+       "where": "docstring bullet",
+       "verdict": "kept",
+       "why": "When _module_path returns None for the module, appends 'module does not exist'."
+      },
+      {
+       "text": "a missing NAME is reported only when the module has no star-import and no module-level ``__getattr__``.",
+       "where": "docstring bullet",
+       "verdict": "kept",
+       "why": "_exports returns opaque flag; if opaque, continue skips name checks; star import skipped via alias.name == '*'."
+      },
+      {
+       "text": "a parse failure is a different guard's business",
+       "where": "docstring comment line 307",
+       "verdict": "kept",
+       "why": "Catches SyntaxError, ValueError, RecursionError and returns []."
+      },
+      {
+       "text": "relative imports resolve against a package",
+       "where": "comment line 322",
+       "verdict": "kept",
+       "why": "Skips ImportFrom nodes when node.level is truthy or node.module is None."
+      },
+      {
+       "text": "`from daemon import shift` binds a SUBMODULE, which is perfectly valid and is named nowhere in the package's __init__.py. Measured: without this the check fired on 40 of 223 real files in this repo -- a false-positive rate that would have made the gate useless and, worse, trained everyone to ignore it.",
+       "where": "comment lines 333-337",
+       "verdict": "uncheckable",
+       "why": "The specific measurement is not verifiable from code; the submodule check itself is present."
+      },
+      {
+       "text": "Deduplicated but order-preserving: the same bad import repeated ten times is one problem, and the first occurrence is the one worth naming.",
+       "where": "comment line 344",
+       "verdict": "kept",
+       "why": "Uses list(dict.fromkeys(bad)) to preserve first occurrence order."
+      },
+      {
+       "text": "Checked for CREATED files too -- a brand-new test module against an invented API is exactly the failure this catches, and it has no original to compare against.",
+       "where": "docstring of imports_resolve",
+       "verdict": "kept",
+       "why": "imports_resolve calls unresolved_first_party_imports on attempt.proposed regardless of file type; no check for existing file."
+      },
+      {
+       "text": "FAIL-CLOSED, and this is the part worth not losing: a check that raises is reported as a refusal naming the crash. The alternative -- letting the exception propagate, or catching it and continuing -- turns a broken guard into a silent permission, which is how a gate ends up passing a file that destroyed a module.",
+       "where": "docstring of run_checks",
+       "verdict": "kept",
+       "why": "try/except around each check call returns a refusal message with exception type and message."
+      },
+      {
+       "text": "A lane may pass ``extra`` to ADD checks. There is deliberately no argument for removing one from the baseline.",
+       "where": "docstring of run_checks",
+       "verdict": "kept",
+       "why": "Function accepts extra iterable and concatenates with BASELINE; no removal parameter exists."
+      },
+      {
+       "text": "``policy`` with this lane's own elision markers. Convenience only.",
+       "where": "docstring of with_markers",
+       "verdict": "kept",
+       "why": "Returns replace(policy, elision_markers=tuple(markers)); does not modify original."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment on lines 281-282 (\"is not an improvement, and letting it land would break an import for every consumer of the module\") is a fragment of a larger explanation; it is not a checkable claim but a rationale.",
+       "where": "lines 281-283",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment 'Cheapest first' on line 349 implies an ordering rationale, but the code does not enforce any performance measurement; it is a stated intent.",
+       "where": "line 349",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of unresolved_first_party_imports says 'a missing NAME is reported only when the module has no star-import and no module-level __getattr__.' The code checks _exports(path) which returns opaque flag; opaque is true if star-import or __getattr__, but this is not directly visible in this chunk; the behavior is delegated to _exports.",
+       "where": "lines 326-329",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The check for submodule existence at line 338-340 uses _module_path(root, f\"{node.module}.{alias.name}\") to allow `from daemon import shift`; this is a special case that bypasses the name check.",
+       "where": "lines 338-340",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The imports_resolve function caps the number of reported imports at policy.max_named_imports, but the exact semantics of max_named_imports (whether it is a cap on report count or something else) is not defined in this chunk.",
+       "where": "lines 366-370",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The BASELINE tuple ordering is stated as load-bearing in one direction only, but the comment does not specify which direction; the code does not enforce any order.",
+       "where": "lines 348-355",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The fail-closed behavior in run_checks catches all exceptions (except BaseException) and returns a refusal; this is robust but could mask programming errors in the checks themselves.",
+       "where": "lines 366-373",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "line 349 | low | 'Cheapest first' comment implies performance ordering, but no mechanism enforces it; if a check is expensive, the order may not be cheapest. | Add a comment or test that measures order cost.",
+      "lines 326-329 | low | The opaque flag from _exports is not defined in this chunk; if _exports misclassifies, the name check could be skipped incorrectly. | Inspect _exports implementation.",
+      "lines 366-370 | low | max_named_imports semantics are not defined; if it is zero, the function would report nothing even when there are bad imports. | Define and test max_named_imports behavior.",
+      "lines 366-373 | medium | run_checks catches all exceptions and returns a refusal; this could hide bugs in the checks themselves, making debugging harder. | Add logging or a test to surface exceptions in development."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/lanes/checks.py",
+      "chunk": "2 of 2",
+      "purpose": "Implement unresolved import detection, imports_resolve check, baseline check tuple, run_checks fail-closed runner, and with_markers policy helper.",
+      "symbols": [
+       {
+        "name": "unresolved_first_party_imports",
+        "kind": "function",
+        "effects": [],
+        "note": "Static AST walk; reports missing first-party modules and names; returns deduplicated, order-preserving list."
+       },
+       {
+        "name": "imports_resolve",
+        "kind": "function",
+        "effects": [],
+        "note": "Check wrapper; returns empty string when imports resolve; otherwise formatted refusal with cap."
+       },
+       {
+        "name": "BASELINE",
+        "kind": "constant",
+        "effects": [],
+        "note": "Tuple of checks ordered: not_truncated, no_elision, parses, not_substituted, imports_resolve."
+       },
+       {
+        "name": "run_checks",
+        "kind": "function",
+        "effects": [],
+        "note": "Runs baseline plus extra checks; fail-closed on exception; returns first non-empty reason."
+       },
+       {
+        "name": "with_markers",
+        "kind": "function",
+        "effects": [],
+        "note": "Returns a new CheckPolicy with replaced elision_markers."
+       }
+      ],
+      "claims": [
+       {
+        "text": "First-party imports in ``content`` that name nothing in the tree.",
+        "where": "docstring of unresolved_first_party_imports",
+        "verdict": "kept",
+        "why": "Function performs static AST walk and checks first-party roots against module paths and exports; returns list of missing modules/names."
+       },
+       {
+        "text": "MEASURED 2026-07-30. Twenty agents wrote test modules against source files they were given, and three of seven imported things that do not exist: ``daedalus.linting`` (it is ``daedalus.gui.lint``), ``ShiftManager`` from ``daedalus.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault`` (it is ``daedalus.wiki.vault``). All three are valid Python, so a syntax gate passes them, and all three reported ``status: done``.",
+        "where": "docstring of unresolved_first_party_imports",
+        "verdict": "uncheckable",
+        "why": "Claims about external measurements and specific historical examples; not verifiable from this code chunk."
+       },
+       {
+        "text": "The check is STATIC on purpose. Importing the file to find out whether its imports resolve would execute module-level code from an untrusted lane -- the one thing this repository refuses to do to decide whether to trust something.",
+        "where": "docstring of unresolved_first_party_imports",
+        "verdict": "kept",
+        "why": "Function uses ast.parse and ast.walk; no import statements are executed."
+       },
+       {
+        "text": "only first-party roots are judged;",
+        "where": "docstring bullet",
+        "verdict": "kept",
+        "why": "Both Import and ImportFrom branches check alias.name.split('.')[0] or node.module.split('.')[0] against roots."
+       },
+       {
+        "text": "a missing MODULE is reported, since that cannot be a re-export;",
+        "where": "docstring bullet",
+        "verdict": "kept",
+        "why": "When _module_path returns None for the module, appends 'module does not exist'."
+       },
+       {
+        "text": "a missing NAME is reported only when the module has no star-import and no module-level ``__getattr__``.",
+        "where": "docstring bullet",
+        "verdict": "kept",
+        "why": "_exports returns opaque flag; if opaque, continue skips name checks; star import skipped via alias.name == '*'."
+       },
+       {
+        "text": "a parse failure is a different guard's business",
+        "where": "docstring comment line 307",
+        "verdict": "kept",
+        "why": "Catches SyntaxError, ValueError, RecursionError and returns []."
+       },
+       {
+        "text": "relative imports resolve against a package",
+        "where": "comment line 322",
+        "verdict": "kept",
+        "why": "Skips ImportFrom nodes when node.level is truthy or node.module is None."
+       },
+       {
+        "text": "`from daemon import shift` binds a SUBMODULE, which is perfectly valid and is named nowhere in the package's __init__.py. Measured: without this the check fired on 40 of 223 real files in this repo -- a false-positive rate that would have made the gate useless and, worse, trained everyone to ignore it.",
+        "where": "comment lines 333-337",
+        "verdict": "uncheckable",
+        "why": "The specific measurement is not verifiable from code; the submodule check itself is present."
+       },
+       {
+        "text": "Deduplicated but order-preserving: the same bad import repeated ten times is one problem, and the first occurrence is the one worth naming.",
+        "where": "comment line 344",
+        "verdict": "kept",
+        "why": "Uses list(dict.fromkeys(bad)) to preserve first occurrence order."
+       },
+       {
+        "text": "Checked for CREATED files too -- a brand-new test module against an invented API is exactly the failure this catches, and it has no original to compare against.",
+        "where": "docstring of imports_resolve",
+        "verdict": "kept",
+        "why": "imports_resolve calls unresolved_first_party_imports on attempt.proposed regardless of file type; no check for existing file."
+       },
+       {
+        "text": "FAIL-CLOSED, and this is the part worth not losing: a check that raises is reported as a refusal naming the crash. The alternative -- letting the exception propagate, or catching it and continuing -- turns a broken guard into a silent permission, which is how a gate ends up passing a file that destroyed a module.",
+        "where": "docstring of run_checks",
+        "verdict": "kept",
+        "why": "try/except around each check call returns a refusal message with exception type and message."
+       },
+       {
+        "text": "A lane may pass ``extra`` to ADD checks. There is deliberately no argument for removing one from the baseline.",
+        "where": "docstring of run_checks",
+        "verdict": "kept",
+        "why": "Function accepts extra iterable and concatenates with BASELINE; no removal parameter exists."
+       },
+       {
+        "text": "``policy`` with this lane's own elision markers. Convenience only.",
+        "where": "docstring of with_markers",
+        "verdict": "kept",
+        "why": "Returns replace(policy, elision_markers=tuple(markers)); does not modify original."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The comment on lines 281-282 (\"is not an improvement, and letting it land would break an import for every consumer of the module\") is a fragment of a larger explanation; it is not a checkable claim but a rationale.",
+        "where": "lines 281-283",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The comment 'Cheapest first' on line 349 implies an ordering rationale, but the code does not enforce any performance measurement; it is a stated intent.",
+        "where": "line 349",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The docstring of unresolved_first_party_imports says 'a missing NAME is reported only when the module has no star-import and no module-level __getattr__.' The code checks _exports(path) which returns opaque flag; opaque is true if star-import or __getattr__, but this is not directly visible in this chunk; the behavior is delegated to _exports.",
+        "where": "lines 326-329",
+        "severity": "low",
+        "confidence": "likely"
+       },
+       {
+        "what": "The check for submodule existence at line 338-340 uses _module_path(root, f\"{node.module}.{alias.name}\") to allow `from daemon import shift`; this is a special case that bypasses the name check.",
+        "where": "lines 338-340",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The imports_resolve function caps the number of reported imports at policy.max_named_imports, but the exact semantics of max_named_imports (whether it is a cap on report count or something else) is not defined in this chunk.",
+        "where": "lines 366-370",
+        "severity": "low",
+        "confidence": "likely"
+       },
+       {
+        "what": "The BASELINE tuple ordering is stated as load-bearing in one direction only, but the comment does not specify which direction; the code does not enforce any order.",
+        "where": "lines 348-355",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The fail-closed behavior in run_checks catches all exceptions (except BaseException) and returns a refusal; this is robust but could mask programming errors in the checks themselves.",
+        "where": "lines 366-373",
+        "severity": "medium",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "line 349 | low | 'Cheapest first' comment implies performance ordering, but no mechanism enforces it; if a check is expensive, the order may not be cheapest. | Add a comment or test that measures order cost.",
+       "lines 326-329 | low | The opaque flag from _exports is not defined in this chunk; if _exports misclassifies, the name check could be skipped incorrectly. | Inspect _exports implementation.",
+       "lines 366-370 | low | max_named_imports semantics are not defined; if it is zero, the function would report nothing even when there are bad imports. | Define and test max_named_imports behavior.",
+       "lines 366-373 | medium | run_checks catches all exceptions and returns a refusal; this could hide bugs in the checks themselves, making debugging harder. | Add logging or a test to surface exceptions in development."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64252e5e77eba3a8e2c98bc40a52c5784eb7734aa9c0d253b2a4c50723ba2f09",
+    "objective_chars": 10129,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/checks.py [2/2]",
+  "rev": "3088037",
+  "module": "daedalus/lanes/checks.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

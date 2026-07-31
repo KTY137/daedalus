@@ -1,0 +1,196 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c4of4__1e9d5dd",
+ "key": "scan__daedalus_mapping_inventory.py__c4of4__1e9d5dd-43af79d38d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of daedalus/mapping/inventory.py (lines 841-end): refresh(), check(), _by_key(), _statuses(), _describe_drift(), render_text(), main(). All docstring claims check out against the code shown.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "4 of 4",
+     "purpose": "Inspect the final chunk of the inventory module: refresh, gate-mode check, drift detection, text rendering, and CLI entry.",
+     "symbols": [
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Builds a fresh doc and writes it to the target path; returns a dict with path, doc, and harvest stats. Writes the inventory file."
+      },
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Gate-mode validation: loads the stored inventory, checks schema, digest, annotation overreach, and drift against a fresh build. Returns a dict with ok, path, problems, stored, fresh. Does not write."
+      },
+      {
+       "name": "_by_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts each feature's derived half (excluding human fields) keyed by module or by detector:reason for module-less entries. Used for field-level drift."
+      },
+      {
+       "name": "_statuses",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a dict mapping feature keys to their status strings, based on _by_key()."
+      },
+      {
+       "name": "_describe_drift",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Compares stored vs fresh docs and produces a list of human-readable drift messages, covering HEAD changes, feature additions/removals/status changes, block changes, and field-level changes."
+      },
+      {
+       "name": "render_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders a plain-text summary of the doc: schema, repo state, counts, and human annotation counts."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "CLI entry point. Parses arguments and dispatches to --check, --json, or --refresh. Can write the inventory file when refreshing; otherwise prints output. Exits with 0 or 1."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Gate mode. Writes nothing; returns {\"ok\": bool, \"problems\": [...]}.",
+       "where": "check docstring (line ~841)",
+       "verdict": "kept",
+       "why": "The function never calls write_inventory or any file-writing operation; it returns a dict with 'ok' and 'problems' keys, both present in the return statement."
+      },
+      {
+       "text": "Four ways to fail, in the order a reader needs them: 1. there is no inventory, or it cannot be parsed;",
+       "where": "check docstring (line ~843)",
+       "verdict": "kept",
+       "why": "The function first calls load(target); if stored is None, returns a failure with 'no inventory at ...'. If stored.get('__error__'), returns a failure with 'could not be parsed'."
+      },
+      {
+       "text": "2. it was written by a different schema;",
+       "where": "check docstring (line ~844)",
+       "verdict": "kept",
+       "why": "After the parse checks, the code checks if stored.get('schema') != SCHEMA and returns a failure with a schema mismatch message."
+      },
+      {
+       "text": "3. its digest does not cover its own derived fields -- somebody edited the mechanical half by hand;",
+       "where": "check docstring (line ~845)",
+       "verdict": "kept",
+       "why": "The code calls digest_ok(stored); if false, it appends a problem message about hand-edited derived fields."
+      },
+      {
+       "text": "4. regenerating it now would change something -- it is STALE, and the diff says exactly how.",
+       "where": "check docstring (line ~846)",
+       "verdict": "kept",
+       "why": "The code builds a fresh doc and compares _strip_human(stored) vs _strip_human(fresh); if different, extends problems with _describe_drift(stored, fresh), which produces detailed messages."
+      },
+      {
+       "text": "Every feature's DERIVED half, keyed by module (or by detector for the module-less stale entries). The human fields are dropped so a note cannot read as drift.",
+       "where": "_by_key docstring (line ~880)",
+       "verdict": "kept",
+       "why": "The function iterates all areas and features, builds a key from module or from detector:reason, and filters out FEATURE_HUMAN_FIELDS from each feature dict. Human fields are excluded."
+      },
+      {
+       "text": "Field-level, not just status-level. A module whose importers or reaching entry point changed is a real difference, and reporting it as \"something differs, go diff the file yourself\" is how a gate stops being read.",
+       "where": "comment in _describe_drift (line ~917)",
+       "verdict": "kept",
+       "why": "The code compares _by_key(stored) vs _by_key(fresh) and lists the specific fields that changed for each shared key, excluding 'status'."
+      },
+      {
+       "text": "Mechanical fields are rewritten every run; human notes are carried forward and excluded from the digest.",
+       "where": "main() ArgumentParser description (line ~948)",
+       "verdict": "kept",
+       "why": "The refresh function (seen in this chunk) calls build and write_inventory, and the check function uses _strip_human to compare only mechanical fields. The harvest function (defined elsewhere) carries forward annotations. The digest exclusion is implemented in digest_ok (elsewhere), but the description's claim about mechanical rewrite and human carry-forward is consistent with the code shown."
+      },
+      {
+       "text": "gate mode: exit non-zero if the file is missing, hand-edited or stale; writes nothing",
+       "where": "main() --check help (line ~956)",
+       "verdict": "kept",
+       "why": "When --check is set, main calls check(root, target, probe_dirty=probe). If not ok, prints problems and returns 1. The check function writes nothing."
+      },
+      {
+       "text": "print the generated document; writes nothing",
+       "where": "main() --json help (line ~958)",
+       "verdict": "kept",
+       "why": "In the --json branch, the code builds a doc and prints json.dumps(doc, indent=2, ensure_ascii=False). No file write occurs."
+      },
+      {
+       "text": "skip the working-tree dirty probe",
+       "where": "main() --no-git help (line ~960)",
+       "verdict": "kept",
+       "why": "The code sets probe = not args.no_git and passes probe_dirty=probe to check() and refresh(). If --no-git is given, probe is False."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The check function returns both 'stored' and 'fresh' docs, which could be large; the CLI ignores them, but they are present in the return dict.",
+       "where": "check return statement (line ~876)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In main(), the --json branch calls harvest with old = load(target) or {}; if the file is missing, old is an empty dict, and harvest may behave differently. This is consistent with the help text but could be surprising.",
+       "where": "main() --json branch (line ~971)",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The drift description for field-level changes is truncated to the first 10 entries and then summarized with '... and N more modules'. This could hide details in large inventories, but the summary is explicit.",
+       "where": "_describe_drift (lines ~933-935)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2e69299a0c2318903d95d807df59aad46d25d2dec9017da1768d8066d592174",
+    "objective_chars": 13260,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [4/4]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

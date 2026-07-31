@@ -1,0 +1,231 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c4of4__1e9d5dd",
+ "key": "scan__daedalus_council_publish.py__c4of4__1e9d5dd-daf7b6a8db",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "4 of 4",
+     "purpose": "Final window of publish.py: tail of PRTurn construction from raw dict.",
+     "symbols": [
+      {
+       "name": "PRTurn",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass returned by the enclosing function; fields author, created_at, body, url are filled from raw dict keys with defaults."
+      },
+      {
+       "name": "_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Applied to every value before assignment; coerces None or missing to empty string."
+      },
+      {
+       "name": "_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts first present key from raw dict; default used when none present."
+      }
+     ],
+     "claims": [
+      {
+       "text": "author = _text(_field(author_obj, \"login\", \"name\", default=\"(unknown)\"))",
+       "where": "line 841",
+       "verdict": "KEPT",
+       "why": "The line exactly as written extracts the first of \"login\" or \"name\" from author_obj, defaulting to \"(unknown)\", then coerces via _text."
+      },
+      {
+       "text": "return PRTurn(author=author or \"(unknown)\", ...)",
+       "where": "line 842",
+       "verdict": "KEPT",
+       "why": "The fallback to \"(unknown)\" when author is falsy matches the code: author or \"(unknown)\"."
+      },
+      {
+       "text": "created_at=_text(_field(raw, \"createdAt\", \"created_at\", \"ts\", default=\"\"))",
+       "where": "line 843",
+       "verdict": "KEPT",
+       "why": "The extraction order and default are exactly as written; _text coerces to string."
+      },
+      {
+       "text": "body=_text(_field(raw, \"body\", \"text\", default=\"\"))",
+       "where": "line 844",
+       "verdict": "KEPT",
+       "why": "The extraction order and default match the code."
+      },
+      {
+       "text": "url=_text(_field(raw, \"url\", \"html_url\", default=\"\"))",
+       "where": "line 845",
+       "verdict": "KEPT",
+       "why": "The extraction order and default match the code."
+      },
+      {
+       "text": "author or \"(unknown)\" ensures a non-empty author",
+       "where": "line 842",
+       "verdict": "KEPT",
+       "why": "If _text returns empty string or None, the or replaces it with \"(unknown)\". The code does exactly this."
+      },
+      {
+       "text": "The function returns a PRTurn with all four fields set",
+       "where": "lines 842-845",
+       "verdict": "KEPT",
+       "why": "Every PRTurn constructor argument is present and assigned from raw or default."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The only code in this chunk is the final lines of a PRTurn-construction function; no docstrings or comments are present in the window.",
+       "where": "lines 841-845",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "author is extracted from author_obj, not raw; if author_obj itself is None, _field would raise AttributeError unless _field handles None.",
+       "where": "line 841",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The fallback \"(unknown)\" appears twice: once as default in _field and once via 'or \"(unknown)\"'. The second fallback covers the case where _text returns an empty string.",
+       "where": "lines 841-842",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "line 841 | medium | _field called on author_obj without a guard for None; if author_obj is None, AttributeError is raised before the default can apply | Inspect _field's implementation for a None check"
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/council/publish.py",
+      "chunk": "4 of 4",
+      "purpose": "Final window of publish.py: tail of PRTurn construction from raw dict.",
+      "symbols": [
+       {
+        "name": "PRTurn",
+        "kind": "class",
+        "effects": [],
+        "note": "Dataclass returned by the enclosing function; fields author, created_at, body, url are filled from raw dict keys with defaults."
+       },
+       {
+        "name": "_text",
+        "kind": "function",
+        "effects": [],
+        "note": "Applied to every value before assignment; coerces None or missing to empty string."
+       },
+       {
+        "name": "_field",
+        "kind": "function",
+        "effects": [],
+        "note": "Extracts first present key from raw dict; default used when none present."
+       }
+      ],
+      "claims": [
+       {
+        "text": "author = _text(_field(author_obj, \"login\", \"name\", default=\"(unknown)\"))",
+        "where": "line 841",
+        "verdict": "KEPT",
+        "why": "The line exactly as written extracts the first of \"login\" or \"name\" from author_obj, defaulting to \"(unknown)\", then coerces via _text."
+       },
+       {
+        "text": "return PRTurn(author=author or \"(unknown)\", ...)",
+        "where": "line 842",
+        "verdict": "KEPT",
+        "why": "The fallback to \"(unknown)\" when author is falsy matches the code: author or \"(unknown)\"."
+       },
+       {
+        "text": "created_at=_text(_field(raw, \"createdAt\", \"created_at\", \"ts\", default=\"\"))",
+        "where": "line 843",
+        "verdict": "KEPT",
+        "why": "The extraction order and default are exactly as written; _text coerces to string."
+       },
+       {
+        "text": "body=_text(_field(raw, \"body\", \"text\", default=\"\"))",
+        "where": "line 844",
+        "verdict": "KEPT",
+        "why": "The extraction order and default match the code."
+       },
+       {
+        "text": "url=_text(_field(raw, \"url\", \"html_url\", default=\"\"))",
+        "where": "line 845",
+        "verdict": "KEPT",
+        "why": "The extraction order and default match the code."
+       },
+       {
+        "text": "author or \"(unknown)\" ensures a non-empty author",
+        "where": "line 842",
+        "verdict": "KEPT",
+        "why": "If _text returns empty string or None, the or replaces it with \"(unknown)\". The code does exactly this."
+       },
+       {
+        "text": "The function returns a PRTurn with all four fields set",
+        "where": "lines 842-845",
+        "verdict": "KEPT",
+        "why": "Every PRTurn constructor argument is present and assigned from raw or default."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The only code in this chunk is the final lines of a PRTurn-construction function; no docstrings or comments are present in the window.",
+        "where": "lines 841-845",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "author is extracted from author_obj, not raw; if author_obj itself is None, _field would raise AttributeError unless _field handles None.",
+        "where": "line 841",
+        "severity": "medium",
+        "confidence": "possible"
+       },
+       {
+        "what": "The fallback \"(unknown)\" appears twice: once as default in _field and once via 'or \"(unknown)\"'. The second fallback covers the case where _text returns an empty string.",
+        "where": "lines 841-842",
+        "severity": "low",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "line 841 | medium | _field called on author_obj without a guard for None; if author_obj is None, AttributeError is raised before the default can apply | Inspect _field's implementation for a None check"
+      ]
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "92ce1a036f4a48d50261b75e78b7c5fb4d136172025aff87f974b437bc31bffd",
+    "objective_chars": 4159,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [4/4]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/council/publish.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

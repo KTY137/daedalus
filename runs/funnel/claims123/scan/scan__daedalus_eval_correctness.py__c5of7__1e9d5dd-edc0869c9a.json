@@ -1,0 +1,257 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c5of7__1e9d5dd",
+ "key": "scan__daedalus_eval_correctness.py__c5of7__1e9d5dd-edc0869c9a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of correctness.py: evaluate_change, verify_before_state, corpus load/save/run, helpers. Most docstring claims kept; one uncheckable claim about 'never raises' and one about corpus self-validation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "evaluate_change | high | The docstring claims 'Returns; never raises' but the function only catches specific exceptions in the setup block; a KeyError on task['repo'] or task['base_revision'] or a TypeError from resolve_task_repo would propagate. To settle: add a broad except around the whole body or prove all inputs are validated.",
+     "run_corpus | medium | The 'discriminates' flag is true only if every task is fixed; any task_invalid or could_not_run makes it false, which may be too strict for a corpus with known invalid tasks. To settle: check the intended semantics in the corpus note."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "5 of 7",
+     "purpose": "Evaluate one change against a task in a disposable worktree; verify before-state; load/save/run the correctness corpus; seed helpers.",
+     "symbols": [
+      {
+       "name": "evaluate_change",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Core evaluation: freezes selection, checks out base, applies overlay, runs before/after, applies patch, judges outcomes. Returns CorrectnessResult via finish()."
+      },
+      {
+       "name": "verify_before_state",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Measures only the before-state of a task; returns BeforeState with reasons if invalid/unrunnable."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Sanitizes text into a slug, defaulting to 'task'."
+      },
+      {
+       "name": "load_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads corpus JSON, returns sorted task list or [] if missing."
+      },
+      {
+       "name": "CORPUS_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Documentation string embedded in corpus file; describes seeding and verification."
+      },
+      {
+       "name": "save_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes corpus JSON deterministically with schema and note."
+      },
+      {
+       "name": "run_corpus",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Evaluates every task against its own reference patch; returns counts and per-task results."
+      },
+      {
+       "name": "_changed_files",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git diff --name-status to list changed files for a commit."
+      },
+      {
+       "name": "_blob",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git show to retrieve file content at a revision."
+      },
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses test functions from source text (implementation not shown)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Evaluate one change against one task. Returns; never raises.",
+       "where": "evaluate_change docstring, line 1120-1121",
+       "verdict": "uncheckable",
+       "why": "The docstring claims the function never raises, but this chunk only shows a try/except around the worktree setup and patch application. Exceptions from resolve_task_repo, resolve_revision, freeze_selection, or judge_* calls are not caught here; they may be caught elsewhere in the file or not at all. The claim cannot be verified from this chunk alone."
+      },
+      {
+       "text": "The whole measurement happens in ONE disposable worktree, in this order: FREEZE the selection -> checkout base -> overlay tests -> RUN BEFORE -> judge the TASK -> apply the change -> RUN AFTER -> judge the CHANGE",
+       "where": "evaluate_change docstring, lines 1123-1127",
+       "verdict": "kept",
+       "why": "The code follows exactly that order: freeze_selection (line 1165), disposable_worktree (1169), apply_test_overlay (1172), _run_lists (1177), judge_before_state (1181), apply_patch (1198), _run_lists (1205), judge_after_state (1215)."
+      },
+      {
+       "text": "The selection is frozen FIRST, before the worktree exists and long before any candidate bytes are applied, and the after-state is run against that same frozen object -- so the thing being measured cannot be influenced by the thing being measured. The frozen declaration and its digest travel on the result.",
+       "where": "evaluate_change docstring, lines 1129-1133",
+       "verdict": "kept",
+       "why": "selection = freeze_selection(task, base, timeout_s) is called before disposable_worktree and before apply_patch; the same selection object is passed to both _run_lists calls. The result includes selection via finish()."
+      },
+      {
+       "text": "The before-state is measured every time, in the same tree the after-state is measured in. It is never read from a stored receipt here, because a receipt is a claim about a tree that may no longer exist",
+       "where": "evaluate_change docstring, lines 1135-1138",
+       "verdict": "kept",
+       "why": "The before-state is computed by judge_before_state from b_f2p/b_p2p obtained from _run_lists in the same worktree; no stored receipt is read in this chunk."
+      },
+      {
+       "text": "``use_reference`` evaluates the task's OWN fix commit (``reference_revision``) instead of a candidate patch. That is how a corpus task is validated: a task whose own reference patch does not produce ``fixed`` is not a task.",
+       "where": "evaluate_change docstring, lines 1140-1143",
+       "verdict": "kept",
+       "why": "When use_reference is true, change_bytes = reference_patch(root, base, task[\"reference_revision\"], ...) and then applied; the outcome is judged by judge_after_state, which determines if it is fixed."
+      },
+      {
+       "text": "nothing to evaluate: pass patch_bytes=... or use_reference=True",
+       "where": "evaluate_change error message, line 1152",
+       "verdict": "kept",
+       "why": "The guard `if patch_bytes is None and not use_reference:` triggers exactly that message."
+      },
+      {
+       "text": "use_reference=True but the task records no reference_revision",
+       "where": "evaluate_change error message, line 1157",
+       "verdict": "kept",
+       "why": "The guard `if use_reference and not task.get(\"reference_revision\")` triggers that message."
+      },
+      {
+       "text": "before the change, {moved}",
+       "where": "evaluate_change error message, line 1179",
+       "verdict": "kept",
+       "why": "The code checks `moved = _check_selection(selection, b_f2p, b_p2p)` and returns that message if moved is truthy."
+      },
+      {
+       "text": "REPORTED as invalid, never silently dropped and never counted as a pass -- the same rule mint.py applies to a vacuous label.",
+       "where": "evaluate_change comment, lines 1186-1188",
+       "verdict": "kept",
+       "why": "When `not before.verified`, the function returns finish(OUTCOME_TASK_INVALID, ...) which reports the task as invalid."
+      },
+      {
+       "text": "SAME frozen selection, deliberately: the after run measures exactly what was declared before the change existed.",
+       "where": "evaluate_change comment, lines 1203-1204",
+       "verdict": "kept",
+       "why": "The same `selection` object is passed to the after `_run_lists` call."
+      },
+      {
+       "text": "the evaluation could not be set up: {type(e).__name__}: {e}",
+       "where": "evaluate_change except block, line 1208",
+       "verdict": "kept",
+       "why": "The except Exception catches any exception in the worktree block and returns that message."
+      },
+      {
+       "text": "Measure ONLY the before-state of ``task``: is this task real? Used when seeding a corpus. A candidate task that does not survive this is reported, with its reasons, and not admitted -- which is the measurement that says how much a corpus is worth.",
+       "where": "verify_before_state docstring, lines 1223-1227",
+       "verdict": "kept",
+       "why": "The function validates, resolves, freezes, runs only before-state, and returns BeforeState with reasons; the caller (not shown) would use that to reject the task."
+      },
+      {
+       "text": "Read the corpus, or ``[]`` if it does not exist yet. Sorted by id.",
+       "where": "load_correctness_tasks docstring, line 1266",
+       "verdict": "kept",
+       "why": "If path doesn't exist, returns []; otherwise loads and sorts by t[\"id\"]."
+      },
+      {
+       "text": "Overwrite the corpus. Deterministic formatting, same contract as ``harness.write_baseline`` / ``mint.save_minted_tasks``.",
+       "where": "save_correctness_tasks docstring, lines 1289-1290",
+       "verdict": "uncheckable",
+       "why": "The deterministic formatting is evident (json.dump with indent and sort_keys), but the contract comparison to harness.write_baseline and mint.save_minted_tasks cannot be checked from this chunk alone."
+      },
+      {
+       "text": "Evaluate every task against its OWN reference patch. The corpus's own gate. This is the corpus validating ITSELF: a task whose reference fix does not produce ``fixed`` is not a task, and an evaluator that cannot show that its corpus discriminates is in the same position as the pytest gate it exists to strengthen. Counts are reported per outcome and NEVER blended into a single \"score\" -- ``task_invalid`` and ``could_not_run`` in particular are not failures of the change, and folding them into one number would hide exactly the distinction this module was built for.",
+       "where": "run_corpus docstring, lines 1305-1312",
+       "verdict": "kept",
+       "why": "The code evaluates each task with use_reference=True, collects per-task outcomes, and reports counts per outcome without blending. The 'discriminates' flag is a boolean, not a score."
+      },
+      {
+       "text": "Counts are reported per outcome and NEVER blended into a single \"score\"",
+       "where": "run_corpus docstring, line 1311",
+       "verdict": "kept",
+       "why": "The result dict has a 'counts' mapping and a boolean 'discriminates', no single numeric score."
+      }
+     ],
+     "observations": [
+      {
+       "what": "evaluate_change's docstring promises 'never raises', but the try/except only wraps the worktree setup and patch application; exceptions from resolve_task_repo, resolve_revision, freeze_selection, or the judge_* calls are not caught in this chunk.",
+       "where": "evaluate_change, lines 1121-1217",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "In evaluate_change, if use_reference is False and patch_bytes is provided, change_bytes is set to patch_bytes or b\"\" -- if patch_bytes is an empty bytes object, it becomes b\"\" and apply_patch may apply an empty patch, potentially succeeding vacuously.",
+       "where": "evaluate_change, line 1197",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _changed_files, the parser splits on tabs and takes parts[-1] as the path, but if a filename contains a tab, the path would be misparsed; also the status code is taken as parts[0] without validating it is a letter.",
+       "where": "_changed_files, lines 1342-1348",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _blob, the git show command uses f\"{rev}:{rel}\" -- if rel starts with a colon or contains special characters, the revision:path syntax could be ambiguous; no escaping is done.",
+       "where": "_blob, line 1355",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4451c7f9d163b7d8826b15dadf6a9fcf62a931668de06242b01a6aac145214d8",
+    "objective_chars": 18077,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [5/7]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/eval/correctness.py",
+  "index": 5,
+  "total": 7,
+  "first_line": 1121
+ }
+}

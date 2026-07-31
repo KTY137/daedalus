@@ -1,0 +1,128 @@
+{
+ "task_id": "research__b002__1e9d5dd",
+ "key": "research__b002__1e9d5dd-657a913bb5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "pattern": "The 'fail-closed' promise is made in multiple modules but the enforcement is delegated to code outside each chunk, so no single chunk can verify it; the guarantee may be vacuously true or silently broken depending on hidden implementations.",
+       "evidence": [
+        "run_managed except block (spawn_error)",
+        "_PromotionLock docstring",
+        "module docstring 'Refusals RAISE'",
+        "gate_concurrent_writes docstring"
+       ],
+       "refuted_if": "A single shared helper (e.g., in session.py or manager) implements the fail-closed behavior and is consistently called by all these sites."
+      },
+      {
+       "pattern": "The 'offline-verifiable, hash-chained transcript' is claimed in two chunks but the actual implementation is in bus.py, which is not present; the guarantee is untested and could be a docstring-only aspiration.",
+       "evidence": [
+        "bus.py -- the transcript: append-only, hash-chained, offline-verifiable store",
+        "bus.py -- the transcript: append-only, hash-chained, offline-verifiable store at runs/council/<council_id>.jsonl"
+       ],
+       "refuted_if": "bus.py is present in the full codebase and implements the hash chain and verification."
+      },
+      {
+       "pattern": "The 'trusted lane' semantics are described in two places: one says it disables the egress allow-list and reports nothing withheld, another says OllamaAdapter defaults to 'trusted' regardless of host. The actual enforcement is in vendors module, so the two claims could be inconsistent.",
+       "evidence": [
+        "a trusted lane disables the egress allow-list and reports nothing withheld",
+        "OllamaAdapter defaults to lane=\"trusted\" whatever host it is given"
+       ],
+       "refuted_if": "The vendors module defines OllamaAdapter's default lane as something else, or the trusted lane behavior is implemented identically in both places."
+      },
+      {
+       "pattern": "The 'no model judges another model's answer' claim is tied to check_* functions defined later, but the chunk also contains a comment that 'withheld' is included in texts despite a carve-out claim; the two may be contradictory if the carve-out is not implemented.",
+       "evidence": [
+        "No model judges another model's answer",
+        "withheld: content channel ONLY (see the carve-out in the module docstring) -- but code does include withheld in texts"
+       ],
+       "refuted_if": "The module docstring carve-out is implemented in the check_* functions, excluding withheld from texts in practice."
+      },
+      {
+       "pattern": "The 'capped on the way in' claim for MAX_SUMMARY_CHARS is broken because _truncate allows exactly the limit to pass through unchanged, so a 600-char summary is stored as-is; this contradicts the strict cap implied by the comment, but the issue is subtle and may be acceptable.",
+       "evidence": [
+        "MAX_SUMMARY_CHARS comment: Capped on the way in",
+        "_truncate: if len(text) <= limit, return text unchanged"
+       ],
+       "refuted_if": "The comment allows equality to the cap, or the cap is intended as a maximum not a strict truncation point."
+      },
+      {
+       "pattern": "Multiple modules claim 'never raises' or 'never silently treats as nothing changed' but the code shows silent returns (e.g., _type_edge_keys returns empty set on error, _pyproject_packages returns [] on unreadable). These promises are per-module and may not be globally consistent.",
+       "evidence": [
+        "_type_edge_keys returns empty set on AttributeError/SyntaxError (broken claim)",
+        "_pyproject_packages docstring: unreadable pyproject yields empty list, never a finding"
+       ],
+       "refuted_if": "The 'never raises' claims are only about exceptions, not about silent empty returns, and the docstrings are consistent with that."
+      },
+      {
+       "pattern": "The 'refusals RAISE' promise is stated in two chunks but the actual raising logic is in later chunks; if any refusal path returns a value instead of raising, the promise is broken across the module.",
+       "evidence": [
+        "Refusals RAISE. A silently skipped cleanup leaks worktrees; a silently followed one deletes a repository. Both are loud.",
+        "Refusals RAISE. A silently skipped cleanup leaks worktrees; a silently followed one deletes a repository. Both are loud."
+       ],
+       "refuted_if": "All refusal paths in the full module raise exceptions, as verified by tests."
+      },
+      {
+       "pattern": "The 'per-store append index' is claimed to be invalidated by (size, mtime_ns), but the invalidation logic is not in the chunk; if the invalidation is missing or uses different keys, the cache can serve stale data.",
+       "evidence": [
+        "Per-store append index: tail entry_sha + record/turn counts, keyed by resolved path and invalidated by the file's (size, mtime_ns)"
+       ],
+       "refuted_if": "The _APPEND_CACHE population and invalidation logic in bus.py uses exactly (size, mtime_ns) and is correct."
+      },
+      {
+       "pattern": "The 'recall_A==1.0' claim is used to justify a strict '>' comparison, but it depends on actual task data that is not in the chunk; if the data changes, the logic may be wrong.",
+       "evidence": [
+        "recall_A==1.0 on every current hand_reachable task makes a strict C win impossible, so with '>' the tie case ... was the ONLY case that could ever fire"
+       ],
+       "refuted_if": "The task data is static and recall_A remains 1.0 for all hand_reachable tasks."
+      },
+      {
+       "pattern": "The 'measured close' and 'measured 3/3' claims are empirical results not reproducible from code, so they cannot be verified and may be stale or fabricated.",
+       "evidence": [
+        "MEASURED CLOSE (2026-07-21, agent_env corpus, 7 miss tasks / 43 missed labels ...)",
+        "Measured, 3/3, end to end through cleanup_worktree: 3000 empty directories removed inside a stand-in primary checkout, reported as success."
+       ],
+       "refuted_if": "The measurements are reproducible from the current codebase and test suite."
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "be79a62943909a2f11d475dbe28a84c76c2c163f5db4075e9d82a5b037fac054",
+    "objective_chars": 42811,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 2 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 2,
+  "inputs": 104
+ }
+}

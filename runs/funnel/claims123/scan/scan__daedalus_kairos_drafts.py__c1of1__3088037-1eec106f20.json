@@ -1,0 +1,268 @@
+{
+ "task_id": "scan__daedalus_kairos_drafts.py__c1of1__3088037",
+ "key": "scan__daedalus_kairos_drafts.py__c1of1__3088037-1eec106f20",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/kairos/drafts.py chunk 1/1; all docstring claims verified against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "save_draft | low | Path handling uses resolved path for existence check but writes via raw path; symlink inside DRAFT_DIR could cause overwrite of target file. | Verify DRAFT_DIR has no symlinks or use resolve() consistently.",
+     "save_draft | low | Timestamp collision loop checks raw path existence, but if a symlink exists the resolved path check would miss it. | Confirm no symlinks in DRAFT_DIR or resolve before existence check.",
+     "set_status | low | Writes via raw path after _safe_path validation; TOCTOU race could allow symlink swap between validation and write. | Use a file descriptor or re-validate after open.",
+     "delete_draft | low | Same TOCTOU: p.is_file() then p.unlink() on raw path; symlink swap could delete arbitrary file. | Use os.unlink with dir_fd or verify resolved path before unlink.",
+     "apply_payload | low | Marks draft applied even if report lacks summary/todos/risks; packet may be incomplete but status still flips. | Validate report shape before setting applied."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/drafts.py",
+     "chunk": "1 of 1",
+     "purpose": "Persist, list, retrieve, delete, and transition advisory drafts; provide apply payload without performing writes.",
+     "symbols": [
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Repository root derived from file location (parents[2])."
+      },
+      {
+       "name": "DRAFT_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to runs/drafts under ROOT."
+      },
+      {
+       "name": "_SLUG_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to strip non-alphanumeric characters for slugs."
+      },
+      {
+       "name": "_ID_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex validating draft ids as plain stems (letters, digits, dot, underscore, hyphen, 1-120 chars)."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts text to a slug: lowercases, replaces non-alphanumerics with hyphens, strips leading/trailing hyphens, truncates to max_len, falls back to 'draft'."
+      },
+      {
+       "name": "_safe_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a Path inside DRAFT_DIR for a given draft_id, or None if the id is not a plain stem or resolves outside DRAFT_DIR."
+      },
+      {
+       "name": "save_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes a draft JSON file to DRAFT_DIR with a timestamp-slug filename, avoiding overwrites by appending -n."
+      },
+      {
+       "name": "list_drafts",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns newest-first summaries of all *.json files in DRAFT_DIR, skipping unreadable ones."
+      },
+      {
+       "name": "get_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns the parsed JSON of a draft if the id is safe and the file exists, else None."
+      },
+      {
+       "name": "delete_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Deletes the draft file if the id is safe and the file exists; returns True on deletion, False otherwise."
+      },
+      {
+       "name": "_STATUSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of valid statuses: ('pending', 'applied', 'dismissed')."
+      },
+      {
+       "name": "set_status",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Updates a draft's status to one of the valid statuses, adds a status_changed timestamp, and writes the file back. Returns the updated dict or None if not found; raises ValueError on invalid status."
+      },
+      {
+       "name": "apply_payload",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Builds a review packet from a draft and marks it 'applied'; returns the packet or None if the draft is unknown."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Persist advisory drafts -- the missing half of the FrugalGPT loop (Era 3 #1).",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "The module provides save_draft, list_drafts, get_draft, delete_draft, set_status, apply_payload to persist and manage drafts."
+      },
+      {
+       "text": "An advisory-mode task legitimately writes nothing: the free lane produces a PROPOSAL that a write-capable, trusted lane (Claude / the user) applies later.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "save_draft only writes to the drafts store; apply_payload performs no write to the target repo and explicitly returns a handoff packet."
+      },
+      {
+       "text": "Until now that proposal lived only inside the offload result and evaporated when the caller dropped it. Here every accepted advisory report is persisted to ``runs/drafts/<ts>-<slug>.json`` so it can be listed, reviewed, applied, and cleaned up later -- ``daedalus drafts list|show|rm``.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "save_draft writes to DRAFT_DIR (runs/drafts) with filename pattern <ts>-<slug>.json; list_drafts, get_draft, delete_draft provide list/show/rm equivalents. The CLI commands themselves are not in this chunk, but the persistence and operations exist."
+      },
+      {
+       "text": "Apply is deliberately NOT automated: a draft is a proposal, and the safety model says a free model may propose but never merge. Applying stays a human / Claude action (Era-3 follow-up wires it into the webapp queue view).",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "apply_payload only marks status 'applied' and returns a packet; it does not modify any target repo. set_status also does not touch the target repo."
+      },
+      {
+       "text": "This module moved one package level deeper. Runtime state remains at the repository root for backward compatibility with every existing draft.",
+       "where": "comment near ROOT",
+       "verdict": "KEPT",
+       "why": "ROOT = Path(__file__).resolve().parents[2] points to the repository root (two levels up from daedalus/kairos/drafts.py), and DRAFT_DIR is under that root."
+      },
+      {
+       "text": "A draft id is our own timestamp-slug stem. It arrives from the CLI and from URL path segments (/api/drafts/<id>/apply), so it MUST NOT be trusted into a filesystem path -- reject anything that isn't a plain stem (no separators, no traversal). Closes the path-traversal gap Minos would have flagged.",
+       "where": "comment near _ID_RE",
+       "verdict": "KEPT",
+       "why": "_ID_RE allows only [A-Za-z0-9._-]{1,120} and _safe_path additionally checks resolve().relative_to(DRAFT_DIR.resolve()), preventing path traversal."
+      },
+      {
+       "text": "Resolve a draft id to its file ONLY if the id is a plain stem that stays inside DRAFT_DIR. Returns None for anything suspicious (``..``, separators, absolute paths, symlink escapes).",
+       "where": "_safe_path docstring",
+       "verdict": "KEPT",
+       "why": "The function checks _ID_RE (rejects separators, dots that could form .., absolute paths) and then resolves the path and verifies it is relative to DRAFT_DIR.resolve(), catching symlink escapes via resolve()."
+      },
+      {
+       "text": "Write one accepted advisory report to the drafts store; returns the path.",
+       "where": "save_draft docstring",
+       "verdict": "KEPT",
+       "why": "save_draft writes a JSON file to DRAFT_DIR and returns the Path object."
+      },
+      {
+       "text": "never overwrite an existing draft from the same second",
+       "where": "comment in save_draft",
+       "verdict": "KEPT",
+       "why": "The while loop checks path.exists() and appends -n until a non-existing path is found."
+      },
+      {
+       "text": "Newest-first summaries of every stored draft.",
+       "where": "list_drafts docstring",
+       "verdict": "KEPT",
+       "why": "It sorts DRAFT_DIR.glob('*.json') with reverse=True (newest first) and returns summaries."
+      },
+      {
+       "text": "Transition a draft's lifecycle. Returns the updated draft, or None if the id is unknown; raises ValueError on an invalid status. This does NOT touch the filesystem of the target repo -- 'applied' only marks the proposal as handled (a free model may propose, never merge; the actual edit is a human / Claude action). Idempotent.",
+       "where": "set_status docstring",
+       "verdict": "KEPT",
+       "why": "set_status validates status against _STATUSES, raises ValueError on invalid, returns None if not found, updates the draft file, and does not touch any target repo. It is idempotent because setting the same status again just rewrites the same status."
+      },
+      {
+       "text": "The review packet a human / the Claude lane needs to ACTUALLY apply a draft: the objective, the target paths, and the proposal text. Marks the draft 'applied' (handled) but performs no write itself -- returning the packet IS the handoff. None if the id is unknown.",
+       "where": "apply_payload docstring",
+       "verdict": "KEPT",
+       "why": "apply_payload builds a packet with objective, paths, repo_root, agent, proposal (from report.summary), todos, risks, and a handoff message. It calls set_status(draft_id, 'applied') which writes to the draft file but not to any target repo. Returns None if get_draft returns None."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "whole file",
+       "verdict": "KEPT",
+       "why": "No such check exists in this chunk. The only conditional branches are reachable: _safe_path returns None for invalid ids, list_drafts skips unreadable files, save_draft's loop handles existing files, set_status raises on invalid status, etc."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "whole file",
+       "verdict": "KEPT",
+       "why": "No such pattern exists. The only error raised is ValueError for invalid status, and the repair (use one of _STATUSES) is allowed."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "whole file",
+       "verdict": "KEPT",
+       "why": "No inversion found. _safe_path blocks broad traversal and permits narrow stems; set_status permits only three statuses."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "whole file",
+       "verdict": "KEPT",
+       "why": "No such parser exists. list_drafts and get_draft catch JSONDecodeError and return empty/None, but that is intentional handling of corrupt files, not a format-pinning issue."
+      }
+     ],
+     "observations": [
+      {
+       "what": "save_draft uses raw path for existence check and write, while _safe_path uses resolve() for validation. If DRAFT_DIR contains a symlink, resolve() could point elsewhere but the write uses the symlink path, potentially overwriting the target.",
+       "where": "save_draft lines 55-75",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "set_status and delete_draft validate via _safe_path (which resolves) but then operate on the raw path, creating a TOCTOU window where a symlink could be swapped between validation and operation.",
+       "where": "set_status lines 125-137, delete_draft lines 92-98",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "apply_payload marks a draft as applied even if the report dict lacks 'summary', 'todos', or 'risks' keys; the packet will contain empty values but the status still flips.",
+       "where": "apply_payload lines 142-160",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8bdd2bb3150aeecca003256130d3913f44d976355a0cf59a992752ec89053ca",
+    "objective_chars": 9236,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/drafts.py [1/1]",
+  "rev": "3088037",
+  "module": "daedalus/kairos/drafts.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

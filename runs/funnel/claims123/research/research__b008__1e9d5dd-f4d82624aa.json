@@ -1,0 +1,165 @@
+{
+ "task_id": "research__b008__1e9d5dd",
+ "key": "research__b008__1e9d5dd-f4d82624aa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 104 claim rows finds recurring patterns: uncheckable claims about external contracts, broken promises about counts/elements, and duplicated guard logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Claims marked UNCHECKABLE may hide real cross-file inconsistencies; further deep-dive needed to verify.",
+     "BROKEN claims may indicate actual bugs or just documentation drift; need code-level verification."
+    ],
+    "todos": [
+     "Verify the three broken claims against actual code in the referenced modules.",
+     "Investigate the pattern of duplicated guard logic across modules (e.g., symlink handling, secret floors)."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "uncheckable-contract-drift",
+       "claim": "Many claims about behavior in other modules are uncheckable from the chunk, but some may be false due to drift between modules. The same guarantee is often stated in multiple places with no single owner, so when one module changes, the others silently diverge.",
+       "spans": [
+        "runtime_config",
+        "subprocess_adapter",
+        "session",
+        "sensitivity",
+        "harness",
+        "offload",
+        "mint",
+        "eval"
+       ],
+       "mechanism": "The codebase relies on cross-module contracts (e.g., RuntimeConfig fields, OLLAMA_HOST handling, lane_for_host behavior) that are documented in docstrings but not enforced by a shared type or test. Each module independently implements or documents the contract, leading to potential divergence.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a shared test or type check verifies all such contracts across modules, or if the modules are never changed independently.",
+       "evidence": [
+        "runtime_config:docstring line 12",
+        "subprocess_adapter:module docstring EGRESS",
+        "sensitivity:module docstring EGRESS",
+        "harness:module docstring"
+       ]
+      },
+      {
+       "id": "per-provider-guard-drift",
+       "claim": "Guard logic (e.g., symlink protection, secret floors) is implemented as per-provider copies, so when one improves, the others fall behind. The claim rows show multiple modules with similar docstring promises but different implementations (e.g., _remove_tree_no_follow vs other cleanup).",
+       "spans": [
+        "worktree_removal",
+        "cleanup_worktree",
+        "sensitivity",
+        "slice",
+        "harness"
+       ],
+       "mechanism": "Each module implements its own version of a guard (e.g., reparse point detection, secret floor) without a shared helper, leading to inconsistencies in behavior and coverage.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all guard implementations delegate to a single shared function or if tests enforce behavioral equivalence across all copies.",
+       "evidence": [
+        "worktree_removal:_remove_tree_no_follow docstring",
+        "cleanup_worktree:docstring",
+        "sensitivity:module docstring",
+        "slice:FOCUS GATE"
+       ]
+      },
+      {
+       "id": "count-vs-elements-drift",
+       "claim": "Several metrics promise to return the elements behind a count, but some implementations only return the count, making disagreements uninspectable.",
+       "spans": [
+        "metrics",
+        "eval"
+       ],
+       "mechanism": "The module docstring states 'Every metric returns its count AND the elements behind it', but some metric functions (visible_elements, allcaps_text_share) do not include offender lists, breaking the contract.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If those functions actually return elements in the full implementation (the chunk might be truncated).",
+       "evidence": [
+        "metrics:module docstring",
+        "metrics:visible_elements line ~146",
+        "metrics:allcaps_text_share line ~162"
+       ]
+      },
+      {
+       "id": "unverifiable-ordering-claims",
+       "claim": "Several ordering guarantees (e.g., box['result'] set before gate, TaskAttempt precedence) are documented in one module but depend on internals of another, with no test verifying the actual order.",
+       "spans": [
+        "runner",
+        "attempt",
+        "spine"
+       ],
+       "mechanism": "Docstrings in _recording_runner and _curated_relay_gate assert ordering of operations across module boundaries, but the code in the chunk does not prove it, and the referenced modules are not in the chunk.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If a test exists that verifies the ordering (e.g., by instrumenting both modules) or if the referenced modules' code shows the same ordering.",
+       "evidence": [
+        "runner:_recording_runner docstring",
+        "attempt:TaskAttempt._run_with_ledger (referenced)",
+        "spine:TaskAttempt.__init__ (referenced)"
+       ]
+      },
+      {
+       "id": "secret-floor-exclusion-drift",
+       "claim": "The secret floor exclusion logic (dropping files that trip the floor from anchor pool and label consideration) is documented in one module but the enforcement is in another, and the two may disagree on what constitutes a floor trip.",
+       "spans": [
+        "sensitivity",
+        "mint",
+        "slice"
+       ],
+       "mechanism": "sensitivity.secret_floor_rule is used in _mint_from_diffs to exclude files, but slice.py emits a specific shape for focus-withheld; if these definitions drift, the exclusion may not match the floor behavior.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If a test verifies that the files excluded by mint's secret_floor_rule are exactly those that slice would flag as focus-withheld.",
+       "evidence": [
+        "sensitivity:secret_floor_rule",
+        "mint:_mint_from_diffs docstring",
+        "slice:FOCUS GATE"
+       ]
+      },
+      {
+       "id": "windows-argv-limit-assumption",
+       "claim": "A claim about a deliberation exceeding the Windows argv limit is uncheckable and likely not covered by tests, so the code may break on Windows.",
+       "spans": [
+        "publish_to_pr",
+        "windows"
+       ],
+       "mechanism": "The code passes a large deliberation as argv, but the claim about the Windows limit is unverified; no test simulates Windows argv limits.",
+       "severity": "low",
+       "confidence": "possible",
+       "refuted_by": "If a test runs on Windows CI and passes, or if the code uses a different mechanism (e.g., file passing) that avoids argv limits.",
+       "evidence": [
+        "publish_to_pr:docstring"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "daa93f642b41a4332b1eaafcc419bb55103acac486bbc8b0f34442e2dc316cff",
+    "objective_chars": 40746,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 8 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 8,
+  "inputs": 104
+ }
+}

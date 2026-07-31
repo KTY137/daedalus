@@ -1,0 +1,163 @@
+{
+ "task_id": "research__b004__1e9d5dd",
+ "key": "research__b004__1e9d5dd-1e4cc2e1fe",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file synthesis of broken/uncheckable claims reveals systemic patterns: duplicated constants, unenforced docstring contracts, and unverifiable architectural guarantees.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The cross-file patterns are inferred from claim metadata, not from actual file contents; the evidence paths are reconstructed from 'where' fields and may not be exact.",
+     "The repository may have additional context not captured in the claim rows that would refute some hypotheses.",
+     "The severity of each pattern is based on the claim's importance and the likelihood of real-world impact."
+    ],
+    "todos": [
+     "Validate each hypothesis against the actual source files by locating the cited symbols and lines.",
+     "Check whether the duplicated constants (e.g., VENDOR_KEYS, timeout) are synchronized in practice.",
+     "Inspect the implementation of functions like evaluate_change, configure, and _remove_tree_no_follow to confirm or refute the docstring vs. code mismatches.",
+     "Trace the flow of council records and memory recall to verify the claimed isolation."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-constants",
+       "claim": "Several constants that are claimed to be shared or mirrored across modules (VENDOR_KEYS, DEFAULT_GATE_TIMEOUT_S, RUNTIME_PROFILES) are defined independently in separate files, with no enforcement mechanism to keep them in sync, leading to potential drift.",
+       "spans": [
+        "council.session",
+        "config",
+        "spine.attempt",
+        "adapters.subprocess_adapter"
+       ],
+       "mechanism": "Each module defines its own copy of values that are semantically supposed to be identical (e.g., vendor keys, timeout values). The claim rows show that these are defined in separate modules with no import or validation tying them together. If one changes, others silently diverge, breaking assumptions about consistency (e.g., --vendors meaning one thing repo-wide).",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If there is a central source of truth (e.g., a single constants module) that all these definitions import from, or if a test verifies equality across modules.",
+       "evidence": [
+        "council.session:VENDOR_KEYS (claim row 11)",
+        "config:VENDOR_KEYS (claim row 11)",
+        "spine.attempt:DEFAULT_GATE_TIMEOUT_S (claim row 63)",
+        "adapters.subprocess_adapter:RUNTIME_PROFILES (claim row 22)"
+       ]
+      },
+      {
+       "id": "docstring-promise-vs-code",
+       "claim": "Several functions' docstrings promise behavior that the visible code does not implement, suggesting a systemic pattern of docstring-code drift across the codebase.",
+       "spans": [
+        "configure",
+        "evaluate_change",
+        "_remove_tree_no_follow",
+        "CompositeTransportSink.publish"
+       ],
+       "mechanism": "For example, configure's docstring says it raises ValueError on invalid spec, but the code shown does not contain any raise ValueError. Similarly, evaluate_change's docstring says 'never raises', but the chunk shows exceptions not caught. CompositeTransportSink.publish's docstring says failures remain visible, but the code does not catch exceptions, causing propagation that stops subsequent sinks. These mismatches indicate that docstrings are not kept in sync with implementations, which can mislead callers and maintainers.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the full implementations (outside the chunks) actually include the promised behavior (e.g., configure raises ValueError via a helper, evaluate_change catches all exceptions, publish has a try/except that was truncated).",
+       "evidence": [
+        "configure (claim row 82)",
+        "evaluate_change (claim row 41)",
+        "_remove_tree_no_follow (claim row 86)",
+        "CompositeTransportSink.publish (claim row 3)"
+       ]
+      },
+      {
+       "id": "council-memory-isolation",
+       "claim": "Council records are claimed to never feed into memory recall, but this is a critical architectural invariant that is only asserted in docstrings and not enforced or verified anywhere visible.",
+       "spans": [
+        "council",
+        "memory_recall",
+        "gate"
+       ],
+       "mechanism": "The claim 'COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL' is made in a docstring, but the code that implements memory recall is not visible in the chunks. If any code path accidentally uses council records as memory input, it would violate the invariant and potentially allow model chatter to influence future decisions. The claim is uncheckable from the provided chunks, indicating a missing verification or enforcement.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "If there is a test that asserts council records are never passed to memory recall, or if the memory recall API explicitly rejects council records.",
+       "evidence": [
+        "council:COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL (claim row 6)",
+        "memory_recall:unknown source",
+        "gate:unknown source"
+       ]
+      },
+      {
+       "id": "path-safety-inconsistency",
+       "claim": "The system has inconsistent handling of path safety: one module claims validation ensures filename safety, another claims a directory is candidate-writable and thus must be treated as untrusted, and yet another claims to verify every path before syscalls but the code shows only two verification sites instead of three.",
+       "spans": [
+        "council_store_path",
+        "allocation_dir",
+        "_remove_tree_no_follow"
+       ],
+       "mechanism": "council_store_path claims council_id is filename-safe by validation, but the regex is permissive and doesn't guard against all platform issues. The allocation directory is explicitly candidate-writable, so any code relying on it must treat paths as attacker-controlled. _remove_tree_no_follow claims three verification sites but the code shows only two, meaning the third (rmdir drain) may be missing verification, potentially allowing a race or symlink attack.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the full implementation of _remove_tree_no_follow includes the third verification site, or if the council_store_path validation is actually stricter than described (e.g., uses a whitelist).",
+       "evidence": [
+        "council_store_path (claim row 8)",
+        "allocation_dir (claim row 83)",
+        "_remove_tree_no_follow (claim row 86)"
+       ]
+      },
+      {
+       "id": "unverifiable-architectural-claims",
+       "claim": "Several high-level architectural claims (e.g., 'no write path', 'council is read-only', 'evaluation freezes selection before candidate runs') are made in docstrings but are not backed by visible code, making them unverifiable and potentially false.",
+       "spans": [
+        "package_docstring",
+        "council_adapter",
+        "evaluation"
+       ],
+       "mechanism": "For example, the package docstring claims 'no writing, editing, applying or promotion capability anywhere', but this is not enforced by the code in the chunk. Similarly, CouncilAdapter claims 'ask is the ONLY entry point' and 'always read-only', but the implementation is not shown. These claims are critical for security and correctness, but without verification they could be false, leading to unintended side effects.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If there are tests that assert these properties (e.g., a test that scans all modules for write operations), or if the full code confirms the absence of such capabilities.",
+       "evidence": [
+        "package_docstring (claim row 4)",
+        "CouncilAdapter (claim row 23)",
+        "evaluation (claim row 36)"
+       ]
+      },
+      {
+       "id": "historical-anecdotes-as-claims",
+       "claim": "Many claims reference past measurements or incidents (e.g., 'MEASURED 2026-07-30', 'the first run reported...') that are not reproducible from the code, suggesting that the codebase relies on anecdotal evidence rather than automated verification.",
+       "spans": [
+        "multiple modules"
+       ],
+       "mechanism": "The claim rows contain numerous references to specific past runs (e.g., '10/12 detected', '19 of 22 candidate nodes refuted', '40/40 work files destroyed'). These are presented as evidence for design decisions but are not backed by tests or reproducible scripts in the visible code, making them unverifiable and potentially outdated.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If there are regression tests or scripts that reproduce these measurements (e.g., a test that runs the same scenario and asserts the same outcome).",
+       "evidence": [
+        "multiple claims with 'MEASURED' or 'first run' (e.g., claim rows 44, 45, 86, 91, 101)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7f7a9317f0b408cc9b1585e433183ff0af537d156ce0ef88c02f962f3e966f67",
+    "objective_chars": 43682,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 4 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 4,
+  "inputs": 104
+ }
+}

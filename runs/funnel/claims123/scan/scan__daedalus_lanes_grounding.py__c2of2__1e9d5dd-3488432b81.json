@@ -1,0 +1,135 @@
+{
+ "task_id": "scan__daedalus_lanes_grounding.py__c2of2__1e9d5dd",
+ "key": "scan__daedalus_lanes_grounding.py__c2of2__1e9d5dd-3488432b81",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/grounding.py",
+     "chunk": "2 of 2",
+     "purpose": "Judgement of findings against repository indexes",
+     "symbols": [
+      {
+       "name": "claim_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Strips a '<where> | <severity> | ...' prefix from a raw finding string; returns the rest"
+      },
+      {
+       "name": "candidate_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts candidate symbol names from text using _NAME regex"
+      },
+      {
+       "name": "judge",
+       "kind": "function",
+       "effects": [],
+       "note": "Decides whether a finding is provably wrong about the repository, returning a verdict and reason"
+      }
+     ],
+     "claims": [
+      {
+       "text": "The assertion, with any ``<where> | <severity> | ...`` prefix stripped.",
+       "where": "claim_text docstring",
+       "verdict": "KEPT",
+       "why": "Lines 285-289 split on '|', check parts[1] against _SEVERITIES, and return parts[2] if it matches; otherwise return raw."
+      },
+      {
+       "text": "MEASURED: without this split, ``_resolve_store | medium | Mentions refusing paths under memory/ but code is truncated; the check may be missing`` was scored provably false because ``_resolve_store`` is defined -- but the finding never claimed otherwise.",
+       "where": "claim_text docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not contain the measurement or the _resolve_store function; the claim about the measurement result cannot be verified here."
+      },
+      {
+       "text": "It is about a check INSIDE that function. Reading the location column as the subject manufactures a lie out of an honest observation.",
+       "where": "claim_text docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about the content of _resolve_store and the measurement outcome is beyond this chunk; the function body of _resolve_store is not present."
+      },
+      {
+       "text": "``false``            the named symbol is defined in the module it is claimed absent from",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "Lines 313-316: if any named symbol is in defined[module] and not in borrowed, return 'false'."
+      },
+      {
+       "text": "``false-elsewhere``  it exists, in another module -- wrong about WHERE, which is a different error needing a different repair",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "Lines 322-326: if any named symbol exists in any module's defined set, return 'false-elsewhere'."
+      },
+      {
+       "text": "``scoped``           the claim limits itself to the window its reader saw, so it asserts nothing about the program",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "Lines 309-310: if _SELF_SCOPED.search(text) matches, return 'scoped'."
+      },
+      {
+       "text": "``undecided``        this cannot tell. **Not a pass.**",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "Lines 307-308, 317-320, 327-328: various branches return 'undecided'."
+      },
+      {
+       "text": "It can prove a finding false. It can never prove one true.",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "All return values are either 'false', 'false-elsewhere', 'scoped', or 'undecided'; no branch returns a verdict that would prove a finding true."
+      },
+      {
+       "text": "Decide whether one finding is provably wrong about the repository.",
+       "where": "judge docstring",
+       "verdict": "KEPT",
+       "why": "The function implements checks against defined and imported maps to detect provably wrong claims."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In judge, when a named symbol is in borrowed but not in here, the verdict is 'undecided' with reason 'named symbol is imported here, not defined here'. This treats an imported symbol as not defined here, which is correct for the purpose of detecting absence claims about definitions.",
+       "where": "judge, lines 317-320",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3a215ea4efd40839ea112dc5fbc8a92d40ea63ff96a5292e424794c97952c7c4",
+    "objective_chars": 6308,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/grounding.py [2/2]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/lanes/grounding.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

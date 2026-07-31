@@ -1,0 +1,250 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c5of5__1e9d5dd",
+ "key": "scan__daedalus_kairos_gated_writes.py__c5of5__1e9d5dd-66bbe8f6d4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "5 of 5",
+     "purpose": "Finalize write wave results: build per-task result records with statuses reflecting gate outcome, governance hold, or artifact persistence failure.",
+     "symbols": [
+      {
+       "name": "results",
+       "kind": "variable",
+       "effects": [],
+       "note": "Local dict mapping write_idx positions to result records; returned at end."
+      },
+      {
+       "name": "write_assignments",
+       "kind": "variable",
+       "effects": [],
+       "note": "Subset of assignments for write_idx positions."
+      },
+      {
+       "name": "write_gates",
+       "kind": "variable",
+       "effects": [],
+       "note": "Gate configs (Mapping or None) for write_idx positions."
+      },
+      {
+       "name": "candidates",
+       "kind": "variable",
+       "effects": [],
+       "note": "Result of gate_candidates; list of GatedCandidate."
+      },
+      {
+       "name": "promotion_allowed",
+       "kind": "variable",
+       "effects": [],
+       "note": "Boolean from _governance_verdict."
+      },
+      {
+       "name": "gov_state",
+       "kind": "variable",
+       "effects": [],
+       "note": "Governance state string from _governance_verdict."
+      },
+      {
+       "name": "gov_verdict",
+       "kind": "variable",
+       "effects": [],
+       "note": "Governance verdict string from _governance_verdict."
+      },
+      {
+       "name": "held",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of (candidate, why) tuples; empty if promotion_allowed else populated."
+      },
+      {
+       "name": "held_by_task",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dict mapping task_id to held reason."
+      },
+      {
+       "name": "base",
+       "kind": "variable",
+       "effects": [],
+       "note": "Common result fields for each task."
+      },
+      {
+       "name": "receipt",
+       "kind": "variable",
+       "effects": [],
+       "note": "Provider receipt from _provider_receipt(res)."
+      },
+      {
+       "name": "results[i]",
+       "kind": "variable",
+       "effects": [],
+       "note": "Result record for position i in write_idx."
+      }
+     ],
+     "claims": [
+      {
+       "text": "held = [(c, why) for c in candidates] if not promotion_allowed else held = [(c, \"sealed promotion: held for an explicit owner call to daedalus.kairos.gated_writes.promote_candidates\" + legacy) for c in candidates]",
+       "where": "lines 1132-1141",
+       "verdict": "KEPT",
+       "why": "The code exactly implements the two branches: when promotion_allowed is false, held is populated with governance reason; otherwise with sealed promotion reason including legacy suffix."
+      },
+      {
+       "text": "if not res.ok or not res.artifact: results[i] = {**base, \"status\": \"write_gate_failed\", \"reason\": (res.error or f\"attempt state={res.state}\")}",
+       "where": "lines 1167-1170",
+       "verdict": "KEPT",
+       "why": "The branch sets status 'write_gate_failed' with the specified reason when res.ok or res.artifact is false."
+      },
+      {
+       "text": "if not res.artifact_path: results[i] = {**base, \"status\": \"gated_artifact_lost\", \"reason\": (\"candidate passed its gates but its patch bytes could not be persisted after the attempt branch was reaped: \" + (res.persist_error or 'no artifact path reported'))}",
+       "where": "lines 1172-1178",
+       "verdict": "KEPT",
+       "why": "The branch sets status 'gated_artifact_lost' with the specified reason when res.artifact_path is falsy."
+      },
+      {
+       "text": "else: results[i] = {**base, \"status\": \"gated_held\", \"reason\": held_by_task.get(task_id, \"held for a human to promote (daedalus.kairos.gated_writes.promote_candidates)\")}",
+       "where": "lines 1179-1182",
+       "verdict": "KEPT",
+       "why": "The fallback sets status 'gated_held' with the reason from held_by_task or the default human-promotion message."
+      },
+      {
+       "text": "held_by_task = {c.result.task_id: why for c, why in held}",
+       "where": "line 1143",
+       "verdict": "KEPT",
+       "why": "The comprehension maps each candidate's task_id to its held reason as written."
+      },
+      {
+       "text": "write_gates = [tasks[i].get(\"gate\") if isinstance(tasks[i].get(\"gate\"), Mapping) else None for i in write_idx]",
+       "where": "lines 1123-1125",
+       "verdict": "KEPT",
+       "why": "The list comprehension produces the gate Mapping or None per write_idx position exactly as specified."
+      },
+      {
+       "text": "candidates = gate_candidates(str(root), write_assignments, project=scheduler.project, availability=avail, max_workers=min(scheduler.max_parallel_writes, scheduler.max_workers), ledger_path=ledger_path, cancel=cancel, gates=write_gates, artifact_dir=_artifact_root_for(root))",
+       "where": "lines 1126-1130",
+       "verdict": "KEPT",
+       "why": "The call passes all named arguments exactly as listed."
+      },
+      {
+       "text": "promotion_allowed, gov_state, gov_verdict = _governance_verdict(scheduler.project)",
+       "where": "line 1132",
+       "verdict": "KEPT",
+       "why": "The tuple unpacking assigns the three variables in order."
+      },
+      {
+       "text": "if requested_auto_promote != auto_promote: base[\"requested_auto_promote\"] = requested_auto_promote",
+       "where": "lines 1156-1157",
+       "verdict": "KEPT",
+       "why": "The conditional adds the requested_auto_promote field only when it differs from auto_promote."
+      },
+      {
+       "text": "receipt = _provider_receipt(res); if receipt is not None: base[\"provider_receipt\"] = receipt; if receipt.get(\"model\"): base[\"model\"] = str(receipt[\"model\"])",
+       "where": "lines 1158-1162",
+       "verdict": "KEPT",
+       "why": "The code adds provider_receipt and model fields conditionally as described."
+      },
+      {
+       "text": "if res.artifact is not None: base[\"artifact_sha256\"] = res.artifact.diff_sha256; base[\"artifact_bytes\"] = res.artifact.byte_length; base[\"changed_paths\"] = list(res.artifact.changed_paths)",
+       "where": "lines 1163-1166",
+       "verdict": "KEPT",
+       "why": "The conditional adds the three artifact fields when res.artifact is not None."
+      },
+      {
+       "text": "if res.artifact_path: base[\"artifact_path\"] = res.artifact_path",
+       "where": "line 1167",
+       "verdict": "KEPT",
+       "why": "The conditional adds artifact_path when truthy."
+      },
+      {
+       "text": "if res.persist_error: base[\"artifact_persist_error\"] = res.persist_error",
+       "where": "line 1168",
+       "verdict": "KEPT",
+       "why": "The conditional adds artifact_persist_error when truthy."
+      },
+      {
+       "text": "base = { \"worker\": assignment.worker, \"lane\": assignment.lane, \"mode\": assignment.mode, \"owner\": assignment.owner, \"objective\": assignment.objective, \"paths\": assignment.paths, \"kairos_gated\": True, \"task_id\": task_id, \"attempt_state\": res.state, \"attempt_branch\": res.branch, \"auto_promote\": auto_promote, \"governance_state\": gov_state }",
+       "where": "lines 1147-1155",
+       "verdict": "KEPT",
+       "why": "The dictionary literal contains exactly the listed keys and values."
+      },
+      {
+       "text": "legacy = f\"; denied legacy request {requested_auto_promote!r}\" if requested_auto_promote != \"never\" else \"\"",
+       "where": "lines 1137-1140",
+       "verdict": "KEPT",
+       "why": "The conditional expression sets legacy to the denied message when requested_auto_promote is not 'never', else empty string."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk relies on external functions (_governance_verdict, _provider_receipt, gate_candidates) and external types (GatedCandidate, res fields) whose behavior is not observable here.",
+       "where": "lines 1126-1132, 1158",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The result records for write_gate_failed and gated_artifact_lost do not include the held reason even when held_by_task has an entry; status is determined by gate/artifact failure first.",
+       "where": "lines 1167-1178",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The 'gated_artifact_lost' reason assumes the artifact was lost after branch reaping; the code does not verify that res.artifact is non-None in that branch, but it is reached only after the earlier check for res.artifact.",
+       "where": "lines 1172-1178",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "No explicit handling for candidates that might be missing from write_idx alignment; assumes len(candidates) == len(write_idx).",
+       "where": "lines 1144-1146",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "lines 1126-1132 | low | Reliance on external functions whose behavior cannot be verified from this chunk; if _governance_verdict or gate_candidates behave unexpectedly, results could be wrong. | Inspect those functions elsewhere in the file."
+     ],
+     "todos": [
+      "Verify that the external functions (_governance_verdict, _provider_receipt, gate_candidates) are defined and behave as assumed in this chunk."
+     ],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8c956c324c3fcedfa35b5293efb23d34180124d8f5d72fab7d711dc12c8ac8f9",
+    "objective_chars": 8084,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [5/5]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

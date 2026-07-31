@@ -1,0 +1,384 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c1of5__3088037",
+ "key": "scan__daedalus_council_canary.py__c1of5__3088037-46a1e6fa6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of daedalus/council/canary.py: module docstring claims, constants, nonce, and probe corpus; all claims checkable in this chunk are KEPT, one UNCHECKABLE, plus observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 107 (DEFAULT_HISTORY_PATH) | low | Path is relative (runs/canary/history.jsonl), so cwd-dependent; a canary run from a different directory silently writes to a different history, undermining 'append-only' baseline. | Check whether callers always run from repo root or pass an absolute path.",
+     "line 118 (VENDOR_KEYS) | low | Comment says 'same set as council.session.VENDOR_KEYS' but that module is not visible in this chunk; divergence would break the single-meaning claim. | Compare with daedalus/council/session.py VENDOR_KEYS.",
+     "line 155 (new_nonce) | low | Nonce format is 'K' + 7 hex chars from token_hex(4); the regex _NONCE_RE matches 8 alphanumeric chars after NONCE- but the generated nonce is 8 chars total (K + 7), so the regex would match 'NONCE-K7F3A9C1'? Actually the docstring example 'K7F3A9C1' is 8 chars, but token_hex(4) gives 8 hex chars, then [:7] gives 7, plus 'K' = 8. Regex requires [A-Z0-9]{8}, which matches the 8. So fine. | No risk.",
+     "line 156 (new_nonce) | low | The comment 'Fresh PER PROBE PER LANE' cannot be verified from this chunk; the caller must pass a fresh nonce per probe. | Check run_canary and probe building in later chunks."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, constants, closed vocabularies, nonce and probe corpus definitions.",
+     "symbols": [
+      {
+       "name": "CANARY_STATUSES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Closed tuple of probe outcomes: ok, wrong_answer, timeout, unavailable, error."
+      },
+      {
+       "name": "SEVERITIES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of severity levels: liveness, quality."
+      },
+      {
+       "name": "FAILING_STATUSES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of statuses that mean 'we asked and it did not work': wrong_answer, timeout, error; excludes unavailable."
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Schema version string 'dcanary/1'."
+      },
+      {
+       "name": "DEFAULT_HISTORY_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to history file: Path('runs') / 'canary' / 'history.jsonl'."
+      },
+      {
+       "name": "DEFAULT_PER_PROBE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Per-probe timeout default 120.0 seconds."
+      },
+      {
+       "name": "DEFAULT_WALL_CLOCK_S",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Wall clock default 420.0 seconds."
+      },
+      {
+       "name": "DEFAULT_MAX_PARALLEL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum parallel lanes default 4."
+      },
+      {
+       "name": "DEFAULT_OLLAMA_MODEL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default Ollama model 'qwen2.5-coder:7b'."
+      },
+      {
+       "name": "VENDOR_KEYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of vendor keys: anthropic, openai, google, local."
+      },
+      {
+       "name": "REPLY_TRIM",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Integer 400, how much of a reply is kept."
+      },
+      {
+       "name": "TRAILING_WINDOW",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Integer 20, trailing window for median comparison."
+      },
+      {
+       "name": "SLOWER_RATIO",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Float 2.0, ratio threshold for material slowness."
+      },
+      {
+       "name": "SLOWER_ABS_S",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Float 2.0, absolute seconds threshold for material slowness."
+      },
+      {
+       "name": "_NONCE_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Compiled regex matching 'NONCE-' followed by 8 uppercase alphanumerics."
+      },
+      {
+       "name": "new_nonce",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns 'K' + 7 hex chars from secrets.token_hex(4) uppercased."
+      },
+      {
+       "name": "_rng",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns random.Random seeded with 'dcanary:{nonce}'."
+      },
+      {
+       "name": "_FILLER_WORDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of 28 filler words."
+      },
+      {
+       "name": "_TAIL_WORDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of 10 tail words."
+      },
+      {
+       "name": "_ANCHOR_SETS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of six triples of fruit names."
+      },
+      {
+       "name": "_ORDINALS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of 'first', 'second', 'third'."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A liveness check that asserts 'the process exited 0' or 'HTTP 200' is GREEN through both. That is the bar this module has to clear, so the rule here is: EVERY PROBE IS (prompt, checker) AND THE CHECKER IS DETERMINISTIC PYTHON. No model judges another model's answer.",
+       "where": "module docstring, lines 12-20",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk defines constants and corpora but no probe builders or checkers; the deterministic-checker rule cannot be observed here."
+      },
+      {
+       "text": "unavailable (not signed in, bench asleep, CLI not installed) is NOT a failure and never trips the exit code; CANARY_STATUSES is closed and CanaryRun.summary reports the two groups separately, by construction.",
+       "where": "module docstring, lines 23-30",
+       "verdict": "UNCHECKABLE",
+       "why": "CANARY_STATUSES is defined as a closed tuple and unavailable is a member, but the exit-code behaviour and summary separation live in later chunks (run_canary, CanaryRun.summary)."
+      },
+      {
+       "text": "arrival and instruction ask 'did our bytes arrive intact and did the lane answer in the shape it was told to' -- that is LIVENESS, and a regression there is an alarm. anchoring and comprehension ask 'is this lane's reasoning the right shape for a job' -- that is QUALITY. A lane can be alive and still be the wrong shape for a job, so a quality regression is reported loudly and does NOT trip the exit code.",
+       "where": "module docstring, lines 33-42",
+       "verdict": "UNCHECKABLE",
+       "why": "The probe builders and checkers are not in this chunk; the severity classification and exit-code logic are in later chunks."
+      },
+      {
+       "text": "every host is passed EXPLICITLY per call; this module never sets, mutates or exports OLLAMA_HOST into any process environment (the subprocess environment is vendors.council_env, which strips it);",
+       "where": "module docstring, lines 46-52",
+       "verdict": "UNCHECKABLE",
+       "why": "No host-passing or environment-mutation code appears in this chunk; it would be in the adapter or run code later."
+      },
+      {
+       "text": "only 127.0.0.1/localhost counts as local. The bench is another box on the tailnet and a canary payload sent there HAS left this machine",
+       "where": "module docstring, lines 53-57",
+       "verdict": "UNCHECKABLE",
+       "why": "The locality predicate is imported as live_egress_seats from session, not defined here; this chunk cannot verify its definition."
+      },
+      {
+       "text": "every probe body is synthetic -- generated filler, fruit names and invented one-line summaries. A canary is not a place to ship repo source off the machine, and there is no code path here that reads a repo file.",
+       "where": "module docstring, lines 58-62",
+       "verdict": "KEPT",
+       "why": "This chunk defines only synthetic filler words, tail words, anchor fruit sets, and ordinals; no repo-file reading code is present."
+      },
+      {
+       "text": "Transport is not reimplemented: daedalus.council.vendors already puts the prompt on stdin, kills the whole process tree on timeout, strips OLLAMA_HOST and refuses an over-budget Ollama prompt rather than letting the server head-truncate it. This module reuses those adapters and adds only what a canary needs on top of them.",
+       "where": "module docstring, lines 64-70",
+       "verdict": "UNCHECKABLE",
+       "why": "The imports from .vendors are visible but the adapter behaviour is in that module; this chunk does not contain the transport code."
+      },
+      {
+       "text": "run_canary takes live and it DEFAULTS TO FALSE. Any lane still carrying a shipped vendor transport raises LiveCanaryRefused before a thread is started, before a probe is built and before one byte is dispatched.",
+       "where": "module docstring, lines 78-84",
+       "verdict": "UNCHECKABLE",
+       "why": "run_canary is not defined in this chunk; its signature and default cannot be observed here."
+      },
+      {
+       "text": "The classification is session.live_egress_seats -- IMPORTED, not re-implemented. live_egress_lanes only maps a Lane back to the adapter(s) behind its ask callable and hands them to that one function.",
+       "where": "module docstring, lines 85-91",
+       "verdict": "KEPT",
+       "why": "The import line `from .session import LiveCouncilRefused, live_egress_seats` confirms live_egress_seats is imported, not re-implemented in this chunk."
+      },
+      {
+       "text": "The operator's form is daedalus canary --live. Without it the CLI refuses and points at --dry-run; --dry-run prints the plan, calls nothing, and NAMES THE SEATS --live would call, so the price is visible before it is paid. --live --dry-run together is REFUSED as ambiguous rather than settled by a precedence rule nobody would remember at 2am.",
+       "where": "module docstring, lines 92-99",
+       "verdict": "UNCHECKABLE",
+       "why": "CLI argument handling and dry_run_plan are in later chunks or another module; this chunk does not contain them."
+      },
+      {
+       "text": "CANARY_STATUSES is closed -- nothing may invent a sixth, and in particular unavailable and wrong_answer are separate members because a report that merges them is a report that lies.",
+       "where": "comment above CANARY_STATUSES, lines 109-115",
+       "verdict": "KEPT",
+       "why": "CANARY_STATUSES is a fixed tuple with exactly five members: ok, wrong_answer, timeout, unavailable, error."
+      },
+      {
+       "text": "A probe either measures whether the lane is ALIVE and the bytes arrived, or whether the lane's reasoning is the right SHAPE. Only liveness trips the exit code -- see the module docstring.",
+       "where": "comment above SEVERITIES, lines 120-123",
+       "verdict": "KEPT",
+       "why": "SEVERITIES is a closed tuple ('liveness', 'quality'); the exit-code claim is uncheckable but the tuple itself matches the claim."
+      },
+      {
+       "text": "Statuses that mean 'we asked and it did not work'. unavailable is deliberately absent: we never asked, so there is nothing to have failed.",
+       "where": "comment above FAILING_STATUSES, lines 126-128",
+       "verdict": "KEPT",
+       "why": "FAILING_STATUSES is frozenset({'wrong_answer', 'timeout', 'error'}) and does not include 'unavailable'."
+      },
+      {
+       "text": "Dumb, append-only, no database.",
+       "where": "comment above DEFAULT_HISTORY_PATH, line 131",
+       "verdict": "KEPT",
+       "why": "DEFAULT_HISTORY_PATH is a simple Path to a .jsonl file; no database machinery is present."
+      },
+      {
+       "text": "Cheapest sensible local model. This runs often; the 32b is not a health check, it is a bill.",
+       "where": "comment above DEFAULT_OLLAMA_MODEL, line 138",
+       "verdict": "KEPT",
+       "why": "DEFAULT_OLLAMA_MODEL is 'qwen2.5-coder:7b', a 7b model."
+      },
+      {
+       "text": "Vendor keys, spelled the way the operator types them (same set as council.session.VENDOR_KEYS so --vendors means one thing repo-wide).",
+       "where": "comment above VENDOR_KEYS, line 141-142",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk defines VENDOR_KEYS as ('anthropic', 'openai', 'google', 'local') but cannot compare with council.session.VENDOR_KEYS because that module is not visible."
+      },
+      {
+       "text": "How much of a reply is kept on the record. Enough to see what a lane actually said, not enough to turn history.jsonl into a transcript store.",
+       "where": "comment above REPLY_TRIM, line 145-147",
+       "verdict": "KEPT",
+       "why": "REPLY_TRIM is a constant 400; the record-keeping behaviour is not in this chunk but the constant matches the stated purpose."
+      },
+      {
+       "text": "Trailing window for the median comparison. Long enough to be a baseline, short enough that a lane which legitimately got faster stops being compared against last month.",
+       "where": "comment above TRAILING_WINDOW, line 149-151",
+       "verdict": "KEPT",
+       "why": "TRAILING_WINDOW is 20, a plausible window; the comparison logic is elsewhere but the constant exists."
+      },
+      {
+       "text": "A lane counts as materially slower only if it is BOTH a large multiple of its median AND absolutely slow enough for a human to care. Either test alone cries wolf: a 0.2s -> 0.6s local hop is 3x and means nothing.",
+       "where": "comment above SLOWER_RATIO and SLOWER_ABS_S, lines 153-156",
+       "verdict": "KEPT",
+       "why": "Two constants are defined: SLOWER_RATIO = 2.0 and SLOWER_ABS_S = 2.0, matching the 'both' condition."
+      },
+      {
+       "text": "A fresh probe nonce, e.g. K7F3A9C1. Fresh PER PROBE PER LANE, not per run: a reused nonce cannot distinguish a lane that answered from a lane (or a cache, or a shared transcript) that echoed somebody else's answer -- which is the exact confusion the anchoring incident was made of.",
+       "where": "docstring of new_nonce, lines 161-166",
+       "verdict": "KEPT",
+       "why": "new_nonce returns 'K' + secrets.token_hex(4).upper()[:7], which is fresh per call; the per-probe-per-lane usage is a caller contract not visible here, but the function itself produces a fresh nonce."
+      },
+      {
+       "text": "Deterministic per-nonce randomness, so build and check agree. The prompt varies every run (a probe a model has memorised measures nothing) while the checker still knows the right answer without carrying state between the two halves of a probe.",
+       "where": "docstring of _rng, lines 169-174",
+       "verdict": "KEPT",
+       "why": "_rng seeds random.Random with f'dcanary:{nonce}', which is deterministic for a given nonce."
+      },
+      {
+       "text": "Disjoint from _FILLER_WORDS on purpose: the arrival tail token must not be findable anywhere in the padding, or a reply could satisfy the tail check by quoting the middle of the prompt.",
+       "where": "comment above _TAIL_WORDS, lines 181-184",
+       "verdict": "KEPT",
+       "why": "Comparing _FILLER_WORDS and _TAIL_WORDS, no word appears in both sets (verified: lantern/meadow/cobble... vs harbor/beacon/trellis...)."
+      },
+      {
+       "text": "Invented one-line summaries. None of these describes a real file in this repo, and none of them may contain 'roll'/'revert' -- the comprehension",
+       "where": "comment above _SUMMARIES, line 198 (truncated at chunk end)",
+       "verdict": "UNCHECKABLE",
+       "why": "The _SUMMARIES constant and the rest of the comment are cut off by the chunk boundary; no summaries are present to verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "DEFAULT_HISTORY_PATH is a relative path (runs/canary/history.jsonl), so the 'append-only' history location depends on the current working directory; a canary run from a different directory would write to a different file, silently fragmenting the baseline.",
+       "where": "line 107 (DEFAULT_HISTORY_PATH)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment for VENDOR_KEYS claims it matches council.session.VENDOR_KEYS, but that module is not visible in this chunk; divergence would break the 'one meaning repo-wide' claim.",
+       "where": "line 118 (VENDOR_KEYS comment)",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "new_nonce uses secrets.token_hex(4).upper()[:7] after a 'K' prefix; the regex _NONCE_RE expects 8 uppercase alphanumerics after 'NONCE-', which matches the 8-character nonce (K + 7 hex), so the regex and generator align.",
+       "where": "lines 155-159 and _NONCE_RE at line 151",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d1cac6a9f2f25d8ecffbefe41be7a34981f3a712549db25d0fc91b0fbefd9e21",
+    "objective_chars": 15783,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [1/5]",
+  "rev": "3088037",
+  "module": "daedalus/council/canary.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,256 @@
+{
+ "task_id": "scan__daedalus_lanes___init__.py__c1of1__1e9d5dd",
+ "key": "scan__daedalus_lanes___init__.py__c1of1__1e9d5dd-1101cb6936",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read daedalus/lanes/__init__.py chunk 1 of 1; all docstring claims about the module's purpose are consistent with the exports; internal details are uncheckable from this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "daedalus/lanes/__init__.py | low | The module docstring asserts that every lane calls checks.run_checks and may ADD but never skip baseline; this chunk only re-exports, so the enforcement is not observable here. | Inspect the lane modules (ollama.py, deepseek.py, claude.py) and checks.run_checks to verify the guarantee.",
+     "daedalus/lanes/__init__.py | low | The docstring claims that elision markers are policy and that lanes may disagree; this chunk does not contain the markers or the policy mechanism. | Inspect the grounding module and any policy configuration files to locate the elision marker handling."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Re-export the shared write-lane baseline checks and supporting utilities, and document the policy that all lanes must use the baseline.",
+     "symbols": [
+      {
+       "name": "BASELINE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "BASELINE_POLICY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "CheckPolicy",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "GraphBrief",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .graph_brief; re-exported."
+      },
+      {
+       "name": "ReferenceAudit",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .grounding; re-exported."
+      },
+      {
+       "name": "WriteAttempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "audit_references",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .grounding; re-exported."
+      },
+      {
+       "name": "claim_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .grounding; re-exported."
+      },
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .graph_brief; re-exported."
+      },
+      {
+       "name": "judge",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .grounding; re-exported."
+      },
+      {
+       "name": "imports_resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "no_elision",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "not_substituted",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "not_truncated",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "parses",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "render_brief",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .graph_brief; re-exported."
+      },
+      {
+       "name": "run_checks",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      },
+      {
+       "name": "toplevel_defs",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .checks; re-exported."
+      }
+     ],
+     "claims": [
+      {
+       "text": "what every write lane must do, in one place",
+       "where": "line 1 (module docstring)",
+       "verdict": "KEPT",
+       "why": "The module aggregates the shared baseline checks and utilities under one namespace; the docstring's characterization is consistent with the imports and __all__."
+      },
+      {
+       "text": "A 'lane' is a path by which a model's output becomes a file on disk: the local Ollama lane, the paid DeepSeek lane, the Claude CLI lane.",
+       "where": "line 3",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not reference any lane modules; the existence of those lanes is asserted but not verifiable here."
+      },
+      {
+       "text": "Each one used to carry its own hand-rolled sequence of guards, and on 2026-07-30 that cost the repo three modules",
+       "where": "line 5",
+       "verdict": "UNCHECKABLE",
+       "why": "The historical incident and the state of other modules are outside this chunk."
+      },
+      {
+       "text": "two new guards (content substitution, invented first-party imports) went into providers/deepseek.py and, within the same hours, not into providers/ollama.py",
+       "where": "line 7-8",
+       "verdict": "UNCHECKABLE",
+       "why": "The referenced files are not in this chunk."
+      },
+      {
+       "text": "the external, untrusted, PAID lane was therefore strictly safer than the local, free, DEFAULT one, for the two failure modes that had just been measured.",
+       "where": "line 10-11",
+       "verdict": "UNCHECKABLE",
+       "why": "The comparison depends on the content of those provider modules, not present here."
+      },
+      {
+       "text": "Nobody decided that. It is what per-provider copies do when one of them improves.",
+       "where": "line 12",
+       "verdict": "UNCHECKABLE",
+       "why": "This is historical narrative; no evidence in this chunk."
+      },
+      {
+       "text": "So the baseline lives here, every lane calls checks.run_checks instead of writing its own sequence",
+       "where": "line 13-14",
+       "verdict": "UNCHECKABLE",
+       "why": "The enforcement in lane modules is not in this chunk; run_checks is imported, but its behavior is not defined here."
+      },
+      {
+       "text": "a lane may ADD checks but may never skip the baseline.",
+       "where": "line 14",
+       "verdict": "UNCHECKABLE",
+       "why": "The policy enforcement mechanism is not visible in this chunk; no lane code or policy object is present."
+      },
+      {
+       "text": "What deliberately does NOT move here: claims about a specific model.",
+       "where": "line 16",
+       "verdict": "KEPT",
+       "why": "The imports and __all__ contain no model-specific claims; they are generic checks and utilities."
+      },
+      {
+       "text": "The elision markers are a statement about what one vendor's model emits when it truncates",
+       "where": "line 17",
+       "verdict": "UNCHECKABLE",
+       "why": "Elision markers are not defined or referenced in this chunk."
+      },
+      {
+       "text": "two lanes must stay free to disagree about that without silently re-tuning each other's guard.",
+       "where": "line 18",
+       "verdict": "UNCHECKABLE",
+       "why": "The lane-specific configuration is not present here."
+      },
+      {
+       "text": "Those arrive as policy; the baseline is shared.",
+       "where": "line 19",
+       "verdict": "UNCHECKABLE",
+       "why": "The policy mechanism is not in this chunk; the baseline is re-exported but its semantics are not defined here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module is a pure re-export facade; it contains no executable logic beyond imports and __all__.",
+       "where": "lines 1-45",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring makes strong policy claims (every lane must call run_checks, may never skip baseline) that cannot be verified from this chunk alone.",
+       "where": "lines 13-14",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring references providers/deepseek.py and providers/ollama.py; those files are not in this chunk.",
+       "where": "lines 7-8",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d216a58ea530b4a485d2e089823a959650338841192cf8642d0161241a8eb4db",
+    "objective_chars": 5035,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/__init__.py [1/1]",
+  "rev": "1e9d5dd",
+  "module": "daedalus/lanes/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

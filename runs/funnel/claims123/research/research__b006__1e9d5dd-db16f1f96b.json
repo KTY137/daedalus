@@ -1,0 +1,100 @@
+{
+ "task_id": "research__b006__1e9d5dd",
+ "key": "research__b006__1e9d5dd-db16f1f96b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 104 uncheckable claims identifies recurring patterns: unverifiable docstring promises, duplicated responsibility claims, external measurement references, and missing implementation visibility.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Many claims reference external modules or historical measurements that cannot be verified from provided chunks, making cross-file validation difficult.",
+     "Potential false positives if referenced modules actually implement the claimed behavior in unseen code.",
+     "The lack of file names in claim rows limits evidence specificity; symbols and line numbers are approximate."
+    ],
+    "todos": [
+     "Verify referenced modules (e.g., harness, slice.py, run_gate, _mint_from_diffs) to confirm or refute hypotheses.",
+     "Inspect actual code for the 'never raises' promise in evaluate_change and the role case-sensitivity in _is_focus_withheld.",
+     "Check if multiple modules claim the same responsibility (e.g., gate, secret floor) and whether they are consistent."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "pattern": "Multiple modules claim the same responsibility (e.g., gate, secret floor) but implementation is not visible in this chunk, and the claim may be duplicated without actual enforcement.",
+       "evidence": [
+        "module docstring EGRESS: 'secret floor runs PER FILE...'",
+        "module docstring FOCUS-WITHHELD: 'fail-closed is not recall dropped to 0'",
+        "docstring of gate_candidates: 'artifact_dir is optional...'",
+        "module docstring: 'Gate (advisory, local-only): run_gate replays...'"
+       ],
+       "refuted_if": "The referenced implementations (e.g., floor_check, run_gate) are present in other chunks and actually enforce the claimed behavior, and they are not duplicated without coordination."
+      },
+      {
+       "pattern": "Docstrings claim 'never raises' or 'returns; never raises' but code contains unguarded operations that can raise, indicating a broken contract.",
+       "evidence": [
+        "evaluate_change docstring: 'Returns; never raises' but task['repo'] unguarded KeyError",
+        "graph_brief docstring: 'Never raises for a missing or unreadable index' but exception handling not visible",
+        "write_baseline docstring: 'Deterministic formatting' but body truncated before json.dump"
+       ],
+       "refuted_if": "The unguarded operations are actually protected by try/except in the full function body, or the docstring's promise is not intended as a strict contract."
+      },
+      {
+       "pattern": "Claims about historical measurements or external behavior (e.g., pytest exit codes, reparse point behavior) are used as justification for code, but the measurements are not reproducible from the code itself.",
+       "evidence": [
+        "run_node_ids docstring: 'a single node id pytest cannot collect aborts the WHOLE invocation with exit 4'",
+        "_path_identity docstring: 'measured on this box... 40/40 tracked work files destroyed'",
+        "module docstring lines 10-12: 'the runner now uses sys.executable -m pytest...'"
+       ],
+       "refuted_if": "The measurements are captured in reproducible tests or documented in a way that can be verified independently."
+      },
+      {
+       "pattern": "Claims about what another module does (e.g., slice.py, harness._recall, run_gate) are used to justify behavior, but the referenced module's behavior is not verifiable from this chunk, creating potential for mismatched assumptions.",
+       "evidence": [
+        "_in_scope_modules docstring: 'The scope membership test -- rel in modules -- exactly as slice.py uses it'",
+        "render_arms comment: 'c_beats_a is tie-inclusive (see harness.eval_task_arms)'",
+        "module docstring: 'a correctness task carries no must_include, so scoring one with harness._recall would return the vacuous 1.0'"
+       ],
+       "refuted_if": "The referenced modules are inspected and their behavior matches the claims exactly."
+      },
+      {
+       "pattern": "Docstrings describe fail-closed or fail-safe behavior, but the code only implements a partial check, and the fail-closed guarantee depends on external components not present.",
+       "evidence": [
+        "_is_focus_withheld docstring: 'role==\"focus\"' but code uses exact string compare, case-sensitive",
+        "module docstring: 'untrusted turns the allow-list / default-deny tier ON' but actual invocation of slice_egress_rule not in chunk",
+        "docstring of _one_call: 'It cannot lift the secret floor' but secret_floor_rule not in chunk"
+       ],
+       "refuted_if": "The external components (e.g., slice.py emitting 'Focus' or 'FOCUS', secret_floor_rule being invoked correctly) are verified to align with the docstring's assumptions."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "71bb5e4b079c096db4098477ca629a67ebb2ec3cf1b9b98ad47a8cd40eff3c4b",
+    "objective_chars": 42178,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 6 (104 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 6,
+  "inputs": 104
+ }
+}

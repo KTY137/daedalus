@@ -1,0 +1,199 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c6of7__3088037",
+ "key": "scan__daedalus_eval_correctness.py__c6of7__3088037-67176a3f70",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 6 of correctness.py: test extraction, task derivation, seeding, gate setup. Claims mostly match code; some docstring details uncheckable from this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "6 of 7",
+     "purpose": "Test function extraction, commit-based task derivation, measurement-based seeding, and correctness gate wiring.",
+     "symbols": [
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts test function names and source segments from a Python file using ast. Returns dict keyed by node id ('test_x' or 'ClassName::test_x'). Returns empty dict on non-.py, empty text, or SyntaxError."
+      },
+      {
+       "name": "derive_task_from_commit",
+       "kind": "function",
+       "effects": [],
+       "note": "Proposes a candidate correctness task from a commit's diff. Returns None if no test file changed or no f2p candidates. Builds overlay, f2p, p2p lists from test file changes."
+      },
+      {
+       "name": "seed_task_from_commit",
+       "kind": "function",
+       "effects": [],
+       "note": "Derives a candidate task and measures it in a disposable worktree. Returns (task, diagnostics) or (None, diagnostics). Measures before/after statuses, filters f2p/p2p, freezes selection, verifies before-state."
+      },
+      {
+       "name": "correctness_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a gate callable for TaskAttempt. Closes on unverified before-state or moved selection. Only defines the inner _gate, which is incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The key is the node id form pytest actually accepts -- ``test_x`` for a module-level function, ``ClassName::test_x`` for a method -- because the class qualifier is not optional and getting it wrong makes the node id ``missing``.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "The function produces keys exactly in that format: node.name for module-level, f\"{node.name}::{child.name}\" for methods."
+      },
+      {
+       "text": "That is not a hypothetical: the first run of this seeder used unqualified names from ``structcore.extract_units`` (which reports a method as a bare ``test_alive_then_stale``) and the before-state check refuted 19 of 22 candidate nodes in one commit for exactly that reason.",
+       "where": "docstring of _test_functions",
+       "verdict": "uncheckable",
+       "why": "This chunk contains no historical record or reference to structcore.extract_units; the claim is anecdotal and cannot be verified from this code."
+      },
+      {
+       "text": "``ast`` rather than a regex or the structural extractor: it is stdlib, it is exact about nesting, and pytest node ids are a Python-only concept anyway.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "The function imports ast and uses ast.parse and ast.get_source_segment; no regex or external extractor is used."
+      },
+      {
+       "text": "A file that does not parse contributes nothing (the caller then mints nothing from it) rather than contributing guesses.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "SyntaxError is caught and returns {}."
+      },
+      {
+       "text": "The commit's own diff is the oracle, exactly as in ``mint.py``: what the commit ADDED or CHANGED in a test file is a FAIL_TO_PASS candidate, what it left untouched in the same file is a PASS_TO_PASS candidate, and the base is the commit's parent.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "kept",
+       "why": "The function compares after_units vs before_units; changed functions go to f2p, unchanged to p2p; base is parent revision."
+      },
+      {
+       "text": "NOTHING here is trusted. Every derived node id is a CLAIM that :func:`verify_before_state` then tries to refute by running it on the base; a node id this function gets wrong (a test nested in a class, say, whose real node id carries the class) comes back ``missing`` and takes the task down with it.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "kept",
+       "why": "The docstring describes the intended flow; the function itself only proposes candidates. The verification is done in seed_task_from_commit and correctness_gate. The claim that wrong node ids come back missing is consistent with pytest behavior, but that specific outcome is not observable in this chunk."
+      },
+      {
+       "text": "Returns ``None`` when the commit changed no test file -- a real and common case (``efd0ed6`` in this repo's own history is a fix with no test at all), reported by returning nothing rather than by inventing a label.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "kept",
+       "why": "The function returns None when no test file is changed or when no f2p candidates are found. The specific commit hash is uncheckable but the behavior matches."
+      },
+      {
+       "text": "THE LISTS ARE MEASURED, NEVER CLAIMED. :func:`derive_task_from_commit` proposes node ids off the commit's diff; every one of them is a guess, and this function's whole job is to try to refute each guess by running it twice in one disposable worktree: base + test overlay -> the BEFORE statuses; base + test overlay + reference fix -> the AFTER statuses",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function runs before_run and after_run in a disposable worktree with the described sequence."
+      },
+      {
+       "text": "FAIL_TO_PASS  not passing BEFORE, passing AFTER, and TOUCHED by the commit (a test that was already red and that the commit never mentions is not this fix's witness)",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The filtering logic requires before_status not in PROVEN_NOT_PASSING (so not passing), after_status == STATUS_PASSED, and node in changed."
+      },
+      {
+       "text": "PASS_TO_PASS  passing BEFORE and passing AFTER",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The condition `before_status == STATUS_PASSED and after_status == STATUS_PASSED` adds to p2p."
+      },
+      {
+       "text": "Everything else is DROPPED WITH ITS REASON RECORDED on the task (``dropped_candidates``) -- never silently, because the drop rate is itself the measurement of how much a corpus is worth.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function records dropped nodes in diagnostics['dropped'] and then assigns task['dropped_candidates'] = diagnostics['dropped']."
+      },
+      {
+       "text": "Real examples from this repo's own history, both found by running this rather than by reasoning: a test named ``..._still_...`` that the fix ADDED but which already passed on the base (demoted to the regression set), and an ``xfail``-marked test that is red before AND after the reference fix, so it can never witness anything (dropped).",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The specific examples are historical and not present in this chunk; the logic does handle those cases (a test that passes before is demoted, a test that fails before and after is dropped), so the described behavior is consistent, but the examples themselves cannot be verified."
+      },
+      {
+       "text": "A task with no surviving FAIL_TO_PASS node is NOT admitted -- ``(None, diagnostics)`` with the reason. ``efd0ed6`` in this repo is such a commit: a real fix that shipped no test at all.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function returns (None, diagnostics) with reason when f2p is empty. The specific commit hash is uncheckable."
+      },
+      {
+       "text": "Signature and return type match the attempt's gate contract exactly (``(RunnerContext) -> GateResult``), so wiring is ``TaskAttempt(..., gate=correctness_gate(task, repo_root))`` with no change to ``spine/`` at all.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The inner _gate is defined as taking ctx and returning GateResult, but the full signature and the contract of TaskAttempt are in another module (daedalus.spine.attempt) not visible in this chunk."
+      },
+      {
+       "text": "IT FAILS CLOSED ON AN UNVERIFIED TASK, and that is the point. The attempt's worktree already HAS the candidate's change in it by the time a gate runs, so the before-state cannot be measured there -- it has to have been measured earlier, against this exact base revision. A task with no verified before-state receipt for ``ctx.base_revision`` is REFUSED (``passed=False``) rather than evaluated, because a FAIL_TO_PASS list that was never shown to fail is precisely the vacuous green this module exists to prevent.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The gate's inner _gate is cut off mid-definition; the verification of before-state and the refusal logic are not present in this chunk. The docstring describes the intended behavior, but the code to implement it is not visible."
+      },
+      {
+       "text": "IT ALSO REFUSES A SELECTION THAT MOVED. The receipt records the digest of the selection it was measured under; this recomputes that digest from the task as presented and refuses on any mismatch. Widening the lists after the verification (say, to include a test the candidate itself added), narrowing them to drop an inconvenient one, or pointing them at a different base all change the digest and all get the same refusal. What was measured is what was declared, checkably.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The digest-checking logic is not present in this chunk; the gate is incomplete here."
+      },
+      {
+       "text": "What this gate adds over ``spine.attempt.pytest_gate``: pytest_gate asks \"did the suite exit 0\", which a candidate satisfies by changing nothing. This asks \"did the previously-RED tests go GREEN, and did the previously-GREEN ones stay green\" -- a question a no-op change cannot pass.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The comparison to pytest_gate and the actual evaluation logic are not in this chunk; the gate is incomplete."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _test_functions function uses ast.get_source_segment which may return None for nodes without source; it falls back to ast.dump. This is a reasonable fallback.",
+       "where": "_test_functions",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In derive_task_from_commit, the `status` variable from _changed_files is only checked for 'D' prefix; other statuses like 'R' (rename) are treated as changed, which may be intended but could affect overlay inclusion.",
+       "where": "derive_task_from_commit",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The correctness_gate function's inner _gate is defined but not returned; the chunk ends mid-definition. This is a structural incompleteness, but likely resolved in the next chunk.",
+       "where": "correctness_gate",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7afac0ce5c0dbf3fc89a7b9149bc5bdbb34aa64df739568e75abef3c0d637cc8",
+    "objective_chars": 18412,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [6/7]",
+  "rev": "3088037",
+  "module": "daedalus/eval/correctness.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 1401
+ }
+}

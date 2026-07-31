@@ -1,0 +1,197 @@
+{
+ "task_id": "review__b006__3088037",
+ "key": "review__b006__3088037-667220fcad",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All hypotheses reviewed against cited sources; most refuted due to missing evidence or unverifiable claims, several narrowed to testable specifics.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "No actual source files were supplied, so all verdicts rely on the hypothesis descriptions and cited line numbers, which may be hallucinated.",
+     "Some hypotheses cite cross-module contracts that cannot be verified without the full codebase.",
+     "The funnel may be passing unverified claims if the cited evidence is fabricated."
+    ],
+    "todos": [
+     "Run the settling checks listed in each verdict to confirm or refute the remaining narrowed claims.",
+     "If sources are available, re-evaluate hypotheses with actual code inspection."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "atomic-publish-copy-paste",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The other providers might delegate to a shared atomic write helper not visible in the cited chunks, or they might not target Windows at all.",
+       "survives_because": "The cited evidence shows only atomic.py has retry logic; the other providers' implementations are not shown, so the claim is plausible but unverified.",
+       "narrowed_claim": "If the other providers use a shared helper that includes retry, the claim is false; otherwise, they lack retry.",
+       "settling_check": "grep -n 'os.replace\\|os.rename\\|shutil.move' daedalus/providers/*.py daedalus/loop.py and compare against atomic.py's retry implementation.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "tokenizer-accuracy-uncheckable",
+       "verdict": "refuted",
+       "strongest_counterargument": "The claim that token counts were exact is a historical assertion, not a code guarantee; the docstring may simply describe intended behavior, and the actual count_tokens implementation could be robust.",
+       "survives_because": "No evidence in the cited chunks contradicts the claim; it is uncheckable but not necessarily false.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect count_tokens implementation and any tests verifying exactness with tiktoken.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "keyerror-unguarded",
+       "verdict": "confirmed",
+       "strongest_counterargument": "Callers might always include 'repo' due to validation upstream, making the KeyError unreachable in practice.",
+       "survives_because": "The docstring promises NEVER RAISES, but the code directly accesses task['repo'] without a guard; unless a caller-side invariant is documented, the promise is violated.",
+       "narrowed_claim": "eval_task_arms can raise KeyError if any caller passes a task dict without 'repo'.",
+       "settling_check": "Search all callers of eval_task_arms and verify they always set 'repo' before calling.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "coverage-claims-duplicated",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The full implementations might exist elsewhere and genuinely cover all fields/layers; the cited chunks are just incomplete views.",
+       "survives_because": "The cited evidence shows only docstrings, not the implementations that would substantiate the coverage claims.",
+       "narrowed_claim": "If the full implementations are found and enumerate all fields/layers, the claim is refuted; otherwise, it remains unverified.",
+       "settling_check": "Locate the Selection class and inventory module implementations and check whether they enumerate every field/layer.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "cross-module-guarantee-reliance",
+       "verdict": "refuted",
+       "strongest_counterargument": "The referenced external modules might exist and implement exactly the described behavior, which is a normal dependency pattern.",
+       "survives_because": "The hypothesis does not identify a specific broken contract; it only notes that guarantees depend on other modules, which is common and not inherently a defect.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the referenced external modules to see if they match the docstring descriptions.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "snapshot-freshness-fails-open",
+       "verdict": "refuted",
+       "strongest_counterargument": "The fail-open behavior might be intentional for ranking, while other modules treat missing snapshots as fatal in different contexts; the inconsistency may be by design.",
+       "survives_because": "The cited evidence does not show a direct contradiction; it only shows different behaviors in different modules, which could be correct.",
+       "narrowed_claim": "",
+       "settling_check": "Read snapshot_freshness and the help text to see if the fail-open condition is clearly scoped.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "lock-implementation-duplication",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The three locks might delegate to a common base class not shown in the cited lines.",
+       "survives_because": "Only _PromotionLock lines are cited; the other locks' implementations are not shown, so duplication is unverified.",
+       "narrowed_claim": "If the other locks do not share code with _PromotionLock, they are duplicated.",
+       "settling_check": "Inspect _BudgetLock and _RoomLock to see if they inherit from a shared lock class.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "split-promise",
+       "verdict": "refuted",
+       "strongest_counterargument": "The enforcement modules might exist and implement the guarantees, which is a normal separation of concerns.",
+       "survives_because": "The hypothesis does not show that the enforcement is missing; it only notes that it is not in the reviewed chunks.",
+       "narrowed_claim": "",
+       "settling_check": "Check whether ManagedProcess.cancel, run_checks, and the gate caller exist and implement the promised behavior.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "unparsable-half-counting",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The row['n'] increment might be interpreted as counting the mutation in the total regardless of detection, which is a different metric than detection count.",
+       "survives_because": "The code increments row['n'] for unparsable halves even though the comment says they are not counted; this directly affects the denominator.",
+       "narrowed_claim": "Unparsable halves are included in the mutation total, contradicting the comment that they are not counted either way.",
+       "settling_check": "Inspect lines 568-574 to see if row['n'] is later decremented for unparsable halves.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "subprocess-isolation-claims",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "All isolation claims might be backed by a single shared helper or by tests that verify them.",
+       "survives_because": "The cited evidence shows multiple modules making isolation claims but no implementation details, so the uniformity is unverified.",
+       "narrowed_claim": "If there is no shared isolation helper, the guarantees may not hold uniformly.",
+       "settling_check": "Search for a common sandboxing utility used by all these modules.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "secret-floor-bypass",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The provider might actually call secret_floor_rule and the policy test might be real, but the code is not in the cited chunks.",
+       "survives_because": "The claim is about cross-module behavior that cannot be verified from the available evidence.",
+       "narrowed_claim": "If deepseek.py does not call secret_floor_rule independently, the claim is false.",
+       "settling_check": "Inspect deepseek.py to see if it calls secret_floor_rule, and run a permissive policy test on .env files.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "nevery-raises-broken",
+       "verdict": "confirmed",
+       "strongest_counterargument": "Callers might guarantee the presence of 'repo' and 'target' keys, making the KeyError impossible.",
+       "survives_because": "The docstring promises NEVER RAISES, but the code uses unguarded subscripts; without a documented caller invariant, the promise is violated.",
+       "narrowed_claim": "eval_task_tier1 can raise KeyError if any caller passes a task dict without 'repo' or 'target'.",
+       "settling_check": "Search all callers of eval_task_tier1 and verify they always set 'repo' and 'target'.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "cross-module-semantic-drift",
+       "verdict": "refuted",
+       "strongest_counterargument": "The terms might be consistently defined across modules, and the hypothesis provides no concrete evidence of drift.",
+       "survives_because": "The hypothesis is speculative without specific examples of conflicting meanings.",
+       "narrowed_claim": "",
+       "settling_check": "Search for definitions of 'clean', 'blocked', etc., across modules to see if they are consistent.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "delegated-safety-properties",
+       "verdict": "refuted",
+       "strongest_counterargument": "Delegation to other modules is normal; if those modules implement the guarantees, there is no issue.",
+       "survives_because": "The hypothesis does not show that the delegated modules fail to implement the guarantees.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect ManagedProcess.cancel, WorktreeRemovalRace definition, and GitWorktreeManager's deletion logic.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "duplicate-guard-copy-drift",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "All these invariants might be enforced by shared helpers, preventing drift.",
+       "survives_because": "The cited evidence shows only docstrings claiming invariants, not the enforcement code, so duplication is unverified.",
+       "narrowed_claim": "If each module implements its own copy of the guard, drift is possible.",
+       "settling_check": "Search for secret_floor_rule, transcript append, and worktree walker implementations to see if they are shared.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "error-row-format-assumed-but-not-defined",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "harness._task_error_row might be stable and the renderer might be robust to missing fields.",
+       "survives_because": "The renderer assumes a specific format without verifying it; if harness changes, the assumption could break.",
+       "narrowed_claim": "If harness._task_error_row includes fields the renderer does not expect, rendering could misbehave.",
+       "settling_check": "Inspect harness._task_error_row and render_tier1 to see if they are consistent and if the renderer guards against missing fields.",
+       "severity_after_review": "medium"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ad083b51ae6b5be4c5d70a1f7999e6228af922a9a9e702bba5ba96783e42d0e7",
+    "objective_chars": 19001,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 6 (16 inputs)",
+  "rev": "3088037",
+  "bucket": 6,
+  "inputs": 16
+ }
+}

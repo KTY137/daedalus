@@ -1,0 +1,375 @@
+{
+ "task_id": "review__b001__1e9d5dd",
+ "key": "review__b001__1e9d5dd-0b2b7f3d54",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "lock-pattern-copies",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is based on docstring references, not code inspection. The cited modules may share a common utility or have identical implementations; the evidence provided is only docstring mentions, not actual divergence. The hypothesis lacks concrete evidence of drift or inconsistency, and the 'risk' is speculative without showing actual differences.",
+       "survives_because": "The hypothesis does not provide any actual code comparison showing divergence; it only notes that multiple modules claim to use the same pattern. Without evidence of different implementations, the risk is hypothetical.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'lock' daedalus/budget.py runs/council/room.py daedalus/kairos/gated_writes.py; diff the lock implementations",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "split-brain-guard",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The docstring describes a historical divergence but states that the current code delegates to daedalus.primary_tree. The claim that two implementations still exist is not supported by the evidence; the code may have been refactored to a single path. The measured example may be from an old version.",
+       "survives_because": "The evidence is a docstring describing a past issue, not current code. The claim that both paths exist is unverified; the delegation suggests a single implementation.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn '_refuse_primary_checkout\\|_path_identity\\|_refuse_if_the_primary_checkout_moved' daedalus/; inspect for duplicated logic",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "fail-closed-promise-delegated",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the fail-closed behavior is delegated to code outside each chunk, but that is a normal design pattern: shared helpers enforce contracts. The evidence does not show that the behavior is absent or inconsistent; it just shows that the promise is made in multiple places. Without evidence of a broken path, the guarantee may be intact.",
+       "survives_because": "The hypothesis is speculative; it does not provide evidence that any refusal path returns a value instead of raising. The delegation to a shared helper is a common and valid approach.",
+       "narrowed_claim": "",
+       "settling_check": "Search for functions that handle refusals in the full codebase and check if they always raise exceptions; run tests that trigger refusal paths.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "refusals-raise-promise",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The promise 'Refusals RAISE' is stated in docstrings, but the actual raising logic may be in later chunks or in a shared helper. The hypothesis does not provide evidence that any refusal path returns a value instead of raising; it only notes that the logic is not in the visible chunk. Without a concrete violation, the promise may hold.",
+       "survives_because": "No evidence of a refusal path that returns a value instead of raising is provided. The claim is based on absence of code in the chunk, not on a discovered defect.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'Refusals RAISE' daedalus/; inspect all refusal-handling functions to see if they raise exceptions; run tests that trigger refusals.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "snapshot-digest-vs-freshness",
+       "verdict": "CONFIRMED",
+       "strongest_counterargument": "The docstring explicitly recounts an incident where a stale generated snapshot was trusted because it had no freshness gate. This is direct evidence that the digest does not check freshness and that the consumer (self-improvement loop) did not check it separately. The hypothesis is supported by the docstring's own admission of a past failure.",
+       "survives_because": "The docstring states that the digest says nothing about timing and that a stale snapshot was trusted, proving the lack of a freshness gate in the verification path. The claim that consumers may not check freshness is supported by the incident.",
+       "narrowed_claim": "The snapshot verification path does not enforce freshness; consumers must check it independently, but the self-improvement loop historically did not.",
+       "settling_check": "grep -rn 'generated_at\\|freshness' daedalus/; inspect the snapshot verification code and the self-improvement loop to see if they check a timestamp.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "council-records-memory-recall-isolation",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that no code enforces the isolation, but the chunks provided do not include memory recall logic. It is possible that the isolation is enforced in the full codebase. Without seeing the recall implementation, we cannot confirm the violation.",
+       "survives_because": "The hypothesis is plausible but unverified; it depends on code not in the chunk. It is not refuted by the evidence, but it is also not confirmed.",
+       "narrowed_claim": "If council records are fed into memory recall, the documented guarantee is violated; this needs verification across the full codebase.",
+       "settling_check": "grep -rn 'council' daedalus/memory/ daedalus/council/; check if any memory recall function accepts council records as input.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "tier2-never-crashes-tier1-unverified",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that tier2 code is not in the chunk, so it is unverifiable. However, the docstring promise is a design contract; without evidence of a crash, the hypothesis is speculative. The claim that tier2 may raise unhandled exceptions is not supported by any code or test.",
+       "survives_because": "No evidence of an actual crash is provided; the hypothesis is based on absence of code in the chunk. The docstring promise may be enforced by the implementation.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full tier2 implementation and check if it catches all exceptions; run tests that simulate tier2 failures in tier1 context.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "digest-proves-nothing-about-timing",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the digest may not detect hand-editing because it is not in the chunk. However, the docstring says it proves nobody hand-edited, which is a strong claim. Without evidence that the digest is weak, we cannot assume it is broken. The hypothesis is speculative.",
+       "survives_because": "No evidence that the digest is computed incorrectly is provided. The docstring asserts its integrity, and the hypothesis does not show a flaw.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the digest implementation in the full codebase; verify it hashes all canonical bytes; test by hand-editing a snapshot and checking if the digest changes.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "delegated-contract-drift",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that functions delegate to external modules without local enforcement, risking drift. However, this is a common and valid design: shared modules are the single source of truth. The hypothesis does not provide evidence that any external module has changed semantics or that local guarantees are broken. It is a general risk, not a concrete defect.",
+       "survives_because": "No evidence of actual drift is provided. The docstrings describe expected behavior, and without a change in the external module, the guarantees hold. The hypothesis is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "For each delegated function, inspect the external module's implementation and ensure it matches the docstring; run tests that exercise these functions.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "docstring-promise-vs-code",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that several functions' docstrings promise behavior not implemented in the visible code. However, the code shown is only a chunk; the full implementation may include the promised behavior (e.g., configure may raise ValueError via a helper). The hypothesis is based on incomplete code.",
+       "survives_because": "The examples given (configure, evaluate_change, publish) may have the behavior implemented outside the chunk. The hypothesis is plausible but unverified.",
+       "narrowed_claim": "If the full implementations lack the promised behavior (e.g., configure never raises ValueError), then the docstrings are misleading.",
+       "settling_check": "Inspect the full implementations of configure, evaluate_change, _remove_tree_no_follow, and CompositeTransportSink.publish; check for the promised behavior.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "digest-duplicated-not-implemented",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the digest is defined in neither chunk and validation is absent. However, the digest may be implemented in a shared module that both chunks import. The hypothesis does not prove that the digest is missing; it only notes absence from the chunks.",
+       "survives_because": "No evidence that the digest is not implemented elsewhere is provided. The modules may rely on a common digest utility.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'digest' daedalus/inventory.py daedalus/spine/picker.py; check for imports of a shared digest module.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "per-provider-guard-divergence",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that guards are per-provider and may have diverged again. The docstring mentions a historical divergence, but the current code may have centralized guards. The claim rows are marked UNCHECKABLE, so we cannot confirm divergence without inspecting the full provider implementations.",
+       "survives_because": "The historical fact shows that divergence happened before, and the docstring suggests it may still be per-provider. However, without seeing the current code, we cannot confirm.",
+       "narrowed_claim": "If the guards (content substitution, invented first-party imports) are not present in ollama.py, then the divergence persists.",
+       "settling_check": "grep -n 'content_substitution\\|invented_first_party' providers/deepseek.py providers/ollama.py; compare guard implementations.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "absolute-path-fast-path-misleading",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The docstring explicitly states that the absolute-path branch is a fast path, not a guard, and that disabling it does not change verdicts. This is a clear explanation that the containment check is the real guard. The hypothesis that readers may be misled is speculative and not a code defect.",
+       "survives_because": "The docstring already clarifies the role of the fast path, so there is no misleading documentation. The claim that it may be relied upon as a guard is hypothetical.",
+       "narrowed_claim": "",
+       "settling_check": "Read the docstring of _safe_join; it already states it's a fast path. Check if any caller relies on it for security by searching for calls to _safe_join and inspecting their context.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "cross-module-guarantee-reliance",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that multiple modules depend on external implementations for guarantees, creating a web of unverified contracts. However, this is a normal software design; dependencies are expected. The hypothesis does not provide evidence that any external implementation is incorrect or has changed. It is a general risk, not a concrete defect.",
+       "survives_because": "No evidence of a broken contract is provided. The docstrings describe expected behavior, and without a change in the external modules, the guarantees hold.",
+       "narrowed_claim": "",
+       "settling_check": "For each referenced external module, verify that its implementation matches the docstring; run integration tests.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "snapshot-freshness-fails-open",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that snapshot_freshness fails open on git errors, which may be inconsistent with other modules. However, the docstring explicitly says it fails open (ranks rather than refuses), and the other claim about 'A missing snapshot fails' may refer to a different condition (missing snapshot vs git error). The inconsistency is not proven.",
+       "survives_because": "The hypothesis does not show a concrete conflict; the fail-open behavior may be intentional and consistent with other modules that treat missing snapshots as fatal but git errors as non-fatal.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect snapshot_freshness implementation and the code that handles missing snapshots; compare error handling.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "ollama-host-normalization",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that OLLAMA_HOST may be read or written elsewhere, but the evidence shows that the module explicitly uses a constant DEFAULT_LOCAL_OLLAMA_HOST and does not use OLLAMA_HOST. Without evidence that another module reads OLLAMA_HOST for routing, the claim is speculative.",
+       "survives_because": "The provided docstrings explicitly state that OLLAMA_HOST is never set, mutated, or inherited, and the module uses an explicit host. The hypothesis does not provide evidence of a violation.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'OLLAMA_HOST' daedalus/; verify that no module reads it for routing.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "lifecycle-misrepresentation",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that unknown event types are returned as AgentMessage with role='system', misrepresenting lifecycle events. The comment in the code may contradict this, but we need to see the actual code at line 349. The hypothesis is based on a line number, but the code is not shown.",
+       "survives_because": "The hypothesis points to a specific line and mechanism; without seeing the code, we cannot confirm or refute. The comment might say they are not misrepresented, but the code might do so.",
+       "narrowed_claim": "If _parse_typed_event returns an AgentMessage with role='system' for unknown lifecycle events, then they are misrepresented.",
+       "settling_check": "Open daedalus/.../_parse_typed_event at line 349; check the fallback behavior for unknown event types.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "snapshot-freshness-fail-closed",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that snapshot_freshness may not fail closed on missing schema, but the DriftReport comment says consumers must fail closed. The actual implementation of snapshot_freshness is not in the chunk, so we cannot verify. The hypothesis is plausible but unconfirmed.",
+       "survives_because": "The DriftReport comment indicates that fail-closed is expected, but snapshot_freshness might not implement it. Without seeing the code, we cannot confirm.",
+       "narrowed_claim": "If snapshot_freshness does not raise or return an error on missing schema, then consumers may proceed with stale data.",
+       "settling_check": "Inspect the snapshot_freshness function in the full codebase; check how it handles a missing schema.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "abstract-claim",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that an abstract method declares a behavior that is never implemented. However, abstract methods are meant to be implemented by subclasses; the absence of an implementation in the chunk does not mean it is missing. The hypothesis is unfalsifiable because the implementation may exist elsewhere.",
+       "survives_because": "Abstract methods are intentionally left unimplemented in the base class; concrete subclasses are expected to provide implementations. The hypothesis does not provide evidence that no subclass implements it.",
+       "narrowed_claim": "",
+       "settling_check": "Search for subclasses that implement the abstract method; verify they fulfill the contract.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "secret-floor-exclusion-drift",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the secret floor exclusion logic may drift between modules. However, the evidence shows that sensitivity.secret_floor_rule is used in mint to exclude files, and slice.py emits focus-withheld. Without evidence of a mismatch, the risk is speculative. The modules may share the same definition.",
+       "survives_because": "No evidence of a drift is provided. The hypothesis is based on the possibility that definitions might differ, but there is no concrete example.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect sensitivity.secret_floor_rule and slice.py's focus-withheld logic; compare the conditions that trigger a floor trip.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "single-writer-exclusivity",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that multiple modules assert they are the only writer, but none can verify from their own scope. However, this is a common design; the exclusivity is enforced by code (e.g., only one function writes baseline.json). The hypothesis does not provide evidence of another writer.",
+       "survives_because": "No evidence of another code path writing baseline.json or building evaluation sets is provided. The assertions may be correct.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'baseline.json' daedalus/; search for all writes to baseline.json and all places that build evaluation sets.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "path-identity-lstat-vs-claim-of-one-check",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the code does os.lstat(root) before the loop and per-child lstat, contradicting the comment that classification happens only when popped. However, the comment may be referring to a different classification (the one that determines if a path is safe to remove) and the lstat calls may be for other purposes (e.g., checking existence). The docstring also mentions exceptions, so the claim may be overgeneralized.",
+       "survives_because": "Without seeing the actual code, we cannot confirm that the lstat calls are the same classification check. The comment might be accurate for the specific classification it refers to. The hypothesis is based on a partial reading.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect _remove_tree_no_follow in daedalus/kairos/worktree.py; see what the lstat calls are used for and whether the classification comment is accurate.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "dup-guard-copy",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that multiple modules reimplement the same guard logic, risking divergence. However, the evidence is based on docstrings that mention similar safety properties, but they may be implemented in shared helpers. The hypothesis does not provide evidence of actual duplication; it is a general risk.",
+       "survives_because": "No concrete duplication is shown. The modules may use common utilities for worktree safety, subprocess isolation, and egress policy.",
+       "narrowed_claim": "",
+       "settling_check": "Search for shared helper modules for worktree removal, subprocess isolation, and egress policy; check if they are used by all relevant modules.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "status-enum-contract-mismatch",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that READ_STATUSES is defined in a different module and may diverge from CouncilAdapter's expectations. However, the docstrings may refer to the same status codes, and the modules may be part of the same system with a shared definition. Without evidence of a mismatch, the risk is speculative.",
+       "survives_because": "No evidence that the status codes differ is provided. The claim that they may diverge is hypothetical.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect READ_STATUSES in read_pr_thread and see if CouncilAdapter references the same statuses; check for a shared definition.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverifiable-claims",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that many claims are UNCHECKABLE because they reference external modules. However, this is a normal documentation style; the claims may be verifiable by inspecting the referenced code. The hypothesis does not show any false claim; it only notes that verification requires more context.",
+       "survives_because": "The UNCHECKABLE status is due to chunk boundaries, not necessarily missing implementations. The claims may be accurate and verifiable in the full codebase.",
+       "narrowed_claim": "",
+       "settling_check": "For each cited claim, inspect the referenced external module to verify the behavior.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "selection-immutability",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim is that the immutability of Selection may be violated if a runner holds a task reference. The evidence is that evaluate_change freezes a Selection and passes it to runners, but we don't see the runner code. The structural guarantee may be enforced by the Selection class (e.g., it copies the task).",
+       "survives_because": "The hypothesis is plausible; if a runner retains a reference to the original task dict, it could mutate it. Without seeing runner.py, we cannot confirm.",
+       "narrowed_claim": "If any runner holds a reference to the original task dict and mutates it after freezing, the immutability guarantee is broken.",
+       "settling_check": "Inspect runner.py to see if it stores the task dict or a copy; check Selection class to see if it creates a copy.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "safe-join-fast-path",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that other modules may treat the absolute-path fast path as a security boundary. However, the docstring explicitly says it's not a guard, and the containment check is the real security. The hypothesis does not provide evidence that any caller relies on the fast path for security.",
+       "survives_because": "No evidence that any module treats the fast path as a security boundary is provided. The docstring clarifies its role.",
+       "narrowed_claim": "",
+       "settling_check": "Search for calls to _safe_join and inspect if any caller assumes absolute paths are rejected by the fast path; check for additional containment checks.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "nevery-raises-broken",
+       "verdict": "CONFIRMED",
+       "strongest_counterargument": "The docstring claims 'NEVER RAISES' but the code at line 125 does task['repo'] and task['target'] without checking key existence, which can raise KeyError. This is a direct contradiction within the same file. The hypothesis is supported by the code evidence.",
+       "survives_because": "The code uses unguarded subscript access on a dict, which raises KeyError if the key is missing. The docstring promises never raises, so this is a concrete violation.",
+       "narrowed_claim": "eval_task_tier1 can raise KeyError if the task dict is missing 'repo' or 'target', contradicting the 'NEVER RAISES' promise.",
+       "settling_check": "Inspect eval_task_tier1 around line 125; check if task['repo'] and task['target'] are guaranteed to exist by the caller. If not, the claim is broken.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "uncheckable-statistics-as-truth",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that specific numbers in docstrings are not reproducible from visible code. However, these may be historical measurements from prior analyses; they are not necessarily meant to be reproduced from the current code. The hypothesis does not show that the numbers are wrong or stale.",
+       "survives_because": "The numbers may be accurate historical facts; the absence of generating commands does not make them false. The hypothesis is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "Search for scripts or tests that generate these statistics; if they exist, verify the numbers. If not, the numbers may be historical and not expected to be reproducible.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "cross-module-semantic-drift",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that different modules may use the same term with different meanings. However, no concrete example is provided. The hypothesis is vague and unfalsifiable without specific instances.",
+       "survives_because": "The hypothesis does not identify any specific term or module where the meaning differs. It is a general concern without evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Search for definitions of terms like 'clean', 'blocked' across modules and compare their usage.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "promotion-lock-duplication",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that multiple lock implementations are independently written, risking drift. However, the docstring explicitly says they are independently written because the others are private to their modules. This is a deliberate design; the locks may be functionally identical. The hypothesis does not provide evidence of divergence.",
+       "survives_because": "The docstring acknowledges the duplication but states it is intentional. Without evidence of different semantics, the risk is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "Compare the implementations of _PromotionLock, _BudgetLock, and _RoomLock; check for differences in error handling or scope.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "no-global-state-negative-claim",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the negative claim 'does not reach for global cancellation state' cannot be verified from the chunk. However, the docstring may be accurate; the full module may indeed not use global state. The hypothesis is speculative.",
+       "survives_because": "No evidence of global cancellation state is provided. The negative claim may be true.",
+       "narrowed_claim": "",
+       "settling_check": "Search the full gate_candidates module for any reference to global variables or singleton cancellation state.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "liveness-quality-confusion",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that liveness vs quality may be conflated across modules. However, the module docstring clearly defines the separation, and other modules may follow it. The hypothesis does not provide evidence of conflation.",
+       "survives_because": "No concrete example of a module treating a quality regression as a liveness issue is provided. The separation may be consistently enforced.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect eval_task_arms and render_arms to see if they use the same definitions of liveness and quality as the module docstring.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "turn-count-guarantee-unenforced",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the guarantee of exactly one chained turn per participant per round is not enforced by visible code. However, the implementation may ensure this through sorting and chaining logic; the absence of an explicit check does not mean the guarantee is broken. The hypothesis is speculative.",
+       "survives_because": "The append_round function may naturally produce exactly one turn per participant due to the input structure. Without evidence of a duplicate or missing turn, the guarantee may hold.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect append_round to see how it constructs turns; check if there is any possibility of a participant appearing more than once or not at all.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "falsifier-unfalsifiable",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that FALSIFIER statements are unfalsifiable because there is no mechanism to delete the module. However, the statements are aspirational design principles, not code contracts. They are not meant to be automatically enforced; they are documentation of intent. The hypothesis is not a defect.",
+       "survives_because": "The FALSIFIER statements are not claims about code behavior; they are statements about when the module should be removed. Without a mechanism, they are not testable, but that is not a bug.",
+       "narrowed_claim": "",
+       "settling_check": "No check needed; the statements are aspirational and not part of code logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "junk-label-filtering-duplicated",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The claim is that the junk label filtering logic may be implemented in two places. However, the two docstrings may both refer to the same function or module; the evidence does not show two separate implementations. The claim is based on the possibility that they are in different modules, but the evidence does not confirm that.",
+       "survives_because": "The docstrings may be in the same module (labels.py) or refer to a shared function. Without seeing the actual code, we cannot confirm duplication.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn '_is_junk_label' daedalus/eval/; check if it is defined once and used by both labels.py and mint.py.",
+       "severity_after_review": "none"
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true,
+     "harness_repairs": [
+      "doubled 4 invalid JSON string escape(s)"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2c874a899fe6e2096427c45113da0224e4117ef0820b6b3acb6a2e1a69c3b53d",
+    "objective_chars": 41499,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 1 (36 inputs)",
+  "rev": "1e9d5dd",
+  "bucket": 1,
+  "inputs": 36
+ }
+}

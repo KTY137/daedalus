@@ -1,0 +1,215 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c2of4__3088037",
+ "key": "scan__daedalus_council_publish.py__c2of4__3088037-b495ac8ab4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "2 of 4",
+     "purpose": "Render a council deliberation as markdown, with explicit ordering and quorum honesty.",
+     "symbols": [
+      {
+       "name": "_turns_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes a transcript into a list of turns; handles None, Mapping, list/tuple, and object/dict with turns/records/entries fields."
+      },
+      {
+       "name": "_chain_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the chain head digest from transcript or verdict, falling back to the last turn's entry_sha."
+      },
+      {
+       "name": "_quorum_counts",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (answered, requested, answered_vendors, missing_vendors); derives counts from vendor lists when present, else from integer fields."
+      },
+      {
+       "name": "_evidence_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Collects evidence path strings from verdict evidence and paths fields."
+      },
+      {
+       "name": "render_markdown",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders a council verdict and transcript to markdown with a deliberate order: outcome, advisory banner, quorum honesty, dissents, convergence, evidence, cost/latency, deliberation, and provenance footer. Pure function with no I/O or network."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Order is deliberate and load-bearing: outcome and the quorum honesty line lead, so a degraded council is the first thing a reader sees and cannot be skimmed past.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "Lines 330-335 append outcome and quorum honesty immediately after the header, before any other content."
+      },
+      {
+       "text": "Then EVERY dissent verbatim with its author -- BEFORE the convergence, because the dissent is the only part that could not have come from asking one model twice.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "Lines 354-373 render dissents (including verbatim text) before the convergence section starting at line 375."
+      },
+      {
+       "text": "Then where the vendors converged, evidence digests, per-vendor cost/latency, the deliberation itself, and finally the provenance footer (bus path + chain head) that lets a reader verify all of it offline.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "Sections appear in order: convergence (375), evidence (384), cost/latency (397), deliberation (412), provenance footer (430+)."
+      },
+      {
+       "text": "Pure: no I/O, no network, no gate.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "The function only builds strings and calls local helpers; no imports or calls that would do I/O, network, or gate operations appear in this chunk."
+      },
+      {
+       "text": "The advisory banner is UNCONDITIONAL. A verdict arriving without the marker is a contract violation, so we say so instead of quietly rendering it as if it carried authority.",
+       "where": "render_markdown comment at line 326",
+       "verdict": "KEPT",
+       "why": "Lines 327-334 unconditionally append the advisory banner and, when advisory is not True, append a caution block explaining the violation."
+      },
+      {
+       "text": "Quorum honesty, at the top. A short council is a weaker signal and that must be impossible to miss -- it is a warning block, not a footnote.",
+       "where": "render_markdown comment at line 336",
+       "verdict": "KEPT",
+       "why": "Lines 337-345 append a WARNING block when answered < requested, and the block appears before the dissents and convergence sections."
+      },
+      {
+       "text": "DISSENT LEADS. Not a stylistic choice: the dissent is the only content in this document that could not have been produced by asking one model twice.",
+       "where": "render_markdown comment at line 352",
+       "verdict": "KEPT",
+       "why": "The dissents section is appended before the convergence section; no other content that could be produced by one model appears between outcome and dissents except the quorum honesty line."
+      },
+      {
+       "text": "A vendor that did not speak has no content; an empty fence is noise that makes a silent turn look like an empty answer.",
+       "where": "render_markdown comment at line 371",
+       "verdict": "KEPT",
+       "why": "Line 372 checks `if text:` before appending the verbatim fence, so empty text produces no fence."
+      },
+      {
+       "text": "Convergence is an OBSERVATION about what these vendors said, not a decision and not a vote. Models with overlapping training data agreeing is not independent confirmation, and nothing here counts as a passed gate.",
+       "where": "render_markdown comment at line 379",
+       "verdict": "KEPT",
+       "why": "Lines 380-382 append the explanatory text; the code never uses the word 'majority' except as a legacy alias in _field and the rendered text explicitly disclaims decision/vote/gate."
+      },
+      {
+       "text": "A turn that did not SPEAK is the quorum honesty story at turn level: bus.py records \"refused\" / \"unavailable\" / \"budget_exhausted\" / \"anomaly\" rather than dropping the vendor, so rendering the status is the difference between \"three vendors agreed\" and \"one was never asked\".",
+       "where": "render_markdown comment at line 420",
+       "verdict": "KEPT",
+       "why": "Lines 421-426 read the turn status and, when status is not empty and not 'spoke', append a NOTE block with the status and reason."
+      },
+      {
+       "text": "Paths an egress lane declined to send are NAMED, not counted -- a vendor reasoning over less evidence than the others is not an equal voice, and hiding that would make the roster look stronger than it was.",
+       "where": "render_markdown comment at line 427",
+       "verdict": "KEPT",
+       "why": "Lines 428-433 read the withheld list and append a NOTE block listing each withheld path by name."
+      },
+      {
+       "text": "Where the canonical record lives. Explicit field wins; otherwise derived from the council id, which is how bus.py names the file.",
+       "where": "_bus_path docstring (function not shown in this chunk)",
+       "verdict": "UNCHECKABLE",
+       "why": "The _bus_path function body is not in this chunk; only its docstring appears at the top of the chunk."
+      },
+      {
+       "text": "The chain head digest a reader verifies the bus against. Explicit field wins; otherwise the last turn's entry_sha, which IS the head by construction in an append-only chain.",
+       "where": "_chain_head docstring",
+       "verdict": "KEPT",
+       "why": "Lines 294-301 check transcript fields, then verdict fields, then the last turn's entry_sha/sha/digest, exactly as described."
+      },
+      {
+       "text": "Counts are derived from the vendor LISTS when present, because a list is checkable against the transcript and a bare integer is not.",
+       "where": "_quorum_counts docstring",
+       "verdict": "KEPT",
+       "why": "Lines 305-309 extract vendor lists; lines 312-314 use integer fields only when the integer is an int, otherwise fall back to list lengths."
+      },
+      {
+       "text": "A transcript may be the turn list itself, or an object/dict carrying one.",
+       "where": "_turns_of docstring",
+       "verdict": "KEPT",
+       "why": "Lines 284-291 handle None, Mapping, list/tuple, and object/dict with turns/records/entries fields."
+      },
+      {
+       "text": "Paths named by the evidence, for the path-marker half of the floor.",
+       "where": "_evidence_paths docstring",
+       "verdict": "KEPT",
+       "why": "Lines 319-324 collect string/bytes items and label/path/file/name fields from evidence items, plus paths from the paths field."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _bus_path docstring appears at the start of this chunk, but the function body is not shown; the chunk begins mid-function with its docstring and body.",
+       "where": "lines 281-283",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _bus_path docstring is followed by its body in lines 284-292, but the function definition line is not visible in this chunk; the chunk starts with the docstring and body.",
+       "where": "lines 281-292",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The render_markdown function references DEGRADED_QUORUM_MARKER, DEFAULT_BUS_DIR, _verbatim, _short, _field, _as_list, _text, _turns_of, _bus_path, _chain_head, and _quorum_counts; all are defined elsewhere in the file or in the same file as listed in the names defined elsewhere.",
+       "where": "lines 330-433",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The quorum honesty warning uses a WARNING block with the DEGRADED_QUORUM_MARKER constant, but the constant's definition is not in this chunk.",
+       "where": "line 339",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The cost/latency table renders cost and latency as text via _text when present, but the _text function may not preserve numeric formatting; this is a rendering nuance but not a defect in this chunk.",
+       "where": "lines 407-409",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aa03f5c4dd612995c4566640d5653ba5c9c6fbe727aa421eca08133e07269f84",
+    "objective_chars": 17750,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [2/4]",
+  "rev": "3088037",
+  "module": "daedalus/council/publish.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 281
+ }
+}
