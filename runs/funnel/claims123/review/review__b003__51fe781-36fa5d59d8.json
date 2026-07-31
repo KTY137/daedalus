@@ -1,0 +1,45 @@
+{
+ "task_id": "review__b003__51fe781",
+ "key": "review__b003__51fe781-36fa5d59d8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "DeepSeek call failed: invalid model report: summary must be a non-empty string no longer than 600 characters",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Retry or fall back to Claude."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9a34b77c3ef86c53e2c9c0bb6ee28accb39a24f95a7fb353184e10e652c9d0c9",
+    "objective_chars": 5317,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 3 (3 inputs)",
+  "rev": "51fe781",
+  "bucket": 3,
+  "inputs": 3
+ }
+}

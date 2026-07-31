@@ -1,0 +1,245 @@
+{
+ "task_id": "scan__daedalus_eval_mint.py__c1of3__51fe781",
+ "key": "scan__daedalus_eval_mint.py__c1of3__51fe781-cdb85d77e1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 3 of mint.py: defines constants, helper functions (_git, _is_linked_worktree, _is_junk_label, _language_family), docstring specifying minting policy and hygiene filters.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_is_linked_worktree | high | Detection logic may fail on edge-case git artifacts; structural check relies on both 'commondir' and 'gitdir' files, but chunk ends before full implementation is shown. | Review complete function in next chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mint.py",
+     "chunk": "1 of 3",
+     "purpose": "Define minting policy, constants, and helper functions for independent task minting.",
+     "symbols": [
+      {
+       "name": "_language_family",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns family key for cross-language filter; None stays None."
+      },
+      {
+       "name": "_is_junk_label",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if name is not a plausible identifier or is in _JUNK_KEYWORDS."
+      },
+      {
+       "name": "_git",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git command; returns stdout or None on failure."
+      },
+      {
+       "name": "_is_linked_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Detects if repo_root is a git linked worktree by inspecting .git file and admin directory."
+      },
+      {
+       "name": "MINT_CONFIRM_THRESHOLD",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Integer 3, number of confirmations needed to lift quarantine."
+      },
+      {
+       "name": "DEFAULT_MINT_STORE_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String path to minted_tasks.json in same directory as this file."
+      },
+      {
+       "name": "_GIT_TIMEOUT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Float 30.0, timeout for git subprocess."
+      },
+      {
+       "name": "_IDENTIFIER_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for valid identifier: starts with letter or $, then alphanumeric or $."
+      },
+      {
+       "name": "_JUNK_KEYWORDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of keywords considered junk labels."
+      },
+      {
+       "name": "_LANGUAGE_FAMILIES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict mapping language names to family groups for cross-language filter."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Minted tasks land with \"tier\": \"quarantine\" and \"label_provenance\": \"independent_diff\"",
+       "where": "docstring line ~25",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk sets tier or label_provenance; that happens in _mint_from_diffs which is not in this chunk."
+      },
+      {
+       "text": "SCOPE: a changed file is eligible as target OR as a label source only if it appears in cached_index(repo)[\"modules\"]",
+       "where": "docstring line ~35",
+       "verdict": "uncheckable",
+       "why": "The scope check is in _mint_from_diffs, not present in this chunk."
+      },
+      {
+       "text": "CROSS-FILE ONLY: must_include never contains a symbol defined in the file chosen as target.",
+       "where": "docstring line ~45",
+       "verdict": "uncheckable",
+       "why": "This filtering logic is in _mint_from_diffs, not in this chunk."
+      },
+      {
+       "text": "_mint_from_diffs re-checks non-emptiness once, after filtering, and mints nothing (with a reason) if nothing survives.",
+       "where": "docstring line ~50",
+       "verdict": "uncheckable",
+       "why": "The function _mint_from_diffs is not defined in this chunk."
+      },
+      {
+       "text": "JUNK: a diffed name that fails _is_junk_label never becomes a must_include entry -- dropped names land in labels_filtered_junk (sorted).",
+       "where": "docstring line ~55",
+       "verdict": "uncheckable",
+       "why": "The junk filtering logic is in _mint_from_diffs, not in this chunk."
+      },
+      {
+       "text": "CROSS-LANGUAGE: a label may only come from a file whose language FAMILY (_language_family(languages.spec_for(...).name)) matches the TARGET's.",
+       "where": "docstring line ~60",
+       "verdict": "uncheckable",
+       "why": "Cross-language filtering is in _mint_from_diffs, not in this chunk."
+      },
+      {
+       "text": "FLOOR-TRIPPING LABEL SOURCE EXCLUSION: sensitivity.secret_floor_rule is run against every anchor CANDIDATE's current content before target selection.",
+       "where": "docstring line ~65",
+       "verdict": "uncheckable",
+       "why": "Floor rule application is in _mint_from_diffs, not in this chunk."
+      },
+      {
+       "text": "_IDENTIFIER_RE: unicode-aware, allows leading/embedded $, on top of the universal letter/digit/underscore identifier shape.",
+       "where": "comment line ~90",
+       "verdict": "kept",
+       "why": "Regex r'^(?:[^\\W\\d]|\\$)[\\w$]*$' matches: starts with letter (\\w without digits) or $, then word chars or $. Unicode-aware because \\w matches Unicode letters/digits in Python 3."
+      },
+      {
+       "text": "Keyword check: deliberately NARROW, and case-SENSITIVE.",
+       "where": "comment line ~95",
+       "verdict": "kept",
+       "why": "_JUNK_KEYWORDS contains only lowercase keywords; _is_junk_label does not lowercase name. See line 145: 'return name in _JUNK_KEYWORDS'."
+      },
+      {
+       "text": "_is_junk_label: Checked name-shape-first (a non-identifier like <anonymous> never reaches the keyword set at all).",
+       "where": "docstring _is_junk_label",
+       "verdict": "kept",
+       "why": "Function first checks _IDENTIFIER_RE.match(name); if False, returns True immediately. Only if True does it check keyword set."
+      },
+      {
+       "text": "_language_family: None (no LanguageSpec) stays None and therefore never equals any real family, same fail-closed behavior as before.",
+       "where": "docstring _language_family",
+       "verdict": "kept",
+       "why": "If lang_name is None, returns None immediately. Then any comparison with real family strings will be False."
+      },
+      {
+       "text": "_git: stdout on success, None on ANY failure (missing git, not a repo, bad ref, timeout, non-zero exit). Minting must degrade to 'nothing minted', never raise.",
+       "where": "docstring _git",
+       "verdict": "kept",
+       "why": "Catches OSError and subprocess.SubprocessError; returns None if proc.returncode != 0. No other exceptions escape because subprocess.run with timeout only raises those."
+      },
+      {
+       "text": "_is_linked_worktree: Detection is the git on-disk contract, not a path heuristic: git worktree add writes .git as a FILE holding a gitdir: pointer, whereas a primary checkout has .git as a DIRECTORY.",
+       "where": "docstring _is_linked_worktree",
+       "verdict": "kept",
+       "why": "Line 210: checks dot_git.is_file() \u2013 returns False if .git is a directory. Line 213: reads file and checks for 'gitdir:' prefix."
+      },
+      {
+       "text": "A SUBMODULE also has .git as a gitdir: file, and a submodule checkout is perfectly permanent -- refusing to mint from one would be a false refusal.",
+       "where": "docstring _is_linked_worktree",
+       "verdict": "uncheckable",
+       "why": "The function continues after reading the pointer to inspect the admin directory structurally; the chunk ends before that structural check is complete. Cannot verify claim."
+      },
+      {
+       "text": "The admin directory the pointer resolves to is inspected STRUCTURALLY: commondir and gitdir together appear only in the linked-worktree admin layout. Requiring BOTH means an unreadable or unexpected target fails toward 'not ephemeral', i.e. toward minting.",
+       "where": "docstring _is_linked_worktree",
+       "verdict": "uncheckable",
+       "why": "The structural inspection code is not fully present in this chunk; it ends at line 227. Cannot verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring makes many claims about behavior in _mint_from_diffs, which is not present in this chunk.",
+       "where": "docstring lines ~20-70",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_is_linked_worktree function is incomplete in this chunk; the structural check is not finished.",
+       "where": "line 227",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The regex _IDENTIFIER_RE uses \\w which in Python 3 matches Unicode letters/digits/underscores, but the comment says 'allows a leading/embedded $ on top of the universal letter/digit/underscore identifier shape.' The regex allows $ anywhere, not just leading.",
+       "where": "line 120",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a754eae8a139fc967ac6510ba93c987adfc43adfe9ce50cd95851d0f1c44382a",
+    "objective_chars": 19210,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mint.py [1/3]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/mint.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

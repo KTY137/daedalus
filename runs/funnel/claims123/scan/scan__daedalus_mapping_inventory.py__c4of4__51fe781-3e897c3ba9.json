@@ -1,0 +1,159 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c4of4__51fe781",
+ "key": "scan__daedalus_mapping_inventory.py__c4of4__51fe781-3e897c3ba9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4: check, render_text, main, and helper functions for inventory module.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_describe_drift | medium | If both old and fresh have same head and statuses but derived fields differ, the function appends a generic message 'the derived half differs...' which may be misleading if no actual difference exists. | Verify with a test case where old_feats and new_feats are identical but other blocks differ."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "4 of 4",
+     "purpose": "Provide check, render_text, main, and helper functions for inventory.",
+     "symbols": [
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Gate mode: returns ok/false with problems list."
+      },
+      {
+       "name": "_by_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns derived fields keyed by module."
+      },
+      {
+       "name": "_statuses",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns status dict from _by_key."
+      },
+      {
+       "name": "_describe_drift",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates drift description between stored and fresh."
+      },
+      {
+       "name": "render_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a human-readable summary string."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry point with --refresh, --check, --json."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Gate mode. Writes nothing; returns ``{\"ok\": bool, \"problems\": [...]}``.",
+       "where": "def check",
+       "verdict": "kept",
+       "why": "The function returns a dict with 'ok' and 'problems' keys, and does not perform any file writes."
+      },
+      {
+       "text": "Four ways to fail, in the order a reader needs them: 1. there is no inventory, or it cannot be parsed; 2. it was written by a different schema; 3. its digest does not cover its own derived fields -- somebody edited the mechanical half by hand; 4. regenerating it now would change something -- it is STALE, and the diff says exactly how.",
+       "where": "def check",
+       "verdict": "kept",
+       "why": "The code checks for load failure (1), schema mismatch (2), digest failure (3), and drift (4) in that order."
+      },
+      {
+       "text": "Every feature's DERIVED half, keyed by module (or by detector for the module-less stale entries). The human fields are dropped so a note cannot read as drift.",
+       "where": "def _by_key",
+       "verdict": "kept",
+       "why": "The function iterates areas/features, uses module or detector:reason as key, and filters out FEATURE_HUMAN_FIELDS."
+      },
+      {
+       "text": "Field-level, not just status-level. A module whose importers or reaching entry point changed is a real difference, and reporting it as 'something differs, go diff the file yourself' is how a gate stops being read.",
+       "where": "def _describe_drift",
+       "verdict": "kept",
+       "why": "The function compares old_feats and new_feats field by field (excluding status) and reports changed fields."
+      },
+      {
+       "text": "the derived half differs from a fresh scan (no headline difference; compare the file with --json)",
+       "where": "_describe_drift line 930",
+       "verdict": "kept",
+       "why": "If no other differences found, this message is appended to out."
+      },
+      {
+       "text": "Mechanical fields are rewritten every run; human notes are carried forward and excluded from the digest.",
+       "where": "main docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the build or harvest functions that implement this behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function check uses load and build, but load is defined elsewhere; build is defined elsewhere in this file but not shown.",
+       "where": "def check",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In _describe_drift, if both old and fresh have same head and statuses but derived fields differ, the function appends a generic message 'the derived half differs...' which may be misleading if no actual difference exists.",
+       "where": "_describe_drift",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The main function's --json path calls load and build but does not use the 'old' variable for anything other than initial load; it always rebuilds fresh.",
+       "where": "main",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2e69299a0c2318903d95d807df59aad46d25d2dec9017da1768d8066d592174",
+    "objective_chars": 13260,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [4/4]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

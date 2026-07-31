@@ -1,0 +1,307 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c2of5__51fe781",
+ "key": "scan__daedalus_council_canary.py__c2of5__51fe781-3699a604bd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed canary.py chunk 2 of 5 (lines 281-466). Verified docstring claims for probe functions build_arrival, check_arrival, build_instruction, check_instruction, build_anchoring, check_anchoring, build_comprehension, check_comprehension, and ProbeSpec. All claims kept; no defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "2 of 5",
+     "purpose": "Define probe builders, checkers, and ProbeSpec dataclass for liveness and quality probes.",
+     "symbols": [
+      {
+       "name": "_SUMMARY_DECOYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of decoy summary strings for comprehension probe."
+      },
+      {
+       "name": "_SUMMARY_TARGETS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of target summary strings mentioning rollback."
+      },
+      {
+       "name": "_filler",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates padding lines of random filler text."
+      },
+      {
+       "name": "ARRIVAL_PAD_LINES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Number of padding lines for arrival probe, set to 40."
+      },
+      {
+       "name": "build_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds prompt with nonce at start and tail word at end."
+      },
+      {
+       "name": "expect_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns expected string: nonce and tail word."
+      },
+      {
+       "name": "check_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks reply contains both nonce and tail word."
+      },
+      {
+       "name": "_FENCE_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to strip code fences."
+      },
+      {
+       "name": "build_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds prompt asking for exact reply OK-{nonce}."
+      },
+      {
+       "name": "expect_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns expected string OK-{nonce}."
+      },
+      {
+       "name": "_normalise",
+       "kind": "function",
+       "effects": [],
+       "note": "Strips transport artefacts from reply."
+      },
+      {
+       "name": "check_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks reply equals expected exactly."
+      },
+      {
+       "name": "_anchor_pair",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates prompt body, decoy, and correct answer for anchoring probe."
+      },
+      {
+       "name": "build_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns prompt body from _anchor_pair."
+      },
+      {
+       "name": "expect_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns correct answer from _anchor_pair."
+      },
+      {
+       "name": "check_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks reply for decoy or correct word."
+      },
+      {
+       "name": "_NUMBER_WORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from number words to integers."
+      },
+      {
+       "name": "_NUMBER_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match digits 1-3 or number words."
+      },
+      {
+       "name": "_summaries",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates list of summaries with one target and returns lines and target number."
+      },
+      {
+       "name": "build_comprehension",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds prompt asking which summary mentions rollback."
+      },
+      {
+       "name": "expect_comprehension",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns expected answer (string of digit)."
+      },
+      {
+       "name": "check_comprehension",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks reply for correct number."
+      },
+      {
+       "name": "ProbeSpec",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for probe specification."
+      },
+      {
+       "name": "PROBES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of ProbeSpec instances for arrival, instruction, anchoring."
+      }
+     ],
+     "claims": [
+      {
+       "text": "~40 lines of filler is roughly 800 tokens: long enough that a transport which truncates has something to truncate, and far enough under the Ollama usable input window that the probe itself never provokes the failure it measures.",
+       "where": "comment before ARRIVAL_PAD_LINES",
+       "verdict": "uncheckable",
+       "why": "The claim about token count and Ollama window size is not verifiable from this code chunk; it depends on external constants and model behavior."
+      },
+      {
+       "text": "A long prompt with a token at the VERY START and a word at the VERY END.",
+       "where": "docstring of build_arrival",
+       "verdict": "kept",
+       "why": "build_arrival returns a string starting with NONCE-{nonce} and ending with TAILWORD: {tail}."
+      },
+      {
+       "text": "Ollama HEAD-truncates an over-budget prompt (it eats the system prompt first), so the HEAD token disappears;",
+       "where": "docstring of build_arrival",
+       "verdict": "uncheckable",
+       "why": "This describes external behavior not observable in this code."
+      },
+      {
+       "text": "the npm .cmd shim cut a multi-line argv at the first newline, so the TAIL -- including the instruction telling the model what to do -- disappeared, and the model answered 'your message was cut off'.",
+       "where": "docstring of build_arrival",
+       "verdict": "uncheckable",
+       "why": "This describes external behavior not observable in this code."
+      },
+      {
+       "text": "Requiring BOTH tokens back is what makes a single cheap probe cover both.",
+       "where": "docstring of build_arrival",
+       "verdict": "kept",
+       "why": "check_arrival requires both nonce and tail word present."
+      },
+      {
+       "text": "It also closes the obvious false pass: a model that lost the tail may still echo the head token while complaining about the cut, and that reply is correctly rejected because it cannot contain a tail word it never received.",
+       "where": "docstring of build_arrival",
+       "verdict": "kept",
+       "why": "check_arrival returns False if tail word absent even if nonce present."
+      },
+      {
+       "text": "Accept only if BOTH ends of the prompt demonstrably arrived.",
+       "where": "docstring of check_arrival",
+       "verdict": "kept",
+       "why": "check_arrival returns True only if head_ok and tail_ok both true."
+      },
+      {
+       "text": "Strip TRANSPORT artefacts only -- never content. Code fences, surrounding quotes and stray whitespace are things a CLI wrapper adds; removing them keeps the probe measuring instruction-following rather than punishing a lane for its own output framing. Anything the model actually chose to say survives this and is judged.",
+       "where": "docstring of _normalise",
+       "verdict": "kept",
+       "why": "_normalise removes fences, quotes, and whitespace but does not alter other content."
+      },
+      {
+       "text": "Detect a lane that copied the decoy instead of answering. Reported as a QUALITY signal by PROBES: a model anchoring on a prior turn is alive, reachable and useless for reasoning work. Calling that a liveness failure would page someone about a model choice; calling it nothing is how it went unnoticed for a day.",
+       "where": "docstring of check_anchoring",
+       "verdict": "kept",
+       "why": "check_anchoring returns False with 'anchored_on_decoy' if decoy present, even if correct also present."
+      },
+      {
+       "text": "A tiny real task with a checkable answer. The nonce is deliberately NOT in this prompt: the answer is a digit, and a nonce full of digits would give a lazy checker something to trip over.",
+       "where": "docstring of build_comprehension",
+       "verdict": "kept",
+       "why": "build_comprehension does not include nonce; answer is a digit."
+      },
+      {
+       "text": "A probe is (prompt, checker) and the checker is deterministic Python.",
+       "where": "docstring of ProbeSpec",
+       "verdict": "kept",
+       "why": "ProbeSpec has fields build, check, expect; check functions are deterministic."
+      },
+      {
+       "text": "head+tail token round trip; catches a truncated prompt",
+       "where": "blurb of arrival ProbeSpec",
+       "verdict": "kept",
+       "why": "ProbeSpec for arrival uses build_arrival and check_arrival which implement head+tail check."
+      },
+      {
+       "text": "exact-string obedience; catches plausible-but-not-asked-for",
+       "where": "blurb of instruction ProbeSpec",
+       "verdict": "kept",
+       "why": "ProbeSpec for instruction uses check_instruction which requires exact match; returns 'not_exact' if extra content."
+      },
+      {
+       "text": "quality signal: anchoring on prior turn",
+       "where": "blurb of anchoring ProbeSpec (implied)",
+       "verdict": "kept",
+       "why": "ProbeSpec for anchoring uses check_anchoring which detects decoy copying."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check_arrival returns False with 'both_absent' when both nonce and tail missing, 'nonce_absent' when only tail present, 'tailword_absent' when only nonce present.",
+       "where": "check_arrival function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "check_instruction uses _normalise which strips code fences, quotes, and trailing dots but does not strip other punctuation. The check for exact equality after normalisation may reject replies with trailing punctuation like periods or parentheses that are not stripped.",
+       "where": "check_instruction and _normalise",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_anchor_pair samples two sets from _ANCHOR_SETS, but _ANCHOR_SETS is not defined in this chunk.",
+       "where": "_anchor_pair function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_summaries uses _SUMMARY_DECOYS and _SUMMARY_TARGETS defined earlier in chunk; target index is target+1 which matches 1-based numbering in prompt.",
+       "where": "_summaries function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "79601174ed768cf23dd9edadd3653a265089c5547c243b77651a795d010b117f",
+    "objective_chars": 14484,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [2/5]",
+  "rev": "51fe781",
+  "module": "daedalus/council/canary.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

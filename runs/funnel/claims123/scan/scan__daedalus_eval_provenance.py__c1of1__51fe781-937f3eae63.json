@@ -1,0 +1,191 @@
+{
+ "task_id": "scan__daedalus_eval_provenance.py__c1of1__51fe781",
+ "key": "scan__daedalus_eval_provenance.py__c1of1__51fe781-937f3eae63",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/eval/provenance.py defines ProvenanceCheck, PROBE_SOURCE, and check_import_provenance to verify that the candidate's interpreter resolves daedalus from the candidate tree. All docstring claims are kept. Observation: subprocess inherits environment, so PYTHONPATH could skew results.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 76 | high | check_import_provenance does not sanitize environment; PYTHONPATH could cause daedalus to resolve outside candidate tree even if probe passes | Confirm that caller clears PYTHONPATH before calling, or add env parameter to function"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/provenance.py",
+     "chunk": "1 of 1",
+     "purpose": "Verify that the candidate's interpreter resolves daedalus from the candidate tree, not the host.",
+     "symbols": [
+      {
+       "name": "ProvenanceCheck",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding the result of a provenance check."
+      },
+      {
+       "name": "check_import_provenance",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns a subprocess to probe daedalus resolution in the candidate's interpreter."
+      },
+      {
+       "name": "PROBE_SOURCE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Python source string for the subprocess probe."
+      },
+      {
+       "name": "_under",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Helper to check if a path is under a given parent."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The loop graded the host against itself",
+       "where": "docstring lines 5-6",
+       "verdict": "uncheckable",
+       "why": "This claim describes a historical bug in the runner, not code in this chunk."
+      },
+      {
+       "text": "the runner now uses sys.executable -m pytest with cwd set to the worktree",
+       "where": "docstring line 8",
+       "verdict": "uncheckable",
+       "why": "The runner implementation is not in this chunk."
+      },
+      {
+       "text": "This module exists because that is a MECHANISM, not a VERIFICATION.",
+       "where": "docstring line 11",
+       "verdict": "kept",
+       "why": "The module performs a verification (check_import_provenance) rather than relying on the mechanism."
+      },
+      {
+       "text": "a failed check voids the EVALUATION rather than scoring the candidate",
+       "where": "docstring line 18",
+       "verdict": "kept",
+       "why": "ProvenanceCheck.ok=False and as_error() returns 'EVALUATION VOID'."
+      },
+      {
+       "text": "Cheap: one interpreter start, ~0.3 s",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "Performance claim not verifiable from source alone."
+      },
+      {
+       "text": "Run in the CANDIDATE's interpreter, cwd and environment -- not here.",
+       "where": "comment line 25-26",
+       "verdict": "kept",
+       "why": "check_import_provenance uses subprocess.run with cwd=base and executable from the candidate (or sys.executable)."
+      },
+      {
+       "text": "Reports rather than asserts, so the caller decides.",
+       "where": "comment line 29",
+       "verdict": "kept",
+       "why": "Returns ProvenanceCheck, does not raise or exit."
+      },
+      {
+       "text": "A probe that exited non-zero on mismatch would be indistinguishable from a probe that failed to start",
+       "where": "comment line 30-31",
+       "verdict": "kept",
+       "why": "The function treats non-zero returncode as failure, same as probe not starting."
+      },
+      {
+       "text": "Whether an evaluation in ``root`` would score the code in ``root``.",
+       "where": "ProvenanceCheck docstring line 39",
+       "verdict": "kept",
+       "why": "The ok field indicates this, and check_import_provenance checks if daedalus resolves under root."
+      },
+      {
+       "text": "Deliberately says \"evaluation\" and never \"candidate\"",
+       "where": "as_error docstring line 46",
+       "verdict": "kept",
+       "why": "as_error returns string containing 'EVALUATION VOID' and 'not a candidate failure'."
+      },
+      {
+       "text": "FAIL-CLOSED in every direction.",
+       "where": "check_import_provenance docstring line 62",
+       "verdict": "kept",
+       "why": "All error paths return ProvenanceCheck(False, ...)."
+      },
+      {
+       "text": "A probe that will not start, times out, returns unparseable output, or cannot import daedalus at all reports ok=False",
+       "where": "docstring lines 63-65",
+       "verdict": "kept",
+       "why": "Each of those cases returns ProvenanceCheck(False, ...) in the code."
+      },
+      {
+       "text": "__path__ is checked too: a namespace package has no __file__",
+       "where": "comment lines 108-109",
+       "verdict": "kept",
+       "why": "candidates includes both daedalus_file and daedalus_path items."
+      },
+      {
+       "text": "a candidate whose package dir lost its __init__.py would otherwise resolve to None and be read as \"no answer\" rather than \"wrong tree\".",
+       "where": "comment lines 109-110",
+       "verdict": "kept",
+       "why": "By checking candidates list, if __file__ is None but __path__ points inside root, it's still caught."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check_import_provenance does not validate that the subprocess executable exists or is the same as the candidate's interpreter; it uses sys.executable as fallback.",
+       "where": "line 75",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The probe source captures sys.argv[0] and sys.path[0] but these are never used in the verification logic.",
+       "where": "lines 33-34",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function does not set an environment for the subprocess; it inherits the current environment, which may include PYTHONPATH.",
+       "where": "line 76",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fac5022b8ccda2ca10fdc9c6754e86e1d8bc841356243954591c83cec7e8ef48",
+    "objective_chars": 9812,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/provenance.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/provenance.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

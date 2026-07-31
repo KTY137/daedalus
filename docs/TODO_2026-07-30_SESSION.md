@@ -52,21 +52,30 @@ apply. See §4.2.
 ## 2. Open work, ranked
 
 ### 2.1 Blocking the audit re-run
-- **Delete `runs/audit_swarm/`.** The corpus is invalid (see §3.1) and `resume`
-  will serve it forever. A recipe digest is now in the task id, so new runs are
-  separate — but the old files should go.
+
+#### Decision made (2026-07-30, 51fe781)
+
+- **`runs/audit_swarm/` deliberately retained, not deleted** — See §2.8 for reasoning.
+  Constitution §7 requires keeping the negative experimental evidence. The 715-answer
+  fan-out returning 2 findings demonstrates why the hypothesis failed (system prompt forbade
+  scratchpad). Deleting it would lose that learning.
+
+#### Still open
+
 - **Fire the re-run** with `TEMPERATURE=0.7`, `AUDIT_SYSTEM`, `paths=()` and the
   claim-extraction question. Built, not yet run. ~750 calls.
   `DAEDALUS_BUDGET_USD` and `DAEDALUS_BUDGET_MAX_CALLS` must BOTH be raised —
   they are independent axes and the second one is what stopped two runs.
 
-### 2.2 Two real defects the swarm did find, both verified by hand
-- `daedalus/fallback.py:20` — docstring says "when Claude is missing or blocked";
+### 2.2 Two real defects the swarm did find — both FIXED (f0392fc, 2026-07-30)
+**MEASURED 2026-07-30:** Closed by commit f0392fc `fix(providers): evidence survives a report the schema did not expect`.
+
+- `daedalus/fallback.py:20` — docstring said "when Claude is missing or blocked";
   line 21 handles `{"done", "needs_review"}` and returns `collaborative`, i.e.
-  Claude present and succeeding.
-- `daedalus/providers/base.py:48` — says changes move into `handoff.suggestions`;
+  Claude present and succeeding. Fixed: docstring now correctly describes both paths.
+- `daedalus/providers/base.py:48` — said changes move into `handoff.suggestions`;
   line 55 writes `suggested_files`. Seven lines apart. A reader of the docstring
-  finds nothing, silently.
+  found nothing, silently. Fixed: docstring now correctly names `suggested_files`.
 
 ### 2.3 The safety core, from a measured false positive
 - **`secret_floor_rule` fires on ordinary source.** `accelerators.py:32` is
@@ -83,17 +92,21 @@ apply. See §4.2.
   Today's protection was structural (`git ls-files` excludes gitignored paths),
   not a check.
 
-### 2.4 Remaining Cerberus findings on `vet.py`
+### 2.4 Remaining Cerberus findings on `vet.py` — ALL FIXED (85f067a, 2026-07-30)
+**MEASURED 2026-07-30:** Closed by commit 85f067a `fix(vet): a launcher can no longer hide behind the way it is spelled`.
+Tests: 41 → 69 passing, 31-case evasion matrix all passing, 0 failures. `context7` now caught by "no version at all" rule.
+
 - **high 4** — `npx.cmd`, `uv tool run`, `cmd /c npx` and an absolute
-  `C:\...\npx.cmd` all evade the unpinned/remote-fetch rules, and a versionless
-  `npx -y pkg` does not trip `mcp.unpinned`. **This repo's own `.mcp.json`
-  context7 entry is an instance.** Fix: match on `Path(cmd).name` with
-  `.cmd`/`.exe`/`.bat` stripped, scan all of `args` not `args[:1]`, treat
-  "no version at all" and `@next|@beta|@^|@~` as unpinned.
-- **med 5** — a remote server's `url` never reaches `lane_for_host`, so
-  `{"type":"http","url":"https://evil.tld/mcp"}` produces zero findings.
-- **med 6** — an allowance naming a non-BLOCK rule is silently inert. The live
-  `.agentenv/tool-allowances.json` has one (`net.python_http`, which is REVIEW).
+  `C:\...\npx.cmd` all evaded the unpinned/remote-fetch rules, and a versionless
+  `npx -y pkg` did not trip `mcp.unpinned`. This repo's own `.mcp.json` context7 was
+  the live instance. Fixed: now match on normalized name (basename, exe suffix stripped)
+  over ALL args tokens, not args[:1]; treat "no version at all" and dist-tags as unpinned.
+- **med 5** — a remote server's `url` never reached `lane_for_host`, so
+  `{"type":"http","url":"https://evil.tld/mcp"}` produced zero findings. Fixed: url now
+  reaches the host-checking rule.
+- **med 6** — an allowance naming a non-BLOCK rule was silently inert. The live
+  `.agentenv/tool-allowances.json` had one (`net.python_http`, which is REVIEW). Fixed:
+  inert allowances are now reported as such.
 
 ### 2.5 Structure (from an independent audit, numbers reproduced by a second implementation)
 The 13-module strongly connected component has an **exact minimum feedback arc
@@ -128,6 +141,18 @@ accidents, and each pays for itself with no reference to the cycle:
   (evaluator outside the candidate's reach) is still open.
 
 ### 2.7 Deferred with a reason
+
+#### FIXED in this session (2026-07-30)
+
+- **`coerce_report` silently drops unknown keys** — FIXED (f0392fc). MEASURED: unknown keys
+  now preserved in `handoff.unexpected_keys` (verified: 5000 chars survive intact). ~250 answers
+  were lost in the fan-out because evidence was destroyed on reconstruction; this no longer happens.
+- **`status` is a hardcoded default** — FIXED (f0392fc). MEASURED: `status_was_defaulted` flag
+  now records when status was not supplied by the model, so "the model did not say" can be told
+  apart from "the model said needs_review".
+
+#### Still open
+
 - **Re-bind the receipt to HEAD.** Needs a quiet box, ~2.5 h at 765 s × 12. The
   right host is the owner's Ryzen 9000-series X3D box; `gate_host_preflight` must
   pass there first, and "RTX env-var drift" is already on the bug list.
@@ -139,17 +164,33 @@ accidents, and each pays for itself with no reference to the cycle:
   removal; nobody knows whether that is the 50th or 97th percentile, n=1.
 - **Latent ceiling run** — design and prediction recorded in
   `docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md`. Needs a quiet box.
-- **`coerce_report` silently drops unknown keys** (`providers/_report.py:63-77`).
-  It rebuilds from `REPORT_KEYS`, so a model returning a key you did not expect
-  has its content **destroyed rather than rejected** — a valid-looking report
-  with the evidence removed. This is how ~250 answers were lost today.
-- **`status` is a hardcoded default.** `coerce_report` defaults it to
-  `needs_review`, so it was constant across 715 answers and carries zero bits
-  while every consumer reads it as a verdict.
 - **`runs/spine/` is gitignored**, so the receipt cannot be committed. An
   artefact whose whole purpose is "bound to this commit" cannot say which one.
 - **arch memory is stale** and the `post-commit` hook that rebuilds it ends in
   `|| true`, so it failed silently — exactly as its own comment predicts.
+
+### 2.8 Audit corpus decision and new open items (2026-07-30 night)
+
+- **`runs/audit_swarm/` deliberately retained, not deleted** (51fe781, 2026-07-30). REASON: Constitution
+  §7 "Provenance" requires retaining negative experimental evidence. The 715-answer fan-out returned 2
+  findings from 713 "no defect" answers, making it demonstrative evidence for a failed hypothesis (cheap
+  model + system prompt forbidding scratchpad = zero useful findings). Deleting it would lose that learning.
+  The practical reason to delete it (serving it forever on resume) was solved by recipe digest in task id.
+
+- **Workflow guard substring-matches protected paths in commit messages.** MEASURED: A commit MESSAGE that
+  merely NAMES a protected path (like "fixed daedalus/atomic.py") is refused even when the commit changes
+  nothing protected. Failed closed (correct behaviour), still a false positive. This is the fresh instance
+  of what docs/AMENDMENT_PROPOSAL_002_GUARD_REPAIRABILITY.md proposes fixing.
+
+- **Governed commits require hyphenated TRAILERS.** MEASURED: Iron-Plan ENFORCEMENT uses trailer format
+  (`Iron-Plan: ...`) which is NOT the same as the prose footer format (`Iron Plan: ...`) that AGENTS.md
+  asks for in a handoff. Both are required, in different places. Worth documenting — not discoverable until
+  a commit is refused.
+
+- **Promotion trust root decision recorded (51fe781).** Owner decision 2026-07-30: the promotion trust root
+  will be a GIT-SIGNED TAG (option B), with a detached signature (option A) as the upgrade path that leaves
+  the receipt shape unchanged; regeneration VOIDS an approval and returns the candidate to pending-owner.
+  See docs/GATE0_SEALED_OWNER_APPROVAL.md §4-5 for full reasoning.
 
 ---
 

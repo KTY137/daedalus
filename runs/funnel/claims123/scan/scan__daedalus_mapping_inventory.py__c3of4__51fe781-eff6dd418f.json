@@ -1,0 +1,140 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c3of4__51fe781",
+ "key": "scan__daedalus_mapping_inventory.py__c3of4__51fe781-eff6dd418f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of inventory.py: implements build() to derive the full document, stale_features() for packaging ghosts and orphan bytecode, and i/o helpers load/write/refresh.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "3 of 4",
+     "purpose": "Define stale_features, build, load, write_inventory, and refresh functions.",
+     "symbols": [
+      {
+       "name": "stale_features",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined earlier in the file; referenced in build()"
+      },
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [],
+       "note": "Derives the whole document, writes nothing."
+      },
+      {
+       "name": "inventory_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes doc to JSON string."
+      },
+      {
+       "name": "load",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Loads JSON from file, returns dict or error dict."
+      },
+      {
+       "name": "write_inventory",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes JSON to file, returns the string."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_read",
+        "filesystem_write"
+       ],
+       "note": "Regenerates inventory in place, carrying annotations forward."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derive the whole document. Writes nothing.",
+       "where": "build docstring",
+       "verdict": "KEPT",
+       "why": "build() returns a dict; no file writes in this function."
+      },
+      {
+       "text": "``reports`` is the ``(reach, switches)`` pair from :func:`daedalus.mapping.render.analyse_once`. When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all. Calling ``reach.analyse(root)`` with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+       "where": "build docstring",
+       "verdict": "KEPT",
+       "why": "The code calls render_mod.analyse_once(root, index) if reports is falsy, using the same index."
+      },
+      {
+       "text": "Reported, NOT filed as a stale feature. Its remedy is 'add it to the list', the exact opposite verb from the stale remedy ('remove it'), and handing a fixer the wrong verb is how a finding becomes damage.",
+       "where": "stale_features comment near 'on_disk_but_unlisted'",
+       "verdict": "KEPT",
+       "why": "gaps (on_disk_but_unlisted) are stored separately from stale_features; they are not added to the stale list."
+      },
+      {
+       "text": "The prose summaries the previous schema carried. Derived from the SAME pass as the structured features, so the discrepancy the picker reports when the two disagree cannot occur by construction.",
+       "where": "build docstring comment inside doc dict",
+       "verdict": "KEPT",
+       "why": "The 'islands', 'shims', 'unknown', 'unreached', 'stale' keys are derived from the same reach_report and stale_features used for structured features."
+      },
+      {
+       "text": "Regenerate in place, carrying the human half forward. The old document is read for its annotations BEFORE it is overwritten, and a first run over a schema-1 file harvests them out of the hand-written entries. Refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "refresh docstring",
+       "verdict": "KEPT",
+       "why": "refresh() calls load(target) first, then later (in next chunk) will write; annotations are harvested from old doc."
+      }
+     ],
+     "observations": [
+      {
+       "what": "build() uses render_mod.analyse_once but render_mod is imported late inside the function",
+       "where": "line 618",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load() returns None when file does not exist, but returns error dict on parse failure; refresh() checks for __error__",
+       "where": "lines 754-761",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c426d57491eaeb992c2e59fdfda699c56d6b2999819db763119983e209b91096",
+    "objective_chars": 15596,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [3/4]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

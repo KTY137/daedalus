@@ -1,0 +1,217 @@
+{
+ "task_id": "scan__daedalus_council___init__.py__c1of1__51fe781",
+ "key": "scan__daedalus_council___init__.py__c1of1__51fe781-66ae321929",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/council/__init__.py chunk 1 of 1. All checkable docstring claims are kept; some claims are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package init: exports bus symbols, documents council policy and falsification protocol.",
+     "symbols": [
+      {
+       "name": "ENTRY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "TURN_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Exported from bus; writes to council store"
+      },
+      {
+       "name": "append_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Exported from bus; writes to council store"
+      },
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Exported from bus; writes to council store"
+      },
+      {
+       "name": "council_store_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "evidence_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "transcript_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      },
+      {
+       "name": "verify_chain",
+       "kind": "function",
+       "effects": [],
+       "note": "Exported from bus"
+      }
+     ],
+     "claims": [
+      {
+       "text": "a cross-vendor council that produces EVIDENCE, never a verdict.",
+       "where": "line 1",
+       "verdict": "uncheckable",
+       "why": "The chunk only exports bus symbols; no code showing what the council produces is present."
+      },
+      {
+       "text": "THE GATE DECIDES, NOT A MODEL. This package may read, prompt, record and verify. It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise",
+       "where": "line 3-5",
+       "verdict": "uncheckable",
+       "why": "The chunk only exports bus symbols; no code implementing the council's capabilities is present."
+      },
+      {
+       "text": "A council's product is a queue of CHECKS for the existing deterministic gate (tests, fences, diffs) to run; the gate's result is the only verdict.",
+       "where": "line 5-6",
+       "verdict": "uncheckable",
+       "why": "No code defining council's product or gate interaction is present in this chunk."
+      },
+      {
+       "text": "Dissent is recorded verbatim and is never averaged away, which is why nothing in this package carries an approve / reject / score / majority / consensus / confidence field. Advisory-by-docstring is not a control; ABSENCE OF THE FIELD is the control.",
+       "where": "line 6-8",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the implementation of any council record; only exported symbols are shown."
+      },
+      {
+       "text": "The premise -- independent vendors have independent blind spots -- is plausible and UNTESTED. It is measured before session.py is wired into any real review workflow, and the module is deleted if it fails",
+       "where": "line 10-12",
+       "verdict": "uncheckable",
+       "why": "The falsification protocol is described but no implementation or test code is present in this chunk."
+      },
+      {
+       "text": "ARM A: four vendors (anthropic / openai / google / local), one round each.",
+       "where": "line 13",
+       "verdict": "uncheckable",
+       "why": "No code showing vendor selection or round logic is present."
+      },
+      {
+       "text": "CONTROL: ONE vendor asked twice under two different role prompts. If four vendors do not beat one-vendor-twice, the council has bought four egress paths, an ssh surface and 4x latency for a prompt-diversity effect.",
+       "where": "line 14-15",
+       "verdict": "uncheckable",
+       "why": "No code implementing the control or comparison is present."
+      },
+      {
+       "text": "GROUND TRUTH: spine.attempt.GateResult.passed and AttemptResult.state -- already recorded, free to harvest. The question: does 'the council raised an objection' predict gates_failed / a later revert better than the control, at what precision and recall?",
+       "where": "line 16-17",
+       "verdict": "uncheckable",
+       "why": "No code referencing spine.attempt or performing analysis is present."
+      },
+      {
+       "text": "INDEPENDENCE: pairwise agreement rate BETWEEN vendors versus WITHIN one vendor across two calls.",
+       "where": "line 18",
+       "verdict": "uncheckable",
+       "why": "No code computing agreement rates is present."
+      },
+      {
+       "text": "FALSIFIER: if inter-vendor agreement is within noise of intra-vendor agreement on N patches, THIS MODULE IS DELETED.",
+       "where": "line 19",
+       "verdict": "uncheckable",
+       "why": "No code implementing deletion or falsification is present."
+      },
+      {
+       "text": "SMALL-N CAVEAT, stated in advance: the independent corpus is ~17-20 tasks. That is not enough for a significance claim. The honest move is to say so now rather than to report a percentage afterwards.",
+       "where": "line 20-21",
+       "verdict": "uncheckable",
+       "why": "No code referencing corpus size or significance is present."
+      },
+      {
+       "text": "bus.py -- the transcript: an append-only, hash-chained, offline-verifiable dcouncil/1 store at runs/council/<council_id>.jsonl.",
+       "where": "line 24-25",
+       "verdict": "uncheckable",
+       "why": "The chunk only imports from bus; no bus.py code is present to verify these properties."
+      },
+      {
+       "text": "It is a SEPARATE store from the memory ledger and shares no code path with it: council turns are model chatter, and promoting model chatter to certified memory (three agreeing turns is three confirmations) is the fabrication failure this project treats as the worst one. COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL.",
+       "where": "line 25-27",
+       "verdict": "uncheckable",
+       "why": "No code showing memory ledger or recall is present in this chunk."
+      },
+      {
+       "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL.",
+       "where": "line 27",
+       "verdict": "uncheckable",
+       "why": "No code showing memory recall or its inputs is present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "All claims are either metadata about the module's purpose or refer to code in other modules (bus.py, session.py, spine.attempt, memory). No implementation details are present in this chunk.",
+       "where": "entire file",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ee04a1af797f6ef00442944e2ae61c23435d2b5276d1157fe391c5926270c077",
+    "objective_chars": 6319,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/__init__.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/council/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

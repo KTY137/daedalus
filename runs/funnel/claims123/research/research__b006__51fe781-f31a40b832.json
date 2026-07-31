@@ -1,0 +1,45 @@
+{
+ "task_id": "research__b006__51fe781",
+ "key": "research__b006__51fe781-f31a40b832",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 23 claim rows are UNCHECKABLE in isolation; cross-file analysis reveals no shared pattern because no two claims reference the same module or symbol, and no refutation conditions can be formed from the given data.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8ae7084ff800e3daec8a121b3571df52385ff4aa7920959ca712d488ff0f3edb",
+    "objective_chars": 9365,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 6 (23 inputs)",
+  "rev": "51fe781",
+  "bucket": 6,
+  "inputs": 23
+ }
+}

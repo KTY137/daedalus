@@ -1,0 +1,369 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c1of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c1of7__51fe781-02584c7db5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of correctness.py: module docstring, guards, git helpers, and outcome constants. All checkable claims are kept; no broken or inverted rules found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_refuse_primary_checkout | low | The guard re-raises PrimaryCheckoutTouch from PrimaryCheckoutWrite; if PrimaryCheckoutWrite changes to accept a path that is actually inside the primary checkout, the guard would fail open. | Settled by verifying PrimaryCheckoutWrite's logic in daedalus.primary_tree.",
+     "_safe_join | low | The absolute-path fast path is documented as not a guard; the containment comparison is the real guard. If containment logic is changed elsewhere, escape could occur. | Settled by auditing containment comparison and ensuring it remains robust.",
+     "_git_read | low | The verb allowlist is imported from daedalus.spine.attempt. If that module's READ_ONLY_REPO_VERBS is modified to include writing verbs, this guard weakens. | Settled by verifying READ_ONLY_REPO_VERBS contents in daedalus.spine.attempt."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "1 of 7",
+     "purpose": "Module docstring, outcome constants, guard functions, and git helpers for the correctness evaluator.",
+     "symbols": [
+      {
+       "name": "PrimaryCheckoutTouch",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception raised when an operation would target the primary checkout."
+      },
+      {
+       "name": "OverlayEscape",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception raised when a test-overlay path escapes the disposable worktree."
+      },
+      {
+       "name": "_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes a path for comparison (normcase + normpath)."
+      },
+      {
+       "name": "_refuse_primary_checkout",
+       "kind": "function",
+       "effects": [],
+       "note": "Guard: raises PrimaryCheckoutTouch if path is inside the primary checkout."
+      },
+      {
+       "name": "_safe_join",
+       "kind": "function",
+       "effects": [],
+       "note": "Guard: joins a relative path under a worktree root, raises OverlayEscape if it escapes."
+      },
+      {
+       "name": "_git_read",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs a read-only git verb against the primary checkout; verb must be in READ_ONLY_REPO_VERBS."
+      },
+      {
+       "name": "_git_in_worktree",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs any git verb inside a disposable worktree after checking it's not the primary checkout."
+      },
+      {
+       "name": "OUTCOME_FIXED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'fixed'."
+      },
+      {
+       "name": "OUTCOME_NOT_FIXED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'not_fixed'."
+      },
+      {
+       "name": "OUTCOME_REGRESSED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'regressed'."
+      },
+      {
+       "name": "OUTCOME_COULD_NOT_RUN",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'could_not_run'."
+      },
+      {
+       "name": "OUTCOME_TASK_INVALID",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'task_invalid'."
+      },
+      {
+       "name": "OUTCOMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of all five outcome constants."
+      },
+      {
+       "name": "STATUS_PASSED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'passed'."
+      },
+      {
+       "name": "STATUS_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'failed'."
+      },
+      {
+       "name": "STATUS_ERROR",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'error'."
+      },
+      {
+       "name": "STATUS_COLLECT_ERROR",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'collect_error'."
+      },
+      {
+       "name": "STATUS_SKIPPED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'skipped'."
+      },
+      {
+       "name": "STATUS_MISSING",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'missing'."
+      },
+      {
+       "name": "STATUS_NOT_RUN",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'not_run'."
+      },
+      {
+       "name": "PROVEN_NOT_PASSING",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of statuses that prove a node did not pass: failed, error, collect_error."
+      },
+      {
+       "name": "NO_VERDICT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset containing only STATUS_NOT_RUN."
+      },
+      {
+       "name": "DEFAULT_TEST_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default test timeout in seconds (900.0)."
+      },
+      {
+       "name": "DEFAULT_GIT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default git timeout in seconds (120.0)."
+      },
+      {
+       "name": "DEFAULT_CORPUS_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default path for the correctness tasks corpus JSON file."
+      },
+      {
+       "name": "CORPUS_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema version number for the corpus file (1)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every evaluation checks out the base revision in a DISPOSABLE worktree, overlays the task's test files there, and RUNS BOTH LISTS BEFORE any change is applied",
+       "where": "module docstring, paragraph under 'THE BEFORE-STATE IS THE WHOLE VALUE'",
+       "verdict": "uncheckable",
+       "why": "The claim describes runtime behavior that occurs in later chunks or functions (evaluate_change, etc.). This chunk only defines guards and helpers; it does not show the evaluation loop."
+      },
+      {
+       "text": "A claimed FAIL_TO_PASS test that PASSES on the base makes the TASK invalid. It is reported as ``task_invalid`` -- never silently dropped, and never counted as a pass.",
+       "where": "module docstring, bullet under 'THE BEFORE-STATE IS THE WHOLE VALUE'",
+       "verdict": "uncheckable",
+       "why": "The claim refers to logic that processes test results; that logic is not in this chunk."
+      },
+      {
+       "text": "A CLAIMED PASS_TO_PASS TEST THAT FAILS ON THE BASE MAKES THE TASK EQUALLY INVALID",
+       "where": "module docstring, second bullet under 'THE BEFORE-STATE IS THE WHOLE VALUE'",
+       "verdict": "uncheckable",
+       "why": "Same reason: the verification logic is not present in this chunk."
+      },
+      {
+       "text": "An empty ``fail_to_pass`` list is refused by :func:`validate_task`",
+       "where": "module docstring, after the two bullets",
+       "verdict": "uncheckable",
+       "why": "validate_task is not defined in this chunk."
+      },
+      {
+       "text": "The exact node ids of BOTH lists, the resolved base revision, the test-overlay revision and paths, and the gate configuration are captured into an immutable :class:`Selection` BEFORE any change is applied, digested, and recorded in the result and in the stored before-state receipt.",
+       "where": "module docstring, paragraph under 'THE SELECTION IS FROZEN BEFORE THE CANDIDATE RUNS'",
+       "verdict": "uncheckable",
+       "why": "The Selection class and freezing logic are not shown in this chunk."
+      },
+      {
+       "text": "There is no glob anywhere in this module by design",
+       "where": "module docstring, second paragraph under 'THE SELECTION IS FROZEN BEFORE THE CANDIDATE RUNS'",
+       "verdict": "kept",
+       "why": "A search of this chunk for 'glob' yields no occurrence; no glob-related code is present. The claim holds for this chunk."
+      },
+      {
+       "text": "after freezing, the task dict is never consulted for node ids again (:func:`_run_lists` takes the ``Selection``, not the task)",
+       "where": "module docstring, third paragraph under 'THE SELECTION IS FROZEN BEFORE THE CANDIDATE RUNS'",
+       "verdict": "uncheckable",
+       "why": "_run_lists is not defined in this chunk."
+      },
+      {
+       "text": "a runner that returns statuses for a node that is not in the frozen set makes the evaluation ``could_not_run`` (:func:`_check_selection`)",
+       "where": "module docstring, third paragraph under 'THE SELECTION IS FROZEN BEFORE THE CANDIDATE RUNS'",
+       "verdict": "uncheckable",
+       "why": "_check_selection is not defined in this chunk."
+      },
+      {
+       "text": ":func:`correctness_gate` recomputes the selection digest from the live task and REFUSES if it does not match the receipt",
+       "where": "module docstring, third paragraph under 'THE SELECTION IS FROZEN BEFORE THE CANDIDATE RUNS'",
+       "verdict": "uncheckable",
+       "why": "correctness_gate is not defined in this chunk."
+      },
+      {
+       "text": "``regressed`` outranks ``not_fixed`` and both outrank ``fixed``: a change that breaks the regression set is reported as breaking it even if it also turned every FAIL_TO_PASS green. ``could_not_run`` outranks all three",
+       "where": "module docstring, under 'FIVE OUTCOMES'",
+       "verdict": "uncheckable",
+       "why": "The outcome ranking logic is not present in this chunk; only the outcome constants are defined."
+      },
+      {
+       "text": "A base revision is only ever checked out through :class:`daedalus.kairos.worktree.GitWorktreeManager`",
+       "where": "module docstring, under 'ISOLATION'",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references GitWorktreeManager or performs checkout."
+      },
+      {
+       "text": "every path this module hands to pytest or writes an overlay into is re-checked here against the primary checkout (:func:`_refuse_primary_checkout`, :func:`_safe_join`)",
+       "where": "module docstring, under 'ISOLATION'",
+       "verdict": "kept",
+       "why": "Both _refuse_primary_checkout and _safe_join are defined in this chunk and serve as guards for paths used in pytest invocations and overlay writes."
+      },
+      {
+       "text": "every git command aimed at the primary checkout is checked against ``daedalus.spine.attempt.READ_ONLY_REPO_VERBS``",
+       "where": "module docstring, under 'ISOLATION'",
+       "verdict": "kept",
+       "why": "_git_read explicitly checks that the verb is in READ_ONLY_REPO_VERBS before running the command."
+      },
+      {
+       "text": "NO VENDOR CALL. Nothing here reaches a model, a network, or a paid API.",
+       "where": "module docstring, last line before imports",
+       "verdict": "kept",
+       "why": "This chunk contains no network calls, API requests, or vendor library usage. All imports are standard library or internal daedalus modules."
+      },
+      {
+       "text": "GUARD: ``path`` must be neither the primary checkout nor inside it.",
+       "where": "_refuse_primary_checkout docstring",
+       "verdict": "kept",
+       "why": "The function delegates to assert_write_allowed from daedalus.primary_tree, which enforces that the path is not inside the primary checkout. If it is, PrimaryCheckoutWrite is raised and re-raised as PrimaryCheckoutTouch."
+      },
+      {
+       "text": "GUARD: join ``rel`` under ``worktree`` or refuse.",
+       "where": "_safe_join docstring",
+       "verdict": "kept",
+       "why": "The function checks that rel is not absolute, then ensures the joined path is under the worktree root. Raises OverlayEscape if the path escapes."
+      },
+      {
+       "text": "Run a READ-ONLY git verb against the primary checkout. Raw bytes.",
+       "where": "_git_read docstring",
+       "verdict": "kept",
+       "why": "The function runs subprocess with capture_output=True (returns raw bytes). It checks the verb is in READ_ONLY_REPO_VERBS, which are read-only verbs."
+      },
+      {
+       "text": "GUARD: the verb must be in ``spine.attempt.READ_ONLY_REPO_VERBS``",
+       "where": "_git_read docstring",
+       "verdict": "kept",
+       "why": "The function explicitly checks `if verb not in READ_ONLY_REPO_VERBS` and raises PrimaryCheckoutTouch if so."
+      },
+      {
+       "text": "Reading history (``show``/``diff``/``rev-parse``) is exactly what this module needs from the checkout, and it needs nothing else.",
+       "where": "_git_read docstring",
+       "verdict": "kept",
+       "why": "The claim is about the module's needs; in this chunk, only _git_read is defined, and it only allows read-only verbs. No other git commands are defined."
+      },
+      {
+       "text": "Run any git verb INSIDE the disposable worktree.",
+       "where": "_git_in_worktree docstring",
+       "verdict": "kept",
+       "why": "The docstring describes the function's purpose. The function checks that the worktree is not the primary checkout via _refuse_primary_checkout before running the command."
+      },
+      {
+       "text": "Mutating verbs are fine here and nowhere else -- which is why the cwd goes through :func:`_refuse_primary_checkout` before the process is spawned",
+       "where": "_git_in_worktree docstring",
+       "verdict": "kept",
+       "why": "The function calls _refuse_primary_checkout(worktree, repo_root) before running git. This ensures the worktree is not the primary checkout, so mutating verbs are safe."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring makes many claims about runtime behavior (freezing selection, verifying before-state, outcome ranking) that cannot be verified in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_refuse_primary_checkout relies on assert_write_allowed from daedalus.primary_tree; if that function is modified, the guard behavior may change.",
+       "where": "_refuse_primary_checkout",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_safe_join uses a fast path for absolute paths that is documented as not a guard; the real guard is the containment comparison. If the fast path logic is mistaken, it could allow escape.",
+       "where": "_safe_join",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_git_read imports READ_ONLY_REPO_VERBS from daedalus.spine.attempt; if that list is modified to include writing verbs, the guard weakens.",
+       "where": "_git_read",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0901025effbc43f38a3012f2a79cb7251f17f33ae301ff40f016e736a74fe8ac",
+    "objective_chars": 18449,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [1/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

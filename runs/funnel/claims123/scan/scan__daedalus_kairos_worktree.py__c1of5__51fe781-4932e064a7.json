@@ -1,0 +1,295 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c1of5__51fe781",
+ "key": "scan__daedalus_kairos_worktree.py__c1of5__51fe781-4932e064a7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/kairos/worktree.py: module docstring, class definitions, and path utility functions. All checkable claims are kept or uncheckable; no broken claims found in this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, class definitions, and no-follow path utilities for worktree containment.",
+     "symbols": [
+      {
+       "name": "WorktreeContainmentError",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for unproven worktree cleanup/commit targets."
+      },
+      {
+       "name": "WorktreeRemovalRace",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for reparse point appearing above an ongoing removal."
+      },
+      {
+       "name": "_worktree_root_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves root directory for candidate worktrees, outside primary checkout."
+      },
+      {
+       "name": "_lexical",
+       "kind": "function",
+       "effects": [],
+       "note": "Absolute-and-normalised path without filesystem access."
+      },
+      {
+       "name": "_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Comparison form: case-folded on Windows, normalised."
+      },
+      {
+       "name": "_is_within",
+       "kind": "function",
+       "effects": [],
+       "note": "True if child is parent or lies under it, lexically."
+      },
+      {
+       "name": "_is_reparse_point",
+       "kind": "function",
+       "effects": [],
+       "note": "True for symlink or Windows junction/mount point via lstat."
+      },
+      {
+       "name": "_path_identity",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (st_dev, st_ino) via lstat, or None if missing."
+      },
+      {
+       "name": "_lexists",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if lstat succeeds, False otherwise."
+      }
+     ],
+     "claims": [
+      {
+       "text": "cleanup_worktree runs a recursive delete, unattended, in a finally: block",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "cleanup_worktree is defined elsewhere in this file; not present in this chunk."
+      },
+      {
+       "text": "A cleanup target is deleted only if the manager can prove it is the thing the manager itself allocated.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "The allocation and proof mechanism is not in this chunk."
+      },
+      {
+       "text": "Anything unproven raises WorktreeContainmentError and nothing is removed.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "The raising logic is in methods not present in this chunk."
+      },
+      {
+       "text": "Path.resolve() before the safety check turns the link into its target, so the subsequent delete is handed a real directory (the primary checkout) and never sees a link at all.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "The safety check and delete logic are not in this chunk."
+      },
+      {
+       "text": "git worktree remove --force performs its own recursive delete and FOLLOWS a junction planted inside the worktree",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No git command execution is present in this chunk."
+      },
+      {
+       "text": "shutil.rmtree is NOT a safe substitute either, though not for the reason an earlier version of this docstring gave.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No use of shutil.rmtree in this chunk."
+      },
+      {
+       "text": "This module therefore owns the delete, via _remove_tree_no_follow",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "_remove_tree_no_follow is defined elsewhere in this file; not in this chunk."
+      },
+      {
+       "text": "Path hygiene cannot see an attack that uses no path trickery at all: the candidate os.renames the primary checkout INTO its own worktree",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "The attack scenario and mitigation are not implemented in this chunk."
+      },
+      {
+       "text": "it knows the no-follow identity of the checkout AND of every directory the checkout is reached through",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "The identity recording is not in this chunk."
+      },
+      {
+       "text": "It reads os.lstat now.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "_path_identity uses os.lstat (line 170)."
+      },
+      {
+       "text": "Refusals RAISE. A silently skipped cleanup leaks worktrees; a silently followed one deletes a repository. Both are loud.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "Refusal raising is not in this chunk."
+      },
+      {
+       "text": "Subclasses RuntimeError so existing callers that report a failed cleanup rather than crashing keep working",
+       "where": "WorktreeContainmentError docstring",
+       "verdict": "kept",
+       "why": "WorktreeContainmentError inherits from RuntimeError (line 49)."
+      },
+      {
+       "text": "Distinct from every other containment refusal, and the distinction is the whole point: the others mean 'nothing was removed', this one means 'the walk stopped partway, on purpose'.",
+       "where": "WorktreeRemovalRace docstring",
+       "verdict": "uncheckable",
+       "why": "The walk logic is not in this chunk."
+      },
+      {
+       "text": "Worktrees must live OUTSIDE the primary checkout so they never pollute git status or whole-repo snapshot attribution.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "The function returns a path derived from repo_path and a digest, not the repo_path itself (line 84)."
+      },
+      {
+       "text": "Placement, in order: 1. DAEDALUS_WORKTREE_ROOT env override (still namespaced per repo). 2. %LOCALAPPDATA%/daedalus/worktrees. 3. tempfile.gettempdir()/daedalus/worktrees when LOCALAPPDATA is unset.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "The code checks DAEDALUS_WORKTREE_ROOT first (line 71), then LOCALAPPDATA (line 73-74), then falls back to tempfile.gettempdir() (line 75)."
+      },
+      {
+       "text": "Each repo gets its own subdirectory keyed by a short digest of the resolved repo path so distinct checkouts never collide.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "The function uses hashlib.sha256 digest of repo_path (line 83)."
+      },
+      {
+       "text": "os.path.normpath collapses .. textually; unlike resolve() it cannot be redirected by a symlink, which is exactly the property needed before a containment decision.",
+       "where": "_lexical docstring",
+       "verdict": "kept",
+       "why": "The function uses os.path.normpath and os.path.abspath, not Path.resolve() (line 96)."
+      },
+      {
+       "text": "Comparison form: case-folded on Windows, normalised everywhere.",
+       "where": "_key docstring",
+       "verdict": "kept",
+       "why": "The function uses os.path.normcase (line 101)."
+      },
+      {
+       "text": "True if child is parent or lies under it, lexically.",
+       "where": "_is_within docstring",
+       "verdict": "kept",
+       "why": "The function compares normalized keys and checks prefix with os.sep (lines 107-111)."
+      },
+      {
+       "text": "True for a symlink OR a Windows directory junction / mount point.",
+       "where": "_is_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function checks S_ISLNK, os.path.islink, st_file_attributes reparse point bit, and st_reparse_tag (lines 127-137)."
+      },
+      {
+       "text": "os.path.islink is NOT sufficient on Windows: a junction created with mklink /J has reparse tag IO_REPARSE_TAG_MOUNT_POINT, not ...SYMLINK, so islink returns False for it (measured on this machine).",
+       "where": "_is_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function does not rely solely on os.path.islink; it also checks reparse attributes (lines 130-137)."
+      },
+      {
+       "text": "THE FIRST LINE IS THE ONLY ONE THAT EXISTS OFF WINDOWS, and it is worth saying because the two Windows-specific answers below it are what the junction tests exercise.",
+       "where": "_is_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function first checks S_ISLNK/os.path.islink, which work on all platforms; the Windows-specific attributes are accessed via getattr with defaults (lines 127-137)."
+      },
+      {
+       "text": "(st_dev, st_ino) for path ITSELF, or None if it is not there.",
+       "where": "_path_identity docstring",
+       "verdict": "kept",
+       "why": "The function returns (st_dev, st_ino) from lstat, or None on OSError/ValueError (lines 170-174)."
+      },
+      {
+       "text": "NO-FOLLOW, and that is the whole point. It reads os.lstat, not os.stat.",
+       "where": "_path_identity docstring",
+       "verdict": "kept",
+       "why": "The function uses os.lstat (line 170)."
+      },
+      {
+       "text": "So this distinguishes 'the same directory, still there' from 'moved away', from 'replaced by something wearing its name', and now from 'replaced by a link TO ITSELF wearing its name' -- none of which path text can.",
+       "where": "_path_identity docstring",
+       "verdict": "uncheckable",
+       "why": "This claim depends on callers using the identity for comparison; not in this chunk."
+      },
+      {
+       "text": "st_ino is 0 on filesystems that do not expose one (FAT, some network mounts). Callers must treat a zero st_ino as NO identity rather than as a comparable value",
+       "where": "_path_identity docstring",
+       "verdict": "uncheckable",
+       "why": "The handling of zero st_ino is in callers not present in this chunk."
+      },
+      {
+       "text": "os.chmod, os.unlink and os.rmdir resolve their path ARGUMENT through a reparse point in any intermediate component, exactly as os.scandir does.",
+       "where": "comment above removal section",
+       "verdict": "uncheckable",
+       "why": "No calls to these functions in this chunk."
+      },
+      {
+       "text": "every caller here re-verifies the whole chain immediately before calling them.",
+       "where": "comment above removal section",
+       "verdict": "uncheckable",
+       "why": "Callers are not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring makes multiple claims about behavior in other functions not present in this chunk. These are uncheckable.",
+       "where": "docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _is_reparse_point function uses getattr with defaults for Windows-specific attributes, ensuring it works on POSIX without AttributeError.",
+       "where": "line 131-137",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _path_identity function returns a tuple or None; callers must handle zero ino correctly.",
+       "where": "line 170-174",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fb7f956770c0d4621f08fb3ed4cc06ec2327d8353d4e2dec84514ba41535147f",
+    "objective_chars": 18265,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [1/5]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

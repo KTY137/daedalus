@@ -1,0 +1,294 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c4of5__51fe781",
+ "key": "scan__daedalus_council_canary.py__c4of5__51fe781-44b135114a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 5 of canary.py: defines default_lanes, LiveCanaryRefused, _adapters_behind, live_egress_lanes, grade, _run_lane, run_canary, _new_run_id, dry_run_plan. Claims about fail-closed, single classifier, sequential per-lane, live opt-in, etc. are kept; some claims are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_adapters_behind | medium | Uses `cell.cell_contents` inside try/except ValueError to handle empty cells. If a closure cell contains a non-adapter that raises a different exception (e.g., AttributeError), it will propagate and crash. | Add broader exception handling or check cell_contents type before accessing.",
+     "grade | medium | When reply.status != 'ok', the function accesses `reply.reason`, `reply.stderr`, and `reply.content` without checking if they exist. If the VendorReply class does not guarantee these attributes, an AttributeError may occur. | Ensure VendorReply has these attributes or use getattr with defaults.",
+     "run_canary | low | The `thread.join(max(0.0, deadline - time.monotonic()))` may join with a negative timeout if deadline has passed; max ensures non-negative, but the join may return immediately, leaving threads running as daemons. This is by design but could lead to incomplete results. | Document that threads are daemons and abandoned at wall clock.",
+     "dry_run_plan | uncheckable | The docstring claims 'Calls nothing -- no lane.ask is touched' but the function body is not in this chunk. | Review the full function definition."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "4 of 5",
+     "purpose": "Defines lane building, egress detection, grading, and the main canary runner.",
+     "symbols": [
+      {
+       "name": "default_lanes",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a tuple of Lane objects from vendor names and optional models/host."
+      },
+      {
+       "name": "LiveCanaryRefused",
+       "kind": "class",
+       "effects": [],
+       "note": "Subclasses LiveCouncilRefused to indicate a live egress lane was used without live=True."
+      },
+      {
+       "name": "_adapters_behind",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts CouncilAdapter instances from a Lane's adapter, __self__, and __closure__."
+      },
+      {
+       "name": "live_egress_lanes",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of strings identifying lanes that could call a real vendor, using live_egress_seats."
+      },
+      {
+       "name": "grade",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a VendorReply into a ProbeResult with status, reason, and check results."
+      },
+      {
+       "name": "_run_lane",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs probes sequentially for one lane inside a thread, guarded by a semaphore."
+      },
+      {
+       "name": "run_canary",
+       "kind": "function",
+       "effects": [],
+       "note": "Main entry point: probes all lanes with parallelism, returns a CanaryRun with results and comparisons."
+      },
+      {
+       "name": "_new_run_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates a run ID from timestamp and random hex."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a plan of what would be asked without making any calls (body not in chunk)."
+      },
+      {
+       "name": "_TRANSPORT_MAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maps transport status strings to canary status strings."
+      },
+      {
+       "name": "VENDOR_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in default_lanes but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_BENCH_OLLAMA_HOST",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in default_lanes but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_OLLAMA_MODEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in default_lanes but not defined in this chunk."
+      },
+      {
+       "name": "REPLY_TRIM",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in grade and _run_lane but not defined in this chunk."
+      },
+      {
+       "name": "PROBES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in run_canary and dry_run_plan but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_PER_PROBE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in run_canary and dry_run_plan but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_WALL_CLOCK_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in run_canary and dry_run_plan but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_MAX_PARALLEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in run_canary and dry_run_plan but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_HISTORY_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced in dry_run_plan but not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The Ollama host is passed EXPLICITLY, per call. ``OLLAMA_HOST`` is neither read for routing nor written anywhere here",
+       "where": "default_lanes docstring",
+       "verdict": "kept",
+       "why": "The function takes `ollama_host` as a parameter and uses it; there is no reference to an environment variable OLLAMA_HOST in this chunk."
+      },
+      {
+       "text": "the ``local`` flag is a property of the RESOLVED host rather than of the provider's name: the bench is another machine, so a probe sent there is egress and is labelled as such on every record it produces.",
+       "where": "default_lanes docstring",
+       "verdict": "kept",
+       "why": "For 'local' vendor, lane is set to 'trusted' if _is_local_http(host) else 'untrusted', and the Lane's 'local' field is set from `getattr(a, 'local', False)`, which depends on the adapter's 'local' attribute, not the vendor name."
+      },
+      {
+       "text": "A lane that can reach a real vendor was offered without ``live=True``.",
+       "where": "LiveCanaryRefused docstring",
+       "verdict": "kept",
+       "why": "The class is raised in run_canary when live=False and live_egress_lanes returns non-empty seats."
+      },
+      {
+       "text": "Subclasses the council's refusal ON PURPOSE. \"You were about to spend money\" is one catchable family across this package; a caller that wants to treat both the same writes ``except LiveCouncilRefused`` and cannot miss one of them by having been written before the other existed.",
+       "where": "LiveCanaryRefused docstring",
+       "verdict": "kept",
+       "why": "The class inherits from LiveCouncilRefused, so except LiveCouncilRefused catches both."
+      },
+      {
+       "text": "Every :class:`CouncilAdapter` a lane's ``ask`` could actually reach.",
+       "where": "_adapters_behind docstring",
+       "verdict": "kept",
+       "why": "The function checks lane.adapter, ask.__self__, and ask.__closure__ cells for CouncilAdapter instances."
+      },
+      {
+       "text": "Three places, because :func:`default_lanes` is not the only way to build a :class:`Lane` and a gate that only understood that one path would be a gate with a documented bypass",
+       "where": "_adapters_behind docstring",
+       "verdict": "kept",
+       "why": "The function checks three places: adapter field, __self__, and __closure__, covering hand-rolled Lanes."
+      },
+      {
+       "text": "Finding NOTHING means ``ask`` is a plain caller-supplied callable, and the verdict for that is deliberately the same one :func:`session.live_egress_seats` already gives an unrecognised class: it is the caller's own code and the caller owns it.",
+       "where": "_adapters_behind docstring",
+       "verdict": "uncheckable",
+       "why": "The behavior of live_egress_seats when given an empty tuple is not defined in this chunk; the claim about the verdict cannot be verified."
+      },
+      {
+       "text": "FAIL-CLOSED.",
+       "where": "live_egress_lanes docstring",
+       "verdict": "kept",
+       "why": "If live_egress_seats returns an empty tuple, the function returns an empty tuple, meaning no lanes are considered egress. This is fail-closed because any unrecognized adapter is not considered egress."
+      },
+      {
+       "text": "The classification itself is NOT done here -- it is :func:`session.live_egress_seats`, imported.",
+       "where": "live_egress_lanes docstring",
+       "verdict": "kept",
+       "why": "The function calls live_egress_seats (imported) to classify adapters."
+      },
+      {
+       "text": "The checker runs ONLY on ``status == \"ok\"``: grading the body of a reply we never received would manufacture a ``wrong_answer`` out of an outage, which is the same lie as merging the two statuses.",
+       "where": "grade docstring",
+       "verdict": "kept",
+       "why": "The function checks `if reply.status != \"ok\":` and returns early with a transport error status; only when status is 'ok' does it call probe.check."
+      },
+      {
+       "text": "Sequential within a lane on purpose: four concurrent calls to the same vendor is a load test, not a health check, and it would make the latency numbers -- the thing the trailing median compares -- meaningless. It is also what keeps a hung vendor to ONE occupied slot rather than four.",
+       "where": "_run_lane docstring",
+       "verdict": "kept",
+       "why": "The function iterates over probes sequentially in a for loop, not concurrently."
+      },
+      {
+       "text": "Threads are DAEMONS and are ABANDONED at the wall clock rather than joined: a thread cannot be killed, so a hung vendor must degrade the report instead of blocking it.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "Threads are created with `daemon=True` (line not shown but implied), and the main thread only joins with a timeout: `thread.join(max(0.0, deadline - time.monotonic()))`."
+      },
+      {
+       "text": "Every abandoned (lane, probe) is still reported -- as ``timeout``/``wall_clock`` -- because a silently dropped row is indistinguishable from a probe that was never scheduled.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "After joining, for each (lane, probe, box) in plan, if box.get('result') is None, a ProbeResult with status 'timeout' and reason 'wall_clock' is created and appended to results."
+      },
+      {
+       "text": "``live`` is the SPEND OPT-IN and defaults to False. Any lane that still carries a shipped vendor transport (:func:`live_egress_lanes`) raises :class:`LiveCanaryRefused` here -- before the run id, before a nonce, before a thread, before one byte is dispatched, and therefore before there is anything for :func:`append_history` to write.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "The function checks `if not live:` early, calls `live_egress_lanes(lanes)`, and raises LiveCanaryRefused if seats is non-empty, before any threads are started."
+      },
+      {
+       "text": "Fake lanes are unaffected, so the offline harness never has to ask for permission it does not need.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "The function only raises if live_egress_lanes returns non-empty; fake lanes with no real adapters will result in an empty tuple, so no exception."
+      },
+      {
+       "text": "What WOULD be asked, of whom. Calls nothing -- no ``lane.ask`` is touched. Prompt sizes are computed by BUILDING a sample body, so the plan reports the",
+       "where": "dry_run_plan docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is truncated; the claim cannot be verified from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring of _adapters_behind makes a claim about the behavior of live_egress_seats for unrecognized classes, but that function is not defined in this chunk.",
+       "where": "_adapters_behind docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring of dry_run_plan claims it calls nothing, but the function body is not present; the claim is uncheckable.",
+       "where": "dry_run_plan docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In grade, when reply.status != 'ok', the code accesses reply.reason, reply.stderr, and reply.content without checking for existence, assuming they are attributes of VendorReply.",
+       "where": "grade function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _adapters_behind, the try/except only catches ValueError for empty cells; other exceptions from cell.cell_contents (e.g., AttributeError if cell is not a proper cell) would propagate.",
+       "where": "_adapters_behind",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0b834471f7bd25f8ab03ffce7e6d0eaa31884ff9c1718ccb03fc79836c7754f",
+    "objective_chars": 17099,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [4/5]",
+  "rev": "51fe781",
+  "module": "daedalus/council/canary.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

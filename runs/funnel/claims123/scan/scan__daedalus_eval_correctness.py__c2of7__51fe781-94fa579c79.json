@@ -1,0 +1,300 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c2of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c2of7__51fe781-94fa579c79",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/eval/correctness.py covering git helpers, pytest node argv, ANSI-aware parser, PytestRun dataclass, and _spawn_pytest.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_spawn_pytest | medium | ManagedProcess fallback to subprocess.run may lose containment silently if CancellationUnavailable is not imported correctly | test with spine disabled",
+     "_spawn_pytest | medium | Output file placed in a tempdir that may not be cleaned up on error | verify tempdir removal logic",
+     "_same_node | low | Suffix matching may match unintended nodes if requested is a prefix of another node | review test cases with overlapping node names"
+    ],
+    "todos": [
+     "Verify that _spawn_pytest cleans up its temporary directory in all exit paths",
+     "Add test for ANSI escape handling in parse_pytest_output with FORCE_COLOR=3",
+     "Confirm _same_node behavior with parametrized tests and absolute paths"
+    ],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "2 of 7",
+     "purpose": "Define git read helpers, pytest node argv construction, ANSI-aware output parser, PytestRun dataclass, and test spawning logic",
+     "symbols": [
+      {
+       "name": "_git_read",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git rev-parse with timeout, refuses primary checkout"
+      },
+      {
+       "name": "resolve_revision",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Resolves a revision to full SHA via git rev-parse"
+      },
+      {
+       "name": "pytest_node_argv",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of argv for pytest with -v, --tb=no, --color=no, -p no:cacheprovider"
+      },
+      {
+       "name": "_OUTCOME_TOKENS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps pytest outcome strings to status constants"
+      },
+      {
+       "name": "_ANSI_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to strip ANSI escape sequences"
+      },
+      {
+       "name": "_PROGRESS_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for verbose progress line"
+      },
+      {
+       "name": "_NOT_FOUND_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for 'not found' error line"
+      },
+      {
+       "name": "_NO_COLLECTORS_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for 'no collectors' error line"
+      },
+      {
+       "name": "_FILE_ERROR_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for file-level collection error"
+      },
+      {
+       "name": "_norm_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes node string: replaces backslash with forward slash, strips"
+      },
+      {
+       "name": "_same_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if reported node matches requested, handling parametrized and path variations"
+      },
+      {
+       "name": "_STATUS_RANK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Worst-wins ranking for multiple outcomes per node"
+      },
+      {
+       "name": "parse_pytest_output",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses pytest output to per-node statuses, handles missing/collect_error"
+      },
+      {
+       "name": "PytestRun",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding one pytest invocation result"
+      },
+      {
+       "name": "PytestRun.to_dict",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Serializes PytestRun to dict with sorted statuses and output tail"
+      },
+      {
+       "name": "_spawn_pytest",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Runs pytest with ManagedProcess containment or subprocess fallback"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Deliberately close to ``spine.attempt.pytest_gate_argv``: the same interpreter and the same ``-p no:cacheprovider``",
+       "where": "pytest_node_argv docstring",
+       "verdict": "uncheckable",
+       "why": "The comparison to spine.attempt.pytest_gate_argv is not visible in this chunk; the claim about identical interpreter and flag cannot be verified."
+      },
+      {
+       "text": "``--color=no`` is NOT cosmetic and was NOT here before 2026-07-30.",
+       "where": "pytest_node_argv docstring",
+       "verdict": "kept",
+       "why": "The function includes --color=no in its return tuple (line ~328). The historical claim is uncheckable but the presence is verified."
+      },
+      {
+       "text": "pytest normally suppresses colour when its output is not a tty, so a captured pipe was assumed to be clean. It is not: pytest honours ``FORCE_COLOR`` (and ``PY_COLORS``) regardless of whether anyone is watching",
+       "where": "pytest_node_argv docstring",
+       "verdict": "kept",
+       "why": "The code includes --color=no to override FORCE_COLOR/PY_COLORS, confirming the assumption was false and this is the fix."
+      },
+      {
+       "text": "The parser strips escapes too (see :data:`_ANSI_RE`). Both are deliberate: this function controls its own invocation and asks for clean output, while the parser is a pure function that may be handed output it did not invoke.",
+       "where": "pytest_node_argv docstring",
+       "verdict": "kept",
+       "why": "_ANSI_RE is defined and used in parse_pytest_output to strip escapes before matching. The docstring explains the dual approach."
+      },
+      {
+       "text": "The full CSI form rather than just ``\\x1b\\[[0-9;]*m``: pytest also emits cursor and erase-line sequences, and a parser that handles only colour would be correct until the day the terminal width changed.",
+       "where": "_ANSI_RE docstring",
+       "verdict": "kept",
+       "why": "_ANSI_RE = re.compile(r\"\\x1b\\[[0-?]*[ -/]*[@-~]\") matches full CSI sequences including cursor and erase, not just color codes."
+      },
+      {
+       "text": "A node the output says nothing about is ``not_run`` -- not a pass, not a fail.",
+       "where": "parse_pytest_output docstring",
+       "verdict": "kept",
+       "why": "Initialization sets statuses[q] = STATUS_NOT_RUN for all requested nodes; nodes with no matching lines retain that value."
+      },
+      {
+       "text": "An explicit ``not found`` (``missing``) is final and outranks everything, because the node does not exist",
+       "where": "parse_pytest_output docstring",
+       "verdict": "kept",
+       "why": "After processing, missing nodes are set to STATUS_MISSING last, overwriting any previous status (lines ~470-472)."
+      },
+      {
+       "text": "otherwise several report lines for one node reduce to the WORST outcome seen (see ``_STATUS_RANK``)",
+       "where": "parse_pytest_output docstring",
+       "verdict": "kept",
+       "why": "In the loop, when a match is found, the status is updated if current is STATUS_NOT_RUN or observed rank > current rank (lines ~452-455)."
+      },
+      {
+       "text": "a node with no line of its own inherits ``collect_error`` if its FILE failed to collect.",
+       "where": "parse_pytest_output docstring",
+       "verdict": "kept",
+       "why": "After the loop, nodes still at STATUS_NOT_RUN whose file matches a file_error are set to STATUS_COLLECT_ERROR (lines ~459-462)."
+      },
+      {
+       "text": "Preferred path is :class:`daedalus.spine.cancel.ManagedProcess`, i.e. a Windows Job Object with KILL_ON_JOB_CLOSE, so a hung or forking test tree dies with the run",
+       "where": "_spawn_pytest docstring",
+       "verdict": "uncheckable",
+       "why": "The implementation tries to import ManagedProcess and uses it if available, but the claim about KILL_ON_JOB_CLOSE cannot be verified from this chunk."
+      },
+      {
+       "text": "If that backend is unavailable the run still happens through ``subprocess.run`` and SAYS SO in ``containment``, because a quietly weaker containment that nobody can see is worse than a named one.",
+       "where": "_spawn_pytest docstring",
+       "verdict": "kept",
+       "why": "When ManagedProcess is not available or CancellationUnavailable is raised, subprocess.run is used and containment remains 'none' (lines ~510-514)."
+      },
+      {
+       "text": "Output goes to a file OUTSIDE the worktree: a pipe deadlocks on a chatty run while the parent is polling instead of reading",
+       "where": "_spawn_pytest docstring",
+       "verdict": "kept",
+       "why": "Output is written to a file in a temporary directory (tmpdir / 'pytest.out'), not piped. The code opens out_path and passes the file handle as stdout."
+      },
+      {
+       "text": "Three spellings have to compare equal, and all three were measured on this box rather than assumed: ... a PARAMETRIZED test is requested as ``file.py::test_x`` and reported as ``file.py::test_x[1]``, once per case.",
+       "where": "_same_node docstring",
+       "verdict": "kept",
+       "why": "The function checks r.startswith(q + \"[\") or (\"/\" + q + \"[\") in r, matching parametrized suffixes."
+      },
+      {
+       "text": "Windows spells the same file two ways, so it is case-insensitive",
+       "where": "_same_node docstring",
+       "verdict": "kept",
+       "why": "Both reported and requested are lowercased before comparison: r, q = _norm_node(reported).lower(), _norm_node(requested).lower()."
+      }
+     ],
+     "observations": [
+      {
+       "what": "parse_pytest_output does not handle the case where a node appears in both missing and uncollectable; missing wins because it is applied last, but this is implicit.",
+       "where": "parse_pytest_output lines 437-473",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_spawn_pytest imports CancellationUnavailable and ManagedProcess inside a try block, but if the import fails, CancellationUnavailable is set to Exception and ManagedProcess to None; the subsequent isinstance check may not catch all cases.",
+       "where": "_spawn_pytest lines 480-487",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_spawn_pytest uses subprocess.STDOUT for stderr, merging stderr into stdout; the docstring does not mention this detail.",
+       "where": "_spawn_pytest line 497",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The temporary directory created by tempfile.mkdtemp is never explicitly removed in this chunk; cleanup responsibility is unclear.",
+       "where": "_spawn_pytest line 478",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bfaa4010993525a9e41bd6d68aad7e145627f02d63021758ef2e4ebf490e8564",
+    "objective_chars": 17500,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [2/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 281
+ }
+}

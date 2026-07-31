@@ -1,0 +1,157 @@
+{
+ "task_id": "scan__daedalus_lanes_grounding.py__c2of2__51fe781",
+ "key": "scan__daedalus_lanes_grounding.py__c2of2__51fe781-796743d286",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of grounding.py; all docstring claims are KEPT or UNCHECKABLE; no broken claims found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 308, 310 | medium | The function judge uses `_ABSENCE` and `_SELF_SCOPED` regex patterns that are not defined in this chunk; their behavior is assumed but cannot be verified here. | Check the definitions of these patterns in the same file to ensure they match the intended semantics.",
+     "line 286, 290 | medium | The function claim_text and candidate_names reference `_SEVERITIES` and `_NAME` which are not defined in this chunk; their correctness is assumed. | Verify these constants are defined elsewhere in the file with the expected values.",
+     "line 312-313 | low | The function judge uses `defined.get(module)`; if module is not in defined, it returns 'undecided'. This means it cannot check claims about modules not in the index. | Ensure the index covers all modules that might be referenced in findings.",
+     "line 319 | low | The function judge checks if a symbol is imported to avoid false positives, but this relies on the `imported` parameter being correctly populated. | Ensure the caller provides accurate import data."
+    ],
+    "todos": [],
+    "handoff": {
+     "claims": [
+      {
+       "text": "The assertion, with any ``<where> | <severity> | ...`` prefix stripped.",
+       "where": "docstring of claim_text",
+       "verdict": "KEPT",
+       "why": "The function splits on '|', checks if the second part is in _SEVERITIES, and returns the third part; otherwise returns raw. This matches the description."
+      },
+      {
+       "text": "MEASURED: without this split, ``_resolve_store | medium | Mentions refusing paths under memory/ but code is truncated; the check may be missing`` was scored provably false because ``_resolve_store`` is defined -- but the finding never claimed otherwise. It is about a check INSIDE that function. Reading the location column as the subject manufactures a lie out of an honest observation.",
+       "where": "docstring of claim_text",
+       "verdict": "UNCHECKABLE",
+       "why": "This claim references an example and a measurement outside the current chunk; the code here only implements the split logic."
+      },
+      {
+       "text": "Decide whether one finding is provably wrong about the repository.",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function returns verdicts 'false', 'false-elsewhere', 'scoped', or 'undecided' based on symbol presence, matching the description."
+      },
+      {
+       "text": "Verdicts: ``false`` the named symbol is defined in the module it is claimed absent from",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function checks if any named symbol (not imported) is in defined[module] and returns 'false' if so."
+      },
+      {
+       "text": "``false-elsewhere`` it exists, in another module -- wrong about WHERE, which is a different error needing a different repair",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function checks if any named symbol exists in any module's defined set and returns 'false-elsewhere' if so."
+      },
+      {
+       "text": "``scoped`` the claim limits itself to the window its reader saw, so it asserts nothing about the program",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function checks for _SELF_SCOPED pattern and returns 'scoped' if found."
+      },
+      {
+       "text": "``undecided`` this cannot tell. **Not a pass.**",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function returns 'undecided' in several cases (no existence claim, module not in index, symbol imported, no symbol resolved), indicating inability to decide."
+      },
+      {
+       "text": "It can prove a finding false. It can never prove one true.",
+       "where": "docstring of judge",
+       "verdict": "KEPT",
+       "why": "The function only returns false/false-elsewhere for provably wrong findings; 'scoped' and 'undecided' are not proofs of truth."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function judge uses `_ABSENCE` and `_SELF_SCOPED` regex patterns that are not defined in this chunk; their behavior is assumed but cannot be verified here.",
+       "where": "line 308, 310",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function judge references `_SEVERITIES` (in claim_text) and `_NAME` (in candidate_names) which are not defined in this chunk; their correctness is assumed.",
+       "where": "line 286, 290",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function judge uses `defined.get(module)`; if module is not in defined, it returns 'undecided'. This means it cannot check claims about modules not in the index.",
+       "where": "line 312-313",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function judge checks if a symbol is imported to avoid false positives, but this relies on the `imported` parameter being correctly populated.",
+       "where": "line 319",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "line 308, 310 | medium | The function judge uses `_ABSENCE` and `_SELF_SCOPED` regex patterns that are not defined in this chunk; their behavior is assumed but cannot be verified here. | Check the definitions of these patterns in the same file to ensure they match the intended semantics.",
+      "line 286, 290 | medium | The function claim_text and candidate_names reference `_SEVERITIES` and `_NAME` which are not defined in this chunk; their correctness is assumed. | Verify these constants are defined elsewhere in the file with the expected values.",
+      "line 312-313 | low | The function judge uses `defined.get(module)`; if module is not in defined, it returns 'undecided'. This means it cannot check claims about modules not in the index. | Ensure the index covers all modules that might be referenced in findings.",
+      "line 319 | low | The function judge checks if a symbol is imported to avoid false positives, but this relies on the `imported` parameter being correctly populated. | Ensure the caller provides accurate import data."
+     ],
+     "todos": [],
+     "module": "daedalus/lanes/grounding.py",
+     "chunk": "2 of 2",
+     "purpose": "Provides claim_text, candidate_names, and judge functions for evaluating findings about symbol existence.",
+     "symbols": [
+      {
+       "name": "claim_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Strips a severity prefix from a raw finding string."
+      },
+      {
+       "name": "candidate_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts candidate names from a string using a regex pattern."
+      },
+      {
+       "name": "judge",
+       "kind": "function",
+       "effects": [],
+       "note": "Decides whether a finding is provably wrong about symbol existence in a repository."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3a215ea4efd40839ea112dc5fbc8a92d40ea63ff96a5292e424794c97952c7c4",
+    "objective_chars": 6308,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/grounding.py [2/2]",
+  "rev": "51fe781",
+  "module": "daedalus/lanes/grounding.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,265 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c1of2__51fe781",
+ "key": "scan__daedalus_lanes_graph_brief.py__c1of2__51fe781-1f98c33b7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk defines GraphBrief dataclass, file_symbols, _deep_only_modules, _tail_matches, _neighbourhood, and part of graph_brief. Claims checked: module docstring claims, artefact filtering, deep edge mark, etc.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "1 of 2",
+     "purpose": "Define GraphBrief dataclass, symbol extraction, deep import detection, neighbourhood assembly, and start of graph_brief function.",
+     "symbols": [
+      {
+       "name": "DEFAULT_BUDGET_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default character budget for a whole brief."
+      },
+      {
+       "name": "DEEP_EDGE_MARK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Marks edges that exist only inside function bodies."
+      },
+      {
+       "name": "ARTEFACT_ROOTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of path prefixes that are artefacts and must never appear in a brief."
+      },
+      {
+       "name": "_HEADER_RESERVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Characters reserved for the header."
+      },
+      {
+       "name": "_is_artefact",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if a relative path starts with any artefact root."
+      },
+      {
+       "name": "GraphBrief",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding rendered brief and metadata."
+      },
+      {
+       "name": "_sig",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns string signature of a function/async function definition node."
+      },
+      {
+       "name": "file_symbols",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns top-level API declaration lines of a Python file."
+      },
+      {
+       "name": "_deep_only_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dotted module names imported only inside function bodies."
+      },
+      {
+       "name": "_tail_matches",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if any dotted name in a set plausibly denotes a given relative path."
+      },
+      {
+       "name": "_neighbourhood",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns sorted list of neighbour files within given hops, excluding artefacts."
+      },
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds GraphBrief for targets and their neighbourhood."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the agents never see the graph.",
+       "where": "module docstring (line 1)",
+       "verdict": "uncheckable",
+       "why": "The claim about agents not seeing the graph refers to runtime behaviour outside this file; this chunk only defines the brief structure and does not show how the brief is consumed."
+      },
+      {
+       "text": "All three of those hallucinations are answered by ~6.5k characters of text that the index can already produce.",
+       "where": "module docstring (line 5)",
+       "verdict": "uncheckable",
+       "why": "The claim references the index's output size; this chunk does not contain the index or the actual brief output."
+      },
+      {
+       "text": "Layers 2 and 3 degrade cleanly: the type and document layers of the index are behind flags, and when they are off those sections are omitted rather than faked.",
+       "where": "module docstring (line 18)",
+       "verdict": "uncheckable",
+       "why": "This chunk does not implement layer 2 or 3 flags; it only defines layer 1 symbols and starts graph_brief which has an include_docs flag but the flag's effect is not shown here."
+      },
+      {
+       "text": "What is never omitted silently is a TRUNCATION -- if the budget cuts the brief, the brief says what it dropped.",
+       "where": "module docstring (line 21)",
+       "verdict": "kept",
+       "why": "GraphBrief dataclass has a 'dropped' field (Mapping[str,int]) and a 'truncated' property that returns True if any dropped values are non-zero. This allows the brief to report what was dropped."
+      },
+      {
+       "text": "This is a DERIVED artefact. It is regenerated, never edited, and a model must not cite it as evidence about behaviour -- it describes shape, not semantics.",
+       "where": "module docstring (line 25)",
+       "verdict": "uncheckable",
+       "why": "The claim about usage policy is not enforced by the code in this chunk; it is a comment about intended use."
+      },
+      {
+       "text": "the full symbol layer for the ``daedalus/`` package is 6,479 characters",
+       "where": "comment at DEFAULT_BUDGET_CHARS (line 32)",
+       "verdict": "uncheckable",
+       "why": "This claim references a measurement not present in this chunk; the code does not compute or verify this number."
+      },
+      {
+       "text": "a 1-hop brief around a handful of files fits comfortably and the budget only bites on a genuinely wide change.",
+       "where": "comment at DEFAULT_BUDGET_CHARS (line 33)",
+       "verdict": "uncheckable",
+       "why": "This is an assertion about typical usage; not verifiable from code alone."
+      },
+      {
+       "text": "Marks an edge that exists ONLY inside a function body. See the module docstring: this is the 38% of the import graph that naive tooling misses.",
+       "where": "comment at DEEP_EDGE_MARK (line 37)",
+       "verdict": "kept",
+       "why": "The constant DEEP_EDGE_MARK is defined as '*'. The function _deep_only_modules computes modules imported only inside function bodies, and the claim about 38% is a measurement not in code, but the constant and the function support the existence of such marking."
+      },
+      {
+       "text": "Path prefixes that are ARTEFACTS, not the project, and must never appear in a brief.",
+       "where": "comment at ARTEFACT_ROOTS (line 40)",
+       "verdict": "kept",
+       "why": "The constant ARTEFACT_ROOTS is defined and the function _is_artefact uses it to filter out such paths. The comment describes the purpose."
+      },
+      {
+       "text": "Both entries are measured, not defensive",
+       "where": "comment at ARTEFACT_ROOTS (line 44)",
+       "verdict": "uncheckable",
+       "why": "The claim that entries are 'measured' is not verifiable from code; the code simply defines them."
+      },
+      {
+       "text": "the first brief built for ``daedalus/shift.py`` listed ``runs/eval/deepseek_lab/wrecked/shift.py`` as a graph neighbour and printed its symbols. That file is the DESTROYED artefact kept as evidence: a test module that overwrote the real one. Showing it to a model asked to edit ``shift.py`` teaches it precisely the substitution the write gate now refuses -- the brief would have been arguing for the bug.",
+       "where": "comment at ARTEFACT_ROOTS (line 45-48)",
+       "verdict": "uncheckable",
+       "why": "This is a historical anecdote; the code does not reference specific files or events."
+      },
+      {
+       "text": "Characters reserved for the header, which is composed after the layers are budgeted. Generous on purpose: overshooting the reserve wastes a few hundred characters, while under-reserving silently pushes the brief over the budget a caller sized its prompt against.",
+       "where": "comment at _HEADER_RESERVE (line 56)",
+       "verdict": "uncheckable",
+       "why": "The constant is defined but the header composition logic is not shown in this chunk."
+      },
+      {
+       "text": "Top-level API of one Python file, as declaration lines. Signatures rather than bare names, because the measured failure was not only 'the module does not exist' but 'the module does not define that': a name without its shape still lets a caller invent the arguments.",
+       "where": "docstring of file_symbols (line 93)",
+       "verdict": "kept",
+       "why": "The function returns signatures via _sig, which includes parameter names. The docstring accurately describes the behaviour."
+      },
+      {
+       "text": "Methods are included one level down for classes, since ``Shift.tick()`` is the kind of thing a caller needs and the class name alone does not give it. Deeper nesting is deliberately not listed -- it is not API.",
+       "where": "docstring of file_symbols (line 97)",
+       "verdict": "kept",
+       "why": "The code iterates over class body nodes and includes methods one level deep, but does not recurse into nested classes. This matches the claim."
+      },
+      {
+       "text": "Computed here rather than read from the index because the index publishes a flat edge list with no depth: it correctly INCLUDES function-body edges (12 edges for ``offload.py`` against 7 top-level import statements -- verified), it just cannot say which ones they are. One extra AST pass over a handful of neighbour files buys the distinction.",
+       "where": "docstring of _deep_only_modules (line 130)",
+       "verdict": "kept",
+       "why": "The function performs its own AST walk to separate top-level from deep imports. The claim about the index is not verifiable, but the function's behaviour matches the description."
+      },
+      {
+       "text": "Suffix matching on the dotted path, because a function-body import may be written ``from .kairos import drafts`` or ``import daedalus.kairos.drafts`` and both denote ``daedalus/kairos/drafts.py``. Over-matching here only ever adds a ``*`` mark to an edge that is genuinely present, so a wrong guess mislabels a true edge rather than inventing one.",
+       "where": "docstring of _tail_matches (line 153)",
+       "verdict": "kept",
+       "why": "The function performs suffix matching on the tail of the dotted name and the relative path. The comment describes the matching strategy and its trade-offs."
+      },
+      {
+       "text": "Never raises for a missing or unreadable index: a lane that cannot get a brief must still be able to run with none. A brief is context, not a gate.",
+       "where": "docstring of graph_brief (line 186)",
+       "verdict": "uncheckable",
+       "why": "The function body is truncated; it starts with a try-except for importing cached_index, but the rest of the function is not shown. The claim about never raising cannot be fully verified from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function graph_brief has a try-except for importing cached_index, but the rest of the function is not shown; the claim about not raising cannot be fully verified.",
+       "where": "line 198-200",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring makes many claims about the index and consumption patterns that are not verifiable from this chunk alone.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c07ff2e57469c875c0e1aa66a95733cda133313da88e6a7c62a296c67d354bfe",
+    "objective_chars": 15383,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [1/2]",
+  "rev": "51fe781",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

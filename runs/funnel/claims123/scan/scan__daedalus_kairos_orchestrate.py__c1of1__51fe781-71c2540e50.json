@@ -1,0 +1,121 @@
+{
+ "task_id": "scan__daedalus_kairos_orchestrate.py__c1of1__51fe781",
+ "key": "scan__daedalus_kairos_orchestrate.py__c1of1__51fe781-71c2540e50",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed orchestrate.py chunk 1 of 1. All docstring claims kept. No broken, uncheckable, or inverted rules found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/orchestrate.py",
+     "chunk": "1 of 1",
+     "purpose": "Prepare a user task for Codex/Claude collaboration, with CLI entry point.",
+     "symbols": [
+      {
+       "name": "_infer_paths",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses text for file paths, checks existence on disk."
+      },
+      {
+       "name": "prepare_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Resolves repo root, loads project data, infers paths, routes task, records memory event, optionally enqueues Claude request, returns task dict."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry point using argparse, calls prepare_task and prints result as JSON."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Prepare a user task for Codex/Claude collaboration.",
+       "where": "main docstring (line 82)",
+       "verdict": "kept",
+       "why": "main() defines an argparse with message, repo-root, project, paths, no-claude, lane, source, strategy, calls prepare_task, prints JSON. The module's purpose matches."
+      },
+      {
+       "text": "Prepare a user task for Codex/Claude collaboration.",
+       "where": "parser description (line 83)",
+       "verdict": "kept",
+       "why": "Argparse description reads 'Prepare a user task for Codex/Claude collaboration.' as written."
+      },
+      {
+       "text": "how the watcher may execute the queued task",
+       "where": "lane help (line 87)",
+       "verdict": "kept",
+       "why": "help string for --lane says 'how the watcher may execute the queued task' and choices include 'auto', 'claude', 'local', 'local_only', 'codex'."
+      },
+      {
+       "text": "who is preparing this task",
+       "where": "source help (line 89)",
+       "verdict": "kept",
+       "why": "help string for --source says 'who is preparing this task' and choices include 'unknown', 'codex', 'claude', 'user', 'ikarus'."
+      },
+      {
+       "text": "single routes one task; spawn lets Ikarus decompose and fan out",
+       "where": "strategy help (line 91)",
+       "verdict": "kept",
+       "why": "help string for --strategy says exactly that, with choices ['single','spawn']."
+      }
+     ],
+     "observations": [
+      {
+       "what": "No docstring or comment on _infer_paths or prepare_task functions; only main() and argparse help strings provide descriptions.",
+       "where": "Lines 1-78",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module uses DEFAULT_POLICY from fallback module; its contents are not visible here.",
+       "where": "Line 7",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b6c8735ee3b9396cfbb5bd756d1266ed23ca95c0943028354e8f11dddd92ec34",
+    "objective_chars": 7136,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/orchestrate.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/orchestrate.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

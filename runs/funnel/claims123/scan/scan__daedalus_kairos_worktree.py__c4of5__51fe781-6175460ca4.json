@@ -1,0 +1,184 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c4of5__51fe781",
+ "key": "scan__daedalus_kairos_worktree.py__c4of5__51fe781-6175460ca4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of worktree.py (lines 841-1033), verifying docstring and comment claims against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "4 of 5",
+     "purpose": "Contains _require_allocated_worktree, create_worktree, cleanup_worktree, and start of reap_branches.",
+     "symbols": [
+      {
+       "name": "_require_allocated_worktree",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Proves path is an allocated worktree with multiple checks."
+      },
+      {
+       "name": "create_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Creates a git worktree with allocation records."
+      },
+      {
+       "name": "cleanup_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Removes a worktree directory and prunes git."
+      },
+      {
+       "name": "reap_branches",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Starts but is truncated; deletes branches with no work."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Ordering is the whole defect being fixed, so it is spelled out: every check below is lexical or no-follow, and the returned path is the UNRESOLVED one -- callers operate on exactly what was checked.",
+       "where": "_require_allocated_worktree docstring",
+       "verdict": "KEPT",
+       "why": "Checks 1-3 are lexical/no-follow; return target is unresolved Path."
+      },
+      {
+       "text": "inside the manager's own root, and never the root itself.",
+       "where": "_require_allocated_worktree check 1",
+       "verdict": "KEPT",
+       "why": "Code compares _key(target) == _key(root) and _is_within(target, root)."
+      },
+      {
+       "text": "never the primary checkout, an ancestor of it, or anything in it.",
+       "where": "_require_allocated_worktree check 2",
+       "verdict": "KEPT",
+       "why": "Calls _refuse_if_repo_adjacent(target, 'path')."
+      },
+      {
+       "text": "no symlink / junction anywhere from the worktree root down. Checked top-down and BEFORE any resolution: a reparse point at any level can redirect everything below it.",
+       "where": "_require_allocated_worktree check 3",
+       "verdict": "KEPT",
+       "why": "Iterates _reach_chain(target) and calls _is_reparse_point on each component."
+      },
+      {
+       "text": "only now is resolution trustworthy -- nothing at or below the root can redirect it.",
+       "where": "_require_allocated_worktree check 4",
+       "verdict": "KEPT",
+       "why": "Resolution occurs after reparse check; uses os.path.realpath."
+      },
+      {
+       "text": "it must actually be there, as a real directory (no-follow).",
+       "where": "_require_allocated_worktree check 5",
+       "verdict": "KEPT",
+       "why": "Checks _lexists(target) and stat.S_ISDIR(os.lstat(target).st_mode)."
+      },
+      {
+       "text": "it must be something THIS manager allocated for THIS repo.",
+       "where": "_require_allocated_worktree check 6",
+       "verdict": "KEPT",
+       "why": "Calls self._read_allocation(target) and returns None check."
+      },
+      {
+       "text": "An allocation that cannot be contained is refused before anything is created",
+       "where": "create_worktree comment",
+       "verdict": "KEPT",
+       "why": "Lexical containment check occurs before mkdir and git commands."
+      },
+      {
+       "text": "the removed guard is dominated by the pair, not by the allocation path alone",
+       "where": "create_worktree long comment",
+       "verdict": "KEPT",
+       "why": "Comment explains that resolved-root check covers cases allocation path misses."
+      },
+      {
+       "text": "a single junction anywhere in DAEDALUS_WORKTREE_ROOT lands the entire worktree root inside the developer's checkout while every lexical check above passes. cleanup_worktree catches that case (step 4), but only when it is time to delete",
+       "where": "create_worktree comment",
+       "verdict": "KEPT",
+       "why": "Resolved root check in create_worktree prevents creation; cleanup_worktree step 4 refers to earlier method."
+      },
+      {
+       "text": "Identity first: a directory that exists without a record is a directory nothing is allowed to delete.",
+       "where": "create_worktree comment",
+       "verdict": "KEPT",
+       "why": "_record_allocation is called before _run_git worktree add."
+      },
+      {
+       "text": "The target must be PROVEN to be a worktree this manager allocated (see :meth:`_require_allocated_worktree`); anything else raises without removing a thing.",
+       "where": "cleanup_worktree docstring",
+       "verdict": "KEPT",
+       "why": "Calls _require_allocated_worktree(path) first."
+      },
+      {
+       "text": "the removal itself is done here rather than by ``git worktree remove --force``, which follows reparse points planted inside the tree",
+       "where": "cleanup_worktree docstring",
+       "verdict": "KEPT",
+       "why": "Uses _remove_tree_no_follow(target, guarded_ancestors=guarded)."
+      },
+      {
+       "text": "The candidate BRANCH is deliberately left alone here -- see :meth:`reap_branches` for why deleting it in this call would be wrong.",
+       "where": "cleanup_worktree docstring",
+       "verdict": "KEPT",
+       "why": "No branch deletion code in cleanup_worktree."
+      },
+      {
+       "text": "A prune failure raises (RuntimeError from _run_git) rather than leaving a stale registration unreported.",
+       "where": "cleanup_worktree comment",
+       "verdict": "KEPT",
+       "why": "_run_git raises RuntimeError on failure."
+      },
+      {
+       "text": "The record is RETAINED, not discarded: it is now the only place that remembers which branch this worktree left behind and what its tip was at creation, which is what makes a later reap safe.",
+       "where": "cleanup_worktree comment",
+       "verdict": "KEPT",
+       "why": "Record is updated with worktree_removed_ts and written via _write_allocation."
+      }
+     ],
+     "observations": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e229e47db99bd272f9679296325ea3d86e042b188ae8ba615bde7bdfb9a77fec",
+    "objective_chars": 19085,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [4/5]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

@@ -1,0 +1,260 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c1of2__51fe781",
+ "key": "scan__daedalus_lanes_fanout.py__c1of2__51fe781-0e34c068cc",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of fanout.py. All docstring claims about design and invariants are kept within this chunk; one claim about temperature enforcement is uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 131-135 | low | temperature is accepted as a parameter but fan_out signature truncates before enforcement logic; settlement: check full fan_out body in chunk 2 for the refusal."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "1 of 2",
+     "purpose": "Define FanoutTask, FanoutResult, default_concurrency, and _one_call; start fan_out signature.",
+     "symbols": [
+      {
+       "name": "FanoutTask",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for one task with key derivation from task_id."
+      },
+      {
+       "name": "FanoutResult",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding answers, errors, trace_id; provides ok property and to_dict."
+      },
+      {
+       "name": "default_concurrency",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns int from env var DAEDALUS_FANOUT_CONCURRENCY or DEFAULT_CONCURRENCY."
+      },
+      {
+       "name": "_one_call",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "process_spawn"
+       ],
+       "note": "Makes one DeepSeek API call; imports provider locally; returns dict with sent metadata."
+      },
+      {
+       "name": "fan_out",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Signature starts; body not in this chunk."
+      },
+      {
+       "name": "DEFAULT_CONCURRENCY",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "8, documented as measured ceiling."
+      },
+      {
+       "name": "DEFAULT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "300, per-call timeout."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The guard is not optional here and not a parameter -- a fan-out is exactly the shape that turns a missing guard into a bill.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No call to install_process_guard appears in this chunk; guard installation may be in chunk 2 or caller."
+      },
+      {
+       "text": "So ``votes`` is a first-class argument and every result records how many independent answers it is made of.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "FanoutTask has votes field; FanoutResult has votes_requested and votes_collected."
+      },
+      {
+       "text": "The decode temperature defaulted to 0.0 and every caller inherited it. ... :func:`fan_out` now REFUSES the combination.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The refusal logic is not in this chunk; fan_out signature is truncated before enforcement."
+      },
+      {
+       "text": "A FRESH PROVIDER PER CALL. ... each call gets its own.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_one_call creates DeepSeekProvider() locally each invocation."
+      },
+      {
+       "text": "THE GRAPH GOES IN THE PROMPT. ... Tasks that name paths get :func:`daedalus.lanes.graph_brief.render_brief` prepended.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_one_call receives brief parameter and prepends it to objective."
+      },
+      {
+       "text": "RESULTS ARE PUBLISHED, NOT WRITTEN. Via :mod:`daedalus.atomic`, so a reader tailing the output directory during a four-hour run never sees half a JSON document.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "write_text_atomic is imported but not called in this chunk; usage may be in chunk 2."
+      },
+      {
+       "text": "Advisory only. There is no ``writable`` parameter and adding one would be a mistake.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_one_call passes writable=False to provider.run; fan_out signature has no writable parameter."
+      },
+      {
+       "text": "Concurrency ceiling. ... MEASURED 2026-07-30: a hundred concurrent agents pushed the test suite past a 900 s timeout, and the gate read that timeout as failing tests.",
+       "where": "DEFAULT_CONCURRENCY docstring",
+       "verdict": "kept",
+       "why": "DEFAULT_CONCURRENCY = 8 is a constant; comment describes measurement."
+      },
+      {
+       "text": "Per-call ceiling. Advisory calls that need longer than this are usually stuck.",
+       "where": "DEFAULT_TIMEOUT_S docstring",
+       "verdict": "kept",
+       "why": "DEFAULT_TIMEOUT_S = 300 is defined; comment states advisory nature."
+      },
+      {
+       "text": "Concurrency from the environment, or :data:`DEFAULT_CONCURRENCY`.",
+       "where": "default_concurrency docstring",
+       "verdict": "kept",
+       "why": "Function reads DAEDALUS_FANOUT_CONCURRENCY env var; falls back to DEFAULT_CONCURRENCY (8)."
+      },
+      {
+       "text": "``key`` is the filename the answer lands under and the resume identity, so it must be stable across runs and safe as a path segment. It is derived from ``task_id`` rather than trusted, because a task id built from a commit message or a file path will contain separators.",
+       "where": "FanoutTask docstring",
+       "verdict": "kept",
+       "why": "key property derives from task_id via sha256 digest; safe sanitization logic present."
+      },
+      {
+       "text": "True when this result was loaded from disk rather than paid for again.",
+       "where": "FanoutResult.resumed docstring",
+       "verdict": "kept",
+       "why": "resumed field exists with default False; docstring matches."
+      },
+      {
+       "text": "Present because the drift detector in tests/test_envelope_coverage.py caught this module as an undeclared record producer on 2026-07-30 and it was right: these files record a PAID external call and its answer, so a trace id correlates a bill to the run that incurred it.",
+       "where": "FanoutResult.trace_id docstring",
+       "verdict": "kept",
+       "why": "trace_id field exists, sourced from current_trace_id (imported)."
+      },
+      {
+       "text": "It cannot lift the secret floor. ``providers/deepseek.py`` calls :func:`secret_floor_rule` per path independently of ``classify_data``, and that rule is documented as running \"in EVERY lane, no bypass ... cannot be weakened by a project config\".",
+       "where": "_one_call docstring",
+       "verdict": "uncheckable",
+       "why": "secret_floor_rule is not in this chunk; claim references external module."
+      },
+      {
+       "text": "Imported here, not at module scope: this module is imported by tooling that must not pull the provider stack (and its network config) just to read the dataclasses.",
+       "where": "_one_call body comment",
+       "verdict": "kept",
+       "why": "DeepSeekProvider is imported inside _one_call, not at module top."
+      },
+      {
+       "text": "BEFORE the question, not after. A model that has already read the question treats the brief as supporting material; a model that reads the brief first treats the question as being about the thing described.",
+       "where": "_one_call body comment",
+       "verdict": "kept",
+       "why": "Code prepends brief before objective in the constructed string."
+      },
+      {
+       "text": "fresh per call -- see module docstring",
+       "where": "_one_call body comment",
+       "verdict": "kept",
+       "why": "provider = DeepSeekProvider() creates new instance each call."
+      },
+      {
+       "text": "operator-set egress scope, or None",
+       "where": "_one_call body comment on policy",
+       "verdict": "kept",
+       "why": "policy parameter passed to provider.run; comment matches."
+      },
+      {
+       "text": "lane-specific prompt, or None",
+       "where": "_one_call body comment on system_override",
+       "verdict": "kept",
+       "why": "system_override parameter passed; comment matches."
+      },
+      {
+       "text": ">0 is what makes votes independent",
+       "where": "_one_call body comment on temperature",
+       "verdict": "kept",
+       "why": "temperature parameter passed to provider.run; comment states purpose."
+      },
+      {
+       "text": "advisory only, structurally",
+       "where": "_one_call body comment on writable=False",
+       "verdict": "kept",
+       "why": "writable=False is hardcoded; comment confirms advisory nature."
+      },
+      {
+       "text": "DIGESTS, NOT BODIES, for the prompt: ... The system message IS kept whole: it is small, shared, and it was the thing nobody could see.",
+       "where": "_one_call body comment",
+       "verdict": "kept",
+       "why": "sent dict stores system_override_sha256 and system_override_chars, not the full override string; comment claims it is kept whole."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Comment claims system_override is kept whole in sent dict, but code stores only sha256 and length.",
+       "where": "line 179-180 (sent dict)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "fan_out signature is truncated; temperature enforcement logic not visible.",
+       "where": "line 220+",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "41b4516e203842a738d5ab2c9bf0b680738c56cf13b2cd56d624dde59c1f2298",
+    "objective_chars": 16943,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [1/2]",
+  "rev": "51fe781",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

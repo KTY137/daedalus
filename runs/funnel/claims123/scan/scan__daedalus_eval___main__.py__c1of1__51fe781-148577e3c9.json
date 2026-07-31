@@ -1,0 +1,275 @@
+{
+ "task_id": "scan__daedalus_eval___main__.py__c1of1__51fe781",
+ "key": "scan__daedalus_eval___main__.py__c1of1__51fe781-148577e3c9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/eval/__main__.py (chunk 1 of 1). All docstring claims about CLI flags are kept; no broken claims found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/__main__.py",
+     "chunk": "1 of 1",
+     "purpose": "CLI entrypoint for eval harness, minting, and gating.",
+     "symbols": [
+      {
+       "name": "_select",
+       "kind": "function",
+       "effects": [],
+       "note": "Filters tasks by project label; exits if none match."
+      },
+      {
+       "name": "_print_ascii",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Prints text, falling back to ASCII replacement on UnicodeEncodeError."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Parses args and dispatches to mint, baseline, gate, or eval."
+      },
+      {
+       "name": "add_minted_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Imported from mint; persists a task to mint store."
+      },
+      {
+       "name": "confirm_minted_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Imported from mint; confirms a minted task."
+      },
+      {
+       "name": "mint_from_commit",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from mint; creates task from git commit."
+      },
+      {
+       "name": "all_tasks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from harness; returns all tasks."
+      },
+      {
+       "name": "run_tier1",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from harness; runs tier 1."
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from harness; runs tier 2 (LLM)."
+      },
+      {
+       "name": "run_arms",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from harness; runs deterministic comparison."
+      },
+      {
+       "name": "write_baseline",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Imported from harness; writes baseline.json."
+      },
+      {
+       "name": "run_gate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from harness; runs gate check."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from report; renders eval output."
+      },
+      {
+       "name": "render_gate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from report; renders gate output."
+      },
+      {
+       "name": "task_project_label",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from tasks; returns project label."
+      },
+      {
+       "name": "AGENT_ENV_ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from tasks; root path."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tier 1 always runs (deterministic, no LLM).",
+       "where": "docstring line 3-4",
+       "verdict": "kept",
+       "why": "main() calls run_tier1(tasks) unconditionally at line 115."
+      },
+      {
+       "text": "--arms adds the deterministic A/B/C retrieval comparison (also no LLM).",
+       "where": "docstring line 4-5",
+       "verdict": "kept",
+       "why": "main() calls run_arms(tasks) only if args.arms is True (line 116)."
+      },
+      {
+       "text": "Tier 2 runs only with --tier2 AND a reachable provider; otherwise it is skipped with a clear message.",
+       "where": "docstring line 6-7",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain run_tier2's implementation; cannot verify the 'clear message' part. The condition --tier2 is checked at line 117."
+      },
+      {
+       "text": "--gate is an ADVISORY local regression check against baseline.json -- see daedalus.eval.harness.run_gate.",
+       "where": "docstring line 9-10",
+       "verdict": "kept",
+       "why": "main() calls harness.run_gate() when --gate is passed (line 112)."
+      },
+      {
+       "text": "It is never wired into anything automatic; run it by hand before shipping a slice-heuristic change.",
+       "where": "docstring line 10-11",
+       "verdict": "kept",
+       "why": "No automatic invocation of --gate in this file; only manual CLI flag."
+      },
+      {
+       "text": "--update-baseline is the only thing that writes baseline.json, and only when explicitly passed.",
+       "where": "docstring line 12-13",
+       "verdict": "kept",
+       "why": "main() calls harness.write_baseline() only when --update-baseline is passed (line 108). No other code in this file writes baseline.json."
+      },
+      {
+       "text": "--mint-commit/--confirm-mint are the ONLY entry points that persist a task to the mint store (daedalus.eval.mint.DEFAULT_MINT_STORE_PATH); every other flag above only READS it via harness.all_tasks().",
+       "where": "docstring line 15-17",
+       "verdict": "kept",
+       "why": "Only --mint-commit and --confirm-mint call add_minted_task/confirm_minted_task (lines 92, 101). Other flags call all_tasks() (line 68) which only reads."
+      },
+      {
+       "text": "This is the human-invoked half of the mint -> quarantine -> confirm -> primary flywheel -- there is no automatic caller (offload.py does not invoke this today; see mint.py's module docstring).",
+       "where": "docstring line 18-19",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain offload.py or mint.py; cannot verify absence of automatic caller."
+      },
+      {
+       "text": "Output is ASCII-only for a raw Windows console.",
+       "where": "docstring line 21",
+       "verdict": "kept",
+       "why": "_print_ascii() (line 33-37) catches UnicodeEncodeError and writes ASCII replacement."
+      },
+      {
+       "text": "--gate ... Exits non-zero on a regression; never blocks anything automatic.",
+       "where": "argument help line 63-64",
+       "verdict": "kept",
+       "why": "main() returns 0 if gate['passed'] else 1 (line 113)."
+      },
+      {
+       "text": "--update-baseline ... Never happens automatically.",
+       "where": "argument help line 66-67",
+       "verdict": "kept",
+       "why": "write_baseline() called only when --update-baseline is passed (line 108)."
+      },
+      {
+       "text": "--mint-commit ... persist it to the mint store so it joins every subsequent run via all_tasks().",
+       "where": "argument help line 69-72",
+       "verdict": "kept",
+       "why": "add_minted_task() is called (line 92), and all_tasks() reads the store."
+      },
+      {
+       "text": "--confirm-mint ... promoting it to primary at daedalus.eval.mint.MINT_CONFIRM_THRESHOLD.",
+       "where": "argument help line 73-75",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain MINT_CONFIRM_THRESHOLD; cannot verify promotion logic."
+      },
+      {
+       "text": "--repo ... default: this agent_env checkout.",
+       "where": "argument help line 76-77",
+       "verdict": "kept",
+       "why": "main() sets repo = args.repo or AGENT_ENV_ROOT (line 88)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_print_ascii catches UnicodeEncodeError but not other encoding errors (e.g., LookupError)",
+       "where": "line 35",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "mint_from_commit returns None or list; if None, code prints message and returns 1, but does not differentiate between 'unresolvable ref' and 'no unit-level change'",
+       "where": "line 89-93",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e266f8ae95631e14755fe69b702bf2f373d5404d036b04f0c2ef279967abb12",
+    "objective_chars": 9587,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__main__.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/__main__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

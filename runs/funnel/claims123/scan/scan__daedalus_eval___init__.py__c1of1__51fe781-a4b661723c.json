@@ -1,0 +1,141 @@
+{
+ "task_id": "scan__daedalus_eval___init__.py__c1of1__51fe781",
+ "key": "scan__daedalus_eval___init__.py__c1of1__51fe781-a4b661723c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/eval/__init__.py chunk 1 of 1: claims from docstring checked against this file.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package init exporting TASKS, resolve_task_repo, run_tier1, run_tier2; docstring describes eval tiers and claim.",
+     "symbols": [
+      {
+       "name": "TASKS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported from .tasks"
+      },
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported from .tasks"
+      },
+      {
+       "name": "run_tier1",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported from .harness"
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported from .harness"
+      }
+     ],
+     "claims": [
+      {
+       "text": "a *distilled semantic slice* (the focus symbol/file plus its dependency + caller neighborhood) carries enough context to act on a target at a fraction of the tokens of a naive whole-repo concatenation (Repomix / Gitingest style).",
+       "where": "docstring line 3-5",
+       "verdict": "uncheckable",
+       "why": "The chunk only contains package init; the slice construction logic is not present."
+      },
+      {
+       "text": "Distillation beats concatenation.",
+       "where": "docstring line 5",
+       "verdict": "uncheckable",
+       "why": "No evaluation logic in this chunk to verify."
+      },
+      {
+       "text": "This is a **private, directional** eval, NOT SWE-bench.",
+       "where": "docstring line 7",
+       "verdict": "kept",
+       "why": "The docstring states this; no contradiction in this chunk."
+      },
+      {
+       "text": "Tier 1 (deterministic, no LLM -- the rigorous core): for each labelled task measure slice **recall** (did the distilled slice actually contain the symbols a competent answer needs?) and **compression** (how much smaller than the whole repo?).",
+       "where": "docstring lines 9-11",
+       "verdict": "uncheckable",
+       "why": "The implementation of run_tier1 is not in this chunk."
+      },
+      {
+       "text": "Recall is *necessary, not sufficient* -- it proves the slice didn't drop load-bearing context.",
+       "where": "docstring lines 11-12",
+       "verdict": "uncheckable",
+       "why": "No code to verify this claim."
+      },
+      {
+       "text": "Tier 2 (opt-in, needs a runtime): ask the same question against the distilled slice (A) and against the whole-repo concat (B) via a model, and compare task-success and tokens. The win is A ~= B success at a fraction of B's tokens.",
+       "where": "docstring lines 14-16",
+       "verdict": "uncheckable",
+       "why": "run_tier2 implementation not in this chunk."
+      },
+      {
+       "text": "Gated: skipped cleanly when no provider is available.",
+       "where": "docstring line 16",
+       "verdict": "uncheckable",
+       "why": "No gating logic visible in this chunk."
+      },
+      {
+       "text": "Isolated package: imports structcore's stable public API; never mutates it.",
+       "where": "docstring line 18",
+       "verdict": "uncheckable",
+       "why": "No imports from structcore present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "No imports from structcore in this chunk; claim about isolation is uncheckable.",
+       "where": "docstring line 18",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "88954b111eed441acc39af06cc3b3e37f3f23ebc424f3af20eedba0e7855163c",
+    "objective_chars": 4419,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__init__.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,339 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c1of4__51fe781",
+ "key": "scan__daedalus_mapping_inventory.py__c1of4__51fe781-8e315b161e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/mapping/inventory.py: module docstring, constants, and _strip_human, _digest, digest_ok, _area_of, _dotted, _method_of, _pyproject_packages definitions. All checkable claims are kept; no broken claims found in this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "1 of 4",
+     "purpose": "Module docstring, constants, and small derivation functions for the generated feature inventory.",
+     "symbols": [
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema identifier for the inventory file."
+      },
+      {
+       "name": "INVENTORY_REL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path to the inventory file."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Key name for the digest field."
+      },
+      {
+       "name": "_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Note string placed in the inventory file."
+      },
+      {
+       "name": "FEATURE_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned fields on a feature record."
+      },
+      {
+       "name": "ENV_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned fields on an env var record."
+      },
+      {
+       "name": "AREA_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned fields on an area record."
+      },
+      {
+       "name": "_HUMAN_TOP_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of top-level keys excluded from digest."
+      },
+      {
+       "name": "STATUS_BY_CLASS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from reach classification to inventory status."
+      },
+      {
+       "name": "STATUS_ISLAND",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant for island status."
+      },
+      {
+       "name": "STATUS_STALE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant for stale status."
+      },
+      {
+       "name": "METADATA_AREA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Area name for metadata staleness."
+      },
+      {
+       "name": "_STALE_SKIP_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of directories to skip during stale sweep."
+      },
+      {
+       "name": "_METHOD_BY_SUFFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (suffix, method) pairs for HTTP method detection."
+      },
+      {
+       "name": "_TOKEN_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for tokens inside hand-written entrypoint strings."
+      },
+      {
+       "name": "_SCRIPTS_HEADER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for [tool.setuptools] header."
+      },
+      {
+       "name": "_SECTION_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for any section header."
+      },
+      {
+       "name": "_PACKAGES_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for packages assignment."
+      },
+      {
+       "name": "_QUOTED_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for quoted strings."
+      },
+      {
+       "name": "_strip_human",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns mechanical projection of document, removing human fields."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes SHA-256 hash over the derived half of the document."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if document's digest matches its derived fields."
+      },
+      {
+       "name": "_area_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns area name from a relative path."
+      },
+      {
+       "name": "_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts relative path to dotted module name."
+      },
+      {
+       "name": "_method_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns HTTP method from function name suffix."
+      },
+      {
+       "name": "_pyproject_packages",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads [tool.setuptools] packages list from pyproject.toml."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module replaces the typing. It derives every mechanical field from the same single walk of the tree that daedalus map already performs (daedalus.mapping.render.analyse_once), so the census cannot be older than the run that produced it.",
+       "where": "docstring lines 9-12",
+       "verdict": "uncheckable",
+       "why": "The claim refers to functionality in another module (analyse_once) and the dependency on that walk is not visible in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: the module census and its status -- wired / island / shim / unknown -- straight off daedalus.mapping.reach.analyse's classification;",
+       "where": "docstring lines 15-18",
+       "verdict": "uncheckable",
+       "why": "The derivation of status from reach classification is stated but the actual integration with analyse() is not in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: entrypoints, entry_kinds, importers and tests per module;",
+       "where": "docstring line 19",
+       "verdict": "uncheckable",
+       "why": "The derivation of these fields is not implemented in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: the CLI dispatch table and the HTTP route table, from the entry points;",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "The derivation of CLI and HTTP tables is not implemented in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: every environment switch, where it is read, whether it is dark and whether any document mentions it, from daedalus.mapping.switches;",
+       "where": "docstring line 21",
+       "verdict": "uncheckable",
+       "why": "The derivation of environment switch information is not implemented in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: two kinds of stale: a package this repo's own packaging metadata promises that is not on disk, and a __pycache__ whose sources are gone;",
+       "where": "docstring lines 22-24",
+       "verdict": "uncheckable",
+       "why": "The detection of stale packages and pycache is not implemented in this chunk."
+      },
+      {
+       "text": "Derivable, and therefore regenerated on every run: the packaging gap in the other direction -- a package on disk that a wheel would not contain.",
+       "where": "docstring lines 25-26",
+       "verdict": "uncheckable",
+       "why": "The detection of packaging gaps is not implemented in this chunk."
+      },
+      {
+       "text": "NOT derivable, and therefore preserved rather than invented: notes -- WHY a thing is the way it is. No scanner derives that.",
+       "where": "docstring lines 29-30",
+       "verdict": "kept",
+       "why": "The constant FEATURE_HUMAN_FIELDS includes 'notes', and _strip_human removes it from the digest projection, preserving it as human-editable."
+      },
+      {
+       "text": "NOT derivable, and therefore preserved rather than invented: kind -- the semantic taxonomy (safety / orchestration / provider / memory). A path prefix is a hint, not a fact.",
+       "where": "docstring lines 31-33",
+       "verdict": "kept",
+       "why": "The constant FEATURE_HUMAN_FIELDS includes 'kind', and _strip_human removes it from the digest projection, preserving it as human-editable."
+      },
+      {
+       "text": "NOT derivable, and therefore preserved rather than invented: name -- the human-legible name of a capability, as opposed to the file it happens to live in.",
+       "where": "docstring lines 34-35",
+       "verdict": "kept",
+       "why": "The constant FEATURE_HUMAN_FIELDS includes 'name', and _strip_human removes it from the digest projection, preserving it as human-editable."
+      },
+      {
+       "text": "NOT derivable, and therefore preserved rather than invented: status: planned and status: baseline -- a feature that has no code yet has no evidence a scanner can read, and 'this is deliberately only a baseline' is a judgement.",
+       "where": "docstring lines 36-38",
+       "verdict": "uncheckable",
+       "why": "The handling of planned/baseline status is not implemented in this chunk."
+      },
+      {
+       "text": "NOT derivable, and therefore preserved rather than invented: every feature whose surface is not Python: the web app, the VS Code extension, the crew protocol files. The reachability engine walks .py; claiming to have measured a .tsx would be a lie of scope.",
+       "where": "docstring lines 39-41",
+       "verdict": "uncheckable",
+       "why": "The handling of non-Python features is not implemented in this chunk."
+      },
+      {
+       "text": "Mechanical fields are rewritten every run. Human fields live in annotations (keyed to a module, an env var or a route) and narrative_features (whole hand-written entries with no mechanical counterpart), and are merged into the output for consumers -- but the digest is computed over a projection that strips them again.",
+       "where": "docstring lines 43-47",
+       "verdict": "kept",
+       "why": "_strip_human removes 'annotations' and 'narrative_features' (in _HUMAN_TOP_KEYS) and per-record human fields, and _digest computes the hash over that projection."
+      },
+      {
+       "text": "editing a note, a name or a kind is legal and does not trip the gate;",
+       "where": "docstring lines 48-49",
+       "verdict": "kept",
+       "why": "FEATURE_HUMAN_FIELDS includes notes, name, kind; _strip_human removes them before digest, so editing them does not change the digest."
+      },
+      {
+       "text": "editing a status, a test list or an island entry DOES trip it, because that is the half a human is not supposed to write.",
+       "where": "docstring lines 50-52",
+       "verdict": "kept",
+       "why": "Status, test lists, and island entries are not in human fields; _strip_human keeps them in the projection, so editing them changes the digest."
+      },
+      {
+       "text": "Annotations carry human fields ONLY. An annotation cannot set status and cannot add a module, because the failure being fixed is a hand-written file steering the work queue -- handing that same power back through a side door would be the same defect wearing a generated file's clothes.",
+       "where": "docstring lines 56-59",
+       "verdict": "uncheckable",
+       "why": "The enforcement that annotations cannot set status or add modules is not implemented in this chunk."
+      },
+      {
+       "text": "A hash over the derived half only. Canonical JSON, sorted keys, so the value is a function of the content and not of the writer's key order.",
+       "where": "_digest docstring lines 102-103",
+       "verdict": "kept",
+       "why": "_digest calls json.dumps with sort_keys=True and ensure_ascii=False, producing canonical JSON. It calls _strip_human to exclude human fields."
+      },
+      {
+       "text": "Public for the same reason daedalus.mapping.drift.digest_ok is: any consumer that RANKS WORK out of these lists rather than rescanning has to ask this first. Ranking work out of a hand-edited census is precisely the defect this module was written to end.",
+       "where": "digest_ok docstring lines 109-113",
+       "verdict": "kept",
+       "why": "digest_ok compares doc.get(DIGEST_KEY) with _digest(doc), returning True only if they match, thus detecting hand-edits to derived fields."
+      },
+      {
+       "text": "A line scanner rather than a TOML parser: this module is stdlib-only across 3.10 (no tomllib), and the shape being read is one array under one known table. An unreadable or absent pyproject yields an empty list, which both detectors below read as 'no promise was made' -- never as a finding.",
+       "where": "_pyproject_packages docstring lines 123-127",
+       "verdict": "uncheckable",
+       "why": "The body of _pyproject_packages is truncated; the actual implementation of the line scanner is not fully visible."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk defines constants and functions that support the inventory generation, but the core logic for building the inventory (e.g., harvest, build) is not in this chunk.",
+       "where": "entire chunk",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_digest uses _strip_human which correctly removes human fields; the docstring's claims about what is derivable are not yet implemented in this chunk but are consistent with the design.",
+       "where": "_digest, _strip_human",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6afaef8a259ae41942b671352a66341671614c6a8fc396ac9ff1c82c6516eb99",
+    "objective_chars": 15304,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [1/4]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

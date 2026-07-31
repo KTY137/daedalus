@@ -1,0 +1,233 @@
+{
+ "task_id": "scan__daedalus_eval_report.py__c1of2__51fe781",
+ "key": "scan__daedalus_eval_report.py__c1of2__51fe781-328037233d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 2 for report.py: defines constants, helper functions, and two main render functions (render_tier1 and render_arms) for producing ASCII eval tables with provenance breakdowns and disclaimers. All claims about ASCII-only rendering and exclusion of errored/focus-withheld tasks are verified as kept; claims about module policy or external module behavior are uncheckable. The render_arms function appears truncated at chunk boundary.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_arms (line 250-253) | medium | render_arms function appears truncated; the errored section is started but not finished in this chunk. | Verify that the full function in the next chunk completes the errored block."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/report.py",
+     "chunk": "1 of 2",
+     "purpose": "Render eval results as ASCII tables with provenance breakdown and disclaimer notes.",
+     "symbols": [
+      {
+       "name": "_PROVENANCE_NOTE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict mapping provenance keys to disclaimer strings."
+      },
+      {
+       "name": "_rule",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a separator line for ASCII table."
+      },
+      {
+       "name": "_row",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a data row for ASCII table."
+      },
+      {
+       "name": "_focus_withheld_lines",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns lines for focus-withheld tasks."
+      },
+      {
+       "name": "_table",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders a full ASCII table."
+      },
+      {
+       "name": "_pct",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Formats a fraction as percentage string."
+      },
+      {
+       "name": "_provenance_breakdown_lines",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders provenance breakdown block."
+      },
+      {
+       "name": "render_tier1",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders Tier 1 results."
+      },
+      {
+       "name": "render_arms",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders A/B/C arms results."
+      },
+      {
+       "name": "HEADER",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Header string for eval report."
+      }
+     ],
+     "claims": [
+      {
+       "text": "No unicode box-drawing, no fancy glyphs: only ``+ - |`` so it prints on a raw Windows console.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "All table functions use only '+', '-', '|' and spaces; no Unicode box-drawing characters are present."
+      },
+      {
+       "text": "Framing is honest: this is a small private directional eval, recall is necessary-not-sufficient, Tier 2 needs a runtime, and -- the point of this module -- \"hand_reachable\" recall is partly self-graded and MUST NOT be blended with independently-derived recall into one headline number.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring makes claims about the module's purpose and policy, but the code only renders data; it does not enforce blending or non-blending. The blending policy is not implemented here."
+      },
+      {
+       "text": "Plain-English disclaimer per provenance -- printed on every render that includes a \"hand_reachable\" bucket. This is the single most important line in this file: it is what stops the eval from overclaiming.",
+       "where": "comment before _PROVENANCE_NOTE",
+       "verdict": "kept",
+       "why": "_PROVENANCE_NOTE is defined and used in _provenance_breakdown_lines, which is called by both render_tier1 and render_arms. The disclaimer is printed for each provenance."
+      },
+      {
+       "text": "PARTIALLY SELF-GRADED: a human picked these labels AND verified them reachable by running the same slicer being graded. Treat this recall as an upper bound / sanity check, NOT independent proof the slicer works.",
+       "where": "_PROVENANCE_NOTE['hand_reachable']",
+       "verdict": "kept",
+       "why": "The string exactly matches the code."
+      },
+      {
+       "text": "INDEPENDENT: labels derived from what an on-disk diff literally changed -- no graph walk involved. This recall is not self-graded.",
+       "where": "_PROVENANCE_NOTE['independent_diff']",
+       "verdict": "kept",
+       "why": "The string exactly matches the code."
+      },
+      {
+       "text": "INDEPENDENT: labels derived from git co-change (files that change together) -- no graph walk involved. This recall is not self-graded.",
+       "where": "_PROVENANCE_NOTE['temporal_churn']",
+       "verdict": "kept",
+       "why": "The string exactly matches the code."
+      },
+      {
+       "text": "FOCUS-WITHHELD (lane A1) -- honest, ASCII-only accounting for tasks where the unconditional secret floor fail-closed on the task's OWN focus file (see harness._is_focus_withheld / slice.py's FOCUS GATE). Neither a pass (no slice text was ever compared to must_include) nor a recall miss (the label was never even attempted) -- its own bucket, excluded from every mean/count above. Absent (result.get) for any hand-built result dict that predates this field, and adds no lines when there are none.",
+       "where": "_focus_withheld_lines docstring",
+       "verdict": "kept",
+       "why": "The function uses result.get('focus_withheld_ids') and returns empty list if not present or empty. It generates lines only when ids exist."
+      },
+      {
+       "text": "Shared renderer for the \"PROVENANCE BREAKDOWN\" block used by both Tier 1 and the arms report. Always shows both tiers (even when empty) and always prints the honesty note -- this block is the deliverable of this sprint.",
+       "where": "_provenance_breakdown_lines docstring",
+       "verdict": "kept",
+       "why": "The function prints the header, iterates over all provenances and both tiers, includes the note for each provenance, and appends the quarantine note. It is called by both render_tier1 and render_arms."
+      },
+      {
+       "text": "Errored rows carry no recall/compression/slice_tokens/... at all (see harness._task_error_row) -- they get their own ERRORED section below, not a row in this recall/compression table. FOCUS-WITHHELD rows (see harness._focus_withheld_row) are excluded the same way, into their own section below.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The loop skips tasks with 'error' in t or t.get('focus_withheld'). Errored tasks are later reported in a separate section via result.get('errored')."
+      },
+      {
+       "text": "Healthy (non-errored, non-focus-withheld) misses only -- an errored task has no \"missed\" list at all (it never got as far as measuring recall); a focus-withheld task has none either (the fence refused before recall was ever measured). Both are reported in their own unmissable sections, not folded in here as a miss.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The misses list filters out tasks with 'error' or 'focus_withheld'. The code matches the description."
+      },
+      {
+       "text": "Absent entirely (result.get, not result[...]) for any pre-existing caller that hand-built a Tier-1 result dict without this key -- and always absent when there are zero errored tasks, so this block adds NO lines to that report.",
+       "where": "render_tier1 comment about errored",
+       "verdict": "kept",
+       "why": "The code uses result.get('errored') and only adds lines if the list is non-empty."
+      },
+      {
+       "text": "A/B/C: distilled slice vs whole-repo concat vs BM25 retrieval. Model-free (recall via substring match, no LLM), so this runs offline every time.",
+       "where": "render_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about model-free recall via substring match is not verifiable from this chunk; it describes behavior in other modules."
+      },
+      {
+       "text": "Errored rows carry no recall_A/tokens_A/... at all (see harness._task_error_row) -- they are reported in their own section below, not in this table. FOCUS-WITHHELD rows (harness._focus_withheld_row) are excluded the same way, into their own section.",
+       "where": "render_arms comment",
+       "verdict": "kept",
+       "why": "The healthy list filters out tasks with 'error' or 'focus_withheld'. Errored tasks are reported later via result.get('errored')."
+      },
+      {
+       "text": "c_beats_a is tie-inclusive (recall_C >= recall_A, see harness.eval_task_arms) so this block -- not the \"no\" cells under the C>=A column -- is where a tie surfaces. A tie (\"BM25 matches the product's recall at equal cost\") is the commercially damning case, not merely a strict loss for A.",
+       "where": "render_arms comment before beats list",
+       "verdict": "uncheckable",
+       "why": "The claim about tie-inclusive definition refers to harness.eval_task_arms, which is not in this chunk. The code uses t['c_beats_a'] but cannot verify its semantics."
+      },
+      {
+       "text": "ERRORED section -- same rationale as render_tier1's: excluded from every arm/aggregate above, never silently dropped. Absent when there are none.",
+       "where": "render_arms comment before errored",
+       "verdict": "kept",
+       "why": "The code uses result.get('errored') and only adds lines if non-empty."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_arms uses result.get('errored') but the chunk ends before the block is closed; the function may be incomplete.",
+       "where": "line 250-253",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2b8a24d1adb7b5bbf392cd3b77c74b542080042ba45a467d5e072398f1996e4b",
+    "objective_chars": 16719,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/report.py [1/2]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/report.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

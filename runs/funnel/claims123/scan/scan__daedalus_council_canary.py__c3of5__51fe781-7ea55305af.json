@@ -1,0 +1,271 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c3of5__51fe781",
+ "key": "scan__daedalus_council_canary.py__c3of5__51fe781-7ea55305af",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 3 of 5 of canary.py, covering probe definitions, results, comparisons, lanes, and adapter mixins.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "3 of 5",
+     "purpose": "Define probes, ProbeResult, Comparison, CanaryRun, Lane, and adapter infrastructure.",
+     "symbols": [
+      {
+       "name": "QUICK_PROBE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set to 'arrival'."
+      },
+      {
+       "name": "probes_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a tuple of ProbeSpec based on names or quick flag."
+      },
+      {
+       "name": "ProbeResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding outcome of one probe against one lane."
+      },
+      {
+       "name": "Comparison",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass comparing a run result to history."
+      },
+      {
+       "name": "CanaryRun",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass aggregating results and comparisons of a canary run."
+      },
+      {
+       "name": "Lane",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one vendor endpoint and its ask callable."
+      },
+      {
+       "name": "resolve_exe",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves CLI name to executable path."
+      },
+      {
+       "name": "_CanaryAdapterMixin",
+       "kind": "class",
+       "effects": [],
+       "note": "Provides assemble and argv overrides for canary adapters."
+      },
+      {
+       "name": "_CanaryClaude",
+       "kind": "class",
+       "effects": [],
+       "note": "Adapter mixin for Claude."
+      },
+      {
+       "name": "_CanaryCodex",
+       "kind": "class",
+       "effects": [],
+       "note": "Adapter mixin for Codex."
+      },
+      {
+       "name": "_CanaryAntigravity",
+       "kind": "class",
+       "effects": [],
+       "note": "Adapter mixin for Antigravity."
+      },
+      {
+       "name": "_CanaryOllama",
+       "kind": "class",
+       "effects": [],
+       "note": "Adapter mixin for Ollama."
+      },
+      {
+       "name": "_LOCAL_HOSTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of local host identifiers."
+      },
+      {
+       "name": "_HTTP_HOST_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to extract host from HTTP URL."
+      },
+      {
+       "name": "_is_local_http",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if endpoint is localhost."
+      },
+      {
+       "name": "_bind",
+       "kind": "function",
+       "effects": [],
+       "note": "Binds adapter's ask method with fixed role=''."
+      },
+      {
+       "name": "default_lanes",
+       "kind": "function",
+       "effects": [],
+       "note": "Signature defined; body not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``--quick`` runs this one. It is the probe that would have caught both real incidents on day one, so if only one probe can be afforded, it is this one.",
+       "where": "line 565-567",
+       "verdict": "uncheckable",
+       "why": "The claim refers to real incidents not present in this chunk; the assignment of QUICK_PROBE is observed but the justification cannot be verified."
+      },
+      {
+       "text": "One (lane, probe) outcome. Carries WHICH check failed, not just that one did.",
+       "where": "line 581-582",
+       "verdict": "kept",
+       "why": "ProbeResult includes failed_check field to indicate which check failed."
+      },
+      {
+       "text": "Name of the failed deterministic check (``nonce_absent``, ``anchored_on_decoy``, ...). Empty when the checker was never reached.",
+       "where": "line 590-592",
+       "verdict": "kept",
+       "why": "failed_check field is documented and defaults to empty string."
+      },
+      {
+       "text": "Machine reason from the transport (``not_authenticated``, ``connect_failed``, ...). Empty on ``ok``/``wrong_answer``.",
+       "where": "line 593-595",
+       "verdict": "kept",
+       "why": "reason field is documented and defaults to empty string."
+      },
+      {
+       "text": "Did a prompt actually reach a model? ``unavailable`` means it did not.",
+       "where": "line 605-606",
+       "verdict": "kept",
+       "why": "asked property returns True if status != 'unavailable'."
+      },
+      {
+       "text": "This run's result against the trailing history for the same triple.",
+       "where": "line 618-619",
+       "verdict": "kept",
+       "why": "Comparison dataclass holds vendor, model, probe, and comparison fields."
+      },
+      {
+       "text": "Counts that keep \"could not ask\" apart from \"answer was wrong\". ``asked`` and ``could_not_ask`` are separate top-level keys and ``by_status`` reports every member of the closed vocabulary individually. There is deliberately no combined \"failures\" number: a single number is exactly where the two get merged.",
+       "where": "line 649-653",
+       "verdict": "kept",
+       "why": "summary() returns separate keys 'asked', 'could_not_ask', 'by_status', and does not combine them."
+      },
+      {
+       "text": "Non-zero only when a previously-passing LIVENESS probe now fails. Not \"something is red\": a lane that has never passed is not a regression, and an unavailable lane is not a failure at all. A quality regression is printed but does not page anyone -- see the module docstring.",
+       "where": "line 673-677",
+       "verdict": "kept",
+       "why": "exit_code returns 1 only if regressions('liveness') is non-empty; regressions filter by regressed flag."
+      },
+      {
+       "text": "One vendor endpoint plus the callable that asks it a question. ``ask`` is ``(prompt: str, timeout_s: float) -> VendorReply``. Injecting it is what lets the whole runner be tested with fakes and no network: the tests never construct an adapter, never touch a CLI and never open a socket.",
+       "where": "line 683-687",
+       "verdict": "kept",
+       "why": "Lane dataclass has ask field of type Callable; docstring describes its purpose."
+      },
+      {
+       "text": "``adapter`` is the seat ``ask`` was bound from, when there was one. It is carried for ONE reason: :func:`live_egress_lanes` has to hand something to :func:`session.live_egress_seats`, and a bare closure is not classifiable. Nothing in the runner reads it -- the canary still calls ``ask`` and only ``ask``, so a fake lane stays a fake lane.",
+       "where": "line 688-693",
+       "verdict": "kept",
+       "why": "adapter field is optional and documented as unused by runner."
+      },
+      {
+       "text": "Resolve a vendor CLI to something ``CreateProcess`` can actually launch. On Windows a node CLI ships as an extensionless shell script beside a ``.exe``/``.cmd`` shim, and only the shim is launchable without a shell. Preferring the native ``.exe`` also skips the ``.cmd`` layer entirely -- the layer that truncated a multi-line argv and started all of this. (The prompt still goes on stdin regardless; the arrival probe is what proves that end to end rather than asserting it.) Returns ``name`` unchanged when nothing is found, so the spawn fails as ``not_on_path`` -> ``unavailable`` instead of guessing.",
+       "where": "line 700-710",
+       "verdict": "kept",
+       "why": "resolve_exe iterates over candidates with .exe, .cmd, .bat, then name; returns first found or name unchanged."
+      },
+      {
+       "text": "Two overrides every canary adapter needs, and nothing else.",
+       "where": "line 712-713",
+       "verdict": "kept",
+       "why": "_CanaryAdapterMixin defines assemble and argv methods."
+      },
+      {
+       "text": "The council's data-notice preamble is for model-written evidence. A canary prompt is generated in this file and carries none -- and the preamble would sit AHEAD of the arrival nonce, destroying the head position that probe measures. So the probe body goes out verbatim.",
+       "where": "line 715-719",
+       "verdict": "kept",
+       "why": "assemble method simply returns prompt unchanged."
+      },
+      {
+       "text": "argv returns list with first element resolved via resolve_exe.",
+       "where": "line 721-724",
+       "verdict": "kept",
+       "why": "argv method in _CanaryAdapterMixin calls resolve_exe on argv[0]."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ProbeResult dataclass has no validation for failed_check or reason fields beyond defaults.",
+       "where": "line 590-595",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Comparison dataclass has no validation for regressed or slower fields.",
+       "where": "line 618-631",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "CanaryRun.summary() counts liveness_failures and quality_failures based on severity and status in FAILING_STATUSES, but FAILING_STATUSES is not defined in this chunk.",
+       "where": "line 665-670",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "CanaryRun.exit_code() calls self.regressions('liveness'), which depends on regressed flag in Comparison; the flag's assignment is not in this chunk.",
+       "where": "line 677",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_exe returns name unchanged if no candidate found; this may hide configuration errors.",
+       "where": "line 709",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b5883aa189ad8e19fa5401b7fdc0791fafefafc0d507ca64aadf954660a081dc",
+    "objective_chars": 14101,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [3/5]",
+  "rev": "51fe781",
+  "module": "daedalus/council/canary.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

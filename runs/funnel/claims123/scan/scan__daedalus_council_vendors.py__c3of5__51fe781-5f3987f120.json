@@ -1,0 +1,227 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c3of5__51fe781",
+ "key": "scan__daedalus_council_vendors.py__c3of5__51fe781-5f3987f120",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of vendors.py: CouncilAdapter ask/assemble logic, _CliAdapter hierarchy, ClaudeAdapter and CodexAdapter. Claims mostly kept; notable risks around CodexAdapter missing overrides and potential path leakage in spawn error reasons.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ClaudeAdapter._parse_ok | low | payload.get('usage') may return None; dict() of None is fine, but the code could be clearer | Confirm that count_tokens handles None usage gracefully",
+     "CodexAdapter missing overrides | medium | CodexAdapter inherits _auth_failure and _parse_ok from _CliAdapter; codex CLI may produce JSON output that would be mishandled | Check codex CLI output format and override if needed",
+     "Token ceiling includes withheld block | low | The token count includes the withheld notification text, not the actual file contents; this is by design but may be surprising | Verify design intent",
+     "Spawn error reason may leak paths | medium | _interpret returns full spawn_error string as reason, which may contain absolute paths | Sanitize spawn_error before including in reply"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "3 of 5",
+     "purpose": "CouncilAdapter ask/assemble logic and CLI adapter hierarchy",
+     "symbols": [
+      {
+       "name": "assemble",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds outbound prompt text with withholding enforcement"
+      },
+      {
+       "name": "ask",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Uniform call method for vendor adapters, includes floor check and token ceiling"
+      },
+      {
+       "name": "_reply",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructs VendorReply from keyword arguments"
+      },
+      {
+       "name": "_dispatch",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Abstract method for actual dispatch"
+      },
+      {
+       "name": "_CliAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Shared plumbing for CLI vendors"
+      },
+      {
+       "name": "_looks_unauthenticated",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Heuristic check for auth failure markers in output"
+      },
+      {
+       "name": "ClaudeAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Adapter for Anthropic's claude CLI"
+      },
+      {
+       "name": "CodexAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Adapter for OpenAI's codex CLI"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Build the outbound text HERE, so withholding is structural.",
+       "where": "assemble docstring",
+       "verdict": "KEPT",
+       "why": "assemble is defined in this chunk and called by ask; no other assembly path exists in this chunk."
+      },
+      {
+       "text": "a gate that only REPORTS withheld paths while the caller ships the bytes anyway is worse than no gate: it produces a record saying the council did not see a file it did in fact see.",
+       "where": "assemble docstring",
+       "verdict": "KEPT",
+       "why": "assemble constructs the final text; evidence_files are included only if not in blocked set (lines 598-600)."
+      },
+      {
+       "text": "Withheld files are named but their contents are never rendered.",
+       "where": "assemble docstring",
+       "verdict": "KEPT",
+       "why": "Lines 604-607 add only the path names of blocked files, not their contents."
+      },
+      {
+       "text": "FLOOR FIRST, on the raw caller inputs, before anything is assembled: the runner must not be reachable from a refused call.",
+       "where": "ask comment",
+       "verdict": "KEPT",
+       "why": "floor_check is called on line 618 before assemble on line 623."
+      },
+      {
+       "text": "The runner is NOT invoked. The secret never leaves the process, and the recorded reason names the rule, never the bytes.",
+       "where": "ask comment",
+       "verdict": "KEPT",
+       "why": "If floor_check returns non-None, ask returns immediately via _reply without calling _dispatch."
+      },
+      {
+       "text": "Charged BEFORE dispatch from the assembled prompt: a per-call timeout does not bound token spend, and reconciling after the call is not a budget.",
+       "where": "ask comment",
+       "verdict": "KEPT",
+       "why": "Token count check (lines 626-634) occurs before _dispatch on line 638."
+      },
+      {
+       "text": "a vendor must never take the council down",
+       "where": "ask comment",
+       "verdict": "KEPT",
+       "why": "The try-except at lines 637-643 catches all exceptions from _dispatch and returns an error VendorReply."
+      },
+      {
+       "text": "Shared plumbing for CLI vendors: argv build, spawn, exit-code mapping.",
+       "where": "_CliAdapter docstring",
+       "verdict": "KEPT",
+       "why": "_CliAdapter provides argv, _dispatch, _interpret, _auth_failure, _parse_ok methods."
+      },
+      {
+       "text": "ALWAYS read-only.  There is no constructor switch for the sandbox mode: a reviewer that can write is not a reviewer, and an option is a thing someone sets.",
+       "where": "CodexAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not show the codex command invocation; the read-only sandbox claim depends on CLI arguments not present here."
+      },
+      {
+       "text": "Anthropic, via ``claude -p --output-format json`` with tools disallowed.",
+       "where": "ClaudeAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about tools being disallowed is not verifiable from this chunk; the argv method is inherited from _CliAdapter and not overridden here."
+      },
+      {
+       "text": "A non-JSON body from --output-format json means the contract moved under us; that is an error, not silently-usable prose.",
+       "where": "ClaudeAdapter._parse_ok comment",
+       "verdict": "KEPT",
+       "why": "Lines 699-702 return error status on JSON parse failure."
+      },
+      {
+       "text": "OpenAI, via ``codex exec --sandbox read-only``.",
+       "where": "CodexAdapter docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The argv method is inherited from _CliAdapter; the actual command arguments are defined in the profile, not shown in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ClaudeAdapter._parse_ok does not check for missing 'usage' key; payload.get('usage') may return None, leading to dict() of None (which is fine as None is falsy). No error.",
+       "where": "ClaudeAdapter._parse_ok, line 706",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "CodexAdapter has no _auth_failure or _parse_ok override; it inherits the default from _CliAdapter which returns empty string for auth and parses stdout as plain text. This may not match the codex CLI output format.",
+       "where": "CodexAdapter class definition",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The token ceiling check in ask uses count_tokens on the assembled text, but the docstring for assemble says withholding is structural. However, the token count includes the withheld block text (which contains only path names), not the actual file contents. This is consistent with the design.",
+       "where": "ask method, lines 626-634",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In _interpret, when result.spawn_error starts with 'not_on_path', status is set to 'unavailable', else 'error'. But the reason string is the full spawn_error, which may leak internal paths. No sanitization is applied.",
+       "where": "_interpret, line 665",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "ClaudeAdapter._parse_ok | low | payload.get('usage') may return None; dict() of None is fine, but the code could be clearer | Confirm that count_tokens handles None usage gracefully",
+      "CodexAdapter missing overrides | medium | CodexAdapter inherits _auth_failure and _parse_ok from _CliAdapter; codex CLI may produce JSON output that would be mishandled | Check codex CLI output format and override if needed",
+      "Token ceiling includes withheld block | low | The token count includes the withheld notification text, not the actual file contents; this is by design but may be surprising | Verify design intent",
+      "Spawn error reason may leak paths | medium | _interpret returns full spawn_error string as reason, which may contain absolute paths | Sanitize spawn_error before including in reply"
+     ],
+     "todos": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dae5b5cc3f855f1a4d47b14de89faa85aaf89df50e4879fe012b64c024c40571",
+    "objective_chars": 14568,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [3/5]",
+  "rev": "51fe781",
+  "module": "daedalus/council/vendors.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

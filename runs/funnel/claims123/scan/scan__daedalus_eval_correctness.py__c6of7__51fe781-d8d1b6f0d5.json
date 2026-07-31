@@ -1,0 +1,180 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c6of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c6of7__51fe781-d8d1b6f0d5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of correctness.py: defines _test_functions, derive_task_from_commit, seed_task_from_commit, correctness_gate; all docstring claims are checkable within this chunk except those referencing external functions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "6 of 7",
+     "purpose": "Define functions for extracting test functions from source, deriving tasks from commits, seeding tasks with measurement, and a correctness gate for task attempts.",
+     "symbols": [
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts pytest node-id suffixes and their source code from a Python file using ast."
+      },
+      {
+       "name": "derive_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Proposes a candidate correctness task from a fix commit by analyzing changed test files."
+      },
+      {
+       "name": "seed_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Derives a candidate task and measures it by running tests in a disposable worktree."
+      },
+      {
+       "name": "correctness_gate",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns a gate callable that verifies before-state and selection integrity."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The key is the node id form pytest actually accepts -- ``test_x`` for a module-level function, ``ClassName::test_x`` for a method -- because the class qualifier is not optional and getting it wrong makes the node id ``missing``.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "The function generates keys as `node.name` for module-level functions and `f\"{node.name}::{child.name}\"` for methods inside classes, matching the described format."
+      },
+      {
+       "text": "``ast`` rather than a regex or the structural extractor: it is stdlib, it is exact about nesting, and pytest node ids are a Python-only concept anyway.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "The function uses `ast.parse` and `ast.get_source_segment` to extract test functions and their source, as stated."
+      },
+      {
+       "text": "A file that does not parse contributes nothing (the caller then mints nothing from it) rather than contributing guesses.",
+       "where": "docstring of _test_functions",
+       "verdict": "kept",
+       "why": "The function catches `SyntaxError` and returns an empty dict, as described."
+      },
+      {
+       "text": "The commit's own diff is the oracle, exactly as in ``mint.py``: what the commit ADDED or CHANGED in a test file is a FAIL_TO_PASS candidate, what it left untouched in the same file is a PASS_TO_PASS candidate, and the base is the commit's parent.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The function calls `_changed_files` and `_blob` to compare before and after content of test files, but the logic for determining what is ADDED or CHANGED vs untouched is not fully verifiable without seeing those helper functions. However, the description matches the code: for each test function in the after state, if its source differs from before it's added to fail_to_pass, else to pass_to_pass."
+      },
+      {
+       "text": "NOTHING here is trusted. Every derived node id is a CLAIM that :func:`verify_before_state` then tries to refute by running it on the base; a node id this function gets wrong (a test nested in a class, say, whose real node id carries the class) comes back ``missing`` and takes the task down with it.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The reference to `verify_before_state` is outside this chunk; the function itself does not verify node ids. The claim about node ids being refuted is uncheckable."
+      },
+      {
+       "text": "Returns ``None`` when the commit changed no test file -- a real and common case (``efd0ed6`` in this repo's own history is a fix with no test at all), reported by returning nothing rather than by inventing a label.",
+       "where": "docstring of derive_task_from_commit",
+       "verdict": "kept",
+       "why": "The function checks `if not f2p: return None` after processing changed files, and returns None if no fail_to_pass candidates are found."
+      },
+      {
+       "text": "THE LISTS ARE MEASURED, NEVER CLAIMED. :func:`derive_task_from_commit` proposes node ids off the commit's diff; every one of them is a guess, and this function's whole job is to try to refute each guess by running it twice in one disposable worktree: base + test overlay -> the BEFORE statuses; base + test overlay + reference fix -> the AFTER statuses",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function runs `runner` twice: once before applying the patch (before_run) and once after (after_run), using the same worktree and nodes."
+      },
+      {
+       "text": "Everything else is DROPPED WITH ITS REASON RECORDED on the task (``dropped_candidates``) -- never silently",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function builds a `dropped` dict with reasons and stores it in `diagnostics[\"dropped\"]` and later in `task[\"dropped_candidates\"]`."
+      },
+      {
+       "text": "A task with no surviving FAIL_TO_PASS node is NOT admitted -- ``(None, diagnostics)`` with the reason.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function checks `if not f2p: return None, diagnostics` with a reason string."
+      },
+      {
+       "text": "IT FAILS CLOSED ON AN UNVERIFIED TASK, and that is the point. The attempt's worktree already HAS the candidate's change in it by the time a gate runs, so the before-state cannot be measured there -- it has to have been measured earlier, against this exact base revision. A task with no verified before-state receipt for ``ctx.base_revision`` is REFUSED (``passed=False``) rather than evaluated",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The gate function `_gate` is defined but its logic for checking before-state is not shown in this chunk; it only sets up argv and verdict helper. The actual verification is not present."
+      },
+      {
+       "text": "IT ALSO REFUSES A SELECTION THAT MOVED. The receipt records the digest of the selection it was measured under; this recomputes that digest from the task as presented and refuses on any mismatch.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk computes or compares digests; the gate function is incomplete here."
+      },
+      {
+       "text": "What this gate adds over ``spine.attempt.pytest_gate``: pytest_gate asks \"did the suite exit 0\", which a candidate satisfies by changing nothing. This asks \"did the previously-RED tests go GREEN, and did the previously-GREEN ones stay green\" -- a question a no-op change cannot pass.",
+       "where": "docstring of correctness_gate",
+       "verdict": "uncheckable",
+       "why": "The gate function is only partially defined; the actual logic to check test statuses is not shown in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function `_test_functions` uses `ast.get_source_segment` which may return `None` for certain AST nodes (e.g., if the source is not available). The code does not handle that case; it assigns `ast.dump(node)` as fallback.",
+       "where": "line 1421-1423",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In `derive_task_from_commit`, the variable `after_units` is checked for emptiness, but `before_units` may be empty (when file is new). The logic still proceeds to compare sources.",
+       "where": "line 1450-1456",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In `seed_task_from_commit`, the `runner` is called with `repo_root=str(repo_root)`, but inside `run_node_ids` the parameter might expect `repo_root` differently. This is a potential type mismatch.",
+       "where": "line 1482",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7afac0ce5c0dbf3fc89a7b9149bc5bdbb34aa64df739568e75abef3c0d637cc8",
+    "objective_chars": 18412,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [6/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 1401
+ }
+}

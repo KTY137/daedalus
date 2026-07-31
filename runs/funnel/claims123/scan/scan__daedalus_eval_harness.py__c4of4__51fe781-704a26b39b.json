@@ -1,0 +1,195 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c4of4__51fe781",
+ "key": "scan__daedalus_eval_harness.py__c4of4__51fe781-704a26b39b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed run_gate docstring claims against code in chunk 4 of harness.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "4 of 4",
+     "purpose": "Define run_gate function with advisory regression ratchet logic.",
+     "symbols": [
+      {
+       "name": "run_gate",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads baseline.json, runs tier1, compares recall per task, returns dict with pass/fail and details."
+      }
+     ],
+     "claims": [
+      {
+       "text": "ADVISORY regression ratchet. Replays ``tasks`` (default TASKS) against a stored baseline.json and flags any PRIMARY-tier task whose recall DECREASED.",
+       "where": "docstring line 841-843",
+       "verdict": "KEPT",
+       "why": "Code at line 869 iterates over result['per_task'], compares current recall to baseline recall for PRIMARY-tier tasks (line 889-890), and collects regressions when cur_recall < base_recall (line 894-898). Default tasks via all_tasks() at line 870."
+      },
+      {
+       "text": "Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves",
+       "where": "docstring line 844-846",
+       "verdict": "KEPT",
+       "why": "Code loops over each task individually (line 876-903), comparing each task's recall to its own baseline. No averaging or aggregation of recall values."
+      },
+      {
+       "text": "Workflow before shipping a slice-heuristic change: python -m daedalus.eval --gate",
+       "where": "docstring line 848",
+       "verdict": "UNCHECKABLE",
+       "why": "CLI interface is not in this chunk; cannot verify that --gate invokes run_gate."
+      },
+      {
+       "text": "Expect PASS. A FAIL means either a real regression (fix the slicer) or an intentional, reviewed label change -- in which case update the baseline EXPLICITLY (never automatically): python -m daedalus.eval --update-baseline",
+       "where": "docstring line 849-852",
+       "verdict": "UNCHECKABLE",
+       "why": "CLI behavior and update-baseline command are outside this chunk."
+      },
+      {
+       "text": "GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action.",
+       "where": "docstring line 854-857",
+       "verdict": "UNCHECKABLE",
+       "why": "No evidence of CI or autonomous wiring in this chunk. The 'advisory' flag is set to True at line 907, but enforcement depends on caller."
+      },
+      {
+       "text": "ERRORED tasks (see ``run_tier1``) have no recall to compare and are SPLIT by tier, not folded into ``regressions``: * PRIMARY tier -- FAILS the gate loudly (``errored_primary``, named in the rendered report). * QUARANTINE tier -- reported only (``errored_quarantine``), never fails the gate.",
+       "where": "docstring line 859-865",
+       "verdict": "KEPT",
+       "why": "Code at line 879-884: if 'error' in t, classifies by _is_primary_tier into errored_primary or errored_quarantine. These are not added to regressions. At line 906, passed requires len(errored_primary)==0, so PRIMARY errors cause failure; QUARANTINE errors do not affect passed."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file -- lane A1) are likewise SPLIT OUT, not folded into ``regressions``: a task that TRANSITIONS to focus-withheld this run has no ``recall`` to compare ... Reported in its own ``focus_withheld`` section, regardless of tier, and never fails the gate.",
+       "where": "docstring line 867-873",
+       "verdict": "KEPT",
+       "why": "Code at line 885-887: if t.get('focus_withheld'), appends to focus_withheld list and continues, skipping regression check. At line 906, passed only checks regressions and errored_primary; focus_withheld does not affect passed."
+      },
+      {
+       "text": "tasks = all_tasks() if tasks is None else tasks",
+       "where": "line 870",
+       "verdict": "KEPT",
+       "why": "Exact code at line 870: tasks = all_tasks() if tasks is None else tasks."
+      },
+      {
+       "text": "p = baseline_path or DEFAULT_BASELINE_PATH",
+       "where": "line 871",
+       "verdict": "KEPT",
+       "why": "Exact code at line 871: p = baseline_path or DEFAULT_BASELINE_PATH."
+      },
+      {
+       "text": "baseline = load_baseline(p)",
+       "where": "line 872",
+       "verdict": "KEPT",
+       "why": "Exact code at line 872: baseline = load_baseline(p)."
+      },
+      {
+       "text": "baseline_tasks = baseline.get(\"tasks\", {})",
+       "where": "line 873",
+       "verdict": "KEPT",
+       "why": "Exact code at line 873: baseline_tasks = baseline.get(\"tasks\", {})."
+      },
+      {
+       "text": "result = run_tier1(tasks)",
+       "where": "line 875",
+       "verdict": "KEPT",
+       "why": "Exact code at line 875: result = run_tier1(tasks)."
+      },
+      {
+       "text": "for t in result[\"per_task\"]:",
+       "where": "line 876",
+       "verdict": "KEPT",
+       "why": "Exact code at line 876: for t in result[\"per_task\"]:."
+      },
+      {
+       "text": "if \"error\" in t: row = {\"id\": t[\"id\"], \"target\": t.get(\"target\"), \"error\": t[\"error\"]}; if _is_primary_tier(t[\"label_tier\"]): errored_primary.append(row) else: errored_quarantine.append(row); continue",
+       "where": "lines 879-884",
+       "verdict": "KEPT",
+       "why": "Code matches exactly: lines 879-884."
+      },
+      {
+       "text": "if t.get(\"focus_withheld\"): focus_withheld.append({\"id\": t[\"id\"], \"target\": t.get(\"target\")}); continue",
+       "where": "lines 885-887",
+       "verdict": "KEPT",
+       "why": "Code matches exactly: lines 885-887."
+      },
+      {
+       "text": "if not _is_primary_tier(t[\"label_tier\"]): continue",
+       "where": "line 889",
+       "verdict": "KEPT",
+       "why": "Code matches exactly: line 889."
+      },
+      {
+       "text": "base = baseline_tasks.get(t[\"id\"]); if base is None: new_tasks.append(t[\"id\"]); continue",
+       "where": "lines 890-892",
+       "verdict": "KEPT",
+       "why": "Code matches exactly: lines 890-892."
+      },
+      {
+       "text": "checked.append(t[\"id\"]); base_recall = base[\"recall\"]; cur_recall = t[\"recall\"]; if cur_recall < base_recall: regressions.append({...}) elif cur_recall > base_recall: improved.append({...})",
+       "where": "lines 893-902",
+       "verdict": "KEPT",
+       "why": "Code matches exactly: lines 893-902."
+      },
+      {
+       "text": "missing_tasks = sorted(set(baseline_tasks) - current_ids)",
+       "where": "line 904",
+       "verdict": "KEPT",
+       "why": "Exact code at line 904: missing_tasks = sorted(set(baseline_tasks) - current_ids)."
+      },
+      {
+       "text": "return { \"passed\": len(regressions) == 0 and len(errored_primary) == 0, \"advisory\": True, ... }",
+       "where": "lines 906-916",
+       "verdict": "KEPT",
+       "why": "Return dict matches exactly: passed condition, advisory True, all keys present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring claims run_gate is 'ADVISORY ONLY' and 'must never be wired to block an autonomous action', but the code itself does not enforce this; it returns an 'advisory' flag but the caller could ignore it and block.",
+       "where": "docstring lines 854-857, function return line 907",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring references 'rendered report' for errored_primary but the function only returns a dict; rendering is outside this chunk.",
+       "where": "docstring line 861",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "333ba03e693b8544cff72a659e258d0214b87ceb9a5808c573cc61a096f69c96",
+    "objective_chars": 8748,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [4/4]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/harness.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

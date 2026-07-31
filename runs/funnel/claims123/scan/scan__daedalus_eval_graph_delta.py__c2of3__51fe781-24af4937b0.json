@@ -1,0 +1,239 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c2of3__51fe781",
+ "key": "scan__daedalus_eval_graph_delta.py__c2of3__51fe781-24af4937b0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3 of graph_delta.py: implements _structure_by_function, _structure_keys, _units_and_refs, _type_edge_keys, measure, run, render, main, held_out. Measures mutation impact across AST, references, literals, structure, types, and data.literals layers.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_structure_by_function | high | Recursion depth guard at 24 may miss deeper structure; also the claim that it records only node class (not Name/Constant) is correct in code but depth limit could truncate.",
+     "_units_and_refs | medium | Docstring says 'per-unit identifier references \u2014 the name-based call view, one file wide' but code only extracts refs from units; no cross-file resolution is indeed omitted. Uncheckable if refs are actually name-based calls.",
+     "_type_edge_keys | medium | Degrades to empty set on AttributeError or SyntaxError; docstring says 'degradation is reported, never silently treated as nothing changed' but code returns empty set silently. BROKEN claim.",
+     "measure | low | LEAKY arm includes comments intentionally; docstring says 'gap between the two arms IS the measured size of the marker artefact' \u2013 claim is kept.",
+     "measure | medium | If err_b or err_a set, returns early with skipped_reason but still appends the empty LayerDelta for 'code.refs.ast'? Actually code appends LayerDelta only after the if block, so if error occurs, the clean arm LayerDelta is not appended. That matches docstring? Docstring says 'report what moved' \u2013 if error, it's skipped. OK.",
+     "run | low | Skipped mutants are not counted as misses or passes \u2013 code does exactly that.",
+     "main | high | Comment claims 'specificity, commit_shas and measure_commit are defined BELOW the if __name__ block and this function is defined above them, so no committed command could reach the specificity arm at all.' But main is defined in this chunk; the if __name__ block is not shown. The comment references a fact outside this chunk. UNCHECKABLE.",
+     "main | high | The --specificity arm imports from . import graph_delta as _self and calls _self.specificity \u2013 this is a late-binding workaround. The comment claims that without this import the specificity arm was unreachable. Kept based on code shown.",
+     "held_out | medium | Docstring claims 'Scored on the CLEAN arm only. The three layers are applied...' but held_out function body is truncated; cannot verify. UNCHECKABLE."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/graph_delta.py",
+     "chunk": "2 of 3",
+     "purpose": "Implements layer extraction functions (AST refs, literals, structure, type edges), the measure function that applies mutations in memory and records deltas, the run function that aggregates results, the render function for text output, the main CLI entry point, and the held_out function stub.",
+     "symbols": [
+      {
+       "name": "_structure_by_function",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses Python source text, walks AST to count non-Name/Constant node types per function, returns dict of Counter per function name. Depth-limited to 24."
+      },
+      {
+       "name": "_structure_keys",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts _structure_by_function output into a set of keys like 'fn:shape#i'."
+      },
+      {
+       "name": "_units_and_refs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts units and identifier references from a module source. Uses parse_mod.extract_units and graph_mod.identifiers."
+      },
+      {
+       "name": "_type_edge_keys",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts type-layer edges as keys from Python type facts. Returns empty set on AttributeError or SyntaxError."
+      },
+      {
+       "name": "measure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Applies one mutation in memory to a file and records deltas across multiple layers: leaky refs, AST refs, literals, structure, types, data.literals. Returns DeltaResult."
+      },
+      {
+       "name": "run",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Loads mutations, measures each, aggregates results into a dict with version, counts, skipped, detected, missed, by_defect_class, results."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Formats the run result dict into a human-readable string table."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "CLI entry point: handles --held-out, --specificity, and default run. Writes JSON output to runs/eval/ directory."
+      },
+      {
+       "name": "held_out",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Stub function that generates a mechanically generated corpus and evaluates detection rate per operator. Body not fully shown."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Recording only the node class is what keeps the three signals independent.",
+       "where": "_structure_by_function docstring",
+       "verdict": "kept",
+       "why": "Code explicitly filters out ast.Name, ast.Constant, and their Load/Store/Del variants, recording only the type(child).__name__."
+      },
+      {
+       "text": "malformed/adversarial guard (depth > 24)",
+       "where": "_structure_by_function, line 291",
+       "verdict": "kept",
+       "why": "Code has `if depth > 24: return` inside walk()."
+      },
+      {
+       "text": "Names and constants are the OTHER layers' business.",
+       "where": "_structure_by_function comment",
+       "verdict": "kept",
+       "why": "Code skips ast.Name, ast.Constant, ast.Load, ast.Store, ast.Del."
+      },
+      {
+       "text": "Whole-repo resolution is deliberately not used: the question is whether the graph MOVES, and a single file answers that far more cheaply than two index builds. A cross-file consequence would only ADD movement, so measuring one file is the conservative direction.",
+       "where": "_units_and_refs docstring",
+       "verdict": "kept",
+       "why": "The function only processes the single file passed as `text`; no cross-file resolution is performed."
+      },
+      {
+       "text": "Degrades to an empty set for a language with no type vocabulary \u2014 which is reported, never silently treated as 'nothing changed'.",
+       "where": "_type_edge_keys docstring",
+       "verdict": "broken",
+       "why": "Lines 336-339: on AttributeError or SyntaxError, the function returns an empty set silently. There is no reporting mechanism (e.g., logging or adding to a separate list). The claim says 'reported', but the code does not report the degradation."
+      },
+      {
+       "text": "Apply one mutation IN MEMORY and report what moved. Nothing is written.",
+       "where": "measure docstring",
+       "verdict": "kept",
+       "why": "The function reads the file, performs string replacement, computes deltas, and returns a DeltaResult without writing any file."
+      },
+      {
+       "text": "The corpus is pinned to a revision; a drifted anchor is a real finding about the corpus, not a licence to fuzzy-match into place.",
+       "where": "measure comment",
+       "verdict": "kept",
+       "why": "Code checks `if mutation.find not in before:` and sets skipped_reason accordingly; does not attempt fuzzy matching."
+      },
+      {
+       "text": "LEAKY arm: raw-source identifiers, comments included. Kept on purpose -- the gap between the two arms IS the measured size of the marker artefact.",
+       "where": "measure comment",
+       "verdict": "kept",
+       "why": "The leaky arm uses _units_and_refs which operates on raw source text, including comments. The clean arm uses _ast_refs which parses AST and thus excludes comments. The gap between them is recorded as separate layers."
+      },
+      {
+       "text": "CLEAN arm: AST identifiers. Comments are not tokens here.",
+       "where": "measure comment",
+       "verdict": "kept",
+       "why": "Clean arm uses _ast_refs which parses AST; AST does not contain comments."
+      },
+      {
+       "text": "Skipped mutants are NOT counted as misses and NOT counted as passes. An anchor that no longer matches means the corpus drifted; folding that into either column would turn a bookkeeping problem into a result.",
+       "where": "run comment",
+       "verdict": "kept",
+       "why": "In `run`, `applied` list is filtered to only those with `r.applied` True. `detected` and `missed` are derived only from `applied`. Skipped mutants are collected separately in the `skipped` key."
+      },
+      {
+       "text": "MEASURED 2026-07-30: `specificity`, `commit_shas` and `measure_commit` are defined BELOW the `if __name__` block and this function is defined above them, so no committed command could reach the specificity arm at all.",
+       "where": "main docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the `if __name__` block or the definitions of specificity, commit_shas, measure_commit. The claim refers to code outside this chunk."
+      },
+      {
+       "text": "The published false-alarm figures (0.9% refs, 0.7% structure) were produced by a throwaway script during a session and could not be regenerated by anyone afterwards -- a measurement without a command is a measurement without provenance, which this repository treats as no measurement.",
+       "where": "main docstring",
+       "verdict": "kept",
+       "why": "The code in main does not produce those figures; it only runs the measurement and writes results. The comment is a historical note consistent with the code's behavior."
+      },
+      {
+       "text": "Held out in the meaningful sense: :mod:`daedalus.eval.mutate` builds the corpus from the tree by rule, with no knowledge of what the scoring layers look at, so nothing here was tuned against these specific mutants.",
+       "where": "held_out docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the body of held_out or the generate function from daedalus.eval.mutate. Cannot verify that the corpus is built without knowledge of scoring layers."
+      },
+      {
+       "text": "Scored on the CLEAN arm only. The three layers are applied to a function's source before and after mutation, and a mutant counts as detected if any of them moves.",
+       "where": "held_out docstring",
+       "verdict": "uncheckable",
+       "why": "The held_out function body is truncated; the chunk does not show the scoring logic. Cannot verify that only CLEAN arm is used or that three layers are applied."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_type_edge_keys silently returns empty set on error, contradicting docstring claim that degradation is 'reported'.",
+       "where": "lines 336-339",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "main docstring references specificity/commit_shas/measure_commit being defined after if __name__ block, but that block is not in this chunk.",
+       "where": "main docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "held_out docstring makes claims about scoring on CLEAN arm and three layers, but function body is not shown.",
+       "where": "held_out docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f7098e4482d5860a7d8f42553a2f8f7374d46c7ff13a479615e507b6ce5cd451",
+    "objective_chars": 16086,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [2/3]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

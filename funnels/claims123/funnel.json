@@ -1,0 +1,66 @@
+{
+  "name": "claims123",
+  "description": "123 agents over daedalus/ asking one question: does each docstring and comment claim hold against the code directly beneath it",
+  "_size": "Exactly 123 units by construction: scan capped at 100 with --limit 100, then 15 + 6 + 2 buckets. Without the cap the scan tier is one unit per chunk of every tracked module (~250) and the run would not be the size that was asked for.",
+  "_why_this_target": "Three docstring-versus-code defects were found BY HAND in this repository on 2026-07-30, and they are the calibration for this run: providers/base.py promised handoff.suggestions while writing handoff.suggested_files seven lines below; fallback.py said it decides 'when Claude is missing or blocked' while its first branch handles Claude present and succeeding; eval/correctness.py documented a parser that reads a pytest verdict, and it returned not_run for a test pytest had just PASSED. A swarm that finds none of that class found nothing. All three are FIXED at HEAD, so they will not appear -- what should appear is the rest of the same class.",
+  "_braces": "Every literal brace in `intro` and `task` is doubled. Both strings go through str.format, so a single { is read as a field name -- an earlier draft of this file put a JSON example in `task` and the run died with KeyError('claim') before spending anything.",
+  "_no_example_key": "There is no `example` key in this schema; only intro, task and fence reach the model. The populated worked example therefore lives INSIDE `task`. It is populated on purpose: the default report template ends its example with an empty list, and 692 of 736 answers in the 2026-07-30 run copied that exact shape.",
+  "_lane_note": "Advisory only. Model output here is a hypothesis generator, not evidence under section 4 of the master plan, and it promotes nothing. Every finding must carry a named check a human can run.",
+  "tiers": [
+    {
+      "name": "scan",
+      "system": "../codebase/scan.md",
+      "source": {
+        "kind": "code_chunks",
+        "chunk_lines": 280,
+        "glob": "daedalus/**/*.py"
+      },
+      "fence": "CODE",
+      "intro": "FILE: {module}  (chunk {index} of {total}, starting at line {first_line})\n\nMuch of this codebase is machinery that ENFORCES a policy -- guards, gates, contracts, hooks, ledgers, inventories. For that kind of code the gap between what a docstring promises and what the code does is not a documentation defect, it is the failure itself, because the docstring is what every reader downstream believes and acts on.",
+      "task": "THINK BEFORE YOU ANSWER. Work through the code line by line before writing anything. This is a multi-step comparison and it cannot be done in one pass.\n\nEnumerate EVERY checkable claim in the docstrings and comments above and give each one a verdict against THIS code. One row per claim. A chunk with fourteen claims produces fourteen rows -- the length of your answer is a function of the code in front of you, never of how much you found. There is no empty answer here: a chunk with claims and no defects still produces one KEPT row per claim.\n\nBROKEN REQUIRES A CITED LINE NUMBER from this chunk. A BROKEN row without one is discarded, so if you cannot point at the line the honest verdict is UNCHECKABLE. UNCHECKABLE is a correct and useful answer -- it means the claim reaches beyond this chunk -- and it is not a failure to produce one.\n\nAlso give a row to each of these whenever this chunk can answer it:\n- a check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches;\n- a refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids;\n- a rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one;\n- a value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.\n\nPut every row in handoff.claims. Cite real paths only: a reference to a file that does not exist is worse than no reference.\n\nShape, and this is what a full answer looks like -- note that it is not empty:\n\n{{\"handoff\": {{\"claims\": [\n  {{\"claim\": \"NEVER RAISES\", \"verdict\": \"BROKEN\", \"line\": 412, \"why\": \"catches (ValueError, OSError) only; task['repo'] on line 418 is an unguarded subscript and raises KeyError\"}},\n  {{\"claim\": \"atomic publish\", \"verdict\": \"BROKEN\", \"line\": 233, \"why\": \"bare os.replace with no win32 retry, and the docstring above names the concurrent reader that breaks it\"}},\n  {{\"claim\": \"returns the caller's policy unchanged\", \"verdict\": \"KEPT\", \"line\": 96, \"why\": \"the dict is copied before mutation; the caller's object is never touched\"}},\n  {{\"claim\": \"a project may extend but never weaken the baseline\", \"verdict\": \"BROKEN\", \"line\": 140, \"why\": \"allow_exceptions is project-only and is consulted BEFORE the deny list\"}},\n  {{\"claim\": \"the evaluator runs outside the candidate\", \"verdict\": \"UNCHECKABLE\", \"line\": 0, \"why\": \"the runner is constructed in another module; this chunk cannot observe where it resolves\"}}\n]}}}}"
+    },
+    {
+      "name": "research",
+      "system": "../codebase/research.md",
+      "source": {
+        "kind": "tier",
+        "from": "scan",
+        "buckets": 15,
+        "field": "claims",
+        "drop_where": {"verdict": ["KEPT"]}
+      },
+      "fence": "CLAIM ROWS (json)",
+      "intro": "You hold {inputs} claim rows harvested from separate chunks of one agent kernel. The KEPT rows were dropped before you saw these: what remains is BROKEN and UNCHECKABLE only.",
+      "task": "THINK BEFORE YOU ANSWER.\n\nFind what SPANS these. A broken promise inside one file is the scan tier's job and is already recorded. Yours is the pattern that only becomes visible holding several files at once: a contract declared in one module and enforced differently in another; a guarantee whose only test lives in a file that cannot observe it; two modules meaning different things by the same word; a check whose bypass lives elsewhere; the same promise copied into four modules where only one of them kept it.\n\nThat last shape is one this repository has already measured: guards written as per-provider copies, so when one improved the others silently fell behind. Look for it specifically.\n\nState each cross-file pattern as a hypothesis WITH A REFUTATION CONDITION -- name the observation that would kill it. A hypothesis nobody can kill is not a finding. Every path and symbol in evidence must be one you actually saw above; an invented reference cannot be checked and will be discarded.\n\nPut them in handoff.hypotheses, one object per pattern:\n\n{{\"handoff\": {{\"hypotheses\": [\n  {{\"pattern\": \"four publishers claim atomic publish; only one implements the win32 replace retry\", \"evidence\": [\"daedalus/atomic.py:41\", \"daedalus/loop.py:233\"], \"refuted_if\": \"the three others never run on win32, or a shared helper already retries on their behalf\"}},\n  {{\"pattern\": \"two modules disagree on what 'blocked' means -- one treats it as a terminal refusal, the other counts it as a completed unit\", \"evidence\": [\"daedalus/lanes/fanout.py:88\", \"tools/audit_swarm.py:212\"], \"refuted_if\": \"the second reads a different field than the first writes\"}}\n]}}}}"
+    },
+    {
+      "name": "review",
+      "system": "../codebase/review.md",
+      "source": {
+        "kind": "tier",
+        "from": "research",
+        "buckets": 6,
+        "field": "hypotheses"
+      },
+      "attach_evidence": true,
+      "fence": "HYPOTHESES, WITH THE REAL SOURCE THEY CITE",
+      "intro": "Each hypothesis below arrives with the ACTUAL source of every reference it cited. Where a citation could not be resolved you will see NOT PRESENT IN FILE or a missing excerpt -- that is a refutation on its own, and the strongest kind, because it means the finding was reconstructed from a memory of what a project like this ought to contain rather than read.",
+      "task": "THINK BEFORE YOU ANSWER, and read the attached source before judging any claim about it.\n\nYou are measured by the bad hypotheses you STOP, not by the ones you pass through. A reviewer who confirms everything has reviewed nothing; in a healthy batch roughly half are refuted.\n\nOne verdict per hypothesis: REFUTED, NARROWED, CONFIRMED or NEEDS_EVIDENCE, each with the reason and the line you read to reach it. Judge the CODE, not the description of the code -- where they disagree the code wins and the hypothesis is at best NARROWED. CONFIRMED requires that you found the defect yourself in the attached source; agreeing with a plausible description is not confirmation.\n\nEvery surviving finding must carry a check: one command or one specific observation a human can run to settle it. A finding with no runnable check is NEEDS_EVIDENCE however convincing it reads.\n\nPut verdicts in handoff.verdicts:\n\n{{\"handoff\": {{\"verdicts\": [\n  {{\"hypothesis\": \"four publishers claim atomic publish\", \"verdict\": \"CONFIRMED\", \"line\": 233, \"why\": \"read the attached source: bare os.replace, no retry, and the docstring above it names the concurrent reader that breaks it\", \"check\": \"grep -n 'os.replace' daedalus/loop.py and compare against killswitch._atomic_write\"}},\n  {{\"hypothesis\": \"the picker ignores its own staleness gate\", \"verdict\": \"REFUTED\", \"line\": 0, \"why\": \"the cited path did not resolve to any file; the module does not exist\", \"check\": \"ls daedalus/eval/picker.py\"}},\n  {{\"hypothesis\": \"the egress floor can be weakened per project\", \"verdict\": \"NARROWED\", \"line\": 140, \"why\": \"true for allow_exceptions only; the unconditional secret floor still catches credential shapes, so this narrows the gate rather than removing it\", \"check\": \"call load_policy with a project allow_exceptions entry and assert the secret floor still refuses\"}}\n]}}}}"
+    },
+    {
+      "name": "plan",
+      "system": "../codebase/plan.md",
+      "source": {
+        "kind": "tier",
+        "from": "review",
+        "buckets": 2,
+        "field": "verdicts",
+        "drop_where": {"verdict": ["REFUTED"]}
+      },
+      "attach_evidence": true,
+      "fence": "SURVIVING VERDICTS, WITH SOURCE",
+      "intro": "Refuted findings were dropped before you saw these. Everything here survived a reviewer whose whole job was to kill it.",
+      "task": "THINK BEFORE YOU ANSWER.\n\nPATHS ARE NOT NEGOTIABLE. Copy a path ONLY if it appears verbatim in the input above. If you need to refer to code whose path is not in the input, write UNKNOWN. UNKNOWN is the correct answer and it costs nothing; an invented path only looks actionable, and in the last measured run of this instrument 75 of 88 paths produced by this tier did not exist.\n\nGroup the surviving findings into an ordered work list: what breaks today, the smallest change that would fix it, the named check that proves the fix, and what it costs to be wrong. Order by what the evidence supports, not by how alarming it sounds.\n\nPut the list in handoff.work:\n\n{{\"handoff\": {{\"work\": [\n  {{\"what_breaks\": \"a concurrent reader can observe a half-written ledger on win32\", \"path\": \"daedalus/loop.py\", \"smallest_fix\": \"call the shared atomic writer instead of os.replace\", \"check\": \"the existing killswitch retry test, pointed at this publisher\", \"cost_if_wrong\": \"low: a call swap, and the test already exists\"}},\n  {{\"what_breaks\": \"UNKNOWN -- the verdict cited no path present in this input\", \"path\": \"UNKNOWN\", \"smallest_fix\": \"UNKNOWN\", \"check\": \"re-run the review tier with attach_evidence so the citation resolves\", \"cost_if_wrong\": \"unknown\"}}\n]}}}}"
+    }
+  ]
+}

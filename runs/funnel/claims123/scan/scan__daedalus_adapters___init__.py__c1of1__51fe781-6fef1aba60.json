@@ -1,0 +1,231 @@
+{
+ "task_id": "scan__daedalus_adapters___init__.py__c1of1__51fe781",
+ "key": "scan__daedalus_adapters___init__.py__c1of1__51fe781-6fef1aba60",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Adapter __init__.py exports public symbols and references docstring usage examples; all claims are uncheckable in this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/adapters/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package init exporting adapter interfaces and runtime profiles.",
+     "symbols": [
+      {
+       "name": "AgentAdapter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .base"
+      },
+      {
+       "name": "AgentCapabilities",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .events"
+      },
+      {
+       "name": "AgentEvent",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .events"
+      },
+      {
+       "name": "SessionEnded",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .events"
+      },
+      {
+       "name": "TransportRecord",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .events"
+      },
+      {
+       "name": "event_to_transport_record",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .events"
+      },
+      {
+       "name": "TransportSink",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .transport"
+      },
+      {
+       "name": "CompositeTransportSink",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .transport"
+      },
+      {
+       "name": "InMemoryTransportSink",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .transport"
+      },
+      {
+       "name": "JsonlTransportSink",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .transport"
+      },
+      {
+       "name": "SubprocessAdapter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .subprocess_adapter"
+      },
+      {
+       "name": "RuntimeConfig",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .subprocess_adapter"
+      },
+      {
+       "name": "RUNTIME_PROFILES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-exported from .subprocess_adapter"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Usage: from daedalus.adapters import SubprocessAdapter, RUNTIME_PROFILES",
+       "where": "docstring line 5",
+       "verdict": "kept",
+       "why": "Both symbols are exported in __all__ and imported from .subprocess_adapter."
+      },
+      {
+       "text": "adapter = SubprocessAdapter.claude(repo_root=\"/my/repo\")",
+       "where": "docstring line 7",
+       "verdict": "uncheckable",
+       "why": "The .claude method is not defined in this chunk; it is referenced from SubprocessAdapter which is imported, but the method itself is not visible here."
+      },
+      {
+       "text": "adapter = SubprocessAdapter.codex(repo_root=\"/my/repo\")",
+       "where": "docstring line 8",
+       "verdict": "uncheckable",
+       "why": "The .codex method is not defined in this chunk; it is referenced from SubprocessAdapter which is imported, but the method itself is not visible here."
+      },
+      {
+       "text": "adapter = SubprocessAdapter.from_name(\"claude\", repo_root=\"/my/repo\")",
+       "where": "docstring line 9",
+       "verdict": "uncheckable",
+       "why": "The .from_name method is not defined in this chunk; it is referenced from SubprocessAdapter which is imported, but the method itself is not visible here."
+      },
+      {
+       "text": "from daedalus.adapters.subprocess_adapter import RuntimeConfig",
+       "where": "docstring line 11",
+       "verdict": "kept",
+       "why": "RuntimeConfig is imported from .subprocess_adapter on line 9 of the code and exported in __all__."
+      },
+      {
+       "text": "adapter = SubprocessAdapter(config=RuntimeConfig(command=\"my-agent\"))",
+       "where": "docstring line 12",
+       "verdict": "uncheckable",
+       "why": "The SubprocessAdapter constructor signature is not defined in this chunk; it is imported from .subprocess_adapter, but its parameters are not visible here."
+      },
+      {
+       "text": "from .base import AgentAdapter",
+       "where": "code line 5",
+       "verdict": "kept",
+       "why": "Line 5 exactly matches the import statement."
+      },
+      {
+       "text": "from .events import AgentCapabilities, AgentEvent, SessionEnded, TransportRecord, event_to_transport_record",
+       "where": "code lines 6-8",
+       "verdict": "kept",
+       "why": "The import on lines 6-8 matches the listed symbols."
+      },
+      {
+       "text": "from .subprocess_adapter import SubprocessAdapter, RuntimeConfig, RUNTIME_PROFILES",
+       "where": "code line 9",
+       "verdict": "kept",
+       "why": "Line 9 exactly matches the import statement."
+      },
+      {
+       "text": "from .transport import CompositeTransportSink, InMemoryTransportSink, JsonlTransportSink, TransportSink",
+       "where": "code lines 10-13",
+       "verdict": "kept",
+       "why": "Lines 10-13 match the import statement (split across lines)."
+      },
+      {
+       "text": "__all__ includes AgentAdapter, AgentCapabilities, AgentEvent, SessionEnded, TransportRecord, event_to_transport_record, TransportSink, CompositeTransportSink, InMemoryTransportSink, JsonlTransportSink, SubprocessAdapter, RuntimeConfig, RUNTIME_PROFILES",
+       "where": "code lines 15-27",
+       "verdict": "kept",
+       "why": "The __all__ list on lines 15-27 contains exactly those symbols."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Docstring usage examples reference methods and constructors not visible in this chunk.",
+       "where": "docstring lines 7-12",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "16852a1a994d94e7dd99b952f2947fa216a67d3ab1fd8ca20e97124bc82700d2",
+    "objective_chars": 4292,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/adapters/__init__.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/adapters/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

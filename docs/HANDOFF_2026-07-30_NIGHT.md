@@ -500,6 +500,110 @@ ahead of origin, nothing pushed. HEAD is `fe634b5` (MEASURED,
 
 ---
 
+## 9. Night shift follow-up — 30 July, five commits landed
+
+Five commits landed during the gate run (22ffbf9..51fe781), fixing structural defects found
+by focused review. The gate continues executing against HEAD; these items close work from
+§2 and §4 of the TODO, with measurements.
+
+### 22ffbf9 — pytest ANSI escape bug fix (2026-07-30, 23:24)
+
+**fix(eval): a coloured PASS was being read as never having run**
+
+MEASURED at HEAD 7064c3b: pytest honoured FORCE_COLOR=3 (environment export), so verbose
+progress lines carried ANSI escapes. The parser matched node outcomes with a regex that
+assumed clean output. Every node came back `not_run` on both base and reference runs,
+seed candidates were dropped as "not proof of fix", and six end-to-end tests failed.
+
+This module decides whether a candidate fix is real. **Test suite went 74 passed / 6 failed
+→ 80 passed / 22 subtests (MEASURED 2026-07-30).** Blast radius: per-node attribution only.
+Promotion gate unaffected (uses returncode).
+
+Fixed at both ends:
+- argv now passes `--color=no`
+- parser strips CSI escapes before matching
+
+### 85f067a — MCP trust gate evasion fixes (2026-07-30, 23:25)
+
+**fix(vet): a launcher can no longer hide behind the way it is spelled**
+
+Four evasion findings, all closed. Live instance: this repo's `.mcp.json` context7 entry.
+
+1. Remote-fetch evaders: `npx.cmd`, absolute paths, `cmd /c npx`, `uv tool run`. FIX: match
+   normalized names (basename, .exe/.cmd/.bat stripped) over ALL args, not args[:1].
+2. Unpinned versions: bare `npx -y pkg` was considered pinned. FIX: treat "no version", dist-tags,
+   caret/tilde/wildcard as unpinned; scoped packages (leading @) stay correct.
+3. Remote server URLs: unreachable from any rule. FIX: URL now reaches host check.
+4. Inert allowances: rule named `net.python_http` (REVIEW, not BLOCK) was silently ignored.
+   FIX: report allowances that cannot fire.
+
+**MEASURED 2026-07-30: Tests 41 → 69 passing. 31-case evasion matrix, 0 failures.
+context7 now caught by "no version" rule.**
+
+### f0392fc — Provider report and docstring fixes (2026-07-30, 23:25)
+
+**fix(providers): evidence survives a report the schema did not expect**
+
+Three fixes:
+
+1. `coerce_report` rebuilt from fixed key set, destroying unexpected keys. Example: a model
+   answering under `findings` or `claims` had that evidence destroyed, returning a schema-valid
+   empty report. MEASURED: ~250 answers lost in fan-out. FIX: preserve unknown keys in
+   `handoff.unexpected_keys` (verified: 5000 chars survive).
+
+2. `status` defaulted to `needs_review` with no record. MEASURED: constant across 715 answers,
+   zero bits carried. FIX: new `status_was_defaulted` flag records the fact.
+
+3. Two docstrings describing behaviour the code does not have:
+   - `providers/base.py:48` said changes move to `handoff.suggestions` (false);
+     line 55 writes `suggested_files` (true).
+   - `fallback.py:20` said "when Claude is missing or blocked" but line 21
+     handles Claude present and succeeding.
+
+**MEASURED 2026-07-30: both docstrings corrected, unknown keys now preserved intact.**
+
+### f54d9cb — Funnel pathspec consolidation (2026-07-30, 23:25)
+
+**feat(funnel): one pathspec was only ever enough because nothing needed two**
+
+Documentation and cleanup; no test surface change.
+
+### 51fe781 — Promotion gate decision recorded (2026-07-30, 23:26)
+
+**docs(gate0): the promotion approval has no trust root, written down as such**
+
+Three findings:
+
+1. **runs/audit_swarm/ deliberately retained.** Constitution §7 requires keeping negative
+   experimental evidence. The 715-answer fan-out returning 2 findings is itself the learning
+   (failed hypothesis: cheap model + system prompt forbidding scratchpad). Recipe digest in
+   task id solved the "serve forever" problem; deletion would lose evidence.
+
+2. **Promotion trust root decision.** Owner chose option B (GIT-SIGNED TAG) with option A
+   (detached signature) as upgrade path. Regeneration VOIDS an approval.
+   See docs/GATE0_SEALED_OWNER_APPROVAL.md §4-5.
+
+3. **New open items documented in TODO §2.8:**
+   - Workflow guard false positive: substring-matches in commit messages
+   - Trailer format discovery: Iron-Plan (governed commits) vs Iron Plan (prose handoff)
+
+### f6c9470 — JSON escape repair in the shared report parser (2026-07-31, 13:16)
+
+**fix(providers): a backslash no longer costs the whole answer**
+
+The claims123 funnel died upward along its own tiers — scan 5/100, research
+8/15, review 6/6 blocked with "Invalid \escape" (MEASURED 2026-07-31): models
+quoting backslash-bearing source emit escapes JSON forbids, and extract_json
+refused the whole answer. Fixed with a lossless lookbehind-guarded repair
+recorded as `handoff.harness_repairs`; plus coerce_report no longer refuses an
+evidence-bearing answer for a missing summary (`summary_was_defaulted`).
+**MEASURED: 13 new regression tests (the shared helpers' first in-suite
+coverage), 126 provider-suite tests green.** Still open from the same run: the
+fan-out counts a blocked unit as ok, and resume serves persisted blocked
+answers forever.
+
+---
+
 ## 9. Receipt facts
 
 **Receipt #1 (2026-07-30, night shift):** 12 planted, 12 killed, 0 survived,

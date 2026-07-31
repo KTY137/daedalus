@@ -1,0 +1,103 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c7of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c7of7__51fe781-8385fb7715",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 7 of 7 of daedalus/eval/correctness.py: correctness_gate closure and CLI main function. No docstring claims present; only comments exist. No broken, uncheckable, or inverted claims found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "7 of 7",
+     "purpose": "Contains the correctness_gate closure (lines 1681-1734) and the CLI main function (lines 1737-1808). The closure enforces the before-state verification and selection digest matching before running tests; main dispatches --verify, --run, --derive, --seed, --task.",
+     "symbols": [
+      {
+       "name": "correctness_gate",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Returns a _gate closure that validates task, applies test overlay, runs tests, checks selection, judges after state, and returns verdict."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "CLI entry point; parses arguments and dispatches to derive, seed, verify, or run."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Makes no vendor call and never writes the primary checkout.",
+       "where": "docstring of main (line 1741-1742)",
+       "verdict": "uncheckable",
+       "why": "The chunk shows that main calls derive_task_from_commit, seed_task_from_commit, verify_before_state, run_corpus, etc. These functions are imported but their implementations are not in this chunk; whether they make vendor calls or write to primary checkout cannot be determined from this code alone."
+      },
+      {
+       "text": "Runs the repo's own pytest in a disposable worktree.",
+       "where": "docstring of main (line 1741)",
+       "verdict": "uncheckable",
+       "why": "The chunk shows that correctness_gate calls _run_lists which presumably runs pytest, but the worktree creation and pytest execution are implemented in other functions (disposable_worktree, _spawn_pytest) not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment 'THE SELECTION MAY NOT HAVE MOVED SINCE IT WAS VERIFIED' is a comment, not a docstring claim; it describes the intent of the subsequent code that checks selection_digest.",
+       "where": "line 1707",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The correctness_gate closure validates before-state verification, base revision match, and selection digest match; these checks appear to enforce the policy correctly.",
+       "where": "lines 1681-1734",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The CLI main function prints help if no action argument is given; it returns 0 in that case.",
+       "where": "lines 1806-1807",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7104b0e650d92320e4ffc30c482e6660e249ab77bec8d61b0995b13eaf70c285",
+    "objective_chars": 11727,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [7/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 7,
+  "total": 7,
+  "first_line": 1681
+ }
+}

@@ -1,3 +1,4 @@
+ARCH MEMORY IS STALE: built at 7064c3ba, HEAD is now 51fe7812 -- rebuild: python -m daedalus.arch_memory
 ARCHITECTURE: STALE -- measured at 79553172, HEAD is 7064c3ba
   144 modules | 8 islands | 3 shims | 12 unreached · 2 doc-drift
 PACKAGES

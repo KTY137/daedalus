@@ -1,0 +1,193 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c3of6__51fe781",
+ "key": "scan__daedalus_mapping_drift.py__c3of6__51fe781-ccc7782596",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of drift.py: snapshot_freshness, scan, Acceptance, parse_acceptances, DriftItem, DriftReport. All docstring claims verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "3 of 6",
+     "purpose": "Implements snapshot freshness check, scan function, acceptance parsing and drift report data classes.",
+     "symbols": [
+      {
+       "name": "snapshot_freshness",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with fresh, recorded_head, actual_head, reason."
+      },
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Derives architecture state; pure, no writes/clock/network."
+      },
+      {
+       "name": "Acceptance",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass representing a single acceptance entry."
+      },
+      {
+       "name": "parse_acceptances",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses raw list into Acceptance objects; fails closed."
+      },
+      {
+       "name": "DriftItem",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a single drift item."
+      },
+      {
+       "name": "DriftReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for the full drift report."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pure: no writes, no clock, no network.",
+       "where": "scan docstring line 585",
+       "verdict": "kept",
+       "why": "The function only reads inputs and returns data; no I/O or side effects observed in this chunk."
+      },
+      {
+       "text": "``reach_report`` and ``switch_report`` may be injected by a caller that already built them (``daedalus map`` does, and that is the point: the page and the gate are then provably looking at the same analysis, not at two that happen to agree).",
+       "where": "scan docstring line 586-589",
+       "verdict": "kept",
+       "why": "The function checks if each is None and computes only if missing; otherwise uses the injected value."
+      },
+      {
+       "text": "``index`` is only forwarded to reach for its structural cross-check.",
+       "where": "scan docstring line 590",
+       "verdict": "uncheckable",
+       "why": "The index parameter is passed to reach_mod.analyse, but that function is not in this chunk."
+      },
+      {
+       "text": "The state also records WHICH TREE it was derived from (:func:`repo_state`). It belongs here rather than in the writer because it is a property of the scan, and because a state that cannot say what it scanned is the exact hole this module spent a release closing on the hand-written side.",
+       "where": "scan docstring line 592-596",
+       "verdict": "kept",
+       "why": "The state dict includes 'repo_state' key set to repo_state(root, probe_dirty=probe_dirty)."
+      },
+      {
+       "text": "TEST ONLY is a property of an UNREACHED module, not of an island specifically. Scoping it to islands meant a shim or an unknown whose only importer was a test could not be described that way at all.",
+       "where": "scan code line 614-618",
+       "verdict": "kept",
+       "why": "test_only is derived from unreached_facts (which includes islands, unknown, shims) filtering by m.tested_by."
+      },
+      {
+       "text": "Two engines disagreeing about the import graph. reach REPORTS these and refuses to merge them (see reach.analyse); the gate is where a disagreement that persists across a commit becomes somebody's problem.",
+       "where": "scan code line 622-623",
+       "verdict": "uncheckable",
+       "why": "The comment references reach.analyse and the gate; not all of that is visible in this chunk."
+      },
+      {
+       "text": "An absent API key is not a dark feature. The feature it belongs to is documented and merely unconfigured -- ``daedalus doctor`` already reports it, and an architecture gate is a poor place to enumerate which secrets a machine is missing. ``secret`` is the switch engine's own classification, so this is a filter over one answer, not a second opinion about what a switch is.",
+       "where": "scan code line 630-634",
+       "verdict": "kept",
+       "why": "The code explicitly skips switches where sw.kind == 'secret'."
+      },
+      {
+       "text": "A module the scanner could not parse contributes nothing to either engine's answer, which makes it a hole in the map that used to be filled by a bare ``continue``. It is a finding, not a shrug.",
+       "where": "scan code line 648-651",
+       "verdict": "kept",
+       "why": "The code aggregates unparsable modules from both reach_report and switch_report and includes them in the state."
+      },
+      {
+       "text": "The honest total: every module on disk that no entry point reaches, whatever reach called it. It is the number the page has to add up to, and it is what 'islands=7' used to hide.",
+       "where": "scan code line 657-659",
+       "verdict": "kept",
+       "why": "The 'unreached' count is sum of islands, unknown_mods, and shims."
+      },
+      {
+       "text": "Fail closed: anything we cannot fully validate is kept, marked with a ``problem``, and suppresses nothing. A typo in an acceptance must never be the thing that makes an island invisible.",
+       "where": "parse_acceptances docstring line 695-697",
+       "verdict": "kept",
+       "why": "Malformed entries are still added to the output list with a problem string; they are not omitted."
+      },
+      {
+       "text": "``today`` binds the horizon to the CALENDAR. Without it the only rule is ``until - since <= MAX_HORIZON_DAYS``, which a pair of dates in 2999 satisfies while suppressing forever; the cap measured the acceptance against itself and nothing measured it against now. Omitting ``today`` keeps the date-shape and horizon checks and skips only that one, so a caller that genuinely has no clock (``--accept`` validating a candidate before writing it) still gets everything else.",
+       "where": "parse_acceptances docstring line 699-707",
+       "verdict": "kept",
+       "why": "The code checks d_since > today only if today is provided; horizon check is unconditional."
+      },
+      {
+       "text": "Which tree the SNAPSHOT was generated against, versus the one just scanned. Reported, never blocking: a baseline taken one commit ago is not a defect, and a gate that goes red on every commit is a gate people switch off. The consumers that RANK WORK out of these lists are the ones that must fail closed on it -- see :func:`snapshot_freshness`.",
+       "where": "DriftReport docstring line 726-731",
+       "verdict": "kept",
+       "why": "DriftReport has a freshness field; it is not used in blocking logic in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "snapshot_freshness returns fresh:True with actual_head:None when git could not report HEAD, with reason 'failing open'. This means a git error is treated as fresh, which may be overly permissive.",
+       "where": "line 578-581",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In snapshot_freshness, when recorded is not a valid git hex, it returns fresh:False but actual_head is None. This could be misleading as actual_head is None but the reason says 'cannot be checked'.",
+       "where": "line 567-571",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In scan, the docstring claims 'Pure: no writes, no clock, no network' but the function calls repo_state which may probe dirty (write? clock?). The probe_dirty parameter is passed but its implementation is not in this chunk.",
+       "where": "line 585-596",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45882c44ce596359a2c9ee755f1571a5fad38c6c6e252054d5413bbcb296cb02",
+    "objective_chars": 16182,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [3/6]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/drift.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

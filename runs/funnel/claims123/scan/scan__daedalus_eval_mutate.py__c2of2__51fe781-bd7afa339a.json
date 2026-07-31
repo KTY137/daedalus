@@ -1,0 +1,119 @@
+{
+ "task_id": "scan__daedalus_eval_mutate.py__c2of2__51fe781",
+ "key": "scan__daedalus_eval_mutate.py__c2of2__51fe781-bd7afa339a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of 2 of daedalus/eval/mutate.py, lines 281-361. Found 5 checkable claims in docstrings/comments; all verdicts are KEPT or UNCHECKABLE.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "generate.last_rejected | low | The attribute `generate.last_rejected` is set on the function object; if `generate` is called multiple times, previous results are overwritten. This is a design choice but may confuse callers expecting cumulative data. | Check if any caller relies on cumulative behavior or if the overwrite is intentional."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mutate.py",
+     "chunk": "2 of 2",
+     "purpose": "Contains mutation operators and the main `generate` function that produces mutants.",
+     "symbols": [
+      {
+       "name": "OPERATORS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of five operator constants (DROP_CALL, INVERT_CONDITION, WEAKEN_COMPARISON, CHANGE_CONSTANT, DROP_ARGUMENT, EARLY_RETURN). Used in generate."
+      },
+      {
+       "name": "OPERATOR_CLASS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping each operator to a defect class string (e.g., 'guard-removed', 'logic'). Used to assign defect_class in Mutant."
+      },
+      {
+       "name": "generate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Generates up to `count` parseable mutants from Python files in the repository. Deterministic given seed. Returns list of Mutant objects."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Generate ``count`` parseable mutants over real functions. Deterministic.",
+       "where": "docstring of generate",
+       "verdict": "KEPT",
+       "why": "The function uses a seeded random generator (rng = random.Random(seed)), iterates over files in sorted order, shuffles sites deterministically, and parses all mutations with ast.parse to ensure they are parseable."
+      },
+      {
+       "text": "Sites the no-go filters refused BEFORE a mutation was ever attempted. Published for the same reason as ``last_rejected``: a filter whose effect nobody can observe is one refactor away from being a filter nobody calls, which is exactly the state these were found in.",
+       "where": "comment before generate.last_filtered",
+       "verdict": "KEPT",
+       "why": "The variable `generate.last_filtered` is set to a sorted dictionary of filtered reasons. The comment accurately describes its purpose and the reasoning behind publishing it."
+      },
+      {
+       "text": "Undetectable by construction. Keeping it would depress every score measured against this corpus for a reason that is not the detector's fault, which is exactly how a metric starts lying.",
+       "where": "comment inside generate loop",
+       "verdict": "KEPT",
+       "why": "When `trivially_equivalent(original, mutated)` returns True, the mutant is skipped and counted in `rejected['trivially_equivalent']`. The comment explains the rationale for this exclusion."
+      },
+      {
+       "text": "a syntax error is a typo, not a defect",
+       "where": "comment inside generate loop",
+       "verdict": "KEPT",
+       "why": "After mutation, the code attempts `ast.parse(mutated)` and if it raises SyntaxError, the mutant is skipped. The comment aligns with this behavior."
+      },
+      {
+       "text": "MEASURED 2026-07-30: these filters were defined, documented as built, and CALLED FROM NOWHERE. Every one of SKIP_PATH_PARTS, SKIP_FUNCTIONS, _is_display_constant, _looks_like_a_guard, _in_main_block and covered_lines appeared exactly once in this file -- its own definition. The corpus behind the published 75.3% detection figure was therefore minted without any of them, including on __repr__ bodies and log strings, which is precisely what they exist to exclude.",
+       "where": "comment inside generate loop",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim refers to functions and constants defined elsewhere in the file (SKIP_PATH_PARTS, SKIP_FUNCTIONS, _is_display_constant, etc.) and to a published detection figure. This chunk does not contain the definitions of these names nor the corpus generation details needed to verify the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The `generate` function uses `ast.parse` on the original function source to ensure it is parseable, but `_fn_source` already returns a slice of the original text; if the source is malformed, `ast.parse` would raise SyntaxError and the function continues. This is robust.",
+       "where": "line 331-332",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `generate` function sets attributes `last_rejected` and `last_filtered` on the function object itself. This is a side effect that may be unexpected but is documented in comments.",
+       "where": "lines 355-358",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f3f6777f11ffc8fdb8c2910136557b0d98fb2f45d3d6a0ae0b2c7b704c6404ac",
+    "objective_chars": 8936,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mutate.py [2/2]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/mutate.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

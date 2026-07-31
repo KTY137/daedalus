@@ -1,0 +1,254 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c3of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c3of7__51fe781-2a73ef8ab1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of correctness.py: implements run_node_ids, validate_task, disposable_worktree, apply_test_overlay, reference_patch, apply_patch, and Selection dataclass. Checked claims against code in this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "apply_patch | low | Temporary file path is predictable (NamedTemporaryFile with no dir) | Check if tempfile is configured securely",
+     "apply_patch | low | No validation that patch_bytes is a valid git patch before writing to disk | Could be mitigated by git apply's own validation"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "3 of 7",
+     "purpose": "Implements core evaluation functions: running pytest, validating tasks, managing worktrees, applying overlays and patches, and defining the Selection dataclass.",
+     "symbols": [
+      {
+       "name": "run_node_ids",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs pytest for given node ids, with solo re-run for unattributed nodes."
+      },
+      {
+       "name": "TestRunner",
+       "kind": "constant",
+       "effects": [],
+       "note": "Type alias for the injectable test runner."
+      },
+      {
+       "name": "REQUIRED_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of required field names for a correctness task dict."
+      },
+      {
+       "name": "validate_task",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates a task dict and returns list of problems."
+      },
+      {
+       "name": "is_correctness_task",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if a dict is a correctness task by delegating to daedalus.eval.tasks."
+      },
+      {
+       "name": "disposable_worktree",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Context manager that creates and cleans up a disposable git worktree."
+      },
+      {
+       "name": "apply_test_overlay",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes test files from a given revision into the worktree."
+      },
+      {
+       "name": "reference_patch",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates a git diff patch between base and reference revisions, excluding specified paths."
+      },
+      {
+       "name": "apply_patch",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Applies a patch to the worktree using git apply."
+      },
+      {
+       "name": "Selection",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing the measurement selection with digest."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Batch first (one interpreter start, ~2.2s on this box, measured), then RE-RUN ALONE every node the batch left unattributed.",
+       "where": "run_node_ids docstring",
+       "verdict": "kept",
+       "why": "Code at line ~588-610 shows batch run, then loop over unattributed nodes for solo re-run."
+      },
+      {
+       "text": "That fallback is not belt-and-braces, it is required: measured on this box, a single node id pytest cannot collect aborts the WHOLE invocation with exit 4 and nothing else runs -- even with --continue-on-collection-errors.",
+       "where": "run_node_ids docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about pytest behavior is not verifiable from this code; the code implements the fallback as described."
+      },
+      {
+       "text": "worktree is refused if it is the primary checkout or inside it.",
+       "where": "run_node_ids docstring",
+       "verdict": "kept",
+       "why": "Line ~590: cwd = _refuse_primary_checkout(worktree, repo_root, 'pytest working directory')"
+      },
+      {
+       "text": "An EMPTY fail_to_pass is an error, not an empty success: a task with no test that must go from red to green cannot fail, and a measurement that cannot fail is the exact defect harness._recall's vacuous 1.0 already demonstrated in this repo.",
+       "where": "validate_task docstring",
+       "verdict": "kept",
+       "why": "Lines ~620-627: checks for missing/empty required fields; fail_to_pass being empty would be caught by 'if not task.get(key)' for key 'fail_to_pass'."
+      },
+      {
+       "text": "Every schema problem with task, or []. Never raises.",
+       "where": "validate_task docstring",
+       "verdict": "kept",
+       "why": "Function returns a list, no raises in the code."
+      },
+      {
+       "text": "True for a task carrying the correctness format. Mirrored in daedalus.eval.tasks so the harness can refuse to grade one with substring recall; defined there, re-exported here for callers who already have this module imported.",
+       "where": "is_correctness_task docstring",
+       "verdict": "uncheckable",
+       "why": "The function delegates to daedalus.eval.tasks.is_correctness_task; that module is not in this chunk."
+      },
+      {
+       "text": "Delegates to daedalus.kairos.worktree.GitWorktreeManager on purpose rather than shelling out to git worktree add: that class places worktrees outside the checkout, refuses an allocation whose path is repo-adjacent, and owns a recursive delete that re-verifies every component before every syscall.",
+       "where": "disposable_worktree docstring",
+       "verdict": "kept",
+       "why": "Line ~666: manager = GitWorktreeManager(repo_root); uses manager.create_worktree and cleanup_worktree."
+      },
+      {
+       "text": "Its cleanup is the ONLY delete this module performs; there is no shutil.rmtree here and there must never be one.",
+       "where": "disposable_worktree docstring",
+       "verdict": "kept",
+       "why": "No shutil.rmtree appears in this chunk; cleanup is via manager.cleanup_worktree."
+      },
+      {
+       "text": "The branch ref that git worktree add -b writes into the shared .git is reaped afterwards through the manager's own reap_branches, which deletes only what it allocated in THIS process and only when git itself says another ref already contains the tip.",
+       "where": "disposable_worktree docstring",
+       "verdict": "kept",
+       "why": "Lines ~675-679: manager.reap_branches() called in finally."
+      },
+      {
+       "text": "This is SWE-bench's \"test patch\", and it is what makes a before-state measurable at all: the base revision predates the fix, so it also predates the fix's tests -- running a FAIL_TO_PASS node against a bare base checkout would only ever report missing.",
+       "where": "apply_test_overlay docstring",
+       "verdict": "kept",
+       "why": "Function writes test files from test_revision into worktree, enabling before-state measurement."
+      },
+      {
+       "text": "Bytes are copied verbatim from git (git show <rev>:<path>), never decoded and re-encoded, so line endings and encoding are exactly what the commit holds.",
+       "where": "apply_test_overlay docstring",
+       "verdict": "kept",
+       "why": "Line ~691: target.write_bytes(proc.stdout) writes raw bytes."
+      },
+      {
+       "text": "Raises FileNotFoundError if a path does not exist at that revision, and OverlayEscape if it would land outside the worktree.",
+       "where": "apply_test_overlay docstring",
+       "verdict": "kept",
+       "why": "Line ~688-689 raises FileNotFoundError; _safe_join raises OverlayEscape (asserted from _safe_join definition elsewhere)."
+      },
+      {
+       "text": "The task's own test files are EXCLUDED, because they are applied separately as the overlay -- if the reference patch carried them too, the \"after\" run would be testing a tree the candidate path never produces, and the two arms would not be comparable.",
+       "where": "reference_patch docstring",
+       "verdict": "kept",
+       "why": "Lines ~705-706: args += [f':(exclude){rel}' for rel in exclude]"
+      },
+      {
+       "text": "A patch that does not apply is a could_not_run, never a not_fixed: \"the change was rejected by git\" and \"the change did not fix the bug\" are different facts about different things.",
+       "where": "apply_patch docstring",
+       "verdict": "kept",
+       "why": "Function returns error string on non-zero returncode, not a boolean."
+      },
+      {
+       "text": "Immutable (frozen dataclass, tuples not lists) and digested, so \"what was measured is what was declared\" is checkable by a reader instead of being a claim in a docstring.",
+       "where": "Selection class docstring",
+       "verdict": "kept",
+       "why": "Class decorated with @dataclass(frozen=True), fields use tuples."
+      },
+      {
+       "text": "digest covers all of it. Change any node id, the base, the overlay or the timeout and the digest changes, which is what lets correctness_gate refuse a task that was verified under one selection and presented under another.",
+       "where": "Selection class docstring",
+       "verdict": "uncheckable",
+       "why": "digest is not defined in this chunk; it is likely a property or method elsewhere."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In run_node_ids, when len(unattributed) == len(nodes) == 1, the function returns early without solo re-run, which contradicts the docstring's claim that unattributed nodes are always re-run solo.",
+       "where": "run_node_ids, lines ~600-603",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "In run_node_ids, the early return for single unattributed node does not update output with solo re-run results, potentially losing information.",
+       "where": "run_node_ids, line ~602",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In run_node_ids, containment is only updated from solo_containment if containment == 'none', otherwise the first non-'none' containment is kept. This may mask containment issues from later solo runs.",
+       "where": "run_node_ids, line ~611",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In apply_patch, the patch_path is created with tempfile.NamedTemporaryFile but the file is not deleted until the finally block. If the subprocess.run raises a timeout (not caught), the file may not be cleaned up.",
+       "where": "apply_patch, lines ~725-735",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In apply_patch, the error message from git apply is truncated to 800 characters, which may lose important details.",
+       "where": "apply_patch, line ~731",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6b6f0ebb5858f10e1b0b857c40246555d700a6fbe85a795b124ce1370759c786",
+    "objective_chars": 17379,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [3/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 3,
+  "total": 7,
+  "first_line": 561
+ }
+}

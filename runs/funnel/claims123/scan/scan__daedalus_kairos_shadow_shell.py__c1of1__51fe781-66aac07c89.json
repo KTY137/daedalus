@@ -1,0 +1,170 @@
+{
+ "task_id": "scan__daedalus_kairos_shadow_shell.py__c1of1__51fe781",
+ "key": "scan__daedalus_kairos_shadow_shell.py__c1of1__51fe781-66aac07c89",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed shadow_shell.py chunk 1/1: all docstring claims are kept or uncheckable; no broken claims found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/shadow_shell.py",
+     "chunk": "1 of 1",
+     "purpose": "Define ShadowShellManager to run agent tasks in isolated git worktrees.",
+     "symbols": [
+      {
+       "name": "CandidateBranch",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a completed task on a dedicated git branch."
+      },
+      {
+       "name": "ShadowShellManager",
+       "kind": "class",
+       "effects": [],
+       "note": "Manages spawning an adapter and running agent inside a GitWorktree."
+      },
+      {
+       "name": "ShadowShellManager.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes with worktree_manager, adapter, base_commit, config."
+      },
+      {
+       "name": "ShadowShellManager.run_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Executes agent task in new worktree, returns CandidateBranch."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Represents a completed task on a dedicated git branch.",
+       "where": "CandidateBranch docstring",
+       "verdict": "KEPT",
+       "why": "The class fields (branch_name, worktree_path, task, completed, error, score) represent a task result on a branch."
+      },
+      {
+       "text": "Spawns an adapter and runs the agent inside a given GitWorktree.",
+       "where": "ShadowShellManager docstring",
+       "verdict": "KEPT",
+       "why": "The class uses adapter and worktree_manager to run tasks in a worktree."
+      },
+      {
+       "text": "Executes the agent task inside a new worktree and returns a CandidateBranch.",
+       "where": "run_task docstring",
+       "verdict": "KEPT",
+       "why": "The method creates a worktree, runs the agent, and returns a CandidateBranch."
+      },
+      {
+       "text": "Crucially, ``cwd`` is the worktree, and the adapter is required to honor it at process launch.",
+       "where": "Comment in run_task",
+       "verdict": "UNCHECKABLE",
+       "why": "The comment states a requirement on the adapter, but this chunk does not contain the adapter's implementation."
+      },
+      {
+       "text": "The task is the initial one-shot prompt.",
+       "where": "Comment in run_task",
+       "verdict": "KEPT",
+       "why": "session_config['prompt'] is set to the task string."
+      },
+      {
+       "text": "If exit_event is None, raise RuntimeError('agent session ended without a process result')",
+       "where": "run_task lines 58-59",
+       "verdict": "KEPT",
+       "why": "Code checks exit_event is None and raises that error."
+      },
+      {
+       "text": "If exit_code != 0, raise RuntimeError with detail",
+       "where": "run_task lines 60-63",
+       "verdict": "KEPT",
+       "why": "Code checks exit_code and raises RuntimeError with stderr detail."
+      },
+      {
+       "text": "If no changes in worktree, raise RuntimeError('agent completed without changing the candidate worktree')",
+       "where": "run_task lines 64-66",
+       "verdict": "KEPT",
+       "why": "Code checks has_changes and raises that error."
+      },
+      {
+       "text": "Commit any changes the agent made in the worktree",
+       "where": "Comment in run_task",
+       "verdict": "KEPT",
+       "why": "Calls worktree_manager.commit_candidate after success."
+      },
+      {
+       "text": "In finally, terminate the session",
+       "where": "run_task lines 73-78",
+       "verdict": "KEPT",
+       "why": "Code calls adapter.terminate(session_id) in finally."
+      },
+      {
+       "text": "If not completed, cleanup the worktree",
+       "where": "run_task lines 74-77",
+       "verdict": "KEPT",
+       "why": "Code checks candidate.completed and calls cleanup_worktree."
+      }
+     ],
+     "observations": [
+      {
+       "what": "If commit_candidate fails, the exception is caught and candidate.error set, but the worktree is not cleaned up because candidate.completed is set to True only after successful commit. However, if commit_candidate raises an exception, it jumps to except, sets candidate.error, and then in finally, since candidate.completed is False (it was never set to True), cleanup_worktree is called. That is correct.",
+       "where": "lines 67-70",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "If terminate() raises an exception in the finally block, it will propagate and suppress any previous exception, potentially losing error information. However, the try-finally inside finally ensures cleanup_worktree is called even if terminate fails.",
+       "where": "lines 73-78",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The branch name format uses uuid hex[:8] which is collision-prone in theory but acceptable for temporary branches.",
+       "where": "line 42",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "lines 73-78 | medium | If terminate() raises, it may mask the original exception. | Check if the caller handles nested exceptions."
+     ],
+     "todos": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "34b2f0e94fdb015ff32beabf31283983154124e129f927371c3bb8e12bddc6e7",
+    "objective_chars": 6277,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/shadow_shell.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/shadow_shell.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

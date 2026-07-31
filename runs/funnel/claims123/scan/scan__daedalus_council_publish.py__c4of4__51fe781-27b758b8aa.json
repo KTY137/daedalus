@@ -1,0 +1,61 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c4of4__51fe781",
+ "key": "scan__daedalus_council_publish.py__c4of4__51fe781-27b758b8aa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4: PRTurn construction from raw data, no docstrings or comments present.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "4 of 4",
+     "purpose": "Constructs and returns a PRTurn object from raw parsed fields.",
+     "symbols": [
+      {
+       "name": "PRTurn",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructed with author, created_at, body, url fields."
+      }
+     ],
+     "claims": [],
+     "observations": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "92ce1a036f4a48d50261b75e78b7c5fb4d136172025aff87f974b437bc31bffd",
+    "objective_chars": 4159,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [4/4]",
+  "rev": "51fe781",
+  "module": "daedalus/council/publish.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

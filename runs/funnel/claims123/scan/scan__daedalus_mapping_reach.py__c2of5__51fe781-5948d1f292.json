@@ -1,0 +1,279 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c2of5__51fe781",
+ "key": "scan__daedalus_mapping_reach.py__c2of5__51fe781-5948d1f292",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 5: source scanning utilities including _Src dataclass, AST helpers for import analysis, dispatch chains, branch literals, and shim detection. All docstring claims checked; some are uncheckable due to missing definitions or incomplete function. Observations note minor redundancy and incomplete function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_walk | low | _walk imports os inside the function despite module-level import; redundant but harmless. | Remove the inner import.",
+     "_shim_body | medium | _shim_body is incomplete; the chunk ends mid-function, so behavior is unknown. | Review the full function in the next chunk.",
+     "_toplevel_names | low | _toplevel_names does not descend into For/While loops; may miss names bound inside loops that always execute. | Consider if such patterns exist in the codebase."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "2 of 5",
+     "purpose": "Source scanning helpers: _Src dataclass, AST utilities for import analysis, dispatch chains, branch literals, shim detection.",
+     "symbols": [
+      {
+       "name": "_Src",
+       "kind": "class",
+       "effects": [],
+       "note": "Mutable scratch for one parsed module, never escapes analyse."
+      },
+      {
+       "name": "_py_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts relative path to dotted module name."
+      },
+      {
+       "name": "_iter_py",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Yields sorted list of .py files under root."
+      },
+      {
+       "name": "_walk",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Wrapper around os.walk with directory filtering."
+      },
+      {
+       "name": "_is_main_guard",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if an AST node is an if __name__ == '__main__' guard."
+      },
+      {
+       "name": "_branch_literals",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts string literals from branch conditions."
+      },
+      {
+       "name": "_dispatch_chains",
+       "kind": "function",
+       "effects": [],
+       "note": "Finds if/elif chains with enough branches to be dispatch tables."
+      },
+      {
+       "name": "_is_never_true",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if a test is a constant False/0."
+      },
+      {
+       "name": "_catches_import_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if a try statement catches ImportError or ModuleNotFoundError."
+      },
+      {
+       "name": "_split_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Splits imports into live and weak records based on context."
+      },
+      {
+       "name": "_import_records_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns only live import records from an AST node."
+      },
+      {
+       "name": "_toplevel_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns names bound at module level, descending into conditionals."
+      },
+      {
+       "name": "_module_level_bindings",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps names bound by module-level imports to their import records."
+      },
+      {
+       "name": "_shim_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Detects if a module body is a pure re-export shim."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never escapes ``analyse``.",
+       "where": "_Src docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a function 'analyse' not defined in this chunk."
+      },
+      {
+       "text": "String literals a branch condition selects on.",
+       "where": "_branch_literals docstring",
+       "verdict": "kept",
+       "why": "The function extracts string literals from Compare, BoolOp, and Call with startswith/endswith."
+      },
+      {
+       "text": "Covers the two shapes real dispatch chains use: ``x == \"literal\"`` and ``x.startswith(\"/api/\")``",
+       "where": "_branch_literals docstring",
+       "verdict": "kept",
+       "why": "The function handles Compare (x == literal) and Call with startswith/endswith."
+      },
+      {
+       "text": "A branch we cannot read contributes nothing rather than a guess.",
+       "where": "_branch_literals docstring",
+       "verdict": "kept",
+       "why": "The function returns an empty list for unrecognized patterns; no fallback guessing."
+      },
+      {
+       "text": "Flat if/elif chains inside one function, as (literal, node) pairs.",
+       "where": "_dispatch_chains docstring",
+       "verdict": "kept",
+       "why": "The function collects chains of if/elif and pairs each literal with the if node."
+      },
+      {
+       "text": "A chain is only a command table when it is long enough (``_MIN_DISPATCH_BRANCHES``); shorter ones are ordinary conditionals and reporting them as subcommands would fabricate entry points.",
+       "where": "_dispatch_chains docstring",
+       "verdict": "uncheckable",
+       "why": "The constant _MIN_DISPATCH_BRANCHES is not defined in this chunk."
+      },
+      {
+       "text": "``if False:`` / ``if 0:`` -- a branch the interpreter deletes.",
+       "where": "_is_never_true docstring",
+       "verdict": "kept",
+       "why": "The function checks for ast.Constant with falsy value (False, 0, etc.)."
+      },
+      {
+       "text": "Deliberately literal-only. Inferring that some NAME is falsy would make the walk guess, and a guess in this direction silently deletes real edges.",
+       "where": "_is_never_true docstring",
+       "verdict": "kept",
+       "why": "The function only checks ast.Constant, not Name nodes."
+      },
+      {
+       "text": "Does this ``try`` swallow a failing import?",
+       "where": "_catches_import_error docstring",
+       "verdict": "kept",
+       "why": "The function checks if any handler type names ImportError or ModuleNotFoundError."
+      },
+      {
+       "text": "Narrow on purpose: only handlers that NAME ImportError (or ModuleNotFoundError) count. A bare ``except Exception`` around an import is usually a lazy-optional-dependency idiom too, but widening this rule reclassifies real edges on evidence that is not there.",
+       "where": "_catches_import_error docstring",
+       "verdict": "kept",
+       "why": "The function only matches ast.Name or ast.Attribute with id/attr in _IMPORT_ERRORS; bare Exception is not matched."
+      },
+      {
+       "text": "(live records, [(weak record, why)]) for one subtree.",
+       "where": "_split_imports docstring",
+       "verdict": "kept",
+       "why": "The function returns a tuple of (list of live records, list of (record, why) tuples)."
+      },
+      {
+       "text": "Structural descent rather than ``ast.walk`` because the whole point is the CONTEXT an import sits in: the same statement is evidence in one branch and not in another.",
+       "where": "_split_imports docstring",
+       "verdict": "kept",
+       "why": "The function uses a recursive helper 'rec' that traverses child nodes manually, not ast.walk."
+      },
+      {
+       "text": "LIVE import records only. Weak ones are reachable only via :func:`_split_imports`, so no caller can pick them up by accident.",
+       "where": "_import_records_of docstring",
+       "verdict": "kept",
+       "why": "The function calls _split_imports and returns only the first element (live records)."
+      },
+      {
+       "text": "Names a module binds at import time. Descends one level into ``if`` and ``try`` because conditional definitions are ordinary in this codebase.",
+       "where": "_toplevel_names docstring",
+       "verdict": "kept",
+       "why": "The function descends into If, Try, With, AsyncWith handlers up to depth 3."
+      },
+      {
+       "text": "Name bound by a MODULE-LEVEL import -> the record that bound it.",
+       "where": "_module_level_bindings docstring",
+       "verdict": "kept",
+       "why": "The function iterates over module-level statements and maps bound names to import records."
+      },
+      {
+       "text": "MODULE LEVEL ONLY, and that restriction is load-bearing.",
+       "where": "_module_level_bindings docstring",
+       "verdict": "kept",
+       "why": "The function only iterates over tree.body (module-level statements) and does not recurse into nested scopes."
+      },
+      {
+       "text": "True when the module body re-exports and does nothing else.",
+       "where": "_shim_body docstring",
+       "verdict": "uncheckable",
+       "why": "The function is incomplete in this chunk; the full logic is not visible."
+      },
+      {
+       "text": "Detected structurally, never guessed: no def, no class, no executable statement beyond imports, ``__all__`` and plain alias assignments.",
+       "where": "_shim_body docstring",
+       "verdict": "uncheckable",
+       "why": "The function is incomplete; the check for def/class/executable statements is not fully shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_walk function uses os.walk but also imports os inside the function; the import is redundant given the module-level import.",
+       "where": "_walk function, line ~328",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_shim_body is incomplete; the function body ends abruptly after a comment and an if statement, suggesting the chunk cut off.",
+       "where": "_shim_body, end of chunk",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_toplevel_names descends into If, Try, With, AsyncWith but not into other control flow like For or While; this may miss names bound inside loops that are guaranteed to execute.",
+       "where": "_toplevel_names function",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "_walk | low | _walk imports os inside the function despite module-level import; redundant but harmless. | Remove the inner import.",
+      "_shim_body | medium | _shim_body is incomplete; the chunk ends mid-function, so behavior is unknown. | Review the full function in the next chunk.",
+      "_toplevel_names | low | _toplevel_names does not descend into For/While loops; may miss names bound inside loops that always execute. | Consider if such patterns exist in the codebase."
+     ],
+     "todos": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9fad5dba28c5ef914aca043990aca8e380cd14e85516a7847875fa02a3798409",
+    "objective_chars": 15675,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [2/5]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/reach.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

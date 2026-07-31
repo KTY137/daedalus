@@ -1,0 +1,164 @@
+{
+ "task_id": "scan__daedalus_kairos_control.py__c1of1__51fe781",
+ "key": "scan__daedalus_kairos_control.py__c1of1__51fe781-e81a7f61e0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/kairos/control.py chunk 1 of 1. No docstrings or comments with checkable claims; all functions are thin wrappers. No defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/control.py",
+     "chunk": "1 of 1",
+     "purpose": "Provides CLI entry points for dashboard, models, squads, watcher, and review-diff commands, each wrapping a core function.",
+     "symbols": [
+      {
+       "name": "dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.get_dashboard(project)"
+      },
+      {
+       "name": "ollama_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.model_resources()"
+      },
+      {
+       "name": "queue_timeline",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.get_queue(limit=limit)"
+      },
+      {
+       "name": "watcher_status",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.watcher_status(project)"
+      },
+      {
+       "name": "squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.get_squads(project)"
+      },
+      {
+       "name": "quality_gates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.get_quality(project)"
+      },
+      {
+       "name": "review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns core.review_diff(project, lane)"
+      },
+      {
+       "name": "_print_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Prints JSON with indent=2"
+      },
+      {
+       "name": "main_dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI for dashboard command"
+      },
+      {
+       "name": "main_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI for models command"
+      },
+      {
+       "name": "main_squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI for squads command"
+      },
+      {
+       "name": "main_watcher",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI for watcher command with subcommand 'status'"
+      },
+      {
+       "name": "main_review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI for review-diff command"
+      }
+     ],
+     "claims": [],
+     "observations": [
+      {
+       "what": "No docstrings or comments with checkable claims in this chunk.",
+       "where": "entire file",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c6fc13464d01b980709f0013e60c587f81aef4efc605aeb960d3b8121e2a6d73",
+    "objective_chars": 6374,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/control.py [1/1]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/control.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

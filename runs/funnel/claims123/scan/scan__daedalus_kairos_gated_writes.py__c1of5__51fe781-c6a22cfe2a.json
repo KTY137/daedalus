@@ -1,0 +1,190 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c1of5__51fe781",
+ "key": "scan__daedalus_kairos_gated_writes.py__c1of5__51fe781-c6a22cfe2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of 5 of daedalus/kairos/gated_writes.py; 13 checkable claims identified; 11 kept, 2 uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "1 of 5",
+     "purpose": "Phase 1 concurrent gating infrastructure: rebasing declared paths, GatedCandidate dataclass, artifact root, relay gate, recording runner, provider receipt, and TaskSpec builder.",
+     "symbols": [
+      {
+       "name": "_DEFAULT_GATE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Fallback timeout for curated command gate; mirrors spine.attempt.DEFAULT_GATE_TIMEOUT_S without importing at module scope."
+      },
+      {
+       "name": "rebase_declared_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts an absolute path under primary_root to repo-relative POSIX string; returns absolute paths outside primary_root unchanged."
+      },
+      {
+       "name": "rebase_declared_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Applies rebase_declared_path to each path in the iterable."
+      },
+      {
+       "name": "GatedCandidate",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding assignment, spec, and result from Phase 1."
+      },
+      {
+       "name": "_artifact_root_for",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Returns path for durable patch storage outside primary checkout."
+      },
+      {
+       "name": "_relay_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a gate callable that judges by offload's own verdict via a mutable box."
+      },
+      {
+       "name": "_recording_runner",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Wraps offload_runner to capture result in a box before gate runs."
+      },
+      {
+       "name": "_provider_receipt",
+       "kind": "function",
+       "effects": [],
+       "note": "Projects operational part of offload runner result; never includes prompts or content."
+      },
+      {
+       "name": "_spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns TaskSpec for one assignment (partial implementation visible)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module does not repeat any of that. It has two responsibilities: PHASE 1 -- CONCURRENT GATING (gate_candidates). ... PHASE 2 -- PROMOTION (promote_candidates; opt-in, a separate call, NOT wired into KairosScheduler.dispatch()'s default path)",
+       "where": "docstring lines 1-50",
+       "verdict": "uncheckable",
+       "why": "The chunk defines helper functions for Phase 1 and Phase 2 (e.g., _relay_gate, _provider_receipt) but does not include gate_candidates, promote_candidates, or run_write_wave. The claim about wiring into KairosScheduler cannot be verified from this chunk."
+      },
+      {
+       "text": "The primary checkout is untouched -- that is TaskAttempt's own structural guarantee, not something re-implemented or re-verified here.",
+       "where": "docstring lines 1-50",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the code that runs TaskAttempt or verifies the primary checkout; the claim relies on external module behavior."
+      },
+      {
+       "text": "An absolute path that resolves under primary_root is rebased to its repo-relative form.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "kept",
+       "why": "Lines 72-76: if p.is_absolute() and resolves under primary_root, returns rel.as_posix()."
+      },
+      {
+       "text": "An absolute path that resolves OUTSIDE primary_root is returned unchanged.",
+       "where": "rebase_declared_path docstring",
+       "verdict": "kept",
+       "why": "Lines 73-75: try/except ValueError catches the case where relative_to fails, returning raw unchanged."
+      },
+      {
+       "text": "A held candidate cannot live only in AttemptResult.artifact: run_write_wave returns plain dictionaries and TaskAttempt reaps its candidate branch, so those bytes otherwise disappear as soon as the call returns.",
+       "where": "_artifact_root_for docstring",
+       "verdict": "kept",
+       "why": "The function exists to provide a durable external path; the reasoning about disappearance is consistent with the purpose stated."
+      },
+      {
+       "text": "Keep the archive beside the worktree/control state, namespaced by checkout identity, and let TaskAttempt._persist apply its primary-tree fence before it creates or writes anything.",
+       "where": "_artifact_root_for docstring",
+       "verdict": "kept",
+       "why": "The function uses a hash of the repo root to namespace; the reference to TaskAttempt._persist is external but the implementation is consistent with the stated design."
+      },
+      {
+       "text": "A gate callable only ever receives a RunnerContext (worktree/branch/base/task/is_cancelled) -- never the runner's return value -- so there is no direct way to ask 'did offload() call this clean'.",
+       "where": "_relay_gate docstring",
+       "verdict": "kept",
+       "why": "The function takes a box dict and returns a _gate closure that reads from box; this is consistent with the claim that the runner's return value is not directly available to the gate."
+      },
+      {
+       "text": "box is a mutable cell the paired runner (_recording_runner) writes its result into before returning; this closure reads it back.",
+       "where": "_relay_gate docstring",
+       "verdict": "kept",
+       "why": "Lines 133-134: box['result'] = res in _recording_runner; line 113: res = box.get('result') in _gate."
+      },
+      {
+       "text": "offload can finish with action == 'escalated_after_verify_fail' while wrote is NON-EMPTY, because a write it could not fully roll back is reported in dirty_unreverted and kept in wrote so it stays visible. That leaves a non-empty artifact for a run offload itself considers FAILED, and only checking action == 'offloaded' (not 'artifact exists') refuses it.",
+       "where": "_relay_gate docstring",
+       "verdict": "kept",
+       "why": "Line 114: ok = res.get('action') == 'offloaded' and bool(res.get('wrote')). This explicitly checks the action, not just existence of artifact."
+      },
+      {
+       "text": "box['result'] is set the instant the runner returns, which is always BEFORE TaskAttempt calls the gate (see daedalus.spine.attempt.TaskAttempt._run_with_ledger: runner, then artifact capture, then gate) -- so _relay_gate reading box always sees this attempt's own result, never a stale or missing one.",
+       "where": "_recording_runner docstring",
+       "verdict": "kept",
+       "why": "Lines 133-134: result is stored immediately after base_runner returns; the gate is called after runner completes per the referenced ordering."
+      },
+      {
+       "text": "The write-wave projection used to drop it, collapsing every provider refusal into 'the runner produced no change to gate'.",
+       "where": "_provider_receipt docstring",
+       "verdict": "kept",
+       "why": "The function extracts a subset of keys; the docstring describes a past behavior and the current function provides a richer projection."
+      },
+      {
+       "text": "Keep only routing/action facts, measured writes, and rewrite activation/skip provenance -- never prompts, repository content, or arbitrary model prose.",
+       "where": "_provider_receipt docstring",
+       "verdict": "kept",
+       "why": "Lines 157-170: the function explicitly selects keys like 'provider', 'model', 'action', 'wrote', 'did_work', 'report_status', 'verify', and limited handoff keys; no prompt or content keys are included."
+      },
+      {
+       "text": "This is a deliberate correction (cross-vendor review, Codex, 2026-07-29) to an earlier draft that proposed git apply --check as the sole conflict detector: a check that passes only proves the bytes still match: it does not prove the SEMANTIC content is still correct once an earlier candidate has landed ahead of it.",
+       "where": "docstring lines 1-50",
+       "verdict": "kept",
+       "why": "The docstring describes the correction; no code in this chunk contradicts it. The claim is about historical design, not current code behavior."
+      }
+     ],
+     "observations": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "060f36f45ba428843ff6ddec60ee76cefc0753ee1620e864cc26eedae46b8672",
+    "objective_chars": 17474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [1/5]",
+  "rev": "51fe781",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

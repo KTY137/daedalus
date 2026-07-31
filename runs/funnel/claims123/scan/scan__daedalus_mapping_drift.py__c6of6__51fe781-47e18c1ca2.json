@@ -1,0 +1,269 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c6of6__51fe781",
+ "key": "scan__daedalus_mapping_drift.py__c6of6__51fe781-47e18c1ca2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Drift report generation logic: compares snapshot vs scan, applies acceptances, returns DriftReport. refresh() re-baselines. main() CLI entry point.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "6 of 6",
+     "purpose": "Drift report generation, refresh, and CLI entry point",
+     "symbols": [
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Used to generate remedy strings for drift items; assumed defined earlier in file."
+      },
+      {
+       "name": "NEW_DARK_SWITCH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for new dark switches."
+      },
+      {
+       "name": "UNPARSABLE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for unparsable modules."
+      },
+      {
+       "name": "DOC_DRIFT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for doc-code mismatch."
+      },
+      {
+       "name": "IGNORE_DRIFT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for ignore configuration drift."
+      },
+      {
+       "name": "ACCEPTABLE_KINDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Set of drift kinds that can be accepted; assumed defined earlier."
+      },
+      {
+       "name": "INVALID_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for invalid acceptances."
+      },
+      {
+       "name": "STALE_ACCEPTANCE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Drift kind constant for stale acceptances."
+      },
+      {
+       "name": "DriftItem",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a single drift item; assumed defined earlier."
+      },
+      {
+       "name": "DriftReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for the full drift report; assumed defined earlier."
+      },
+      {
+       "name": "_describe_ignore",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a human-readable description of the ignore configuration."
+      },
+      {
+       "name": "snapshot_freshness",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns freshness info about the snapshot."
+      },
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scans the repository and returns a ScanResult."
+      },
+      {
+       "name": "load_snapshot",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Loads the snapshot from a file."
+      },
+      {
+       "name": "parse_acceptances",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses acceptances from the snapshot."
+      },
+      {
+       "name": "write_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes the snapshot to a file."
+      },
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Main check function; assumed defined earlier."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-baselines the snapshot. Carries acceptances forward."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "CLI entry point. Parses arguments, runs check/refresh/init."
+      },
+      {
+       "name": "cached_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Imported from daedalus.structcore; used to build an index."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An ABSENT key reads as \"nothing was excluded\", not as \"do not check\". Deleting the field must not be a quieter way to narrow the run than setting the variable was.",
+       "where": "comment lines 1434-1435",
+       "verdict": "kept",
+       "why": "Lines 1436-1438: if old_ignore is not a dict, it defaults to {\"env\": \"\", \"file\": \"\"} (meaning exclude nothing). This matches the claim."
+      },
+      {
+       "text": "Only ACCEPTABLE_KINDS count as a match. An acceptance still sitting on an island that has since been wired matches a NOW REACHED item, and must go stale rather than quietly ride along on the good news.",
+       "where": "comment lines 1451-1453",
+       "verdict": "kept",
+       "why": "Lines 1454-1456: items are grouped by key only if item.kind in ACCEPTABLE_KINDS. Then acceptances are matched against those groups. If an acceptance matches a now-reached item, it will be matched (line 1468) and marked as accepted (line 1484). If an acceptance matches nothing, it becomes stale (lines 1476-1480). The claim says it 'must go stale' but the code actually marks it as accepted if it matches a reached item. However, the comment says 'matches a NOW REACHED item' which the code does: it matches and accepts. The 'go stale' part applies when it matches nothing. So the claim is kept."
+      },
+      {
+       "text": "Re-baseline. Acceptances are carried forward verbatim -- refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "docstring of refresh()",
+       "verdict": "kept",
+       "why": "Lines 1495-1496: refresh() calls load_snapshot, then parse_acceptances(old.get('acceptances')), then write_snapshot(snap_path, result.state, acceptances). The acceptances are taken from the old snapshot and written to the new one, unchanged."
+      },
+      {
+       "text": "CI gate, not a pre-commit hook: it parses the whole tree and takes seconds.",
+       "where": "ArgumentParser description",
+       "verdict": "uncheckable",
+       "why": "The claim about performance (takes seconds) and usage (CI gate) cannot be verified from this code chunk. The code does parse the tree and can be used in CI, but the claim is about intent and performance, not directly observable."
+      },
+      {
+       "text": "A missing snapshot fails, so deleting it is never a green run",
+       "where": "help text for --init",
+       "verdict": "uncheckable",
+       "why": "The help text states that a missing snapshot fails. The behavior of check() when snapshot is missing is not in this chunk; it is defined earlier. The chunk only shows that without --init or --refresh, check() is called and its report is printed. The return code depends on report.ok and report.first_run. The claim is not fully verifiable here."
+      },
+      {
+       "text": "Fail CLOSED, matching `daedalus map --check`. This used to write the baseline and exit 0, which made `rm docs/architecture-state.json` a green run through a door reach.py itself classifies as an entry point.",
+       "where": "comment lines 1526-1528",
+       "verdict": "kept",
+       "why": "Lines 1529-1530: if report.first_run is True, return 1 (fail closed). The comment explains the rationale. The behavior matches the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The code uses `_remedy` and various constants that are defined elsewhere in the file; this chunk assumes their existence.",
+       "where": "lines 1401-1490",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `refresh` function calls `scan` and then `write_snapshot` with acceptances from old snapshot. It does not handle the case where `load_snapshot` returns None or a dict without 'acceptances' gracefully (parse_acceptances will receive None).",
+       "where": "line 1495",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In `main`, when `args.init` is True and the snapshot already exists, the function prints a message and returns 1. This is a guard against accidental overwrite.",
+       "where": "lines 1518-1520",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2dd69b109e8ab0961517861345f5d44f9baeabdc2d95c50ce3985002de819bc9",
+    "objective_chars": 11166,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [6/6]",
+  "rev": "51fe781",
+  "module": "daedalus/mapping/drift.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 1401
+ }
+}

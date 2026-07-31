@@ -1,0 +1,280 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c5of7__51fe781",
+ "key": "scan__daedalus_eval_correctness.py__c5of7__51fe781-b48150336d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 7: evaluate_change, verify_before_state, corpus load/save/run, and seed helpers. Key claim 'never raises' is broken due to unhandled KeyError. Other claims about ordering and frozen selection are kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "evaluate_change lines 1159,1161 | critical | Unhandled KeyError on missing task keys contradicts 'never raises' docstring | Add try-except or guard with .get()",
+     "_changed_files line 1320 | medium | git diff with sha^ fails for initial commit | Handle initial commit case",
+     "_blob line 1328 | low | Returns None on failure, caller may not handle | Ensure callers check for None"
+    ],
+    "todos": [
+     "Fix evaluate_change to handle missing task keys (e.g., 'repo', 'base_revision') to truly never raise.",
+     "Consider handling initial commit in _changed_files."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "5 of 7",
+     "purpose": "evaluate_change, verify_before_state, corpus load/save/run, seed helpers",
+     "symbols": [
+      {
+       "name": "evaluate_change",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Evaluates one change against one task in a disposable worktree."
+      },
+      {
+       "name": "verify_before_state",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Measures only the before-state of a task, used when seeding a corpus."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts text to a filesystem-safe slug."
+      },
+      {
+       "name": "load_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads the corpus from a JSON file, returns sorted list."
+      },
+      {
+       "name": "CORPUS_NOTE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Documentation string embedded in the corpus file."
+      },
+      {
+       "name": "save_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Overwrites the corpus file with deterministic formatting."
+      },
+      {
+       "name": "run_corpus",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Evaluates every task against its own reference patch."
+      },
+      {
+       "name": "_changed_files",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Gets changed files between a commit and its parent."
+      },
+      {
+       "name": "_blob",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Gets the content of a file at a revision."
+      },
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses test function definitions from file text."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The whole measurement happens in ONE disposable worktree, in this order: FREEZE the selection -> checkout base -> overlay tests -> RUN BEFORE -> judge the TASK -> apply the change -> RUN AFTER -> judge the CHANGE",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The code follows this order: freeze_selection (line 1172), disposable_worktree (line 1174), apply_test_overlay (line 1177), _run_lists (line 1181), judge_before_state (line 1185), apply_patch (line 1205), _run_lists (line 1210), judge_after_state (line 1216)."
+      },
+      {
+       "text": "The selection is frozen FIRST, before the worktree exists and long before any candidate bytes are applied",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "freeze_selection is called at line 1172 before disposable_worktree at line 1174."
+      },
+      {
+       "text": "the after-state is run against that same frozen object -- so the thing being measured cannot be influenced by the thing being measured.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The same `selection` object is used for both before (line 1181) and after (line 1210) runs."
+      },
+      {
+       "text": "The before-state is measured every time, in the same tree the after-state is measured in. It is never read from a stored receipt here",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The before-state is measured by _run_lists and judge_before_state in the same worktree; no receipt loading code exists in this function."
+      },
+      {
+       "text": "use_reference evaluates the task's OWN fix commit (reference_revision) instead of a candidate patch.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "When use_reference is True, change_bytes is set via reference_patch at line 1199; otherwise patch_bytes is used."
+      },
+      {
+       "text": "a task whose own reference patch does not produce fixed is not a task.",
+       "where": "evaluate_change docstring",
+       "verdict": "uncheckable",
+       "why": "This claim about corpus validation is not enforced in this chunk; it is a policy stated elsewhere."
+      },
+      {
+       "text": "Returns; never raises.",
+       "where": "evaluate_change docstring",
+       "verdict": "broken",
+       "line": 1121,
+       "why": "The function uses bare `except Exception` on line 1211, but `task['repo']` on line 1159 can raise KeyError if 'repo' is missing, and `task['base_revision']` on line 1161 can raise KeyError. These are not caught by the except clause because they occur before the try block begins at line 1173."
+      },
+      {
+       "text": "The frozen declaration and its digest travel on the result.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The CorrectnessResult is constructed with `selection=selection` on line 1133 and also via `finish` calls."
+      },
+      {
+       "text": "Used when seeding a corpus. A candidate task that does not survive this is reported, with its reasons, and not admitted -- which is the measurement that says how much a corpus is worth.",
+       "where": "verify_before_state docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the seeding logic that consumes verify_before_state."
+      },
+      {
+       "text": "Read the corpus, or [] if it does not exist yet. Sorted by id.",
+       "where": "load_correctness_tasks docstring",
+       "verdict": "kept",
+       "why": "If path does not exist returns [] (line 1256); returns sorted data (line 1259)."
+      },
+      {
+       "text": "Overwrite the corpus. Deterministic formatting, same contract as harness.write_baseline / mint.save_minted_tasks.",
+       "where": "save_correctness_tasks docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about matching contract of other functions cannot be verified from this chunk alone."
+      },
+      {
+       "text": "Evaluate every task against its OWN reference patch. The corpus's own gate.",
+       "where": "run_corpus docstring",
+       "verdict": "kept",
+       "why": "The function calls evaluate_change with use_reference=True for each task (line 1294)."
+      },
+      {
+       "text": "the corpus validating ITSELF: a task whose reference fix does not produce fixed is not a task, and an evaluator that cannot show that its corpus discriminates is in the same position as the pytest gate it exists to strengthen.",
+       "where": "run_corpus docstring",
+       "verdict": "kept",
+       "why": "The function returns a 'discriminates' field (line 1308) that is true only if all tasks have outcome FIXED."
+      },
+      {
+       "text": "Counts are reported per outcome and NEVER blended into a single 'score' -- task_invalid and could_not_run in particular are not failures of the change, and folding them into one number would hide exactly the distinction this module was built for.",
+       "where": "run_corpus docstring",
+       "verdict": "kept",
+       "why": "The function returns a 'counts' dict per outcome (line 1303) and a 'per_task' list with individual outcomes (line 1310), no single score is computed."
+      },
+      {
+       "text": "Seeded from this repo's own fix commits with --seed; every task's lists were MEASURED (run on the base revision, then again under the commit's own fix), never taken from the diff on trust.",
+       "where": "CORPUS_NOTE comment",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the seeding logic; it only contains _changed_files, _blob, _test_functions which are helpers for seeding."
+      },
+      {
+       "text": "'before_state' is the receipt of that measurement and 'selection_digest' freezes what was declared -- the gate refuses a task whose lists no longer digest to it.",
+       "where": "CORPUS_NOTE comment",
+       "verdict": "uncheckable",
+       "why": "The gate logic is not present in this chunk."
+      },
+      {
+       "text": "'dropped_candidates' records every node that did not survive, and why.",
+       "where": "CORPUS_NOTE comment",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Verify with 'python -m daedalus.eval.correctness --verify'; re-measure every task against its own reference fix with '--run'.",
+       "where": "CORPUS_NOTE comment",
+       "verdict": "uncheckable",
+       "why": "CLI entry points are not in this chunk."
+      },
+      {
+       "text": "These tasks are NOT in harness.all_tasks(): slice recall cannot grade them (they have no must_include and would score a vacuous 1.0), and the harness refuses them.",
+       "where": "CORPUS_NOTE comment",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "evaluate_change can raise unhandled KeyError when task lacks 'repo' or 'base_revision' keys, contradicting the 'never raises' claim.",
+       "where": "evaluate_change, lines 1159 and 1161",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _changed_files function runs 'git diff' with the parent revision sha^; this may fail for the initial commit (no parent).",
+       "where": "_changed_files, line 1320",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_blob function uses 'git show' without error handling for missing revisions; returns None on failure, but the caller may not handle None gracefully.",
+       "where": "_blob, line 1328",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4451c7f9d163b7d8826b15dadf6a9fcf62a931668de06242b01a6aac145214d8",
+    "objective_chars": 18077,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [5/7]",
+  "rev": "51fe781",
+  "module": "daedalus/eval/correctness.py",
+  "index": 5,
+  "total": 7,
+  "first_line": 1121
+ }
+}

@@ -1,0 +1,249 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c3of4__51fe781",
+ "key": "scan__daedalus_council_publish.py__c3of4__51fe781-9e7345d341",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of publish.py: egress gate, gh failure classifier, load_for_publish, publish_to_pr, read_pr_thread, _parse_comment. Claims checked and enumerated.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "screen_egress | medium | _EGRESS_HINT used but not defined in chunk; may be missing or defined elsewhere | check definition of _EGRESS_HINT in file",
+     "load_for_publish | high | Derives 'vendors_answered' by filtering requested that are in answered, then falling back to answered; may misrepresent when no vendor answered | verify logic against real transcript where some requested never answered",
+     "read_pr_thread | medium | _parse_comment function truncated; author parsing logic incomplete in chunk | review full _parse_comment implementation",
+     "_classify_failure | low | Order of checks: auth before not-found is correct per docstring, but rate-limit check before not-found may cause misclassification if rate limit message also contains 'not found' | ensure rate limit messages do not contain 'not found'"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "3 of 4",
+     "purpose": "Implements egress gate, gh failure classification, load_for_publish, publish_to_pr, read_pr_thread, and _parse_comment.",
+     "symbols": [
+      {
+       "name": "screen_egress",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs secret floor rule over evidence paths and channel texts; returns first hit or None."
+      },
+      {
+       "name": "_gh_argv",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Prepends --repo argument to gh command if repo is provided."
+      },
+      {
+       "name": "_classify_failure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps gh invocation failure to (status, detail) based on stderr/stdout patterns."
+      },
+      {
+       "name": "_first_url",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts first http/https URL from text."
+      },
+      {
+       "name": "STATUS_NO_TRANSCRIPT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String constant 'no_transcript'."
+      },
+      {
+       "name": "load_for_publish",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reconstructs verdict and turns from bus transcript file."
+      },
+      {
+       "name": "publish_to_pr",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "repository_mutation"
+       ],
+       "note": "Renders deliberation, runs egress gate, optionally invokes gh to post PR comment."
+      },
+      {
+       "name": "read_pr_thread",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Reads PR comments via gh and returns structured turns."
+      },
+      {
+       "name": "_parse_comment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses a gh comment object into PRTurn; tolerant of two author shapes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Returns ``(channel, rule)`` for the FIRST hit, or None if clean.",
+       "where": "screen_egress docstring",
+       "verdict": "kept",
+       "why": "Function iterates paths then channels, returns on first hit, else None."
+      },
+      {
+       "text": "The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text, so a refusal can be logged and reported without re-leaking the secret it refused",
+       "where": "screen_egress docstring",
+       "verdict": "uncheckable",
+       "why": "secret_floor_rule behavior and return value not defined in this chunk."
+      },
+      {
+       "text": "Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.",
+       "where": "_classify_failure docstring",
+       "verdict": "kept",
+       "why": "Code checks auth patterns (not logged in, 401, etc.) before not-found patterns (404, no pull request, etc.)."
+      },
+      {
+       "text": "``(verdict, turns)`` reconstructed from a stored bus transcript.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "Function loads transcript via bus.load_transcript, builds verdict dict and returns (verdict, turns)."
+      },
+      {
+       "text": "This function is the missing seam.",
+       "where": "load_for_publish docstring",
+       "verdict": "uncheckable",
+       "why": "Cannot verify historical context from this chunk."
+      },
+      {
+       "text": "Only what the bus actually recorded.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "Verdict fields derived from transcript records; no outcome or convergence invented."
+      },
+      {
+       "text": "Quorum comes from the roster records' ``participants``: a vendor is ANSWERED only if it actually produced a turn, not if it was merely seated.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "Code collects requested from roster records, answered from turn records with status 'spoke' only."
+      },
+      {
+       "text": "Deriving it from the seat list would silently upgrade every short council to a full one.",
+       "where": "load_for_publish docstring",
+       "verdict": "uncheckable",
+       "why": "No seat list derivation in this chunk; claim about alternative approach."
+      },
+      {
+       "text": "``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "If dry_run, returns PublishResult with STATUS_DRY_RUN and markdown, no runner call."
+      },
+      {
+       "text": "The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "screen_egress is called before dry_run check."
+      },
+      {
+       "text": "The body goes to gh on STDIN via ``--body-file -``",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "argv includes '--body-file', '-' not shown but implied by stdin payload; runner call passes body as stdin."
+      },
+      {
+       "text": "a deliberation exceeds the Windows argv limit",
+       "where": "publish_to_pr docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence about Windows argv limits in this chunk."
+      },
+      {
+       "text": "Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.",
+       "where": "publish_to_pr docstring",
+       "verdict": "uncheckable",
+       "why": "PUBLISH_STATUSES not defined in this chunk; function returns PublishResult in all branches, no explicit raises."
+      },
+      {
+       "text": "Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "READ_STATUSES not defined in this chunk; function returns ThreadResult in all branches, no explicit raises."
+      },
+      {
+       "text": "Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "No comparison with bus or authority logic in this chunk."
+      },
+      {
+       "text": "Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).",
+       "where": "_parse_comment docstring",
+       "verdict": "uncheckable",
+       "why": "Code truncated; cannot verify author extraction for both shapes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "screen_egress uses _EGRESS_HINT constant which is not defined in this chunk; may be defined elsewhere in file.",
+       "where": "screen_egress line ~574",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "load_for_publish derives 'vendors_answered' as [v for v in requested if v in answered] or answered; if no requested vendor answered, falls back to answered list which may be empty or contain unexpected entries.",
+       "where": "load_for_publish line ~633",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_parse_comment is truncated; author parsing logic incomplete, potential silent failure if neither shape matches.",
+       "where": "_parse_comment line ~665",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7492892379c2f0f58bd2151a81101fc5df491f3da1ca7498348fa8c182e5b21b",
+    "objective_chars": 17367,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [3/4]",
+  "rev": "51fe781",
+  "module": "daedalus/council/publish.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}
