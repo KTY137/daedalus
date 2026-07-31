@@ -354,6 +354,56 @@ This supersedes §2.7's one-line "arch memory is stale" bullet, which described
 the symptom and blamed the `|| true` in the post-commit hook. The hook's `|| true`
 is real, but it is not why the numbers are old.
 
+### 2.11 THE IGNITION BLOCKER, measured and reduced to one line (2026-07-31)
+
+`tools/gate_discrimination.py` refuses with `COULD NOT MEASURE: baseline_red`,
+so no receipt can be produced. That was five failing tests; four are fixed and
+committed. **One remains, and it cannot be fixed in ordinary work.**
+
+`tests/test_iron_plan_guard.py::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite`
+
+fails with two errors that share one cause:
+
+```
+initial adoption does not change the complete policy bundle: <the plan>
+initial adoption base digest does not match base revision
+```
+
+CAUSE [MEASURED]. The test builds a synthetic repo: a "base" commit holding the
+pre-adoption plan, then an "adopt policy" commit copying every protected path
+from this repo. It sources the base plan from `HEAD:<plan>` — which today IS
+the adopted plan. So the base commit and the adoption commit carry identical
+plan content (nothing changed), and the base digest is `a47d84ee…` where the
+amendment record declares `base_plan_sha256` = `f1acad3c…`.
+
+The fixture only ever worked while the plan was uncommitted in the working
+tree, i.e. DURING the adoption session. It has been red since that session's
+commit landed. Verified by hashing the plan at each historical commit:
+
+```
+15fbcd2b  a47d84ee…   the adoption commit (revision 1)
+6cfd09b4  f1acad3c…   the base revision the ledger names
+```
+
+THE FIX, one line: source the base plan from the commit whose plan digest
+equals the ledger's `base_plan_sha256`, rather than from `HEAD`. Deriving it by
+searching history for that digest keeps it correct across future amendments;
+hardcoding `6cfd09b4` would rot at the next one.
+
+WHY IT IS NOT DONE HERE. `tests/test_iron_plan_guard.py` is itself a protected
+path — the guard refuses to read it with grep, let alone edit it. AGENTS.md is
+explicit that an agent must not route around a guard and must stop and report
+the exact gap, so this stops here and needs owner approval under §15.
+
+NOTE THE SHAPE OF THIS. A test of the guard's own history check has been red
+since the guard's own adoption, and the guard protects that test from being
+repaired. That is the amendment-protocol cost showing up as intended — the
+artifact cannot drift — and also the case AMENDMENT_PROPOSAL_002 (guard
+repairability) exists for. Do not "fix" it by narrowing the gate scope:
+`FROZEN_GATE_PATHS = ()` means whole-suite by ADR-016 P3, and dodging a red
+test by shrinking what the gate watches is exactly the quiet weakening the
+constitution forbids.
+
 ---
 
 ## 3. Do NOT reschedule — checked and false, or already fixed
