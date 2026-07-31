@@ -65,6 +65,7 @@ def fourfold_from_knowledge_forest(
     if not isinstance(forest, KnowledgeForest):
         raise ValueError("forest must be a KnowledgeForest")
 
+    forest_digest = forest.content_sha256
     node_plane: dict[str, str] = {}
     nodes_by_plane: dict[str, list[str]] = defaultdict(list)
     for node in forest.nodes:
@@ -94,6 +95,11 @@ def fourfold_from_knowledge_forest(
         if source_plane == target_plane:
             relation_digests[source_plane].append(digest)
         else:
+            if not edge.evidence:
+                raise ValueError(
+                    f"legacy cross-plane edge {edge.relation!r} has no retained "
+                    "evidence; refusing to upgrade it to a verified binding"
+                )
             bindings.append(
                 CrossPlaneBinding(
                     source_plane=source_plane,
@@ -102,7 +108,7 @@ def fourfold_from_knowledge_forest(
                     target_node_id=edge.target,
                     relation=edge.relation,
                     source_revision=source_revision,
-                    evidence_sha256s=(digest,),
+                    evidence_sha256s=(forest_digest, digest),
                 )
             )
 
@@ -119,7 +125,6 @@ def fourfold_from_knowledge_forest(
             )
         relation_digests[next(iter(member_planes))].append(_edge_digest(hyperedge))
 
-    forest_digest = forest.content_sha256
     planes: list[PlaneSnapshot] = []
     for plane in ("code", "type", "data", "knowledge"):
         status, reason = _plane_status(plane, nodes_by_plane.get(plane, ()))
