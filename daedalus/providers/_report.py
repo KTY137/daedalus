@@ -4,6 +4,7 @@ for building the prompt sent to non-agentic providers."""
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ..budget import BudgetError, BudgetRefused, Reservation, reserve
@@ -47,14 +48,60 @@ def build_prompt(agent: dict[str, Any], objective: str, context_text: str) -> tu
     return system, user
 
 
-def extract_json(text: str) -> dict[str, Any]:
+# JSON permits exactly `" \ / b f n r t u` after a backslash inside a string.
+# A model quoting this repository's own code writes `\d`, `\.`, `\x1b` or
+# `C:\Program Files` inside a JSON string, the strict parser refuses the WHOLE
+# answer, and the evidence dies as a blocked report.  Measured 2026-07-31 on
+# the claims123 funnel at 51fe781: 5 of 100 scan units, 8 of 15 research units
+# and 6 of 6 review units -- the tiers whose whole job was quoting
+# backslash-bearing source -- blocked with "Invalid \escape".  Doubling the
+# lone backslash is lossless: the repaired escape decodes back to exactly the
+# literal backslash the model wrote.  The lookbehind keeps hands off a
+# backslash that is itself escaped, because "repairing" the second half of a
+# valid `\\` pair would corrupt it; the cost is that a mixed run like `\\\d`
+# stays broken and still raises, which is the honest outcome -- rescuing it
+# needs intent this layer does not have.  (`\n` et al. remain valid escapes,
+# so a model writing `C:\Users\nukei` still yields a newline where it meant a
+# backslash-n; that ambiguity is the model's, not decidable here.)
+_INVALID_ESCAPE_RE = re.compile(r'(?<!\\)\\(?!["\\/bfnrtu])')
+
+
+def _loads_or_repair(text: str, repairs: list[str] | None) -> Any:
+    """``json.loads`` with one lossless rescue for invalid string escapes."""
     try:
-        payload = json.loads(text)
+        return json.loads(text)
+    except json.JSONDecodeError as original:
+        repaired, n = _INVALID_ESCAPE_RE.subn(r"\\\\", text)
+        if not n:
+            raise
+        try:
+            payload = json.loads(repaired)
+        except json.JSONDecodeError:
+            # The rescue did not take; the defect worth reporting is the one
+            # in the text the model actually produced.
+            raise original from None
+        if repairs is not None:
+            repairs.append(f"doubled {n} invalid JSON string escape(s)")
+        return payload
+
+
+def extract_json(text: str, *, repairs: list[str] | None = None) -> dict[str, Any]:
+    """Parse a model answer into a dict, tolerating two model habits.
+
+    Two rescues: prose around the JSON object is sliced off (the
+    ``find``/``rfind`` fallback, which predates this docstring), and a lone
+    backslash that JSON forbids is doubled (``_INVALID_ESCAPE_RE`` above).
+    Pass ``repairs`` to learn that the second rescue fired; a caller that
+    records answers as evidence should note it in ``handoff`` so a repaired
+    answer can be told apart from one that parsed clean.
+    """
+    try:
+        payload = _loads_or_repair(text, repairs)
     except json.JSONDecodeError:
         start, end = text.find("{"), text.rfind("}")
         if start == -1 or end <= start:
             raise
-        payload = json.loads(text[start : end + 1])
+        payload = _loads_or_repair(text[start : end + 1], repairs)
     if not isinstance(payload, dict):
         raise ValueError("model output did not decode to a JSON object")
     return payload
@@ -63,7 +110,7 @@ def extract_json(text: str) -> dict[str, Any]:
 def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
     """Fill any missing report keys with safe defaults, then validate.
 
-    TWO THINGS THIS USED TO DO SILENTLY, both of which destroyed evidence:
+    THREE THINGS THIS USED TO DO SILENTLY, each of which destroyed evidence:
 
     1. **Unexpected keys were discarded.** This function rebuilds the report
        from a fixed key set, so a model that answered under any other key --
@@ -88,21 +135,35 @@ def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
        it is now recorded, so "the model did not say" can be told apart from
        "the model said needs_review".
 
-    Both records ride in ``handoff`` and neither can collide with a real report
+    3. **A missing summary refused the whole report.** ``validate_report``
+       requires a non-empty summary, so an answer that arrived as nothing but
+       ``{"claims": [...]}`` had its keys carefully preserved into ``handoff``
+       -- and was then refused whole for the formality it forgot, destroying
+       the evidence a second time. Found by the first in-suite regression test
+       this contract ever had (2026-07-31), not by a production incident. The
+       summary is synthesized ONLY when there is preserved model content to
+       protect; an empty answer gains nothing here and still fails validation,
+       so the caller's deterministic re-ask keeps its second chance.
+
+    All records ride in ``handoff`` and none can collide with a real report
     key. A non-dict ``handoff`` is left exactly as it was, so it still fails
     validation below rather than being quietly repaired here.
     """
     handoff = payload.get("handoff") or {}
+    summary = str(payload.get("summary", ""))[:MAX_SUMMARY_CHARS]
     if isinstance(handoff, dict):
         unexpected = {k: v for k, v in payload.items() if k not in REPORT_KEYS}
         if unexpected:
             handoff = {**handoff, "unexpected_keys": unexpected}
         if "status" not in payload:
             handoff = {**handoff, "status_was_defaulted": True}
+        if not summary.strip() and (unexpected or payload.get("handoff")):
+            summary = "(model supplied no summary; its answer is preserved in handoff)"
+            handoff = {**handoff, "summary_was_defaulted": True}
 
     report = {
         "status": payload.get("status", "needs_review"),
-        "summary": str(payload.get("summary", ""))[:MAX_SUMMARY_CHARS],
+        "summary": summary,
         "files_changed": payload.get("files_changed") or [],
         "tests_run": payload.get("tests_run") or [],
         "risks": payload.get("risks") or [],

@@ -548,12 +548,13 @@ class DeepSeekProvider(Provider):
                       api_key=self.api_key, timeout_s=timeout_s, force_json=True,
                       temperature=temperature)
             raw = chat_completion(user=user, **kw)
+            repairs: list[str] = []
             try:
-                report = coerce_report(extract_json(raw))
+                report = coerce_report(extract_json(raw, repairs=repairs))
             except ValueError:
                 # exactly one deterministic re-ask for valid JSON before escalating
                 raw = chat_completion(user=user + "\n\nReturn ONLY the json object, no prose.", **kw)
-                report = coerce_report(extract_json(raw))
+                report = coerce_report(extract_json(raw, repairs=repairs))
         except (ProviderHTTPError, ValueError) as exc:
             return {
                 "provider": self.caps.name,
@@ -565,6 +566,11 @@ class DeepSeekProvider(Provider):
             }
 
         report = self._enforce_read_only(report)
+        if repairs:
+            # An answer that only parsed after the harness doubled its invalid
+            # escapes is evidence of a different grade than one that parsed
+            # clean; the consumer decides what that means, but only if told.
+            report["handoff"] = {**report.get("handoff", {}), "harness_repairs": repairs}
         if skipped:
             report["handoff"] = {**report.get("handoff", {}), "skipped_sensitive": skipped}
         return {
