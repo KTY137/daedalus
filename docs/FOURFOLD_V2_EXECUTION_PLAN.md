@@ -1,0 +1,241 @@
+# Fourfold v2 Execution Plan
+
+Status: active derived projection  
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 2  
+Active gate: Gate 0 — Canonical Kernel  
+Primary branch chain: `experimental` -> focused Work Packet branch -> draft PR  
+Rule: this document records execution status and evidence; it cannot override the Iron Plan.
+
+## Operating model
+
+Daedalus is developed through one active Work Packet at a time. Each packet has
+one major architectural axis, one acceptance matrix, one builder, one independent
+review pass, and one explicit owner decision. A packet may be split into smaller
+commits, but its PR must not mix unrelated feature work, broad cleanup, dependency
+migration, evaluator changes, or policy amendments.
+
+Every packet follows:
+
+1. freeze packet scope and base revision;
+2. reproduce the baseline and known failures;
+3. implement in an isolated branch/worktree;
+4. run focused unit, contract, determinism, packaging, and integration tests;
+5. perform independent architecture/security review;
+6. run proportional fault injection and stale-revision tests;
+7. run affected legacy suites and platform matrix;
+8. publish evidence, residual risk, rollback, and next prerequisites;
+9. merge only after owner approval.
+
+No dependent packet enters build while its parent is red or unreviewed. Read-only
+research may continue, but it cannot establish another implementation truth.
+
+## Review roles
+
+The roles are logical responsibilities; one runtime may not approve its own work.
+
+- **Planner:** freezes Work Packet, contracts, exclusions, acceptance matrix.
+- **Builder:** implements only the packet scope and records assumptions.
+- **Contract reviewer:** checks canonical identity, serialization, provenance,
+  revision binding, refusal semantics, and migration compatibility.
+- **Adversarial reviewer:** searches for bypasses, stale-state acceptance,
+  evaluator contamination, unbounded effects, and false success.
+- **Verifier:** runs deterministic commands and retains outputs/receipts.
+- **Owner:** accepts, rejects, or requests another bounded packet.
+
+LLM reviewers provide hypotheses and criticism. Tests, compilers, schemas,
+runtime probes, and owner decisions remain the evidence/promotion boundary.
+
+## WP-00 — Fourfold snapshot foundation
+
+Status: implemented in draft PR #1; CI and review in progress.
+
+Scope:
+
+- canonical `PlaneSnapshot`, `CrossPlaneBinding`, and `FourfoldSnapshot`;
+- exact four-plane membership and source-revision binding;
+- explicit `complete`, `partial`, and `absent` states;
+- conservative `KnowledgeForest -> FourfoldSnapshot` projection;
+- strict parsing, immutable inputs, deterministic digest, packaging matrix.
+
+Acceptance:
+
+- same canonical input produces identical JSON/digest across hash seeds;
+- missing Data Plane is `absent` with reason, never silently empty-success;
+- unknown node kinds and dangling/unverified bindings refuse;
+- built wheel imports `daedalus.twin`;
+- existing kernel-contract tests remain green;
+- Iron Plan tests and history verification are green.
+
+Rollback: remove `daedalus.twin`, its tests, package entry, and focused workflow;
+no production path currently depends on it.
+
+## WP-01 — GraphProposal contract and verifier
+
+Prerequisite: WP-00 green and reviewed.
+
+Build:
+
+- `GraphOperation` tagged union with a deliberately small first vocabulary:
+  `add_binding`, `remove_binding`, `rename_concept`, `replace_relation`;
+- `GraphProposal` bound to base snapshot digest, objective, model/runtime
+  manifest, context capsule, budget, writable semantic scope, and provenance;
+- `ProposalVerificationReport` with accepted/rejected operations and exact reasons;
+- deterministic verifier for revision, endpoint, plane, relation, duplicate,
+  scope, evidence, and invariant checks;
+- proposals never mutate `FourfoldSnapshot` directly.
+
+Tests:
+
+- strict round-trip and canonical ordering;
+- malformed/unknown operation refusal;
+- stale snapshot, wrong revision, dangling endpoints, cross-scope operations;
+- model rationale cannot substitute for evidence;
+- partial acceptance is explicit and cannot masquerade as full validity;
+- fuzz/property tests over operation ordering and duplicate injection.
+
+Review focus: prevent a second graph authority and prevent “verified” from
+meaning merely schema-valid.
+
+## WP-02 — Atomic Fourfold compiler
+
+Prerequisite: WP-01 green and reviewed.
+
+Build:
+
+- `FourfoldCompiler` orchestrates existing extractors without replacing them;
+- one exact source revision, extractor manifest, and content-addressed source;
+- all plane results staged before one snapshot publication;
+- failed or unavailable extractors yield explicit partial/absent plane records;
+- no mixed-revision or partially published Twin;
+- compiler receipt records extractor versions, timings, failures, and evidence.
+
+Tests:
+
+- crash between every compile stage;
+- stale cache and mismatched extractor revision;
+- deterministic rebuild on Linux/Windows fixtures where available;
+- cancellation and restart;
+- CAS corruption/refusal;
+- legacy Forest equivalence for currently supported facts.
+
+## WP-03 — Data Plane minimum viable extractor
+
+Prerequisite: WP-02 green and reviewed.
+
+Initial bounded formats:
+
+- Python dataclasses/Pydantic-like declarations already visible to the parser;
+- CSV headers and fixtures;
+- JSON Schema;
+- SQL parsed through an adapter such as SQLGlot when installed;
+- HDF5 structure through an optional adapter when installed.
+
+Build schema/table/field/format nodes, transformations, and evidence locators.
+Do not build a general data lake or infer runtime truth from names alone.
+
+Ignition fixture must represent `Event.voltage` in Python, Markdown, and CSV.
+
+## WP-04 — Round-trip candidate reporting
+
+Prerequisite: WP-03 green and reviewed.
+
+Build:
+
+- `TargetTwin`/bounded target delta;
+- `MaterializationPlan` mapping verified graph intent to source paths;
+- isolated candidate source artifact;
+- candidate Twin rebuild;
+- `RoundTripReport` comparing required, satisfied, missing, contradicted, and
+  extra structure;
+- behavioral gates remain separate from structural conformance.
+
+Tests include a generator that falsely claims success, source changes that do
+not alter the intended graph, graph changes that break behavior, and stale-base
+candidate replay.
+
+## WP-05 — Gate 1 Renovation ignition slice
+
+Prerequisite: WP-04 green and Gate-0 effect path sufficient for the slice.
+
+Mission: propagate `Event.voltage -> bias_voltage` across Python, Markdown, and
+CSV without auto-merge.
+
+Evidence chain:
+
+`MissionContract -> two typed WorkItems -> isolated Attempts -> source artifact -> candidate Twin -> schema/tests/link checks -> EvidencePacket -> owner review`
+
+Required fault cases: dropped file, stale base, partial rename, wrong CSV header,
+broken documentation link, worker false success, restart after first WorkItem,
+and denied promotion without owner approval.
+
+## WP-06 — Corpus seed and motif contracts
+
+Prerequisite: WP-05 green; still experimental until Gate 2.
+
+Use a small license-audited and temporally pinned corpus. Store immutable Twin
+manifests and source provenance. Define motif contracts before learned models:
+
+- concrete supporting subgraphs;
+- alignment mapping;
+- parameters and required invariants;
+- compatible contexts and negative examples;
+- quality/evaluator evidence;
+- licenses and extraction versions.
+
+Baselines: lexical retrieval, embeddings, code-only graph, four independent
+indices, fused four-plane graph, and randomized cross-plane edges.
+
+## WP-07 — Genesis microsoftware slice
+
+Prerequisite: sealed Gate-3 baseline harness and WP-06 evidence.
+
+Input: an owner-approved small ProductSpec plus visual/design contract.
+Output: target Twin, declared retrieved motifs, isolated repository, runnable
+software, screenshots/accessibility evidence where applicable, rebuilt Twin,
+and RoundTripReport.
+
+The first slice should be deliberately small: one local CRUD/data-view
+application or similarly objective software with deterministic acceptance tests.
+No framework-wide “build anything” claim is allowed from one demo.
+
+## WP-08 — Ariadne evolution experiments
+
+Prerequisite: Genesis and Renovation baselines.
+
+One campaign changes one axis:
+
+- graph proposal operator;
+- context/retrieval policy;
+- motif composition policy;
+- model assignment;
+- orchestration recipe;
+- source repair strategy.
+
+Use fixed tasks, evaluator, budgets, seeds, and model set. Compare Random,
+Best-of-N, single-LLM repair, evaluator-only selection, Optuna-like search,
+MAP-Elites/quality-diversity archive, and a transparent AlphaEvolve-like proxy.
+Retain all failures and never auto-promote.
+
+## Dependency adoption order
+
+Do not add the complete research stack at once.
+
+1. keep the stdlib canonical contracts;
+2. add optional parser/data adapters only with fixtures and failure behavior;
+3. introduce a graph query backend only after snapshot/adapter stability;
+4. add durable workflow execution only behind Mission/Event contracts;
+5. add optimization/QD libraries only after frozen evaluators exist;
+6. add graph ML only after deterministic retrieval and ablation baselines.
+
+Each dependency packet records license, version, platform support, serialization
+boundary, failure mode, replacement path, and measured benefit.
+
+## Current branch/PR evidence
+
+- Branch: `core/fourfold-v2`
+- Base: `experimental`
+- Draft PR: #1
+- Fourfold matrix: Python 3.10/3.12 x two hash seeds
+- Known blocker discovered: historical adoption fixture copied the current plan
+  as its pre-adoption base; revision-2 amendment corrects it to use pinned Git
+  history.

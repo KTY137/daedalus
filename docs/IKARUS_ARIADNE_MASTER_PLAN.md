@@ -1,10 +1,10 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 1  
-Version: 1.0.0  
+Revision: 2  
+Version: 1.1.0  
 Status: adopted  
-Date: 2026-07-30  
+Date: 2026-08-01  
 Owner: repository owner  
 Active delivery gate: Gate 0 — Canonical Kernel  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
@@ -60,6 +60,21 @@ Build a trustworthy system that can understand a software project across code,
 types, data, and knowledge; formulate useful changes; run controlled
 experiments; learn from evidence; and promote only verified improvements.
 
+Daedalus has two product modes:
+
+- **Renovation** — understand, repair, refactor, synchronize, and evolve an
+  existing repository.
+- **Genesis** — compile a user-approved product specification and visual design
+  contract into a new repository, then prove by round-trip distillation that
+  the materialized source satisfies the intended four-plane structure.
+
+The long-term user experience is natural-language software construction:
+Ikarus turns intent into an inspectable target Project Twin and bounded mission;
+Daedalus materializes and verifies candidates; Ariadne improves the reusable
+motifs, operators, retrieval policies, and orchestration recipes that produced
+them. “One prompt to software” is an outcome of verified composition and repair
+loops, not permission to skip specifications, evidence, or owner review.
+
 The research ambition is to outperform AlphaEvolve and other relevant systems
 on openly specified, budget-equal evaluations. That is a target, never an
 assumed fact. The system must publish failures, ablations, costs, and negative
@@ -69,14 +84,19 @@ results alongside wins.
 
 Only three top-level product/research concepts are public:
 
-- **Daedalus** — the durable Mission / Policy / Execution / Evidence kernel.
-- **Ikarus** — the persistent Jarvis-like assistant and orchestration surface
-  that turns intent into typed missions and explains evidence.
-- **Ariadne** — the controlled code-generation and evolution workload running
-  on the kernel.
+- **Daedalus** — the complete trustworthy system. Its semantic/intelligence
+  core is the revision-bound four-plane Project Twin; its trust/runtime kernel
+  is the canonical Mission / Policy / Execution / Evidence spine.
+- **Ikarus** — the persistent assistant and orchestration layer that turns
+  intent into typed product specifications, target Twins, missions, and
+  explainable evidence.
+- **Ariadne** — the controlled evolution layer that searches over source
+  candidates, graph transformations, motifs, context strategies, prompts,
+  models, and orchestration recipes without bypassing the trust kernel.
 
-Existing components may survive as internal modules. Do not create another
-mythological product, another control plane, or a parallel source of truth.
+The Project Twin is shared substrate, not a fourth public product. Existing
+components may survive as internal modules. Do not create another mythological
+product, another control plane, or a parallel source of truth.
 
 ## 4. Constitutional invariants
 
@@ -106,7 +126,7 @@ These invariants apply to every production-capable path:
    baselines. No benchmark is trained on its hidden test.
 10. **No silent constitution change.** This plan, its amendment chain, active
     instructions, and guards change only through the amendment protocol in
-    section 15.
+    section 16.
 
 ## 5. The Project Twin: the strongest falsifiable prior
 
@@ -128,7 +148,16 @@ Sources and candidate trees live in content-addressed storage; the Forest
 references them and exposes typed intra-plane and verified cross-plane edges.
 
 This hypothesis is a “god-key” candidate, not dogma. It earns its centrality
-only through the kill criteria in section 13.
+only through the kill criteria in section 14.
+
+A repository corpus may contain many immutable Project Twins. Corpus ingestion
+retains source revision, extraction versions, licenses, provenance, evaluation
+evidence, and temporal cutoffs. Reusable **motifs** are evidence-bearing
+abstractions over aligned subgraphs; they never erase the concrete repositories
+from which they were learned. A generated program is a source artifact whose
+structure may be proposed by retrieving, composing, interpolating, or mutating
+motifs, but the source artifact and its rebuilt candidate Twin remain the
+authoritative candidate pair.
 
 ## 6. Latent Atlas and cross-plane discovery
 
@@ -152,23 +181,55 @@ Canonical formula:
 Forest is the teacher; the latent atlas is the hypothesis machine; the
 evaluator is the truth boundary.
 
-## 7. Ikarus, orchestration, and knowledge
+## 7. Ikarus and the orchestration layer
 
 Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.
-It compiles user intent into a typed `MissionContract`, creates an artifact DAG,
-selects stateless or explicitly versioned recipes, monitors budgets and
-attempts, and presents decisions and evidence.
+It compiles user intent into a typed `ProductSpec` or change objective, a
+target Project Twin or bounded Twin delta, and then a `MissionContract`. It
+creates an artifact DAG, selects stateless or explicitly versioned recipes,
+monitors budgets and attempts, and presents decisions and evidence.
 
 Coordination is artifact-first:
 
-`MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket`
+`ProductSpec -> TargetTwin -> MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket`
+
+For Renovation, the base repository and exact base Twin are mandatory inputs.
+For Genesis, the absence of a base repository is explicit; the target Twin,
+design contract, accepted technology constraints, and selected corpus motifs
+become frozen inputs. Genesis still produces an isolated source candidate,
+rebuilds a candidate Twin, and compares target versus actual before nomination.
+
+The orchestration layer answers who works, with which runtime, context,
+capabilities, budget, workspace, and review chain. It may use Claude, Codex,
+Ollama, other LLM runtimes, deterministic tools, and human decisions through
+one vendor-neutral runtime contract. Models never obtain authority by being
+selected as the speaking voice.
 
 Typed events and artifacts are authoritative. Chat is an interface, not the
 workflow database. Product memory (preferences, projects, explanations) and
 research adaptive memory (operators, priors, trial outcomes) are separate,
 versioned, provenance-bearing stores with explicit projection rules.
 
-## 8. Ariadne evolution loop
+## 8. Ariadne and the evolution layer
+
+The orchestration layer executes one bounded software mission. The evolution
+layer improves the representations, motifs, operators, context strategies, and
+orchestration recipes used across missions. Both layers communicate only
+through versioned artifacts, contracts, measurements, and receipts.
+
+LLMs are creative search operators, not truth authorities. They may:
+
+- translate intent into candidate specifications;
+- propose typed graph bindings or graph transformations;
+- retrieve and recombine distant corpus motifs;
+- materialize a target graph as source code;
+- generate repairs, tests, critics, and alternative implementations;
+- propose prompt, context, model-assignment, or workflow variants.
+
+Deterministic or independently controlled evaluators verify structural
+validity, compilation, tests, behavior, security properties, visual contracts,
+resource usage, and round-trip target-versus-actual Twin conformance. LLM
+criticism is advisory evidence unless an experiment explicitly measures it.
 
 Every campaign follows this controlled loop:
 
@@ -178,8 +239,10 @@ Every campaign follows this controlled loop:
 4. Compile a minimal Context Capsule from verified project evidence.
 5. Run an isolated, capability-bounded trial.
 6. Store the candidate source tree in content-addressed storage.
-7. Build a candidate Forest and revision-aware delta.
-8. Run the evaluation cascade from cheap validity checks to held-out tests.
+7. Build a candidate Forest, four-plane candidate Twin, and revision-aware delta.
+8. Run the evaluation cascade from cheap graph/schema validity through build,
+   tests, runtime probes, visual checks where relevant, held-out tasks, and
+   target-versus-actual Twin conformance.
 9. Emit a signed/traceable receipt and archive all outcomes.
 10. Nominate successful candidates; never auto-promote them.
 11. Promote only through the sealed owner-controlled path.
@@ -188,9 +251,21 @@ Campaigns factorize evolution: change one major axis at a time unless a
 pre-registered interaction experiment justifies more. Code, prompts, operators,
 evaluators, and orchestration do not silently co-evolve in one campaign.
 
-## 9. Code generation and evolution framework
+## 9. Generation, corpus composition, and round-trip compilation
 
-Generation is not a single model call. Each operator declares:
+Generation is not a single model call. The canonical pipeline is:
+
+`intent -> ProductSpec -> TargetTwin -> GraphProposal -> verified operations -> MaterializationPlan -> source candidate -> rebuilt Twin -> RoundTripReport`
+
+A `GraphProposal` is an LLM- or algorithm-produced hypothesis bound to an exact
+base or target snapshot, model/runtime manifest, context capsule, budget, and
+declared operations. It cannot enter an authoritative snapshot until a verifier
+checks endpoint existence, revision compatibility, relation rules, provenance,
+scope, and evidence. A `MaterializationPlan` translates verified graph intent
+into bounded source edits. The resulting repository is always distilled again;
+the system never trusts the generator’s claim that it implemented the target.
+
+Each operator declares:
 
 - accepted artifact types and required Project-Twin slice;
 - writable paths, tools, model, budget, and timeout;
@@ -199,11 +274,90 @@ Generation is not a single model call. Each operator declares:
 - provenance, replay inputs, and expected failure modes.
 
 Initial operator families are repair, refactor, representation search, test
-generation, schema/document synchronization, and targeted algorithm search.
-Operator discovery itself is a later bounded research problem, not a reason to
-skip the kernel.
+generation, schema/document synchronization, motif retrieval/composition,
+cross-plane propagation, UI/design materialization, and targeted algorithm
+search. Operator discovery itself is a later bounded research problem, not a
+reason to skip the kernel.
 
-## 10. Delivery gates
+### 9.1 Repository atlas and motif library
+
+The Atlas is a regenerable query/index layer over immutable repository Twins,
+not a second source of truth. It may provide lexical, vector, graph, and learned
+retrieval. Motif extraction must retain:
+
+- source repositories, revisions, licenses, and temporal cutoffs;
+- concrete supporting subgraphs and negative examples;
+- required preconditions and preserved invariants;
+- known compatible contexts, failure modes, and evaluator evidence;
+- abstraction and alignment algorithm versions.
+
+Interpolation means constrained graph alignment, composition, mutation, and
+repair. It is not arithmetic averaging of arbitrary software graphs.
+
+### 9.2 Buy-versus-build boundary
+
+Daedalus owns four-plane semantics, revision atomicity, cross-plane verification,
+motif abstraction, graph mutation contracts, target-to-source materialization
+contracts, round-trip evaluation, evidence, and promotion. External libraries
+should supply commodity infrastructure behind adapters where they reduce risk:
+parsing/indexing, graph storage/query, vector retrieval, workflow checkpointing,
+tool transport, sandboxing, optimization, quality-diversity archives, and
+experiment visualization. Library state is a projection or runtime backend,
+never a competing authority.
+
+Current implementation priors include Tree-sitter/SCIP/Joern for code
+intelligence, SQLGlot/OpenLineage for data lineage, Kùzu/rustworkx for graph
+query and algorithms, PyTorch Geometric for later heterogeneous graph research,
+MCP and LiteLLM for transport, LangGraph or an equivalent durable executor
+behind Daedalus contracts, Docker-compatible sandboxes, DSPy/Optuna/pyribs for
+bounded optimization, and MLflow-like experiment projection. These are priors,
+not permanent dependencies; adoption requires an adapter contract, failure
+mode, replacement path, and measured benefit.
+
+## 10. Mandatory build and review chain
+
+Implementation proceeds as a sequence of bounded **Work Packets**. One Work
+Packet changes one major architectural axis and has one primary acceptance
+claim. A packet freezes:
+
+- packet ID, active gate, classification, owner, base revision, and dependencies;
+- exact in-scope and forbidden paths;
+- contracts or behavior being added, changed, migrated, or deleted;
+- deterministic acceptance tests, refusal tests, fault injections, and budgets;
+- migration, rollback, evidence, expected failures, and review questions.
+
+The required chain is:
+
+1. **Plan.** Verify the Iron Plan; write the Work Packet and acceptance matrix.
+2. **Baseline.** Reproduce current behavior and record failing/absent evidence.
+3. **Build.** Implement in an isolated branch/worktree without widening scope.
+4. **Builder verification.** Run focused unit, contract, determinism, packaging,
+   and integration tests. A model’s self-report is not evidence.
+5. **Independent review.** A separate reviewer examines contracts, bypasses,
+   provenance, failure semantics, architecture drift, and unnecessary code.
+6. **Adversarial verification.** Run malformed-input, stale-revision,
+   cancellation, timeout, crash/restart, policy-bypass, and mutation tests
+   proportional to the packet’s risk.
+7. **System CI.** Run affected legacy suites plus the packet acceptance matrix
+   on supported platforms/interpreters. Baseline failures are named separately.
+8. **Evidence handoff.** Publish exact commits, commands, results, residual
+   risks, rollback, and the next packet’s prerequisites.
+9. **Owner decision.** Merge/promote only after required checks and explicit
+   owner approval. A draft or green candidate is not promotion.
+
+No packet begins its dependent build phase until the parent packet is green,
+reviewed, or explicitly frozen as a documented blocker. Stacked research
+branches may gather read-only evidence, but may not silently establish a second
+implementation truth. Feature work, broad refactors, dependency migration,
+policy amendment, and evaluator change belong in separate packets unless their
+interaction is the pre-registered subject of an experiment.
+
+The derived execution projection is
+`docs/FOURFOLD_V2_EXECUTION_PLAN.md`. Claude and other builders may update it
+for status and evidence, but it cannot override this plan or declare a gate
+complete.
+
+## 11. Delivery gates
 
 Work advances in order. A later-gate experiment may be prototyped only when it
 does not create a competing kernel and is explicitly labelled experimental.
@@ -213,7 +367,8 @@ does not create a competing kernel and is explicitly labelled experimental.
 Deliver:
 
 - one Event Store plus content-addressed artifact store;
-- canonical Mission, Attempt, Evidence, Campaign, policy, and receipt schemas;
+- canonical Mission, Attempt, Evidence, Campaign, policy, receipt, four-plane
+  snapshot, graph-proposal, and round-trip-report schemas;
 - one vendor-neutral Agent Contract / Runtime Manifest for capabilities,
   mission envelopes, tools, egress, workspace, cost, and conformance receipts;
 - centralized start/guard path for every effectful runtime entrypoint;
@@ -227,28 +382,37 @@ Deliver:
 Exit only when a fault-injection matrix demonstrates fail-closed protected
 effects and fail-open read-only inspection.
 
-### Gate 1 — Ignition slice
+### Gate 1 — Renovation ignition slice
 
-Prove one vertical mission: propagate `Event.voltage -> bias_voltage` across
+Prove one vertical Renovation mission: propagate `Event.voltage -> bias_voltage` across
 Python, Markdown, and CSV. Ikarus produces one MissionContract; the four planes
 produce two typed WorkItems; attempts run in isolation; restart/replay works;
 tests, schema checks, and link checks produce an EvidencePacket. No auto-merge.
 
-### Gate 2 — Forest v2
+### Gate 2 — Forest v2 and corpus seed
 
 Add function/method resolution, data/schema extraction, knowledge crosslinks,
-revision atomicity, evidence locators, and four-plane ablations. Do not scale
-before the full graph beats simpler representations.
+revision atomicity, evidence locators, and four-plane ablations. Ingest a small
+license-audited, temporally pinned repository corpus and prove deterministic
+Twin rebuilding, cross-repository alignment, and motif provenance. Do not scale
+the corpus before the full graph beats simpler representations.
 
-### Gate 3 — Baseline lab
+### Gate 3 — Baseline and Genesis lab
 
-Freeze public tasks, evaluator versions, budgets, model/hardware reporting,
+First freeze public tasks, evaluator versions, budgets, model/hardware reporting,
 seed policy, and statistical reporting. Required baselines are Random Search,
 Best-of-N, a single-LLM loop, simple local mutation, BM25, embeddings,
 code-only graph, four separate indices, evaluator-only selection,
 archive/MAP-Elites, and a transparent AlphaEvolve-like proxy. Measure success
 rate, best-so-far AUC, wall time, tokens, compute, variance, diversity,
 regressions, and human intervention.
+
+Only after that baseline harness is sealed, prove one bounded Genesis slice:
+compile an owner-approved ProductSpec and visual contract for a small software
+application into a target Twin, retrieve declared motifs, materialize an
+isolated repository, build/run it, inspect rendered output where relevant,
+rebuild its Twin, and emit a RoundTripReport. The slice may require repair
+iterations but may not change its evaluator, target, or budget mid-run.
 
 ### Gate 4 — One research hypothesis
 
@@ -268,13 +432,17 @@ scientifically available. “Beats AlphaEvolve” is permitted only for directly
 comparable public artifact scores under budget-equal measurements; otherwise
 state the narrower proxy/task result.
 
-## 11. Current priority
+## 12. Current priority
 
 Until Gate 0 exits, the default answer to new feature work is: wire it through
-the canonical kernel or keep it as a disposable, isolated experiment. The next
-product proof is the Gate 1 ignition slice, not a broader assistant demo.
+the canonical kernel or keep it as a disposable, isolated experiment. The
+active implementation sequence is Fourfold snapshot contracts, conservative
+legacy projection, GraphProposal/verification, atomic compiler, Data Plane,
+round-trip reporting, then the Gate 1 Renovation slice. Genesis, the corpus,
+motif learning, graph ML, and autonomous evolution do not become production
+paths early merely because their interfaces can be sketched.
 
-## 12. Forbidden default directions
+## 13. Forbidden default directions
 
 Do not add these to the production architecture:
 
@@ -288,12 +456,16 @@ Do not add these to the production architecture:
 - simultaneous unregistered co-evolution of code, prompts, evaluators, and policy;
 - automatic merge/promotion or candidate access to its evaluator;
 - a marketing clone whose comparison protocol is not reproducible;
-- new graph planes without demonstrated marginal evidence.
+- new graph planes without demonstrated marginal evidence;
+- a greenfield rewrite that discards measured failures and working modules;
+- dependent feature packets built on an unreviewed or red parent packet;
+- corpus ingestion that drops source license, revision, or temporal provenance;
+- treating visual similarity or an LLM critique as sufficient UI acceptance.
 
 Any of these may appear only in an isolated falsification experiment with an
 explicit hypothesis and no production promotion.
 
-## 13. Kill criteria
+## 14. Kill criteria
 
 Stop or redesign the four-plane/latent track when replicated, budget-equal
 experiments show any of the following:
@@ -310,7 +482,13 @@ experiments show any of the following:
 - revision-atomic snapshots cannot be maintained at usable cost;
 - embedding proposals cannot achieve useful precision after verification cost;
 - benefits disappear on held-out repositories, under equal context budgets, or
-  in cross-project transfer.
+  in cross-project transfer;
+- motif composition does not outperform direct generation after equalizing
+  model, tokens, repair budget, and evaluator access;
+- Genesis round-trip conformance fails to predict buildable, usable software;
+- corpus licensing/provenance or extraction cost prevents reproducible reuse;
+- orchestration evolution gains vanish when evaluated on unseen repositories
+  and fixed models.
 
 A kill result does not silently delete this plan. Archive the evidence, stop the
 affected track, and submit an amendment replacing the failed prior.
@@ -327,27 +505,34 @@ post-task graph edges, previous solutions in adaptive memory, base/candidate
 snapshot mixing, evaluator paths or outputs, and model-generated hypotheses
 re-entering the Knowledge plane as facts.
 
-## 14. Alignment protocol for every change
+## 15. Alignment protocol for every change
 
 Before editing:
 
 1. Read this plan and verify its digest.
 2. Classify the work as `ALIGNED`, `EXPERIMENT`, or `AMENDMENT`.
 3. Name the active gate and the invariant/prior touched.
-4. Prefer deletion, consolidation, or wiring over a new subsystem.
+4. Create or select exactly one Work Packet and freeze its acceptance matrix.
+5. Reproduce the relevant baseline before changing implementation.
+6. Prefer deletion, consolidation, or wiring over a new subsystem.
 
 Before handing off:
 
-1. Run `python tools/iron_plan_guard.py verify`.
-2. Report:
+1. Complete the build/review chain in section 10 or name the exact blocked step.
+2. Run `python tools/iron_plan_guard.py verify`.
+3. Report:
 
    `Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT`  
    `Iron Gate: 0..5`  
    `Evidence: <tests, receipts, or analysis>`
 
 An experiment also records its spec, scope, budget, evaluator, and expiry.
+Historical governance tests must reconstruct their base state from pinned Git
+history or retained content digests. A current policy artifact must never
+impersonate a pre-adoption or pre-amendment state merely because it is easier to
+copy from the working tree.
 
-## 15. Amendment protocol
+## 16. Amendment protocol
 
 Ordinary tasks must not edit the plan, amendment chain, active instructions, or
 guards. To amend:

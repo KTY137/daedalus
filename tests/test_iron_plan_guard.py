@@ -40,7 +40,10 @@ class IronPlanContractTests(unittest.TestCase):
         latest = records[-1]
         self.assertEqual(latest["result_plan_sha256"], guard.file_sha256(ROOT / guard.PLAN_REL))
         self.assertEqual(latest["record_sha256"], guard.canonical_record_sha256(latest))
-        self.assertEqual(latest["result_revision"], 1)
+        revision, _, _ = guard.parse_plan_header(
+            (ROOT / guard.PLAN_REL).read_text(encoding="utf-8")
+        )
+        self.assertEqual(latest["result_revision"], revision)
 
     def test_canonical_hash_normalizes_line_endings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -679,7 +682,18 @@ class IronPlanContractTests(unittest.TestCase):
             run_git(repo, "config", "user.name", "Iron Plan Test")
             run_git(repo, "config", "user.email", "iron-plan@example.invalid")
 
-            old_plan = run_git(ROOT, "show", f"HEAD:{guard.PLAN_REL}") + "\n"
+            adoption_commit = run_git(
+                ROOT,
+                "log",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                guard.LEDGER_REL,
+            ).splitlines()[-1]
+            old_plan = (
+                run_git(ROOT, "show", f"{adoption_commit}^:{guard.PLAN_REL}")
+                + "\n"
+            )
             base_plan = repo / guard.PLAN_REL
             base_plan.parent.mkdir(parents=True, exist_ok=True)
             base_plan.write_text(old_plan, encoding="utf-8")
@@ -688,10 +702,13 @@ class IronPlanContractTests(unittest.TestCase):
             base_sha = run_git(repo, "rev-parse", "HEAD")
 
             for rel in guard.PROTECTED_PATHS:
-                source = ROOT / rel
                 destination = repo / rel
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, destination)
+                if rel in {guard.PLAN_REL, guard.LEDGER_REL}:
+                    historical = run_git(ROOT, "show", f"{adoption_commit}:{rel}")
+                    destination.write_text(historical + "\n", encoding="utf-8")
+                else:
+                    shutil.copy2(ROOT / rel, destination)
             run_git(repo, "add", "-A")
             run_git(
                 repo,
