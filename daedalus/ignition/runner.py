@@ -1,0 +1,291 @@
+"""Deterministic Gate-1 ignition: ``voltage`` -> ``bias_voltage``.
+
+This is a bounded Renovation slice, not an autonomous agent loop. It executes
+two explicit WorkItems inside a copied candidate tree, proves that the source
+fixture remains byte-identical, recompiles a real FourfoldSnapshot, measures a
+graph delta and behavior, and emits one canonical EvidencePacket. It never
+consumes approval and never promotes the candidate.
+"""
+from __future__ import annotations
+
+import csv
+import importlib
+import re
+import shutil
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Mapping
+
+from daedalus.kernel.fourfold_evidence import assemble_fourfold_evidence_packet
+from daedalus.schemas import ContractProvenance, EvidenceItem, EvidencePacket, ResourceUsage
+from daedalus.spine.envelope import canonical_sha
+from daedalus.twin import compile_reference_project
+from daedalus.twin.contracts import FourfoldSnapshot
+
+
+class IgnitionError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class IgnitionWorkItem:
+    work_item_id: str
+    planes: tuple[str, ...]
+    paths: tuple[str, ...]
+
+
+WORK_ITEMS = (
+    IgnitionWorkItem(
+        "rename-code-type",
+        ("code", "type"),
+        (
+            "src/ignition_app/models.py",
+            "src/ignition_app/repository.py",
+        ),
+    ),
+    IgnitionWorkItem(
+        "rename-data-knowledge",
+        ("data", "knowledge"),
+        (
+            "data/events.csv",
+            "schemas/event.schema.json",
+            "wiki/Event.md",
+            "fourfold.json",
+        ),
+    ),
+)
+
+
+@dataclass(frozen=True)
+class IgnitionGraphDelta:
+    added_nodes: tuple[str, ...]
+    removed_nodes: tuple[str, ...]
+    added_bindings: tuple[str, ...]
+    removed_bindings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, list[str]]:
+        return {
+            "added_nodes": list(self.added_nodes),
+            "removed_nodes": list(self.removed_nodes),
+            "added_bindings": list(self.added_bindings),
+            "removed_bindings": list(self.removed_bindings),
+        }
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+@dataclass(frozen=True)
+class IgnitionResult:
+    base_source_bundle_sha256: str
+    candidate_source_bundle_sha256: str
+    base_snapshot: FourfoldSnapshot
+    candidate_snapshot: FourfoldSnapshot
+    graph_delta: IgnitionGraphDelta
+    evidence_packet: EvidencePacket
+    behavior_sha256: str
+    primary_tree_before_sha256: str
+    primary_tree_after_sha256: str
+    work_items: tuple[IgnitionWorkItem, ...] = WORK_ITEMS
+
+    @property
+    def primary_unchanged(self) -> bool:
+        return self.primary_tree_before_sha256 == self.primary_tree_after_sha256
+
+
+def _tree_digest(root: Path) -> str:
+    rows = []
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        rel = path.relative_to(root).as_posix()
+        rows.append({"path": rel, "sha256": canonical_sha({"bytes": path.read_bytes().hex()})})
+    return canonical_sha({"schema": "daedalus-tree-digest/1", "files": rows})
+
+
+def _replace(path: Path, old: str, new: str, *, expected: int | None = None) -> None:
+    text = path.read_text(encoding="utf-8")
+    count = text.count(old)
+    if count == 0 or (expected is not None and count != expected):
+        raise IgnitionError(
+            f"rename precondition failed for {path.name}: {old!r} count={count}"
+        )
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def materialize_voltage_rename(source_root: str | Path, candidate_root: str | Path) -> Path:
+    source = Path(source_root).resolve()
+    candidate = Path(candidate_root).resolve()
+    if candidate.exists():
+        raise IgnitionError("candidate root must not already exist")
+    if candidate == source or source in candidate.parents:
+        raise IgnitionError("candidate root must be isolated from the source fixture")
+    shutil.copytree(source, candidate)
+
+    # WorkItem A: Code + Type.
+    _replace(candidate / "src/ignition_app/models.py", "    voltage: float", "    bias_voltage: float", expected=1)
+    _replace(candidate / "src/ignition_app/repository.py", 'voltage=float(row["voltage"])', 'bias_voltage=float(row["bias_voltage"])', expected=1)
+
+    # WorkItem B: Data + Knowledge, including the claims that define verified
+    # Type->Data identities in the candidate snapshot.
+    _replace(candidate / "data/events.csv", "id,voltage", "id,bias_voltage", expected=1)
+    _replace(candidate / "schemas/event.schema.json", '"voltage"', '"bias_voltage"')
+    _replace(candidate / "wiki/Event.md", "voltage", "bias_voltage")
+    _replace(candidate / "fourfold.json", '"voltage"', '"bias_voltage"')
+    return candidate
+
+
+def _behavior(candidate: Path) -> Mapping[str, object]:
+    source = str(candidate / "src")
+    previous = list(sys.path)
+    stale = [name for name in sys.modules if name == "ignition_app" or name.startswith("ignition_app.")]
+    for name in stale:
+        sys.modules.pop(name, None)
+    try:
+        sys.path.insert(0, source)
+        module = importlib.import_module("ignition_app")
+        event = module.parse_event({"id": "1", "bias_voltage": "125.0"})
+        return {
+            "type": type(event).__name__,
+            "id": event.id,
+            "bias_voltage": event.bias_voltage,
+            "has_old_voltage_attribute": hasattr(event, "voltage"),
+        }
+    finally:
+        sys.path[:] = previous
+        for name in [name for name in sys.modules if name == "ignition_app" or name.startswith("ignition_app.")]:
+            sys.modules.pop(name, None)
+
+
+def _old_symbol_occurrences(root: Path) -> tuple[str, ...]:
+    pattern = re.compile(r"(?<![A-Za-z0-9_])voltage(?![A-Za-z0-9_])")
+    paths = [path for item in WORK_ITEMS for path in item.paths]
+    hits = []
+    for rel in sorted(set(paths)):
+        text = (root / rel).read_text(encoding="utf-8")
+        if pattern.search(text):
+            hits.append(rel)
+    return tuple(hits)
+
+
+def _graph_delta(base: FourfoldSnapshot, candidate: FourfoldSnapshot) -> IgnitionGraphDelta:
+    base_nodes = {node for plane in base.planes for node in plane.node_ids}
+    candidate_nodes = {node for plane in candidate.planes for node in plane.node_ids}
+    base_bindings = {canonical_sha(list(binding.semantic_key)) for binding in base.bindings}
+    candidate_bindings = {canonical_sha(list(binding.semantic_key)) for binding in candidate.bindings}
+    return IgnitionGraphDelta(
+        added_nodes=tuple(sorted(candidate_nodes - base_nodes)),
+        removed_nodes=tuple(sorted(base_nodes - candidate_nodes)),
+        added_bindings=tuple(sorted(candidate_bindings - base_bindings)),
+        removed_bindings=tuple(sorted(base_bindings - candidate_bindings)),
+    )
+
+
+def _item(
+    *,
+    evidence_id: str,
+    evaluator: str,
+    output_sha256: str,
+    source_revision: str,
+    collected_at: str,
+    details: Mapping[str, object],
+) -> EvidenceItem:
+    return EvidenceItem(
+        evidence_id=evidence_id,
+        evaluator=evaluator,
+        assurance="deterministic",
+        verdict="passed",
+        output_sha256=output_sha256,
+        evidence_locator=f"artifact-locator:sha256:{output_sha256}",
+        collected_at=collected_at,
+        provenance=ContractProvenance(
+            origin=f"daedalus.ignition.{evaluator}",
+            source_revision=source_revision,
+            created_at=collected_at,
+            input_digests=(output_sha256,),
+        ),
+        details=dict(details),
+    )
+
+
+def run_voltage_ignition(
+    source_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    base_revision: str,
+    candidate_revision: str,
+    collected_at: str,
+) -> IgnitionResult:
+    source = Path(source_root).resolve()
+    before = _tree_digest(source)
+    base = compile_reference_project(
+        source,
+        source_revision=base_revision,
+        created_at=collected_at,
+        trace_id="gate1-voltage-base",
+    )
+    candidate_path = materialize_voltage_rename(source, candidate_root)
+    after = _tree_digest(source)
+    if before != after:
+        raise IgnitionError("source fixture changed while materializing the candidate")
+
+    candidate = compile_reference_project(
+        candidate_path,
+        source_revision=candidate_revision,
+        created_at=collected_at,
+        trace_id="gate1-bias-voltage-candidate",
+    )
+    old_hits = _old_symbol_occurrences(candidate_path)
+    if old_hits:
+        raise IgnitionError("old trusted symbol remains in: " + ", ".join(old_hits))
+    behavior = _behavior(candidate_path)
+    if behavior["has_old_voltage_attribute"] or behavior["bias_voltage"] != 125.0:
+        raise IgnitionError("candidate behavior does not satisfy the rename contract")
+    behavior_sha = canonical_sha(dict(behavior))
+    delta = _graph_delta(base.snapshot, candidate.snapshot)
+    if not delta.added_nodes or not delta.removed_nodes:
+        raise IgnitionError("rename produced no observable Fourfold node delta")
+
+    extra = (
+        _item(
+            evidence_id="gate1-behavior",
+            evaluator="ignition-behavior",
+            output_sha256=behavior_sha,
+            source_revision=candidate_revision,
+            collected_at=collected_at,
+            details=behavior,
+        ),
+        _item(
+            evidence_id="gate1-graph-delta",
+            evaluator="ignition-graph-delta",
+            output_sha256=delta.digest,
+            source_revision=candidate_revision,
+            collected_at=collected_at,
+            details=delta.to_dict(),
+        ),
+    )
+    packet = assemble_fourfold_evidence_packet(
+        snapshot=candidate.snapshot,
+        candidate_artifact_sha256=candidate.source_bundle_sha256,
+        candidate_artifact_locator=f"artifact-locator:sha256:{candidate.source_bundle_sha256}",
+        packet_id="gate1-voltage-evidence",
+        mission_id="gate1-voltage-rename",
+        attempt_id="gate1-voltage-candidate",
+        attempt_contract_sha256=canonical_sha({"attempt": "gate1-voltage"}),
+        policy_decision_sha256=canonical_sha({"policy": "gate1-no-promotion"}),
+        collected_at=collected_at,
+        usage=ResourceUsage(wall_time_ms=1),
+        trace_id="gate1-voltage-rename",
+        extra_items=extra,
+    )
+    return IgnitionResult(
+        base_source_bundle_sha256=base.source_bundle_sha256,
+        candidate_source_bundle_sha256=candidate.source_bundle_sha256,
+        base_snapshot=base.snapshot,
+        candidate_snapshot=candidate.snapshot,
+        graph_delta=delta,
+        evidence_packet=packet,
+        behavior_sha256=behavior_sha,
+        primary_tree_before_sha256=before,
+        primary_tree_after_sha256=after,
+    )

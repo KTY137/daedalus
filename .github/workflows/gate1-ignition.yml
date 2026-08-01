@@ -1,0 +1,67 @@
+name: Gate 1 Ignition Slice
+
+on:
+  pull_request:
+    branches:
+      - g0/sealed-promotion-runtime-sandbox
+    paths:
+      - "daedalus/ignition/**"
+      - "daedalus/kernel/fourfold_evidence.py"
+      - "tests/fixtures/ignition/**"
+      - "tests/ignition/**"
+      - "docs/work-packets/G1-WP-01_VOLTAGE_IGNITION.md"
+      - ".github/workflows/gate1-ignition.yml"
+  push:
+    branches:
+      - g1/ignition-slice
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate1-ignition-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ignition:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/ignition/test_voltage_ignition.py
+          tests/kernel/test_fourfold_evidence.py
+          tests/kernel/test_fourfold_approval_integration.py
+          tests/kernel/test_owner_approval.py
+          tests/twin/test_wiki_reference.py
+          tests/twin/test_reference_hardening.py
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-wheel
+      - run: /tmp/daedalus-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-wheel/bin/python -c
+          "from daedalus.ignition import run_voltage_ignition; from daedalus.kernel import assemble_fourfold_evidence_packet"

@@ -1,0 +1,91 @@
+{
+  "schema": "daedalus-fourfold-reference/1",
+  "repository_id": "daedalus/ignition-field-fixture",
+  "code_files": [
+    "src/ignition_app/__init__.py",
+    "src/ignition_app/models.py",
+    "src/ignition_app/repository.py"
+  ],
+  "data_files": [
+    "data/events.csv",
+    "schemas/event.schema.json"
+  ],
+  "knowledge_files": [
+    "wiki/Event.md"
+  ],
+  "claims": [
+    {
+      "kind": "code_declares_type",
+      "code_file": "src/ignition_app/models.py",
+      "type_file": "src/ignition_app/models.py",
+      "type_name": "Event"
+    },
+    {
+      "kind": "type_matches_csv_field",
+      "type_file": "src/ignition_app/models.py",
+      "type_name": "Event",
+      "type_field": "id",
+      "csv_file": "data/events.csv",
+      "csv_field": "id"
+    },
+    {
+      "kind": "type_matches_csv_field",
+      "type_file": "src/ignition_app/models.py",
+      "type_name": "Event",
+      "type_field": "voltage",
+      "csv_file": "data/events.csv",
+      "csv_field": "voltage"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "type_file": "src/ignition_app/models.py",
+      "type_name": "Event",
+      "type_field": "id",
+      "schema_file": "schemas/event.schema.json",
+      "schema_field": "id"
+    },
+    {
+      "kind": "type_matches_schema_field",
+      "type_file": "src/ignition_app/models.py",
+      "type_name": "Event",
+      "type_field": "voltage",
+      "schema_file": "schemas/event.schema.json",
+      "schema_field": "voltage"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "wiki_file": "wiki/Event.md",
+      "link_target": "../src/ignition_app/models.py",
+      "target_plane": "code",
+      "target_node_id": "code:file:src/ignition_app/models.py"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "wiki_file": "wiki/Event.md",
+      "link_target": "../src/ignition_app/models.py",
+      "target_plane": "type",
+      "target_node_id": "type:src/ignition_app/models.py#Event"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "wiki_file": "wiki/Event.md",
+      "link_target": "../src/ignition_app/repository.py",
+      "target_plane": "code",
+      "target_node_id": "code:file:src/ignition_app/repository.py"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "wiki_file": "wiki/Event.md",
+      "link_target": "../data/events.csv",
+      "target_plane": "data",
+      "target_node_id": "data:table:data/events.csv"
+    },
+    {
+      "kind": "wiki_documents_node",
+      "wiki_file": "wiki/Event.md",
+      "link_target": "../schemas/event.schema.json",
+      "target_plane": "data",
+      "target_node_id": "data:schema:schemas/event.schema.json"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/event.schema.json",
+  "title": "Ignition Event",
+  "type": "object",
+  "required": ["id", "voltage"],
+  "properties": {
+    "id": {"type": "string"},
+    "voltage": {"type": "number"}
+  },
+  "additionalProperties": false
+}

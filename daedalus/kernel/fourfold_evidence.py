@@ -76,6 +76,7 @@ def assemble_fourfold_evidence_packet(
     collected_at: str,
     usage: ResourceUsage | None = None,
     trace_id: str | None = None,
+    extra_items: tuple[EvidenceItem, ...] = (),
 ) -> EvidencePacket:
     """Create a minimal passed packet for one real Fourfold snapshot.
 
@@ -133,7 +134,7 @@ def assemble_fourfold_evidence_packet(
         attempt_contract_sha256=attempt_sha,
         subject_sha256=expectation.candidate_artifact_sha256,
         evaluation_status="passed",
-        items=(item,),
+        items=(item, *tuple(extra_items)),
         policy_decision_sha256=policy_sha,
         usage=usage or ResourceUsage(),
         provenance=ContractProvenance(
@@ -147,6 +148,7 @@ def assemble_fourfold_evidence_packet(
                         policy_sha,
                         expectation.candidate_artifact_sha256,
                         snapshot.digest,
+                        *(extra.output_sha256 for extra in extra_items),
                         _locator_sha256(expectation.candidate_artifact_locator),
                     }
                 )
