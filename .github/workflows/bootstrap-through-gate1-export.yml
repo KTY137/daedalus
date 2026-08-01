@@ -1,6 +1,11 @@
 name: Bootstrap through Gate 1 checkout export
 
 on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+    paths:
+      - ".github/workflows/bootstrap-through-gate1-export.yml"
   push:
     branches:
       - g0/fourfold-evidence-binding
@@ -16,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
         run: |
           git status --short
