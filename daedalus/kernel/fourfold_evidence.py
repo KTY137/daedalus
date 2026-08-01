@@ -216,6 +216,25 @@ def verify_fourfold_evidence_packet(
             mismatches.append("fourfold_details")
         if item.provenance.source_revision != snapshot.source_revision:
             mismatches.append("fourfold_item_revision")
+        item_inputs = set(item.provenance.input_digests)
+        if expectation.candidate_artifact_sha256 not in item_inputs:
+            mismatches.append("fourfold_item_candidate_provenance")
+        if snapshot.source_forest_sha256 not in item_inputs:
+            mismatches.append("fourfold_item_forest_provenance")
+        if snapshot.digest not in item_inputs:
+            mismatches.append("fourfold_item_snapshot_provenance")
+
+    packet_inputs = set(packet.provenance.input_digests)
+    if packet.provenance.source_revision != snapshot.source_revision:
+        mismatches.append("packet_revision")
+    if expectation.candidate_artifact_sha256 not in packet_inputs:
+        mismatches.append("packet_candidate_provenance")
+    if snapshot.digest not in packet_inputs:
+        mismatches.append("packet_snapshot_provenance")
+    if packet.attempt_contract_sha256 not in packet_inputs:
+        mismatches.append("packet_attempt_provenance")
+    if packet.policy_decision_sha256 not in packet_inputs:
+        mismatches.append("packet_policy_provenance")
 
     if mismatches:
         raise FourfoldEvidenceMismatch(
