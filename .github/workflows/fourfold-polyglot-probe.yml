@@ -4,6 +4,15 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "17 3 * * 1"
+  pull_request:
+    branches:
+      - experimental
+    paths:
+      - "daedalus/twin/extractors/**"
+      - "scripts/fourfold_repo_probe.py"
+      - "tests/twin/test_extractor_contracts.py"
+      - ".github/workflows/fourfold-polyglot-probe.yml"
+      - "pyproject.toml"
   push:
     branches:
       - core/fourfold-v2
