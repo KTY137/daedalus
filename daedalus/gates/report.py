@@ -5,9 +5,15 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
-from daedalus.spine.effect_boundary import Wiring, check_conformance
+from daedalus.schemas import RuntimeConformanceReceipt
+from daedalus.spine.effect_boundary import (
+    GUARD_CONTRACT_IMPLEMENTED,
+    REGISTRY_BY_ID,
+    Wiring,
+    check_conformance,
+)
 
 _SCHEMA = "daedalus-gate-report/1"
 
@@ -133,7 +139,15 @@ class GateReport:
         )
 
 
-def build_gate0_report(repo_root: Path, *, source_revision: str) -> GateReport:
+def build_gate0_report(
+    repo_root: Path,
+    *,
+    source_revision: str,
+    runtime_receipts: Sequence[RuntimeConformanceReceipt] = (),
+    fault_results: Mapping[str, bool] | None = None,
+    primary_checkout_mutations: Iterable[str] = (),
+    security_boundary_claimed: bool = False,
+) -> GateReport:
     root = repo_root.resolve()
     conformance = check_conformance(root)
     unregistered = [
@@ -152,19 +166,47 @@ def build_gate0_report(repo_root: Path, *, source_revision: str) -> GateReport:
         f"{finding.severity}:{finding.code}:{finding.subject}"
         for finding in conformance.findings
     ]
+    if runtime_receipts:
+        runtime_failures = tuple(
+            sorted(
+                f"{receipt.receipt_id}:{receipt.status}"
+                for receipt in runtime_receipts
+                if receipt.status != "passed"
+            )
+        )
+    else:
+        runtime_failures = ("runtime-conformance-receipts:not-yet-bound",)
+    if fault_results is None:
+        fault_failures = ("fault-matrix:not-yet-bound",)
+    else:
+        fault_failures = tuple(sorted(name for name, passed in fault_results.items() if not passed))
+
+    promotion = REGISTRY_BY_ID.get("python.promote_candidates")
+    promotion_findings = {
+        finding.code
+        for finding in conformance.findings
+        if finding.subject == "python.promote_candidates" and finding.severity == "blocker"
+    }
+    owner_enforced = bool(
+        promotion is not None
+        and promotion.wiring in {Wiring.LOCAL_GUARDS, Wiring.CENTRAL}
+        and "promotion.owner_approval" in promotion.guard_contracts
+        and GUARD_CONTRACT_IMPLEMENTED.get("promotion.owner_approval", False)
+        and not promotion_findings
+    )
     return GateReport(
         gate=0,
         source_revision=source_revision,
         registry_sha256=conformance.registry_sha256,
-        security_boundary_claimed=False,
+        security_boundary_claimed=security_boundary_claimed,
         unregistered_effectful_entrypoints=tuple(unregistered),
         unguarded_entrypoints=tuple(unguarded),
         inventory_only_production_entrypoints=tuple(inventory),
         missing_guard_contracts=tuple(missing_guards),
-        runtime_conformance_failures=("runtime-conformance-receipts:not-yet-bound",),
-        fault_injection_failures=("fault-matrix:not-yet-bound",),
-        primary_checkout_mutations=(),
-        owner_approval_enforced=False,
+        runtime_conformance_failures=runtime_failures,
+        fault_injection_failures=fault_failures,
+        primary_checkout_mutations=tuple(primary_checkout_mutations),
+        owner_approval_enforced=owner_enforced,
         diagnostics=tuple(diagnostics),
     )
 

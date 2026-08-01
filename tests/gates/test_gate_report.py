@@ -15,9 +15,9 @@ def test_gate_report_is_deterministic_and_fail_closed() -> None:
     assert first.to_dict() == second.to_dict()
     assert first.closed is False
     assert first.security_boundary_claimed is False
-    assert first.owner_approval_enforced is False
+    assert first.owner_approval_enforced is True
     assert "python.offload" in first.unguarded_entrypoints
-    assert "python.promote_candidates" in first.unguarded_entrypoints
+    assert "python.promote_candidates" not in first.unguarded_entrypoints
 
 
 def test_round_trip_rejects_tampering() -> None:
@@ -67,3 +67,17 @@ def test_serialized_shape_matches_gate_contract() -> None:
     assert payload["closed"] is True
     assert payload["blockers"] == []
     json.dumps(payload)
+
+
+def test_gate_report_accepts_bound_fault_results() -> None:
+    root = Path(__file__).resolve().parents[2]
+    report = build_gate0_report(
+        root,
+        source_revision="a" * 40,
+        fault_results={"approval-replay": True, "target-head-race": False},
+        security_boundary_claimed=True,
+    )
+    assert report.security_boundary_claimed is True
+    assert report.owner_approval_enforced is True
+    assert report.fault_injection_failures == ("target-head-race",)
+    assert report.closed is False
