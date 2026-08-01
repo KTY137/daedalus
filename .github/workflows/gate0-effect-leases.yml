@@ -1,0 +1,72 @@
+name: Gate 0 Effect Leases
+
+on:
+  pull_request:
+    branches:
+      - g0/owner-approval
+      - g0/gate-reporting
+      - core/fourfold-v2
+    paths:
+      - "daedalus/kernel/**"
+      - "daedalus/spine/effect_boundary.py"
+      - "configs/schemas/effect-lease-*.schema.json"
+      - "tests/kernel/**"
+      - "tests/test_kernel_contracts.py"
+      - "tests/test_effect_boundary.py"
+      - "tests/test_gate0_faults_atalanta.py"
+      - ".github/workflows/gate0-effect-leases.yml"
+  push:
+    branches:
+      - g0/effect-leases
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate0-effect-leases-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ubuntu-latest
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_effect_leases.py
+          tests/gates/test_gate_report.py
+          tests/test_kernel_contracts.py
+          tests/test_effect_boundary.py
+          tests/test_gate0_faults_atalanta.py
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-wheel
+      - run: /tmp/daedalus-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-wheel/bin/python -c
+          "from daedalus.kernel import EffectLease, EffectLeaseLedger,
+          EffectLeaseRequest, EffectExecutionRequest"
