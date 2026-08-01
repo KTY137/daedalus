@@ -14,6 +14,12 @@ from .contracts import (
     parse_fourfold_snapshot,
 )
 from .legacy_forest import fourfold_from_knowledge_forest
+from .projection_verifier import (
+    ProjectionFinding,
+    ProjectionVerificationReport,
+    require_forest_projection,
+    verify_forest_projection,
+)
 from .reference_compiler import (
     DEFAULT_REFERENCE_LIMITS,
     REFERENCE_SCHEMA,
@@ -30,10 +36,14 @@ __all__ = [
     "CrossPlaneBinding",
     "FourfoldSnapshot",
     "PlaneSnapshot",
+    "ProjectionFinding",
+    "ProjectionVerificationReport",
     "ReferenceCompileError",
     "ReferenceCompileResult",
     "ReferenceLimits",
     "compile_reference_project",
     "fourfold_from_knowledge_forest",
     "parse_fourfold_snapshot",
+    "require_forest_projection",
+    "verify_forest_projection",
 ]
