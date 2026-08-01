@@ -1,0 +1,30 @@
+name: Bootstrap through Gate 1 checkout export
+
+on:
+  push:
+    branches:
+      - g0/fourfold-evidence-binding
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Create source archive
+        run: |
+          git status --short
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git -czf /tmp/daedalus-through-gate1.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-through-gate1-checkout
+          path: /tmp/daedalus-through-gate1.tar.gz
+          if-no-files-found: error
+          retention-days: 1
