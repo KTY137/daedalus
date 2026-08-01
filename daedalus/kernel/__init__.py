@@ -71,3 +71,21 @@ __all__ += [
     "issue_effect_lease",
     "verify_effect_lease",
 ]
+
+from .fourfold_evidence import (
+    FOURFOLD_EVIDENCE_SCHEMA,
+    FOURFOLD_EVALUATOR,
+    FourfoldEvidenceExpectation,
+    FourfoldEvidenceMismatch,
+    assemble_fourfold_evidence_packet,
+    verify_fourfold_evidence_packet,
+)
+
+__all__ += [
+    "FOURFOLD_EVIDENCE_SCHEMA",
+    "FOURFOLD_EVALUATOR",
+    "FourfoldEvidenceExpectation",
+    "FourfoldEvidenceMismatch",
+    "assemble_fourfold_evidence_packet",
+    "verify_fourfold_evidence_packet",
+]
