@@ -11,8 +11,10 @@ on:
       - "daedalus/twin/extractors/**"
       - "scripts/fourfold_repo_probe.py"
       - "scripts/fourfold_tree_sitter_probe.py"
+      - "scripts/fourfold_root_file_probe.py"
       - "tests/twin/test_extractor_contracts.py"
       - "tests/twin/test_tree_sitter_extractors.py"
+      - "tests/twin/test_root_file_extractor.py"
       - ".github/workflows/fourfold-polyglot-probe.yml"
       - "pyproject.toml"
   push:
@@ -22,8 +24,10 @@ on:
       - "daedalus/twin/extractors/**"
       - "scripts/fourfold_repo_probe.py"
       - "scripts/fourfold_tree_sitter_probe.py"
+      - "scripts/fourfold_root_file_probe.py"
       - "tests/twin/test_extractor_contracts.py"
       - "tests/twin/test_tree_sitter_extractors.py"
+      - "tests/twin/test_root_file_extractor.py"
       - ".github/workflows/fourfold-polyglot-probe.yml"
       - "pyproject.toml"
 
@@ -39,11 +43,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install ".[polyglot]" pytest
+      - run: python -m pip install ".[polyglot,root]" pytest
       - run: >-
           python -m pytest -q
           tests/twin/test_extractor_contracts.py
           tests/twin/test_tree_sitter_extractors.py
+          tests/twin/test_root_file_extractor.py
       - run: python -c "import daedalus.twin.extractors as e; print(e.registered_language_ids())"
 
   probe:
@@ -58,27 +63,31 @@ jobs:
             revision: 108d6d3dc038332af2af83957748333091e35b3f
             prefixes: tokio tokio-macros tests
             max_parse_files: 1000
+            root_data: false
           - name: spring-java
             repository: https://github.com/spring-projects/spring-framework.git
             revision: eceebb3077dda9e1b19d73c0398ef022cd91f99c
             prefixes: spring-core spring-beans spring-context
             max_parse_files: 1500
+            root_data: false
           - name: root-cpp-pyroot
             repository: https://github.com/root-project/root.git
             revision: e2340033ee068808980d9131a271111c6e77dc4f
             prefixes: core io tree bindings/pyroot
             max_parse_files: 1500
+            root_data: true
           - name: arrow-cpp-python
             repository: https://github.com/apache/arrow.git
             revision: 85e0b804c4e59613ab663d2967f7ac9731ad3eec
             prefixes: cpp python
             max_parse_files: 1500
+            root_data: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install ".[polyglot]"
+      - run: python -m pip install ".[polyglot,root]"
       - name: Fetch pinned repository slice
         shell: bash
         run: |
@@ -117,6 +126,21 @@ jobs:
             "${args[@]}" \
             --output "reports/${{ matrix.name }}-structural.json"
           cat "reports/${{ matrix.name }}-structural.json"
+      - name: Probe ROOT file metadata
+        if: ${{ matrix.root_data }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          for prefix in ${{ matrix.prefixes }}; do
+            args+=(--include-prefix "$prefix")
+          done
+          python scripts/fourfold_root_file_probe.py external \
+            --repository-id "${{ matrix.name }}" \
+            --source-revision "${{ matrix.revision }}" \
+            "${args[@]}" \
+            --output "reports/${{ matrix.name }}-root-data.json"
+          cat "reports/${{ matrix.name }}-root-data.json"
       - uses: actions/upload-artifact@v4
         with:
           name: fourfold-probe-${{ matrix.name }}
