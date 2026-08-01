@@ -871,6 +871,7 @@ def _promote_one(candidate: GatedCandidate, integration_branch: str,
 
 def promote_candidates(repo_root: str, candidates: list[GatedCandidate], *,
                         project: str | None, availability: dict,
+                        consumed_approval, evidence_packet, target_ref: str,
                         ledger_path=None, lock_timeout_s: float = 120.0,
                         gate_timeout_s: float = 900.0,
                         cancel: Any = None) -> dict:
@@ -902,6 +903,41 @@ def promote_candidates(repo_root: str, candidates: list[GatedCandidate], *,
     request takes to land.
     """
     root = Path(repo_root).resolve()
+
+    # The authorization check is deliberately the first operation that can
+    # reach git state. It re-reads the target ref immediately before the
+    # integration-worktree path is entered and refuses without creating a
+    # worktree, lock, branch, or ledger write on any mismatch.
+    try:
+        from daedalus.kernel.promotion import (
+            authorize_promotion,
+            resolve_live_target_revision,
+        )
+
+        live_target_revision = resolve_live_target_revision(root, target_ref)
+        authorization = authorize_promotion(
+            consumed_approval=consumed_approval,
+            evidence_packet=evidence_packet,
+            candidates=candidates,
+            target_ref=target_ref,
+            live_target_revision=live_target_revision,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed at the public boundary
+        return {
+            "promoted": [],
+            "refused": [
+                {
+                    "task_id": getattr(getattr(c, "result", None), "task_id", "unknown"),
+                    "promoted": False,
+                    "reason": f"promotion authorization refused: {type(exc).__name__}: {exc}",
+                }
+                for c in candidates
+            ],
+            "not_gated": [],
+            "integration_branch": None,
+            "authorization": None,
+        }
+
     manager = GitWorktreeManager(root)
     live = [c for c in candidates if getattr(c.result, "ok", False) and c.result.artifact
             and not c.result.artifact.is_empty]
@@ -940,6 +976,7 @@ def promote_candidates(repo_root: str, candidates: list[GatedCandidate], *,
             {"task_id": c.result.task_id, "promoted": False, "reason": str(e)}
             for c in live]}
     report["not_gated"] = not_gated
+    report["authorization"] = authorization.to_dict()
     return report
 
 

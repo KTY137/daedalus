@@ -85,9 +85,10 @@ def test_inventory_covers_the_package_but_not_yet_the_tools_it_now_sees() -> Non
                    for code, subject in blocker_codes), (
         "a daedalus entrypoint stopped being declared")
 
-    # the two hand-named unguarded rows are still the package's blockers
-    assert {("gate0.unguarded_entrypoint", "python.offload"),
-            ("gate0.unguarded_entrypoint", "python.promote_candidates")} <= blocker_codes
+    # Promotion now has a mechanically anchored owner-approval guard. Offload
+    # remains the only hand-named unguarded package row in this packet.
+    assert ("gate0.unguarded_entrypoint", "python.offload") in blocker_codes
+    assert ("gate0.unguarded_entrypoint", "python.promote_candidates") not in blocker_codes
 
     # and the newly visible gap is real, named, and not silently tolerated
     unregistered_tools = {subject for code, subject in blocker_codes
@@ -109,7 +110,7 @@ def test_required_gate0_surfaces_have_explicit_rows() -> None:
     assert "does not implement an MCP runtime boundary" in mcp.notes
 
 
-@pytest.mark.parametrize("entrypoint_id", ["python.offload", "python.promote_candidates"])
+@pytest.mark.parametrize("entrypoint_id", ["python.offload"])
 def test_known_unguarded_paths_have_machine_readable_migrations(entrypoint_id: str) -> None:
     row = next(item for item in ENTRYPOINTS if item.id == entrypoint_id)
     assert row.wiring is Wiring.UNGUARDED
@@ -150,7 +151,7 @@ def test_central_start_requires_declared_effects_and_all_guards() -> None:
         )
 
 
-def test_central_start_rejects_unknown_and_unimplemented_guard_contracts() -> None:
+def test_central_start_rejects_unknown_and_unimplemented_guard_contracts(monkeypatch) -> None:
     unknown = _central_spec(guard_contracts=("invented.allow",))
     with pytest.raises(EffectStartRefused, match="unknown guard"):
         begin_effect(
@@ -160,14 +161,27 @@ def test_central_start_rejects_unknown_and_unimplemented_guard_contracts() -> No
             registry={unknown.id: unknown},
         )
 
-    missing = _central_spec(guard_contracts=("promotion.owner_approval",))
+    import daedalus.spine.effect_boundary as boundary
+
+    monkeypatch.setattr(
+        boundary,
+        "GUARD_CONTRACT_IMPLEMENTED",
+        {**dict(boundary.GUARD_CONTRACT_IMPLEMENTED), "test.unimplemented": False},
+    )
+    monkeypatch.setattr(
+        boundary,
+        "POLICY_CONTRACTS",
+        frozenset(boundary.GUARD_CONTRACT_IMPLEMENTED),
+    )
+    missing = _central_spec(guard_contracts=("test.unimplemented",))
     with pytest.raises(EffectStartRefused, match="unimplemented guard"):
         begin_effect(
             missing.id,
             [Effect.FILESYSTEM_WRITE],
-            [GuardDecision("promotion.owner_approval", True, "self-asserted owner")],
+            [GuardDecision("test.unimplemented", True, "fixture")],
             registry={missing.id: missing},
         )
+
 
 
 def test_denial_empty_evidence_duplicate_and_foreign_guard_all_refuse() -> None:
@@ -349,8 +363,9 @@ def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
         if row["severity"] == "blocker"
     }
     assert completed.returncode == 2
-    # The two unguarded rows the registry names by hand are still blockers.
-    assert {"python.offload", "python.promote_candidates"} <= blockers
+    # Promotion moved behind a consumed owner-approval guard; offload is still unguarded.
+    assert "python.offload" in blockers
+    assert "python.promote_candidates" not in blockers
     assert payload["gate0_closed"] is False
     assert payload["security_boundary_claimed"] is False
 
@@ -366,3 +381,13 @@ def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
     assert any(s.startswith("tools.") for s in subjects), (
         "the discovery scan no longer reaches tools/; a whole directory of "
         "effectful entrypoints would be invisible to the drift detector")
+
+
+def test_promotion_row_is_owner_guarded_before_any_worktree() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "python.promote_candidates")
+    assert row.wiring is Wiring.LOCAL_GUARDS
+    assert "promotion.owner_approval" in row.guard_contracts
+    assert {anchor.call for anchor in row.anchors} == {
+        "authorize_promotion",
+        "resolve_live_target_revision",
+    }

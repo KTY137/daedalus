@@ -135,10 +135,10 @@ class EffectStartRefused(EffectBoundaryError):
 
 # Named contracts stay in their existing modules; this registry does not
 # reimplement their decisions.  The boolean says whether a concrete mechanical
-# implementation exists today.  Owner approval is deliberately ``False``:
-# section 4 requires it, while the current Python promotion callable does not
-# authenticate one.  A missing contract can be required by an UNGUARDED row but
-# can never be used to open a CENTRAL row.
+# implementation exists today.  Owner approval is implemented as an authenticated, one-use capability and
+# is mechanically checked before the legacy promotion worktree is created. A
+# missing contract can be required by an UNGUARDED row but can never be used to
+# open a CENTRAL row.
 GUARD_CONTRACT_IMPLEMENTED: Mapping[str, bool] = MappingProxyType(
     {
         "budget.process_guard": True,
@@ -147,7 +147,7 @@ GUARD_CONTRACT_IMPLEMENTED: Mapping[str, bool] = MappingProxyType(
         "file_bridge.crash_journal": True,
         "provider.egress_policy": True,
         "provider.write_policy": True,
-        "promotion.owner_approval": False,
+        "promotion.owner_approval": True,
         "runtime.adapter_profile": True,
         "spine.intent_ledger": True,
         "web.authenticated_bind": True,
@@ -289,14 +289,26 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "containment.worktree",
             "promotion.owner_approval",
         ),
-        wiring=Wiring.UNGUARDED,
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kairos.gated_writes:promote_candidates",
+                "authorize_promotion",
+            ),
+            GuardAnchor(
+                "daedalus.kairos.gated_writes:promote_candidates",
+                "resolve_live_target_revision",
+            ),
+        ),
         notes=(
-            "separate integration-worktree promotion exists, but the Python callable "
-            "does not authenticate an owner approval"
+            "The public callable now requires a consumed owner capability, exact "
+            "candidate/evidence binding, and a live target-HEAD recheck before any "
+            "integration worktree or lock is created. Effect-lease centralization "
+            "remains a later Gate-0 migration."
         ),
         migration=(
-            "Require an owner-issued, candidate/evidence/HEAD-bound approval capability "
-            "at promote_candidates() before creating the integration worktree."
+            "Route the authorized promotion operation through a persisted EffectLease "
+            "before upgrading this row from local_guards to central."
         ),
     ),
     EntrypointSpec(
