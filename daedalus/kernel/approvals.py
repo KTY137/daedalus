@@ -63,6 +63,10 @@ class VerifiedOwnerApproval:
     owner_id: str
     key_id: str
     operation: str
+    nomination_receipt_sha256: str
+    candidate_artifact_sha256: str
+    evidence_packet_sha256: str
+    base_revision: str
     nonce: str
     target_ref: str
     expected_target_revision: str
@@ -223,6 +227,10 @@ def verify_owner_approval(
         owner_id=approval.owner_id,
         key_id=approval.key_id,
         operation=approval.operation,
+        nomination_receipt_sha256=approval.nomination_receipt_sha256,
+        candidate_artifact_sha256=approval.candidate_artifact_sha256,
+        evidence_packet_sha256=approval.evidence_packet_sha256,
+        base_revision=approval.base_revision,
         nonce=approval.nonce,
         target_ref=approval.target_ref,
         expected_target_revision=approval.expected_target_revision,
