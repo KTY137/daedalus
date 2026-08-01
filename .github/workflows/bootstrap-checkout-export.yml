@@ -1,6 +1,9 @@
 name: Bootstrap checkout export
 
 on:
+  pull_request:
+    branches:
+      - core/fourfold-v2
   push:
     branches:
       - g0/bootstrap-workspace
