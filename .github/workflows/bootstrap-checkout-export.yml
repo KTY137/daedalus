@@ -19,14 +19,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
         run: |
           git status --short
           git rev-parse HEAD > CHECKOUT_HEAD
-          tar --exclude=.git -czf daedalus-checkout.tar.gz .
+          tar --exclude=.git -czf /tmp/daedalus-checkout.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: daedalus-checkout
-          path: daedalus-checkout.tar.gz
+          path: /tmp/daedalus-checkout.tar.gz
           if-no-files-found: error
           retention-days: 1
