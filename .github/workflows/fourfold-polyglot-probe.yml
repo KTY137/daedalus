@@ -1,0 +1,89 @@
+name: Fourfold polyglot probe
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+  push:
+    branches:
+      - core/fourfold-v2
+    paths:
+      - "daedalus/twin/extractors/**"
+      - "scripts/fourfold_repo_probe.py"
+      - "tests/twin/test_extractor_contracts.py"
+      - ".github/workflows/fourfold-polyglot-probe.yml"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q tests/twin/test_extractor_contracts.py
+      - run: python -c "import daedalus.twin.extractors as e; print(e.registered_language_ids())"
+
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: tokio-rust
+            repository: https://github.com/tokio-rs/tokio.git
+            revision: 108d6d3dc038332af2af83957748333091e35b3f
+            prefixes: tokio tokio-macros tests
+          - name: spring-java
+            repository: https://github.com/spring-projects/spring-framework.git
+            revision: eceebb3077dda9e1b19d73c0398ef022cd91f99c
+            prefixes: spring-core spring-beans spring-context
+          - name: root-cpp-pyroot
+            repository: https://github.com/root-project/root.git
+            revision: e2340033ee068808980d9131a271111c6e77dc4f
+            prefixes: core io tree bindings/pyroot
+          - name: arrow-polyglot
+            repository: https://github.com/apache/arrow.git
+            revision: 85e0b804c4e59613ab663d2967f7ac9731ad3eec
+            prefixes: cpp java python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - name: Fetch pinned repository slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout "${{ matrix.repository }}" external
+          git -C external sparse-checkout init --cone
+          git -C external sparse-checkout set ${{ matrix.prefixes }}
+          git -C external fetch --depth=1 origin "${{ matrix.revision }}"
+          git -C external checkout --detach "${{ matrix.revision }}"
+      - name: Probe repository shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          for prefix in ${{ matrix.prefixes }}; do
+            args+=(--include-prefix "$prefix")
+          done
+          python scripts/fourfold_repo_probe.py external \
+            --repository-id "${{ matrix.name }}" \
+            --source-revision "${{ matrix.revision }}" \
+            "${args[@]}" \
+            --output "reports/${{ matrix.name }}.json"
+          cat "reports/${{ matrix.name }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fourfold-probe-${{ matrix.name }}
+          path: reports/${{ matrix.name }}.json
+          if-no-files-found: error
