@@ -63,7 +63,7 @@ jobs:
       - name: Install complete test surface
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[test,polyglot]" pytest
+          python -m pip install ".[test,polyglot,root]" pytest
       - name: Run complete repository suite
         env:
           PYTHONHASHSEED: "0"
