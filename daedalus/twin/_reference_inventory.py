@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -11,7 +10,12 @@ from typing import Mapping
 from urllib.parse import unquote, urlsplit
 
 from ..structcore.forest import ForestEdge, ForestNode
-from ._reference_common import ReferenceCompileError, decode_text
+from ._reference_common import (
+    ReferenceCompileError,
+    decode_text,
+    resolve_regular_file,
+    strict_json_loads,
+)
 
 _MD_LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 
@@ -88,11 +92,10 @@ def _csv(path: str, text: str):
 
 
 def _schema(path: str, text: str):
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ReferenceCompileError(f"JSON parse failed for {path}: {exc}") from exc
-    properties = payload.get("properties") if isinstance(payload, Mapping) else None
+    payload = strict_json_loads(text, path)
+    if not isinstance(payload, Mapping):
+        raise ReferenceCompileError(f"JSON Schema must be an object: {path}")
+    properties = payload.get("properties")
     if payload.get("type") != "object" or not isinstance(properties, Mapping) or not properties:
         raise ReferenceCompileError(f"JSON Schema must be a non-empty object schema: {path}")
     schema = f"data:schema:{path}"
@@ -181,8 +184,12 @@ def build_inventory(
         inv.wiki_links[path] = links
         inv.plane_nodes["knowledge"].add(node.id)
         for target in sorted(links):
-            if target not in declared and not (root / target).is_file():
-                raise ReferenceCompileError(f"broken local Markdown link: {path} -> {target}")
+            if target in declared:
+                continue
+            try:
+                resolve_regular_file(root, target)
+            except ReferenceCompileError as exc:
+                raise ReferenceCompileError(f"broken local Markdown link: {path} -> {target}") from exc
     if len({n.id for n in inv.nodes}) != len(inv.nodes):
         raise ReferenceCompileError("compiled node identities are not unique")
     return inv
