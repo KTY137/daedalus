@@ -1,8 +1,11 @@
 """Shared strict helpers for the bounded Fourfold reference compiler."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
+import json
 from pathlib import Path, PurePosixPath
+import stat
 from typing import Any, Mapping, Sequence
 
 REFERENCE_SCHEMA = "daedalus-fourfold-reference/1"
@@ -25,6 +28,25 @@ CLAIM_KEYS: dict[str, frozenset[str]] = {
 
 class ReferenceCompileError(ValueError):
     """Fail-closed error raised for an invalid reference project."""
+
+
+@dataclass(frozen=True)
+class ReferenceLimits:
+    """Resource limits for one bounded reference compilation."""
+
+    max_manifest_bytes: int = 1_000_000
+    max_files: int = 10_000
+    max_file_bytes: int = 32_000_000
+    max_total_bytes: int = 512_000_000
+    max_claims: int = 100_000
+
+    def __post_init__(self) -> None:
+        for name, value in self.__dict__.items():
+            if not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+
+
+DEFAULT_REFERENCE_LIMITS = ReferenceLimits()
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -65,16 +87,65 @@ def strict_path_list(value: Any, name: str) -> tuple[str, ...]:
     return tuple(sorted(paths))
 
 
-def read_file(root: Path, relpath: str) -> bytes:
-    root_resolved = root.resolve()
-    candidate = (root_resolved / relpath).resolve()
+def strict_json_loads(value: str | bytes, label: str) -> Any:
+    """Parse JSON while refusing duplicate keys at every object depth."""
+
+    text = decode_text(value, label) if isinstance(value, bytes) else value
+
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in result:
+                raise ReferenceCompileError(f"{label} contains duplicate JSON key {key!r}")
+            result[key] = item
+        return result
+
     try:
-        candidate.relative_to(root_resolved)
-    except ValueError as exc:
+        return json.loads(text, object_pairs_hook=object_pairs)
+    except ReferenceCompileError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise ReferenceCompileError(f"JSON parse failed for {label}: {exc}") from exc
+
+
+def resolve_regular_file(root: Path, relpath: str) -> Path:
+    """Resolve a regular file without permitting symlink components or escape."""
+
+    root_resolved = root.resolve()
+    current = root_resolved
+    for part in PurePosixPath(relpath).parts:
+        current = current / part
+        try:
+            mode = current.lstat().st_mode
+        except FileNotFoundError as exc:
+            raise ReferenceCompileError(f"declared file is missing: {relpath}") from exc
+        if stat.S_ISLNK(mode):
+            raise ReferenceCompileError(f"declared file path contains a symbolic link: {relpath}")
+    try:
+        current.resolve(strict=True).relative_to(root_resolved)
+    except (FileNotFoundError, ValueError) as exc:
         raise ReferenceCompileError(f"declared file escapes reference project: {relpath}") from exc
-    if not candidate.is_file():
-        raise ReferenceCompileError(f"declared file is missing: {relpath}")
-    return candidate.read_bytes()
+    if not stat.S_ISREG(current.stat().st_mode):
+        raise ReferenceCompileError(f"declared path is not a regular file: {relpath}")
+    return current
+
+
+def read_file(root: Path, relpath: str, *, max_bytes: int | None = None) -> bytes:
+    candidate = resolve_regular_file(root, relpath)
+    before = candidate.stat()
+    if max_bytes is not None and before.st_size > max_bytes:
+        raise ReferenceCompileError(
+            f"declared file exceeds byte limit: {relpath} ({before.st_size} > {max_bytes})"
+        )
+    data = candidate.read_bytes()
+    after = candidate.stat()
+    identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+    identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if identity_before != identity_after or len(data) != after.st_size:
+        raise ReferenceCompileError(f"declared file changed while being read: {relpath}")
+    if max_bytes is not None and len(data) > max_bytes:
+        raise ReferenceCompileError(f"declared file exceeds byte limit after read: {relpath}")
+    return data
 
 
 def decode_text(data: bytes, relpath: str) -> str:
