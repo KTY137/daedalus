@@ -186,6 +186,72 @@ def test_missing_or_repackaged_fourfold_evidence_is_refused() -> None:
             expectation=expectation,
         )
 
+    wrong_snapshot = "e" * 64
+    manipulated_item = EvidenceItem(
+        evidence_id="g0-rcp-04a-attempt:fourfold",
+        evaluator=FOURFOLD_EVALUATOR,
+        assurance="deterministic",
+        verdict="passed",
+        output_sha256=wrong_snapshot,
+        evidence_locator=f"artifact-locator:sha256:{wrong_snapshot}",
+        collected_at=NOW,
+        provenance=ContractProvenance(
+            origin="test.manipulated-fourfold",
+            source_revision=REVISION,
+            created_at=NOW,
+            input_digests=(
+                result.source_bundle_sha256,
+                result.snapshot.source_forest_sha256,
+                wrong_snapshot,
+            ),
+        ),
+        details={
+            "schema": "daedalus-fourfold-evidence/1",
+            "repository_id": result.snapshot.repository_id,
+            "source_revision": REVISION,
+            "candidate_artifact_sha256": result.source_bundle_sha256,
+            "source_forest_sha256": result.snapshot.source_forest_sha256,
+            "fourfold_snapshot_sha256": wrong_snapshot,
+        },
+    )
+    manipulated_packet = EvidencePacket(
+        packet_id=packet.packet_id,
+        mission_id=packet.mission_id,
+        attempt_id=packet.attempt_id,
+        source_revision=packet.source_revision,
+        attempt_contract_sha256=packet.attempt_contract_sha256,
+        subject_sha256=packet.subject_sha256,
+        evaluation_status="passed",
+        items=(manipulated_item,),
+        policy_decision_sha256=packet.policy_decision_sha256,
+        usage=packet.usage,
+        provenance=ContractProvenance(
+            origin="test.manipulated-fourfold-packet",
+            source_revision=REVISION,
+            created_at=NOW,
+            input_digests=tuple(
+                sorted(
+                    {
+                        packet.attempt_contract_sha256,
+                        packet.subject_sha256,
+                        packet.policy_decision_sha256,
+                        manipulated_item.output_sha256,
+                    }
+                )
+            ),
+        ),
+        candidate_artifact_sha256=result.source_bundle_sha256,
+        candidate_artifact_locator=(
+            f"artifact-locator:sha256:{result.source_bundle_sha256}"
+        ),
+    )
+    with pytest.raises(FourfoldEvidenceMismatch, match="snapshot"):
+        verify_fourfold_evidence_packet(
+            manipulated_packet,
+            snapshot=result.snapshot,
+            expectation=expectation,
+        )
+
 
 def test_expectation_rejects_candidate_locator_repackaging() -> None:
     result = _compile(FIXTURE)
