@@ -51,3 +51,46 @@ jobs:
       - name: Verify wheel contains the twin package
         run: |
           python -c "import daedalus.twin; print(daedalus.twin.FOURFOLD_PLANES)"
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install complete test surface
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[test,polyglot]" pytest
+      - name: Run complete repository suite
+        env:
+          PYTHONHASHSEED: "0"
+        run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+      - name: Install wheel in isolated environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/daedalus-wheel
+          /tmp/daedalus-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          PYTHONPATH= /tmp/daedalus-wheel/bin/python - <<'PY'
+          import daedalus.twin
+          import daedalus.twin.extractors
+          print(daedalus.twin.FOURFOLD_PLANES)
+          print(daedalus.twin.extractors.registered_language_ids())
+          PY
