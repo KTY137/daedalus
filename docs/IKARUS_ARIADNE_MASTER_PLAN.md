@@ -1,10 +1,10 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 2  
-Version: 1.1.0  
+Revision: 3
+Version: 1.2.0
 Status: adopted  
-Date: 2026-08-01  
+Date: 2026-08-02
 Owner: repository owner  
 Active delivery gate: Gate 0 — Canonical Kernel  
 Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`
@@ -441,6 +441,30 @@ legacy projection, GraphProposal/verification, atomic compiler, Data Plane,
 round-trip reporting, then the Gate 1 Renovation slice. Genesis, the corpus,
 motif learning, graph ML, and autonomous evolution do not become production
 paths early merely because their interfaces can be sketched.
+
+### Revision 3 — Sealed Gate-0 promotion and bounded Gate-1 rehearsal
+
+The repository owner explicitly authorized continuing the current execution
+through a bounded Gate-1 rehearsal while Gate 0 remains the active delivery
+gate. This amendment makes the following constraints authoritative:
+
+1. `promote_candidates` may enter an integration worktree only after a consumed,
+   authenticated, one-use `OwnerApproval` exactly binds the ordered candidate
+   batch, a passed `EvidencePacket`, the base revision, target ref, and a freshly
+   resolved target revision. Any mismatch refuses before lock acquisition,
+   worktree creation, branch creation, ledger mutation, or Git mutation.
+2. Content-addressed runtime-conformance observations and a restrictive sandbox
+   policy are required Gate-0 evidence inputs. Offline fixtures prove contract
+   behavior only; they do not prove live Claude, Codex, Ollama, host, container,
+   or network isolation.
+3. A single Gate-1 Voltage-rename Renovation slice may be implemented as an
+   isolated, deterministic, non-promoting rehearsal stacked on a green Gate-0
+   Work Packet. It may emit candidate, Fourfold delta, evidence, and approval
+   artifacts, but it cannot close Gate 0, change the active gate, consume an
+   approval for production promotion, or mutate the primary checkout.
+4. Gate-0 closure still requires the remaining effectful-entrypoint migration,
+   live runtime receipts, the complete fault matrix, independent architecture
+   and security review, and an explicit owner closure decision.
 
 ## 13. Forbidden default directions
 
