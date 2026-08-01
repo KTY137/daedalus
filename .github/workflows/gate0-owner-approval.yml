@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - g0/gate-reporting
-      - g0/gate-reporting
       - core/fourfold-v2
   push:
     branches:
@@ -29,7 +28,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip build
-      - run: python -m pip install -e .
+      - run: python -m pip install -e ".[test]"
       - run: python tools/iron_plan_guard.py verify
       - run: python -m pytest -q tests/test_kernel_approvals.py tests/gates tests/test_kernel_contracts.py
       - run: python -m build
