@@ -16,6 +16,12 @@ dependencies = []
 [project.optional-dependencies]
 yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
 math = ["numpy", "scipy", "networkx"] # optional structural graph analysis
+polyglot = [
+    "tree-sitter==0.26.0",
+    "tree-sitter-rust==0.24.2",
+    "tree-sitter-java==0.23.5",
+    "tree-sitter-cpp==0.23.4",
+]
 # Property-based tests (docs/ABSORPTION.md D1). Test-time only: nothing under
 # daedalus/ imports hypothesis, only tests/. MPL-2.0 -- see ABSORPTION.md D1
 # bar 3 for why that licence attaches to nothing here (imported, never
