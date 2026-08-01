@@ -89,3 +89,41 @@ __all__ += [
     "assemble_fourfold_evidence_packet",
     "verify_fourfold_evidence_packet",
 ]
+
+from .promotion import (
+    PromotionAuthorization,
+    PromotionAuthorizationError,
+    authorize_promotion,
+    candidate_batch_sha256,
+    resolve_live_target_revision,
+)
+from .runtime_conformance import (
+    RecordedObservation,
+    RuntimeConformanceError,
+    assemble_recorded_conformance,
+    verify_current_conformance,
+)
+from .sandbox import (
+    DockerSandboxPolicy,
+    SandboxExecutionReceipt,
+    SandboxMount,
+    SandboxPolicyError,
+    run_in_docker_sandbox,
+)
+
+__all__ += [
+    "PromotionAuthorization",
+    "PromotionAuthorizationError",
+    "authorize_promotion",
+    "candidate_batch_sha256",
+    "resolve_live_target_revision",
+    "RecordedObservation",
+    "RuntimeConformanceError",
+    "assemble_recorded_conformance",
+    "verify_current_conformance",
+    "DockerSandboxPolicy",
+    "SandboxExecutionReceipt",
+    "SandboxMount",
+    "SandboxPolicyError",
+    "run_in_docker_sandbox",
+]
