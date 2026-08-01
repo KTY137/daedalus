@@ -15,13 +15,16 @@ from .contracts import (
 )
 from .legacy_forest import fourfold_from_knowledge_forest
 from .reference_compiler import (
+    DEFAULT_REFERENCE_LIMITS,
     REFERENCE_SCHEMA,
     ReferenceCompileError,
     ReferenceCompileResult,
+    ReferenceLimits,
     compile_reference_project,
 )
 
 __all__ = [
+    "DEFAULT_REFERENCE_LIMITS",
     "FOURFOLD_PLANES",
     "REFERENCE_SCHEMA",
     "CrossPlaneBinding",
@@ -29,6 +32,7 @@ __all__ = [
     "PlaneSnapshot",
     "ReferenceCompileError",
     "ReferenceCompileResult",
+    "ReferenceLimits",
     "compile_reference_project",
     "fourfold_from_knowledge_forest",
     "parse_fourfold_snapshot",
