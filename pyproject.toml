@@ -22,6 +22,7 @@ polyglot = [
     "tree-sitter-java==0.23.5",
     "tree-sitter-cpp==0.23.4",
 ]
+root = ["uproot==5.7.5"]
 # Property-based tests (docs/ABSORPTION.md D1). Test-time only: nothing under
 # daedalus/ imports hypothesis, only tests/. MPL-2.0 -- see ABSORPTION.md D1
 # bar 3 for why that licence attaches to nothing here (imported, never
