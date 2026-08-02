@@ -1,0 +1,64 @@
+name: Gate 2 Project Twin Faults
+
+on:
+  pull_request:
+    branches:
+      - g2/project-twin-lifecycle
+    paths:
+      - "daedalus/twin/lifecycle_faults.py"
+      - "tests/twin/test_project_twin_lifecycle_faults.py"
+      - ".github/workflows/gate2-project-twin-faults.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g2/project-twin-lifecycle-faults
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate2-project-twin-faults-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fault-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+        hash-seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.hash-seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -U pip
+      - run: python -m pip install ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/twin/test_project_twin_lifecycle.py
+          tests/twin/test_project_twin_lifecycle_faults.py
+          tests/twin/test_project_twin_genesis.py
+          tests/twin/test_project_twin_live_genesis.py
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -U pip build
+      - run: python -m build --wheel
+      - run: |
+          python -m venv /tmp/daedalus-wheel
+          /tmp/daedalus-wheel/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/daedalus-wheel/bin/python - <<'PY'
+          from daedalus.twin.lifecycle_faults import LockedProjectTwinLifecycleStore
+          print(LockedProjectTwinLifecycleStore)
+          PY
