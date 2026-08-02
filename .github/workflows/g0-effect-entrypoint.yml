@@ -1,3 +1,4 @@
+# Exact-head CI evidence for G0-EFX-03 / python.offload.
 name: Gate 0 — leased offload entrypoint
 
 on:
