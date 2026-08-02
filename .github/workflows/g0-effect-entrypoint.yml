@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: g0-effect-entrypoint-${{ github.ref }}-${{ matrix.python || 'wheel' }}-${{ matrix.seed || 'none' }}
+  group: g0-effect-entrypoint-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
