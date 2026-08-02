@@ -24,12 +24,23 @@ from daedalus.schemas import (
 from daedalus.spine.envelope import canonical_sha
 
 
+_OWNER_APPROVAL_OPERATIONS = frozenset(
+    {
+        "close-gate-2",
+        "promote-candidate",
+        "review-corpus-repository",
+    }
+)
+
+
 @dataclass(frozen=True)
 class OwnerApproval(CanonicalContract):
-    """Authenticated, bounded and single-candidate owner authorization.
+    """Authenticated, bounded and single-decision owner authorization.
 
-    The contract remains inert until a verifier authenticates the signature
-    and a replay ledger consumes its nonce. It never applies a candidate.
+    The operation is explicitly allowlisted. The contract remains inert until
+    a verifier authenticates the signature and a replay ledger consumes its
+    nonce. It never applies a candidate, closes a gate, or upgrades corpus
+    review state by itself.
     """
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.owner-approval"
@@ -53,8 +64,11 @@ class OwnerApproval(CanonicalContract):
     def __post_init__(self) -> None:
         for name in ("approval_id", "owner_id", "key_id", "nonce"):
             object.__setattr__(self, name, _identifier(getattr(self, name), name))
-        if self.operation != "promote-candidate":
-            raise ValueError("owner approval operation must be promote-candidate")
+        if self.operation not in _OWNER_APPROVAL_OPERATIONS:
+            raise ValueError(
+                "owner approval operation must be one of "
+                + repr(sorted(_OWNER_APPROVAL_OPERATIONS))
+            )
         for name in (
             "nomination_receipt_sha256",
             "candidate_artifact_sha256",
@@ -113,155 +127,166 @@ class EffectLeaseRequest(CanonicalContract):
     request grants nothing by itself and is safe to persist or inspect.
     """
 
-    CONTRACT_TYPE: ClassVar[str] = "daedalus.effect-lease-request"
-
     request_id: str
     mission_id: str
     attempt_id: str
-    entrypoint_id: str
+    entrypoint: str
     requested_effects: tuple[str, ...]
-    effect_scope: EffectScope
+    scope: EffectScope
     idempotency_namespace: str
+    policy_decision_sha256: str
+    registry_sha256: str
+    runtime_evidence_sha256: str
     kill_switch_generation: int
-    runtime_manifest_sha256: str | None
-    runtime_conformance_sha256: str | None
+    source_revision: str
+    requested_at: str
     provenance: ContractProvenance
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.effect-lease-request"
 
     def __post_init__(self) -> None:
         for name in (
             "request_id",
             "mission_id",
             "attempt_id",
-            "entrypoint_id",
+            "entrypoint",
             "idempotency_namespace",
         ):
             object.__setattr__(self, name, _identifier(getattr(self, name), name))
         object.__setattr__(
             self,
             "requested_effects",
-            _sorted_strings(self.requested_effects, "requested_effects", identifiers=True),
+            _sorted_strings(self.requested_effects, "requested_effects"),
         )
         if not self.requested_effects:
-            raise ValueError("effect lease request must name at least one effect")
+            raise ValueError("requested_effects must not be empty")
+        if not isinstance(self.scope, EffectScope):
+            raise ValueError("scope must be an EffectScope")
+        for name in (
+            "policy_decision_sha256",
+            "registry_sha256",
+            "runtime_evidence_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
         if isinstance(self.kill_switch_generation, bool) or not isinstance(
             self.kill_switch_generation, int
-        ) or self.kill_switch_generation < 0:
-            raise ValueError("kill_switch_generation must be a non-negative integer")
-        for name in ("runtime_manifest_sha256", "runtime_conformance_sha256"):
-            value = getattr(self, name)
-            if value is not None:
-                object.__setattr__(self, name, _sha256(value, name))
-        if (self.runtime_manifest_sha256 is None) != (
-            self.runtime_conformance_sha256 is None
         ):
+            raise ValueError("kill_switch_generation must be an integer")
+        if self.kill_switch_generation < 0:
+            raise ValueError("kill_switch_generation must be non-negative")
+        object.__setattr__(
+            self, "source_revision", _revision(self.source_revision, "source_revision")
+        )
+        object.__setattr__(
+            self, "requested_at", _utc_timestamp(self.requested_at, "requested_at")
+        )
+        if self.provenance.source_revision != self.source_revision:
             raise ValueError(
-                "runtime manifest and conformance digests must be supplied together"
-            )
-        if not self.effect_scope.has_effects:
-            raise ValueError("effect lease request must carry a bounded effect scope")
-        if not self.effect_scope.kill_switch_ref:
-            raise ValueError("effect lease request requires a kill_switch_ref")
-        required = []
-        if self.runtime_manifest_sha256 is not None:
-            required.extend(
-                [self.runtime_manifest_sha256, self.runtime_conformance_sha256]
+                "effect lease request source_revision must match provenance.source_revision"
             )
         _require_provenance_inputs(
             self.provenance,
-            tuple(value for value in required if value is not None),
+            (
+                self.policy_decision_sha256,
+                self.registry_sha256,
+                self.runtime_evidence_sha256,
+            ),
             "effect lease request",
         )
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "EffectLeaseRequest":
         body = cls._contract_payload(payload)
-        body["effect_scope"] = EffectScope.from_dict(body["effect_scope"])
+        body["requested_effects"] = tuple(body["requested_effects"])
+        body["scope"] = EffectScope.from_dict(body["scope"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
 
 @dataclass(frozen=True)
 class EffectLease(CanonicalContract):
-    """Authenticated, persisted and expiring authorization for one scope.
-
-    The lease is inert until :class:`daedalus.kernel.effects.EffectLeaseLedger`
-    validates and records an execution start.  It never performs the effect.
-    """
+    """Authenticated capability authorizing one bounded effect envelope."""
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.effect-lease"
 
     lease_id: str
-    request_id: str
+    issuer_id: str
+    key_id: str
     request_sha256: str
-    policy_decision_id: str
+    mission_id: str
+    attempt_id: str
+    entrypoint: str
+    allowed_effects: tuple[str, ...]
+    scope: EffectScope
+    idempotency_namespace: str
     policy_decision_sha256: str
     registry_sha256: str
-    entrypoint_id: str
-    requested_effects: tuple[str, ...]
-    effect_scope: EffectScope
-    idempotency_namespace: str
+    runtime_evidence_sha256: str
     kill_switch_generation: int
-    runtime_id: str
-    runtime_manifest_sha256: str | None
-    runtime_conformance_sha256: str | None
-    issuer_key_id: str
+    source_revision: str
     issued_at: str
     expires_at: str
+    max_concurrency: int
     signature_sha256: str
     provenance: ContractProvenance
 
     def __post_init__(self) -> None:
         for name in (
             "lease_id",
-            "request_id",
-            "policy_decision_id",
-            "entrypoint_id",
+            "issuer_id",
+            "key_id",
+            "mission_id",
+            "attempt_id",
+            "entrypoint",
             "idempotency_namespace",
-            "issuer_key_id",
         ):
             object.__setattr__(self, name, _identifier(getattr(self, name), name))
-        if self.runtime_id:
-            object.__setattr__(self, "runtime_id", _identifier(self.runtime_id, "runtime_id"))
         for name in (
             "request_sha256",
             "policy_decision_sha256",
             "registry_sha256",
+            "runtime_evidence_sha256",
             "signature_sha256",
         ):
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
         object.__setattr__(
             self,
-            "requested_effects",
-            _sorted_strings(self.requested_effects, "requested_effects", identifiers=True),
+            "allowed_effects",
+            _sorted_strings(self.allowed_effects, "allowed_effects"),
         )
-        if not self.requested_effects:
-            raise ValueError("effect lease must name at least one effect")
+        if not self.allowed_effects:
+            raise ValueError("allowed_effects must not be empty")
+        if not isinstance(self.scope, EffectScope):
+            raise ValueError("scope must be an EffectScope")
         if isinstance(self.kill_switch_generation, bool) or not isinstance(
             self.kill_switch_generation, int
-        ) or self.kill_switch_generation < 0:
-            raise ValueError("kill_switch_generation must be a non-negative integer")
-        for name in ("runtime_manifest_sha256", "runtime_conformance_sha256"):
-            value = getattr(self, name)
-            if value is not None:
-                object.__setattr__(self, name, _sha256(value, name))
-        if (self.runtime_manifest_sha256 is None) != (
-            self.runtime_conformance_sha256 is None
         ):
-            raise ValueError(
-                "runtime manifest and conformance digests must be supplied together"
-            )
+            raise ValueError("kill_switch_generation must be an integer")
+        if self.kill_switch_generation < 0:
+            raise ValueError("kill_switch_generation must be non-negative")
+        if isinstance(self.max_concurrency, bool) or not isinstance(
+            self.max_concurrency, int
+        ):
+            raise ValueError("max_concurrency must be an integer")
+        if self.max_concurrency <= 0:
+            raise ValueError("max_concurrency must be positive")
+        object.__setattr__(
+            self, "source_revision", _revision(self.source_revision, "source_revision")
+        )
         object.__setattr__(self, "issued_at", _utc_timestamp(self.issued_at, "issued_at"))
         object.__setattr__(self, "expires_at", _utc_timestamp(self.expires_at, "expires_at"))
         if self.expires_at <= self.issued_at:
             raise ValueError("effect lease expires_at must be after issued_at")
-        required = [self.request_sha256, self.policy_decision_sha256, self.registry_sha256]
-        if self.runtime_manifest_sha256 is not None:
-            required.extend(
-                [self.runtime_manifest_sha256, self.runtime_conformance_sha256]
-            )
+        if self.provenance.source_revision != self.source_revision:
+            raise ValueError("effect lease source_revision must match provenance.source_revision")
         _require_provenance_inputs(
             self.provenance,
-            tuple(value for value in required if value is not None),
+            (
+                self.request_sha256,
+                self.policy_decision_sha256,
+                self.registry_sha256,
+                self.runtime_evidence_sha256,
+            ),
             "effect lease",
         )
 
@@ -277,6 +302,7 @@ class EffectLease(CanonicalContract):
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "EffectLease":
         body = cls._contract_payload(payload)
-        body["effect_scope"] = EffectScope.from_dict(body["effect_scope"])
+        body["allowed_effects"] = tuple(body["allowed_effects"])
+        body["scope"] = EffectScope.from_dict(body["scope"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
