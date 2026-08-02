@@ -1,0 +1,73 @@
+name: Apply G2 lock durability hardening
+
+on:
+  push:
+    branches:
+      - g2/project-twin-lock-durability
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: g2/project-twin-lock-durability
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply exact reviewed patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lifecycle = Path('daedalus/twin/lifecycle.py')
+          text = lifecycle.read_text(encoding='utf-8')
+
+          old = '''    def _fault(self, phase: str) -> None:\n        if self._fault_injector is not None:\n            self._fault_injector(phase)\n\n    @staticmethod\n    def _repository_key(repository_id: str) -> str:\n'''
+          new = '''    def _fault(self, phase: str) -> None:\n        if self._fault_injector is not None:\n            self._fault_injector(phase)\n\n    @staticmethod\n    def _write_all(fd: int, raw: bytes) -> None:\n        view = memoryview(raw)\n        offset = 0\n        while offset < len(view):\n            written = os.write(fd, view[offset:])\n            if written <= 0:\n                raise ProjectTwinContractError("Project Twin lifecycle lock write made no progress")\n            offset += written\n\n    def _fsync_root_directory(self) -> None:\n        directory_fd = os.open(self.root, os.O_RDONLY)\n        try:\n            os.fsync(directory_fd)\n        finally:\n            os.close(directory_fd)\n\n    @staticmethod\n    def _repository_key(repository_id: str) -> str:\n'''
+          if old not in text:
+              raise SystemExit('helper insertion anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''            if lock_path.read_bytes() != raw:\n                return False\n            lock_path.unlink()\n        except FileNotFoundError:\n            return True\n        return True\n'''
+          new = '''            if lock_path.read_bytes() != raw:\n                return False\n            lock_path.unlink()\n            self._fsync_root_directory()\n        except FileNotFoundError:\n            return True\n        return True\n'''
+          if old not in text:
+              raise SystemExit('reclaim anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''        try:\n            os.write(fd, raw)\n            os.fsync(fd)\n            yield\n        finally:\n            os.close(fd)\n            try:\n                current = lock_path.read_bytes()\n            except FileNotFoundError:\n                current = None\n            if current == raw:\n                lock_path.unlink(missing_ok=True)\n'''
+          new = '''        try:\n            self._write_all(fd, raw)\n            os.fsync(fd)\n            self._fsync_root_directory()\n            yield\n        finally:\n            os.close(fd)\n            try:\n                current = lock_path.read_bytes()\n            except FileNotFoundError:\n                current = None\n            if current == raw:\n                lock_path.unlink(missing_ok=True)\n                self._fsync_root_directory()\n'''
+          if old not in text:
+              raise SystemExit('writer anchor not found')
+          text = text.replace(old, new, 1)
+          lifecycle.write_text(text, encoding='utf-8')
+
+          tests = Path('tests/twin/test_project_twin_lock_recovery.py')
+          test_text = tests.read_text(encoding='utf-8')
+          if 'test_partial_lock_writes_are_completed' in test_text:
+              raise SystemExit('tests already applied')
+          test_text += '''\n\ndef test_partial_lock_writes_are_completed(tmp_path, monkeypatch):\n    import daedalus.twin.lifecycle as lifecycle\n\n    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")\n    real_write = os.write\n    calls = []\n\n    def partial_write(fd, data):\n        chunk = bytes(data[:3])\n        calls.append(len(chunk))\n        return real_write(fd, chunk)\n\n    monkeypatch.setattr(lifecycle.os, "write", partial_write)\n    with store._exclusive_writer(REPOSITORY):\n        payload = json.loads(store._lock_path(REPOSITORY).read_text("ascii"))\n        assert payload["hostname"] == "host-a"\n    assert len(calls) > 1\n    assert not store._lock_path(REPOSITORY).exists()\n\n\ndef test_zero_progress_lock_write_fails_closed_and_cleans_up(tmp_path, monkeypatch):\n    import daedalus.twin.lifecycle as lifecycle\n\n    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")\n    monkeypatch.setattr(lifecycle.os, "write", lambda fd, data: 0)\n\n    with pytest.raises(ProjectTwinContractError, match="made no progress"):\n        with store._exclusive_writer(REPOSITORY):\n            pass\n    assert not store._lock_path(REPOSITORY).exists()\n\n\ndef test_lock_directory_entries_are_fsynced_on_create_and_remove(tmp_path, monkeypatch):\n    import stat\n    import daedalus.twin.lifecycle as lifecycle\n\n    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")\n    real_fsync = os.fsync\n    directory_fsyncs = []\n\n    def record_fsync(fd):\n        if stat.S_ISDIR(os.fstat(fd).st_mode):\n            directory_fsyncs.append(fd)\n        return real_fsync(fd)\n\n    monkeypatch.setattr(lifecycle.os, "fsync", record_fsync)\n    with store._exclusive_writer(REPOSITORY):\n        assert store._lock_path(REPOSITORY).exists()\n\n    assert len(directory_fsyncs) >= 2\n    assert not store._lock_path(REPOSITORY).exists()\n\n\ndef test_reclaimed_lock_removal_is_directory_fsynced(tmp_path, monkeypatch):\n    import stat\n    import daedalus.twin.lifecycle as lifecycle\n\n    store = AtomicProjectTwinLifecycleStore(\n        tmp_path, hostname="host-a", owner_alive=lambda pid: False\n    )\n    _write_lock(store, _payload())\n    real_fsync = os.fsync\n    directory_fsyncs = []\n\n    def record_fsync(fd):\n        if stat.S_ISDIR(os.fstat(fd).st_mode):\n            directory_fsyncs.append(fd)\n        return real_fsync(fd)\n\n    monkeypatch.setattr(lifecycle.os, "fsync", record_fsync)\n    with store._exclusive_writer(REPOSITORY):\n        pass\n\n    assert len(directory_fsyncs) >= 3\n    assert not store._lock_path(REPOSITORY).exists()\n'''
+          tests.write_text(test_text, encoding='utf-8')
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/apply-g2-lock-durability.yml
+      - name: Verify focused and Gate-2 suites
+        run: |
+          python -m pip install -e '.[dev,polyglot,root]'
+          python -m pytest -q tests/twin/test_project_twin_lock_recovery.py tests/twin/test_project_twin_lifecycle.py tests/twin/test_project_twin_lifecycle_faults.py
+          python tools/iron_plan_guard.py verify
+          python -m compileall -q daedalus tests
+          git diff --check
+      - name: Commit hardened batch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add daedalus/twin/lifecycle.py tests/twin/test_project_twin_lock_recovery.py .github/workflows/apply-g2-lock-durability.yml
+          git commit -m 'fix(g2): make lifecycle locks durable'
+          git push origin HEAD:g2/project-twin-lock-durability
