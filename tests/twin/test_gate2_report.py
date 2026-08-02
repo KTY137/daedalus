@@ -113,7 +113,7 @@ def test_closed_field_is_derived_and_noncanonical_bytes_refuse() -> None:
         Gate2Report.from_json_bytes(pretty)
 
 
-def test_monotonicity_refuses_competing_exact_head_and_closed_regression() -> None:
+def test_monotonicity_refuses_competing_exact_head_and_evidence_loss() -> None:
     closed = build_gate2_report(
         head_sha=HEAD,
         iron_plan_sha256=SHA,
@@ -130,11 +130,31 @@ def test_monotonicity_refuses_competing_exact_head_and_closed_regression() -> No
     with pytest.raises(Gate2ReportError, match="competing"):
         assert_monotonic_gate2_report(closed, competing)
 
-    regressed = build_gate2_report(
+    evidence_loss = build_gate2_report(
         head_sha=OTHER_HEAD,
         iron_plan_sha256=SHA,
         workflow_evidence=checks(head=OTHER_HEAD),
         bindings=(binding(reviewed=False),),
+    )
+    with pytest.raises(Gate2ReportError, match="drops previously retained"):
+        assert_monotonic_gate2_report(closed, evidence_loss)
+
+
+def test_monotonicity_refuses_closed_to_open_regression_with_retained_evidence() -> None:
+    closed = build_gate2_report(
+        head_sha=HEAD,
+        iron_plan_sha256=SHA,
+        workflow_evidence=checks(),
+        bindings=(binding(),),
+    )
+    regressed = Gate2Report(
+        schema="daedalus-gate2-report/1",
+        head_sha=OTHER_HEAD,
+        iron_plan_sha256=closed.iron_plan_sha256,
+        workflow_evidence=checks(head=OTHER_HEAD),
+        binding_sha256s=closed.binding_sha256s,
+        blockers=("manual-regression",),
+        external_constraints=(),
     )
     with pytest.raises(Gate2ReportError, match="cannot regress"):
         assert_monotonic_gate2_report(closed, regressed)
