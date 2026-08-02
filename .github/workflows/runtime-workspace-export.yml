@@ -1,6 +1,9 @@
 name: Runtime workspace export
 
 on:
+  pull_request:
+    branches:
+      - g0/effect-leases
   push:
     branches:
       - g0/runtime-workspace-export
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
         run: |
           set -euo pipefail
