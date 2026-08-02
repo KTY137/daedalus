@@ -1,0 +1,84 @@
+name: Gate 0 — leased offload entrypoint
+
+on:
+  pull_request:
+    branches:
+      - consolidation/g0-g1-foundation
+    paths:
+      - "daedalus/kernel/**"
+      - "daedalus/offload.py"
+      - "daedalus/spine/**"
+      - "tests/**"
+      - ".github/workflows/g0-effect-entrypoint.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-effect-entrypoint-${{ github.ref }}-${{ matrix.python || 'wheel' }}-${{ matrix.seed || 'none' }}
+  cancel-in-progress: true
+
+jobs:
+  leased-entrypoint:
+    name: leased-entrypoint / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests
+      - name: Lease, boundary, attempt, routing, and regression tests
+        run: >-
+          python -m pytest -q
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_leased_offload.py
+          tests/gates/test_gate_report.py
+          tests/test_effect_boundary.py
+          tests/test_gate0_faults_atalanta.py
+          tests/test_spine_attempt.py
+          tests/test_parallel_dispatch.py
+          tests/test_cascade.py
+          tests/test_drafts.py
+          tests/test_era1_robustness.py
+          tests/test_fake_offload.py
+          tests/test_offload_automint.py
+          tests/test_offload_slice_context.py
+          tests/test_offload_write_failclose.py
+          tests/test_repair_blast_radius_write.py
+          tests/test_verify_test_budget.py
+          tests/test_write_guard_e2e.py
+
+  isolated-wheel:
+    name: isolated wheel smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-wheel
+      - run: /tmp/daedalus-wheel/bin/pip install dist/*.whl
+      - name: Import installed authority outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-wheel/bin/python -c
+          "from daedalus.kernel import LeasedEffectAuthorization;
+          from daedalus.offload import offload;
+          from daedalus.spine.effect_boundary import REGISTRY_BY_ID;
+          assert REGISTRY_BY_ID['python.offload'].wiring.value == 'central'"
