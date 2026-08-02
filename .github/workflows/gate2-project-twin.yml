@@ -34,6 +34,7 @@ jobs:
           tests/kernel/test_artifact_identity.py
           tests/twin/test_genesis_contracts.py
           tests/twin/test_genesis_runner.py
+          tests/twin/test_project_twin_lifecycle.py
           tests/twin/test_fourfold_contracts.py
           tests/twin/test_projection_verifier.py
 
@@ -50,4 +51,4 @@ jobs:
       - run: /tmp/daedalus-g2-wheel/bin/pip install dist/*.whl
       - run: >-
           cd /tmp && /tmp/daedalus-g2-wheel/bin/python -c
-          "from daedalus.twin.genesis import ProjectTwinManifest, GenesisCompileReceipt, verify_genesis_receipt; from daedalus.twin.genesis_runner import run_bounded_genesis"
+          "from daedalus.twin.genesis import ProjectTwinManifest, GenesisCompileReceipt, verify_genesis_receipt; from daedalus.twin.genesis_runner import run_bounded_genesis; from daedalus.twin.lifecycle import AtomicProjectTwinLifecycleStore, verify_lifecycle"
