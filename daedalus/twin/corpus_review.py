@@ -1,18 +1,15 @@
-"""Content-addressed, owner-bound corpus review records for Gate 2.
-
-Mechanical repository checks are necessary but not sufficient for review.  A
-record binds the exact corpus entry, license bytes, selected source inventory,
-capability policy, reviewer identity, rationale, time, and an external approval
-artifact.  Only a reviewed record may upgrade one declared manifest entry.
-"""
+"""Authenticated, content-addressed corpus review records for Gate 2."""
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import hashlib
 import json
 import re
 from typing import Any, Mapping
 
+from daedalus.kernel.approvals import ApprovalExpectation, VerifiedOwnerApproval, verify_owner_approval
+from daedalus.kernel.contracts import OwnerApproval
 from daedalus.schemas import _revision, _sha256
 from daedalus.twin.capabilities import CapabilityMatrix
 from daedalus.twin.corpus import CorpusManifest, CorpusManifestError, CorpusRepository
@@ -20,10 +17,11 @@ from daedalus.twin.corpus import CorpusManifest, CorpusManifestError, CorpusRepo
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 _TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _DECISIONS = frozenset({"reviewed", "rejected"})
+_OPERATION = "review-corpus-repository"
 
 
 class CorpusReviewError(ValueError):
-    """Raised when corpus review evidence is stale, incomplete, or substituted."""
+    """Raised when corpus review evidence is stale, incomplete, or unauthenticated."""
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -34,6 +32,12 @@ def _text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CorpusReviewError(f"{field} must be a non-empty string")
     return value
+
+
+def _parse_utc(value: str, field: str) -> dt.datetime:
+    if not isinstance(value, str) or not _TIME_RE.fullmatch(value):
+        raise CorpusReviewError(f"{field} must be canonical UTC seconds")
+    return dt.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
 
 
 def _sorted_text(values: tuple[str, ...], field: str) -> tuple[str, ...]:
@@ -60,7 +64,6 @@ class CorpusReviewRecord:
     capability_matrix_sha256: str
     reviewer_id: str
     reviewed_at: str
-    approval_sha256: str
     decision: str
     rationale_sha256: str
 
@@ -77,15 +80,13 @@ class CorpusReviewRecord:
             "license_file_sha256",
             "source_inventory_sha256",
             "capability_matrix_sha256",
-            "approval_sha256",
             "rationale_sha256",
         ):
             object.__setattr__(self, field, _sha256(getattr(self, field), field))
         reviewer = _text(self.reviewer_id, "reviewer_id")
         if not _ID_RE.fullmatch(reviewer):
             raise CorpusReviewError("reviewer_id must use a canonical identifier")
-        if not _TIME_RE.fullmatch(_text(self.reviewed_at, "reviewed_at")):
-            raise CorpusReviewError("reviewed_at must be canonical UTC seconds")
+        _parse_utc(self.reviewed_at, "reviewed_at")
         if self.decision not in _DECISIONS:
             raise CorpusReviewError("unsupported corpus review decision")
 
@@ -108,7 +109,6 @@ class CorpusReviewRecord:
             "capability_matrix_sha256": self.capability_matrix_sha256,
             "reviewer_id": self.reviewer_id,
             "reviewed_at": self.reviewed_at,
-            "approval_sha256": self.approval_sha256,
             "decision": self.decision,
             "rationale_sha256": self.rationale_sha256,
         }
@@ -119,27 +119,14 @@ class CorpusReviewRecord:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "CorpusReviewRecord":
         expected = {
-            "schema",
-            "repository_id",
-            "repository_url",
-            "source_revision",
-            "include_prefixes",
-            "language_ids",
-            "license_spdx",
-            "license_path",
-            "license_file_sha256",
-            "source_inventory_sha256",
-            "capability_matrix_sha256",
-            "reviewer_id",
-            "reviewed_at",
-            "approval_sha256",
-            "decision",
-            "rationale_sha256",
+            "schema", "repository_id", "repository_url", "source_revision",
+            "include_prefixes", "language_ids", "license_spdx", "license_path",
+            "license_file_sha256", "source_inventory_sha256",
+            "capability_matrix_sha256", "reviewer_id", "reviewed_at",
+            "decision", "rationale_sha256",
         }
-        if set(payload) != expected:
-            raise CorpusReviewError("corpus review fields are not canonical")
-        if payload.get("schema") != "daedalus-corpus-review-record/1":
-            raise CorpusReviewError("unsupported corpus review schema")
+        if set(payload) != expected or payload.get("schema") != "daedalus-corpus-review-record/1":
+            raise CorpusReviewError("corpus review fields or schema are not canonical")
         prefixes = payload["include_prefixes"]
         languages = payload["language_ids"]
         if not isinstance(prefixes, list) or not isinstance(languages, list):
@@ -164,13 +151,57 @@ class CorpusReviewRecord:
         return record
 
 
+def owner_approval_expectation(
+    *,
+    manifest: CorpusManifest,
+    record: CorpusReviewRecord,
+) -> ApprovalExpectation:
+    return ApprovalExpectation(
+        operation=_OPERATION,
+        nomination_receipt_sha256=record.source_inventory_sha256,
+        candidate_artifact_sha256=record.digest,
+        evidence_packet_sha256=record.license_file_sha256,
+        base_revision=record.source_revision,
+        target_ref=f"corpus/{manifest.corpus_id}/{record.repository_id}",
+        current_target_revision=record.source_revision,
+    )
+
+
+def verify_corpus_review_approval(
+    *,
+    manifest: CorpusManifest,
+    record: CorpusReviewRecord,
+    owner_approval: OwnerApproval,
+    keyring: Mapping[tuple[str, str], bytes | str],
+    now: str,
+) -> VerifiedOwnerApproval:
+    instant = _parse_utc(now, "now")
+    verified = verify_owner_approval(
+        owner_approval,
+        keyring=keyring,
+        expectation=owner_approval_expectation(manifest=manifest, record=record),
+        now=instant,
+    )
+    mismatches: list[str] = []
+    if verified.owner_id != record.reviewer_id:
+        mismatches.append("reviewer_id")
+    if verified.issued_at != record.reviewed_at:
+        mismatches.append("reviewed_at")
+    if mismatches:
+        raise CorpusReviewError("owner approval does not bind corpus review: " + ", ".join(mismatches))
+    return verified
+
+
 def apply_reviewed_record(
     *,
     manifest: CorpusManifest,
     capability_matrix: CapabilityMatrix,
     record: CorpusReviewRecord,
+    owner_approval: OwnerApproval,
+    keyring: Mapping[tuple[str, str], bytes | str],
+    now: str,
 ) -> CorpusManifest:
-    """Upgrade exactly one declared repository after exact review verification."""
+    """Upgrade exactly one declared repository after authenticated exact review."""
     if record.decision != "reviewed":
         raise CorpusReviewError("only a reviewed decision may upgrade a corpus manifest")
     matches = tuple(item for item in manifest.repositories if item.repository_id == record.repository_id)
@@ -198,6 +229,20 @@ def apply_reviewed_record(
     if set(repository.language_ids) - matrix_languages:
         raise CorpusReviewError("capability matrix does not cover reviewed repository languages")
 
+    verified = verify_corpus_review_approval(
+        manifest=manifest,
+        record=record,
+        owner_approval=owner_approval,
+        keyring=keyring,
+        now=now,
+    )
+    evidence_identity = hashlib.sha256(
+        _canonical_json({
+            "schema": "daedalus-reviewed-corpus-evidence/1",
+            "record_sha256": record.digest,
+            "owner_approval_sha256": verified.approval_sha256,
+        })
+    ).hexdigest()
     replacement = CorpusRepository(
         repository_id=repository.repository_id,
         repository_url=repository.repository_url,
@@ -207,16 +252,19 @@ def apply_reviewed_record(
         license_spdx=repository.license_spdx,
         license_path=repository.license_path,
         review_state="reviewed",
-        review_evidence=f"sha256:{record.digest}",
+        review_evidence=f"sha256:{evidence_identity}",
     )
-    repositories = tuple(
-        replacement if item.repository_id == replacement.repository_id else item
-        for item in manifest.repositories
-    )
+    repositories = tuple(replacement if item.repository_id == replacement.repository_id else item for item in manifest.repositories)
     try:
         return CorpusManifest(schema=manifest.schema, corpus_id=manifest.corpus_id, repositories=repositories)
     except CorpusManifestError as exc:
         raise CorpusReviewError("reviewed corpus manifest is invalid") from exc
 
 
-__all__ = ["CorpusReviewError", "CorpusReviewRecord", "apply_reviewed_record"]
+__all__ = [
+    "CorpusReviewError",
+    "CorpusReviewRecord",
+    "apply_reviewed_record",
+    "owner_approval_expectation",
+    "verify_corpus_review_approval",
+]
