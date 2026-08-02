@@ -8,7 +8,8 @@ edge is content-addressed back to the exact corpus and correlation result.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Mapping
+import re
+from typing import Any, ClassVar, Mapping, Sequence
 
 from ..spine.envelope import canonical_sha
 from .knowledge_correlation import (
@@ -16,6 +17,51 @@ from .knowledge_correlation import (
     KnowledgeCorrelationResult,
 )
 from .knowledge_sources import KnowledgeCorpus
+
+
+_SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _sha(value: str, name: str) -> str:
+    if not isinstance(value, str) or not _SHA_RE.fullmatch(value):
+        raise KnowledgeCorrelationError(f"{name} must be lowercase sha256")
+    return value
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return tuple(
+            (str(key), _freeze(item))
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        )
+    if isinstance(value, (list, tuple, set, frozenset)):
+        frozen = tuple(_freeze(item) for item in value)
+        if isinstance(value, (set, frozenset)):
+            return tuple(sorted(frozen, key=repr))
+        return frozen
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return repr(value)
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, tuple):
+        if all(
+            isinstance(item, tuple)
+            and len(item) == 2
+            and isinstance(item[0], str)
+            for item in value
+        ):
+            return {key: _thaw(item) for key, item in value}
+        return [_thaw(item) for item in value]
+    return value
+
+
+def _attribute_rows(values: Sequence[tuple[str, Any]]) -> tuple[tuple[str, Any], ...]:
+    rows = tuple(sorted((str(key), _freeze(value)) for key, value in values))
+    if len({key for key, _ in rows}) != len(rows):
+        raise KnowledgeCorrelationError("overlay attributes must be unique")
+    return rows
 
 
 @dataclass(frozen=True)
@@ -29,17 +75,19 @@ class KnowledgeOverlayNode:
             raise KnowledgeCorrelationError("overlay node_id must not be empty")
         if not isinstance(self.kind, str) or not self.kind.strip():
             raise KnowledgeCorrelationError("overlay node kind must not be empty")
-        rows = tuple(sorted(self.attributes, key=lambda item: item[0]))
-        if len({key for key, _ in rows}) != len(rows):
-            raise KnowledgeCorrelationError("overlay node attributes must be unique")
-        object.__setattr__(self, "attributes", rows)
+        object.__setattr__(self, "attributes", _attribute_rows(self.attributes))
+
+    @property
+    def attribute_map(self) -> Mapping[str, Any]:
+        return dict(self.attributes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "node_id": self.node_id,
             "kind": self.kind,
             "attributes": [
-                {"key": key, "value": value} for key, value in self.attributes
+                {"key": key, "value": _thaw(value)}
+                for key, value in self.attributes
             ],
         }
 
@@ -71,16 +119,15 @@ class KnowledgeOverlayEdge:
             "diagnostic",
         }:
             raise KnowledgeCorrelationError("overlay edge state is invalid")
-        evidence = tuple(sorted(set(self.evidence_sha256s)))
+        evidence = tuple(
+            sorted({_sha(value, "overlay edge evidence") for value in self.evidence_sha256s})
+        )
         if self.state in {"source_supported", "diagnostic"} and not evidence:
             raise KnowledgeCorrelationError(
                 "supported/diagnostic overlay edge requires evidence"
             )
         object.__setattr__(self, "evidence_sha256s", evidence)
-        rows = tuple(sorted(self.attributes, key=lambda item: item[0]))
-        if len({key for key, _ in rows}) != len(rows):
-            raise KnowledgeCorrelationError("overlay edge attributes must be unique")
-        object.__setattr__(self, "attributes", rows)
+        object.__setattr__(self, "attributes", _attribute_rows(self.attributes))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,7 +137,8 @@ class KnowledgeOverlayEdge:
             "state": self.state,
             "evidence_sha256s": list(self.evidence_sha256s),
             "attributes": [
-                {"key": key, "value": value} for key, value in self.attributes
+                {"key": key, "value": _thaw(value)}
+                for key, value in self.attributes
             ],
         }
 
@@ -110,6 +158,12 @@ class ExternalKnowledgeGraphProjection:
     SCHEMA: ClassVar[str] = "daedalus-external-knowledge-graph-projection/1"
 
     def __post_init__(self) -> None:
+        for name in (
+            "snapshot_sha256",
+            "corpus_sha256",
+            "correlation_result_sha256",
+        ):
+            object.__setattr__(self, name, _sha(getattr(self, name), name))
         nodes = tuple(sorted(self.nodes, key=lambda item: item.node_id))
         edges = tuple(
             sorted(
@@ -154,11 +208,7 @@ class ExternalKnowledgeGraphProjection:
         return canonical_sha(self.to_dict())
 
 
-def _node(
-    node_id: str,
-    kind: str,
-    **attributes: Any,
-) -> KnowledgeOverlayNode:
+def _node(node_id: str, kind: str, **attributes: Any) -> KnowledgeOverlayNode:
     return KnowledgeOverlayNode(
         node_id=node_id,
         kind=kind,
@@ -286,15 +336,8 @@ def project_external_knowledge_graph(
             card_sha256=card.digest,
         )
 
-    card_reference_ids = {
-        node.attributes[0][1]: node.node_id
-        for node in nodes.values()
-        if node.kind == "fourfold_node_reference"
-        and node.attributes
-        and node.attributes[0][0] == "card_sha256"
-    }
     by_node_id = {
-        dict(node.attributes).get("node_id"): node.node_id
+        node.attribute_map.get("node_id"): node.node_id
         for node in nodes.values()
         if node.kind == "fourfold_node_reference"
     }
