@@ -5,6 +5,8 @@ on:
     branches:
       - consolidation/g0-g1-foundation
     paths:
+      - "daedalus/kernel/contracts.py"
+      - "daedalus/twin/ablations.py"
       - "daedalus/twin/corpus.py"
       - "daedalus/twin/capabilities.py"
       - "daedalus/twin/corpus_genesis.py"
@@ -14,12 +16,15 @@ on:
       - "daedalus/twin/genesis.py"
       - "daedalus/twin/motifs.py"
       - "configs/corpus/gate2-pilot-v1.json"
-      - "tests/twin/test_corpus_manifest.py"
+      - "configs/schemas/owner-approval-v1.schema.json"
+      - "tests/kernel/test_owner_approval.py"
       - "tests/twin/test_capability_matrix.py"
       - "tests/twin/test_corpus_genesis_binding.py"
+      - "tests/twin/test_corpus_manifest.py"
       - "tests/twin/test_corpus_review.py"
-      - "tests/twin/test_gate2_report.py"
+      - "tests/twin/test_four_plane_ablations.py"
       - "tests/twin/test_gate2_closure.py"
+      - "tests/twin/test_gate2_report.py"
       - "tests/twin/test_motif_provenance.py"
       - ".github/workflows/gate2-corpus-pilot.yml"
       - "pyproject.toml"
@@ -55,16 +60,20 @@ jobs:
       - run: python -m pip install pytest
       - run: >-
           python -m pytest -q
+          tests/kernel/test_owner_approval.py
           tests/twin/test_corpus_manifest.py
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
           tests/twin/test_corpus_review.py
+          tests/twin/test_four_plane_ablations.py
           tests/twin/test_gate2_report.py
           tests/twin/test_gate2_closure.py
           tests/twin/test_motif_provenance.py
           tests/twin/test_genesis_contracts.py
       - run: >-
           python -m compileall -q
+          daedalus/kernel/contracts.py
+          daedalus/twin/ablations.py
           daedalus/twin/corpus.py
           daedalus/twin/capabilities.py
           daedalus/twin/corpus_genesis.py
@@ -73,10 +82,12 @@ jobs:
           daedalus/twin/gate2_closure.py
           daedalus/twin/genesis.py
           daedalus/twin/motifs.py
+          tests/kernel/test_owner_approval.py
           tests/twin/test_corpus_manifest.py
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
           tests/twin/test_corpus_review.py
+          tests/twin/test_four_plane_ablations.py
           tests/twin/test_gate2_report.py
           tests/twin/test_gate2_closure.py
           tests/twin/test_motif_provenance.py
@@ -128,7 +139,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.whl
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus_review import CorpusReviewRecord; from daedalus.twin.gate2_report import Gate2Report; from daedalus.twin.gate2_closure import Gate2ClosureApproval; from daedalus.twin.motifs import MotifProvenance; print(CorpusReviewRecord.__name__, Gate2Report.__name__, Gate2ClosureApproval.__name__, MotifProvenance.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.kernel.contracts import OwnerApproval; from daedalus.twin.ablations import FourPlaneAblationReport; from daedalus.twin.corpus_review import CorpusReviewRecord; from daedalus.twin.gate2_report import Gate2Report; from daedalus.twin.gate2_closure import Gate2ClosureApproval; from daedalus.twin.motifs import MotifProvenance; print(OwnerApproval.__name__, FourPlaneAblationReport.__name__, CorpusReviewRecord.__name__, Gate2Report.__name__, Gate2ClosureApproval.__name__, MotifProvenance.__name__)"
       - name: Install and import sdist outside checkout
         shell: bash
         run: |
