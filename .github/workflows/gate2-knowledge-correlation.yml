@@ -5,20 +5,9 @@ on:
     branches:
       - g2/project-twin-genesis-final
     paths:
-      - "daedalus/twin/knowledge_sources.py"
-      - "daedalus/twin/knowledge_correlation.py"
-      - "daedalus/twin/knowledge_access.py"
-      - "daedalus/twin/knowledge_wire.py"
-      - "daedalus/twin/knowledge_pipeline.py"
-      - "daedalus/twin/knowledge_prompt.py"
-      - "daedalus/twin/knowledge_dump_adapters.py"
-      - "tests/twin/test_knowledge_dump_crucible.py"
-      - "tests/twin/test_knowledge_access_scope.py"
-      - "tests/twin/test_knowledge_pipeline.py"
-      - "tests/twin/test_knowledge_prompt_bridge.py"
-      - "tests/twin/test_knowledge_dump_adapters.py"
-      - "docs/fourfold/KNOWLEDGE_DUMP_CORRELATION.md"
-      - "docs/fourfold/KNOWLEDGE_ACCESS_BOUNDARY.md"
+      - "daedalus/twin/knowledge_*.py"
+      - "tests/twin/test_knowledge_*.py"
+      - "docs/fourfold/KNOWLEDGE_*.md"
       - ".github/workflows/gate2-knowledge-correlation.yml"
       - "pyproject.toml"
   push:
@@ -51,27 +40,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip pytest
-      - run: >-
-          python -m pytest -q
-          tests/twin/test_knowledge_dump_crucible.py
-          tests/twin/test_knowledge_access_scope.py
-          tests/twin/test_knowledge_pipeline.py
-          tests/twin/test_knowledge_prompt_bridge.py
-          tests/twin/test_knowledge_dump_adapters.py
-      - run: >-
-          python -m compileall -q
-          daedalus/twin/knowledge_sources.py
-          daedalus/twin/knowledge_correlation.py
-          daedalus/twin/knowledge_access.py
-          daedalus/twin/knowledge_wire.py
-          daedalus/twin/knowledge_pipeline.py
-          daedalus/twin/knowledge_prompt.py
-          daedalus/twin/knowledge_dump_adapters.py
-          tests/twin/test_knowledge_dump_crucible.py
-          tests/twin/test_knowledge_access_scope.py
-          tests/twin/test_knowledge_pipeline.py
-          tests/twin/test_knowledge_prompt_bridge.py
-          tests/twin/test_knowledge_dump_adapters.py
+      - run: python -m pytest -q tests/twin/test_knowledge_*.py
+      - run: python -m compileall -q daedalus/twin/knowledge_*.py tests/twin/test_knowledge_*.py
 
   isolated-distributions:
     runs-on: ubuntu-latest
@@ -90,27 +60,23 @@ jobs:
           python -m pip install --target "${tmpdir}" dist/*.whl
           cd /tmp
           PYTHONPATH="${tmpdir}" python - <<'PY'
-          from daedalus.twin.knowledge_sources import (
-              ingest_confluence_dump,
-              ingest_mediawiki_dump,
-              ingest_obsidian_vault,
-          )
-          from daedalus.twin.knowledge_correlation import correlate_knowledge
           from daedalus.twin.knowledge_access import build_access_scoped_context
-          from daedalus.twin.knowledge_wire import parse_knowledge_corpus_json
+          from daedalus.twin.knowledge_correlation import correlate_knowledge
+          from daedalus.twin.knowledge_dump_adapters import ingest_mediawiki_xml_dump
+          from daedalus.twin.knowledge_evaluation import evaluate_knowledge_correlation
           from daedalus.twin.knowledge_pipeline import build_parser
           from daedalus.twin.knowledge_prompt import build_knowledge_prompt_envelope
-          from daedalus.twin.knowledge_dump_adapters import ingest_mediawiki_xml_dump
+          from daedalus.twin.knowledge_sources import ingest_obsidian_vault
+          from daedalus.twin.knowledge_wire import parse_knowledge_corpus_json
           print(
-              ingest_confluence_dump.__name__,
-              ingest_mediawiki_dump.__name__,
-              ingest_obsidian_vault.__name__,
-              correlate_knowledge.__name__,
               build_access_scoped_context.__name__,
-              parse_knowledge_corpus_json.__name__,
+              correlate_knowledge.__name__,
+              ingest_mediawiki_xml_dump.__name__,
+              evaluate_knowledge_correlation.__name__,
               build_parser.__name__,
               build_knowledge_prompt_envelope.__name__,
-              ingest_mediawiki_xml_dump.__name__,
+              ingest_obsidian_vault.__name__,
+              parse_knowledge_corpus_json.__name__,
           )
           PY
       - name: Install sdist outside checkout
@@ -120,7 +86,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.tar.gz
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.knowledge_sources import KnowledgeCorpus; from daedalus.twin.knowledge_correlation import KnowledgeCorrelationResult; from daedalus.twin.knowledge_access import AccessScopedKnowledgeContext; from daedalus.twin.knowledge_wire import KnowledgeWireError; from daedalus.twin.knowledge_pipeline import main; from daedalus.twin.knowledge_prompt import KnowledgePromptEnvelope; from daedalus.twin.knowledge_dump_adapters import MediaWikiXMLLimits; print(KnowledgeCorpus.__name__, KnowledgeCorrelationResult.__name__, AccessScopedKnowledgeContext.__name__, KnowledgeWireError.__name__, main.__name__, KnowledgePromptEnvelope.__name__, MediaWikiXMLLimits.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.knowledge_pipeline import main; from daedalus.twin.knowledge_prompt import KnowledgePromptEnvelope; from daedalus.twin.knowledge_evaluation import KnowledgeCorrelationEvaluationReport; print(main.__name__, KnowledgePromptEnvelope.__name__, KnowledgeCorrelationEvaluationReport.__name__)"
       - name: CLI help from isolated wheel
         shell: bash
         run: |
