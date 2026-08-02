@@ -181,6 +181,23 @@ class AtomicProjectTwinLifecycleStore:
             self._fault_injector(phase)
 
     @staticmethod
+    def _write_all(fd: int, raw: bytes) -> None:
+        view = memoryview(raw)
+        offset = 0
+        while offset < len(view):
+            written = os.write(fd, view[offset:])
+            if written <= 0:
+                raise ProjectTwinContractError("Project Twin lifecycle lock write made no progress")
+            offset += written
+
+    def _fsync_root_directory(self) -> None:
+        directory_fd = os.open(self.root, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+    @staticmethod
     def _repository_key(repository_id: str) -> str:
         normalized = str(repository_id).strip()
         if not normalized:
@@ -237,6 +254,7 @@ class AtomicProjectTwinLifecycleStore:
             if lock_path.read_bytes() != raw:
                 return False
             lock_path.unlink()
+            self._fsync_root_directory()
         except FileNotFoundError:
             return True
         return True
@@ -263,8 +281,9 @@ class AtomicProjectTwinLifecycleStore:
         if fd is None:  # pragma: no cover - defensive guard
             raise ProjectTwinContractError("Project Twin lifecycle writer lock was not acquired")
         try:
-            os.write(fd, raw)
+            self._write_all(fd, raw)
             os.fsync(fd)
+            self._fsync_root_directory()
             yield
         finally:
             os.close(fd)
@@ -274,6 +293,7 @@ class AtomicProjectTwinLifecycleStore:
                 current = None
             if current == raw:
                 lock_path.unlink(missing_ok=True)
+                self._fsync_root_directory()
 
     @staticmethod
     def _payload(manifests: Sequence[ProjectTwinManifest], transitions: Sequence[ProjectTwinTransition]) -> dict[str, Any]:
