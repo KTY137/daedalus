@@ -138,3 +138,80 @@ def test_owner_never_unlinks_replaced_lock(tmp_path):
         store._lock_path(REPOSITORY).write_bytes(replacement)
 
     assert store._lock_path(REPOSITORY).read_bytes() == replacement
+
+
+def test_partial_lock_writes_are_completed(tmp_path, monkeypatch):
+    import daedalus.twin.lifecycle as lifecycle
+
+    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")
+    real_write = os.write
+    calls = []
+
+    def partial_write(fd, data):
+        chunk = bytes(data[:3])
+        calls.append(len(chunk))
+        return real_write(fd, chunk)
+
+    monkeypatch.setattr(lifecycle.os, "write", partial_write)
+    with store._exclusive_writer(REPOSITORY):
+        payload = json.loads(store._lock_path(REPOSITORY).read_text("ascii"))
+        assert payload["hostname"] == "host-a"
+    assert len(calls) > 1
+    assert not store._lock_path(REPOSITORY).exists()
+
+
+def test_zero_progress_lock_write_fails_closed_and_cleans_up(tmp_path, monkeypatch):
+    import daedalus.twin.lifecycle as lifecycle
+
+    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")
+    monkeypatch.setattr(lifecycle.os, "write", lambda fd, data: 0)
+
+    with pytest.raises(ProjectTwinContractError, match="made no progress"):
+        with store._exclusive_writer(REPOSITORY):
+            pass
+    assert not store._lock_path(REPOSITORY).exists()
+
+
+def test_lock_directory_entries_are_fsynced_on_create_and_remove(tmp_path, monkeypatch):
+    import stat
+    import daedalus.twin.lifecycle as lifecycle
+
+    store = AtomicProjectTwinLifecycleStore(tmp_path, hostname="host-a")
+    real_fsync = os.fsync
+    directory_fsyncs = []
+
+    def record_fsync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            directory_fsyncs.append(fd)
+        return real_fsync(fd)
+
+    monkeypatch.setattr(lifecycle.os, "fsync", record_fsync)
+    with store._exclusive_writer(REPOSITORY):
+        assert store._lock_path(REPOSITORY).exists()
+
+    assert len(directory_fsyncs) >= 2
+    assert not store._lock_path(REPOSITORY).exists()
+
+
+def test_reclaimed_lock_removal_is_directory_fsynced(tmp_path, monkeypatch):
+    import stat
+    import daedalus.twin.lifecycle as lifecycle
+
+    store = AtomicProjectTwinLifecycleStore(
+        tmp_path, hostname="host-a", owner_alive=lambda pid: False
+    )
+    _write_lock(store, _payload())
+    real_fsync = os.fsync
+    directory_fsyncs = []
+
+    def record_fsync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            directory_fsyncs.append(fd)
+        return real_fsync(fd)
+
+    monkeypatch.setattr(lifecycle.os, "fsync", record_fsync)
+    with store._exclusive_writer(REPOSITORY):
+        pass
+
+    assert len(directory_fsyncs) >= 3
+    assert not store._lock_path(REPOSITORY).exists()
