@@ -9,6 +9,7 @@ from typing import Any, Iterable, Mapping
 
 from daedalus.schemas import _revision, _sha256
 from daedalus.twin.corpus_genesis import CorpusGenesisBinding
+from daedalus.twin.motifs import MotifProvenance
 
 _REQUIRED_WORKFLOWS = (
     "Gate 2 Corpus Pilot",
@@ -35,6 +36,15 @@ def _text(value: Any, field: str) -> str:
 
 def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+def _validated_sorted_sha(values: tuple[str, ...], field: str) -> tuple[str, ...]:
+    if not values:
+        raise Gate2ReportError(f"{field} must not be empty")
+    normalized = tuple(_sha256(value, field) for value in values)
+    if normalized != tuple(sorted(set(normalized))):
+        raise Gate2ReportError(f"{field} must be unique and sorted")
+    return normalized
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -73,6 +83,7 @@ class Gate2Report:
     iron_plan_sha256: str
     workflow_evidence: tuple[WorkflowEvidence, ...]
     binding_sha256s: tuple[str, ...]
+    motif_provenance_sha256s: tuple[str, ...]
     blockers: tuple[str, ...]
     external_constraints: tuple[str, ...]
 
@@ -86,11 +97,8 @@ class Gate2Report:
             raise Gate2ReportError("workflow_evidence must be unique and sorted")
         if not set(names).issubset(_REQUIRED_WORKFLOWS):
             raise Gate2ReportError("workflow_evidence contains a non-required workflow")
-        if not self.binding_sha256s:
-            raise Gate2ReportError("binding_sha256s must not be empty")
-        normalized = tuple(_sha256(value, "binding_sha256") for value in self.binding_sha256s)
-        if normalized != tuple(sorted(set(normalized))):
-            raise Gate2ReportError("binding_sha256s must be unique and sorted")
+        _validated_sorted_sha(self.binding_sha256s, "binding_sha256s")
+        _validated_sorted_sha(self.motif_provenance_sha256s, "motif_provenance_sha256s")
         for field, values in (("blockers", self.blockers), ("external_constraints", self.external_constraints)):
             if values != tuple(sorted(set(values))):
                 raise Gate2ReportError(f"{field} must be unique and sorted")
@@ -113,6 +121,7 @@ class Gate2Report:
             "iron_plan_sha256": self.iron_plan_sha256,
             "workflow_evidence": [item.to_dict() for item in self.workflow_evidence],
             "binding_sha256s": list(self.binding_sha256s),
+            "motif_provenance_sha256s": list(self.motif_provenance_sha256s),
             "blockers": list(self.blockers),
             "external_constraints": list(self.external_constraints),
             "closed": self.closed,
@@ -123,11 +132,27 @@ class Gate2Report:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "Gate2Report":
-        expected = {"schema", "head_sha", "iron_plan_sha256", "workflow_evidence", "binding_sha256s", "blockers", "external_constraints", "closed"}
+        expected = {
+            "schema",
+            "head_sha",
+            "iron_plan_sha256",
+            "workflow_evidence",
+            "binding_sha256s",
+            "motif_provenance_sha256s",
+            "blockers",
+            "external_constraints",
+            "closed",
+        }
         if set(payload) != expected:
             raise Gate2ReportError("Gate-2 report fields are not canonical")
-        collections = (payload["workflow_evidence"], payload["binding_sha256s"], payload["blockers"], payload["external_constraints"])
-        if not all(isinstance(value, list) for value in collections):
+        collection_fields = (
+            "workflow_evidence",
+            "binding_sha256s",
+            "motif_provenance_sha256s",
+            "blockers",
+            "external_constraints",
+        )
+        if not all(isinstance(payload[field], list) for field in collection_fields):
             raise Gate2ReportError("report collection fields must be arrays")
         report = cls(
             schema=payload["schema"],
@@ -135,6 +160,7 @@ class Gate2Report:
             iron_plan_sha256=payload["iron_plan_sha256"],
             workflow_evidence=tuple(WorkflowEvidence.from_dict(item) for item in payload["workflow_evidence"]),
             binding_sha256s=tuple(payload["binding_sha256s"]),
+            motif_provenance_sha256s=tuple(payload["motif_provenance_sha256s"]),
             blockers=tuple(payload["blockers"]),
             external_constraints=tuple(payload["external_constraints"]),
         )
@@ -162,6 +188,7 @@ def build_gate2_report(
     iron_plan_sha256: str,
     workflow_evidence: Iterable[WorkflowEvidence],
     bindings: Iterable[CorpusGenesisBinding],
+    motifs: Iterable[MotifProvenance],
     external_constraints: Iterable[str] = (),
 ) -> Gate2Report:
     """Project exact-head evidence into a deterministic open/closed decision."""
@@ -171,8 +198,11 @@ def build_gate2_report(
     if names != tuple(sorted(set(names))):
         raise Gate2ReportError("workflow evidence names must be unique")
     binding_items = tuple(bindings)
+    motif_items = tuple(motifs)
     if not binding_items:
         raise Gate2ReportError("at least one corpus Genesis binding is required")
+    if not motif_items:
+        raise Gate2ReportError("at least one motif provenance artifact is required")
 
     blockers: set[str] = set()
     present = set(names)
@@ -194,12 +224,22 @@ def build_gate2_report(
         repository_ids.add(binding.repository_id)
         blockers.update(f"binding-{binding.repository_id}-{item}" for item in binding.blockers)
 
+    motif_ids: set[str] = set()
+    for motif in motif_items:
+        if not isinstance(motif, MotifProvenance):
+            raise Gate2ReportError("motifs must contain MotifProvenance values")
+        if motif.motif_id in motif_ids:
+            raise Gate2ReportError("motifs must use unique motif_id values")
+        motif_ids.add(motif.motif_id)
+        blockers.update(f"motif-{motif.motif_id}-{item}" for item in motif.blockers)
+
     return Gate2Report(
         schema="daedalus-gate2-report/1",
         head_sha=normalized_head,
         iron_plan_sha256=iron_plan_sha256,
         workflow_evidence=checks,
         binding_sha256s=tuple(sorted(binding.digest for binding in binding_items)),
+        motif_provenance_sha256s=tuple(sorted(motif.digest for motif in motif_items)),
         blockers=tuple(sorted(blockers)),
         external_constraints=tuple(sorted(set(external_constraints))),
     )
@@ -210,6 +250,8 @@ def assert_monotonic_gate2_report(previous: Gate2Report, current: Gate2Report) -
         raise Gate2ReportError("one exact head must not have competing Gate-2 reports")
     if set(previous.binding_sha256s) - set(current.binding_sha256s):
         raise Gate2ReportError("current report drops previously retained binding evidence")
+    if set(previous.motif_provenance_sha256s) - set(current.motif_provenance_sha256s):
+        raise Gate2ReportError("current report drops previously retained motif evidence")
     if previous.closed and not current.closed:
         raise Gate2ReportError("a closed Gate-2 report cannot regress to open")
 
