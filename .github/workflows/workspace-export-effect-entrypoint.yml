@@ -1,0 +1,29 @@
+name: Workspace export — effect entrypoint centralization
+
+on:
+  push:
+    branches:
+      - g0/effect-entrypoint-centralization
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive
+        run: |
+          git status --short
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git -czf /tmp/daedalus-checkout.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-effect-entrypoint-checkout
+          path: /tmp/daedalus-checkout.tar.gz
+          if-no-files-found: error
+          retention-days: 1
