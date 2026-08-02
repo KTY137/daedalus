@@ -1,0 +1,95 @@
+name: Gate 0 Fault Matrix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - g0/sealed-promotion-runtime-sandbox
+    paths:
+      - "daedalus/kernel/**"
+      - "daedalus/gates/**"
+      - "daedalus/spine/**"
+      - "daedalus/kairos/**"
+      - "tests/kernel/test_owner_approval.py"
+      - "tests/kernel/test_effect_leases.py"
+      - "tests/kernel/test_runtime_conformance_harness.py"
+      - "tests/kernel/test_docker_sandbox_policy.py"
+      - "tests/kernel/test_sealed_promotion.py"
+      - "tests/test_effect_boundary.py"
+      - "tests/gates/test_gate_report.py"
+      - ".github/workflows/gate0-fault-matrix.yml"
+      - "docs/work-packets/G0-WP-05_FAULT_MATRIX_FOUNDATION.md"
+  push:
+    branches:
+      - g0/fault-matrix-foundation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate0-fault-matrix-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fault-matrix:
+    name: Python ${{ matrix.python }} / seed ${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test]"
+      - name: Execute deterministic fault matrix
+        run: >-
+          python -m pytest -q
+          --junitxml="reports/fault-matrix-py${{ matrix.python }}-seed${{ matrix.seed }}.xml"
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_runtime_conformance_harness.py
+          tests/kernel/test_docker_sandbox_policy.py
+          tests/kernel/test_sealed_promotion.py
+          tests/test_effect_boundary.py
+          tests/gates/test_gate_report.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate0-fault-matrix-py${{ matrix.python }}-seed${{ matrix.seed }}
+          path: reports/*.xml
+          if-no-files-found: error
+
+  package-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build --wheel
+      - run: |
+          set -euo pipefail
+          venv="$(mktemp -d)/venv"
+          python -m venv "$venv"
+          "$venv/bin/python" -m pip install dist/*.whl
+          foreign="$(mktemp -d)"
+          cd "$foreign"
+          "$venv/bin/python" - <<'PY'
+          import daedalus
+          import daedalus.gates.report
+          import daedalus.kernel.approvals
+          import daedalus.kernel.effects
+          import daedalus.kernel.promotion
+          import daedalus.kernel.runtime_conformance
+          import daedalus.kernel.sandbox
+          print(daedalus.__file__)
+          PY
