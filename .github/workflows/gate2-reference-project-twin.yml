@@ -1,0 +1,66 @@
+name: Gate 2 Reference Project Twin
+
+on:
+  pull_request:
+    branches:
+      - g2/project-twin-genesis-contracts
+    paths:
+      - "daedalus/twin/project_compiler.py"
+      - "tests/twin/test_reference_project_twin_compiler.py"
+      - ".github/workflows/gate2-reference-project-twin.yml"
+      - "daedalus/twin/genesis.py"
+      - "daedalus/twin/reference_compiler.py"
+      - "daedalus/kernel/fourfold_evidence.py"
+      - "examples/fourfold_wiki_app/**"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g2/reference-project-twin-compiler
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate2-reference-project-twin-${{ github.ref }}-${{ matrix.python-version }}-${{ matrix.hash-seed }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+        hash-seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.hash-seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -U pip
+      - run: python -m pip install . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/twin/test_reference_project_twin_compiler.py
+          tests/twin/test_genesis_contracts.py
+          tests/twin/test_wiki_reference.py
+          tests/kernel/test_fourfold_evidence.py
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -U pip build
+      - run: python -m build --wheel
+      - run: python -m venv /tmp/daedalus-g2-reference-wheel
+      - run: /tmp/daedalus-g2-reference-wheel/bin/python -m pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-g2-reference-wheel/bin/python -c
+          "from daedalus.twin.project_compiler import compile_reference_project_twin; print(compile_reference_project_twin.__name__)"
