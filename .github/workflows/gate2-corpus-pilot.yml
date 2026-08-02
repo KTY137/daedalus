@@ -3,18 +3,21 @@ name: Gate 2 Corpus Pilot
 on:
   pull_request:
     branches:
-      - g2/project-twin-corpus-integration
+      - g2/project-twin-corpus-capabilities
     paths:
       - "daedalus/twin/corpus.py"
       - "daedalus/twin/capabilities.py"
+      - "daedalus/twin/corpus_genesis.py"
+      - "daedalus/twin/genesis.py"
       - "configs/corpus/gate2-pilot-v1.json"
       - "tests/twin/test_corpus_manifest.py"
       - "tests/twin/test_capability_matrix.py"
+      - "tests/twin/test_corpus_genesis_binding.py"
       - ".github/workflows/gate2-corpus-pilot.yml"
       - "pyproject.toml"
   push:
     branches:
-      - g2/project-twin-corpus-capabilities
+      - g2/project-twin-corpus-genesis-binding
   workflow_dispatch:
 
 permissions:
@@ -42,8 +45,21 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install pytest
-      - run: python -m pytest -q tests/twin/test_corpus_manifest.py tests/twin/test_capability_matrix.py
-      - run: python -m compileall -q daedalus/twin/corpus.py daedalus/twin/capabilities.py tests/twin/test_corpus_manifest.py tests/twin/test_capability_matrix.py
+      - run: >-
+          python -m pytest -q
+          tests/twin/test_corpus_manifest.py
+          tests/twin/test_capability_matrix.py
+          tests/twin/test_corpus_genesis_binding.py
+          tests/twin/test_genesis_contracts.py
+      - run: >-
+          python -m compileall -q
+          daedalus/twin/corpus.py
+          daedalus/twin/capabilities.py
+          daedalus/twin/corpus_genesis.py
+          daedalus/twin/genesis.py
+          tests/twin/test_corpus_manifest.py
+          tests/twin/test_capability_matrix.py
+          tests/twin/test_corpus_genesis_binding.py
 
   pinned-repositories:
     runs-on: ubuntu-latest
@@ -92,7 +108,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.whl
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus import CorpusManifest; from daedalus.twin.capabilities import CapabilityMatrix; print(CorpusManifest.__name__, CapabilityMatrix.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus import CorpusManifest; from daedalus.twin.capabilities import CapabilityMatrix; from daedalus.twin.corpus_genesis import CorpusGenesisBinding; print(CorpusManifest.__name__, CapabilityMatrix.__name__, CorpusGenesisBinding.__name__)"
       - name: Install and import sdist outside checkout
         shell: bash
         run: |
@@ -100,4 +116,4 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.tar.gz
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.capabilities import CapabilityClaim; print(CapabilityClaim.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus_genesis import bind_corpus_genesis; print(bind_corpus_genesis.__name__)"
