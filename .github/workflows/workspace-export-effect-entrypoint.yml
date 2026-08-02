@@ -1,6 +1,9 @@
 name: Workspace export — effect entrypoint centralization
 
 on:
+  pull_request:
+    branches:
+      - consolidation/g0-g1-foundation
   push:
     branches:
       - g0/effect-entrypoint-centralization
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
         run: |
           git status --short
