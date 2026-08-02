@@ -1,0 +1,81 @@
+name: Bug or invariant failure
+description: Report a reproducible defect, regression, or failed Daedalus invariant.
+title: "[BUG] "
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Failure summary
+      description: What failed, and which expected behavior or invariant was violated?
+    validations:
+      required: true
+
+  - type: input
+    id: revision
+    attributes:
+      label: Exact revision
+      description: Commit SHA, branch, wheel digest, or candidate-tree locator.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Include exact commands, inputs, and environment details.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Actual output
+      description: Paste the relevant raw output, traceback, report, or receipt locator.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: State the deterministic expected behavior.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Initial severity
+      options:
+        - Critical — unauthorized effect, host mutation, or promotion bypass
+        - High — evidence, revision, replay, or isolation integrity failure
+        - Medium — correctness, compatibility, or coverage defect
+        - Low — non-authoritative projection, documentation, or ergonomics
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected scope
+      description: Name contracts, entrypoints, runtimes, operating systems, Python versions, or fixtures.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Safe containment or workaround
+      description: State how the affected path can be disabled or quarantined. Do not suggest bypassing a guard.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Reporter checks
+      options:
+        - label: The reproduction uses an exact revision or content digest.
+          required: true
+        - label: No secret or credential is included in this issue.
+          required: true
