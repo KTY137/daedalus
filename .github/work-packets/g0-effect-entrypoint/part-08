@@ -1,0 +1,89 @@
++    with mock.patch("daedalus.offload._offload_impl") as impl:
++        result = offload("change code", str(tmp_path), live=True)
++    impl.assert_not_called()
++    assert result["action"] == "effect_lease_required"
++    assert result["wrote"] == []
++
++
++def test_valid_lease_executes_once_finishes_and_replay_is_inert(tmp_path) -> None:
++    auth, execution, ledger = authorization(tmp_path)
++    with mock.patch(
++        "daedalus.offload._offload_impl",
++        return_value={"action": "offloaded", "wrote": []},
++    ) as impl:
++        first = offload(
++            "review code",
++            str(tmp_path),
++            live=True,
++            effect_authorization=auth,
++            effect_execution=execution,
++        )
++        second = offload(
++            "review code",
++            str(tmp_path),
++            live=True,
++            effect_authorization=auth,
++            effect_execution=execution,
++        )
++
++    assert impl.call_count == 1
++    assert first["effect_start_receipt"]["execution_id"] == execution.execution_id
++    assert first["effect_terminal_receipt"]["outcome"] == "COMPLETED"
++    assert ledger.execution_state(execution.execution_id) == "COMPLETED"
++    assert second["action"] == "effect_replay"
++    assert second["wrote"] == []
++
++
++def test_wrong_effect_set_is_refused_before_persisted_start(tmp_path) -> None:
++    auth, execution, ledger = authorization(tmp_path)
++    narrowed = EffectExecutionRequest(
++        execution_id="offload-execution-narrow",
++        idempotency_key="offload-idempotency-narrow",
++        requested_effects=("network_egress",),
++        egress_endpoints=("https://provider.example.test",),
++        kill_switch_ref="global-kill",
++        kill_switch_generation=3,
++    )
++    with mock.patch("daedalus.offload._offload_impl") as impl:
++        result = offload(
++            "review code",
++            str(tmp_path),
++            live=True,
++            effect_authorization=auth,
++            effect_execution=narrowed,
++        )
++    impl.assert_not_called()
++    assert result["action"] == "effect_lease_refused"
++    assert ledger.execution_state(narrowed.execution_id) is None
++
++
++def test_exception_is_recorded_failed_before_it_escapes(tmp_path) -> None:
++    auth, execution, ledger = authorization(tmp_path, suffix="failed")
++    with mock.patch(
++        "daedalus.offload._offload_impl", side_effect=RuntimeError("provider exploded")
++    ):
++        with pytest.raises(RuntimeError, match="provider exploded"):
++            offload(
++                "review code",
++                str(tmp_path),
++                live=True,
++                effect_authorization=auth,
++                effect_execution=execution,
++            )
++    assert ledger.execution_state(execution.execution_id) == "FAILED"
++
++
++def test_interrupt_is_recorded_cancelled_before_it_escapes(tmp_path) -> None:
++    auth, execution, ledger = authorization(tmp_path, suffix="cancelled")
++    with mock.patch(
++        "daedalus.offload._offload_impl", side_effect=KeyboardInterrupt()
++    ):
++        with pytest.raises(KeyboardInterrupt):
++            offload(
++                "review code",
++                str(tmp_path),
++                live=True,
++                effect_authorization=auth,
++                effect_execution=execution,
++            )
++    assert ledger.execution_state(execution.execution_id) == "CANCELLED"
