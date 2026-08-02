@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import concurrent.futures
 import dataclasses
+from datetime import datetime, timezone
 
 import pytest
 
+from daedalus.kernel.approvals import (
+    ApprovalReplay,
+    ApprovalSignatureError,
+    issue_owner_approval,
+)
+from daedalus.schemas import ContractProvenance
 from daedalus.twin.corpus_genesis import CorpusGenesisBinding
 from daedalus.twin.gate2_closure import (
     Gate2ClosureApproval,
     Gate2ClosureError,
     Gate2ClosureLedger,
+    owner_approval_expectation,
     verify_gate2_closure_approval,
 )
 from daedalus.twin.gate2_report import WorkflowEvidence, build_gate2_report
@@ -19,6 +28,8 @@ SHA = "a" * 64
 ISSUED = "2026-08-02T10:00:00Z"
 EXPIRES = "2026-08-02T11:00:00Z"
 NOW = "2026-08-02T10:30:00Z"
+SECRET = b"gate-two-owner-secret-material-at-least-thirty-two-bytes"
+KEYRING = {("repository-owner", "gate2-owner-key"): SECRET}
 
 
 def binding(*, reviewed: bool = True) -> CorpusGenesisBinding:
@@ -95,8 +106,8 @@ def report(*, reviewed: bool = True):
     )
 
 
-def approval(value) -> Gate2ClosureApproval:
-    return Gate2ClosureApproval(
+def closure(value, **changes) -> Gate2ClosureApproval:
+    values = dict(
         head_sha=value.head_sha,
         iron_plan_sha256=value.iron_plan_sha256,
         report_sha256=value.digest,
@@ -110,11 +121,48 @@ def approval(value) -> Gate2ClosureApproval:
         expires_at=EXPIRES,
         nonce="gate2-closure-nonce-0001",
     )
+    values.update(changes)
+    return Gate2ClosureApproval(**values)
 
 
-def verify(value, token, *, now: str = NOW) -> None:
-    verify_gate2_closure_approval(
-        approval=token,
+def provenance(value, token) -> ContractProvenance:
+    return ContractProvenance(
+        origin="tests.gate2-closure",
+        source_revision=value.head_sha,
+        created_at=ISSUED,
+        input_digests=(value.digest, token.digest, token.evidence_packet_sha256),
+    )
+
+
+def signed_owner_approval(value, token, **changes):
+    expectation = owner_approval_expectation(closure=token, report=value)
+    values = dict(
+        approval_id="gate2-closure-approval-001",
+        owner_id="repository-owner",
+        key_id="gate2-owner-key",
+        operation=expectation.operation,
+        nomination_receipt_sha256=expectation.nomination_receipt_sha256,
+        candidate_artifact_sha256=expectation.candidate_artifact_sha256,
+        evidence_packet_sha256=expectation.evidence_packet_sha256,
+        base_revision=expectation.base_revision,
+        target_ref=expectation.target_ref,
+        expected_target_revision=expectation.current_target_revision,
+        nonce=token.nonce,
+        issued_at=token.issued_at,
+        expires_at=token.expires_at,
+        provenance=provenance(value, token),
+        secret=SECRET,
+    )
+    values.update(changes)
+    return issue_owner_approval(**values)
+
+
+def verify(value, token, owner_approval=None, *, now: str = NOW, keyring=KEYRING):
+    owner = owner_approval or signed_owner_approval(value, token)
+    return verify_gate2_closure_approval(
+        closure=token,
+        owner_approval=owner,
+        keyring=keyring,
         report=value,
         evidence_packet_sha256="3" * 64,
         corpus_manifest_sha256="4" * 64,
@@ -123,18 +171,46 @@ def verify(value, token, *, now: str = NOW) -> None:
     )
 
 
-def test_exact_closed_report_approval_round_trips_and_verifies() -> None:
+def consume(ledger, value, token, owner_approval=None):
+    return ledger.consume(
+        closure=token,
+        owner_approval=owner_approval or signed_owner_approval(value, token),
+        keyring=KEYRING,
+        report=value,
+        evidence_packet_sha256="3" * 64,
+        corpus_manifest_sha256="4" * 64,
+        capability_matrix_sha256="6" * 64,
+        now=NOW,
+    )
+
+
+def test_exact_signed_closed_report_round_trips_and_verifies() -> None:
     value = report()
-    token = approval(value)
+    token = closure(value)
     assert Gate2ClosureApproval.from_json_bytes(token.to_json_bytes()) == token
-    verify(value, token)
+    verified = verify(value, token)
+    assert verified.operation == "close-gate-2"
+    assert verified.candidate_artifact_sha256 == token.digest
+    assert verified.nomination_receipt_sha256 == value.digest
 
 
-def test_open_report_cannot_be_approved() -> None:
+def test_open_report_cannot_be_approved_even_with_valid_signature() -> None:
     value = report(reviewed=False)
-    token = approval(value)
+    token = closure(value)
+    owner = signed_owner_approval(value, token)
     with pytest.raises(Gate2ClosureError, match="open Gate-2 report"):
-        verify(value, token)
+        verify(value, token, owner)
+
+
+def test_forged_signature_and_unknown_key_refuse() -> None:
+    value = report()
+    token = closure(value)
+    owner = signed_owner_approval(value, token)
+    forged = dataclasses.replace(owner, signature_sha256="f" * 64)
+    with pytest.raises(ApprovalSignatureError, match="signature mismatch"):
+        verify(value, token, forged)
+    with pytest.raises(ApprovalSignatureError, match="unknown"):
+        verify(value, token, owner, keyring={})
 
 
 @pytest.mark.parametrize(
@@ -148,50 +224,98 @@ def test_open_report_cannot_be_approved() -> None:
         ("workflow_run_ids", (("Gate 2 Corpus Pilot", 999), ("Gate 2 Project Twin", 102), ("Iron Plan", 103)), "workflow_runs"),
     ),
 )
-def test_substitution_and_stale_run_bindings_refuse(field, replacement, expected) -> None:
+def test_closure_detail_substitution_refuses_before_owner_authority(field, replacement, expected) -> None:
     value = report()
-    token = dataclasses.replace(approval(value), **{field: replacement})
+    original = closure(value)
+    changed = dataclasses.replace(original, **{field: replacement})
+    owner = signed_owner_approval(value, original)
     with pytest.raises(Gate2ClosureError, match=expected):
-        verify(value, token)
+        verify(value, changed, owner)
 
 
-def test_expired_and_not_yet_valid_approvals_refuse() -> None:
+def test_owner_envelope_substitution_refuses() -> None:
     value = report()
-    token = approval(value)
+    token = closure(value)
+    owner = signed_owner_approval(value, token, target_ref="experimental")
+    with pytest.raises(Exception, match="target_ref"):
+        verify(value, token, owner)
+
+
+def test_nonce_and_time_mismatch_between_detail_and_owner_refuse() -> None:
+    value = report()
+    token = closure(value)
+    other_nonce = signed_owner_approval(value, token, nonce="gate2-closure-nonce-9999")
+    with pytest.raises(Gate2ClosureError, match="nonce"):
+        verify(value, token, other_nonce)
+    other_expiry = signed_owner_approval(value, token, expires_at="2026-08-02T10:45:00Z")
+    with pytest.raises(Gate2ClosureError, match="expires_at"):
+        verify(value, token, other_expiry)
+
+
+def test_expired_and_not_yet_valid_closure_details_refuse() -> None:
+    value = report()
+    token = closure(value)
+    owner = signed_owner_approval(value, token)
     with pytest.raises(Gate2ClosureError, match="expired"):
-        verify(value, token, now=EXPIRES)
+        verify(value, token, owner, now=EXPIRES)
     with pytest.raises(Gate2ClosureError, match="not_yet_valid"):
-        verify(value, token, now="2026-08-02T09:59:59Z")
+        verify(value, token, owner, now="2026-08-02T09:59:59Z")
 
 
-def test_ledger_consumes_nonce_once_and_persists_canonical_receipt(tmp_path) -> None:
+def test_ledger_consumes_authenticated_closure_once(tmp_path) -> None:
     value = report()
-    token = approval(value)
-    ledger = Gate2ClosureLedger(tmp_path)
-    path = ledger.consume(
-        approval=token,
-        report=value,
-        evidence_packet_sha256="3" * 64,
-        corpus_manifest_sha256="4" * 64,
-        capability_matrix_sha256="6" * 64,
-        now=NOW,
-    )
-    assert path.is_file()
-    assert token.digest.encode() in path.read_bytes()
-    with pytest.raises(Gate2ClosureError, match="already been consumed"):
-        ledger.consume(
-            approval=token,
-            report=value,
-            evidence_packet_sha256="3" * 64,
-            corpus_manifest_sha256="4" * 64,
-            capability_matrix_sha256="6" * 64,
-            now=NOW,
-        )
+    token = closure(value)
+    owner = signed_owner_approval(value, token)
+    ledger = Gate2ClosureLedger(tmp_path / "gate2-closure.sqlite3")
+    receipt = consume(ledger, value, token, owner)
+    assert receipt.closure_approval_sha256 == token.digest
+    assert receipt.report_sha256 == value.digest
+    assert ledger.closed(value.digest)
+    with pytest.raises(ApprovalReplay, match="already consumed"):
+        consume(ledger, value, token, owner)
 
 
-def test_nonce_and_target_state_are_strict() -> None:
+def test_repackaged_owner_approval_or_new_nonce_cannot_reclose_same_report(tmp_path) -> None:
+    value = report()
+    token = closure(value)
+    first = signed_owner_approval(value, token)
+    second = signed_owner_approval(value, token, approval_id="gate2-closure-approval-002")
+    ledger = Gate2ClosureLedger(tmp_path / "gate2-closure.sqlite3")
+    consume(ledger, value, token, first)
+    with pytest.raises(ApprovalReplay):
+        consume(ledger, value, token, second)
+
+    new_token = closure(value, nonce="gate2-closure-nonce-0002")
+    new_owner = signed_owner_approval(value, new_token, approval_id="gate2-closure-approval-003")
+    with pytest.raises(ApprovalReplay):
+        consume(ledger, value, new_token, new_owner)
+
+
+def test_concurrent_consumption_allows_exactly_one_winner(tmp_path) -> None:
+    value = report()
+    token = closure(value)
+    owner = signed_owner_approval(value, token)
+    ledger = Gate2ClosureLedger(tmp_path / "gate2-closure.sqlite3")
+
+    def attempt(_: int) -> str:
+        try:
+            consume(ledger, value, token, owner)
+            return "success"
+        except ApprovalReplay:
+            return "replay"
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        outcomes = list(pool.map(attempt, range(4)))
+    assert outcomes.count("success") == 1
+    assert outcomes.count("replay") == 3
+
+
+def test_nonce_target_state_and_owner_secret_are_strict() -> None:
     value = report()
     with pytest.raises(Gate2ClosureError, match="nonce"):
-        dataclasses.replace(approval(value), nonce="short")
+        closure(value, nonce="short")
     with pytest.raises(Gate2ClosureError, match="target_state"):
-        dataclasses.replace(approval(value), target_state="gate-3-open")
+        closure(value, target_state="gate-3-open")
+    token = closure(value)
+    with pytest.raises(ValueError, match="at least 32"):
+        signed_owner_approval(value, token, secret=b"weak")
