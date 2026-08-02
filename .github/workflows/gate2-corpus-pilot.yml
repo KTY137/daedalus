@@ -1,0 +1,99 @@
+name: Gate 2 Corpus Pilot
+
+on:
+  pull_request:
+    branches:
+      - g2/project-twin-lock-recovery
+    paths:
+      - "daedalus/twin/corpus.py"
+      - "configs/corpus/gate2-pilot-v1.json"
+      - "tests/twin/test_corpus_manifest.py"
+      - ".github/workflows/gate2-corpus-pilot.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g2/corpus-pilot-contract
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate2-corpus-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+        hash-seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.hash-seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install pytest
+      - run: python -m pytest -q tests/twin/test_corpus_manifest.py
+      - run: python -m compileall -q daedalus/twin/corpus.py tests/twin/test_corpus_manifest.py
+
+  pinned-repositories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify exact Git revisions and declared license paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > /tmp/corpus.tsv
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("configs/corpus/gate2-pilot-v1.json").read_text())
+          for repo in payload["repositories"]:
+              fields = [
+                  repo["repository_id"],
+                  repo["repository_url"],
+                  repo["source_revision"],
+                  repo["license_path"],
+                  " ".join(repo["include_prefixes"]),
+              ]
+              if any("\t" in field or "\n" in field for field in fields):
+                  raise SystemExit("manifest field contains shell record delimiter")
+              print("\t".join(fields))
+          PY
+
+          while IFS=$'\t' read -r repository_id repository_url revision license_path prefixes; do
+            checkout="external/${repository_id}"
+            git clone --filter=blob:none --no-checkout "${repository_url}" "${checkout}"
+            git -C "${checkout}" sparse-checkout init --cone
+            read -r -a prefix_array <<< "${prefixes}"
+            git -C "${checkout}" sparse-checkout set "${prefix_array[@]}"
+            git -C "${checkout}" fetch --depth=1 origin "${revision}"
+            git -C "${checkout}" checkout --detach "${revision}"
+            test "$(git -C "${checkout}" rev-parse HEAD)" = "${revision}"
+            test -f "${checkout}/${license_path}"
+          done < /tmp/corpus.tsv
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build --wheel
+      - run: |
+          tmpdir="$(mktemp -d)"
+          python -m pip install --target "${tmpdir}" dist/*.whl
+          cd /tmp
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus import CorpusManifest; print(CorpusManifest.__name__)"
