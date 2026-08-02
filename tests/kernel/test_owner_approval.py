@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import concurrent.futures
 import dataclasses
+import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -15,9 +19,8 @@ from daedalus.kernel.approvals import (
     issue_owner_approval,
     verify_owner_approval,
 )
-from daedalus.schemas import ContractProvenance
 from daedalus.kernel.contracts import OwnerApproval
-
+from daedalus.schemas import ContractProvenance
 
 SHA = {
     "nomination": "1" * 64,
@@ -28,6 +31,11 @@ SHA = {
 }
 SECRET = b"owner-secret-material-must-be-at-least-thirty-two-bytes"
 NOW = datetime(2026, 8, 1, 20, 0, tzinfo=timezone.utc)
+ALLOWED_OPERATIONS = (
+    "close-gate-2",
+    "promote-candidate",
+    "review-corpus-repository",
+)
 
 
 def _provenance() -> ContractProvenance:
@@ -91,6 +99,23 @@ def test_owner_approval_is_canonical_signed_and_parseable() -> None:
     assert _verify(approval).approval_sha256 == approval.digest
 
 
+@pytest.mark.parametrize("operation", ALLOWED_OPERATIONS)
+def test_every_allowlisted_owner_decision_uses_the_same_authenticated_authority(operation: str) -> None:
+    approval = _approval(operation=operation)
+    verified = verify_owner_approval(
+        approval,
+        keyring={("KTY137", "owner-key-1"): SECRET},
+        expectation=_expectation(operation=operation),
+        now=NOW + timedelta(seconds=1),
+    )
+    assert verified.operation == operation
+
+
+def test_unknown_owner_decision_operation_refuses_at_contract_construction() -> None:
+    with pytest.raises(ValueError, match="operation must be one of"):
+        _approval(operation="deploy")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -100,20 +125,18 @@ def test_owner_approval_is_canonical_signed_and_parseable() -> None:
         ("base_revision", "d" * 40),
         ("target_ref", "main"),
         ("current_target_revision", "e" * 40),
-        ("operation", "deploy"),
+        ("operation", "close-gate-2"),
     ],
 )
 def test_every_binding_dimension_is_fail_closed(field: str, value: str) -> None:
-    approval = _approval()
     with pytest.raises(ApprovalBindingMismatch, match=field.replace("current_", "expected_")):
-        _verify(approval, **{field: value})
+        _verify(_approval(), **{field: value})
 
 
 def test_tampering_and_unknown_keys_are_rejected() -> None:
     approval = _approval()
-    tampered = dataclasses.replace(approval, signature_sha256="a" * 64)
     with pytest.raises(ApprovalSignatureError, match="signature mismatch"):
-        _verify(tampered)
+        _verify(dataclasses.replace(approval, signature_sha256="a" * 64))
     with pytest.raises(ApprovalSignatureError, match="unknown"):
         verify_owner_approval(
             approval,
@@ -125,29 +148,18 @@ def test_tampering_and_unknown_keys_are_rejected() -> None:
 
 def test_expired_and_not_yet_valid_are_rejected() -> None:
     approval = _approval()
+    keyring = {("KTY137", "owner-key-1"): SECRET}
     with pytest.raises(ApprovalExpired, match="not valid yet"):
-        verify_owner_approval(
-            approval,
-            keyring={("KTY137", "owner-key-1"): SECRET},
-            expectation=_expectation(),
-            now=NOW - timedelta(seconds=1),
-        )
+        verify_owner_approval(approval, keyring=keyring, expectation=_expectation(), now=NOW - timedelta(seconds=1))
     with pytest.raises(ApprovalExpired, match="expired"):
-        verify_owner_approval(
-            approval,
-            keyring={("KTY137", "owner-key-1"): SECRET},
-            expectation=_expectation(),
-            now=NOW + timedelta(minutes=10),
-        )
+        verify_owner_approval(approval, keyring=keyring, expectation=_expectation(), now=NOW + timedelta(minutes=10))
 
 
 def test_nonce_and_approval_are_consumed_once_atomically(tmp_path) -> None:
     verified = _verify(_approval())
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
     first = ledger.consume(verified, promotion_id="promotion-001", consumed_at=NOW)
-    assert len(first.consumption_sha256) == 64
     assert first.verified == verified
-    assert first.promotion_id == "promotion-001"
     assert ledger.consumed(verified.approval_sha256)
     with pytest.raises(ApprovalReplay):
         ledger.consume(verified, promotion_id="promotion-002", consumed_at=NOW)
@@ -162,16 +174,19 @@ def test_same_nonce_cannot_be_repackaged_into_another_approval(tmp_path) -> None
         ledger.consume(second, promotion_id="promotion-002", consumed_at=NOW)
 
 
-def test_secret_strength_and_contract_expiry_order_are_enforced() -> None:
+def test_secret_strength_expiry_order_and_consumption_expiry_are_enforced(tmp_path) -> None:
     with pytest.raises(ValueError, match="at least 32"):
         _approval(secret=b"weak")
     with pytest.raises(ValueError, match="after issued_at"):
         _approval(expires_at=NOW.isoformat())
+    verified = _verify(_approval())
+    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
+    with pytest.raises(ApprovalExpired, match="expired before consumption"):
+        ledger.consume(verified, promotion_id="promotion-expired", consumed_at=NOW + timedelta(minutes=10))
+    assert not ledger.consumed(verified.approval_sha256)
 
 
 def test_concurrent_consumption_allows_exactly_one_winner(tmp_path) -> None:
-    import concurrent.futures
-
     verified = _verify(_approval())
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
 
@@ -195,21 +210,7 @@ def test_corrupt_replay_ledger_fails_closed(tmp_path) -> None:
         ApprovalLedger(path)
 
 
-def test_expiry_is_rechecked_at_atomic_consumption(tmp_path) -> None:
-    verified = _verify(_approval())
-    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    with pytest.raises(ApprovalExpired, match="expired before consumption"):
-        ledger.consume(
-            verified,
-            promotion_id="promotion-expired",
-            consumed_at=NOW + timedelta(minutes=10),
-        )
-    assert not ledger.consumed(verified.approval_sha256)
-
-
 def test_consumption_digest_is_persisted_and_promotion_id_is_bounded(tmp_path) -> None:
-    import sqlite3
-
     verified = _verify(_approval())
     path = tmp_path / "approvals.sqlite3"
     ledger = ApprovalLedger(path)
@@ -225,11 +226,10 @@ def test_consumption_digest_is_persisted_and_promotion_id_is_bounded(tmp_path) -
 
 
 def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> None:
-    import json
     from daedalus.kernel import approvals as module
 
-    issued = NOW - timedelta(seconds=1)
-    expires = NOW + timedelta(minutes=10)
+    issued = datetime.now(timezone.utc) - timedelta(seconds=1)
+    expires = issued + timedelta(minutes=5)
     request = {
         "contract_type": "daedalus.owner-approval",
         "contract_version": "1.0.0",
@@ -257,55 +257,20 @@ def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> 
     request_path.write_text(json.dumps(request), encoding="utf-8")
     monkeypatch.setenv("DAEDALUS_OWNER_SECRET", SECRET.decode())
     assert module._cli_issue(request_path, "DAEDALUS_OWNER_SECRET") == 0
-    approval_payload = json.loads(capsys.readouterr().out)
-    approval = OwnerApproval.from_dict(approval_payload)
+    approval = OwnerApproval.from_dict(json.loads(capsys.readouterr().out))
 
     expectation_path = tmp_path / "expectation.json"
-    expectation_path.write_text(
-        json.dumps(dataclasses.asdict(_expectation())), encoding="utf-8"
-    )
-    # The verifier uses the real clock, so reissue a live approval around now.
-    live_now = datetime.now(timezone.utc)
-    approval = issue_owner_approval(
-        approval_id="approval-cli-live",
-        owner_id="KTY137",
-        key_id="owner-key-1",
-        operation="promote-candidate",
-        nomination_receipt_sha256=SHA["nomination"],
-        candidate_artifact_sha256=SHA["candidate"],
-        evidence_packet_sha256=SHA["evidence"],
-        base_revision=SHA["base"],
-        target_ref="experimental",
-        expected_target_revision=SHA["target"],
-        nonce="nonce-cli-live",
-        issued_at=(live_now - timedelta(seconds=1)).isoformat(),
-        expires_at=(live_now + timedelta(minutes=5)).isoformat(),
-        provenance=ContractProvenance(
-            origin="tests.owner-approval-cli",
-            source_revision=SHA["base"],
-            created_at=live_now.isoformat(),
-            input_digests=(SHA["nomination"], SHA["candidate"], SHA["evidence"]),
-        ),
-        secret=SECRET,
-    )
+    expectation_path.write_text(json.dumps(dataclasses.asdict(_expectation())), encoding="utf-8")
     approval_path = tmp_path / "approval.json"
     approval_path.write_text(json.dumps(approval.to_dict()), encoding="utf-8")
-    assert module._cli_verify(
-        approval_path, expectation_path, "DAEDALUS_OWNER_SECRET"
-    ) == 0
-    verified_payload = json.loads(capsys.readouterr().out)
-    assert verified_payload["approval_sha256"] == approval.digest
+    assert module._cli_verify(approval_path, expectation_path, "DAEDALUS_OWNER_SECRET") == 0
+    assert json.loads(capsys.readouterr().out)["approval_sha256"] == approval.digest
     assert set(tmp_path.iterdir()) == {request_path, expectation_path, approval_path}
 
 
-def test_owner_approval_json_schema_is_closed_and_complete() -> None:
-    import json
-    from pathlib import Path
-
-    schema = json.loads(
-        (Path(__file__).resolve().parents[2] / "configs/schemas/owner-approval-v1.schema.json").read_text()
-    )
+def test_owner_approval_json_schema_is_closed_complete_and_allowlisted() -> None:
+    schema = json.loads((Path(__file__).resolve().parents[2] / "configs/schemas/owner-approval-v1.schema.json").read_text())
     assert schema["additionalProperties"] is False
-    assert schema["properties"]["operation"] == {"const": "promote-candidate"}
+    assert schema["properties"]["operation"] == {"enum": list(ALLOWED_OPERATIONS)}
     assert schema["properties"]["provenance"] == {"$ref": "#/$defs/provenance"}
     assert schema["$defs"]["provenance"]["additionalProperties"] is False
