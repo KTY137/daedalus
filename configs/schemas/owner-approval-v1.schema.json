@@ -3,136 +3,48 @@
     "provenance": {
       "additionalProperties": false,
       "properties": {
-        "created_at": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "input_digests": {
-          "items": {
-            "$ref": "#/$defs/sha256"
-          },
-          "type": "array",
-          "uniqueItems": true
-        },
-        "origin": {
-          "maxLength": 200,
-          "minLength": 1,
-          "type": "string"
-        },
-        "source_revision": {
-          "$ref": "#/$defs/revision"
-        },
-        "trace_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
+        "created_at": {"format": "date-time", "type": "string"},
+        "input_digests": {"items": {"$ref": "#/$defs/sha256"}, "type": "array", "uniqueItems": true},
+        "origin": {"maxLength": 200, "minLength": 1, "type": "string"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "trace_id": {"type": ["string", "null"]}
       },
-      "required": [
-        "origin",
-        "source_revision",
-        "created_at",
-        "input_digests",
-        "trace_id"
-      ],
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
       "type": "object"
     },
-    "revision": {
-      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
-      "type": "string"
-    },
-    "sha256": {
-      "pattern": "^[0-9a-f]{64}$",
-      "type": "string"
-    }
+    "revision": {"pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$", "type": "string"},
+    "sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"}
   },
   "$id": "https://daedalus.local/schemas/owner-approval-v1.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "approval_id": {
-      "maxLength": 200,
-      "minLength": 1,
-      "type": "string"
-    },
-    "base_revision": {
-      "$ref": "#/$defs/revision"
-    },
-    "candidate_artifact_sha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "contract_type": {
-      "const": "daedalus.owner-approval"
-    },
-    "contract_version": {
-      "const": "1.0.0"
-    },
-    "evidence_packet_sha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "expected_target_revision": {
-      "$ref": "#/$defs/revision"
-    },
-    "expires_at": {
-      "format": "date-time",
-      "type": "string"
-    },
-    "issued_at": {
-      "format": "date-time",
-      "type": "string"
-    },
-    "key_id": {
-      "maxLength": 200,
-      "minLength": 1,
-      "type": "string"
-    },
-    "nomination_receipt_sha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "nonce": {
-      "maxLength": 200,
-      "minLength": 1,
-      "type": "string"
-    },
+    "approval_id": {"maxLength": 200, "minLength": 1, "type": "string"},
+    "base_revision": {"$ref": "#/$defs/revision"},
+    "candidate_artifact_sha256": {"$ref": "#/$defs/sha256"},
+    "contract_type": {"const": "daedalus.owner-approval"},
+    "contract_version": {"const": "1.0.0"},
+    "evidence_packet_sha256": {"$ref": "#/$defs/sha256"},
+    "expected_target_revision": {"$ref": "#/$defs/revision"},
+    "expires_at": {"format": "date-time", "type": "string"},
+    "issued_at": {"format": "date-time", "type": "string"},
+    "key_id": {"maxLength": 200, "minLength": 1, "type": "string"},
+    "nomination_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "nonce": {"maxLength": 200, "minLength": 1, "type": "string"},
     "operation": {
-      "const": "promote-candidate"
+      "enum": ["close-gate-2", "promote-candidate", "review-corpus-repository"]
     },
-    "owner_id": {
-      "maxLength": 200,
-      "minLength": 1,
-      "type": "string"
-    },
-    "provenance": {
-      "$ref": "#/$defs/provenance"
-    },
-    "signature_sha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "target_ref": {
-      "maxLength": 200,
-      "minLength": 1,
-      "type": "string"
-    }
+    "owner_id": {"maxLength": 200, "minLength": 1, "type": "string"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "signature_sha256": {"$ref": "#/$defs/sha256"},
+    "target_ref": {"maxLength": 200, "minLength": 1, "type": "string"}
   },
   "required": [
-    "contract_type",
-    "contract_version",
-    "approval_id",
-    "owner_id",
-    "key_id",
-    "operation",
-    "nomination_receipt_sha256",
-    "candidate_artifact_sha256",
-    "evidence_packet_sha256",
-    "base_revision",
-    "target_ref",
-    "expected_target_revision",
-    "nonce",
-    "issued_at",
-    "expires_at",
-    "signature_sha256",
-    "provenance"
+    "contract_type", "contract_version", "approval_id", "owner_id", "key_id",
+    "operation", "nomination_receipt_sha256", "candidate_artifact_sha256",
+    "evidence_packet_sha256", "base_revision", "target_ref",
+    "expected_target_revision", "nonce", "issued_at", "expires_at",
+    "signature_sha256", "provenance"
   ],
   "title": "Daedalus OwnerApproval v1",
   "type": "object"
