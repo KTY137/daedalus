@@ -1,15 +1,20 @@
 name: Apply G0 effect entrypoint work packet
 
 on:
-  push:
+  pull_request:
     branches:
-      - g0/effect-entrypoint-centralization
+      - consolidation/g0-g1-foundation
 
 permissions:
   contents: write
 
+concurrency:
+  group: g0-effect-entrypoint-apply-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   apply:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
