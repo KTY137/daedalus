@@ -70,18 +70,19 @@ def test_manifest_refuses_malformed_or_noncanonical_input() -> None:
 
 def test_reviewed_state_requires_content_addressed_evidence() -> None:
     item = load_manifest().repositories[0]
-    with pytest.raises(CorpusManifestError, match="require sha256"):
-        CorpusRepository(
-            repository_id=item.repository_id,
-            repository_url=item.repository_url,
-            source_revision=item.source_revision,
-            include_prefixes=item.include_prefixes,
-            language_ids=item.language_ids,
-            license_spdx=item.license_spdx,
-            license_path=item.license_path,
-            review_state="reviewed",
-            review_evidence=None,
-        )
+    for invalid_evidence in (None, "", "reviewed", "sha256:" + "A" * 64, "sha256:" + "a" * 63):
+        with pytest.raises(CorpusManifestError):
+            CorpusRepository(
+                repository_id=item.repository_id,
+                repository_url=item.repository_url,
+                source_revision=item.source_revision,
+                include_prefixes=item.include_prefixes,
+                language_ids=item.language_ids,
+                license_spdx=item.license_spdx,
+                license_path=item.license_path,
+                review_state="reviewed",
+                review_evidence=invalid_evidence,
+            )
     reviewed = CorpusRepository(
         repository_id=item.repository_id,
         repository_url=item.repository_url,
