@@ -1,0 +1,127 @@
+name: Daedalus Work Packet
+description: Define one plan-bound implementation, review, or evidence deliverable.
+title: "[WP-ID] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The Iron Plan is the semantic authority. One issue should represent one primary deliverable.
+
+  - type: input
+    id: work_packet_id
+    attributes:
+      label: Work Packet ID
+      description: Use the plan identifier, for example G0-EFX-03.
+      placeholder: G0-...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gate
+    attributes:
+      label: Delivery gate
+      options:
+        - Gate 0 — Canonical Kernel
+        - Gate 1 — Ignition
+        - Gate 2 — Project Twin / Genesis
+        - Gate 3 — Baseline Laboratory
+        - Gate 4 — Graph-conditioned Evolution
+        - Gate 5 — Public Evidence / Controlled Genesis
+        - Repository governance
+    validations:
+      required: true
+
+  - type: dropdown
+    id: classification
+    attributes:
+      label: Iron Plan classification
+      options:
+        - ALIGNED
+        - EXPERIMENT
+        - AMENDMENT
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State one concrete deliverable and the user/system outcome it enables.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: State what this packet deliberately does not claim, close, or promote.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and write ownership
+      description: List base revision, write paths, owner, and any isolated worktree or candidate repository.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and blockers
+      description: Link prerequisite issues, pull requests, reviews, runtimes, or external evidence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Hard invariants
+      description: List the plan and contract properties that must remain true.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and thermometer
+      description: Define deterministic pass/fail criteria, tests, and expected evidence.
+    validations:
+      required: true
+
+  - type: textarea
+    id: effects
+    attributes:
+      label: Effect and trust impact
+      description: Describe writes, egress, secrets, budgets, runtimes, sandboxing, evaluators, and promotion impact. Write "none" when none apply.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reviews
+    attributes:
+      label: Required reviews
+      description: Name architecture, security, testability, adversarial, or owner reviews.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback
+      description: Give the exact revert, disable, quarantine, or candidate-discard path.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: assertions
+    attributes:
+      label: Author assertions
+      options:
+        - label: I have read the current Iron Plan and Project Execution index.
+          required: true
+        - label: This issue represents one primary deliverable.
+          required: true
+        - label: Later-gate work is explicitly marked non-authoritative while earlier gates remain open.
+          required: true
