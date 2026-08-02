@@ -22,6 +22,10 @@ def _digest(seed: str) -> str:
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()
 
 
+def _revision(seed: str) -> str:
+    return _digest(f"revision-{seed}")
+
+
 def _manifest(revision: str, seed: str = "a") -> ProjectTwinManifest:
     return ProjectTwinManifest(
         repository_id="KTY137/daedalus",
@@ -36,8 +40,8 @@ def _manifest(revision: str, seed: str = "a") -> ProjectTwinManifest:
 
 def test_lifecycle_appends_and_resolves_exact_head(tmp_path):
     store = AtomicProjectTwinLifecycleStore(tmp_path)
-    first = _manifest("rev-a", "a")
-    second = _manifest("rev-b", "b")
+    first = _manifest(_revision("a"), "a")
+    second = _manifest(_revision("b"), "b")
 
     first_artifact = store.append(first, expected_head_sha256=None)
     second_artifact = store.append(second, expected_head_sha256=first.digest)
@@ -53,8 +57,8 @@ def test_lifecycle_appends_and_resolves_exact_head(tmp_path):
 
 def test_exact_replay_and_stale_writer_fail_closed(tmp_path):
     store = AtomicProjectTwinLifecycleStore(tmp_path)
-    first = _manifest("rev-a", "a")
-    second = _manifest("rev-b", "b")
+    first = _manifest(_revision("a"), "a")
+    second = _manifest(_revision("b"), "b")
     store.append(first, expected_head_sha256=None)
 
     with pytest.raises(ProjectTwinContractError, match="head changed"):
@@ -65,8 +69,8 @@ def test_exact_replay_and_stale_writer_fail_closed(tmp_path):
 
 def test_revision_replay_is_rejected_even_when_manifest_differs(tmp_path):
     store = AtomicProjectTwinLifecycleStore(tmp_path)
-    first = _manifest("rev-a", "a")
-    replay = _manifest("rev-a", "b")
+    first = _manifest(_revision("a"), "a")
+    replay = _manifest(_revision("a"), "b")
     store.append(first, expected_head_sha256=None)
 
     with pytest.raises(ProjectTwinContractError, match="replays a source revision"):
@@ -74,27 +78,29 @@ def test_revision_replay_is_rejected_even_when_manifest_differs(tmp_path):
 
 
 def test_repository_substitution_is_rejected():
-    first = _manifest("rev-a", "a")
-    substituted = replace(_manifest("rev-b", "b"), repository_id="other/repository")
+    first = _manifest(_revision("a"), "a")
+    substituted = replace(
+        _manifest(_revision("b"), "b"), repository_id="other/repository"
+    )
     with pytest.raises(ProjectTwinContractError, match="repository identity changed"):
         classify_manifest_drift(first, substituted)
 
 
 def test_drift_classes_are_exact():
-    first = _manifest("rev-a", "a")
+    first = _manifest(_revision("a"), "a")
     compiler = replace(
         first,
-        source_revision="rev-b",
+        source_revision=_revision("b"),
         compiler_contract_sha256=_digest("compiler-b"),
     )
     evidence = replace(
         first,
-        source_revision="rev-c",
+        source_revision=_revision("c"),
         evidence_packet_sha256=_digest("evidence-c"),
     )
     source = replace(
         first,
-        source_revision="rev-d",
+        source_revision=_revision("d"),
         source_artifact=ArtifactRef.from_sha256(_digest("source-d")),
     )
 
@@ -104,14 +110,14 @@ def test_drift_classes_are_exact():
 
 
 def test_no_identity_change_is_rejected():
-    first = _manifest("rev-a", "a")
+    first = _manifest(_revision("a"), "a")
     with pytest.raises(ProjectTwinContractError, match="no identity change"):
         classify_manifest_drift(first, first)
 
 
 def test_transition_tampering_is_rejected():
-    first = _manifest("rev-a", "a")
-    second = _manifest("rev-b", "b")
+    first = _manifest(_revision("a"), "a")
+    second = _manifest(_revision("b"), "b")
     transition = replace(build_transition(first, second), drift_class="source")
     with pytest.raises(ProjectTwinContractError, match="transition mismatch"):
         verify_lifecycle((first, second), (build_transition(None, first), transition))
@@ -119,7 +125,7 @@ def test_transition_tampering_is_rejected():
 
 def test_noncanonical_and_head_tampering_are_rejected(tmp_path):
     store = AtomicProjectTwinLifecycleStore(tmp_path)
-    first = _manifest("rev-a", "a")
+    first = _manifest(_revision("a"), "a")
     store.append(first, expected_head_sha256=None)
     path = store._path(first.repository_id)
     payload = json.loads(path.read_text("ascii"))
