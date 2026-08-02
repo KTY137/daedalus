@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import tempfile
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,7 +55,14 @@ class ProjectTwinTransition:
         object.__setattr__(self, "drift_class", drift_class)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"schema": "daedalus-project-twin-transition/1", "repository_id": self.repository_id, "previous_manifest_sha256": self.previous_manifest_sha256, "next_manifest_sha256": self.next_manifest_sha256, "source_revision": self.source_revision, "drift_class": self.drift_class}
+        return {
+            "schema": "daedalus-project-twin-transition/1",
+            "repository_id": self.repository_id,
+            "previous_manifest_sha256": self.previous_manifest_sha256,
+            "next_manifest_sha256": self.next_manifest_sha256,
+            "source_revision": self.source_revision,
+            "drift_class": self.drift_class,
+        }
 
     @property
     def digest(self) -> str:
@@ -63,7 +72,13 @@ class ProjectTwinTransition:
     def from_dict(cls, payload: Mapping[str, Any]) -> "ProjectTwinTransition":
         if payload.get("schema") != "daedalus-project-twin-transition/1":
             raise ProjectTwinContractError("unsupported Project Twin transition schema")
-        return cls(repository_id=payload["repository_id"], previous_manifest_sha256=payload.get("previous_manifest_sha256"), next_manifest_sha256=payload["next_manifest_sha256"], source_revision=payload["source_revision"], drift_class=payload["drift_class"])
+        return cls(
+            repository_id=payload["repository_id"],
+            previous_manifest_sha256=payload.get("previous_manifest_sha256"),
+            next_manifest_sha256=payload["next_manifest_sha256"],
+            source_revision=payload["source_revision"],
+            drift_class=payload["drift_class"],
+        )
 
 
 def classify_manifest_drift(previous: ProjectTwinManifest | None, current: ProjectTwinManifest) -> str:
@@ -71,7 +86,12 @@ def classify_manifest_drift(previous: ProjectTwinManifest | None, current: Proje
         return "initial"
     if previous.repository_id != current.repository_id:
         raise ProjectTwinContractError("Project Twin repository identity changed")
-    source_changed = (previous.source_artifact != current.source_artifact or previous.source_forest_sha256 != current.source_forest_sha256 or previous.fourfold_snapshot_sha256 != current.fourfold_snapshot_sha256 or previous.source_revision != current.source_revision)
+    source_changed = (
+        previous.source_artifact != current.source_artifact
+        or previous.source_forest_sha256 != current.source_forest_sha256
+        or previous.fourfold_snapshot_sha256 != current.fourfold_snapshot_sha256
+        or previous.source_revision != current.source_revision
+    )
     compiler_changed = previous.compiler_contract_sha256 != current.compiler_contract_sha256
     evidence_changed = previous.evidence_packet_sha256 != current.evidence_packet_sha256
     changed = sum((source_changed, compiler_changed, evidence_changed))
@@ -87,7 +107,13 @@ def classify_manifest_drift(previous: ProjectTwinManifest | None, current: Proje
 
 
 def build_transition(previous: ProjectTwinManifest | None, current: ProjectTwinManifest) -> ProjectTwinTransition:
-    return ProjectTwinTransition(repository_id=current.repository_id, previous_manifest_sha256=None if previous is None else previous.digest, next_manifest_sha256=current.digest, source_revision=current.source_revision, drift_class=classify_manifest_drift(previous, current))
+    return ProjectTwinTransition(
+        repository_id=current.repository_id,
+        previous_manifest_sha256=None if previous is None else previous.digest,
+        next_manifest_sha256=current.digest,
+        source_revision=current.source_revision,
+        drift_class=classify_manifest_drift(previous, current),
+    )
 
 
 def verify_lifecycle(manifests: Sequence[ProjectTwinManifest], transitions: Sequence[ProjectTwinTransition]) -> None:
@@ -114,19 +140,40 @@ def verify_lifecycle(manifests: Sequence[ProjectTwinManifest], transitions: Sequ
         previous = manifest
 
 
+def _default_owner_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 class AtomicProjectTwinLifecycleStore:
     """Append and resolve one canonical lifecycle per repository.
 
-    Writers are serialized with an exclusive repository lock. The expected-head
-    check is performed while holding that lock, making compare-and-swap atomic
-    across processes. Crash leftovers are cleaned without ever accepting an
-    unverified lifecycle payload.
+    Writers are serialized with an exclusive repository lock. Lock records bind a
+    host, process, and random ownership token. An abandoned same-host lock may be
+    reclaimed only after the recorded process is proven absent. Foreign-host,
+    malformed, symlinked, or live locks always fail closed.
     """
 
-    def __init__(self, root: str | Path, *, fault_injector: Callable[[str], None] | None = None) -> None:
+    def __init__(
+        self,
+        root: str | Path,
+        *,
+        fault_injector: Callable[[str], None] | None = None,
+        owner_alive: Callable[[int], bool] | None = None,
+        hostname: str | None = None,
+    ) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._fault_injector = fault_injector
+        self._owner_alive = owner_alive or _default_owner_alive
+        self._hostname = hostname or socket.gethostname()
         self._cleanup_orphaned_temporaries()
 
     def _fault(self, phase: str) -> None:
@@ -151,25 +198,93 @@ class AtomicProjectTwinLifecycleStore:
             if path.is_file() and not path.is_symlink():
                 path.unlink(missing_ok=True)
 
+    @staticmethod
+    def _decode_lock(raw: bytes) -> Mapping[str, Any]:
+        try:
+            payload = json.loads(raw.decode("ascii"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProjectTwinContractError("Project Twin lifecycle lock is malformed") from exc
+        if not isinstance(payload, Mapping) or payload.get("schema") != "daedalus-project-twin-lock/1":
+            raise ProjectTwinContractError("Project Twin lifecycle lock schema is invalid")
+        if canonical_json(payload).encode("ascii") != raw:
+            raise ProjectTwinContractError("Project Twin lifecycle lock is not canonically encoded")
+        if not isinstance(payload.get("hostname"), str) or not payload["hostname"]:
+            raise ProjectTwinContractError("Project Twin lifecycle lock hostname is invalid")
+        if not isinstance(payload.get("pid"), int) or payload["pid"] <= 0:
+            raise ProjectTwinContractError("Project Twin lifecycle lock pid is invalid")
+        token = payload.get("owner_token")
+        if not isinstance(token, str) or len(token) != 32:
+            raise ProjectTwinContractError("Project Twin lifecycle lock owner token is invalid")
+        try:
+            int(token, 16)
+        except ValueError as exc:
+            raise ProjectTwinContractError("Project Twin lifecycle lock owner token is invalid") from exc
+        return payload
+
+    def _try_reclaim_abandoned_lock(self, lock_path: Path) -> bool:
+        if lock_path.is_symlink():
+            raise ProjectTwinContractError("Project Twin lifecycle lock cannot be a symlink")
+        try:
+            raw = lock_path.read_bytes()
+        except FileNotFoundError:
+            return True
+        payload = self._decode_lock(raw)
+        if payload["hostname"] != self._hostname:
+            return False
+        if self._owner_alive(payload["pid"]):
+            return False
+        try:
+            if lock_path.read_bytes() != raw:
+                return False
+            lock_path.unlink()
+        except FileNotFoundError:
+            return True
+        return True
+
     @contextmanager
     def _exclusive_writer(self, repository_id: str) -> Iterator[None]:
         lock_path = self._lock_path(repository_id)
+        payload = {
+            "schema": "daedalus-project-twin-lock/1",
+            "hostname": self._hostname,
+            "pid": os.getpid(),
+            "owner_token": uuid.uuid4().hex,
+        }
+        raw = canonical_json(payload).encode("ascii")
+        fd: int | None = None
+        for attempt in range(2):
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                break
+            except FileExistsError as exc:
+                if attempt == 0 and self._try_reclaim_abandoned_lock(lock_path):
+                    continue
+                raise ProjectTwinContractError("Project Twin lifecycle writer is already active") from exc
+        if fd is None:  # pragma: no cover - defensive guard
+            raise ProjectTwinContractError("Project Twin lifecycle writer lock was not acquired")
         try:
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError as exc:
-            raise ProjectTwinContractError("Project Twin lifecycle writer is already active") from exc
-        try:
-            os.write(fd, f"pid={os.getpid()}\n".encode("ascii"))
+            os.write(fd, raw)
             os.fsync(fd)
             yield
         finally:
             os.close(fd)
-            lock_path.unlink(missing_ok=True)
+            try:
+                current = lock_path.read_bytes()
+            except FileNotFoundError:
+                current = None
+            if current == raw:
+                lock_path.unlink(missing_ok=True)
 
     @staticmethod
     def _payload(manifests: Sequence[ProjectTwinManifest], transitions: Sequence[ProjectTwinTransition]) -> dict[str, Any]:
         verify_lifecycle(manifests, transitions)
-        return {"schema": "daedalus-project-twin-lifecycle/1", "repository_id": manifests[0].repository_id, "manifests": [manifest.to_dict() for manifest in manifests], "transitions": [transition.to_dict() for transition in transitions], "head_manifest_sha256": manifests[-1].digest}
+        return {
+            "schema": "daedalus-project-twin-lifecycle/1",
+            "repository_id": manifests[0].repository_id,
+            "manifests": [manifest.to_dict() for manifest in manifests],
+            "transitions": [transition.to_dict() for transition in transitions],
+            "head_manifest_sha256": manifests[-1].digest,
+        }
 
     def load(self, repository_id: str) -> tuple[tuple[ProjectTwinManifest, ...], tuple[ProjectTwinTransition, ...]]:
         path = self._path(repository_id)
