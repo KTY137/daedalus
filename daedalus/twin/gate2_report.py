@@ -8,6 +8,7 @@ import re
 from typing import Any, Iterable, Mapping
 
 from daedalus.schemas import _revision, _sha256
+from daedalus.twin.corpus import CorpusManifest
 from daedalus.twin.corpus_genesis import CorpusGenesisBinding
 from daedalus.twin.motifs import MotifProvenance
 
@@ -21,7 +22,7 @@ _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 
 class Gate2ReportError(ValueError):
-    """Raised when Gate-2 evidence is malformed or noncanonical."""
+    """Raised when Gate-2 evidence is incomplete, substituted, or noncanonical."""
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -45,6 +46,14 @@ def _validated_sorted_sha(values: tuple[str, ...], field: str) -> tuple[str, ...
     if normalized != tuple(sorted(set(normalized))):
         raise Gate2ReportError(f"{field} must be unique and sorted")
     return normalized
+
+
+def _validated_sorted_ids(values: tuple[str, ...], field: str) -> tuple[str, ...]:
+    if not values or values != tuple(sorted(set(values))):
+        raise Gate2ReportError(f"{field} must be non-empty, unique and sorted")
+    if any(not _ID_RE.fullmatch(_text(value, field)) for value in values):
+        raise Gate2ReportError(f"{field} entries must use canonical identifiers")
+    return values
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -81,6 +90,8 @@ class Gate2Report:
     schema: str
     head_sha: str
     iron_plan_sha256: str
+    corpus_manifest_sha256: str
+    repository_ids: tuple[str, ...]
     workflow_evidence: tuple[WorkflowEvidence, ...]
     binding_sha256s: tuple[str, ...]
     motif_provenance_sha256s: tuple[str, ...]
@@ -92,6 +103,8 @@ class Gate2Report:
             raise Gate2ReportError("unsupported Gate-2 report schema")
         object.__setattr__(self, "head_sha", _revision(self.head_sha, "head_sha"))
         object.__setattr__(self, "iron_plan_sha256", _sha256(self.iron_plan_sha256, "iron_plan_sha256"))
+        object.__setattr__(self, "corpus_manifest_sha256", _sha256(self.corpus_manifest_sha256, "corpus_manifest_sha256"))
+        _validated_sorted_ids(self.repository_ids, "repository_ids")
         names = tuple(item.workflow_name for item in self.workflow_evidence)
         if names != tuple(sorted(set(names))):
             raise Gate2ReportError("workflow_evidence must be unique and sorted")
@@ -119,6 +132,8 @@ class Gate2Report:
             "schema": self.schema,
             "head_sha": self.head_sha,
             "iron_plan_sha256": self.iron_plan_sha256,
+            "corpus_manifest_sha256": self.corpus_manifest_sha256,
+            "repository_ids": list(self.repository_ids),
             "workflow_evidence": [item.to_dict() for item in self.workflow_evidence],
             "binding_sha256s": list(self.binding_sha256s),
             "motif_provenance_sha256s": list(self.motif_provenance_sha256s),
@@ -133,24 +148,15 @@ class Gate2Report:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "Gate2Report":
         expected = {
-            "schema",
-            "head_sha",
-            "iron_plan_sha256",
-            "workflow_evidence",
-            "binding_sha256s",
-            "motif_provenance_sha256s",
-            "blockers",
-            "external_constraints",
-            "closed",
+            "schema", "head_sha", "iron_plan_sha256", "corpus_manifest_sha256",
+            "repository_ids", "workflow_evidence", "binding_sha256s",
+            "motif_provenance_sha256s", "blockers", "external_constraints", "closed",
         }
         if set(payload) != expected:
             raise Gate2ReportError("Gate-2 report fields are not canonical")
         collection_fields = (
-            "workflow_evidence",
-            "binding_sha256s",
-            "motif_provenance_sha256s",
-            "blockers",
-            "external_constraints",
+            "repository_ids", "workflow_evidence", "binding_sha256s",
+            "motif_provenance_sha256s", "blockers", "external_constraints",
         )
         if not all(isinstance(payload[field], list) for field in collection_fields):
             raise Gate2ReportError("report collection fields must be arrays")
@@ -158,6 +164,8 @@ class Gate2Report:
             schema=payload["schema"],
             head_sha=payload["head_sha"],
             iron_plan_sha256=payload["iron_plan_sha256"],
+            corpus_manifest_sha256=payload["corpus_manifest_sha256"],
+            repository_ids=tuple(payload["repository_ids"]),
             workflow_evidence=tuple(WorkflowEvidence.from_dict(item) for item in payload["workflow_evidence"]),
             binding_sha256s=tuple(payload["binding_sha256s"]),
             motif_provenance_sha256s=tuple(payload["motif_provenance_sha256s"]),
@@ -186,12 +194,15 @@ def build_gate2_report(
     *,
     head_sha: str,
     iron_plan_sha256: str,
+    corpus_manifest: CorpusManifest,
     workflow_evidence: Iterable[WorkflowEvidence],
     bindings: Iterable[CorpusGenesisBinding],
     motifs: Iterable[MotifProvenance],
     external_constraints: Iterable[str] = (),
 ) -> Gate2Report:
-    """Project exact-head evidence into a deterministic open/closed decision."""
+    """Project exact-head evidence into a complete deterministic Gate-2 decision."""
+    if not isinstance(corpus_manifest, CorpusManifest):
+        raise Gate2ReportError("corpus_manifest must be a CorpusManifest")
     normalized_head = _revision(head_sha, "head_sha")
     checks = tuple(sorted(workflow_evidence, key=lambda item: item.workflow_name))
     names = tuple(item.workflow_name for item in checks)
@@ -200,7 +211,7 @@ def build_gate2_report(
     binding_items = tuple(bindings)
     motif_items = tuple(motifs)
     if not binding_items:
-        raise Gate2ReportError("at least one corpus Genesis binding is required")
+        raise Gate2ReportError("corpus Genesis bindings must not be empty")
     if not motif_items:
         raise Gate2ReportError("at least one motif provenance artifact is required")
 
@@ -215,14 +226,23 @@ def build_gate2_report(
         if check.conclusion != "success":
             blockers.add(f"workflow-{_slug(check.workflow_name)}-{check.conclusion}")
 
-    repository_ids: set[str] = set()
+    expected_repository_ids = tuple(item.repository_id for item in corpus_manifest.repositories)
+    binding_map: dict[str, CorpusGenesisBinding] = {}
     for binding in binding_items:
         if not isinstance(binding, CorpusGenesisBinding):
             raise Gate2ReportError("bindings must contain CorpusGenesisBinding values")
-        if binding.repository_id in repository_ids:
+        if binding.repository_id in binding_map:
             raise Gate2ReportError("bindings must use unique repository_id values")
-        repository_ids.add(binding.repository_id)
+        if binding.corpus_manifest_sha256 != corpus_manifest.digest:
+            raise Gate2ReportError("binding does not name the exact corpus manifest")
+        binding_map[binding.repository_id] = binding
         blockers.update(f"binding-{binding.repository_id}-{item}" for item in binding.blockers)
+    actual_repository_ids = tuple(sorted(binding_map))
+    if actual_repository_ids != expected_repository_ids:
+        missing = set(expected_repository_ids) - set(actual_repository_ids)
+        extra = set(actual_repository_ids) - set(expected_repository_ids)
+        blockers.update(f"corpus-repository-{item}-missing-binding" for item in missing)
+        blockers.update(f"corpus-repository-{item}-unexpected-binding" for item in extra)
 
     motif_ids: set[str] = set()
     for motif in motif_items:
@@ -232,11 +252,19 @@ def build_gate2_report(
             raise Gate2ReportError("motifs must use unique motif_id values")
         motif_ids.add(motif.motif_id)
         blockers.update(f"motif-{motif.motif_id}-{item}" for item in motif.blockers)
+        for support in motif.supports:
+            binding = binding_map.get(support.repository_id)
+            if binding is None:
+                blockers.add(f"motif-{motif.motif_id}-support-{support.repository_id}-outside-corpus-bindings")
+            elif support.project_twin_manifest_sha256 != binding.project_twin_manifest_sha256:
+                blockers.add(f"motif-{motif.motif_id}-support-{support.repository_id}-manifest-mismatch")
 
     return Gate2Report(
         schema="daedalus-gate2-report/1",
         head_sha=normalized_head,
         iron_plan_sha256=iron_plan_sha256,
+        corpus_manifest_sha256=corpus_manifest.digest,
+        repository_ids=expected_repository_ids,
         workflow_evidence=checks,
         binding_sha256s=tuple(sorted(binding.digest for binding in binding_items)),
         motif_provenance_sha256s=tuple(sorted(motif.digest for motif in motif_items)),
@@ -248,6 +276,10 @@ def build_gate2_report(
 def assert_monotonic_gate2_report(previous: Gate2Report, current: Gate2Report) -> None:
     if previous.head_sha == current.head_sha and previous.digest != current.digest:
         raise Gate2ReportError("one exact head must not have competing Gate-2 reports")
+    if previous.corpus_manifest_sha256 != current.corpus_manifest_sha256:
+        raise Gate2ReportError("Gate-2 report cannot silently substitute its corpus manifest")
+    if previous.repository_ids != current.repository_ids:
+        raise Gate2ReportError("Gate-2 report cannot silently change corpus repository coverage")
     if set(previous.binding_sha256s) - set(current.binding_sha256s):
         raise Gate2ReportError("current report drops previously retained binding evidence")
     if set(previous.motif_provenance_sha256s) - set(current.motif_provenance_sha256s):
