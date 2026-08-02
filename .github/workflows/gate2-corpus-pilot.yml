@@ -8,6 +8,7 @@ on:
       - "daedalus/twin/corpus.py"
       - "daedalus/twin/capabilities.py"
       - "daedalus/twin/corpus_genesis.py"
+      - "daedalus/twin/corpus_review.py"
       - "daedalus/twin/gate2_report.py"
       - "daedalus/twin/gate2_closure.py"
       - "daedalus/twin/genesis.py"
@@ -16,6 +17,7 @@ on:
       - "tests/twin/test_corpus_manifest.py"
       - "tests/twin/test_capability_matrix.py"
       - "tests/twin/test_corpus_genesis_binding.py"
+      - "tests/twin/test_corpus_review.py"
       - "tests/twin/test_gate2_report.py"
       - "tests/twin/test_gate2_closure.py"
       - "tests/twin/test_motif_provenance.py"
@@ -56,6 +58,7 @@ jobs:
           tests/twin/test_corpus_manifest.py
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
+          tests/twin/test_corpus_review.py
           tests/twin/test_gate2_report.py
           tests/twin/test_gate2_closure.py
           tests/twin/test_motif_provenance.py
@@ -65,6 +68,7 @@ jobs:
           daedalus/twin/corpus.py
           daedalus/twin/capabilities.py
           daedalus/twin/corpus_genesis.py
+          daedalus/twin/corpus_review.py
           daedalus/twin/gate2_report.py
           daedalus/twin/gate2_closure.py
           daedalus/twin/genesis.py
@@ -72,6 +76,7 @@ jobs:
           tests/twin/test_corpus_manifest.py
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
+          tests/twin/test_corpus_review.py
           tests/twin/test_gate2_report.py
           tests/twin/test_gate2_closure.py
           tests/twin/test_motif_provenance.py
@@ -123,7 +128,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.whl
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.gate2_report import Gate2Report; from daedalus.twin.gate2_closure import Gate2ClosureApproval; from daedalus.twin.motifs import MotifProvenance; print(Gate2Report.__name__, Gate2ClosureApproval.__name__, MotifProvenance.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus_review import CorpusReviewRecord; from daedalus.twin.gate2_report import Gate2Report; from daedalus.twin.gate2_closure import Gate2ClosureApproval; from daedalus.twin.motifs import MotifProvenance; print(CorpusReviewRecord.__name__, Gate2Report.__name__, Gate2ClosureApproval.__name__, MotifProvenance.__name__)"
       - name: Install and import sdist outside checkout
         shell: bash
         run: |
@@ -131,4 +136,4 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.tar.gz
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.gate2_closure import Gate2ClosureLedger; from daedalus.twin.motifs import CrossRepositoryAlignment; print(Gate2ClosureLedger.__name__, CrossRepositoryAlignment.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.corpus_review import apply_reviewed_record; from daedalus.twin.gate2_closure import Gate2ClosureLedger; print(apply_reviewed_record.__name__, Gate2ClosureLedger.__name__)"
