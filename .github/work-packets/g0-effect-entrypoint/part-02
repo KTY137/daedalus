@@ -53,7 +53,7 @@ index ef31eaf..86ee782 100644
      ),
      EntrypointSpec(
          id="python.promote_candidates",
-diff --git a/tests/gates/test_gate_report.py b/tests/gates/test_gate_gate_report.py
+diff --git a/tests/gates/test_gate_report.py b/tests/gates/test_gate_report.py
 index 30e5fc6..0c8faf6 100644
 --- a/tests/gates/test_gate_report.py
 +++ b/tests/gates/test_gate_report.py
