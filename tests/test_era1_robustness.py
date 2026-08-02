@@ -17,9 +17,17 @@ from pathlib import Path
 from unittest import mock
 
 from daedalus import metrics
-from daedalus.offload import offload
+from daedalus.offload import _offload_impl
 from daedalus.provider_router import route_and_select
 from daedalus.verifier import verify
+def offload(*args, **kwargs):
+    """Exercise the internal cascade below the public persisted-lease seam."""
+    repo_root = kwargs.get("repo_root")
+    if repo_root is None and len(args) > 1:
+        repo_root = args[1]
+    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
+    return _offload_impl(*args, **kwargs)
+
 
 _AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
 

@@ -16,7 +16,8 @@ def test_gate_report_is_deterministic_and_fail_closed() -> None:
     assert first.closed is False
     assert first.security_boundary_claimed is False
     assert first.owner_approval_enforced is True
-    assert "python.offload" in first.unguarded_entrypoints
+    assert "python.offload" not in first.unguarded_entrypoints
+    assert "python.offload" not in first.inventory_only_production_entrypoints
     assert "python.promote_candidates" not in first.unguarded_entrypoints
 
 

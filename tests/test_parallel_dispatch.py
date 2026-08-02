@@ -15,9 +15,19 @@ from unittest import mock
 
 from daedalus import metrics
 from daedalus.kairos.scheduler import KairosScheduler, _paths_overlap
-from daedalus.offload import offload
+from daedalus.offload import _offload_impl
 
 _AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
+
+
+def _internal_offload(*args, **kwargs):
+    """Keep this scheduler-concurrency unit focused below the lease seam."""
+    repo_root = kwargs.get("repo_root")
+    if repo_root is None and len(args) > 1:
+        repo_root = args[1]
+    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
+    return _offload_impl(*args, **kwargs)
+
 
 
 def _report(files_changed):
@@ -58,6 +68,18 @@ class ParallelDispatchTests(unittest.TestCase):
         self.assertFalse(_paths_overlap([A("write", ["src/a.py"]), A("write", ["src/b.py"])]))
         self.assertFalse(_paths_overlap([A("advisory", ["src/a.py"]), A("advisory", ["src/a.py"])]))
 
+    def test_live_dispatch_without_effect_capability_fails_before_provider(self):
+        repo = _make_repo(self._tmp.name, [_agent("alpha", "src/a.py")])
+        tasks = [{"objective": "Fix the greeting string in the helper",
+                  "paths": ["src/a.py"]}]
+        scheduler = KairosScheduler(availability=_AVAIL, active_agents=["alpha"])
+        with mock.patch("daedalus.providers.get_provider") as provider:
+            rows = scheduler.dispatch(repo, tasks, dry_run=False)
+        provider.assert_not_called()
+        self.assertEqual(rows[0]["status"], "effect_lease_required")
+        self.assertEqual(rows[0]["wrote"], [])
+        self.assertFalse((Path(repo) / "src/a.py").exists())
+
     def test_disjoint_write_tasks_stay_sequential_with_correct_attribution(self):
         repo = _make_repo(self._tmp.name, [_agent("alpha", "src/a.py"), _agent("beta", "src/b.py")])
         tasks = [{"objective": "Fix the greeting string in the helper", "paths": ["src/a.py"]},
@@ -66,7 +88,8 @@ class ParallelDispatchTests(unittest.TestCase):
         _PathAwareWorker.reset()
         ik = KairosScheduler(max_workers=4, availability=_AVAIL,
                     active_agents=["alpha", "beta"])
-        with mock.patch("daedalus.providers.get_provider",
+        with mock.patch("daedalus.offload.offload", side_effect=_internal_offload), \
+             mock.patch("daedalus.providers.get_provider",
                         side_effect=lambda n: _PathAwareWorker(repo)):
             rows = ik.dispatch(repo, tasks, dry_run=False, parallel=True)
 
@@ -83,9 +106,10 @@ class ParallelDispatchTests(unittest.TestCase):
         repo = _make_repo(self._tmp.name, [_agent("alpha", "src/a.py")])
         tasks = [{"objective": "Fix the greeting string in the helper", "paths": ["src/a.py"]},
                  {"objective": "Fix the greeting string in the helper", "paths": ["src/a.py"]}]
-        with mock.patch("daedalus.providers.get_provider",
+        with mock.patch("daedalus.offload.offload", side_effect=_internal_offload), \
+             mock.patch("daedalus.providers.get_provider",
                         side_effect=lambda n: _PathAwareWorker(repo)):
-            rows = ik = KairosScheduler(max_workers=4, availability=_AVAIL, active_agents=["alpha"]) \
+            rows = KairosScheduler(max_workers=4, availability=_AVAIL, active_agents=["alpha"]) \
                 .dispatch(repo, tasks, dry_run=False, parallel=True)
         self.assertTrue(any(r.get("status") == "note" for r in rows),
                         "expected a 'ran sequentially' note for writable work")

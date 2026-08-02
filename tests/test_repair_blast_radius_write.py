@@ -31,7 +31,20 @@ from unittest import mock
 
 from daedalus import metrics
 from daedalus.core import _codex_report
-from daedalus.offload import offload
+from daedalus.offload import _offload_impl
+def offload(*args, **kwargs):
+    """Exercise the pre-lease cascade in focused unit tests.
+
+    Public live calls are covered separately by test_leased_offload.py. These
+    tests isolate routing/verification behavior and provide the private
+    TaskAttempt workspace grant required by the internal implementation.
+    """
+    repo_root = kwargs.get("repo_root")
+    if repo_root is None and len(args) > 1:
+        repo_root = args[1]
+    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
+    return _offload_impl(*args, **kwargs)
+
 
 # Only the local bench up: no deepseek (advisory) in the way, so a low-risk
 # non-sensitive task lands unambiguously on ollama/write.

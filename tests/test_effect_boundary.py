@@ -85,10 +85,10 @@ def test_inventory_covers_the_package_but_not_yet_the_tools_it_now_sees() -> Non
                    for code, subject in blocker_codes), (
         "a daedalus entrypoint stopped being declared")
 
-    # Promotion now has a mechanically anchored owner-approval guard. Offload
-    # remains the only hand-named unguarded package row in this packet.
-    assert ("gate0.unguarded_entrypoint", "python.offload") in blocker_codes
+    # Promotion and offload now have mechanically anchored central starts.
+    assert ("gate0.unguarded_entrypoint", "python.offload") not in blocker_codes
     assert ("gate0.unguarded_entrypoint", "python.promote_candidates") not in blocker_codes
+    assert next(row for row in ENTRYPOINTS if row.id == "python.offload").wiring is Wiring.CENTRAL
 
     # and the newly visible gap is real, named, and not silently tolerated
     unregistered_tools = {subject for code, subject in blocker_codes
@@ -110,17 +110,18 @@ def test_required_gate0_surfaces_have_explicit_rows() -> None:
     assert "does not implement an MCP runtime boundary" in mcp.notes
 
 
-@pytest.mark.parametrize("entrypoint_id", ["python.offload"])
-def test_known_unguarded_paths_have_machine_readable_migrations(entrypoint_id: str) -> None:
-    row = next(item for item in ENTRYPOINTS if item.id == entrypoint_id)
-    assert row.wiring is Wiring.UNGUARDED
-    assert row.migration
-    with pytest.raises(EffectStartRefused, match="not central"):
-        begin_effect(
-            entrypoint_id,
-            row.effects,
-            [GuardDecision(name, True, "claimed") for name in row.guard_contracts],
-        )
+def test_offload_is_central_and_anchored_to_persisted_lease_consumption() -> None:
+    row = next(item for item in ENTRYPOINTS if item.id == "python.offload")
+    assert row.wiring is Wiring.CENTRAL
+    assert row.migration == "complete for the python.offload entrypoint"
+    assert any(anchor.call == "begin_effect" for anchor in row.anchors)
+    receipt = begin_effect(
+        row.id,
+        row.effects,
+        [GuardDecision(name, True, "artifact-locator:sha256:" + "a" * 64)
+         for name in row.guard_contracts],
+    )
+    assert receipt.entrypoint_id == row.id
 
 
 def test_unknown_entrypoint_is_refused() -> None:
@@ -363,9 +364,11 @@ def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
         if row["severity"] == "blocker"
     }
     assert completed.returncode == 2
-    # Promotion moved behind a consumed owner-approval guard; offload is still unguarded.
-    assert "python.offload" in blockers
+    # Promotion and offload are centrally wired; the CLI remains red for the
+    # still-unregistered tool entrypoints, not for either protected Python path.
+    assert "python.offload" not in blockers
     assert "python.promote_candidates" not in blockers
+    assert any(subject.startswith("tools.") for subject in blockers)
     assert payload["gate0_closed"] is False
     assert payload["security_boundary_claimed"] is False
 

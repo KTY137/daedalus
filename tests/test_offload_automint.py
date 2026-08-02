@@ -34,7 +34,15 @@ from pathlib import Path
 from unittest import mock
 
 from daedalus import metrics
-from daedalus.offload import _AUTO_MINT_ENV, offload
+from daedalus.offload import _AUTO_MINT_ENV, _offload_impl
+def offload(*args, **kwargs):
+    """Exercise the internal cascade below the public persisted-lease seam."""
+    repo_root = kwargs.get("repo_root")
+    if repo_root is None and len(args) > 1:
+        repo_root = args[1]
+    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
+    return _offload_impl(*args, **kwargs)
+
 
 # Benign wording (risk stays low -> mode "write"); non-sensitive docs path.
 _OBJECTIVE = "improve the helper defaults"

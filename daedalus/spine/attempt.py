@@ -1057,6 +1057,11 @@ def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:
             # metadata: it must steer routing and context construction too.
             # A caller-supplied value cannot widen it.
             kwargs["paths"] = list(ctx.task.target_paths)
+        kwargs["_attempt_workspace"] = {
+            "worktree": str(ctx.worktree.resolve()),
+            "branch": ctx.branch,
+            "base_revision": ctx.base_revision,
+        }
         return offload(ctx.task.instruction, str(ctx.worktree), **kwargs)
     return _runner
 

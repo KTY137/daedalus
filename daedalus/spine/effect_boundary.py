@@ -265,15 +265,16 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "budget.process_guard",
             "containment.attempt",
         ),
-        wiring=Wiring.UNGUARDED,
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.offload:offload", "begin_effect"),
+        ),
         notes=(
-            "live write providers can mutate the primary checkout; verification/rollback "
-            "does not provide attempt-worktree containment"
+            "every live call consumes a persisted Effect Lease; write mode also "
+            "requires the private TaskAttempt workspace grant and cannot mutate "
+            "the primary checkout directly"
         ),
-        migration=(
-            "Route the live write branch through TaskAttempt/run_attempt and return only "
-            "a content-addressed candidate artifact; keep the primary checkout read-only."
-        ),
+        migration="complete for the python.offload entrypoint",
     ),
     EntrypointSpec(
         id="python.promote_candidates",

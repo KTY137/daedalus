@@ -139,45 +139,33 @@ def test_every_non_central_row_refuses_an_effect_start(spec) -> None:
         begin_effect(spec.id, spec.effects or [Effect.FILESYSTEM_WRITE], _satisfied(spec))
 
 
-def test_a_central_row_may_not_rest_on_an_unimplemented_guard() -> None:
-    """Flipping a row to CENTRAL does not open it if a guard does not exist.
+def test_a_central_row_may_not_rest_on_an_unimplemented_guard(monkeypatch) -> None:
+    """A central registry edit cannot turn an unimplemented guard into authority."""
 
-    THE INJECTED FAULT: someone edits the registry and marks
-    ``python.promote_candidates`` as centrally wired -- the single most
-    valuable line in this repository to get wrong, because promotion is
-    invariant 5 (sealed promotion, owner approval required). The registry copy
-    below is exactly that edit.
+    import daedalus.spine.effect_boundary as boundary
 
-    The boundary must still refuse, because
-    ``GUARD_CONTRACT_IMPLEMENTED["promotion.owner_approval"]`` is ``False``:
-    there is no mechanical implementation of owner approval today, and a
-    contract that cannot be checked must never be satisfiable by asserting it.
-    The caller here does assert it -- ``_satisfied`` answers ALLOW with
-    evidence -- and is refused anyway. That is the difference between a guard
-    and a comment.
-
-    GUARD DISABLED, RED CONFIRMED [MEASURED 2026-07-31]: flipping
-    ``GUARD_CONTRACT_IMPLEMENTED["promotion.owner_approval"]`` to ``True`` in a
-    standalone copy of the module admits the start and returns a receipt, so
-    this test goes red. The guard is load-bearing, and it is the only thing
-    standing between a one-word registry edit and an unapproved promotion.
-    """
-    row = next(r for r in ENTRYPOINTS if r.id == "python.promote_candidates")
-    assert GUARD_CONTRACT_IMPLEMENTED["promotion.owner_approval"] is False, (
-        "owner approval is now mechanically implemented; this test's premise "
-        "changed and the sealed-promotion path needs re-measuring, not a "
-        "green tick")
-    assert "promotion.owner_approval" in row.guard_contracts, (
-        "the promotion row stopped requiring owner approval")
-
-    promoted = dataclasses.replace(row, wiring=Wiring.CENTRAL)
-
+    monkeypatch.setattr(
+        boundary,
+        "GUARD_CONTRACT_IMPLEMENTED",
+        {**dict(boundary.GUARD_CONTRACT_IMPLEMENTED), "test.unimplemented": False},
+    )
+    monkeypatch.setattr(
+        boundary,
+        "POLICY_CONTRACTS",
+        frozenset(boundary.GUARD_CONTRACT_IMPLEMENTED),
+    )
+    row = next(r for r in ENTRYPOINTS if r.id == "python.offload")
+    fault = dataclasses.replace(
+        row,
+        guard_contracts=("test.unimplemented",),
+        wiring=Wiring.CENTRAL,
+    )
     with pytest.raises(EffectStartRefused, match="unimplemented guard"):
         begin_effect(
-            promoted.id,
-            promoted.effects,
-            _satisfied(promoted),
-            registry={promoted.id: promoted},
+            fault.id,
+            fault.effects,
+            [GuardDecision("test.unimplemented", True, "claimed")],
+            registry={fault.id: fault},
         )
 
 

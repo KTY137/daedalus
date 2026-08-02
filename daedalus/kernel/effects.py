@@ -14,7 +14,7 @@ import hashlib
 import hmac
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
@@ -892,3 +892,77 @@ class EffectLeaseLedger:
                 "SELECT state FROM effect_executions WHERE execution_id=?", (value,)
             ).fetchone()
         return None if row is None else str(row["state"])
+
+
+@dataclass(frozen=True)
+class LeasedEffectAuthorization:
+    """One explicit, persisted capability for a single effectful call path.
+
+    The bundle carries every authority needed by :class:`EffectLeaseLedger`
+    without teaching production entrypoints how to mint leases or discover
+    secrets from ambient configuration.  Entry points may *consume* this
+    capability; they cannot construct a valid one without the signed lease,
+    exact policy decision, issuer keyring, and persisted ledger grant.
+    """
+
+    lease: EffectLease
+    request: EffectLeaseRequest
+    policy_decision: PolicyDecision
+    ledger: "EffectLeaseLedger"
+    keyring: Mapping[str, bytes | str] = field(repr=False)
+    guard_decisions: tuple[GuardDecision, ...]
+    current_kill_switch_generation: int
+    registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
+        default=REGISTRY_BY_ID, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        if self.lease.entrypoint_id != self.request.entrypoint_id:
+            raise EffectLeaseBindingMismatch(
+                "authorization lease and request name different entrypoints"
+            )
+        if not self.guard_decisions:
+            raise EffectLeaseBindingMismatch(
+                "authorization requires concrete guard decisions"
+            )
+        object.__setattr__(self, "guard_decisions", tuple(self.guard_decisions))
+        object.__setattr__(self, "keyring", dict(self.keyring))
+
+    def begin_effect(
+        self,
+        execution: EffectExecutionRequest,
+        *,
+        started_at: datetime | None = None,
+    ) -> EffectStartResult:
+        """Persist and verify the start before the entrypoint performs work."""
+
+        return self.ledger.begin(
+            self.lease,
+            execution,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            keyring=self.keyring,
+            guard_decisions=self.guard_decisions,
+            current_kill_switch_generation=self.current_kill_switch_generation,
+            started_at=started_at,
+            registry=self.registry,
+        )
+
+    def finish_effect(
+        self,
+        start_receipt: LeasedEffectStartReceipt,
+        *,
+        outcome: str,
+        output_digests: Iterable[str] = (),
+        detail_sha256: str | None = None,
+        finished_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Persist the terminal outcome against the exact start receipt."""
+
+        return self.ledger.finish(
+            start_receipt,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+            finished_at=finished_at,
+        )

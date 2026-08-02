@@ -34,8 +34,21 @@ from unittest import mock
 
 from daedalus import metrics, verifier
 from daedalus.config import STARTER
-from daedalus.offload import offload
+from daedalus.offload import _offload_impl
 from daedalus.verifier import DEFAULT_TEST_TIMEOUT_S, _effective_timeout, verify
+def offload(*args, **kwargs):
+    """Exercise the pre-lease cascade in focused unit tests.
+
+    Public live calls are covered separately by test_leased_offload.py. These
+    tests isolate routing/verification behavior and provide the private
+    TaskAttempt workspace grant required by the internal implementation.
+    """
+    repo_root = kwargs.get("repo_root")
+    if repo_root is None and len(args) > 1:
+        repo_root = args[1]
+    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
+    return _offload_impl(*args, **kwargs)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENTENV = REPO_ROOT / ".agentenv" / "agentenv.json"

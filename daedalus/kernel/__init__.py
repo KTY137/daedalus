@@ -48,6 +48,7 @@ from .effects import (
     EffectStartResult,
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
+    LeasedEffectAuthorization,
     issue_effect_lease,
     verify_effect_lease,
 )
@@ -68,6 +69,7 @@ __all__ += [
     "EffectStartResult",
     "EffectTerminalReceipt",
     "LeasedEffectStartReceipt",
+    "LeasedEffectAuthorization",
     "issue_effect_lease",
     "verify_effect_lease",
 ]
