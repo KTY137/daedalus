@@ -8,8 +8,11 @@ on:
       - "daedalus/twin/knowledge_sources.py"
       - "daedalus/twin/knowledge_correlation.py"
       - "daedalus/twin/knowledge_access.py"
+      - "daedalus/twin/knowledge_wire.py"
+      - "daedalus/twin/knowledge_pipeline.py"
       - "tests/twin/test_knowledge_dump_crucible.py"
       - "tests/twin/test_knowledge_access_scope.py"
+      - "tests/twin/test_knowledge_pipeline.py"
       - "docs/fourfold/KNOWLEDGE_DUMP_CORRELATION.md"
       - "docs/fourfold/KNOWLEDGE_ACCESS_BOUNDARY.md"
       - ".github/workflows/gate2-knowledge-correlation.yml"
@@ -48,13 +51,17 @@ jobs:
           python -m pytest -q
           tests/twin/test_knowledge_dump_crucible.py
           tests/twin/test_knowledge_access_scope.py
+          tests/twin/test_knowledge_pipeline.py
       - run: >-
           python -m compileall -q
           daedalus/twin/knowledge_sources.py
           daedalus/twin/knowledge_correlation.py
           daedalus/twin/knowledge_access.py
+          daedalus/twin/knowledge_wire.py
+          daedalus/twin/knowledge_pipeline.py
           tests/twin/test_knowledge_dump_crucible.py
           tests/twin/test_knowledge_access_scope.py
+          tests/twin/test_knowledge_pipeline.py
 
   isolated-distributions:
     runs-on: ubuntu-latest
@@ -80,12 +87,16 @@ jobs:
           )
           from daedalus.twin.knowledge_correlation import correlate_knowledge
           from daedalus.twin.knowledge_access import build_access_scoped_context
+          from daedalus.twin.knowledge_wire import parse_knowledge_corpus_json
+          from daedalus.twin.knowledge_pipeline import build_parser
           print(
               ingest_confluence_dump.__name__,
               ingest_mediawiki_dump.__name__,
               ingest_obsidian_vault.__name__,
               correlate_knowledge.__name__,
               build_access_scoped_context.__name__,
+              parse_knowledge_corpus_json.__name__,
+              build_parser.__name__,
           )
           PY
       - name: Install sdist outside checkout
@@ -95,4 +106,12 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.tar.gz
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.knowledge_sources import KnowledgeCorpus; from daedalus.twin.knowledge_correlation import KnowledgeCorrelationResult; from daedalus.twin.knowledge_access import AccessScopedKnowledgeContext; print(KnowledgeCorpus.__name__, KnowledgeCorrelationResult.__name__, AccessScopedKnowledgeContext.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.knowledge_sources import KnowledgeCorpus; from daedalus.twin.knowledge_correlation import KnowledgeCorrelationResult; from daedalus.twin.knowledge_access import AccessScopedKnowledgeContext; from daedalus.twin.knowledge_wire import KnowledgeWireError; from daedalus.twin.knowledge_pipeline import main; print(KnowledgeCorpus.__name__, KnowledgeCorrelationResult.__name__, AccessScopedKnowledgeContext.__name__, KnowledgeWireError.__name__, main.__name__)"
+      - name: CLI help from isolated wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          python -m pip install --target "${tmpdir}" dist/*.whl
+          cd /tmp
+          PYTHONPATH="${tmpdir}" python -m daedalus.twin.knowledge_pipeline --help
