@@ -1,42 +1,33 @@
-name: Apply effect-entrypoint centralization batch
+name: Workspace export — effect entrypoint centralization
 
 on:
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - consolidation/g0-g1-foundation
   push:
-    branches: [g0/effect-entrypoint-centralization]
-    paths: [.github/workflows/workspace-export-effect-entrypoint.yml]
+    branches:
+      - g0/effect-entrypoint-centralization
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: g0/effect-entrypoint-centralization
-      - name: Apply reviewed patch
-        shell: bash
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Create source archive
         run: |
-          set -euo pipefail
-          echo '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' | base64 -d | gzip -d > /tmp/effect.patch
-          patch -p1 < /tmp/effect.patch
-          echo 'H4sICGo5b2oAA2dhdGUwLXByb21vdGlvbi1lZmZlY3QtbGVhc2UueW1sAMVVa2/aMBT9nl9xFVVqO9UJfU0TKlMRY+sk1KKVamLThEziEA/HTm0Hyrr+99l5QKCw8W2f4se5x/ec6xtznJAmfMKaQAP6UiRCU8GhG0Uk0NAjWBHHEbzpAKQZYyNJHjOitJ2bFaxjVQwBELghJiFmmfKnmEqh/ImhDUdzSTVRXrpwtyBVSjnxSX7caCwyHmK5WMeaYG0oieSE+XYyUgQzQ5xW6f4LX9Izq0ZtA9dR25PwJlTH2difCzmNmJgX4hpomQMqwlF+iLdImJtbpuLCn7HEPIhJza1Jo5SNCNdykQrKNQrsGDP6C1tOx0mJTKhSZpxHBoJrg1BNkASHjvNTjPP1SASZImFBLjOukCkZZOOM6wwxbOXlW8qQazJZVFlEmDIUYVNPM2Sm1MVygrWkTxXIyFjo2BJ+d8+904Z7AvZ75v5YAmKsYkVMAgaS75+enV9cvi0RhM8qrv5wcHN3e9O+v7nvdj804eD5uTzNqzjg5aUED7414WHQKWe9zqjd6zWh4z0MPqJ3pR6S1iw1HhhrcGC9U76xO5iKTF/PLnYgFNFZigp117PLpZy5qfVKfaUfzYi0lVjLutha5Yys/c0yAlACKU2BcqUxY4Ae7HQvJAHPblWF24RrIZjyTZPxUcowH00yLEOTDJgcabRYj3mPXmnJz8vpAT3Wdvfqtb/iN3vtFXhHr+1yJRBJSg2bNeURqv+GY+DzmBC2x5X/L1ek6JD9LwWMM8rCXfh8ExDKJa+DftcNTtKWe3CUTDVJUkDhsbu18DPTkOAeGLRvh3XQatUfU+4XMe5myiFV2n/jzWNWCw3CInofOri6OuwPD2vIyNyvZXW94v3w6u8H0CQVUq/eqOKJameGUlb/y118+SvjbVy6irF7O/gy7N99vh3cn8BXKimf1IikmEMLOHnSRyaNxPxqJeQDyuuRQKN82aMhtFrgFlK9om3IKMA8pKG9le5xjRwrRUwG5gxvnh8MVJUpeB3L3u69Ru/pQH/o/AGtjsJ83QcAAA==' | base64 -d | gzip -d > .github/workflows/gate0-promotion-effect-lease.yml
-          rm .github/workflows/workspace-export-effect-entrypoint.yml
-      - name: Verify focused batch
-        run: |
-          python -m pip install -e . pytest
-          python tools/iron_plan_guard.py verify
-          python -m pytest -q tests/kernel/test_sealed_promotion.py tests/kernel/test_effect_leases.py tests/test_effect_boundary.py
-          python -m compileall -q daedalus
-      - name: Commit batch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'daedalus-gate-bot'
-          git config user.email 'daedalus-gate-bot@users.noreply.github.com'
-          git add -A
-          git commit -m 'feat(g0): lease sealed promotion effects'
-          git push origin HEAD:g0/effect-entrypoint-centralization
+          git status --short
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git -czf /tmp/daedalus-checkout.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-effect-entrypoint-checkout
+          path: /tmp/daedalus-checkout.tar.gz
+          if-no-files-found: error
+          retention-days: 1
