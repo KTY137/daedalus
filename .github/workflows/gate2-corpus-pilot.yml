@@ -10,11 +10,13 @@ on:
       - "daedalus/twin/corpus_genesis.py"
       - "daedalus/twin/gate2_report.py"
       - "daedalus/twin/genesis.py"
+      - "daedalus/twin/motifs.py"
       - "configs/corpus/gate2-pilot-v1.json"
       - "tests/twin/test_corpus_manifest.py"
       - "tests/twin/test_capability_matrix.py"
       - "tests/twin/test_corpus_genesis_binding.py"
       - "tests/twin/test_gate2_report.py"
+      - "tests/twin/test_motif_provenance.py"
       - ".github/workflows/gate2-corpus-pilot.yml"
       - "pyproject.toml"
   push:
@@ -53,6 +55,7 @@ jobs:
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
           tests/twin/test_gate2_report.py
+          tests/twin/test_motif_provenance.py
           tests/twin/test_genesis_contracts.py
       - run: >-
           python -m compileall -q
@@ -61,10 +64,12 @@ jobs:
           daedalus/twin/corpus_genesis.py
           daedalus/twin/gate2_report.py
           daedalus/twin/genesis.py
+          daedalus/twin/motifs.py
           tests/twin/test_corpus_manifest.py
           tests/twin/test_capability_matrix.py
           tests/twin/test_corpus_genesis_binding.py
           tests/twin/test_gate2_report.py
+          tests/twin/test_motif_provenance.py
 
   pinned-repositories:
     runs-on: ubuntu-latest
@@ -113,7 +118,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.whl
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.gate2_report import Gate2Report, WorkflowEvidence; print(Gate2Report.__name__, WorkflowEvidence.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.gate2_report import Gate2Report; from daedalus.twin.motifs import MotifProvenance; print(Gate2Report.__name__, MotifProvenance.__name__)"
       - name: Install and import sdist outside checkout
         shell: bash
         run: |
@@ -121,4 +126,4 @@ jobs:
           tmpdir="$(mktemp -d)"
           python -m pip install --target "${tmpdir}" dist/*.tar.gz
           cd /tmp
-          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.gate2_report import build_gate2_report; print(build_gate2_report.__name__)"
+          PYTHONPATH="${tmpdir}" python -c "from daedalus.twin.motifs import CrossRepositoryAlignment; print(CrossRepositoryAlignment.__name__)"
