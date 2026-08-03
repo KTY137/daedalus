@@ -8,6 +8,7 @@ import os
 import stat
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -77,6 +78,12 @@ def _simulate(
     create_marker: bool,
 ):
     _linux_with_docker(tmp_path, monkeypatch)
+    moments = iter((100.0, 100.125))
+    monkeypatch.setattr(
+        executor,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(moments)),
+    )
 
     def invoke(policy, command):
         assert policy.image == executor._IMAGE
@@ -239,6 +246,12 @@ def test_published_files_remain_explicitly_untrusted(
     monkeypatch,
 ) -> None:
     _linux_with_docker(tmp_path, monkeypatch)
+    moments = iter((100.0, 100.125))
+    monkeypatch.setattr(
+        executor,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(moments)),
+    )
 
     def oom(policy, command):
         (policy.candidate_workspace / "oom-started").write_text(
