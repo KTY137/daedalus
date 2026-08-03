@@ -81,7 +81,6 @@ def _begin(ledger: AttemptLedger, captured, parent_digest: str = "4" * 64):
         start_id="start-attempt-adversarial",
         workspace_parent_sha256=parent_digest,
         workspace_relative_path="attempts/attempt-adversarial-fixed",
-        started_at=NOW,
     )
 
 
@@ -151,7 +150,6 @@ def test_terminal_rejects_report_not_present_in_selected_store(tmp_path) -> None
             outcome="failed",
             report=foreign_report,
             candidate_tree=None,
-            completed_at=NOW,
         )
     assert len(ledger.pending()) == 1
 
@@ -181,7 +179,6 @@ def test_terminal_rejects_candidate_not_present_in_selected_store(tmp_path) -> N
             outcome="failed",
             report=report,
             candidate_tree=foreign_candidate,
-            completed_at=NOW,
         )
 
 
@@ -216,7 +213,6 @@ def test_terminal_effect_id_tampering_fails_closed(tmp_path) -> None:
         outcome="failed",
         report=report,
         candidate_tree=None,
-        completed_at=NOW,
     )
     with sqlite3.connect(ledger.path) as connection:
         row = connection.execute(
@@ -247,7 +243,6 @@ def test_persisted_terminal_artifact_is_reverified_on_replay(tmp_path) -> None:
         outcome="failed",
         report=report,
         candidate_tree=None,
-        completed_at=NOW,
     )
     store._object_path(report.sha256).write_bytes(b"corrupt")
 
@@ -272,7 +267,6 @@ def test_constructor_shaped_attempt_and_tree_are_refused(tmp_path) -> None:
             start_id="start-attempt-adversarial",
             workspace_parent_sha256="4" * 64,
             workspace_relative_path="attempts/fake",
-            started_at=NOW,
         )
     fake_tree = SimpleNamespace(manifest=captured.manifest, ref=captured.ref)
     with pytest.raises(Exception, match="StoredSourceTree"):
@@ -282,5 +276,4 @@ def test_constructor_shaped_attempt_and_tree_are_refused(tmp_path) -> None:
             start_id="start-attempt-adversarial",
             workspace_parent_sha256="4" * 64,
             workspace_relative_path="attempts/fake",
-            started_at=NOW,
         )
