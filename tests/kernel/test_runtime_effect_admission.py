@@ -7,7 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 from daedalus.kernel.contracts import EffectLeaseRequest
-from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
+from daedalus.kernel.effects import (
+    EffectExecutionRequest,
+    EffectLeaseBindingMismatch,
+    EffectLeaseLedger,
+)
 from daedalus.kernel.runtime_effects import (
     RuntimeBoundEffectAuthorization,
     RuntimeBoundEffectLease,
@@ -194,7 +198,13 @@ def admitted_ledger(tmp_path, monkeypatch, *, expires_at=None):
     return ledger, record
 
 
-def issue(trust_ledger: RuntimeTrustLedger, *, req=None, expires_at=None, envelope_sha=ENVELOPE_SHA):
+def issue(
+    trust_ledger: RuntimeTrustLedger,
+    *,
+    req=None,
+    expires_at=None,
+    envelope_sha=ENVELOPE_SHA,
+):
     req = req or request()
     policy = decision(req)
     capability = issue_runtime_bound_effect_lease(
