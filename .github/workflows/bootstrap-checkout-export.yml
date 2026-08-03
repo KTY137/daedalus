@@ -1,9 +1,6 @@
 name: Bootstrap checkout export
 
 on:
-  pull_request:
-    branches:
-      - core/fourfold-v2
   push:
     branches:
       - g0/bootstrap-workspace
@@ -37,4 +34,4 @@ jobs:
             ${{ runner.temp }}/daedalus-checkout.tar.gz
             ${{ runner.temp }}/CHECKOUT_HEAD
           if-no-files-found: error
-          retention-days: 2
+          retention-days: 7
