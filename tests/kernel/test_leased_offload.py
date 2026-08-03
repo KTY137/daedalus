@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+from daedalus import metrics
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -125,6 +126,50 @@ def test_live_offload_refuses_before_any_impl_without_lease(tmp_path) -> None:
     impl.assert_not_called()
     assert result["action"] == "effect_lease_required"
     assert result["wrote"] == []
+
+
+@pytest.mark.parametrize(
+    ("availability", "expected_action"),
+    (
+        (
+            {
+                "claude_cli": True,
+                "ollama": True,
+                "deepseek": False,
+                "codex_cli": False,
+            },
+            "would_offload",
+        ),
+        (
+            {
+                "claude_cli": True,
+                "ollama": False,
+                "deepseek": False,
+                "codex_cli": False,
+            },
+            "escalate_to_claude",
+        ),
+    ),
+)
+def test_dry_plan_is_filesystem_inert(
+    tmp_path, monkeypatch, availability, expected_action
+) -> None:
+    """Both planning branches must leave no hidden metrics effect behind."""
+
+    metrics_path = tmp_path / "missing" / "offload-metrics.jsonl"
+    monkeypatch.setattr(metrics, "LOG", metrics_path)
+
+    result = offload(
+        "Draft docstrings for the helper",
+        str(tmp_path),
+        paths=["docs/helper.md"],
+        live=False,
+        availability=availability,
+    )
+
+    assert result["action"] == expected_action
+    assert not metrics_path.exists()
+    assert not metrics_path.parent.exists()
 
 
 def test_valid_lease_executes_once_finishes_and_replay_is_inert(tmp_path) -> None:

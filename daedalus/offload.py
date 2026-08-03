@@ -434,8 +434,12 @@ def _offload_impl(
     def _escalate(note: str, provider: str = "claude_cli") -> dict:
         result["action"] = "escalate_to_claude" if eligible else "senior"
         result["note"] = note
-        metrics.record(provider=provider, action=result["action"], owner=agent["name"],
-                       risk=decision.risk, eligible=eligible, note=note)
+        # Planning is a read-only inspection boundary.  Recording a routing
+        # metric creates a directory and appends a file, so a dry plan must not
+        # do it.  A live, leased call still records the actual outcome below.
+        if live:
+            metrics.record(provider=provider, action=result["action"], owner=agent["name"],
+                           risk=decision.risk, eligible=eligible, note=note)
         return result
 
     if decision.provider not in FREE_LANES:
@@ -443,8 +447,6 @@ def _offload_impl(
 
     if not live:
         result["action"] = "would_offload"
-        metrics.record(provider=decision.provider, action="would_offload",
-                       owner=agent["name"], risk=decision.risk, eligible=True)
         return result
 
     # A live write may only run inside the isolated TaskAttempt worktree that
