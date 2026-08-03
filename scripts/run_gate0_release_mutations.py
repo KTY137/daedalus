@@ -55,6 +55,12 @@ MUTATIONS = (
         "if not set(expected_inputs).issubset(self.provenance.input_digests):",
     ),
     Mutation(
+        "accept-noncanonical-release-wire",
+        "daedalus/gates/release.py",
+        "if original_wire != value.to_dict():",
+        "if False:",
+    ),
+    Mutation(
         "skip-retained-release-reconstruction",
         "daedalus/gates/release_verifier.py",
         "if reconstructed.to_dict() != release.to_dict():",
