@@ -1,22 +1,7 @@
-"""Fourfold-bound, one-use authorization for the sealed promotion boundary.
+"""Fourfold-bound, one-use authorization for sealed promotion.
 
-This packet deliberately stops before applying candidate bytes. It joins the
-existing canonical contracts without creating a second promotion mechanism:
-
-* a passed :class:`~daedalus.schemas.EvidencePacket` must identify the exact
-  candidate source-tree artifact;
-* one deterministic/independent evidence item must retain the exact candidate
-  :class:`~daedalus.twin.contracts.FourfoldSnapshot` digest;
-* the nomination, evidence packet, candidate snapshot, owner approval, base
-  revision and live target HEAD must agree exactly;
-* the authenticated owner approval is consumed once in the existing SQLite
-  replay ledger;
-* the resulting capability must be rechecked against both the ledger and the
-  live target HEAD by the later integration-worktree adapter immediately before
-  mutation.
-
-No function in this module writes a repository, creates a worktree, applies a
-patch, merges a branch, or manufactures an owner decision.
+This module verifies and consumes authority; it never applies candidate bytes,
+creates worktrees, changes refs, merges branches, or manufactures owner input.
 """
 from __future__ import annotations
 
@@ -25,6 +10,7 @@ from datetime import datetime
 from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.approvals import (
+    ApprovalError,
     ApprovalExpectation,
     ApprovalLedger,
     ConsumedOwnerApproval,
@@ -70,7 +56,12 @@ class PromotionCapabilityError(PromotionBoundaryError):
 
 @dataclass(frozen=True)
 class PreparedPromotion:
-    """Immutable binding result before the one-use approval is consumed."""
+    """Immutable binding result before one-use approval consumption.
+
+    This is not independently authoritative. ``consume_prepared_promotion``
+    requires and reauthenticates the original signed ``OwnerApproval`` against
+    every retained field before the ledger can consume it.
+    """
 
     promotion_id: str
     target_ref: str
@@ -88,15 +79,8 @@ class PreparedPromotion:
     verified_approval: VerifiedOwnerApproval
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "promotion_id", _identifier(self.promotion_id, "promotion_id")
-        )
-        object.__setattr__(
-            self, "target_ref", _identifier(self.target_ref, "target_ref")
-        )
-        object.__setattr__(
-            self, "repository_id", _identifier(self.repository_id, "repository_id")
-        )
+        for name in ("promotion_id", "target_ref", "repository_id"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
         for name in (
             "expected_target_revision",
             "base_revision",
@@ -114,9 +98,7 @@ class PreparedPromotion:
         object.__setattr__(
             self,
             "candidate_artifact_locator",
-            _artifact_locator(
-                self.candidate_artifact_locator, "candidate_artifact_locator"
-            ),
+            _artifact_locator(self.candidate_artifact_locator, "candidate_artifact_locator"),
         )
         object.__setattr__(
             self,
@@ -210,35 +192,28 @@ class AuthorizedPromotion:
         return canonical_sha(self.to_dict())
 
 
-def _fourfold_items(evidence: EvidencePacket) -> tuple[Any, ...]:
-    return tuple(
-        item
-        for item in evidence.items
-        if item.evaluator == FOURFOLD_PROMOTION_EVALUATOR
-    )
-
-
 def _require_fourfold_evidence(
     evidence: EvidencePacket,
     snapshot: FourfoldSnapshot,
-    candidate_artifact_sha256: str,
+    candidate_sha256: str,
 ) -> None:
     if evidence.evaluation_status != "passed":
         raise PromotionEvidenceError("promotion requires a passed evidence packet")
-    if evidence.candidate_artifact_sha256 != candidate_artifact_sha256:
+    if evidence.candidate_artifact_sha256 != candidate_sha256:
         raise PromotionBindingMismatch(
             "evidence packet is bound to a different candidate artifact"
         )
-    if evidence.subject_sha256 != candidate_artifact_sha256:
+    if evidence.subject_sha256 != candidate_sha256:
         raise PromotionBindingMismatch(
             "evidence subject must be the exact candidate artifact"
         )
-    expected_locator = f"artifact-locator:sha256:{candidate_artifact_sha256}"
-    if evidence.candidate_artifact_locator != expected_locator:
+    if evidence.candidate_artifact_locator != (
+        f"artifact-locator:sha256:{candidate_sha256}"
+    ):
         raise PromotionBindingMismatch(
             "evidence packet does not retain the exact candidate locator"
         )
-    if snapshot.source_revision != candidate_artifact_sha256:
+    if snapshot.source_revision != candidate_sha256:
         raise PromotionBindingMismatch(
             "candidate FourfoldSnapshot source_revision must equal the candidate "
             "source-tree digest"
@@ -248,7 +223,11 @@ def _require_fourfold_evidence(
             "sealed promotion requires complete code, type, data and knowledge planes"
         )
 
-    items = _fourfold_items(evidence)
+    items = tuple(
+        item
+        for item in evidence.items
+        if item.evaluator == FOURFOLD_PROMOTION_EVALUATOR
+    )
     if len(items) != 1:
         raise PromotionEvidenceError(
             "evidence packet must contain exactly one fourfold.snapshot item"
@@ -266,7 +245,7 @@ def _require_fourfold_evidence(
         )
 
     expected_details = {
-        "candidate_artifact_sha256": candidate_artifact_sha256,
+        "candidate_artifact_sha256": candidate_sha256,
         "snapshot_source_revision": snapshot.source_revision,
         "repository_id": snapshot.repository_id,
         "snapshot_contract_type": snapshot.CONTRACT_TYPE,
@@ -320,11 +299,22 @@ def _require_nomination_bindings(
         raise PromotionBindingMismatch(
             "nomination binding mismatch: " + ", ".join(sorted(mismatches))
         )
-    expected_evidence_locator = f"artifact-locator:sha256:{evidence.digest}"
-    if nomination.evidence_locator != expected_evidence_locator:
+    if nomination.evidence_locator != f"artifact-locator:sha256:{evidence.digest}":
         raise PromotionBindingMismatch(
             "nomination does not retain the exact evidence packet locator"
         )
+
+
+def _expectation(prepared: PreparedPromotion, current_target_revision: str) -> ApprovalExpectation:
+    return ApprovalExpectation(
+        operation="promote-candidate",
+        nomination_receipt_sha256=prepared.nomination_receipt_sha256,
+        candidate_artifact_sha256=prepared.candidate_artifact_sha256,
+        evidence_packet_sha256=prepared.evidence_packet_sha256,
+        base_revision=prepared.base_revision,
+        target_ref=prepared.target_ref,
+        current_target_revision=current_target_revision,
+    )
 
 
 def prepare_promotion(
@@ -355,7 +345,6 @@ def prepare_promotion(
 
     _require_fourfold_evidence(evidence, candidate_snapshot, candidate_sha)
     _require_nomination_bindings(nomination, evidence)
-
     verified = verify_owner_approval(
         approval,
         keyring=keyring,
@@ -391,23 +380,42 @@ def prepare_promotion(
 def consume_prepared_promotion(
     prepared: PreparedPromotion,
     *,
+    approval: OwnerApproval,
+    keyring: Mapping[tuple[str, str], bytes | str],
     ledger: ApprovalLedger,
     current_target_revision: str,
+    now: datetime | None = None,
     consumed_at: datetime | None = None,
 ) -> AuthorizedPromotion:
-    """Recheck the live target and atomically consume the owner approval once."""
+    """Reauthenticate all bindings, recheck HEAD, and atomically consume once."""
 
     current = _revision(current_target_revision, "current_target_revision")
     if current != prepared.expected_target_revision:
         raise PromotionTargetMoved(
             "target HEAD moved after owner approval; refusing capability consumption"
         )
-    if prepared.verified_approval.expected_target_revision != current:
+    if approval.digest != prepared.owner_approval_sha256:
         raise PromotionCapabilityError(
-            "prepared approval retained a contradictory target revision"
+            "prepared promotion is paired with a different signed owner approval"
         )
+    try:
+        reverified = verify_owner_approval(
+            approval,
+            keyring=keyring,
+            expectation=_expectation(prepared, current),
+            now=now,
+        )
+    except ApprovalError as exc:
+        raise PromotionCapabilityError(
+            f"prepared promotion failed approval reauthentication: {exc}"
+        ) from exc
+    if reverified != prepared.verified_approval:
+        raise PromotionCapabilityError(
+            "reauthenticated approval differs from the prepared capability"
+        )
+
     consumed = ledger.consume(
-        prepared.verified_approval,
+        reverified,
         promotion_id=prepared.promotion_id,
         consumed_at=consumed_at,
     )
@@ -436,7 +444,7 @@ def authorize_promotion(
     now: datetime | None = None,
     consumed_at: datetime | None = None,
 ) -> AuthorizedPromotion:
-    """Authenticate, bind and consume one owner capability in one public call."""
+    """Authenticate, bind, reauthenticate, and consume one owner capability."""
 
     prepared = prepare_promotion(
         promotion_id=promotion_id,
@@ -451,8 +459,11 @@ def authorize_promotion(
     )
     return consume_prepared_promotion(
         prepared,
+        approval=approval,
+        keyring=keyring,
         ledger=ledger,
         current_target_revision=current_target_revision,
+        now=now,
         consumed_at=consumed_at,
     )
 
@@ -463,7 +474,7 @@ def assert_authorized_promotion_start(
     ledger: ApprovalLedger,
     current_target_revision: str,
 ) -> None:
-    """Fail closed immediately before the later adapter mutates integration state."""
+    """Fail closed immediately before a later adapter mutates integration state."""
 
     if not ledger.consumed(authorization.prepared.owner_approval_sha256):
         raise PromotionCapabilityError(
@@ -489,18 +500,11 @@ def build_approved_promotion_receipt(
     reasons: Sequence[str],
     provenance: ContractProvenance,
 ) -> PromotionReceipt:
-    """Build the canonical receipt after an integration adapter reports success.
-
-    ``owner_approval_ref`` must locate the serialized ``AuthorizedPromotion``
-    itself, not merely the raw signature. That artifact therefore retains the
-    one-use ledger consumption together with every Fourfold/candidate binding.
-    """
+    """Build the canonical receipt after an integration adapter reports success."""
 
     target_revision = _revision(target_revision, "target_revision")
     expected_ref = f"artifact-locator:sha256:{authorization.digest}"
-    owner_approval_ref = _artifact_locator(
-        owner_approval_ref, "owner_approval_ref"
-    )
+    owner_approval_ref = _artifact_locator(owner_approval_ref, "owner_approval_ref")
     if owner_approval_ref != expected_ref:
         raise PromotionCapabilityError(
             "promotion receipt must reference the exact consumed authorization"
@@ -517,18 +521,10 @@ def build_approved_promotion_receipt(
         )
     return PromotionReceipt(
         promotion_id=authorization.prepared.promotion_id,
-        nomination_receipt_sha256=(
-            authorization.prepared.nomination_receipt_sha256
-        ),
-        candidate_artifact_sha256=(
-            authorization.prepared.candidate_artifact_sha256
-        ),
-        candidate_artifact_locator=(
-            authorization.prepared.candidate_artifact_locator
-        ),
-        evidence_packet_sha256=(
-            authorization.prepared.evidence_packet_sha256
-        ),
+        nomination_receipt_sha256=authorization.prepared.nomination_receipt_sha256,
+        candidate_artifact_sha256=authorization.prepared.candidate_artifact_sha256,
+        candidate_artifact_locator=authorization.prepared.candidate_artifact_locator,
+        evidence_packet_sha256=authorization.prepared.evidence_packet_sha256,
         evidence_locator=authorization.prepared.evidence_locator,
         source_revision=authorization.prepared.base_revision,
         target_revision=target_revision,
