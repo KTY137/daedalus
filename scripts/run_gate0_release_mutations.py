@@ -31,10 +31,10 @@ MUTATIONS = (
         "security_claimed = local_report.security_boundary_claimed",
     ),
     Mutation(
-        "ignore-mechanical-report-artifact-mismatch",
+        "confuse-report-artifact-with-inner-identity",
         "daedalus/gates/release.py",
+        "elif retained_report.content_sha256 != mechanical_artifact_sha:\n        evidence_blockers.add(\"assembly:gate-report-artifact-mismatch\")",
         "elif retained_report.content_sha256 != mechanical_sha:\n        evidence_blockers.add(\"assembly:gate-report-artifact-mismatch\")",
-        "elif False:\n        evidence_blockers.add(\"assembly:gate-report-artifact-mismatch\")",
     ),
     Mutation(
         "drop-owner-decision-blockers",
@@ -81,6 +81,7 @@ MUTATIONS = (
 )
 
 FOCUSED_TESTS = (
+    "tests/gates/test_gate_report.py",
     "tests/gates/test_evidence_trust_bundle.py",
     "tests/gates/test_evidence_trust_bundle_review.py",
     "tests/gates/test_gate0_release_assembly.py",
