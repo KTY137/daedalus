@@ -1,6 +1,9 @@
 name: Automation workspace export
 
 on:
+  pull_request:
+    branches:
+      - g0/effect-leases
   push:
     branches:
       - g0/workspace-export-20260803
