@@ -8,6 +8,7 @@ on:
       - "daedalus/kernel/attempt_workspace.py"
       - "tests/kernel/conftest.py"
       - "tests/kernel/test_isolated_attempt_workspace_root_authority.py"
+      - "tests/kernel/test_isolated_attempt_workspace_identity_review.py"
       - "scripts/run_attempt_workspace_root_authority_mutations.py"
       - "docs/work-packets/G0-ATT-13B4_WORKSPACE_ROOT_AUTHORITY.md"
       - ".github/workflows/g0-attempt-workspace-root-authority.yml"
@@ -46,6 +47,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/kernel/test_isolated_attempt_workspace_root_authority.py
+          tests/kernel/test_isolated_attempt_workspace_identity_review.py
           tests/kernel/test_isolated_attempt_lifecycle.py
           tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
           tests/kernel/test_isolated_attempt_lifecycle_review.py
