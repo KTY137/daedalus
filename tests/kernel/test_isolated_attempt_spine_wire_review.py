@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import sqlite3
 
 import pytest
@@ -34,6 +35,21 @@ def _insert_event(path, intent_id: int, state: str, detail: str) -> None:
             "VALUES (?, ?, ?, ?)",
             (intent_id, state, "2026-08-03T22:30:00+00:00", detail),
         )
+
+
+def test_strict_reader_uses_sqlite_read_only_mode() -> None:
+    source = inspect.getsource(read_attempt_intents)
+    assert "?mode=ro" in source
+    assert "uri=True" in source
+    assert 'PRAGMA query_only=ON' in source
+
+
+def test_read_only_inspection_does_not_create_a_missing_event_store(tmp_path) -> None:
+    path = tmp_path / "missing" / "spine.sqlite3"
+    assert not path.exists()
+    with pytest.raises(AttemptStateError, match="cannot read attempt lifecycle"):
+        read_attempt_intents(path)
+    assert not path.exists()
 
 
 def test_attempt_ledger_refuses_a_read_only_spine_as_write_authority(tmp_path) -> None:
