@@ -208,7 +208,9 @@ def test_consumption_reauthenticates_signed_approval_and_retains_all_bindings(
     assert consumed.verified.base_revision == SHA["base"]
     assert consumed.verified.expected_target_revision == SHA["target"]
     assert consumed.expectation_sha256 == _expectation().digest
-    assert ledger.verify_consumption(consumed) == consumed
+    assert ledger.verify_consumption(
+        consumed, keyring=_keyring()
+    ) == consumed
     assert ledger.consumed(approval.digest)
 
 
@@ -333,7 +335,7 @@ def test_consumption_receipt_rejects_tampering_and_unpersisted_forgery(
         consumption_sha256=canonical_sha(payload),
     )
     with pytest.raises(ApprovalStateError, match="not persisted"):
-        ledger.verify_consumption(forged)
+        ledger.verify_consumption(forged, keyring=_keyring())
 
 
 def test_corrupt_or_row_mismatched_persisted_consumption_fails_closed(
@@ -351,7 +353,7 @@ def test_corrupt_or_row_mismatched_persisted_consumption_fails_closed(
             ("{", approval.digest),
         )
     with pytest.raises(ApprovalStateError, match="corrupt"):
-        ledger.verify_consumption(consumed)
+        ledger.verify_consumption(consumed, keyring=_keyring())
 
     path2 = tmp_path / "approvals-row.sqlite3"
     ledger2 = _ledger(path2)
@@ -363,7 +365,7 @@ def test_corrupt_or_row_mismatched_persisted_consumption_fails_closed(
             ("f" * 64, approval.digest),
         )
     with pytest.raises(ApprovalStateError, match="persisted authority"):
-        ledger2.verify_consumption(consumed2)
+        ledger2.verify_consumption(consumed2, keyring=_keyring())
 
 
 def test_corrupt_replay_ledger_and_malformed_consumed_query_fail_closed(
@@ -376,6 +378,72 @@ def test_corrupt_replay_ledger_and_malformed_consumed_query_fail_closed(
     ledger = _ledger(tmp_path / "clean.sqlite3")
     with pytest.raises(ValueError, match="sha256"):
         ledger.consumed("not-a-digest")
+
+
+def test_legacy_consumption_rows_require_explicit_migration(tmp_path) -> None:
+    path = tmp_path / "approvals.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE owner_approval_consumptions (
+                approval_sha256 TEXT
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO owner_approval_consumptions VALUES (?)",
+            ("a" * 64,),
+        )
+    with pytest.raises(ApprovalStateError, match="explicit migration"):
+        ApprovalLedger(path)
+
+
+def test_ledger_clock_must_be_monotonic(tmp_path) -> None:
+    approval = _approval()
+    instants = iter(
+        (
+            NOW + timedelta(seconds=2),
+            NOW + timedelta(seconds=1),
+        )
+    )
+    ledger = ApprovalLedger(
+        tmp_path / "backwards.sqlite3",
+        clock=lambda: next(instants),
+    )
+    with pytest.raises(ApprovalStateError, match="moved backwards"):
+        _consume(ledger, approval)
+    assert not ledger.consumed(approval.digest)
+
+
+def test_persisted_approval_and_expectation_bytes_are_reauthenticated(
+    tmp_path,
+) -> None:
+    approval = _approval()
+    path = tmp_path / "approvals.sqlite3"
+    ledger = _ledger(path)
+    consumed = _consume(ledger, approval)
+    with sqlite3.connect(path) as connection:
+        approval_payload = json.loads(
+            connection.execute(
+                "SELECT approval_json FROM owner_approval_consumptions_v2"
+            ).fetchone()[0]
+        )
+        approval_payload["candidate_artifact_sha256"] = "a" * 64
+        connection.execute(
+            "UPDATE owner_approval_consumptions_v2 SET approval_json=?",
+            (
+                json.dumps(
+                    approval_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            ),
+        )
+    with pytest.raises(
+        (ApprovalSignatureError, ApprovalStateError),
+        match="signature mismatch|persisted authority",
+    ):
+        ledger.verify_consumption(consumed, keyring=_keyring())
 
 
 def test_secret_strength_expiry_order_and_promotion_id_are_enforced(
