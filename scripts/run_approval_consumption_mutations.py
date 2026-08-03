@@ -18,9 +18,14 @@ class Mutation:
 
 MUTATIONS = (
     Mutation(
-        "accept-constructed-verified-record",
-        "        if not isinstance(approval, OwnerApproval):\n            raise TypeError(\"consumption requires the signed OwnerApproval\")\n",
-        "        if False:\n            raise TypeError(\"consumption requires the signed OwnerApproval\")\n",
+        "bypass-owner-signature",
+        "    if not hmac.compare_digest(approval.signature_sha256, expected_signature):\n",
+        "    if False:\n",
+    ),
+    Mutation(
+        "ignore-approval-expectation-mismatch",
+        "    if mismatches:\n",
+        "    if False:\n",
     ),
     Mutation(
         "ignore-backwards-ledger-clock",
@@ -36,11 +41,6 @@ MUTATIONS = (
         "accept-nonempty-legacy-ledger",
         "                if legacy_count:\n",
         "                if False:\n",
-    ),
-    Mutation(
-        "skip-persisted-signature-reauthentication",
-        "        if not hmac.compare_digest(\n            stored_approval.signature_sha256,\n",
-        "        if False and not hmac.compare_digest(\n            stored_approval.signature_sha256,\n",
     ),
     Mutation(
         "ignore-persisted-capability-mismatch",
