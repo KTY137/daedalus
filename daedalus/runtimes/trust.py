@@ -2,10 +2,10 @@
 
 A caller can construct canonical contracts in memory, so an ``authority``
 string is not authentication. Production lease issuance must additionally
-receive the exact probe-identity digest from an independently protected source
-such as an exact-head gate report, signed live-probe index, or owner-controlled
-configuration. This module performs that final allow-list check before the
-structural verifier runs.
+receive the exact *envelope* digest from an independently protected source such
+as an exact-head gate report, signed live-probe index, or owner-controlled
+configuration. Trusting only a probe identity would still permit a different
+receipt to be repackaged around the same binary and environment.
 """
 from __future__ import annotations
 
@@ -31,18 +31,18 @@ def verify_production_runtime_envelope(
     receipt: RuntimeConformanceReceipt,
     manifest: RuntimeManifest,
     *,
-    trusted_probe_sha256s: Iterable[str],
+    trusted_envelope_sha256s: Iterable[str],
     now,
 ) -> None:
-    """Require an externally trusted live-probe digest, then verify bindings."""
+    """Require an externally trusted exact envelope, then verify all bindings."""
 
     trusted = {
-        _sha256(value, "trusted_probe_sha256")
-        for value in trusted_probe_sha256s
+        _sha256(value, "trusted_envelope_sha256")
+        for value in trusted_envelope_sha256s
     }
-    if identity.digest not in trusted:
+    if envelope.digest not in trusted:
         raise RuntimeConformanceError(
-            "live runtime probe identity is not present in the trusted probe set"
+            "runtime conformance envelope is not present in the trusted evidence set"
         )
     verify_runtime_envelope(
         envelope,
