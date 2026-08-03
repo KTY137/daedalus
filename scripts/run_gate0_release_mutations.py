@@ -73,6 +73,7 @@ FOCUSED_TESTS = (
     "tests/gates/test_evidence_trust_bundle_review.py",
     "tests/gates/test_gate0_release_assembly.py",
     "tests/gates/test_gate0_release_verifier.py",
+    "tests/gates/test_gate0_release_review.py",
 )
 
 
