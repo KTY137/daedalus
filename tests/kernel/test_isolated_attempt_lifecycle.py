@@ -101,7 +101,6 @@ def test_start_is_persisted_before_external_materialization_and_primary_is_uncha
         _attempt(),
         captured,
         start_id="start-attempt-1",
-        started_at=NOW,
     )
 
     assert prepared.begin.execute is True
@@ -118,22 +117,12 @@ def test_start_is_persisted_before_external_materialization_and_primary_is_uncha
 def test_pending_restart_never_reexecutes_or_rematerializes(tmp_path) -> None:
     _primary_root, _store, captured, ledger, coordinator = _environment(tmp_path)
     attempt = _attempt()
-    first = coordinator.prepare(
-        attempt,
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    first = coordinator.prepare(attempt, captured, start_id="start-attempt-1")
     assert first.workspace is not None
     marker = first.workspace / "runtime-marker.txt"
     marker.write_text("must survive pending replay\n", encoding="utf-8")
 
-    replay = coordinator.prepare(
-        attempt,
-        captured,
-        start_id="start-attempt-1",
-        started_at=LATER,
-    )
+    replay = coordinator.prepare(attempt, captured, start_id="start-attempt-1")
 
     assert replay.begin.execute is False
     assert replay.begin.pending_reconciliation is True
@@ -145,12 +134,7 @@ def test_pending_restart_never_reexecutes_or_rematerializes(tmp_path) -> None:
 def test_terminal_replay_returns_persisted_receipt_without_workspace(tmp_path) -> None:
     _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
     attempt = _attempt()
-    first = coordinator.prepare(
-        attempt,
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    first = coordinator.prepare(attempt, captured, start_id="start-attempt-1")
     assert first.workspace is not None
     first.workspace.joinpath("src/event.py").write_text(
         "class Event:\n    bias_voltage = 5\n",
@@ -170,15 +154,9 @@ def test_terminal_replay_returns_persisted_receipt_without_workspace(tmp_path) -
         outcome="succeeded",
         report=_report(store),
         candidate_tree=candidate,
-        completed_at=LATER,
     )
 
-    replay = coordinator.prepare(
-        attempt,
-        captured,
-        start_id="start-attempt-1",
-        started_at="2026-08-03T21:32:00+00:00",
-    )
+    replay = coordinator.prepare(attempt, captured, start_id="start-attempt-1")
 
     assert replay.begin.execute is False
     assert replay.workspace is None
@@ -186,14 +164,9 @@ def test_terminal_replay_returns_persisted_receipt_without_workspace(tmp_path) -
     assert ledger.pending() == ()
 
 
-def test_terminal_completion_is_idempotent_across_new_completion_timestamp(tmp_path) -> None:
+def test_terminal_completion_is_idempotent_across_repeated_calls(tmp_path) -> None:
     _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
-    prepared = coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    prepared = coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     report = _report(store, "failed")
     first = ledger.complete(
         prepared.begin.start,
@@ -201,7 +174,6 @@ def test_terminal_completion_is_idempotent_across_new_completion_timestamp(tmp_p
         outcome="failed",
         report=report,
         candidate_tree=None,
-        completed_at=LATER,
     )
     second = ledger.complete(
         prepared.begin.start,
@@ -209,36 +181,20 @@ def test_terminal_completion_is_idempotent_across_new_completion_timestamp(tmp_p
         outcome="failed",
         report=report,
         candidate_tree=None,
-        completed_at="2026-08-03T21:35:00+00:00",
     )
     assert second == first
 
 
 def test_changed_replay_material_is_refused(tmp_path) -> None:
-    _primary_root, _store, captured, ledger, coordinator = _environment(tmp_path)
-    coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    _primary_root, _store, captured, _ledger, coordinator = _environment(tmp_path)
+    coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     with pytest.raises(AttemptReplay, match="different material"):
-        coordinator.prepare(
-            _attempt(),
-            captured,
-            start_id="different-start-id",
-            started_at=LATER,
-        )
+        coordinator.prepare(_attempt(), captured, start_id="different-start-id")
 
 
 def test_success_requires_candidate_and_candidate_revision_must_bind(tmp_path) -> None:
     _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
-    prepared = coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    prepared = coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     with pytest.raises(ValueError, match="successful attempt"):
         ledger.complete(
             prepared.begin.start,
@@ -246,7 +202,6 @@ def test_success_requires_candidate_and_candidate_revision_must_bind(tmp_path) -
             outcome="succeeded",
             report=_report(store),
             candidate_tree=None,
-            completed_at=LATER,
         )
     foreign = store.capture_tree(
         prepared.workspace,
@@ -262,32 +217,20 @@ def test_success_requires_candidate_and_candidate_revision_must_bind(tmp_path) -
             outcome="failed",
             report=_report(store),
             candidate_tree=foreign,
-            completed_at=LATER,
         )
 
 
 def test_new_attempt_identity_is_required_after_failure(tmp_path) -> None:
     _primary_root, store, captured, ledger, coordinator = _environment(tmp_path)
-    failed = coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=NOW,
-    )
+    failed = coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     ledger.complete(
         failed.begin.start,
         receipt_id="terminal-attempt-1",
         outcome="failed",
         report=_report(store, "failed"),
         candidate_tree=None,
-        completed_at=LATER,
     )
-    old = coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=LATER,
-    )
+    old = coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     assert old.begin.execute is False
     assert old.begin.completion.receipt.outcome == "failed"
 
@@ -295,7 +238,6 @@ def test_new_attempt_identity_is_required_after_failure(tmp_path) -> None:
         _attempt(attempt_id="attempt-2"),
         captured,
         start_id="start-attempt-2",
-        started_at=LATER,
     )
     assert restarted.begin.execute is True
     assert restarted.workspace is not None
@@ -313,7 +255,6 @@ def test_only_one_concurrent_begin_can_execute(tmp_path) -> None:
             start_id="start-attempt-1",
             workspace_parent_sha256=coordinator.workspace_parent_sha256,
             workspace_relative_path=f"attempts/{attempt.attempt_id}-{attempt.digest[:16]}",
-            started_at=NOW,
         )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
@@ -352,12 +293,7 @@ def test_stale_input_revision_refuses_before_start(tmp_path) -> None:
         created_at=NOW,
     )
     with pytest.raises(AttemptBindingMismatch, match="input source tree revision"):
-        coordinator.prepare(
-            _attempt(),
-            stale,
-            start_id="start-attempt-1",
-            started_at=NOW,
-        )
+        coordinator.prepare(_attempt(), stale, start_id="start-attempt-1")
     assert ledger.pending() == ()
 
 
@@ -371,18 +307,8 @@ def test_materialization_failure_is_terminalized_but_process_abort_remains_pendi
 
     monkeypatch.setattr(store, "materialize_tree", fail_materialization)
     with pytest.raises(AttemptWorkspaceError, match="terminalized"):
-        coordinator.prepare(
-            _attempt(),
-            captured,
-            start_id="start-attempt-1",
-            started_at=NOW,
-        )
-    replay = coordinator.prepare(
-        _attempt(),
-        captured,
-        start_id="start-attempt-1",
-        started_at=LATER,
-    )
+        coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
+    replay = coordinator.prepare(_attempt(), captured, start_id="start-attempt-1")
     assert replay.begin.completion.receipt.outcome == "faulted"
     assert ledger.pending() == ()
 
@@ -393,10 +319,5 @@ def test_materialization_failure_is_terminalized_but_process_abort_remains_pendi
 
     monkeypatch.setattr(store, "materialize_tree", abort_materialization)
     with pytest.raises(KeyboardInterrupt):
-        coordinator.prepare(
-            second,
-            captured,
-            start_id="start-attempt-2",
-            started_at=LATER,
-        )
+        coordinator.prepare(second, captured, start_id="start-attempt-2")
     assert [start.attempt_id for start in ledger.pending()] == ["attempt-2"]
