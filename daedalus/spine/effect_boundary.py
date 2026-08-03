@@ -250,6 +250,76 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes="Canonical attempt path, but direct Python callers do not yet obtain a boundary receipt.",
     ),
     EntrypointSpec(
+        id="python.attempt_lifecycle_begin",
+        surface=Surface.PYTHON,
+        target="daedalus.kernel.attempt_ledger:AttemptLedger.begin",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("spine.intent_ledger", "containment.attempt"),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kernel.attempt_ledger:AttemptLedger.begin",
+                "record_intent",
+            ),
+        ),
+        notes=(
+            "Persists one canonical Attempt start in the shared Event Store after "
+            "exact source-tree and workspace binding checks."
+        ),
+        migration=(
+            "Require the exact persisted EffectLease, runtime-conformance authority "
+            "and Docker sandbox capability before upgrading this lifecycle write to central."
+        ),
+    ),
+    EntrypointSpec(
+        id="python.attempt_lifecycle_complete",
+        surface=Surface.PYTHON,
+        target="daedalus.kernel.attempt_ledger:AttemptLedger.complete",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("spine.intent_ledger", "containment.attempt"),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kernel.attempt_ledger:AttemptLedger.complete",
+                "mark_completed",
+            ),
+        ),
+        notes=(
+            "Persists the single terminal Attempt receipt in the same canonical "
+            "Event Store and rebinds all retained CAS material."
+        ),
+        migration=(
+            "Require the exact persisted EffectLease, runtime-conformance authority "
+            "and Docker sandbox capability before upgrading this lifecycle write to central."
+        ),
+    ),
+    EntrypointSpec(
+        id="python.attempt_workspace_prepare",
+        surface=Surface.PYTHON,
+        target="daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("spine.intent_ledger", "containment.attempt"),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare",
+                "begin",
+            ),
+            GuardAnchor(
+                "daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare",
+                "materialize_tree",
+            ),
+        ),
+        notes=(
+            "Creates only a checkout-external workspace after protected-topology "
+            "preflight and a durable canonical Attempt start."
+        ),
+        migration=(
+            "Require the exact persisted EffectLease, Runtime Manifest, current "
+            "RuntimeConformanceReceipt and Docker sandbox before upgrading to central."
+        ),
+    ),
+    EntrypointSpec(
         id="python.offload",
         surface=Surface.PYTHON,
         target="daedalus.offload:offload",
@@ -1034,6 +1104,16 @@ def _direct_effects(
 
 
 def _class_surface(model: _ModuleModel, class_name: str) -> Surface | None:
+    if (
+        model.module == "daedalus.kernel.attempt_ledger"
+        and class_name == "AttemptLedger"
+    ):
+        return Surface.PYTHON
+    if (
+        model.module == "daedalus.kernel.attempt_workspace"
+        and class_name == "IsolatedAttemptCoordinator"
+    ):
+        return Surface.PYTHON
     bases = model.class_bases.get(class_name, ())
     if any(base.endswith("BaseHTTPRequestHandler") for base in bases):
         return Surface.WEB_API
@@ -1057,6 +1137,18 @@ def _surface_for_function(model: _ModuleModel, qualname: str) -> Surface | None:
     if "." in qualname:
         class_name, method = qualname.split(".", 1)
         surface = _class_surface(model, class_name)
+        if (
+            surface is Surface.PYTHON
+            and model.module == "daedalus.kernel.attempt_ledger"
+            and qualname in {"AttemptLedger.begin", "AttemptLedger.complete"}
+        ):
+            return surface
+        if (
+            surface is Surface.PYTHON
+            and model.module == "daedalus.kernel.attempt_workspace"
+            and qualname == "IsolatedAttemptCoordinator.prepare"
+        ):
+            return surface
         if surface is Surface.WEB_API and method in {"do_POST", "do_PUT", "do_DELETE"}:
             return surface
         if surface is Surface.WORKTREE and method in _WORKTREE_METHODS:
