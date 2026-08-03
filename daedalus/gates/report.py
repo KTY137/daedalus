@@ -16,14 +16,52 @@ from daedalus.spine.effect_boundary import (
 )
 
 _SCHEMA = "daedalus-gate-report/1"
+_REPORT_ARRAY_FIELDS = (
+    "unregistered_effectful_entrypoints",
+    "unguarded_entrypoints",
+    "inventory_only_production_entrypoints",
+    "missing_guard_contracts",
+    "runtime_conformance_failures",
+    "fault_injection_failures",
+    "primary_checkout_mutations",
+    "diagnostics",
+)
+_REPORT_WIRE_FIELDS = frozenset(
+    {
+        "schema",
+        "gate",
+        "source_revision",
+        "registry_sha256",
+        "closed",
+        "security_boundary_claimed",
+        *_REPORT_ARRAY_FIELDS,
+        "owner_approval_enforced",
+        "blockers",
+        "report_sha256",
+    }
+)
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-def _sorted_unique(values: Iterable[str]) -> tuple[str, ...]:
-    return tuple(sorted(set(values)))
+def _sorted_unique(values: Iterable[str], field_name: str) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)):
+        raise ValueError(f"{field_name} must be an iterable of strings")
+    retained = tuple(values)
+    if any(not isinstance(value, str) or not value for value in retained):
+        raise ValueError(f"{field_name} must contain non-empty strings")
+    return tuple(sorted(set(retained)))
+
+
+def _wire_string_array(wire: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
+    value = wire[field_name]
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item for item in value
+    ):
+        raise ValueError(f"{field_name} must be an array of non-empty strings")
+    return tuple(value)
 
 
 @dataclass(frozen=True)
@@ -43,28 +81,30 @@ class GateReport:
     diagnostics: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.gate != 0:
-            raise ValueError("this report implementation currently supports Gate 0 only")
-        if not self.source_revision or len(self.source_revision) > 200:
+        if type(self.gate) is not int or self.gate != 0:
+            raise ValueError("this report implementation currently supports integer Gate 0 only")
+        if not isinstance(self.source_revision, str) or not self.source_revision or len(self.source_revision) > 200:
             raise ValueError("source_revision must be a non-empty bounded string")
-        if len(self.registry_sha256) != 64:
+        if not isinstance(self.registry_sha256, str) or len(self.registry_sha256) != 64:
             raise ValueError("registry_sha256 must be a sha256 hex digest")
-        int(self.registry_sha256, 16)
-        for name in (
-            "unregistered_effectful_entrypoints",
-            "unguarded_entrypoints",
-            "inventory_only_production_entrypoints",
-            "missing_guard_contracts",
-            "runtime_conformance_failures",
-            "fault_injection_failures",
-            "primary_checkout_mutations",
-            "diagnostics",
-        ):
-            object.__setattr__(self, name, _sorted_unique(getattr(self, name)))
+        try:
+            int(self.registry_sha256, 16)
+        except ValueError as exc:
+            raise ValueError("registry_sha256 must be a sha256 hex digest") from exc
+        if type(self.security_boundary_claimed) is not bool:
+            raise ValueError("security_boundary_claimed must be boolean")
+        if type(self.owner_approval_enforced) is not bool:
+            raise ValueError("owner_approval_enforced must be boolean")
+        for name in _REPORT_ARRAY_FIELDS:
+            object.__setattr__(
+                self,
+                name,
+                _sorted_unique(getattr(self, name), name),
+            )
 
     @property
     def closed(self) -> bool:
-        return bool(
+        return (
             self.security_boundary_claimed
             and self.owner_approval_enforced
             and not self.blockers
@@ -113,30 +153,63 @@ class GateReport:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "GateReport":
-        if payload.get("schema") != _SCHEMA:
+        if not isinstance(payload, Mapping):
+            raise ValueError("gate report root must be an object")
+        wire = dict(payload)
+        if set(wire) != _REPORT_WIRE_FIELDS:
+            missing = sorted(_REPORT_WIRE_FIELDS - set(wire))
+            unknown = sorted(set(wire) - _REPORT_WIRE_FIELDS)
+            raise ValueError(
+                "gate report fields must match the canonical wire"
+                f"; missing={missing}; unknown={unknown}"
+            )
+        if wire["schema"] != _SCHEMA:
             raise ValueError("unsupported gate report schema")
-        expected = payload.get("report_sha256")
-        if expected is not None:
-            body = dict(payload)
-            body.pop("report_sha256", None)
-            actual = hashlib.sha256(_canonical_json(body).encode()).hexdigest()
-            if expected != actual:
-                raise ValueError("gate report digest mismatch")
-        return cls(
-            gate=int(payload["gate"]),
-            source_revision=str(payload["source_revision"]),
-            registry_sha256=str(payload["registry_sha256"]),
-            security_boundary_claimed=bool(payload["security_boundary_claimed"]),
-            unregistered_effectful_entrypoints=tuple(payload.get("unregistered_effectful_entrypoints", ())),
-            unguarded_entrypoints=tuple(payload.get("unguarded_entrypoints", ())),
-            inventory_only_production_entrypoints=tuple(payload.get("inventory_only_production_entrypoints", ())),
-            missing_guard_contracts=tuple(payload.get("missing_guard_contracts", ())),
-            runtime_conformance_failures=tuple(payload.get("runtime_conformance_failures", ())),
-            fault_injection_failures=tuple(payload.get("fault_injection_failures", ())),
-            primary_checkout_mutations=tuple(payload.get("primary_checkout_mutations", ())),
-            owner_approval_enforced=bool(payload.get("owner_approval_enforced", False)),
-            diagnostics=tuple(payload.get("diagnostics", ())),
+        if type(wire["gate"]) is not int:
+            raise ValueError("gate must be an integer")
+        if not isinstance(wire["source_revision"], str):
+            raise ValueError("source_revision must be a string")
+        if not isinstance(wire["registry_sha256"], str):
+            raise ValueError("registry_sha256 must be a string")
+        if type(wire["security_boundary_claimed"]) is not bool:
+            raise ValueError("security_boundary_claimed must be boolean")
+        if type(wire["owner_approval_enforced"]) is not bool:
+            raise ValueError("owner_approval_enforced must be boolean")
+        if type(wire["closed"]) is not bool:
+            raise ValueError("closed must be boolean")
+        if not isinstance(wire["report_sha256"], str) or len(wire["report_sha256"]) != 64:
+            raise ValueError("report_sha256 must be a sha256 hex digest")
+        try:
+            int(wire["report_sha256"], 16)
+        except ValueError as exc:
+            raise ValueError("report_sha256 must be a sha256 hex digest") from exc
+        arrays = {
+            field_name: _wire_string_array(wire, field_name)
+            for field_name in (*_REPORT_ARRAY_FIELDS, "blockers")
+        }
+        body = dict(wire)
+        expected = body.pop("report_sha256")
+        actual = hashlib.sha256(_canonical_json(body).encode()).hexdigest()
+        if expected != actual:
+            raise ValueError("gate report digest mismatch")
+        value = cls(
+            gate=wire["gate"],
+            source_revision=wire["source_revision"],
+            registry_sha256=wire["registry_sha256"],
+            security_boundary_claimed=wire["security_boundary_claimed"],
+            unregistered_effectful_entrypoints=arrays["unregistered_effectful_entrypoints"],
+            unguarded_entrypoints=arrays["unguarded_entrypoints"],
+            inventory_only_production_entrypoints=arrays["inventory_only_production_entrypoints"],
+            missing_guard_contracts=arrays["missing_guard_contracts"],
+            runtime_conformance_failures=arrays["runtime_conformance_failures"],
+            fault_injection_failures=arrays["fault_injection_failures"],
+            primary_checkout_mutations=arrays["primary_checkout_mutations"],
+            owner_approval_enforced=wire["owner_approval_enforced"],
+            diagnostics=arrays["diagnostics"],
         )
+        if wire != value.to_dict():
+            raise ValueError("gate report must use the exact canonical wire")
+        return value
 
 
 def render_gate_report(report: GateReport) -> str:
