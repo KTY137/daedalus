@@ -139,6 +139,20 @@ class GateReport:
         )
 
 
+def render_gate_report(report: GateReport) -> str:
+    """Return the exact UTF-8 text emitted by the read-only Gate-report CLI."""
+
+    if not isinstance(report, GateReport):
+        raise ValueError("report must be GateReport")
+    return json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
+
+
+def gate_report_artifact_sha256(report: GateReport) -> str:
+    """Hash the exact serialized Gate-report artifact bytes, not its inner digest."""
+
+    return hashlib.sha256(render_gate_report(report).encode("utf-8")).hexdigest()
+
+
 def build_gate0_report(
     repo_root: Path,
     *,
