@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
-from .report import build_gate0_report
+from .report import build_gate0_report, render_gate_report
 
 
 def main() -> int:
@@ -17,8 +16,7 @@ def main() -> int:
     args = parser.parse_args()
 
     result = build_gate0_report(args.repo_root, source_revision=args.source_revision)
-    text = json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n"
-    print(text, end="")
+    print(render_gate_report(result), end="")
     return 0
 
 
