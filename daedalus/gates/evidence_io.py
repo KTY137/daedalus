@@ -3,7 +3,8 @@
 Dataclass ``from_dict`` methods are useful for already typed internal values,
 but untrusted JSON requires shape checks before any tuple/list coercion. This
 module is the supported file/wire entrypoint and rejects duplicate object keys,
-strings repackaged as arrays, and malformed nested records.
+strings repackaged as arrays, malformed nested records, and noncanonical wires
+that would otherwise normalize into the same evidence identity.
 """
 from __future__ import annotations
 
@@ -87,11 +88,15 @@ def _validate_shape(payload: Mapping[str, Any]) -> None:
 
 
 def parse_gate_evidence_index(payload: Mapping[str, Any]) -> GateEvidenceIndex:
-    """Parse one untrusted mapping after strict recursive wire-shape checks."""
+    """Parse only the exact canonical evidence-index wire representation."""
 
     record = _object(payload, "Gate evidence index")
     _validate_shape(record)
-    return GateEvidenceIndex.from_dict(record)
+    wire = dict(record)
+    index = GateEvidenceIndex.from_dict(wire)
+    if wire != index.to_dict():
+        raise ValueError("Gate evidence index must use its exact canonical wire form")
+    return index
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
