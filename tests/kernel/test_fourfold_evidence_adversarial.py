@@ -29,18 +29,6 @@ def _sha(value: str | bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _tree_digest(root: Path) -> str:
-    digest = hashlib.sha256()
-    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
-        relative = path.relative_to(root).as_posix().encode("utf-8")
-        payload = path.read_bytes()
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
-
-
 def _base():
     compiled = compile_reference_project(
         FIXTURE,
@@ -49,7 +37,7 @@ def _base():
         trace_id="g0-fourfold-adversarial",
     )
     snapshot = compiled.snapshot
-    candidate_sha = _tree_digest(FIXTURE)
+    candidate_sha = compiled.source_bundle_sha256
     locator = f"artifact-locator:sha256:{candidate_sha}"
     expectation = FourfoldEvidenceExpectation(
         candidate_artifact_sha256=candidate_sha,
@@ -79,7 +67,7 @@ def _base():
         created_at=NOW.isoformat(),
         trace_id="g0-fourfold-adversarial",
     )
-    return snapshot, candidate_sha, locator, expectation, packet, nomination
+    return compiled, candidate_sha, locator, expectation, packet, nomination
 
 
 def _provenance_with(provenance: ContractProvenance, *digests: str) -> ContractProvenance:
@@ -92,7 +80,7 @@ def _provenance_with(provenance: ContractProvenance, *digests: str) -> ContractP
     )
 
 
-def _partial_snapshot(snapshot: FourfoldSnapshot) -> FourfoldSnapshot:
+def _partial_snapshot(snapshot: FourfoldSnapshot, candidate_sha: str) -> FourfoldSnapshot:
     planes = list(snapshot.planes)
     original = planes[0]
     planes[0] = PlaneSnapshot(
@@ -111,6 +99,7 @@ def _partial_snapshot(snapshot: FourfoldSnapshot) -> FourfoldSnapshot:
         input_digests=tuple(
             sorted(
                 {
+                    candidate_sha,
                     snapshot.source_forest_sha256,
                     *(plane.digest for plane in planes),
                     *(binding.digest for binding in snapshot.bindings),
@@ -130,7 +119,7 @@ def _partial_snapshot(snapshot: FourfoldSnapshot) -> FourfoldSnapshot:
 
 
 def test_valid_but_foreign_subject_is_refused() -> None:
-    snapshot, _, _, expectation, packet, _ = _base()
+    compiled, _, _, expectation, packet, _ = _base()
     foreign_subject = _sha("foreign-subject")
     substituted = dataclasses.replace(
         packet,
@@ -141,13 +130,13 @@ def test_valid_but_foreign_subject_is_refused() -> None:
     with pytest.raises(FourfoldEvidenceMismatch, match="subject"):
         verify_fourfold_evidence_packet(
             substituted,
-            snapshot=snapshot,
+            snapshot=compiled.snapshot,
             expectation=expectation,
         )
 
 
 def test_constructor_bypass_object_is_rebuilt_and_refused() -> None:
-    snapshot, _, _, expectation, packet, _ = _base()
+    compiled, _, _, expectation, packet, _ = _base()
     forged = object.__new__(EvidencePacket)
     for field in dataclasses.fields(packet):
         object.__setattr__(forged, field.name, getattr(packet, field.name))
@@ -156,14 +145,14 @@ def test_constructor_bypass_object_is_rebuilt_and_refused() -> None:
     with pytest.raises((FourfoldEvidenceMismatch, ValueError)):
         verify_fourfold_evidence_packet(
             forged,
-            snapshot=snapshot,
+            snapshot=compiled.snapshot,
             expectation=expectation,
         )
 
 
 def test_partial_snapshot_cannot_enter_default_gate_evidence() -> None:
-    snapshot, candidate_sha, locator, _, _, _ = _base()
-    partial = _partial_snapshot(snapshot)
+    compiled, candidate_sha, locator, _, _, _ = _base()
+    partial = _partial_snapshot(compiled.snapshot, candidate_sha)
 
     with pytest.raises(FourfoldEvidenceMismatch, match="incomplete_planes"):
         assemble_fourfold_evidence_packet(
@@ -179,8 +168,49 @@ def test_partial_snapshot_cannot_enter_default_gate_evidence() -> None:
         )
 
 
+def test_structurally_valid_snapshot_without_candidate_provenance_is_refused() -> None:
+    compiled, candidate_sha, locator, _, _, _ = _base()
+    snapshot = compiled.snapshot
+    unbound = FourfoldSnapshot(
+        repository_id=snapshot.repository_id,
+        source_revision=snapshot.source_revision,
+        source_forest_sha256=snapshot.source_forest_sha256,
+        planes=snapshot.planes,
+        bindings=snapshot.bindings,
+        provenance=ContractProvenance(
+            origin="tests.unbound-fourfold-snapshot",
+            source_revision=snapshot.source_revision,
+            created_at=NOW.isoformat(),
+            input_digests=tuple(
+                sorted(
+                    {
+                        snapshot.source_forest_sha256,
+                        *(plane.digest for plane in snapshot.planes),
+                        *(binding.digest for binding in snapshot.bindings),
+                    }
+                )
+            ),
+            trace_id="g0-fourfold-unbound",
+        ),
+    )
+
+    assert candidate_sha not in unbound.provenance.input_digests
+    with pytest.raises(FourfoldEvidenceMismatch, match="provenance.*candidate"):
+        assemble_fourfold_evidence_packet(
+            snapshot=unbound,
+            candidate_artifact_sha256=candidate_sha,
+            candidate_artifact_locator=locator,
+            packet_id="unbound-fourfold-packet",
+            mission_id="g0-fourfold-adversarial",
+            attempt_id="g0-fourfold-adversarial-attempt",
+            attempt_contract_sha256=_sha("attempt"),
+            policy_decision_sha256=_sha("policy"),
+            collected_at=NOW.isoformat(),
+        )
+
+
 def test_nomination_with_foreign_evidence_digest_is_refused() -> None:
-    snapshot, _, _, expectation, packet, nomination = _base()
+    compiled, _, _, expectation, packet, nomination = _base()
     foreign_packet = _sha("foreign-evidence-packet")
     substituted = dataclasses.replace(
         nomination,
@@ -192,26 +222,26 @@ def test_nomination_with_foreign_evidence_digest_is_refused() -> None:
         verify_fourfold_nomination_receipt(
             substituted,
             packet=packet,
-            snapshot=snapshot,
+            snapshot=compiled.snapshot,
             expectation=expectation,
         )
 
 
 def test_same_candidate_from_stale_revision_is_refused() -> None:
-    snapshot, candidate_sha, locator, expectation, packet, _ = _base()
-    stale = compile_reference_project(
+    compiled, candidate_sha, locator, expectation, packet, _ = _base()
+    stale_compiled = compile_reference_project(
         FIXTURE,
         source_revision="c" * 40,
         created_at=NOW.isoformat(),
         trace_id="g0-fourfold-adversarial-stale",
-    ).snapshot
+    )
 
-    assert _tree_digest(FIXTURE) == candidate_sha
-    assert stale.digest != snapshot.digest
+    assert stale_compiled.source_bundle_sha256 == candidate_sha
+    assert stale_compiled.snapshot.digest != compiled.snapshot.digest
     assert locator.endswith(candidate_sha)
     with pytest.raises(FourfoldEvidenceMismatch, match="source_revision|expected_snapshot"):
         verify_fourfold_evidence_packet(
             packet,
-            snapshot=stale,
+            snapshot=stale_compiled.snapshot,
             expectation=expectation,
         )
