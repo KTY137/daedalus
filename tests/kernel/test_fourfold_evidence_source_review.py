@@ -51,14 +51,15 @@ def test_consumer_rebuilds_all_three_canonical_artifacts() -> None:
     assert "rebuilt != nomination" in source
 
 
-def test_gate_policy_requires_complete_planes_by_default() -> None:
-    expectation = target.FourfoldEvidenceExpectation
-    signature = inspect.signature(expectation)
-
-    assert signature.parameters["require_complete"].default is True
+def test_gate_policy_has_no_partial_snapshot_bypass_switch() -> None:
+    expectation = inspect.signature(target.FourfoldEvidenceExpectation)
+    assembler = inspect.signature(target.assemble_fourfold_evidence_packet)
     verifier = inspect.getsource(target.verify_fourfold_evidence_packet)
-    assert "expectation.require_complete" in verifier
+
+    assert "require_complete" not in expectation.parameters
+    assert "require_complete" not in assembler.parameters
     assert 'plane.status != "complete"' in verifier
+    assert "if incomplete:" in verifier
 
 
 def test_nomination_verifier_pins_candidate_evidence_and_policy() -> None:
