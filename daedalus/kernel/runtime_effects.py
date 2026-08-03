@@ -496,6 +496,10 @@ class RuntimeBoundEffectAuthorization:
         output_digests: Iterable[str] = (),
         detail_sha256: str | None = None,
     ) -> EffectTerminalReceipt:
+        if start_receipt.lease_sha256 != self.capability.lease.digest:
+            raise EffectLeaseBindingMismatch(
+                "start receipt belongs to a different runtime effect lease"
+            )
         return self.effect_ledger.finish(
             start_receipt,
             outcome=outcome,
