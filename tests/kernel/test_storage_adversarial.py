@@ -15,6 +15,7 @@ from daedalus.kernel.storage import (
     EventStore,
     ZERO_EVENT_SHA256,
 )
+from daedalus.spine.envelope import canonical_json
 
 SUBJECT = "a" * 64
 
@@ -37,6 +38,31 @@ def test_cas_rejects_noncanonical_json_and_symlinked_prefix(tmp_path: Path) -> N
         pytest.skip("symlink creation is unavailable on this platform")
     with pytest.raises(ArtifactCorrupt):
         store.put_bytes(b"redirect")
+
+
+def test_cas_refuses_existing_symlink_even_when_target_bytes_match(
+    tmp_path: Path,
+) -> None:
+    store = ContentAddressedStore(tmp_path / "cas")
+    data = b"linked"
+    digest = hashlib.sha256(data).hexdigest()
+    destination = store._path(digest)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "outside-blob"
+    outside.write_bytes(data)
+    try:
+        destination.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+    with pytest.raises(ArtifactCorrupt, match="symbolic link"):
+        store.put_bytes(data)
+
+
+def test_cas_nonfinite_json_read_is_artifact_corruption(tmp_path: Path) -> None:
+    store = ContentAddressedStore(tmp_path / "cas")
+    raw = store.put_bytes(b"NaN")
+    with pytest.raises(ArtifactCorrupt, match="finite JSON"):
+        store.get_json(raw.sha256)
 
 
 def test_cas_failed_publication_leaves_no_visible_or_temporary_blob(
@@ -103,6 +129,101 @@ def test_event_payload_and_chain_tampering_are_detected(tmp_path: Path) -> None:
     connection.close()
     reader = EventStore(path, read_only=True)
     with pytest.raises(EventCorrupt):
+        reader.read_stream("s")
+
+
+def test_append_refuses_corrupt_existing_stream(tmp_path: Path) -> None:
+    path = tmp_path / "events.sqlite3"
+    store = EventStore(path)
+    first = store.append(
+        event_id="e1",
+        stream_id="s",
+        kind="created",
+        subject_sha256=SUBJECT,
+        payload={"ok": True},
+        expected_head_sha256=ZERO_EVENT_SHA256,
+    )
+    store.close()
+
+    connection = sqlite3.connect(path)
+    connection.execute("UPDATE events SET payload_json='{}' WHERE event_id='e1'")
+    connection.commit()
+    connection.close()
+
+    restarted = EventStore(path)
+    with pytest.raises(EventCorrupt):
+        restarted.append(
+            event_id="e2",
+            stream_id="s",
+            kind="next",
+            subject_sha256=SUBJECT,
+            payload={},
+            expected_head_sha256=first.event_sha256,
+        )
+
+
+def test_event_store_refuses_declared_version_with_wrong_table_shape(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "events.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE kernel_storage_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    )
+    connection.execute(
+        "INSERT INTO kernel_storage_meta VALUES('schema_version','1')"
+    )
+    connection.execute(
+        "CREATE TABLE events(sequence INTEGER PRIMARY KEY, event_id TEXT)"
+    )
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(EventCorrupt, match="shape"):
+        EventStore(path, read_only=True)
+
+
+def test_event_read_refuses_noncanonical_payload_with_recomputed_hashes(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "events.sqlite3"
+    store = EventStore(path)
+    event = store.append(
+        event_id="e1",
+        stream_id="s",
+        kind="created",
+        subject_sha256=SUBJECT,
+        payload={"a": 1},
+        expected_head_sha256=ZERO_EVENT_SHA256,
+        created_at="2026-08-03T20:00:00Z",
+    )
+    store.close()
+
+    payload_json = '{"a": 1}'
+    payload_sha256 = hashlib.sha256(payload_json.encode("ascii")).hexdigest()
+    body = {
+        "event_id": "e1",
+        "stream_id": "s",
+        "kind": "created",
+        "subject_sha256": SUBJECT,
+        "payload_sha256": payload_sha256,
+        "created_at": event.created_at,
+        "previous_event_sha256": ZERO_EVENT_SHA256,
+    }
+    event_sha256 = hashlib.sha256(
+        canonical_json(body).encode("ascii")
+    ).hexdigest()
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "UPDATE events SET payload_json=?, payload_sha256=?, event_sha256=? "
+        "WHERE event_id='e1'",
+        (payload_json, payload_sha256, event_sha256),
+    )
+    connection.commit()
+    connection.close()
+
+    reader = EventStore(path, read_only=True)
+    with pytest.raises(EventCorrupt, match="canonically"):
         reader.read_stream("s")
 
 
