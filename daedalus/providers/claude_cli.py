@@ -2,7 +2,7 @@
 
 The public provider method cannot invoke Claude from ambient authority. It
 requires one exact :class:`RuntimeBoundEffectAuthorization`, one narrowed
-:class:`EffectExecutionRequest`, and an isolated-workspace grant tied to the
+:class:`EffectExecutionRequest`, and an isolated-workspace binding tied to the
 same request, execution, attempt, source revision, and invocation payload. The
 generic broker persists grant/start state, suppresses exact replay, rechecks
 runtime trust, retains output identities, and commits terminal state before a
@@ -58,12 +58,13 @@ class ClaudeInvocationBindingMismatch(RuntimeError):
 
 @dataclass(frozen=True)
 class ClaudeWorkspaceGrant:
-    """Narrow caller-to-provider binding for one already-created worktree.
+    """Structural binding for one already-created isolated worktree.
 
-    This is not a substitute for the persisted runtime and Effect-Lease
-    authorities. It closes the accidental path-substitution seam between the
-    attempt that requested the lease and the directory handed to Claude. The
-    request/execution identities make stale or recombined grants fail closed.
+    This record is deliberately not described as an authority. The persisted
+    runtime trust record and Effect Lease are the security authorities; this
+    value closes accidental request/execution/path recombination inside the
+    adapter. Canonical registry activation still requires an authenticated
+    attempt-workspace capability supplied by the attempt ledger boundary.
     """
 
     attempt_id: str
@@ -74,9 +75,9 @@ class ClaudeWorkspaceGrant:
 
     def __post_init__(self) -> None:
         if not isinstance(self.attempt_id, str) or not self.attempt_id.strip():
-            raise ValueError("Claude workspace grant requires an attempt_id")
+            raise ValueError("Claude workspace binding requires an attempt_id")
         if not isinstance(self.source_revision, str) or not self.source_revision.strip():
-            raise ValueError("Claude workspace grant requires a source_revision")
+            raise ValueError("Claude workspace binding requires a source_revision")
         for name in ("request_sha256", "execution_sha256"):
             value = getattr(self, name)
             if (
@@ -84,18 +85,35 @@ class ClaudeWorkspaceGrant:
                 or len(value) != 64
                 or any(char not in "0123456789abcdef" for char in value)
             ):
-                raise ValueError(f"Claude workspace grant {name} must be lowercase SHA-256")
+                raise ValueError(
+                    f"Claude workspace binding {name} must be lowercase SHA-256"
+                )
         if not isinstance(self.worktree, str) or not self.worktree.strip():
-            raise ValueError("Claude workspace grant requires a worktree path")
+            raise ValueError("Claude workspace binding requires a worktree path")
+
+
+def _required_text(value: Any, name: str, *, max_length: int) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    if len(value) > max_length:
+        raise ValueError(f"{name} exceeds {max_length} characters")
+    return value
 
 
 def _normalize_paths(paths: list[str]) -> list[str]:
+    if not isinstance(paths, list):
+        raise ClaudeProviderScopeMismatch("Claude paths must be a list")
     normalized: list[str] = []
     for index, raw in enumerate(paths):
         if not isinstance(raw, str) or not raw.strip():
             raise ClaudeProviderScopeMismatch(f"Claude path hint {index} is empty")
+        if "\x00" in raw:
+            raise ClaudeProviderScopeMismatch(
+                f"Claude path hint {index} contains a NUL byte"
+            )
         candidate = PurePosixPath(raw.replace("\\", "/"))
-        if candidate.is_absolute() or ".." in candidate.parts:
+        drive_qualified = bool(candidate.parts and ":" in candidate.parts[0])
+        if candidate.is_absolute() or drive_qualified or ".." in candidate.parts:
             raise ClaudeProviderScopeMismatch(
                 f"Claude path hint {raw!r} escapes the isolated worktree"
             )
@@ -120,6 +138,24 @@ def claude_invocation_sha256(
 ) -> str:
     """Canonical identity callers must bind into the execution idempotency key."""
 
+    objective = _required_text(objective, "objective", max_length=16000)
+    model = _required_text(model, "model", max_length=200)
+    attempt_id = _required_text(attempt_id, "attempt_id", max_length=200)
+    source_revision = _required_text(
+        source_revision,
+        "source_revision",
+        max_length=64,
+    )
+    if (
+        not isinstance(request_sha256, str)
+        or len(request_sha256) != 64
+        or any(char not in "0123456789abcdef" for char in request_sha256)
+    ):
+        raise ValueError("request_sha256 must be lowercase SHA-256")
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, int) or timeout_s <= 0:
+        raise ValueError("timeout_s must be a positive integer")
+    if not isinstance(agent, Mapping):
+        raise ValueError("agent must be a mapping")
     try:
         resolved_worktree = str(Path(worktree).expanduser().resolve(strict=True))
     except (OSError, RuntimeError, ValueError) as exc:
@@ -191,20 +227,20 @@ def _resolve_workspace(
 ) -> Path:
     if grant.attempt_id != authorization.request.attempt_id:
         raise ClaudeProviderWorkspaceMismatch(
-            "Claude workspace grant belongs to a different attempt"
+            "Claude workspace binding belongs to a different attempt"
         )
     expected_revision = authorization.request.provenance.source_revision
     if grant.source_revision != expected_revision:
         raise ClaudeProviderWorkspaceMismatch(
-            "Claude workspace grant belongs to a different source revision"
+            "Claude workspace binding belongs to a different source revision"
         )
     if grant.request_sha256 != authorization.request.digest:
         raise ClaudeProviderWorkspaceMismatch(
-            "Claude workspace grant belongs to a different lease request"
+            "Claude workspace binding belongs to a different lease request"
         )
     if grant.execution_sha256 != execution.digest:
         raise ClaudeProviderWorkspaceMismatch(
-            "Claude workspace grant belongs to a different execution request"
+            "Claude workspace binding belongs to a different execution request"
         )
     try:
         supplied = Path(repo_root).expanduser().resolve(strict=True)
@@ -215,11 +251,11 @@ def _resolve_workspace(
         ) from exc
     if not supplied.is_dir() or supplied != granted:
         raise ClaudeProviderWorkspaceMismatch(
-            "Claude repo_root is not the exact granted worktree"
+            "Claude repo_root is not the exact bound worktree"
         )
-    # For Daedalus self-work this is the structural no-primary-checkout fence.
-    # For another repository the attempt-owned exact-path grant above remains
-    # the relevant identity binding.
+    # This closes Daedalus self-work structurally. A generic target-repository
+    # primary-tree proof must come from the authenticated attempt capability
+    # required before the canonical provider row may become CENTRAL.
     assert_write_allowed(supplied, what="Claude runtime workspace")
     return supplied
 
@@ -299,7 +335,7 @@ class ClaudeCLIProvider(Provider):
             )
         if workspace_grant is None:
             raise ClaudeProviderAuthorizationRequired(
-                "Claude live execution requires an exact isolated-workspace grant"
+                "Claude live execution requires an exact isolated-workspace binding"
             )
         normalized_paths = _validate_execution_shape(effect_execution, paths)
         workspace = _resolve_workspace(
