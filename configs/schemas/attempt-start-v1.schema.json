@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/attempt-start-v1.schema.json",
+  "title": "Daedalus Attempt Start v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "start_id",
+    "attempt_id",
+    "attempt_sha256",
+    "source_revision",
+    "input_tree",
+    "workspace_parent_sha256",
+    "workspace_relative_path",
+    "started_at",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.attempt-start"},
+    "contract_version": {"const": "1.0.0"},
+    "start_id": {"$ref": "#/$defs/identifier"},
+    "attempt_id": {"$ref": "#/$defs/identifier"},
+    "attempt_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "input_tree": {"$ref": "#/$defs/artifactRef"},
+    "workspace_parent_sha256": {"$ref": "#/$defs/sha256"},
+    "workspace_relative_path": {
+      "type": "string",
+      "pattern": "^attempts/[A-Za-z0-9._/-]+$",
+      "maxLength": 500
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "locator"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "locator": {
+          "type": "string",
+          "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "trace_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/identifier"}
+          ]
+        }
+      }
+    }
+  }
+}
