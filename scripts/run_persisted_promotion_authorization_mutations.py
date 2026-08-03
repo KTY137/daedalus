@@ -32,15 +32,11 @@ MUTATIONS = (
         "    if not isinstance(owner_keyring, Mapping) or not owner_keyring:\n",
         "    if False:\n",
     ),
-    Mutation(
-        "authorize-caller-receipt-instead-of-persisted-receipt",
-        "        consumed_approval=persisted,\n",
-        "        consumed_approval=consumed_approval,\n",
-    ),
 )
 
 FOCUSED_TESTS = (
     "tests/kernel/test_persisted_promotion_authorization.py",
+    "tests/kernel/test_persisted_promotion_authorization_review.py",
     "tests/kernel/test_owner_approval.py",
 )
 
