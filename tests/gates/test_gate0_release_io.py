@@ -92,6 +92,17 @@ def test_derived_and_nested_claims_cannot_be_repacked(tmp_path: Path) -> None:
         parse_gate0_release_report(nested)
 
 
+def test_normalizable_but_noncanonical_provenance_order_is_refused(tmp_path: Path) -> None:
+    release = _release(tmp_path)
+    payload = release.to_dict()
+    inputs = payload["provenance"]["input_digests"]
+    assert len(inputs) > 1
+    payload["provenance"]["input_digests"] = list(reversed(inputs))
+
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        parse_gate0_release_report(payload)
+
+
 def test_invalid_utf8_and_trailing_json_are_refused(tmp_path: Path) -> None:
     invalid_utf8 = tmp_path / "invalid-utf8.json"
     invalid_utf8.write_bytes(b"{\xff}")
