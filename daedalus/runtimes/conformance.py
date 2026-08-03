@@ -7,6 +7,7 @@ are registered and leased effect boundaries.
 """
 from __future__ import annotations
 
+import math
 import os
 import tempfile
 import time
@@ -69,7 +70,11 @@ class RuntimeProbeRequest:
         outside_canary = Path(self.outside_canary).resolve(strict=True)
         if not workspace.is_dir():
             raise ValueError("runtime probe workspace must be a directory")
-        if workspace in outside_canary.parents or outside_canary in workspace.parents:
+        if (
+            workspace == outside_canary
+            or workspace in outside_canary.parents
+            or outside_canary in workspace.parents
+        ):
             raise ValueError("outside canary must not be inside the runtime workspace")
         object.__setattr__(self, "workspace", workspace)
         object.__setattr__(self, "outside_canary", outside_canary)
@@ -143,7 +148,7 @@ def _event_shape(events: Sequence[RuntimeProbeEvent]) -> tuple[str, ...]:
 
 def _valid_event_order(events: Sequence[RuntimeProbeEvent]) -> bool:
     sequences = [event.sequence for event in events]
-    return sequences == sorted(sequences) and len(set(sequences)) == len(sequences)
+    return sequences == list(range(len(sequences)))
 
 
 def _wait_for_kind(
@@ -183,6 +188,7 @@ def run_runtime_conformance(
     routed through the applicable effect boundary in production.
     """
 
+    normalized_receipt_id = _identifier(receipt_id, "receipt_id")
     if manifest.runtime_id != adapter.runtime_id:
         raise RuntimeBindingError("runtime manifest does not match adapter runtime_id")
     if manifest.source_revision != expected_source_revision:
@@ -192,8 +198,13 @@ def run_runtime_conformance(
         ("timeout_probe_s", timeout_probe_s),
         ("cancellation_grace_s", cancellation_grace_s),
     ):
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
-            raise ValueError(f"{name} must be positive")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            or value <= 0
+        ):
+            raise ValueError(f"{name} must be a finite positive number")
 
     parent = Path(workspace_parent) if workspace_parent is not None else None
     if parent is not None:
@@ -202,6 +213,7 @@ def run_runtime_conformance(
             raise ValueError("workspace_parent must be an existing directory")
 
     started_at = clock()
+    started_at_text = _iso(started_at)
     checks: list[ConformanceCheck] = []
 
     def retain(
@@ -259,7 +271,7 @@ def run_runtime_conformance(
         try:
             normal_session = adapter.start(
                 RuntimeProbeRequest(
-                    run_id=f"{receipt_id}-normal",
+                    run_id=f"{normalized_receipt_id}-normal",
                     runtime_id=manifest.runtime_id,
                     mode="normal",
                     workspace=workspace,
@@ -276,13 +288,24 @@ def run_runtime_conformance(
 
         event_order_ok = _valid_event_order(normal_events)
         shapes = _event_shape(normal_events)
-        started = bool(normal_events and normal_events[0].kind == "started")
+        started_events = [event for event in normal_events if event.kind == "started"]
+        finished_events = [event for event in normal_events if event.kind == "finished"]
+        lifecycle_ok = (
+            len(started_events) == 1
+            and normal_events
+            and normal_events[0].kind == "started"
+            and len(finished_events) == 1
+            and normal_events[-1].kind == "finished"
+            and finished_events[0].payload.get("status") == "passed"
+        )
         retain(
             "start",
-            started and normal_exit == 0 and event_order_ok and not normal_errors,
-            "runtime starts once, emits ordered parseable events, and exits successfully",
+            lifecycle_ok and normal_exit == 0 and event_order_ok and not normal_errors,
+            "runtime starts once, emits a contiguous parseable lifecycle, and exits successfully",
             {
-                "started_first": started,
+                "lifecycle_ok": lifecycle_ok,
+                "started_count": len(started_events),
+                "finished_count": len(finished_events),
                 "exit_code": normal_exit,
                 "event_order_ok": event_order_ok,
                 "parse_error_count": len(normal_errors),
@@ -308,21 +331,27 @@ def run_runtime_conformance(
 
         tool_started = [event for event in normal_events if event.kind == "tool.started"]
         tool_finished = [event for event in normal_events if event.kind == "tool.finished"]
+        started_tool = tool_started[0].payload.get("tool") if tool_started else None
+        finished_tool = tool_finished[0].payload.get("tool") if tool_finished else None
         paired = (
             len(tool_started) == 1
             and len(tool_finished) == 1
+            and tool_started[0].sequence < tool_finished[0].sequence
             and tool_started[0].payload.get("call_id")
             == tool_finished[0].payload.get("call_id")
+            and started_tool == finished_tool
+            and started_tool in manifest.declared_tools
             and tool_finished[0].payload.get("status") == "ok"
         )
         retain(
             "tool-events",
             manifest.capabilities.tool_events and paired,
-            "declared tools expose paired provider-neutral start/finish events",
+            "declared tools expose ordered, paired provider-neutral start/finish events",
             {
                 "declared": manifest.capabilities.tool_events,
                 "started_count": len(tool_started),
                 "finished_count": len(tool_finished),
+                "tool_declared": started_tool in manifest.declared_tools,
                 "paired": paired,
             },
         )
@@ -341,25 +370,6 @@ def run_runtime_conformance(
                 "declared": manifest.capabilities.structured_output,
                 "count": len(structured),
                 "value": structured_value,
-            },
-        )
-
-        output = workspace / "fixture-output.txt"
-        outside_unchanged = canary.is_file() and canary.read_bytes() == canary_before
-        retain(
-            "workspace-isolation",
-            manifest.capabilities.workspace_isolation
-            and manifest.capabilities.workspace_write
-            and "isolated-worktree" in manifest.workspace_modes
-            and output.is_file()
-            and output.read_text(encoding="utf-8") == "fixture\n"
-            and outside_unchanged,
-            "writes remain in the declared isolated workspace and preserve an outside canary",
-            {
-                "declared_isolation": manifest.capabilities.workspace_isolation,
-                "declared_write": manifest.capabilities.workspace_write,
-                "inside_output": output.is_file(),
-                "outside_canary_unchanged": outside_unchanged,
             },
         )
 
@@ -391,7 +401,7 @@ def run_runtime_conformance(
         try:
             timeout_session = adapter.start(
                 RuntimeProbeRequest(
-                    run_id=f"{receipt_id}-timeout",
+                    run_id=f"{normalized_receipt_id}-timeout",
                     runtime_id=manifest.runtime_id,
                     mode="hang",
                     workspace=workspace,
@@ -426,7 +436,7 @@ def run_runtime_conformance(
         try:
             cancellation_session = adapter.start(
                 RuntimeProbeRequest(
-                    run_id=f"{receipt_id}-cancel",
+                    run_id=f"{normalized_receipt_id}-cancel",
                     runtime_id=manifest.runtime_id,
                     mode="hang",
                     workspace=workspace,
@@ -456,24 +466,44 @@ def run_runtime_conformance(
             },
         )
 
+        output = workspace / "fixture-output.txt"
+        outside_unchanged = canary.is_file() and canary.read_bytes() == canary_before
+        retain(
+            "workspace-isolation",
+            manifest.capabilities.workspace_isolation
+            and manifest.capabilities.workspace_write
+            and "isolated-worktree" in manifest.workspace_modes
+            and output.is_file()
+            and output.read_text(encoding="utf-8") == "fixture\n"
+            and outside_unchanged,
+            "all fixture phases remain in the declared workspace and preserve an outside canary",
+            {
+                "declared_isolation": manifest.capabilities.workspace_isolation,
+                "declared_write": manifest.capabilities.workspace_write,
+                "inside_output": output.is_file(),
+                "outside_canary_unchanged": outside_unchanged,
+            },
+        )
+
     finished_at = clock()
+    finished_at_text = _iso(finished_at)
     status = "passed" if all(check.passed for check in checks) else "failed"
     evidence_digests = tuple(check.evidence_sha256 for check in checks)
     provenance = ContractProvenance(
         origin="runtime-conformance-harness",
         source_revision=manifest.source_revision,
-        created_at=_iso(finished_at),
+        created_at=finished_at_text,
         input_digests=tuple(sorted({manifest.digest, *evidence_digests})),
-        trace_id=receipt_id,
+        trace_id=normalized_receipt_id,
     )
     return RuntimeConformanceReceipt(
-        receipt_id=receipt_id,
+        receipt_id=normalized_receipt_id,
         runtime_manifest_sha256=manifest.digest,
         source_revision=manifest.source_revision,
         status=status,
         checks=tuple(checks),
-        started_at=_iso(started_at),
-        finished_at=_iso(finished_at),
+        started_at=started_at_text,
+        finished_at=finished_at_text,
         usage=usage,
         provenance=provenance,
     )
