@@ -1,10 +1,11 @@
-"""Narrow capability facade for non-runtime persisted Effect Leases.
+"""Strict capability facade for non-runtime persisted Effect Leases.
 
-The existing :mod:`daedalus.kernel.effects` module is the persistence and
-validation authority.  This module only packages the exact request, policy,
-keys, guards and ledger that a production entrypoint must consume.  It does
-not issue leases, perform external effects or weaken the separate
-``RuntimeBoundEffectAuthorization`` path.
+The existing :mod:`daedalus.kernel.effects` module remains the persistence and
+validation authority. This additive facade retains stricter construction
+invariants for newly migrated production entrypoints while the compatibility
+``LeasedEffectAuthorization`` import remains available during the strangler
+migration. It never issues leases, performs external effects or weakens the
+separate runtime-bound path.
 """
 from __future__ import annotations
 
@@ -35,11 +36,11 @@ def _utc_now() -> datetime:
 
 
 @dataclass(frozen=True)
-class LeasedEffectAuthorization:
+class NonRuntimeEffectAuthorization:
     """Complete non-runtime capability consumed by one effectful entrypoint.
 
-    Runtime-bearing registry rows are deliberately refused here.  They must
-    use :class:`daedalus.kernel.runtime_effects.RuntimeBoundEffectAuthorization`
+    Runtime-bearing registry rows are deliberately refused here. They must use
+    :class:`daedalus.kernel.runtime_effects.RuntimeBoundEffectAuthorization`
     so a generic caller cannot omit live runtime-trust rechecks.
     """
 
@@ -64,7 +65,7 @@ class LeasedEffectAuthorization:
             self.request.runtime_conformance_sha256 is not None
         ):
             raise EffectLeaseBindingMismatch(
-                "generic effect authorization cannot carry runtime evidence"
+                "non-runtime effect authorization cannot carry runtime evidence"
             )
         if self.lease.request_sha256 != self.request.digest:
             raise EffectLeaseBindingMismatch(
@@ -157,4 +158,4 @@ class LeasedEffectAuthorization:
         )
 
 
-__all__ = ["LeasedEffectAuthorization"]
+__all__ = ["NonRuntimeEffectAuthorization"]
