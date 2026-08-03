@@ -167,6 +167,26 @@ def _wait_for_kind(
     return False
 
 
+def _force_stop(
+    session: RuntimeProbeSession,
+    *,
+    label: str,
+    grace_s: float,
+) -> None:
+    """Best-effort cleanup that fails hard if an adapter leaves work alive."""
+
+    if not session.running:
+        return
+    try:
+        session.cancel(grace_s)
+    except Exception as exc:
+        raise RuntimeConformanceError(
+            f"{label} cleanup raised {type(exc).__name__}"
+        ) from exc
+    if session.running:
+        raise RuntimeConformanceError(f"{label} remained live after cancellation")
+
+
 def run_runtime_conformance(
     manifest: RuntimeManifest,
     adapter: RuntimeFixtureAdapter,
@@ -189,6 +209,8 @@ def run_runtime_conformance(
     """
 
     normalized_receipt_id = _identifier(receipt_id, "receipt_id")
+    if len(normalized_receipt_id) > 190:
+        raise ValueError("receipt_id is too long for derived fixture run IDs")
     if manifest.runtime_id != adapter.runtime_id:
         raise RuntimeBindingError("runtime manifest does not match adapter runtime_id")
     if manifest.source_revision != expected_source_revision:
@@ -283,8 +305,12 @@ def run_runtime_conformance(
             normal_errors = normal_session.parse_errors
         except Exception as exc:
             normal_exception = type(exc).__name__
-            if normal_session is not None and normal_session.running:
-                normal_session.cancel()
+            if normal_session is not None:
+                _force_stop(
+                    normal_session,
+                    label="normal runtime session",
+                    grace_s=cancellation_grace_s,
+                )
 
         event_order_ok = _valid_event_order(normal_events)
         shapes = _event_shape(normal_events)
@@ -292,7 +318,7 @@ def run_runtime_conformance(
         finished_events = [event for event in normal_events if event.kind == "finished"]
         lifecycle_ok = (
             len(started_events) == 1
-            and normal_events
+            and bool(normal_events)
             and normal_events[0].kind == "started"
             and len(finished_events) == 1
             and normal_events[-1].kind == "finished"
@@ -395,7 +421,7 @@ def run_runtime_conformance(
         )
 
         timeout_passed = False
-        timeout_dead = False
+        timeout_dead_before_cleanup = False
         timeout_error = ""
         timeout_session: RuntimeProbeSession | None = None
         try:
@@ -412,25 +438,38 @@ def run_runtime_conformance(
                 timeout_session.wait(timeout_probe_s)
             except RuntimeProbeTimeout:
                 timeout_passed = True
-            timeout_dead = not timeout_session.running
+            timeout_dead_before_cleanup = not timeout_session.running
+            _force_stop(
+                timeout_session,
+                label="timeout runtime session",
+                grace_s=cancellation_grace_s,
+            )
+        except RuntimeConformanceError:
+            raise
         except Exception as exc:
             timeout_error = type(exc).__name__
-            if timeout_session is not None and timeout_session.running:
-                timeout_session.cancel()
+            if timeout_session is not None:
+                _force_stop(
+                    timeout_session,
+                    label="timeout runtime session",
+                    grace_s=cancellation_grace_s,
+                )
         retain(
             "timeout",
-            manifest.capabilities.timeout and timeout_passed and timeout_dead,
+            manifest.capabilities.timeout
+            and timeout_passed
+            and timeout_dead_before_cleanup,
             "declared timeout terminates a hung runtime within the outer bound",
             {
                 "declared": manifest.capabilities.timeout,
                 "timeout_raised": timeout_passed,
-                "process_dead": timeout_dead,
+                "process_dead_before_cleanup": timeout_dead_before_cleanup,
                 "exception": timeout_error,
             },
         )
 
         cancellation_started = False
-        cancellation_dead = False
+        cancellation_dead_before_cleanup = False
         cancellation_error = ""
         cancellation_session: RuntimeProbeSession | None = None
         try:
@@ -447,21 +486,32 @@ def run_runtime_conformance(
                 cancellation_session, "started", timeout_s=1.0
             )
             cancellation_session.cancel(cancellation_grace_s)
-            cancellation_dead = not cancellation_session.running
+            cancellation_dead_before_cleanup = not cancellation_session.running
+            _force_stop(
+                cancellation_session,
+                label="cancellation runtime session",
+                grace_s=cancellation_grace_s,
+            )
+        except RuntimeConformanceError:
+            raise
         except Exception as exc:
             cancellation_error = type(exc).__name__
-            if cancellation_session is not None and cancellation_session.running:
-                cancellation_session.cancel()
+            if cancellation_session is not None:
+                _force_stop(
+                    cancellation_session,
+                    label="cancellation runtime session",
+                    grace_s=cancellation_grace_s,
+                )
         retain(
             "cancellation",
             manifest.capabilities.cancellation
             and cancellation_started
-            and cancellation_dead,
+            and cancellation_dead_before_cleanup,
             "declared cancellation stops an already-started runtime process",
             {
                 "declared": manifest.capabilities.cancellation,
                 "started": cancellation_started,
-                "process_dead": cancellation_dead,
+                "process_dead_before_cleanup": cancellation_dead_before_cleanup,
                 "exception": cancellation_error,
             },
         )
