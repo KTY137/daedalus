@@ -13,6 +13,7 @@ from ..schemas import (
     CanonicalContract,
     ContractProvenance,
     _identifier,
+    _optional_text,
     _record_payload,
     _require_provenance_inputs,
     _revision,
@@ -81,9 +82,14 @@ class PlaneDelta:
     candidate_plane_sha256: str
     base_status: str
     candidate_status: str
+    base_reason: str | None = None
+    candidate_reason: str | None = None
     added_node_ids: tuple[str, ...] = ()
     removed_node_ids: tuple[str, ...] = ()
     retained_node_ids: tuple[str, ...] = ()
+    added_relation_sha256s: tuple[str, ...] = ()
+    removed_relation_sha256s: tuple[str, ...] = ()
+    retained_relation_sha256s: tuple[str, ...] = ()
     added_evidence_sha256s: tuple[str, ...] = ()
     removed_evidence_sha256s: tuple[str, ...] = ()
     retained_evidence_sha256s: tuple[str, ...] = ()
@@ -102,6 +108,20 @@ class PlaneDelta:
             "candidate_status",
             _status(self.candidate_status, "candidate_status"),
         )
+        object.__setattr__(
+            self,
+            "base_reason",
+            _optional_text(self.base_reason, "base_reason", max_length=2000),
+        )
+        object.__setattr__(
+            self,
+            "candidate_reason",
+            _optional_text(
+                self.candidate_reason,
+                "candidate_reason",
+                max_length=2000,
+            ),
+        )
         for field_name in (
             "added_node_ids",
             "removed_node_ids",
@@ -113,6 +133,9 @@ class PlaneDelta:
                 _node_ids(getattr(self, field_name), field_name),
             )
         for field_name in (
+            "added_relation_sha256s",
+            "removed_relation_sha256s",
+            "retained_relation_sha256s",
             "added_evidence_sha256s",
             "removed_evidence_sha256s",
             "retained_evidence_sha256s",
@@ -129,19 +152,35 @@ class PlaneDelta:
         ):
             raise ValueError("plane node partitions must be pairwise disjoint")
         if not _pairwise_disjoint(
+            self.added_relation_sha256s,
+            self.removed_relation_sha256s,
+            self.retained_relation_sha256s,
+        ):
+            raise ValueError("plane relation partitions must be pairwise disjoint")
+        if not _pairwise_disjoint(
             self.added_evidence_sha256s,
             self.removed_evidence_sha256s,
             self.retained_evidence_sha256s,
         ):
             raise ValueError("plane evidence partitions must be pairwise disjoint")
         if self.base_status == "absent" and (
-            self.removed_node_ids or self.retained_node_ids
+            self.removed_node_ids
+            or self.retained_node_ids
+            or self.removed_relation_sha256s
+            or self.retained_relation_sha256s
+            or self.removed_evidence_sha256s
+            or self.retained_evidence_sha256s
         ):
-            raise ValueError("an absent base plane cannot retain or remove nodes")
+            raise ValueError("an absent base plane cannot retain or remove content")
         if self.candidate_status == "absent" and (
-            self.added_node_ids or self.retained_node_ids
+            self.added_node_ids
+            or self.retained_node_ids
+            or self.added_relation_sha256s
+            or self.retained_relation_sha256s
+            or self.added_evidence_sha256s
+            or self.retained_evidence_sha256s
         ):
-            raise ValueError("an absent candidate plane cannot add or retain nodes")
+            raise ValueError("an absent candidate plane cannot add or retain content")
 
     @property
     def semantic_changed(self) -> bool:
@@ -149,11 +188,17 @@ class PlaneDelta:
             self.base_status != self.candidate_status
             or self.added_node_ids
             or self.removed_node_ids
+            or self.added_relation_sha256s
+            or self.removed_relation_sha256s
         )
 
     @property
     def evidence_changed(self) -> bool:
-        return bool(self.added_evidence_sha256s or self.removed_evidence_sha256s)
+        return bool(
+            self.base_reason != self.candidate_reason
+            or self.added_evidence_sha256s
+            or self.removed_evidence_sha256s
+        )
 
     @property
     def changed(self) -> bool:
@@ -166,9 +211,14 @@ class PlaneDelta:
             "candidate_plane_sha256": self.candidate_plane_sha256,
             "base_status": self.base_status,
             "candidate_status": self.candidate_status,
+            "base_reason": self.base_reason,
+            "candidate_reason": self.candidate_reason,
             "added_node_ids": list(self.added_node_ids),
             "removed_node_ids": list(self.removed_node_ids),
             "retained_node_ids": list(self.retained_node_ids),
+            "added_relation_sha256s": list(self.added_relation_sha256s),
+            "removed_relation_sha256s": list(self.removed_relation_sha256s),
+            "retained_relation_sha256s": list(self.retained_relation_sha256s),
             "added_evidence_sha256s": list(self.added_evidence_sha256s),
             "removed_evidence_sha256s": list(self.removed_evidence_sha256s),
             "retained_evidence_sha256s": list(self.retained_evidence_sha256s),
@@ -185,6 +235,9 @@ class PlaneDelta:
             "added_node_ids",
             "removed_node_ids",
             "retained_node_ids",
+            "added_relation_sha256s",
+            "removed_relation_sha256s",
+            "retained_relation_sha256s",
             "added_evidence_sha256s",
             "removed_evidence_sha256s",
             "retained_evidence_sha256s",
@@ -453,6 +506,8 @@ def compute_graph_delta(
         after = candidate_planes[plane]
         before_nodes = set(before.node_ids)
         after_nodes = set(after.node_ids)
+        before_relations = set(before.relation_sha256s)
+        after_relations = set(after.relation_sha256s)
         before_evidence = set(before.evidence_sha256s)
         after_evidence = set(after.evidence_sha256s)
         plane_deltas.append(
@@ -462,9 +517,14 @@ def compute_graph_delta(
                 candidate_plane_sha256=after.digest,
                 base_status=before.status,
                 candidate_status=after.status,
+                base_reason=before.reason,
+                candidate_reason=after.reason,
                 added_node_ids=tuple(after_nodes - before_nodes),
                 removed_node_ids=tuple(before_nodes - after_nodes),
                 retained_node_ids=tuple(before_nodes & after_nodes),
+                added_relation_sha256s=tuple(after_relations - before_relations),
+                removed_relation_sha256s=tuple(before_relations - after_relations),
+                retained_relation_sha256s=tuple(before_relations & after_relations),
                 added_evidence_sha256s=tuple(after_evidence - before_evidence),
                 removed_evidence_sha256s=tuple(before_evidence - after_evidence),
                 retained_evidence_sha256s=tuple(before_evidence & after_evidence),
