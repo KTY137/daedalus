@@ -1,0 +1,83 @@
+name: Gate 0 Runtime Conformance
+
+on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+    paths:
+      - "daedalus/runtimes/**"
+      - "tests/runtimes/**"
+      - "docs/work-packets/G0-WP-05_RUNTIME_CONFORMANCE.md"
+      - ".github/workflows/gate0-runtime-conformance.yml"
+  push:
+    branches:
+      - g0/runtime-conformance
+  workflow_dispatch:
+
+concurrency:
+  group: gate0-runtime-conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q tests/runtimes/test_conformance.py
+      - run: >-
+          python -c "from daedalus.runtimes import RuntimeManifest,
+          RuntimeConformanceReceipt, run_runtime_conformance;
+          print(RuntimeManifest.CONTRACT_TYPE,
+          RuntimeConformanceReceipt.CONTRACT_TYPE,
+          run_runtime_conformance.__name__)"
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test,yaml]" pytest
+      - run: python -m pytest -q
+
+  wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Isolated wheel import smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/daedalus-runtime-wheel
+          /tmp/daedalus-runtime-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/daedalus-runtime-wheel/bin/python - <<'PY'
+          from daedalus.runtimes import RuntimeManifest, RuntimeConformanceReceipt
+          print(RuntimeManifest.CONTRACT_TYPE, RuntimeConformanceReceipt.CONTRACT_TYPE)
+          PY
