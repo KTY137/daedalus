@@ -90,12 +90,14 @@ def test_persisted_capability_preflight_precedes_every_effect_primitive() -> Non
     assert "resolve_live_target_revision" in lock_source
     assert "authorize_persisted_promotion" in lock_source
 
+    lock_start = lock.lineno
+    lock_end = lock.end_lineno
+    assert lock_end is not None
     calls_outside_lock = [
         _call_name(node)
-        for statement in function.body
-        if statement is not lock
-        for node in ast.walk(statement)
+        for node in ast.walk(function)
         if isinstance(node, ast.Call)
+        and not (lock_start <= node.lineno <= lock_end)
     ]
     assert "resolve_live_target_revision" not in calls_outside_lock
 
