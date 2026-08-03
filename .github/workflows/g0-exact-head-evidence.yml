@@ -55,6 +55,7 @@ jobs:
           tests/gates/test_exact_head_evidence_strict.py
           tests/gates/test_exact_head_evidence_io.py
           tests/gates/test_gate0_release_assembly.py
+          tests/gates/test_gate0_release_verifier.py
           tests/test_effect_boundary.py
 
   full-suite:
@@ -94,11 +95,15 @@ jobs:
           /tmp/daedalus-evidence-wheel/bin/python -c
           "from daedalus.gates import Gate0ReleaseReport,
           GateEvidenceIndex, assemble_gate0_release_report,
+          assert_gate0_release_report,
+          gate0_release_verification_blockers,
           load_gate_evidence_index, strict_mechanical_blockers;
           assert GateEvidenceIndex.CONTRACT_TYPE ==
           'daedalus-gate-evidence-index/1';
           assert Gate0ReleaseReport.CONTRACT_TYPE ==
           'daedalus-gate0-release-report/1';
           assert assemble_gate0_release_report;
+          assert assert_gate0_release_report;
+          assert gate0_release_verification_blockers;
           assert load_gate_evidence_index;
           assert strict_mechanical_blockers"
