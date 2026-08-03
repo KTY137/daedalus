@@ -6,6 +6,8 @@ import pytest
 
 import daedalus.kairos.gated_writes as gated_writes
 import daedalus.kernel.promotion as promotion
+from daedalus.kernel import PromotionAuthorization, PromotionLedger
+from daedalus.spine.envelope import canonical_sha
 
 
 REVISION = "a" * 40
@@ -28,47 +30,20 @@ def _candidate(*, base_revision: str = REVISION, ok: bool = True, empty: bool = 
     return SimpleNamespace(result=result)
 
 
-class _Authorization:
-    def __init__(self, live_target_revision: str = REVISION):
-        self.live_target_revision = live_target_revision
-        self.authorization_sha256 = "d" * 64
-
-    def to_dict(self) -> dict[str, str]:
-        return {
-            "authorization_sha256": self.authorization_sha256,
-            "live_target_revision": self.live_target_revision,
-        }
-
-
-class _FakePromotionLedger:
-    def __init__(self, _path=None, *, order=None, calls=None):
-        self.order = [] if order is None else order
-        self.calls = {} if calls is None else calls
-
-    def begin(self, authorization, **kwargs):
-        self.order.append("persist-start")
-        self.calls["begin"] = (authorization, kwargs)
-        start = SimpleNamespace(
-            start_sha256="e" * 64,
-            to_dict=lambda: {"start_sha256": "e" * 64},
-        )
-        return SimpleNamespace(execute=True, completion=None, start=start)
-
-    def complete(self, start, **kwargs):
-        self.order.append("persist-receipt")
-        self.calls["complete"] = (start, kwargs)
-        receipt = SimpleNamespace(
-            start_sha256=start.start_sha256,
-            to_dict=lambda: {
-                "start_sha256": start.start_sha256,
-                "outcome": kwargs["outcome"],
-            },
-        )
-        report = kwargs["report"]
-        return SimpleNamespace(
-            receipt=receipt,
-            report_dict=lambda: dict(report),
-        )
+def _authorization(live_target_revision: str = REVISION) -> PromotionAuthorization:
+    body = {
+        "promotion_id": "promotion-1",
+        "candidate_artifact_sha256": "c" * 64,
+        "evidence_packet_sha256": "d" * 64,
+        "source_revision": REVISION,
+        "target_ref": "refs/heads/experimental",
+        "live_target_revision": live_target_revision,
+        "approval_consumption_sha256": "e" * 64,
+    }
+    return PromotionAuthorization(
+        **body,
+        authorization_sha256=canonical_sha(body),
+    )
 
 
 def _install_boundary_fakes(monkeypatch, tmp_path, *, authorization=None, failure=None):
@@ -93,23 +68,28 @@ def _install_boundary_fakes(monkeypatch, tmp_path, *, authorization=None, failur
             order.append("lock-exit")
             return False
 
+    chosen = authorization or _authorization()
+
     def resolve(root, target_ref):
         order.append("resolve-target")
         calls["resolved"] = (root, target_ref)
-        return (authorization or _Authorization()).live_target_revision
+        return chosen.live_target_revision
 
     def authorize(**kwargs):
         order.append("authorize-persisted")
         calls["authorization_kwargs"] = kwargs
         if failure is not None:
             raise failure
-        return authorization or _Authorization()
-
-    fingerprints = iter(("1" * 64, "1" * 64))
+        return chosen
 
     def fingerprint(_root):
         order.append("fingerprint-primary")
-        return next(fingerprints)
+        return "f" * 64, True
+
+    def integration_revision(_root, branch):
+        order.append("resolve-integration")
+        calls["integration_branch"] = branch
+        return "9" * 40
 
     def promote_locked(root, manager, candidates, **kwargs):
         order.append("create-integration")
@@ -117,32 +97,20 @@ def _install_boundary_fakes(monkeypatch, tmp_path, *, authorization=None, failur
         return {
             "promoted": [{"task_id": "task-1", "promoted": True}],
             "refused": [],
-            "integration_branch": kwargs["integration_branch"],
+            "integration_branch": "integration-test",
         }
-
-    def branch_revision(_root, branch):
-        order.append("resolve-integration")
-        calls["integration_branch"] = branch
-        return REVISION
 
     monkeypatch.setattr(gated_writes, "GitWorktreeManager", Manager)
     monkeypatch.setattr(gated_writes, "_PromotionLock", Lock)
     monkeypatch.setattr(promotion, "resolve_live_target_revision", resolve)
     monkeypatch.setattr(promotion, "authorize_persisted_promotion", authorize)
     monkeypatch.setattr(gated_writes, "_primary_checkout_fingerprint", fingerprint)
-    monkeypatch.setattr(gated_writes, "_branch_revision", branch_revision)
+    monkeypatch.setattr(gated_writes, "_resolve_integration_revision", integration_revision)
     monkeypatch.setattr(gated_writes._legacy, "_promote_locked", promote_locked)
-    monkeypatch.setattr(gated_writes, "PromotionLedger", _FakePromotionLedger)
-    calls["promotion_ledger"] = _FakePromotionLedger(order=order, calls=calls)
     return order, calls
 
 
 def _promote(tmp_path, candidate, **changes):
-    promotion_ledger = changes.pop("promotion_ledger", None)
-    if promotion_ledger is None:
-        promotion_ledger = gated_writes.PromotionLedger(
-            tmp_path / "promotion-receipts.sqlite3"
-        )
     values = dict(
         repo_root=str(tmp_path),
         candidates=[candidate],
@@ -152,59 +120,50 @@ def _promote(tmp_path, candidate, **changes):
         evidence_packet=object(),
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
-        promotion_ledger=promotion_ledger,
         owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_ledger=PromotionLedger(tmp_path / "promotion.sqlite3"),
         ledger_path=tmp_path / "events.sqlite3",
     )
     values.update(changes)
     return gated_writes.promote_candidates(**values)
 
 
-def test_authorization_start_and_receipt_occur_inside_lock_in_order(monkeypatch, tmp_path) -> None:
+def test_persisted_authorization_and_start_precede_integration(monkeypatch, tmp_path) -> None:
     order, calls = _install_boundary_fakes(monkeypatch, tmp_path)
     candidate = _candidate()
 
-    report = _promote(
-        tmp_path,
-        candidate,
-        promotion_ledger=calls["promotion_ledger"],
-    )
+    report = _promote(tmp_path, candidate)
 
     assert order == [
         "lock-enter",
         "resolve-target",
         "authorize-persisted",
         "fingerprint-primary",
-        "persist-start",
         "create-integration",
         "fingerprint-primary",
         "resolve-integration",
-        "persist-receipt",
         "lock-exit",
     ]
     assert report["authorization"]["live_target_revision"] == REVISION
     assert report["promotion_receipt"]["outcome"] == "succeeded"
+    assert report["promotion_receipt"]["integration_revision"] == "9" * 40
+    assert report["promotion_replayed"] is False
     kwargs = calls["authorization_kwargs"]
     assert kwargs["approval_ledger"] is not None
     assert kwargs["owner_keyring"]
     assert kwargs["candidates"] == [candidate]
     assert kwargs["live_target_revision"] == REVISION
-    assert calls["begin"][1]["primary_checkout_before_sha256"] == "1" * 64
-    assert calls["complete"][1]["primary_checkout_after_sha256"] == "1" * 64
 
 
 def test_authorization_failure_creates_no_start_or_integration(monkeypatch, tmp_path) -> None:
-    order, calls = _install_boundary_fakes(
+    order, _ = _install_boundary_fakes(
         monkeypatch,
         tmp_path,
         failure=promotion.PromotionAuthorizationError("foreign persisted receipt"),
     )
+    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
 
-    report = _promote(
-        tmp_path,
-        _candidate(),
-        promotion_ledger=calls["promotion_ledger"],
-    )
+    report = _promote(tmp_path, _candidate(), promotion_ledger=ledger)
 
     assert order == [
         "lock-enter",
@@ -212,33 +171,34 @@ def test_authorization_failure_creates_no_start_or_integration(monkeypatch, tmp_
         "authorize-persisted",
         "lock-exit",
     ]
-    assert "begin" not in calls
-    assert "promote_locked" not in calls
+    assert ledger.pending() == ()
     assert report["promoted"] == []
     assert report["authorization"] is None
     assert "foreign persisted receipt" in report["refused"][0]["reason"]
 
 
-def test_stale_candidate_cannot_persist_start_or_regenerate(monkeypatch, tmp_path) -> None:
-    order, calls = _install_boundary_fakes(
+def test_stale_candidate_cannot_start_receipt_or_regenerate(monkeypatch, tmp_path) -> None:
+    order, _ = _install_boundary_fakes(
         monkeypatch,
         tmp_path,
-        authorization=_Authorization(OTHER_REVISION),
+        authorization=_authorization(OTHER_REVISION),
     )
+    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
 
     report = _promote(
         tmp_path,
         _candidate(base_revision=REVISION),
-        promotion_ledger=calls["promotion_ledger"],
+        promotion_ledger=ledger,
     )
 
-    assert "persist-start" not in order
     assert "create-integration" not in order
+    assert "fingerprint-primary" not in order
+    assert ledger.pending() == ()
     assert report["promoted"] == []
     assert "stale regeneration requires new evidence" in report["refused"][0]["reason"]
 
 
-def test_multi_candidate_batch_refuses_before_lock_or_manager(monkeypatch, tmp_path) -> None:
+def test_multi_candidate_legacy_batch_refuses_before_lock_or_manager(monkeypatch, tmp_path) -> None:
     def forbidden_manager(_root):
         raise AssertionError("manager must not be constructed")
 
@@ -252,10 +212,8 @@ def test_multi_candidate_batch_refuses_before_lock_or_manager(monkeypatch, tmp_p
         evidence_packet=object(),
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
-        promotion_ledger=gated_writes.PromotionLedger(
-            tmp_path / "promotion-receipts.sqlite3"
-        ),
         owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_ledger=PromotionLedger(tmp_path / "promotion.sqlite3"),
         ledger_path=tmp_path / "events.sqlite3",
     )
 
@@ -280,7 +238,7 @@ def test_ungated_candidate_refuses_before_lock(monkeypatch, tmp_path) -> None:
     assert "clean non-empty candidate" in report["refused"][0]["reason"]
 
 
-def test_lock_refusal_does_not_create_start(monkeypatch, tmp_path) -> None:
+def test_lock_refusal_does_not_reference_unissued_authorization(monkeypatch, tmp_path) -> None:
     class Manager:
         def __init__(self, _root):
             self.worktree_root = tmp_path / "worktrees"
@@ -302,7 +260,6 @@ def test_lock_refusal_does_not_create_start(monkeypatch, tmp_path) -> None:
 
     assert report["promoted"] == []
     assert report["authorization"] is None
-    assert report["promotion_start"] is None
     assert "promotion lock unavailable" in report["refused"][0]["reason"]
 
 
