@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -28,6 +29,8 @@ from daedalus.spine.effect_boundary import (
     Surface,
     Wiring,
 )
+from daedalus.spine.ledger import SpineLedger
+from daedalus.spine.envelope import canonical_json, canonical_sha
 
 REVISION = "a" * 40
 POLICY_SHA = "b" * 64
@@ -303,6 +306,143 @@ def test_grant_must_precede_start_and_is_idempotent(tmp_path) -> None:
     result = begin(ledger, value, req, policy)
     assert result.execute is True
     assert ledger.execution_state("execution-1") == "STARTED"
+
+
+def test_restart_recovers_authenticated_grant_from_the_shared_spine_database(
+    tmp_path,
+) -> None:
+    """Intent and effect recovery use one SQLite authority, never a sidecar."""
+
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "canonical-spine.sqlite3"
+    with SpineLedger(path) as spine:
+        intent = spine.record_intent(
+            "attempt.candidate", {"task_id": "task-1"}, effect_key="branch-1"
+        )
+
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    restarted = EffectLeaseLedger(path)
+    recovered = restarted.load_grant(
+        value.digest,
+        keyring={"kernel-key-1": SECRET},
+        current_kill_switch_generation=7,
+        now=NOW + timedelta(seconds=1),
+        registry=registry(),
+    )
+
+    assert recovered.lease == value
+    assert recovered.request == req
+    assert recovered.policy_decision == policy
+    assert recovered.revoked_at is None
+    with SpineLedger(path, read_only=True) as spine:
+        assert spine.get(intent.id).effect_key == "branch-1"
+    with sqlite3.connect(path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+    assert {"intents", "intent_events", "effect_leases", "effect_executions"} <= tables
+    assert SECRET not in path.read_bytes()
+
+
+def test_restart_distinguishes_started_and_terminal_execution_receipts(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "canonical-spine.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    started = begin(ledger, value, req, policy)
+
+    restarted = EffectLeaseLedger(path)
+    open_record = restarted.execution_record("execution-1")
+    assert open_record is not None
+    assert open_record.request == execution()
+    assert open_record.start_receipt == started.receipt
+    assert open_record.state == "STARTED"
+    assert open_record.terminal_receipt is None
+
+    terminal = restarted.finish(
+        open_record.start_receipt,
+        outcome="completed",
+        output_digests=("e" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    terminal_record = EffectLeaseLedger(path).execution_record("execution-1")
+    assert terminal_record is not None
+    assert terminal_record.state == "COMPLETED"
+    assert terminal_record.terminal_receipt == terminal
+
+
+def test_recovery_refuses_tampered_persisted_contract_and_receipt_bytes(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "canonical-spine.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    begin(ledger, value, req, policy)
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE effect_leases SET request_json=request_json || ' '"
+        )
+    with pytest.raises(EffectLeaseStateError, match="canonical identity"):
+        ledger.load_grant(
+            value.digest,
+            keyring={"kernel-key-1": SECRET},
+            current_kill_switch_generation=7,
+            now=NOW + timedelta(seconds=1),
+            registry=registry(),
+        )
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE effect_executions SET start_receipt_json=start_receipt_json || ' '"
+        )
+    with pytest.raises(EffectLeaseStateError, match="start identity"):
+        ledger.execution_record("execution-1")
+
+
+def test_execution_recovery_refuses_coherently_rehashed_malformed_receipt(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "canonical-spine.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    begin(ledger, value, req, policy)
+
+    with sqlite3.connect(path) as connection:
+        raw = connection.execute(
+            "SELECT start_receipt_json FROM effect_executions"
+        ).fetchone()[0]
+        payload = json.loads(raw)
+        payload["boundary_receipt_sha256"] = "not-a-digest"
+        digest_body = dict(payload)
+        digest_body.pop("receipt_sha256")
+        payload["receipt_sha256"] = canonical_sha(digest_body)
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET start_receipt_json=?, start_receipt_sha256=?
+            """,
+            (canonical_json(payload), payload["receipt_sha256"]),
+        )
+
+    with pytest.raises(EffectLeaseStateError, match="invalid start bytes"):
+        ledger.execution_record("execution-1")
 
 
 def test_replay_returns_existing_receipt_without_second_effect(tmp_path) -> None:

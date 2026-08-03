@@ -195,6 +195,26 @@ class LeasedEffectStartReceipt:
     started_at: str
     receipt_sha256: str
 
+    def __post_init__(self) -> None:
+        for name in ("execution_id", "idempotency_key"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        for name in (
+            "lease_sha256",
+            "execution_request_sha256",
+            "boundary_receipt_sha256",
+            "receipt_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        canonical_started = _timestamp(_parse_utc(self.started_at, "started_at"))
+        if canonical_started != self.started_at:
+            raise EffectLeaseBindingMismatch(
+                "start receipt timestamp is not canonical UTC"
+            )
+        body = self.to_dict()
+        claimed = body.pop("receipt_sha256")
+        if canonical_sha(body) != claimed:
+            raise EffectLeaseBindingMismatch("start receipt digest mismatch")
+
     def to_dict(self) -> dict[str, str]:
         return dataclasses.asdict(self)
 
@@ -216,11 +236,83 @@ class EffectTerminalReceipt:
     finished_at: str
     receipt_sha256: str
 
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "execution_id", _identifier(self.execution_id, "execution_id")
+        )
+        for name in (
+            "lease_sha256",
+            "start_receipt_sha256",
+            "receipt_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        normalized_outcome = str(self.outcome).upper()
+        if normalized_outcome not in _TERMINAL_STATES or normalized_outcome != self.outcome:
+            raise EffectLeaseBindingMismatch(
+                "terminal receipt outcome must be canonical and terminal"
+            )
+        if isinstance(self.output_digests, (str, bytes)):
+            raise EffectLeaseBindingMismatch(
+                "terminal output_digests must be a sequence"
+            )
+        outputs = tuple(
+            sorted({_sha256(value, "output_digest") for value in self.output_digests})
+        )
+        if tuple(self.output_digests) != outputs:
+            raise EffectLeaseBindingMismatch(
+                "terminal output_digests must be sorted and unique"
+            )
+        object.__setattr__(self, "output_digests", outputs)
+        if self.detail_sha256 is not None:
+            object.__setattr__(
+                self,
+                "detail_sha256",
+                _sha256(self.detail_sha256, "detail_sha256"),
+            )
+        canonical_finished = _timestamp(
+            _parse_utc(self.finished_at, "finished_at")
+        )
+        if canonical_finished != self.finished_at:
+            raise EffectLeaseBindingMismatch(
+                "terminal receipt timestamp is not canonical UTC"
+            )
+        body = self.to_dict()
+        claimed = body.pop("receipt_sha256")
+        if canonical_sha(body) != claimed:
+            raise EffectLeaseBindingMismatch("terminal receipt digest mismatch")
+
     def to_dict(self) -> dict[str, object]:
         return {
             **dataclasses.asdict(self),
             "output_digests": list(self.output_digests),
         }
+
+
+@dataclass(frozen=True)
+class PersistedEffectGrant:
+    """Authenticated contracts recovered from one persisted lease grant.
+
+    Issuer secrets are intentionally absent.  A caller must supply the current
+    keyring and kill-switch generation to :meth:`EffectLeaseLedger.load_grant`,
+    which re-runs signature, policy, registry, expiry and scope verification
+    before returning this record.
+    """
+
+    lease: EffectLease
+    request: EffectLeaseRequest
+    policy_decision: PolicyDecision
+    revoked_at: str | None = None
+    revocation_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class PersistedEffectExecution:
+    """One exact execution row recovered for restart/reconciliation."""
+
+    request: EffectExecutionRequest
+    start_receipt: LeasedEffectStartReceipt
+    state: str
+    terminal_receipt: EffectTerminalReceipt | None = None
 
 
 def _utc_now() -> datetime:
@@ -574,7 +666,9 @@ class EffectLeaseLedger:
                     lease_sha256 TEXT PRIMARY KEY,
                     lease_id TEXT NOT NULL UNIQUE,
                     request_sha256 TEXT NOT NULL,
+                    request_json TEXT NOT NULL,
                     policy_decision_sha256 TEXT NOT NULL,
+                    policy_decision_json TEXT NOT NULL,
                     registry_sha256 TEXT NOT NULL,
                     entrypoint_id TEXT NOT NULL,
                     lease_json TEXT NOT NULL,
@@ -585,6 +679,20 @@ class EffectLeaseLedger:
                 )
                 """
             )
+            # Revision-safe additive migration for Gate-0 databases created by
+            # the first lease packet.  Old rows remain readable as historical
+            # evidence but cannot be reconstructed until an authenticated,
+            # byte-identical `grant()` supplies the missing contracts.
+            lease_columns = {
+                str(row[1])
+                for row in conn.execute("PRAGMA table_info(effect_leases)")
+            }
+            if "request_json" not in lease_columns:
+                conn.execute("ALTER TABLE effect_leases ADD COLUMN request_json TEXT")
+            if "policy_decision_json" not in lease_columns:
+                conn.execute(
+                    "ALTER TABLE effect_leases ADD COLUMN policy_decision_json TEXT"
+                )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS effect_executions (
@@ -630,31 +738,62 @@ class EffectLeaseLedger:
             registry=registry,
         )
         payload = lease.to_json()
+        request_payload = request.to_json()
+        policy_payload = policy_decision.to_json()
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT lease_json FROM effect_leases WHERE lease_sha256=? OR lease_id=?",
+                """
+                SELECT lease_json, request_json, policy_decision_json
+                FROM effect_leases WHERE lease_sha256=? OR lease_id=?
+                """,
                 (lease.digest, lease.lease_id),
             ).fetchone()
             if row is not None:
-                if row["lease_json"] == payload:
-                    conn.execute("COMMIT")
-                    return
-                raise EffectLeaseReplay("lease identity was already used for different content")
+                if row["lease_json"] != payload:
+                    raise EffectLeaseReplay(
+                        "lease identity was already used for different content"
+                    )
+                if row["request_json"] not in (None, request_payload):
+                    raise EffectLeaseReplay(
+                        "persisted lease request bytes do not match the authenticated grant"
+                    )
+                if row["policy_decision_json"] not in (None, policy_payload):
+                    raise EffectLeaseReplay(
+                        "persisted policy bytes do not match the authenticated grant"
+                    )
+                # Backfill only after full lease verification above.  This is
+                # the one safe migration for a pre-recovery row: the supplied
+                # request and policy are the exact contracts bound by the
+                # authenticated lease.
+                conn.execute(
+                    """
+                    UPDATE effect_leases
+                    SET request_json=COALESCE(request_json, ?),
+                        policy_decision_json=COALESCE(policy_decision_json, ?)
+                    WHERE lease_sha256=?
+                    """,
+                    (request_payload, policy_payload, lease.digest),
+                )
+                conn.execute("COMMIT")
+                return
             conn.execute(
                 """
                 INSERT INTO effect_leases (
-                    lease_sha256, lease_id, request_sha256,
-                    policy_decision_sha256, registry_sha256, entrypoint_id,
+                    lease_sha256, lease_id, request_sha256, request_json,
+                    policy_decision_sha256, policy_decision_json,
+                    registry_sha256, entrypoint_id,
                     lease_json, issued_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     lease.digest,
                     lease.lease_id,
                     lease.request_sha256,
+                    request_payload,
                     lease.policy_decision_sha256,
+                    policy_payload,
                     lease.registry_sha256,
                     lease.entrypoint_id,
                     payload,
@@ -677,6 +816,100 @@ class EffectLeaseLedger:
             raise
         finally:
             conn.close()
+
+    def load_grant(
+        self,
+        lease_sha256: str,
+        *,
+        keyring: Mapping[str, bytes | str],
+        current_kill_switch_generation: int,
+        now: datetime | None = None,
+        registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
+    ) -> PersistedEffectGrant:
+        """Reload and re-authenticate the exact contracts behind one grant.
+
+        This is the restart seam.  Key material is supplied by the composition
+        root and is never recovered from SQLite.  Expired or stale-generation
+        grants are intentionally refused here; their historical executions
+        remain inspectable through :meth:`execution_record`.
+        """
+
+        digest = _sha256(lease_sha256, "lease_sha256")
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT lease_json, request_json, policy_decision_json,
+                       request_sha256, policy_decision_sha256,
+                       revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (digest,),
+            ).fetchone()
+        if row is None:
+            raise EffectLeaseStateError("unknown persisted effect lease")
+        if row["request_json"] is None or row["policy_decision_json"] is None:
+            raise EffectLeaseStateError(
+                "persisted effect lease predates recoverable request/policy metadata"
+            )
+
+        try:
+            lease_payload = json.loads(row["lease_json"])
+            request_payload = json.loads(row["request_json"])
+            policy_payload = json.loads(row["policy_decision_json"])
+            if not all(
+                isinstance(value, dict)
+                for value in (lease_payload, request_payload, policy_payload)
+            ):
+                raise ValueError("persisted contract JSON must contain objects")
+            lease = EffectLease.from_dict(lease_payload)
+            request = EffectLeaseRequest.from_dict(request_payload)
+            policy = PolicyDecision.from_dict(policy_payload)
+        except (
+            TypeError,
+            ValueError,
+            KeyError,
+            json.JSONDecodeError,
+            EffectLeaseBindingMismatch,
+        ) as exc:
+            raise EffectLeaseStateError(
+                "persisted effect grant contains invalid contract bytes"
+            ) from exc
+
+        canonical_mismatches = []
+        if lease.to_json() != row["lease_json"] or lease.digest != digest:
+            canonical_mismatches.append("lease")
+        if (
+            request.to_json() != row["request_json"]
+            or request.digest != row["request_sha256"]
+        ):
+            canonical_mismatches.append("request")
+        if (
+            policy.to_json() != row["policy_decision_json"]
+            or policy.digest != row["policy_decision_sha256"]
+        ):
+            canonical_mismatches.append("policy")
+        if canonical_mismatches:
+            raise EffectLeaseStateError(
+                "persisted effect grant failed canonical identity checks: "
+                + ", ".join(canonical_mismatches)
+            )
+
+        verify_effect_lease(
+            lease,
+            request=request,
+            policy_decision=policy,
+            keyring=keyring,
+            current_kill_switch_generation=current_kill_switch_generation,
+            now=now or _utc_now(),
+            registry=registry,
+        )
+        return PersistedEffectGrant(
+            lease=lease,
+            request=request,
+            policy_decision=policy,
+            revoked_at=row["revoked_at"],
+            revocation_reason=row["revocation_reason"],
+        )
 
     def revoke(self, lease_sha256: str, *, reason: str, revoked_at: datetime | None = None) -> None:
         digest = _sha256(lease_sha256, "lease_sha256")
@@ -919,6 +1152,162 @@ class EffectLeaseLedger:
                 "SELECT state FROM effect_executions WHERE execution_id=?", (value,)
             ).fetchone()
         return None if row is None else str(row["state"])
+
+    def execution_record(
+        self, execution_id: str
+    ) -> PersistedEffectExecution | None:
+        """Load one execution with canonical-byte and receipt validation.
+
+        Unlike :meth:`load_grant`, this historical/reconciliation read does not
+        require a currently valid lease.  It performs no effect and never turns
+        a ``STARTED`` row into permission to call the provider again.
+        """
+
+        value = _identifier(execution_id, "execution_id")
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT lease_sha256, idempotency_key, request_sha256,
+                       request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=?
+                """,
+                (value,),
+            ).fetchone()
+        if row is None:
+            return None
+
+        try:
+            request_payload = json.loads(row["request_json"])
+            start_payload = json.loads(row["start_receipt_json"])
+            if not isinstance(request_payload, dict) or not isinstance(
+                start_payload, dict
+            ):
+                raise ValueError("execution JSON must contain objects")
+            request = EffectExecutionRequest(**request_payload)
+            start = LeasedEffectStartReceipt(**start_payload)
+        except (
+            TypeError,
+            ValueError,
+            KeyError,
+            json.JSONDecodeError,
+            EffectLeaseBindingMismatch,
+        ) as exc:
+            raise EffectLeaseStateError(
+                "persisted effect execution contains invalid start bytes"
+            ) from exc
+
+        start_body = start.to_dict()
+        start_digest = start_body.pop("receipt_sha256")
+        start_mismatches = []
+        if canonical_json(request.to_dict()) != row["request_json"]:
+            start_mismatches.append("request_json")
+        if request.digest != row["request_sha256"]:
+            start_mismatches.append("request_sha256")
+        if canonical_json(start.to_dict()) != row["start_receipt_json"]:
+            start_mismatches.append("start_receipt_json")
+        if start.receipt_sha256 != row["start_receipt_sha256"]:
+            start_mismatches.append("start_receipt_sha256")
+        if canonical_sha(start_body) != start_digest:
+            start_mismatches.append("start_receipt_digest")
+        if start.lease_sha256 != row["lease_sha256"]:
+            start_mismatches.append("lease_sha256")
+        if start.execution_id != value or request.execution_id != value:
+            start_mismatches.append("execution_id")
+        if start.idempotency_key != row["idempotency_key"]:
+            start_mismatches.append("idempotency_key")
+        if start.idempotency_key != request.idempotency_key:
+            start_mismatches.append("request_idempotency_key")
+        if start.execution_request_sha256 != request.digest:
+            start_mismatches.append("execution_request_binding")
+        if start.started_at != row["started_at"]:
+            start_mismatches.append("started_at")
+        if start_mismatches:
+            raise EffectLeaseStateError(
+                "persisted effect execution failed start identity checks: "
+                + ", ".join(sorted(set(start_mismatches)))
+            )
+
+        state = str(row["state"])
+        terminal: EffectTerminalReceipt | None = None
+        if state == "STARTED":
+            if any(
+                row[name] is not None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "STARTED execution unexpectedly carries terminal fields"
+                )
+        elif state in _TERMINAL_STATES:
+            if any(
+                row[name] is None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "terminal execution is missing terminal receipt fields"
+                )
+            try:
+                terminal_payload = json.loads(row["terminal_receipt_json"])
+                if not isinstance(terminal_payload, dict):
+                    raise ValueError("terminal receipt JSON must contain an object")
+                terminal_payload["output_digests"] = tuple(
+                    terminal_payload["output_digests"]
+                )
+                terminal = EffectTerminalReceipt(**terminal_payload)
+            except (
+                TypeError,
+                ValueError,
+                KeyError,
+                json.JSONDecodeError,
+                EffectLeaseBindingMismatch,
+            ) as exc:
+                raise EffectLeaseStateError(
+                    "persisted effect execution contains invalid terminal bytes"
+                ) from exc
+            terminal_body = terminal.to_dict()
+            terminal_digest = terminal_body.pop("receipt_sha256")
+            terminal_mismatches = []
+            if canonical_json(terminal.to_dict()) != row["terminal_receipt_json"]:
+                terminal_mismatches.append("terminal_receipt_json")
+            if terminal.receipt_sha256 != row["terminal_receipt_sha256"]:
+                terminal_mismatches.append("terminal_receipt_sha256")
+            if canonical_sha(terminal_body) != terminal_digest:
+                terminal_mismatches.append("terminal_receipt_digest")
+            if terminal.lease_sha256 != start.lease_sha256:
+                terminal_mismatches.append("terminal_lease_binding")
+            if terminal.execution_id != value:
+                terminal_mismatches.append("terminal_execution_binding")
+            if terminal.start_receipt_sha256 != start.receipt_sha256:
+                terminal_mismatches.append("terminal_start_binding")
+            if terminal.outcome != state:
+                terminal_mismatches.append("terminal_state")
+            if terminal.finished_at != row["finished_at"]:
+                terminal_mismatches.append("finished_at")
+            if terminal_mismatches:
+                raise EffectLeaseStateError(
+                    "persisted effect execution failed terminal identity checks: "
+                    + ", ".join(sorted(set(terminal_mismatches)))
+                )
+        else:
+            raise EffectLeaseStateError(
+                f"persisted effect execution has unknown state {state!r}"
+            )
+
+        return PersistedEffectExecution(
+            request=request,
+            start_receipt=start,
+            state=state,
+            terminal_receipt=terminal,
+        )
 
 
 @dataclass(frozen=True)
