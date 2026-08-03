@@ -1,0 +1,86 @@
+name: Gate 0 Event Store Durability
+
+on:
+  pull_request:
+    branches:
+      - g0/isolated-attempt-lifecycle-linear
+    paths:
+      - "daedalus/spine/durability.py"
+      - "tests/test_spine_gate0_durability.py"
+      - "tests/test_spine_gate0_durability_review.py"
+      - "scripts/run_spine_durability_mutations.py"
+      - "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.md"
+      - "docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.json"
+      - ".github/workflows/g0-event-store-durability.yml"
+  push:
+    branches:
+      - g0/event-store-durability-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-event-store-durability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  durability:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-ES-14_EVENT_STORE_DURABILITY.json
+      - run: >-
+          python -m pytest -q
+          tests/test_spine_gate0_durability.py
+          tests/test_spine_gate0_durability_review.py
+          tests/test_spine_ledger.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_spine_durability_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-spine-durability-wheel
+      - run: /tmp/daedalus-spine-durability-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-spine-durability-wheel/bin/python - <<'PY'
+          from daedalus.spine.durability import (
+              Gate0DurabilityStatus,
+              enforce_gate0_durability,
+              inspect_gate0_durability,
+          )
+          from daedalus.spine.ledger import SpineLedger
+
+          assert Gate0DurabilityStatus.__module__ == "daedalus.spine.durability"
+          assert callable(enforce_gate0_durability)
+          assert callable(inspect_gate0_durability)
+          assert SpineLedger.__module__ == "daedalus.spine.ledger"
+          PY
