@@ -16,17 +16,6 @@ def _method(class_name: str, method_name: str) -> ast.FunctionDef:
     raise AssertionError(f"missing {class_name}.{method_name}")
 
 
-def _call_name(call: ast.Call) -> str:
-    value = call.func
-    parts: list[str] = []
-    while isinstance(value, ast.Attribute):
-        parts.append(value.attr)
-        value = value.value
-    if isinstance(value, ast.Name):
-        parts.append(value.id)
-    return ".".join(reversed(parts))
-
-
 def test_prepare_persists_start_before_materialization_and_replay_returns_first() -> None:
     method = _method("IsolatedAttemptCoordinator", "prepare")
     source = ast.unparse(method)
@@ -54,22 +43,38 @@ def test_process_abort_is_not_terminalized_as_known_failure() -> None:
     )
 
 
-def test_begin_uses_immediate_transaction_and_returns_pending_without_execute() -> None:
-    source = inspect.getsource(attempts.AttemptLedger.begin)
-    assert "BEGIN IMMEDIATE" in source
-    assert "persisted.same_subject(start)" in source
-    assert "execute=False" in source
-    assert "completion=completion" in source
-    assert source.index("BEGIN IMMEDIATE") < source.index("INSERT INTO attempt_starts")
-
-
-def test_terminal_replay_compares_subject_and_never_writes_twice() -> None:
-    source = inspect.getsource(attempts.AttemptLedger.complete)
-    assert "BEGIN IMMEDIATE" in source
-    assert "existing.receipt.same_subject(receipt)" in source
-    assert source.index("existing = self._completion_for") < source.index(
-        "INSERT INTO attempt_terminals"
+def test_attempt_lifecycle_extends_the_single_existing_event_spine() -> None:
+    module_source = inspect.getsource(attempts)
+    init_source = inspect.getsource(attempts.AttemptLedger.__init__)
+    install_source = inspect.getsource(
+        attempts.AttemptLedger._install_single_start_invariant
     )
+    assert "SpineLedger" in init_source
+    assert "self.spine" in init_source
+    assert "CREATE UNIQUE INDEX" in install_source
+    assert "ON intents(effect_key)" in install_source
+    assert "CREATE TABLE" not in module_source
+    assert "attempt_starts" not in module_source
+    assert "attempt_terminals" not in module_source
+
+
+def test_begin_records_one_canonical_spine_intent_and_pending_never_executes() -> None:
+    source = inspect.getsource(attempts.AttemptLedger.begin)
+    assert "self.spine.record_intent" in source
+    assert "_ATTEMPT_INTENT_KIND" in source
+    assert "persisted.same_subject(start)" in source
+    assert "execute=created" in source
+    assert source.index("self.source_store.load_tree(input_tree.ref)") < source.index(
+        "self.spine.record_intent"
+    )
+
+
+def test_terminal_resolution_uses_the_same_spine_and_is_once_only() -> None:
+    source = inspect.getsource(attempts.AttemptLedger.complete)
+    assert "self.spine.mark_completed" in source
+    assert "IntentAlreadyResolved" in source
+    assert "existing.receipt.same_subject(receipt)" in source
+    assert "effect_id=receipt.digest" in source
     assert "return existing" in source
 
 
@@ -107,12 +112,11 @@ def test_success_receipt_structurally_requires_candidate_tree() -> None:
     assert "attempt terminal provenance must bind exactly its inputs" in source
 
 
-def test_persisted_records_are_reparsed_and_canonicalized_on_read() -> None:
-    start_source = inspect.getsource(attempts.AttemptLedger._decode_start)
-    terminal_source = inspect.getsource(attempts.AttemptLedger._decode_receipt)
+def test_persisted_start_and_terminal_are_reparsed_before_use() -> None:
+    start_source = inspect.getsource(attempts.AttemptLedger._decode_start_intent)
+    terminal_source = inspect.getsource(attempts.AttemptLedger._decode_terminal_result)
     assert "_strict_json" in start_source
     assert "AttemptStartRecord.from_dict" in start_source
-    assert "start.to_json() != raw" in start_source
-    assert "_strict_json" in terminal_source
+    assert "payload digest is invalid" in start_source
     assert "AttemptTerminalReceipt.from_dict" in terminal_source
-    assert "receipt.to_json() != raw" in terminal_source
+    assert "effect_id does not bind receipt digest" in terminal_source
