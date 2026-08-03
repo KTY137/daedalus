@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import concurrent.futures
 import dataclasses
+import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -12,11 +16,14 @@ from daedalus.kernel.approvals import (
     ApprovalLedger,
     ApprovalReplay,
     ApprovalSignatureError,
+    ApprovalStateError,
+    ConsumedOwnerApproval,
     issue_owner_approval,
     verify_owner_approval,
 )
-from daedalus.schemas import ContractProvenance
 from daedalus.kernel.contracts import OwnerApproval
+from daedalus.schemas import ContractProvenance
+from daedalus.spine.envelope import canonical_sha
 
 
 SHA = {
@@ -27,7 +34,7 @@ SHA = {
     "base": "5" * 40,
 }
 SECRET = b"owner-secret-material-must-be-at-least-thirty-two-bytes"
-NOW = datetime(2026, 8, 1, 20, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 3, 7, 0, tzinfo=timezone.utc)
 
 
 def _provenance() -> ContractProvenance:
@@ -35,7 +42,11 @@ def _provenance() -> ContractProvenance:
         origin="tests.owner-approval",
         source_revision=SHA["base"],
         created_at=NOW.isoformat(),
-        input_digests=(SHA["nomination"], SHA["candidate"], SHA["evidence"]),
+        input_digests=(
+            SHA["nomination"],
+            SHA["candidate"],
+            SHA["evidence"],
+        ),
     )
 
 
@@ -75,20 +86,49 @@ def _expectation(**changes) -> ApprovalExpectation:
     return ApprovalExpectation(**values)
 
 
+def _keyring():
+    return {("KTY137", "owner-key-1"): SECRET}
+
+
 def _verify(approval: OwnerApproval, **expectation_changes):
     return verify_owner_approval(
         approval,
-        keyring={("KTY137", "owner-key-1"): SECRET},
+        keyring=_keyring(),
         expectation=_expectation(**expectation_changes),
         now=NOW + timedelta(seconds=1),
     )
 
 
+def _ledger(path: Path, when: datetime | None = None) -> ApprovalLedger:
+    instant = when or (NOW + timedelta(seconds=1))
+    return ApprovalLedger(path, clock=lambda: instant)
+
+
+def _consume(
+    ledger: ApprovalLedger,
+    approval: OwnerApproval,
+    *,
+    promotion_id: str = "promotion-001",
+    expectation: ApprovalExpectation | None = None,
+) -> ConsumedOwnerApproval:
+    return ledger.consume(
+        approval,
+        keyring=_keyring(),
+        expectation=expectation or _expectation(),
+        promotion_id=promotion_id,
+    )
+
+
 def test_owner_approval_is_canonical_signed_and_parseable() -> None:
     approval = _approval()
+    verified = _verify(approval)
     assert approval.signature_sha256 != "0" * 64
     assert OwnerApproval.from_dict(approval.to_dict()) == approval
-    assert _verify(approval).approval_sha256 == approval.digest
+    assert verified.approval_sha256 == approval.digest
+    assert verified.nomination_receipt_sha256 == SHA["nomination"]
+    assert verified.candidate_artifact_sha256 == SHA["candidate"]
+    assert verified.evidence_packet_sha256 == SHA["evidence"]
+    assert verified.base_revision == SHA["base"]
 
 
 @pytest.mark.parametrize(
@@ -103,13 +143,17 @@ def test_owner_approval_is_canonical_signed_and_parseable() -> None:
         ("operation", "deploy"),
     ],
 )
-def test_every_binding_dimension_is_fail_closed(field: str, value: str) -> None:
-    approval = _approval()
-    with pytest.raises(ApprovalBindingMismatch, match=field.replace("current_", "expected_")):
-        _verify(approval, **{field: value})
+def test_every_binding_dimension_is_fail_closed(
+    field: str, value: str
+) -> None:
+    with pytest.raises(
+        (ApprovalBindingMismatch, ValueError),
+        match=field.replace("current_", "expected_") + "|operation",
+    ):
+        _verify(_approval(), **{field: value})
 
 
-def test_tampering_and_unknown_keys_are_rejected() -> None:
+def test_tampering_unknown_keys_and_naive_time_are_rejected() -> None:
     approval = _approval()
     tampered = dataclasses.replace(approval, signature_sha256="a" * 64)
     with pytest.raises(ApprovalSignatureError, match="signature mismatch"):
@@ -121,63 +165,122 @@ def test_tampering_and_unknown_keys_are_rejected() -> None:
             expectation=_expectation(),
             now=NOW + timedelta(seconds=1),
         )
+    with pytest.raises(ValueError, match="timezone-aware"):
+        verify_owner_approval(
+            approval,
+            keyring=_keyring(),
+            expectation=_expectation(),
+            now=datetime(2026, 8, 3, 7, 0),
+        )
 
 
-def test_expired_and_not_yet_valid_are_rejected() -> None:
+def test_expired_not_yet_valid_and_excessive_ttl_are_rejected() -> None:
     approval = _approval()
     with pytest.raises(ApprovalExpired, match="not valid yet"):
         verify_owner_approval(
             approval,
-            keyring={("KTY137", "owner-key-1"): SECRET},
+            keyring=_keyring(),
             expectation=_expectation(),
             now=NOW - timedelta(seconds=1),
         )
     with pytest.raises(ApprovalExpired, match="expired"):
         verify_owner_approval(
             approval,
-            keyring={("KTY137", "owner-key-1"): SECRET},
+            keyring=_keyring(),
             expectation=_expectation(),
             now=NOW + timedelta(minutes=10),
         )
+    with pytest.raises(ValueError, match="24-hour"):
+        _approval(expires_at=(NOW + timedelta(hours=25)).isoformat())
 
 
-def test_nonce_and_approval_are_consumed_once_atomically(tmp_path) -> None:
-    verified = _verify(_approval())
-    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    first = ledger.consume(verified, promotion_id="promotion-001", consumed_at=NOW)
-    assert len(first.consumption_sha256) == 64
-    assert first.verified == verified
-    assert first.promotion_id == "promotion-001"
-    assert ledger.consumed(verified.approval_sha256)
+def test_consumption_reauthenticates_signed_approval_and_retains_all_bindings(
+    tmp_path,
+) -> None:
+    approval = _approval()
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
+    consumed = _consume(ledger, approval)
+
+    assert consumed.verified.approval_sha256 == approval.digest
+    assert consumed.verified.nomination_receipt_sha256 == SHA["nomination"]
+    assert consumed.verified.candidate_artifact_sha256 == SHA["candidate"]
+    assert consumed.verified.evidence_packet_sha256 == SHA["evidence"]
+    assert consumed.verified.base_revision == SHA["base"]
+    assert consumed.verified.expected_target_revision == SHA["target"]
+    assert consumed.expectation_sha256 == _expectation().digest
+    assert ledger.verify_consumption(consumed) == consumed
+    assert ledger.consumed(approval.digest)
+
+
+def test_publicly_constructed_verified_record_cannot_be_consumed(tmp_path) -> None:
+    approval = _approval()
+    forged_type = _verify(approval)
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
+    with pytest.raises(TypeError, match="signed OwnerApproval"):
+        ledger.consume(
+            forged_type,  # type: ignore[arg-type]
+            keyring=_keyring(),
+            expectation=_expectation(),
+            promotion_id="promotion-forged",
+        )
+    assert not ledger.consumed(approval.digest)
+
+
+def test_tampered_and_wrong_expectation_fail_before_persistence(tmp_path) -> None:
+    path = tmp_path / "approvals.sqlite3"
+    ledger = _ledger(path)
+    tampered = dataclasses.replace(_approval(), signature_sha256="a" * 64)
+    with pytest.raises(ApprovalSignatureError):
+        _consume(ledger, tampered)
+    with pytest.raises(ApprovalBindingMismatch, match="candidate"):
+        _consume(
+            ledger,
+            _approval(),
+            expectation=_expectation(candidate_artifact_sha256="a" * 64),
+        )
+    with sqlite3.connect(path) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM owner_approval_consumptions_v2"
+        ).fetchone()[0]
+    assert count == 0
+
+
+def test_nonce_approval_and_promotion_id_are_consumed_once_atomically(
+    tmp_path,
+) -> None:
+    approval = _approval()
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
+    first = _consume(ledger, approval)
     with pytest.raises(ApprovalReplay):
-        ledger.consume(verified, promotion_id="promotion-002", consumed_at=NOW)
+        _consume(ledger, approval, promotion_id="promotion-002")
 
-
-def test_same_nonce_cannot_be_repackaged_into_another_approval(tmp_path) -> None:
-    first = _verify(_approval())
-    second = _verify(_approval(approval_id="approval-002"))
-    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    ledger.consume(first, promotion_id="promotion-001", consumed_at=NOW)
+    other = _approval(approval_id="approval-002", nonce="nonce-002")
     with pytest.raises(ApprovalReplay):
-        ledger.consume(second, promotion_id="promotion-002", consumed_at=NOW)
+        _consume(ledger, other, promotion_id=first.promotion_id)
 
 
-def test_secret_strength_and_contract_expiry_order_are_enforced() -> None:
-    with pytest.raises(ValueError, match="at least 32"):
-        _approval(secret=b"weak")
-    with pytest.raises(ValueError, match="after issued_at"):
-        _approval(expires_at=NOW.isoformat())
+def test_same_nonce_cannot_be_repackaged_into_another_signed_approval(
+    tmp_path,
+) -> None:
+    first = _approval()
+    second = _approval(approval_id="approval-002")
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
+    _consume(ledger, first, promotion_id="promotion-001")
+    with pytest.raises(ApprovalReplay):
+        _consume(ledger, second, promotion_id="promotion-002")
 
 
 def test_concurrent_consumption_allows_exactly_one_winner(tmp_path) -> None:
-    import concurrent.futures
-
-    verified = _verify(_approval())
-    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
+    approval = _approval()
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
 
     def consume(index: int) -> str:
         try:
-            ledger.consume(verified, promotion_id=f"promotion-{index:03d}", consumed_at=NOW)
+            _consume(
+                ledger,
+                approval,
+                promotion_id=f"promotion-{index:03d}",
+            )
             return "accepted"
         except ApprovalReplay:
             return "replayed"
@@ -188,44 +291,108 @@ def test_concurrent_consumption_allows_exactly_one_winner(tmp_path) -> None:
     assert results.count("replayed") == 15
 
 
-def test_corrupt_replay_ledger_fails_closed(tmp_path) -> None:
+def test_expiry_is_rechecked_inside_atomic_consumption(tmp_path) -> None:
+    approval = _approval(
+        expires_at=(NOW + timedelta(seconds=2)).isoformat()
+    )
+    instants = iter(
+        (
+            NOW + timedelta(seconds=1),
+            NOW + timedelta(seconds=1, milliseconds=500),
+            NOW + timedelta(seconds=2),
+        )
+    )
+    ledger = ApprovalLedger(
+        tmp_path / "approvals.sqlite3",
+        clock=lambda: next(instants),
+    )
+    with pytest.raises(
+        ApprovalExpired, match="expired before consumption persistence"
+    ):
+        _consume(ledger, approval)
+    assert not ledger.consumed(approval.digest)
+
+
+def test_consumption_receipt_rejects_tampering_and_unpersisted_forgery(
+    tmp_path,
+) -> None:
+    approval = _approval()
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
+    consumed = _consume(ledger, approval)
+
+    with pytest.raises(ValueError, match="digest mismatch"):
+        dataclasses.replace(consumed, promotion_id="promotion-other")
+
+    payload = consumed.payload_dict()
+    payload["promotion_id"] = "promotion-other"
+    forged = ConsumedOwnerApproval(
+        verified=consumed.verified,
+        expectation_sha256=consumed.expectation_sha256,
+        promotion_id="promotion-other",
+        consumed_at=consumed.consumed_at,
+        consumption_sha256=canonical_sha(payload),
+    )
+    with pytest.raises(ApprovalStateError, match="not persisted"):
+        ledger.verify_consumption(forged)
+
+
+def test_corrupt_or_row_mismatched_persisted_consumption_fails_closed(
+    tmp_path,
+) -> None:
+    approval = _approval()
+    path = tmp_path / "approvals.sqlite3"
+    ledger = _ledger(path)
+    consumed = _consume(ledger, approval)
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE owner_approval_consumptions_v2 "
+            "SET consumption_json=? WHERE approval_sha256=?",
+            ("{", approval.digest),
+        )
+    with pytest.raises(ApprovalStateError, match="corrupt"):
+        ledger.verify_consumption(consumed)
+
+    path2 = tmp_path / "approvals-row.sqlite3"
+    ledger2 = _ledger(path2)
+    consumed2 = _consume(ledger2, approval)
+    with sqlite3.connect(path2) as connection:
+        connection.execute(
+            "UPDATE owner_approval_consumptions_v2 "
+            "SET capability_sha256=? WHERE approval_sha256=?",
+            ("f" * 64, approval.digest),
+        )
+    with pytest.raises(ApprovalStateError, match="persisted authority"):
+        ledger2.verify_consumption(consumed2)
+
+
+def test_corrupt_replay_ledger_and_malformed_consumed_query_fail_closed(
+    tmp_path,
+) -> None:
     path = tmp_path / "approvals.sqlite3"
     path.write_bytes(b"not-a-sqlite-database")
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.DatabaseError):
         ApprovalLedger(path)
+    ledger = _ledger(tmp_path / "clean.sqlite3")
+    with pytest.raises(ValueError, match="sha256"):
+        ledger.consumed("not-a-digest")
 
 
-def test_expiry_is_rechecked_at_atomic_consumption(tmp_path) -> None:
-    verified = _verify(_approval())
-    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    with pytest.raises(ApprovalExpired, match="expired before consumption"):
-        ledger.consume(
-            verified,
-            promotion_id="promotion-expired",
-            consumed_at=NOW + timedelta(minutes=10),
-        )
-    assert not ledger.consumed(verified.approval_sha256)
-
-
-def test_consumption_digest_is_persisted_and_promotion_id_is_bounded(tmp_path) -> None:
-    import sqlite3
-
-    verified = _verify(_approval())
-    path = tmp_path / "approvals.sqlite3"
-    ledger = ApprovalLedger(path)
-    consumed = ledger.consume(verified, promotion_id="promotion-001", consumed_at=NOW)
-    with sqlite3.connect(path) as connection:
-        row = connection.execute(
-            "SELECT capability_sha256, consumption_sha256 FROM owner_approval_consumptions"
-        ).fetchone()
-    assert row == (verified.digest, consumed.consumption_sha256)
-    other = _verify(_approval(approval_id="approval-002", nonce="nonce-002"))
+def test_secret_strength_expiry_order_and_promotion_id_are_enforced(
+    tmp_path,
+) -> None:
+    with pytest.raises(ValueError, match="at least 32"):
+        _approval(secret=b"weak")
+    with pytest.raises(ValueError, match="after issued_at"):
+        _approval(expires_at=NOW.isoformat())
+    ledger = _ledger(tmp_path / "approvals.sqlite3")
     with pytest.raises(ValueError, match="promotion_id"):
-        ledger.consume(other, promotion_id=" invalid ", consumed_at=NOW)
+        _consume(ledger, _approval(), promotion_id=" invalid ")
 
 
-def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> None:
-    import json
+def test_issue_and_verify_cli_are_stdout_only(
+    tmp_path, monkeypatch, capsys
+) -> None:
     from daedalus.kernel import approvals as module
 
     issued = NOW - timedelta(seconds=1)
@@ -250,21 +417,34 @@ def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> 
             origin="tests.owner-approval-cli",
             source_revision=SHA["base"],
             created_at=issued.isoformat(),
-            input_digests=(SHA["nomination"], SHA["candidate"], SHA["evidence"]),
+            input_digests=(
+                SHA["nomination"],
+                SHA["candidate"],
+                SHA["evidence"],
+            ),
         ).to_dict(),
     }
     request_path = tmp_path / "request.json"
     request_path.write_text(json.dumps(request), encoding="utf-8")
     monkeypatch.setenv("DAEDALUS_OWNER_SECRET", SECRET.decode())
-    assert module._cli_issue(request_path, "DAEDALUS_OWNER_SECRET") == 0
+    assert module._cli_issue(
+        request_path, "DAEDALUS_OWNER_SECRET"
+    ) == 0
     approval_payload = json.loads(capsys.readouterr().out)
-    approval = OwnerApproval.from_dict(approval_payload)
+    OwnerApproval.from_dict(approval_payload)
+
+    bad_request = dict(request)
+    bad_request["signature_sha256"] = "0" * 64
+    bad_path = tmp_path / "bad-request.json"
+    bad_path.write_text(json.dumps(bad_request), encoding="utf-8")
+    with pytest.raises(ValueError, match="must not supply a signature"):
+        module._cli_issue(bad_path, "DAEDALUS_OWNER_SECRET")
 
     expectation_path = tmp_path / "expectation.json"
     expectation_path.write_text(
-        json.dumps(dataclasses.asdict(_expectation())), encoding="utf-8"
+        json.dumps(dataclasses.asdict(_expectation())),
+        encoding="utf-8",
     )
-    # The verifier uses the real clock, so reissue a live approval around now.
     live_now = datetime.now(timezone.utc)
     approval = issue_owner_approval(
         approval_id="approval-cli-live",
@@ -284,28 +464,46 @@ def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> 
             origin="tests.owner-approval-cli",
             source_revision=SHA["base"],
             created_at=live_now.isoformat(),
-            input_digests=(SHA["nomination"], SHA["candidate"], SHA["evidence"]),
+            input_digests=(
+                SHA["nomination"],
+                SHA["candidate"],
+                SHA["evidence"],
+            ),
         ),
         secret=SECRET,
     )
     approval_path = tmp_path / "approval.json"
-    approval_path.write_text(json.dumps(approval.to_dict()), encoding="utf-8")
+    approval_path.write_text(
+        json.dumps(approval.to_dict()), encoding="utf-8"
+    )
     assert module._cli_verify(
-        approval_path, expectation_path, "DAEDALUS_OWNER_SECRET"
+        approval_path,
+        expectation_path,
+        "DAEDALUS_OWNER_SECRET",
     ) == 0
     verified_payload = json.loads(capsys.readouterr().out)
     assert verified_payload["approval_sha256"] == approval.digest
-    assert set(tmp_path.iterdir()) == {request_path, expectation_path, approval_path}
+    assert verified_payload["candidate_artifact_sha256"] == SHA["candidate"]
+    assert set(tmp_path.iterdir()) == {
+        request_path,
+        bad_path,
+        expectation_path,
+        approval_path,
+    }
 
 
 def test_owner_approval_json_schema_is_closed_and_complete() -> None:
-    import json
-    from pathlib import Path
-
     schema = json.loads(
-        (Path(__file__).resolve().parents[2] / "configs/schemas/owner-approval-v1.schema.json").read_text()
+        (
+            Path(__file__).resolve().parents[2]
+            / "configs/schemas/owner-approval-v1.schema.json"
+        ).read_text()
     )
     assert schema["additionalProperties"] is False
-    assert schema["properties"]["operation"] == {"const": "promote-candidate"}
-    assert schema["properties"]["provenance"] == {"$ref": "#/$defs/provenance"}
+    assert schema["properties"]["operation"] == {
+        "const": "promote-candidate"
+    }
+    assert schema["properties"]["provenance"] == {
+        "$ref": "#/$defs/provenance"
+    }
     assert schema["$defs"]["provenance"]["additionalProperties"] is False
