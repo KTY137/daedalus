@@ -482,6 +482,18 @@ class ApprovalLedger:
                 )
                 """
             )
+            legacy = connection.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='owner_approval_consumptions'"
+            ).fetchone()
+            if legacy is not None:
+                legacy_count = connection.execute(
+                    "SELECT COUNT(*) FROM owner_approval_consumptions"
+                ).fetchone()[0]
+                if legacy_count:
+                    raise ApprovalStateError(
+                        "legacy approval consumptions require explicit migration"
+                    )
 
     def consume(
         self,
@@ -496,11 +508,12 @@ class ApprovalLedger:
         if not isinstance(approval, OwnerApproval):
             raise TypeError("consumption requires the signed OwnerApproval")
         normalized_promotion_id = _identifier(promotion_id, "promotion_id")
+        preflight_at = self._now()
         preflight = verify_owner_approval(
             approval,
             keyring=keyring,
             expectation=expectation,
-            now=self._now(),
+            now=preflight_at,
         )
         approval_json = canonical_json(approval.to_dict())
         expectation_json = canonical_json(expectation.to_dict())
@@ -508,17 +521,27 @@ class ApprovalLedger:
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
+            transaction_at = self._now()
+            if transaction_at < preflight_at:
+                raise ApprovalStateError(
+                    "approval ledger clock moved backwards before consumption"
+                )
             verified = verify_owner_approval(
                 approval,
                 keyring=keyring,
                 expectation=expectation,
-                now=self._now(),
+                now=transaction_at,
             )
             if verified != preflight:
                 raise ApprovalStateError(
                     "approval verification changed before consumption"
                 )
-            consumed_at = _timestamp(self._now())
+            persistence_at = self._now()
+            if persistence_at < transaction_at:
+                raise ApprovalStateError(
+                    "approval ledger clock moved backwards during consumption"
+                )
+            consumed_at = _timestamp(persistence_at)
             if consumed_at < verified.issued_at:
                 raise ApprovalExpired(
                     "owner approval is not valid yet at consumption"
@@ -603,9 +626,12 @@ class ApprovalLedger:
             connection.close()
 
     def verify_consumption(
-        self, receipt: ConsumedOwnerApproval
+        self,
+        receipt: ConsumedOwnerApproval,
+        *,
+        keyring: Mapping[tuple[str, str], bytes | str],
     ) -> ConsumedOwnerApproval:
-        """Require exact equality with a structurally valid persisted receipt."""
+        """Re-authenticate and require exact persisted receipt equality."""
 
         if not isinstance(receipt, ConsumedOwnerApproval):
             raise TypeError("verification requires a ConsumedOwnerApproval")
@@ -613,7 +639,8 @@ class ApprovalLedger:
             row = connection.execute(
                 """
                 SELECT approval_sha256, expectation_sha256, promotion_id,
-                       capability_sha256, consumption_json
+                       capability_sha256, approval_json, expectation_json,
+                       consumption_json
                 FROM owner_approval_consumptions_v2
                 WHERE consumption_sha256=?
                 """,
@@ -622,17 +649,61 @@ class ApprovalLedger:
         if row is None:
             raise ApprovalStateError("approval consumption is not persisted")
         try:
-            payload = json.loads(row["consumption_json"])
-            if not isinstance(payload, dict):
+            consumption_payload = json.loads(row["consumption_json"])
+            approval_payload = json.loads(row["approval_json"])
+            expectation_payload = json.loads(row["expectation_json"])
+            if not isinstance(consumption_payload, dict):
                 raise ValueError("consumption JSON must be an object")
-            persisted = ConsumedOwnerApproval.from_dict(payload)
+            if not isinstance(approval_payload, dict):
+                raise ValueError("approval JSON must be an object")
+            if not isinstance(expectation_payload, dict):
+                raise ValueError("expectation JSON must be an object")
+            persisted = ConsumedOwnerApproval.from_dict(consumption_payload)
+            stored_approval = OwnerApproval.from_dict(approval_payload)
+            stored_expectation = ApprovalExpectation(**expectation_payload)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             raise ApprovalStateError(
                 "persisted approval consumption is corrupt"
             ) from exc
+        secret = keyring.get(
+            (stored_approval.owner_id, stored_approval.key_id)
+        )
+        if secret is None:
+            raise ApprovalSignatureError(
+                "persisted owner approval key is unknown"
+            )
+        if not hmac.compare_digest(
+            stored_approval.signature_sha256,
+            _signature(stored_approval.signing_digest, secret),
+        ):
+            raise ApprovalSignatureError(
+                "persisted owner approval signature mismatch"
+            )
+        stored_verified = VerifiedOwnerApproval(
+            approval_sha256=stored_approval.digest,
+            approval_id=stored_approval.approval_id,
+            owner_id=stored_approval.owner_id,
+            key_id=stored_approval.key_id,
+            operation=stored_approval.operation,
+            nomination_receipt_sha256=stored_approval.nomination_receipt_sha256,
+            candidate_artifact_sha256=stored_approval.candidate_artifact_sha256,
+            evidence_packet_sha256=stored_approval.evidence_packet_sha256,
+            base_revision=stored_approval.base_revision,
+            nonce=stored_approval.nonce,
+            target_ref=stored_approval.target_ref,
+            expected_target_revision=stored_approval.expected_target_revision,
+            issued_at=stored_approval.issued_at,
+            expires_at=stored_approval.expires_at,
+            signature_sha256=stored_approval.signature_sha256,
+        )
         if (
             persisted != receipt
             or canonical_json(receipt.to_dict()) != row["consumption_json"]
+            or canonical_json(stored_approval.to_dict()) != row["approval_json"]
+            or canonical_json(stored_expectation.to_dict())
+            != row["expectation_json"]
+            or stored_verified != receipt.verified
+            or stored_expectation.digest != receipt.expectation_sha256
             or row["approval_sha256"] != receipt.verified.approval_sha256
             or row["expectation_sha256"] != receipt.expectation_sha256
             or row["promotion_id"] != receipt.promotion_id
