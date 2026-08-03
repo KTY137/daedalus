@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import ast
+import inspect
+
+import daedalus.kernel.attempts as attempts
+
+
+def _method(class_name: str, method_name: str) -> ast.FunctionDef:
+    tree = ast.parse(inspect.getsource(attempts))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name == method_name:
+                    return child
+    raise AssertionError(f"missing {class_name}.{method_name}")
+
+
+def _call_name(call: ast.Call) -> str:
+    value = call.func
+    parts: list[str] = []
+    while isinstance(value, ast.Attribute):
+        parts.append(value.attr)
+        value = value.value
+    if isinstance(value, ast.Name):
+        parts.append(value.id)
+    return ".".join(reversed(parts))
+
+
+def test_prepare_persists_start_before_materialization_and_replay_returns_first() -> None:
+    method = _method("IsolatedAttemptCoordinator", "prepare")
+    source = ast.unparse(method)
+    assert source.index("self.ledger.begin") < source.index(
+        "self.source_store.materialize_tree"
+    )
+    assert source.index("if not begin.execute") < source.index(
+        "self.source_store.materialize_tree"
+    )
+    assert "PreparedAttempt(begin=begin, workspace=None)" in source
+
+
+def test_process_abort_is_not_terminalized_as_known_failure() -> None:
+    method = _method("IsolatedAttemptCoordinator", "prepare")
+    handlers = [node for node in ast.walk(method) if isinstance(node, ast.ExceptHandler)]
+    materialization_handlers = [
+        node
+        for node in handlers
+        if isinstance(node.type, ast.Name) and node.type.id == "Exception"
+    ]
+    assert len(materialization_handlers) == 1
+    assert all(
+        not (isinstance(node.type, ast.Name) and node.type.id == "BaseException")
+        for node in handlers
+    )
+
+
+def test_begin_uses_immediate_transaction_and_returns_pending_without_execute() -> None:
+    source = inspect.getsource(attempts.AttemptLedger.begin)
+    assert "BEGIN IMMEDIATE" in source
+    assert "persisted.same_subject(start)" in source
+    assert "execute=False" in source
+    assert "completion=completion" in source
+    assert source.index("BEGIN IMMEDIATE") < source.index("INSERT INTO attempt_starts")
+
+
+def test_terminal_replay_compares_subject_and_never_writes_twice() -> None:
+    source = inspect.getsource(attempts.AttemptLedger.complete)
+    assert "BEGIN IMMEDIATE" in source
+    assert "existing.receipt.same_subject(receipt)" in source
+    assert source.index("existing = self._completion_for") < source.index(
+        "INSERT INTO attempt_terminals"
+    )
+    assert "return existing" in source
+
+
+def test_workspace_and_primary_cas_roots_are_pairwise_disjoint() -> None:
+    source = inspect.getsource(attempts.IsolatedAttemptCoordinator.__init__)
+    assert "workspace parent and primary checkout" in source
+    assert "workspace parent and source-tree store" in source
+    assert "_is_same_or_within(left, right)" in source
+    assert "_is_same_or_within(right, left)" in source
+
+
+def test_lifecycle_module_has_no_runtime_provider_or_promotion_authority() -> None:
+    source = inspect.getsource(attempts)
+    forbidden = (
+        "subprocess",
+        "docker",
+        "provider.invoke",
+        "run_in_docker_sandbox",
+        "OwnerApproval",
+        "EffectLease",
+        "promote_candidates",
+        "merge_pull_request",
+        "git checkout",
+        "git reset",
+        "git clean",
+    )
+    for token in forbidden:
+        assert token not in source
+
+
+def test_success_receipt_structurally_requires_candidate_tree() -> None:
+    source = inspect.getsource(attempts.AttemptTerminalReceipt.__post_init__)
+    assert 'self.outcome == "succeeded"' in source
+    assert "successful attempt must bind a candidate source tree" in source
+    assert "attempt terminal provenance must bind exactly its inputs" in source
+
+
+def test_persisted_records_are_reparsed_and_canonicalized_on_read() -> None:
+    start_source = inspect.getsource(attempts.AttemptLedger._decode_start)
+    terminal_source = inspect.getsource(attempts.AttemptLedger._decode_receipt)
+    assert "_strict_json" in start_source
+    assert "AttemptStartRecord.from_dict" in start_source
+    assert "start.to_json() != raw" in start_source
+    assert "_strict_json" in terminal_source
+    assert "AttemptTerminalReceipt.from_dict" in terminal_source
+    assert "receipt.to_json() != raw" in terminal_source
