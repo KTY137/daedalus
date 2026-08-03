@@ -187,7 +187,10 @@ class Gate0ReleaseReport(CanonicalContract):
     def from_dict(cls, payload: Mapping[str, Any]) -> "Gate0ReleaseReport":
         if not isinstance(payload, Mapping):
             raise ValueError("Gate-0 release report must be an object")
-        wire = dict(payload)
+        original_wire = _json_value(payload)
+        if not isinstance(original_wire, dict):
+            raise ValueError("Gate-0 release report must be an object")
+        wire = dict(original_wire)
         if "closed" not in wire or "blockers" not in wire:
             raise ValueError("Gate-0 release report must retain derived closed and blockers")
         claimed_closed = wire.pop("closed")
@@ -207,6 +210,8 @@ class Gate0ReleaseReport(CanonicalContract):
             raise ValueError("release closed contradicts derived blockers")
         if claimed_blockers != list(value.blockers):
             raise ValueError("release blockers contradict derived blockers")
+        if original_wire != value.to_dict():
+            raise ValueError("release report must use the exact canonical wire")
         return value
 
 
