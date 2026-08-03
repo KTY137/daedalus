@@ -11,7 +11,7 @@ not merge, promote or close Gate 0.
 
 ## Sandbox receipt classification
 
-`SandboxExecutionReceipt` now carries a digest-bound launch state:
+`SandboxExecutionReceipt` carries a digest-bound launch state:
 
 - `completed`: Docker started the container command and returned its terminal
   code;
@@ -25,6 +25,13 @@ Pre-start refusal is returned for:
 - other operating-system launch errors;
 - Docker CLI return code 125.
 
+These categories are not interchangeable. Missing/non-executable/runtime-launch
+errors prove only that this host could not invoke the sandbox boundary. They do
+**not** prove that a present Docker daemon was unavailable. Only Docker CLI
+return code 125, represented as `refused-before-start` with
+`error_code=docker-cli-refused`, is eligible for the canonical daemon-unavailable
+fault.
+
 Docker exit code 125 belongs to the Docker CLI rather than the requested
 container command. It is therefore intrinsically classified as
 `refused-before-start`. A legacy receipt constructed with return code 125 and no
@@ -35,13 +42,24 @@ Container command return code 127 remains a completed attempt because Docker may
 have started the container and the command inside it was missing. Timeouts are
 not mislabeled as daemon unavailability.
 
-The receipt digest now includes launch state and bounded error code in addition
-to argv, stdout, stderr, return code and timeout identity. OS exception messages
-are not retained.
+The receipt digest includes launch state and bounded error code in addition to
+argv, stdout, stderr, return code and timeout identity. OS exception messages are
+not retained.
 
-## Real unavailable-runtime fault
+## Exact unavailable-runtime fault
 
-The host fixture forces an unavailable Docker endpoint with a unique nonexistent
+The host fixture first establishes its prerequisites:
+
+- Linux host;
+- a Docker CLI discoverable through the active environment;
+- the resolved Docker CLI is a readable executable regular file;
+- the Docker CLI bytes are SHA-256 bound into the raw evidence.
+
+A missing or unreadable Docker CLI produces a canonical `blocked` observation
+with `docker-cli-unavailable` or `docker-cli-unreadable`. It can never be
+repackaged as a passed daemon-unavailable fault.
+
+The fixture then forces an unavailable Docker endpoint with a unique nonexistent
 Unix socket and clears context/TLS environment variables for the duration of the
 probe. It invokes the real `run_in_docker_sandbox` boundary with:
 
@@ -51,26 +69,50 @@ probe. It invokes the real `run_in_docker_sandbox` boundary with:
 - a command that would create `/workspace/fallback-marker` if a container or
   host fallback actually executed it.
 
-The fault passes only when:
+The fault passes only when all of these are exact:
 
-- the receipt is `refused-before-start`;
+- `launch_state == refused-before-start`;
+- `error_code == docker-cli-refused`;
+- `returncode == 125`;
+- `timed_out == false`;
 - the workspace marker does not exist;
 - no host fallback is observed.
 
-The environment is restored after the probe. The executor implementation digest
-binds both its own bytes and the exact production sandbox module bytes.
+Any other nonzero completed result, timeout, missing runtime, permission failure
+or generic OS launch refusal fails or blocks instead of satisfying the scenario.
+The Docker environment is restored after every exit. The executor implementation
+digest binds both its own bytes and the exact production sandbox module bytes.
+The nonexistent socket path is retained only by digest, never in plaintext.
+
+## Sibling consolidation
+
+Two sibling drafts originally implemented complementary halves of this fault:
+
+- the production launch-state authority and return-code-125 classification;
+- Linux/Docker prerequisites, CLI digest binding, scenario binding and
+  independent fixture review.
+
+This packet is the selected consolidation target because the fault cannot be
+sound without the production receipt classification. The additional host
+preconditions and counter-review checks have been ported here. The sibling must
+not be closed until exact-head diff review confirms that all unique behavior and
+evidence constraints are retained.
 
 ## Fail-closed and adversarial checks
 
 - Docker commands remain argv arrays with no shell parsing;
-- no host fallback dispatch exists in the sandbox module;
+- no host fallback dispatch exists in the sandbox module or fixture;
 - return code 125 cannot be represented as a completed attempt;
 - missing binary, permission and generic OS launch errors produce distinct
-  bounded error codes;
+  bounded error codes but cannot pass daemon unavailability;
+- arbitrary nonzero completed results cannot pass;
 - timeout remains a separate launch state;
 - exception messages, which may contain credentials or endpoint details, are
   excluded from receipts;
+- raw evidence retains Docker CLI, argv, stdout, stderr and socket-path digests,
+  not daemon output or the socket path itself;
 - output-directory symlink substitution refuses;
+- `BaseException` control flow is not laundered into evidence;
 - raw evidence, canonical evidence and observation digests are cross-checked;
 - published summaries hard-code `trusted=false`, `attested=false` and
   `gate_closure_claimed=false`.
@@ -85,9 +127,9 @@ continues to work:
   `docker-cli-refused`;
 - other terminal return codes infer `completed`.
 
-The receipt digest changes because launch classification is now part of the
-security-relevant identity. Gate-0 receipts from an older source revision must
-therefore remain stale rather than being silently reused.
+The receipt digest changes because launch classification is part of the
+security-relevant identity. Gate-0 receipts from an older source revision remain
+stale rather than being silently reused.
 
 ## Requested verification
 
@@ -97,15 +139,18 @@ The dedicated workflow requests:
 - Python 3.10 and 3.12;
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan and `compileall`;
-- original sandbox policy tests plus launch-state and independent counter-review
-  suites;
-- real unavailable-Docker fault execution on Linux;
+- original sandbox policy tests, launch-state tests, deterministic fixture tests
+  and an independent AST/evidence counter-review;
+- exact-head unavailable-Docker fault execution on Linux;
 - retained exact-head untrusted raw/evidence/observation artifacts;
 - full repository pytest on Linux/Python 3.12;
 - isolated wheel build/install/import outside the checkout.
 
-A workflow run that ends with `steps=null` and no logs is infrastructure evidence
-only and does not verify this packet.
+The retained host-evidence job intentionally fails when Docker CLI prerequisites
+are absent or the exact 125 classification is not observed. That failure is a
+runtime/infrastructure blocker, not permission to downgrade the fault. A workflow
+run that ends with `steps=null` and no logs is infrastructure evidence only and
+does not verify this packet.
 
 ## Deliberate remaining blockers
 
@@ -116,6 +161,6 @@ only and does not verify this packet.
 - no external host-attestation issuer key or authority policy is provisioned;
 - the exact-head Gate-0 release report remains open.
 
-Iron Plan: **ALIGNED**  
+Iron Plan: **ALIGNED by scope; exact-head execution blocked by #67**  
 Active gate: **Gate 0**  
 Promotion: **not requested**
