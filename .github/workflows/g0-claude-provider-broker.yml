@@ -13,6 +13,7 @@ on:
       - "daedalus/kernel/effects.py"
       - "daedalus/primary_tree.py"
       - "tests/providers/test_claude_runtime_broker.py"
+      - "tests/providers/test_claude_bypass_inventory.py"
       - "tests/runtimes/**"
       - "tests/kernel/test_runtime_effects.py"
       - "tests/test_effect_boundary.py"
@@ -53,6 +54,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/providers/test_claude_runtime_broker.py
+          tests/providers/test_claude_bypass_inventory.py
           tests/runtimes/test_runtime_provider_broker.py
           tests/runtimes/test_runtime_terminal_fence.py
           tests/runtimes/test_runtime_terminal_fence_release.py
