@@ -41,32 +41,41 @@ def main() -> int:
         sys.stderr.write(baseline.stdout + baseline.stderr)
         return 2
 
-    preflight = """        _require_disjoint_workspace_parent(
+    prospective_preflight = """        _require_disjoint_workspace_parent(
             prospective_parent,
             primary_checkout=primary,
             cas_root=cas_root,
         )
-
         try:
 """
-    post_create = """        _require_disjoint_workspace_parent(
-            parent,
-            primary_checkout=primary,
-            cas_root=cas_root,
-        )
-
-        self.primary_checkout = primary
+    identity_check = """        if current != parent or _path_identity(current) != self.workspace_parent_sha256:
+            raise AttemptWorkspaceError(
+                "workspace parent identity changed after coordinator admission"
+            )
+"""
+    pre_materialization = """        if not begin.execute:
+            return PreparedAttempt(begin=begin, workspace=None)
+        self._require_stable_workspace_parent()
+        workspace = self.workspace_parent.joinpath(*relative.split("/"))
 """
     mutations = (
         (
-            "create-protected-workspace-before-refusal",
-            preflight,
+            "admit-prospective-path-overlapping-protected-root",
+            prospective_preflight,
             "        try:\n",
         ),
         (
-            "retain-authority-without-post-create-topology-check",
-            post_create,
-            "        self.primary_checkout = primary\n",
+            "retain-replaced-workspace-parent-authority",
+            identity_check,
+            "        if False:\n            raise AttemptWorkspaceError(\n                \"workspace parent identity changed after coordinator admission\"\n            )\n",
+        ),
+        (
+            "materialize-without-last-stability-recheck",
+            pre_materialization,
+            """        if not begin.execute:
+            return PreparedAttempt(begin=begin, workspace=None)
+        workspace = self.workspace_parent.joinpath(*relative.split("/"))
+""",
         ),
     )
 
