@@ -1,0 +1,99 @@
+name: Gate 0 Attempt Effect Inventory
+
+on:
+  pull_request:
+    branches:
+      - g0/isolated-attempt-lifecycle-linear
+    paths:
+      - "daedalus/spine/effect_boundary.py"
+      - "tests/kernel/test_isolated_attempt_effect_inventory_registration.py"
+      - "scripts/run_attempt_effect_inventory_mutations.py"
+      - "docs/work-packets/G0-ATT-13C_ATTEMPT_EFFECT_INVENTORY.md"
+      - ".github/workflows/g0-attempt-effect-inventory.yml"
+  push:
+    branches:
+      - g0/attempt-effect-inventory-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-attempt-effect-inventory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts/run_attempt_effect_inventory_mutations.py
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_isolated_attempt_effect_inventory_registration.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
+          tests/kernel/test_effect_boundary.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
+          tests/kernel/test_isolated_attempt_lifecycle_review.py
+
+  mutations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_attempt_effect_inventory_mutations.py
+      - run: git diff --exit-code -- daedalus/spine/effect_boundary.py
+
+  full-suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: "123456"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]" pytest
+      - run: python -m pytest -q -p no:cacheprovider
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-attempt-inventory-wheel
+      - run: /tmp/daedalus-attempt-inventory-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-attempt-inventory-wheel/bin/python -c
+          "from daedalus.spine.effect_boundary import ENTRYPOINTS;
+          required={'python.attempt_lifecycle_begin','python.attempt_lifecycle_complete','python.attempt_workspace_prepare'};
+          assert required <= {row.id for row in ENTRYPOINTS}"
