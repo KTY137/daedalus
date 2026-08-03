@@ -24,7 +24,12 @@ from daedalus.schemas import (
     EvidencePacket,
     ResourceUsage,
 )
-from daedalus.spine.attempt import AttemptResult, PatchArtifact, STATE_CLEAN
+from daedalus.spine.attempt import (
+    AttemptResult,
+    GateResult,
+    PatchArtifact,
+    STATE_CLEAN,
+)
 from daedalus.spine.envelope import canonical_sha
 
 NOW = datetime(2026, 8, 2, 0, 0, tzinfo=timezone.utc)
@@ -56,6 +61,7 @@ def _candidate(base: str, *, suffix: str = "one") -> GatedCandidate:
         branch=artifact.branch,
         base_revision=base,
         artifact=artifact,
+        gates=GateResult(passed=True, name="fixture-gate"),
     )
     return GatedCandidate(assignment=None, spec=None, result=result)
 
