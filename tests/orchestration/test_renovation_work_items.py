@@ -11,6 +11,7 @@ from daedalus.orchestration import (
     RenovationPlanBindingError,
     RenovationPlanError,
     WorkItemContract,
+    load_renovation_plan,
     parse_renovation_plan,
     verify_renovation_plan,
 )
@@ -210,7 +211,7 @@ def test_stale_mission_snapshot_and_item_identity_are_refused() -> None:
         verify_renovation_plan(value, mission=changed_ids, base_snapshot=base)
 
 
-def test_noncanonical_wires_are_refused() -> None:
+def test_noncanonical_and_duplicate_key_wires_are_refused() -> None:
     value, _, _ = plan()
     reordered = value.to_dict()
     reordered["work_items"] = list(reversed(reordered["work_items"]))
@@ -220,6 +221,51 @@ def test_noncanonical_wires_are_refused() -> None:
     tuple_wire["work_items"] = tuple(tuple_wire["work_items"])
     with pytest.raises(RenovationPlanError, match="not canonical"):
         parse_renovation_plan(tuple_wire)
+
+
+def test_overlapping_paths_and_provenance_substitution_are_refused() -> None:
+    value, _, _ = plan()
+    by_kind = {item.kind: item for item in value.work_items}
+    overlapping_sync = dataclasses.replace(
+        by_kind["representation-sync"],
+        writable_paths=(by_kind["symbol-rename"].writable_paths[0],),
+    )
+    with pytest.raises(RenovationPlanError, match="disjoint"):
+        dataclasses.replace(
+            value,
+            work_items=(by_kind["symbol-rename"], overlapping_sync),
+        )
+    weakened_inputs = value.provenance.input_digests[:-1]
+    weakened = ContractProvenance(
+        origin=value.provenance.origin,
+        source_revision=value.provenance.source_revision,
+        created_at=value.provenance.created_at,
+        input_digests=weakened_inputs,
+        trace_id=value.provenance.trace_id,
+    )
+    with pytest.raises(RenovationPlanError, match="bind exactly"):
+        dataclasses.replace(value, provenance=weakened)
+
+
+def test_forged_constructor_bypass_is_revalidated() -> None:
+    value, mission_value, base = plan()
+    forged = object.__new__(RenovationPlan)
+    for field in dataclasses.fields(value):
+        object.__setattr__(forged, field.name, getattr(value, field.name))
+    object.__setattr__(forged, "work_items", value.work_items[:1])
+    with pytest.raises(RenovationPlanBindingError, match="canonical contract"):
+        verify_renovation_plan(forged, mission=mission_value, base_snapshot=base)
+
+
+def test_loader_refuses_recursive_duplicate_keys(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    path.write_text(
+        '{"contract_type":"daedalus.renovation-plan",'
+        '"contract_type":"daedalus.renovation-plan"}',
+        encoding="utf-8",
+    )
+    with pytest.raises(RenovationPlanError, match="duplicate JSON key"):
+        load_renovation_plan(path)
 
 
 def test_contract_module_has_no_execution_or_promotion_authority() -> None:
