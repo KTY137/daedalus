@@ -11,6 +11,8 @@ from daedalus.kernel.contracts import (
     OFFLOAD_EXECUTION_EFFECTS,
     EffectLeaseRequest,
     OffloadExecutionPlan,
+    derive_offload_staging_path,
+    offload_staging_path_sha256,
 )
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -247,6 +249,12 @@ def _plan(
     target_before: TargetBeforeObservation,
     workspace_observation: OffloadWorkspaceObservation,
 ) -> OffloadExecutionPlan:
+    staging_path = derive_offload_staging_path(
+        attempt_id=attempt.attempt_id,
+        workspace_id=workspace_attestation.workspace_id,
+        target_path=TARGET,
+    )
+    staging_sha = offload_staging_path_sha256(staging_path)
     digests = {
         "spine_intent_sha256": _sha("spine-intent"),
         "attempt_contract_sha256": attempt.digest,
@@ -267,7 +275,7 @@ def _plan(
     }
     scope = EffectScope(
         read_only=False,
-        writable_paths=attempt.writable_paths,
+        writable_paths=tuple(sorted((*attempt.writable_paths, staging_path))),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=(TOOL_ID,),
         secret_refs=(),
@@ -307,11 +315,13 @@ def _plan(
         kill_switch_generation=3,
         total_timeout_s=120,
         max_cost_microusd=0,
+        staging_path=staging_path,
+        staging_path_sha256=staging_sha,
         provenance=ContractProvenance(
-            origin="tests.offload-authority-plan-v2",
+            origin="tests.offload-authority-plan-v3",
             source_revision=attempt.base_revision,
             created_at=NOW.isoformat(),
-            input_digests=tuple(digests.values()),
+            input_digests=(*digests.values(), staging_sha),
             trace_id=attempt.mission_id,
         ),
     )
@@ -672,9 +682,32 @@ def _tamper(parts: _Parts, case: str) -> _Parts:
         )
         return dataclasses.replace(parts, runtime_tool_binding=changed)
     if case == "plan_workspace_id":
+        other_workspace = "other-workspace"
+        other_staging = derive_offload_staging_path(
+            attempt_id=plan.attempt_id,
+            workspace_id=other_workspace,
+            target_path=plan.target_path,
+        )
+        other_staging_sha = offload_staging_path_sha256(other_staging)
         return dataclasses.replace(
             parts,
-            plan=dataclasses.replace(plan, workspace_id="other-workspace"),
+            plan=dataclasses.replace(
+                plan,
+                workspace_id=other_workspace,
+                staging_path=other_staging,
+                staging_path_sha256=other_staging_sha,
+                effect_scope=dataclasses.replace(
+                    plan.effect_scope,
+                    writable_paths=tuple(
+                        sorted((plan.target_path, other_staging))
+                    ),
+                ),
+                provenance=_replace_provenance_input(
+                    plan.provenance,
+                    plan.staging_path_sha256,
+                    other_staging_sha,
+                ),
+            ),
         )
     if case == "plan_task_sha":
         return dataclasses.replace(parts, plan=_replace_plan_digest(plan, "task_sha256", case))

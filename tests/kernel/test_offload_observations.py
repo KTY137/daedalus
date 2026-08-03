@@ -17,6 +17,8 @@ from daedalus.kernel.contracts import (
     OFFLOAD_EXECUTION_EFFECTS,
     EffectLeaseRequest,
     OffloadExecutionPlan,
+    derive_offload_staging_path,
+    offload_staging_path_sha256,
 )
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -477,6 +479,13 @@ def test_portable_aliases_and_a_real_symlink_target_are_refused(
 
 
 def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) -> OffloadExecutionPlan:
+    attempt_id = "attempt-1"
+    staging_path = derive_offload_staging_path(
+        attempt_id=attempt_id,
+        workspace_id=observed.attestation.workspace_id,
+        target_path=TARGET,
+    )
+    staging_sha = offload_staging_path_sha256(staging_path)
     digest_fields = {
         "spine_intent_sha256": observed.attestation.spine_intent_sha256,
         "attempt_contract_sha256": _sha("attempt-contract"),
@@ -497,7 +506,7 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
     }
     scope = EffectScope(
         read_only=False,
-        writable_paths=(TARGET,),
+        writable_paths=tuple(sorted((TARGET, staging_path))),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=("python.test-runner",),
         secret_refs=(),
@@ -509,7 +518,7 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
     return OffloadExecutionPlan(
         spine_intent_id=observed.attestation.spine_intent_id,
         mission_id="mission-1",
-        attempt_id="attempt-1",
+        attempt_id=attempt_id,
         task_id=observed.attestation.task_id,
         **digest_fields,
         source_revision=observed.revision,
@@ -537,11 +546,13 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
         kill_switch_generation=3,
         total_timeout_s=120,
         max_cost_microusd=0,
+        staging_path=staging_path,
+        staging_path_sha256=staging_sha,
         provenance=ContractProvenance(
             origin="tests.offload-observations",
             source_revision=observed.revision,
             created_at=NOW,
-            input_digests=tuple(digest_fields.values()),
+            input_digests=(*digest_fields.values(), staging_sha),
             trace_id="trace-1",
         ),
     )

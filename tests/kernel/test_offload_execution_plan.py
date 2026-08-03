@@ -7,6 +7,7 @@ import os
 import re
 from pathlib import Path
 
+import jsonschema
 import pytest
 
 from daedalus.kernel.contracts import (
@@ -16,7 +17,10 @@ from daedalus.kernel.contracts import (
     OFFLOAD_MAX_RESPONSE_BYTES,
     OffloadExecutionPlan,
     OffloadExecutionPlanV1,
+    OffloadExecutionPlanV2,
     decode_offload_execution_plan,
+    derive_offload_staging_path,
+    offload_staging_path_sha256,
 )
 from daedalus.kernel.runtime_tools import RuntimeToolBinding, RuntimeToolBindingError
 from daedalus.schemas import ContractProvenance, EffectScope
@@ -28,6 +32,8 @@ REVISION = "a" * 40
 NOW = "2026-08-03T00:00:00+00:00"
 TARGET = "src/package/module.py"
 TOOL_ID = "python.test-runner"
+ATTEMPT_ID = "attempt-1"
+WORKSPACE_ID = "task-attempt-task-1-deadbeef-a1b2c3"
 
 
 def _sha(label: str) -> str:
@@ -61,13 +67,19 @@ def _digest_fields() -> dict[str, str]:
 def _scope(
     *,
     target_path: str = TARGET,
+    staging_path: str | None = None,
     endpoint: str = "http://127.0.0.1:11434",
     tool_id: str = TOOL_ID,
     timeout_s: int = 120,
 ) -> EffectScope:
+    exact_staging = staging_path or derive_offload_staging_path(
+        attempt_id=ATTEMPT_ID,
+        workspace_id=WORKSPACE_ID,
+        target_path=target_path,
+    )
     return EffectScope(
         read_only=False,
-        writable_paths=(target_path,),
+        writable_paths=tuple(sorted((target_path, exact_staging))),
         egress_endpoints=(endpoint,),
         tools=(tool_id,),
         secret_refs=(),
@@ -80,15 +92,29 @@ def _scope(
 
 def _plan(**overrides: object) -> OffloadExecutionPlan:
     digests = _digest_fields()
+    attempt_id = str(overrides.get("attempt_id", ATTEMPT_ID))
+    workspace_id = str(overrides.get("workspace_id", WORKSPACE_ID))
+    target_path = str(overrides.get("target_path", TARGET))
+    staging_path = str(
+        overrides.get(
+            "staging_path",
+            derive_offload_staging_path(
+                attempt_id=attempt_id,
+                workspace_id=workspace_id,
+                target_path=target_path,
+            ),
+        )
+    )
+    staging_sha = offload_staging_path_sha256(staging_path)
     values: dict[str, object] = {
         "spine_intent_id": 1,
         "mission_id": "mission-1",
-        "attempt_id": "attempt-1",
+        "attempt_id": attempt_id,
         "task_id": "task-1",
         **digests,
         "source_revision": REVISION,
-        "workspace_id": "task-attempt-task-1-deadbeef-a1b2c3",
-        "target_path": TARGET,
+        "workspace_id": workspace_id,
+        "target_path": target_path,
         "target_kind": "existing-regular-utf8-file",
         "target_before_size": 23,
         "target_git_mode": "100644",
@@ -107,17 +133,22 @@ def _plan(**overrides: object) -> OffloadExecutionPlan:
         "verifier_argv": (TOOL_ID, "-q", "tests/test_module.py"),
         "verifier_timeout_s": 30,
         "requested_effects": OFFLOAD_EXECUTION_EFFECTS,
-        "effect_scope": _scope(),
+        "effect_scope": _scope(
+            target_path=target_path,
+            staging_path=staging_path,
+        ),
         "kill_switch_generation": 3,
         "total_timeout_s": 120,
         "max_cost_microusd": 0,
         "provenance": ContractProvenance(
-            origin="tests.offload-plan-v2",
+            origin="tests.offload-plan-v3",
             source_revision=REVISION,
             created_at=NOW,
-            input_digests=tuple(digests.values()),
+            input_digests=(*digests.values(), staging_sha),
             trace_id="mission-1",
         ),
+        "staging_path": staging_path,
+        "staging_path_sha256": staging_sha,
     }
     values.update(overrides)
     return OffloadExecutionPlan(**values)
@@ -184,7 +215,7 @@ def _v1_payload() -> dict[str, object]:
     }
 
 
-def test_v2_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
+def test_v3_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
     argv = [TOOL_ID, "-q", "tests/test_module.py"]
     plan = _plan(
         provider_endpoint="http://127.0.0.1:11434/",
@@ -194,7 +225,7 @@ def test_v2_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
     digest = plan.digest
     argv.append("--unsafe")
 
-    assert plan.CONTRACT_VERSION == "2.0.0"
+    assert plan.CONTRACT_VERSION == "3.0.0"
     assert plan.provider_endpoint == "http://127.0.0.1:11434"
     assert plan.verifier_argv == (TOOL_ID, "-q", "tests/test_module.py")
     assert plan.digest == digest == canonical_sha(plan.to_dict())
@@ -211,6 +242,41 @@ def test_v2_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
     missing.pop("runtime_tool_binding_sha256")
     with pytest.raises(ValueError, match="missing field"):
         OffloadExecutionPlan.from_dict(missing)
+
+
+def test_historical_v2_wire_remains_decodable_but_is_not_current_authority() -> None:
+    current = _plan()
+    payload = current.to_dict()
+    payload["contract_version"] = "2.0.0"
+    payload.pop("staging_path")
+    staging_sha = payload.pop("staging_path_sha256")
+    payload["effect_scope"] = {
+        **payload["effect_scope"],
+        "writable_paths": [TARGET],
+    }
+    payload["provenance"] = {
+        **payload["provenance"],
+        "origin": "tests.offload-plan-v2",
+        "input_digests": [
+            value
+            for value in payload["provenance"]["input_digests"]
+            if value != staging_sha
+        ],
+    }
+
+    decoded = decode_offload_execution_plan(payload)
+    assert isinstance(decoded, OffloadExecutionPlanV2)
+    assert not isinstance(decoded, OffloadExecutionPlan)
+    assert decoded.to_dict() == payload
+    root = Path(__file__).resolve().parents[2]
+    schema = json.loads(
+        (root / "configs/schemas/offload-execution-plan-v2.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.validate(payload, schema)
+    with pytest.raises(ValueError, match="contract_version"):
+        OffloadExecutionPlan.from_dict(payload)
 
 
 def test_historical_v1_wire_remains_decodable_without_fake_v2_migration() -> None:
@@ -329,11 +395,11 @@ def test_target_path_is_strictly_portable(target_path: str) -> None:
         _plan(target_path=target_path)
 
 
-def test_v2_json_schema_is_closed_complete_and_matches_constants() -> None:
+def test_v3_json_schema_is_closed_complete_and_matches_constants() -> None:
     plan = _plan()
     root = Path(__file__).resolve().parents[2]
     schema = json.loads(
-        (root / "configs/schemas/offload-execution-plan-v2.schema.json").read_text(
+        (root / "configs/schemas/offload-execution-plan-v3.schema.json").read_text(
             encoding="utf-8"
         )
     )
@@ -342,7 +408,7 @@ def test_v2_json_schema_is_closed_complete_and_matches_constants() -> None:
     assert schema["properties"]["contract_type"] == {
         "const": "daedalus.offload-execution-plan"
     }
-    assert schema["properties"]["contract_version"] == {"const": "2.0.0"}
+    assert schema["properties"]["contract_version"] == {"const": "3.0.0"}
     assert schema["properties"]["provider_id"] == {"const": "ollama"}
     assert schema["properties"]["runtime_id"] == {"const": "ollama_http"}
     assert schema["properties"]["temperature_milli"] == {"const": 0}
@@ -352,6 +418,14 @@ def test_v2_json_schema_is_closed_complete_and_matches_constants() -> None:
     assert schema["properties"]["requested_effects"] == {
         "const": list(OFFLOAD_EXECUTION_EFFECTS)
     }
+    assert schema["$defs"]["effectScope"]["properties"]["writable_paths"][
+        "minItems"
+    ] == 2
+    assert schema["$defs"]["effectScope"]["properties"]["writable_paths"][
+        "maxItems"
+    ] == 2
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.validate(plan.to_dict(), schema)
     assert tuple(
         sorted(effect.value for effect in REGISTRY_BY_ID["python.offload"].effects)
     ) == OFFLOAD_EXECUTION_EFFECTS

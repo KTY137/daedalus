@@ -148,6 +148,40 @@ def _portable_target_path(value: Any, name: str = "target_path") -> str:
     return raw
 
 
+def derive_offload_staging_path(
+    *, attempt_id: str, workspace_id: str, target_path: str
+) -> str:
+    """Derive one exact same-directory staging path without a plan-digest cycle."""
+
+    attempt = _identifier(attempt_id, "attempt_id")
+    workspace = _identifier(workspace_id, "workspace_id")
+    target = _portable_target_path(target_path)
+    identity = canonical_sha(
+        {
+            "domain": "daedalus.offload-staging-identity/1",
+            "attempt_id": attempt,
+            "workspace_id": workspace,
+            "target_path": target,
+        }
+    )
+    parent, separator, _name = target.rpartition("/")
+    filename = f".daedalus-offload-stage-{identity}.tmp"
+    staging = f"{parent}/{filename}" if separator else filename
+    return _portable_target_path(staging, "staging_path")
+
+
+def offload_staging_path_sha256(staging_path: str) -> str:
+    """Return the provenance identity of one canonical staging path."""
+
+    staging = _portable_target_path(staging_path, "staging_path")
+    return canonical_sha(
+        {
+            "domain": "daedalus.offload-staging-path/1",
+            "staging_path": staging,
+        }
+    )
+
+
 @dataclass(frozen=True)
 class OwnerApproval(CanonicalContract):
     """Authenticated, bounded and single-candidate owner authorization.
@@ -427,8 +461,8 @@ class EffectLease(CanonicalContract):
 
 
 @dataclass(frozen=True)
-class OffloadExecutionPlan(CanonicalContract):
-    """Frozen v2 authority input for one deterministic local rewrite.
+class OffloadExecutionPlanV2(CanonicalContract):
+    """Historical v2 authority input retained for exact replay and audit.
 
     This is an inert claim, not filesystem evidence and not permission to run.
     A trusted execution seam must compare the target-before fields with a real
@@ -635,8 +669,10 @@ class OffloadExecutionPlan(CanonicalContract):
         scope = self.effect_scope
         if scope.read_only:
             raise ValueError("offload execution plan requires a write-capable effect scope")
-        if scope.writable_paths != (self.target_path,):
-            raise ValueError("effect_scope.writable_paths must contain only target_path")
+        if scope.writable_paths != self._expected_writable_paths():
+            raise ValueError(
+                "effect_scope.writable_paths do not match the plan's exact write paths"
+            )
         if scope.egress_endpoints != (self.provider_endpoint,):
             raise ValueError(
                 "effect_scope.egress_endpoints must contain only provider_endpoint"
@@ -673,11 +709,55 @@ class OffloadExecutionPlan(CanonicalContract):
         )
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "OffloadExecutionPlan":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OffloadExecutionPlanV2":
         body = cls._contract_payload(payload)
         body["effect_scope"] = EffectScope.from_dict(body["effect_scope"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+    def _expected_writable_paths(self) -> tuple[str, ...]:
+        return (self.target_path,)
+
+
+@dataclass(frozen=True)
+class OffloadExecutionPlan(OffloadExecutionPlanV2):
+    """Current plan with one target and one exact atomic staging path.
+
+    The staging path is derived from pre-plan canonical identities so it can be
+    included in the lease scope without a digest cycle.  V2 remains decodable
+    as inert history but is deliberately rejected by current offload authority.
+    """
+
+    CONTRACT_VERSION: ClassVar[str] = "3.0.0"
+
+    staging_path: str
+    staging_path_sha256: str
+
+    def __post_init__(self) -> None:
+        staging = _portable_target_path(self.staging_path, "staging_path")
+        object.__setattr__(self, "staging_path", staging)
+        expected = derive_offload_staging_path(
+            attempt_id=self.attempt_id,
+            workspace_id=self.workspace_id,
+            target_path=self.target_path,
+        )
+        if staging != expected:
+            raise ValueError("staging_path must equal the canonical derived path")
+        if staging == self.target_path:
+            raise ValueError("staging_path must differ from target_path")
+        staging_sha = _sha256(self.staging_path_sha256, "staging_path_sha256")
+        object.__setattr__(self, "staging_path_sha256", staging_sha)
+        if staging_sha != offload_staging_path_sha256(staging):
+            raise ValueError("staging_path_sha256 mismatches staging_path")
+        super().__post_init__()
+        _require_provenance_inputs(
+            self.provenance,
+            (staging_sha,),
+            "offload execution plan staging path",
+        )
+
+    def _expected_writable_paths(self) -> tuple[str, ...]:
+        return tuple(sorted((self.staging_path, self.target_path)))
 
 
 def _loopback_ollama_endpoint_v1(value: Any) -> str:
@@ -897,7 +977,7 @@ class OffloadExecutionPlanV1(CanonicalContract):
 
 def decode_offload_execution_plan(
     payload: Mapping[str, Any],
-) -> OffloadExecutionPlanV1 | OffloadExecutionPlan:
+) -> OffloadExecutionPlanV1 | OffloadExecutionPlanV2 | OffloadExecutionPlan:
     """Decode the exact historical or current wire version without coercion."""
 
     if not isinstance(payload, Mapping):
@@ -905,6 +985,8 @@ def decode_offload_execution_plan(
     version = payload.get("contract_version")
     if version == OffloadExecutionPlanV1.CONTRACT_VERSION:
         return OffloadExecutionPlanV1.from_dict(payload)
+    if version == OffloadExecutionPlanV2.CONTRACT_VERSION:
+        return OffloadExecutionPlanV2.from_dict(payload)
     if version == OffloadExecutionPlan.CONTRACT_VERSION:
         return OffloadExecutionPlan.from_dict(payload)
     raise ValueError(f"unsupported offload execution plan version: {version!r}")

@@ -41,7 +41,10 @@ from .contracts import (
     EffectLeaseRequest,
     OffloadExecutionPlan,
     OffloadExecutionPlanV1,
+    OffloadExecutionPlanV2,
     decode_offload_execution_plan,
+    derive_offload_staging_path,
+    offload_staging_path_sha256,
 )
 from .effects import (
     CompletionCapability,
@@ -124,7 +127,10 @@ __all__ += [
     "OFFLOAD_EXECUTION_EFFECTS",
     "OffloadExecutionPlan",
     "OffloadExecutionPlanV1",
+    "OffloadExecutionPlanV2",
     "decode_offload_execution_plan",
+    "derive_offload_staging_path",
+    "offload_staging_path_sha256",
     "issue_effect_lease",
     "verify_effect_lease",
     "AuthorizedOffloadExecution",

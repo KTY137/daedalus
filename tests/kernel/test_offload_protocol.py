@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from daedalus.kernel.contracts import OFFLOAD_EXECUTION_EFFECTS, OffloadExecutionPlan
+from daedalus.kernel.contracts import (
+    OFFLOAD_EXECUTION_EFFECTS,
+    OffloadExecutionPlan,
+    derive_offload_staging_path,
+    offload_staging_path_sha256,
+)
 from daedalus.kernel.offload_observations import TargetBeforeObservation
 from daedalus.kernel.offload_protocol import (
     OffloadProtocolError,
@@ -121,9 +126,16 @@ def _plan(attempt: AttemptContract, target: TargetBeforeObservation):
         "runtime_conformance_sha256": _sha("conformance"),
         "runtime_tool_binding_sha256": _sha("tool-binding"),
     }
+    workspace_id = "workspace-1"
+    staging_path = derive_offload_staging_path(
+        attempt_id=attempt.attempt_id,
+        workspace_id=workspace_id,
+        target_path=TARGET,
+    )
+    staging_sha = offload_staging_path_sha256(staging_path)
     scope = EffectScope(
         read_only=False,
-        writable_paths=(TARGET,),
+        writable_paths=tuple(sorted((TARGET, staging_path))),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=("python.test-runner",),
         secret_refs=(),
@@ -139,7 +151,7 @@ def _plan(attempt: AttemptContract, target: TargetBeforeObservation):
         task_id=attempt.task_id,
         **digests,
         source_revision=REVISION,
-        workspace_id="workspace-1",
+        workspace_id=workspace_id,
         target_path=TARGET,
         target_kind=target.target_kind,
         target_before_size=target.byte_length,
@@ -163,11 +175,13 @@ def _plan(attempt: AttemptContract, target: TargetBeforeObservation):
         kill_switch_generation=1,
         total_timeout_s=120,
         max_cost_microusd=0,
+        staging_path=staging_path,
+        staging_path_sha256=staging_sha,
         provenance=ContractProvenance(
             origin="tests.offload-protocol",
             source_revision=REVISION,
             created_at=NOW,
-            input_digests=tuple(digests.values()),
+            input_digests=(*digests.values(), staging_sha),
         ),
     )
     return plan, bundle
