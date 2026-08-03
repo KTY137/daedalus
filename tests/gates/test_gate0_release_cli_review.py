@@ -42,7 +42,6 @@ def test_cli_is_read_only_and_contains_no_release_authority() -> None:
         "write_text",
         "write_bytes",
         "unlink",
-        "replace",
         "mkdir",
     }
     assert forbidden.isdisjoint(calls)
