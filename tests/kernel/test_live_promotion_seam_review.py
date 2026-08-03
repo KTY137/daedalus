@@ -24,6 +24,28 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
+def _promotion_function() -> ast.FunctionDef | ast.AsyncFunctionDef:
+    tree = ast.parse(inspect.getsource(gated_writes.promote_candidates))
+    function = tree.body[0]
+    assert isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+    return function
+
+
+def _promotion_lock(function):
+    with_nodes = [node for node in ast.walk(function) if isinstance(node, ast.With)]
+    promotion_locks = [
+        node
+        for node in with_nodes
+        if any(
+            isinstance(item.context_expr, ast.Call)
+            and _call_name(item.context_expr) == "_PromotionLock"
+            for item in node.items
+        )
+    ]
+    assert len(promotion_locks) == 1
+    return promotion_locks[0]
+
+
 def test_public_seam_retains_old_call_shape_but_cannot_use_it_as_authority() -> None:
     signature = inspect.signature(gated_writes.promote_candidates)
     assert signature.parameters["approval_ledger"].default is None
@@ -50,27 +72,43 @@ def test_legacy_refusal_contains_no_git_or_other_effect_primitive() -> None:
     assert calls <= {"_promotion_refusal", "PromotionAuthorizationError"}
 
 
-def test_locked_source_order_is_target_read_then_persisted_auth_then_integration() -> None:
-    tree = ast.parse(inspect.getsource(gated_writes.promote_candidates))
-    function = tree.body[0]
-    assert isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
-    with_nodes = [node for node in ast.walk(function) if isinstance(node, ast.With)]
-    promotion_locks = [
-        node
-        for node in with_nodes
-        if any(
-            isinstance(item.context_expr, ast.Call)
-            and _call_name(item.context_expr) == "_PromotionLock"
-            for item in node.items
-        )
+def test_persisted_capability_preflight_precedes_every_effect_primitive() -> None:
+    function = _promotion_function()
+    source = inspect.getsource(gated_writes.promote_candidates)
+    snapshot_at = source.index("_snapshot_promotion_candidates(submitted_candidates)")
+    preflight_at = source.index(
+        "authorize_persisted_promotion(\n            approval_ledger=approval_ledger"
+    )
+    manager_at = source.index("GitWorktreeManager(root)")
+    ledger_at = source.index("resolve_spine_db_path(root)")
+    lock_at = source.index("with _PromotionLock(")
+
+    assert snapshot_at < preflight_at < manager_at < ledger_at < lock_at
+
+    lock = _promotion_lock(function)
+    lock_source = ast.unparse(ast.Module(body=lock.body, type_ignores=[]))
+    assert "resolve_live_target_revision" in lock_source
+    assert "authorize_persisted_promotion" in lock_source
+
+    calls_outside_lock = [
+        _call_name(node)
+        for statement in function.body
+        if statement is not lock
+        for node in ast.walk(statement)
+        if isinstance(node, ast.Call)
     ]
-    assert len(promotion_locks) == 1
-    body_source = ast.unparse(ast.Module(body=promotion_locks[0].body, type_ignores=[]))
+    assert "resolve_live_target_revision" not in calls_outside_lock
+
+
+def test_locked_source_order_is_target_read_then_persisted_auth_then_integration() -> None:
+    function = _promotion_function()
+    lock = _promotion_lock(function)
+    body_source = ast.unparse(ast.Module(body=lock.body, type_ignores=[]))
     assert "authorize_promotion = authorize_persisted_promotion" in body_source
     assert "candidates=sealed_candidates" in body_source
     calls = [
         _call_name(node)
-        for statement in promotion_locks[0].body
+        for statement in lock.body
         for node in ast.walk(statement)
         if isinstance(node, ast.Call)
     ]
