@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from daedalus.schemas import (
     ContractProvenance,
     ResourceBudget,
 )
+from daedalus.spine.ledger import SpineLedger
 
 
 REVISION = "a" * 40
@@ -88,12 +90,31 @@ def test_ledger_requires_one_canonical_source_store(tmp_path) -> None:
         AttemptLedger(tmp_path / "attempts.sqlite3", object())
 
 
+def test_attempt_facade_uses_the_supplied_canonical_spine_instance(tmp_path) -> None:
+    store = SourceTreeStore(tmp_path / "cas")
+    spine = SpineLedger(tmp_path / "state" / "spine.sqlite3")
+    ledger = AttemptLedger(spine, store)
+    assert ledger.spine is spine
+    assert ledger.path == spine.path
+    with sqlite3.connect(ledger.path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+    assert "intents" in tables
+    assert "intent_events" in tables
+    assert "attempt_starts" not in tables
+    assert "attempt_terminals" not in tables
+
+
 def test_foreign_store_input_is_refused_before_start(tmp_path) -> None:
     source = _source(tmp_path)
     foreign_store = SourceTreeStore(tmp_path / "foreign-cas")
     captured = _captured(foreign_store, source)
     selected_store = SourceTreeStore(tmp_path / "selected-cas")
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", selected_store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", selected_store)
 
     with pytest.raises(SourceTreeStoreError, match="unavailable|CAS object"):
         _begin(ledger, captured)
@@ -104,7 +125,7 @@ def test_coordinator_rejects_equal_but_distinct_store_authority(tmp_path) -> Non
     primary = _source(tmp_path)
     selected_store = SourceTreeStore(tmp_path / "cas")
     alias_store = SourceTreeStore(tmp_path / "cas")
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", selected_store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", selected_store)
     with pytest.raises(AttemptWorkspaceError, match="exact SourceTreeStore"):
         IsolatedAttemptCoordinator(
             primary_checkout=primary,
@@ -118,7 +139,7 @@ def test_terminal_rejects_report_not_present_in_selected_store(tmp_path) -> None
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "selected-cas")
     captured = _captured(store, source)
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     start = _begin(ledger, captured).start
     foreign_store = SourceTreeStore(tmp_path / "foreign-cas")
     foreign_report = foreign_store.put_bytes(b"foreign report")
@@ -139,7 +160,7 @@ def test_terminal_rejects_candidate_not_present_in_selected_store(tmp_path) -> N
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "selected-cas")
     captured = _captured(store, source)
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     start = _begin(ledger, captured).start
     report = store.put_bytes(b"failed")
 
@@ -168,17 +189,48 @@ def test_persisted_start_wire_tampering_fails_closed(tmp_path) -> None:
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "cas")
     captured = _captured(store, source)
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     _begin(ledger, captured)
     with sqlite3.connect(ledger.path) as connection:
         connection.execute(
-            "UPDATE attempt_starts SET start_json = ?",
+            "UPDATE intents SET payload = ? WHERE kind = 'attempt.lifecycle'",
             (
-                '{"contract_type":"daedalus.attempt-start",'
-                '"contract_type":"duplicate"}',
+                '{"schema":"daedalus-attempt-lifecycle-event/1",'
+                '"schema":"duplicate"}',
             ),
         )
     with pytest.raises(AttemptStateError, match="duplicate key|malformed"):
+        _begin(ledger, captured)
+
+
+def test_terminal_effect_id_tampering_fails_closed(tmp_path) -> None:
+    source = _source(tmp_path)
+    store = SourceTreeStore(tmp_path / "cas")
+    captured = _captured(store, source)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
+    start = _begin(ledger, captured).start
+    report = store.put_bytes(b"terminal report")
+    ledger.complete(
+        start,
+        receipt_id="terminal-attempt-adversarial",
+        outcome="failed",
+        report=report,
+        candidate_tree=None,
+        completed_at=NOW,
+    )
+    with sqlite3.connect(ledger.path) as connection:
+        row = connection.execute(
+            "SELECT id, detail FROM intent_events "
+            "WHERE state = 'COMPLETED' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        assert row is not None
+        detail = json.loads(row[1])
+        detail["effect_id"] = "f" * 64
+        connection.execute(
+            "UPDATE intent_events SET detail = ? WHERE id = ?",
+            (json.dumps(detail, sort_keys=True, separators=(",", ":")), row[0]),
+        )
+    with pytest.raises(AttemptStateError, match="effect_id"):
         _begin(ledger, captured)
 
 
@@ -186,7 +238,7 @@ def test_persisted_terminal_artifact_is_reverified_on_replay(tmp_path) -> None:
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "cas")
     captured = _captured(store, source)
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     start = _begin(ledger, captured).start
     report = store.put_bytes(b"terminal report")
     ledger.complete(
@@ -207,7 +259,7 @@ def test_constructor_shaped_attempt_and_tree_are_refused(tmp_path) -> None:
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "cas")
     captured = _captured(store, source)
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
+    ledger = AttemptLedger(tmp_path / "state" / "spine.sqlite3", store)
     fake_attempt = SimpleNamespace(
         attempt_id="attempt-adversarial",
         base_revision=REVISION,
