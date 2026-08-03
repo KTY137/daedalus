@@ -17,10 +17,13 @@ from daedalus.kernel.contracts import (
     OFFLOAD_EXECUTION_EFFECTS,
     EffectLeaseRequest,
     OffloadExecutionPlan,
+    derive_offload_recovery_path,
     derive_offload_staging_path,
+    offload_recovery_path_sha256,
     offload_staging_path_sha256,
 )
 from daedalus.kernel.effects import (
+    EffectExecutionClaim,
     EffectExecutionRequest,
     EffectLeaseLedger,
     EffectStartResult,
@@ -37,9 +40,13 @@ from daedalus.kernel.offload_observations import (
     OffloadObservationError,
     OffloadWorkspaceObservation,
     OllamaChatObservation,
+    OllamaChatObservationV1,
     OllamaModelObservation,
+    OllamaModelObservationV1,
     TargetBeforeObservation,
     TaskAttemptWorkspaceAttestation,
+    decode_ollama_chat_observation,
+    decode_ollama_model_observation,
 )
 from daedalus.kernel.offload_protocol import (
     ParsedOffloadCandidate,
@@ -478,7 +485,11 @@ def test_portable_aliases_and_a_real_symlink_target_are_refused(
         )
 
 
-def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) -> OffloadExecutionPlan:
+def _plan(
+    observed: _ObservedWorkspace,
+    workspace: OffloadWorkspaceObservation,
+    store: ArtifactStore,
+) -> OffloadExecutionPlan:
     attempt_id = "attempt-1"
     staging_path = derive_offload_staging_path(
         attempt_id=attempt_id,
@@ -486,6 +497,12 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
         target_path=TARGET,
     )
     staging_sha = offload_staging_path_sha256(staging_path)
+    recovery_path = derive_offload_recovery_path(
+        attempt_id=attempt_id,
+        workspace_id=observed.attestation.workspace_id,
+        target_path=TARGET,
+    )
+    recovery_sha = offload_recovery_path_sha256(recovery_path)
     digest_fields = {
         "spine_intent_sha256": observed.attestation.spine_intent_sha256,
         "attempt_contract_sha256": _sha("attempt-contract"),
@@ -506,7 +523,7 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
     }
     scope = EffectScope(
         read_only=False,
-        writable_paths=tuple(sorted((TARGET, staging_path))),
+        writable_paths=tuple(sorted((TARGET, staging_path, recovery_path))),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=("python.test-runner",),
         secret_refs=(),
@@ -548,11 +565,19 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
         max_cost_microusd=0,
         staging_path=staging_path,
         staging_path_sha256=staging_sha,
+        recovery_path=recovery_path,
+        recovery_path_sha256=recovery_sha,
+        artifact_store_root_sha256=store.root_sha256,
         provenance=ContractProvenance(
             origin="tests.offload-observations",
             source_revision=observed.revision,
             created_at=NOW,
-            input_digests=(*digest_fields.values(), staging_sha),
+            input_digests=(
+                *digest_fields.values(),
+                staging_sha,
+                recovery_sha,
+                store.root_sha256,
+            ),
             trace_id="trace-1",
         ),
     )
@@ -564,7 +589,12 @@ def _execution_and_start(
     *,
     execution_id: str = "offload-execution-1",
     idempotency_key: str = "offload-idempotency-1",
-) -> tuple[EffectExecutionRequest, EffectStartResult]:
+) -> tuple[
+    EffectExecutionRequest,
+    EffectStartResult,
+    EffectExecutionClaim,
+    LeasedEffectAuthorization,
+]:
     execution = EffectExecutionRequest(
         execution_id=execution_id,
         idempotency_key=idempotency_key,
@@ -657,7 +687,14 @@ def _execution_and_start(
         ),
         current_kill_switch_generation=plan.kill_switch_generation,
     )
-    return execution, authorization.begin_effect(execution, started_at=instant)
+    start = authorization.begin_effect(execution, started_at=instant)
+    claim = authorization.claim_execution(
+        start,
+        execution,
+        claimed_at=instant + timedelta(microseconds=1),
+    )
+    authorization.require_live_claim(claim, execution)
+    return execution, start, claim, authorization
 
 
 def _model_response(plan: OffloadExecutionPlan) -> dict[str, object]:
@@ -684,6 +721,7 @@ def _put_model_response(
     store: ArtifactStore,
     plan: OffloadExecutionPlan,
     execution: EffectExecutionRequest,
+    claim: EffectExecutionClaim,
     start: LeasedEffectStartReceipt,
     metadata_request_sha256: str,
     raw: bytes,
@@ -695,6 +733,7 @@ def _put_model_response(
         metadata={
             "execution_plan_sha256": plan.digest,
             "execution_request_sha256": execution.digest,
+            "claim_receipt_sha256": claim.claim_receipt.receipt_sha256,
             "kind": OLLAMA_METADATA_ARTIFACT_KIND,
             "metadata_request_sha256": metadata_request_sha256,
             "start_receipt_sha256": start.receipt_sha256,
@@ -707,6 +746,7 @@ def _put_model_response(
                 plan.digest,
                 execution.digest,
                 start.receipt_sha256,
+                claim.claim_receipt.receipt_sha256,
                 metadata_request_sha256,
             ),
             trace_id="trace-1",
@@ -719,23 +759,28 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
 ) -> None:
     store = ArtifactStore(tmp_path / "model-cas", min_free_gib=0)
     workspace = _capture_workspace_observation(observed_workspace, store)
-    plan = _plan(observed_workspace, workspace)
-    execution, start_result = _execution_and_start(plan, tmp_path / "effects.sqlite3")
+    plan = _plan(observed_workspace, workspace, store)
+    execution, start_result, claim, authorization = _execution_and_start(
+        plan, tmp_path / "effects.sqlite3"
+    )
     start = start_result.receipt
     request_sha = _sha("GET /api/tags")
+    authorization.require_live_claim(claim, execution)
     response = _model_response(plan)
     raw = canonical_json(response).encode("ascii")
     locator = _put_model_response(
         store=store,
         plan=plan,
         execution=execution,
+        claim=claim,
         start=start,
         metadata_request_sha256=request_sha,
         raw=raw,
     )
     observation = OllamaModelObservation.capture_from_response_bytes(
         execution_request=execution,
-        start_result=start_result,
+        execution_claim=claim,
+        authorization=authorization,
         execution_plan=plan,
         metadata_request_sha256=request_sha,
         raw_response_bytes=raw,
@@ -748,11 +793,71 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
     assert observation.model_sha256 == plan.expected_model_sha256
     assert observation.raw_response_sha256 == locator.artifact_sha256
     assert observation.start_receipt_sha256 == start.receipt_sha256
-    schema = _schema("ollama-model-observation-v1.schema.json")
+    assert observation.claim_receipt_sha256 == claim.claim_receipt.receipt_sha256
+    schema = _schema("ollama-model-observation-v2.schema.json")
     jsonschema.Draft202012Validator.check_schema(schema)
     jsonschema.validate(observation.to_dict(), schema)
     assert OllamaModelObservation.from_dict(observation.to_dict()) == observation
     assert set(observation.to_dict()) == set(schema["properties"]) == set(schema["required"])
+    v1_payload = observation.to_dict()
+    v1_payload["contract_version"] = "1.0.0"
+    v1_payload.pop("claim_receipt_sha256")
+    v1_payload["provenance"]["input_digests"].remove(
+        claim.claim_receipt.receipt_sha256
+    )
+    v1_schema = _schema("ollama-model-observation-v1.schema.json")
+    jsonschema.validate(v1_payload, v1_schema)
+    historical_model = decode_ollama_model_observation(v1_payload)
+    assert type(historical_model) is OllamaModelObservationV1
+    assert historical_model.to_dict() == v1_payload
+    assert OllamaModelObservationV1.from_dict(v1_payload).digest == (
+        historical_model.digest
+    )
+    with pytest.raises(ValueError, match="contract_version"):
+        OllamaModelObservation.from_dict(v1_payload)
+
+    wrong_claim_sha = _sha("wrong-model-observation-claim")
+    wrong_claim_metadata = store.put_bytes(
+        raw,
+        expected_sha256=hashlib.sha256(raw).hexdigest(),
+        media_type="application/json",
+        metadata={**locator.metadata, "claim_receipt_sha256": wrong_claim_sha},
+        provenance=locator.provenance,
+    )
+    missing_claim_provenance = store.put_bytes(
+        raw,
+        expected_sha256=hashlib.sha256(raw).hexdigest(),
+        media_type="application/json",
+        metadata=locator.metadata,
+        provenance=ContractProvenance(
+            origin="tests.offload-observations",
+            source_revision=plan.source_revision,
+            created_at=NOW,
+            input_digests=tuple(
+                value
+                for value in locator.provenance["input_digests"]
+                if value != claim.claim_receipt.receipt_sha256
+            ),
+            trace_id="trace-1",
+        ).to_dict(),
+    )
+    for tampered_locator in (
+        wrong_claim_metadata,
+        missing_claim_provenance,
+    ):
+        with pytest.raises(OffloadObservationError):
+            OllamaModelObservation.capture_from_response_bytes(
+                execution_request=execution,
+                execution_claim=claim,
+                authorization=authorization,
+                execution_plan=plan,
+                metadata_request_sha256=request_sha,
+                raw_response_bytes=raw,
+                raw_response_locator=tampered_locator,
+                artifact_store=store,
+                origin="tests.offload-observations",
+                created_at=NOW,
+            )
 
     selected = response["models"][0]
     bad_payloads = (
@@ -761,11 +866,13 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
         {"models": [{**selected, "digest": f"sha256:{_sha('wrong-model')}"}]},
     )
     for bad_payload in bad_payloads:
+        authorization.require_live_claim(claim, execution)
         bad_raw = canonical_json(bad_payload).encode("ascii")
         bad_locator = _put_model_response(
             store=store,
             plan=plan,
             execution=execution,
+            claim=claim,
             start=start,
             metadata_request_sha256=request_sha,
             raw=bad_raw,
@@ -773,7 +880,8 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
         with pytest.raises(OffloadObservationError):
             OllamaModelObservation.capture_from_response_bytes(
                 execution_request=execution,
-                start_result=start_result,
+                execution_claim=claim,
+                authorization=authorization,
                 execution_plan=plan,
                 metadata_request_sha256=request_sha,
                 raw_response_bytes=bad_raw,
@@ -783,11 +891,13 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
                 created_at=NOW,
             )
 
+    authorization.require_live_claim(claim, execution)
     duplicate_key_raw = b'{"models":[],"models":[]}'
     duplicate_locator = _put_model_response(
         store=store,
         plan=plan,
         execution=execution,
+        claim=claim,
         start=start,
         metadata_request_sha256=request_sha,
         raw=duplicate_key_raw,
@@ -795,11 +905,54 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
     with pytest.raises(OffloadObservationError, match="duplicate key"):
         OllamaModelObservation.capture_from_response_bytes(
             execution_request=execution,
-            start_result=start_result,
+            execution_claim=claim,
+            authorization=authorization,
             execution_plan=plan,
             metadata_request_sha256=request_sha,
             raw_response_bytes=duplicate_key_raw,
             raw_response_locator=duplicate_locator,
+            artifact_store=store,
+            origin="tests.offload-observations",
+            created_at=NOW,
+        )
+
+    other_store = ArtifactStore(tmp_path / "other-model-cas", min_free_gib=0)
+    other_locator = other_store.put_bytes(
+        raw,
+        expected_sha256=hashlib.sha256(raw).hexdigest(),
+        media_type="application/json",
+        metadata=locator.metadata,
+        provenance=locator.provenance,
+    )
+    with pytest.raises(OffloadObservationError, match="store root"):
+        OllamaModelObservation.capture_from_response_bytes(
+            execution_request=execution,
+            execution_claim=claim,
+            authorization=authorization,
+            execution_plan=plan,
+            metadata_request_sha256=request_sha,
+            raw_response_bytes=raw,
+            raw_response_locator=other_locator,
+            artifact_store=other_store,
+            origin="tests.offload-observations",
+            created_at=NOW,
+        )
+
+    authorization.finish_claimed_effect(
+        claim,
+        outcome="failed",
+        detail_sha256=_sha("model-observation-test-finished"),
+        finished_at=datetime.fromisoformat(NOW) + timedelta(microseconds=2),
+    )
+    with pytest.raises(OffloadObservationError, match="EXECUTING claim"):
+        OllamaModelObservation.capture_from_response_bytes(
+            execution_request=execution,
+            execution_claim=claim,
+            authorization=authorization,
+            execution_plan=plan,
+            metadata_request_sha256=request_sha,
+            raw_response_bytes=raw,
+            raw_response_locator=locator,
             artifact_store=store,
             origin="tests.offload-observations",
             created_at=NOW,
@@ -812,6 +965,8 @@ class _ChatChain:
     plan: OffloadExecutionPlan
     execution: EffectExecutionRequest
     start_result: EffectStartResult
+    execution_claim: EffectExecutionClaim
+    authorization: LeasedEffectAuthorization
     model_observation: OllamaModelObservation
     raw_response_bytes: bytes
     parsed_candidate: ParsedOffloadCandidate
@@ -838,6 +993,7 @@ def _raw_chat_metadata(
     *,
     plan: OffloadExecutionPlan,
     execution: EffectExecutionRequest,
+    execution_claim: EffectExecutionClaim,
     start_result: EffectStartResult,
     model_observation: OllamaModelObservation,
     raw_sha256: str,
@@ -845,6 +1001,7 @@ def _raw_chat_metadata(
     return {
         "execution_plan_sha256": plan.digest,
         "execution_request_sha256": execution.digest,
+        "claim_receipt_sha256": execution_claim.claim_receipt.receipt_sha256,
         "kind": OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND,
         "model_observation_sha256": model_observation.digest,
         "ollama_request_sha256": plan.ollama_request_sha256,
@@ -858,6 +1015,7 @@ def _candidate_metadata(
     observed: _ObservedWorkspace,
     plan: OffloadExecutionPlan,
     execution: EffectExecutionRequest,
+    execution_claim: EffectExecutionClaim,
     start_result: EffectStartResult,
     model_observation: OllamaModelObservation,
     parsed: ParsedOffloadCandidate,
@@ -870,6 +1028,7 @@ def _candidate_metadata(
         "changes_target": parsed.content_sha256 != observed.target.content_sha256,
         "execution_plan_sha256": plan.digest,
         "execution_request_sha256": execution.digest,
+        "claim_receipt_sha256": execution_claim.claim_receipt.receipt_sha256,
         "kind": OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND,
         "model_observation_sha256": model_observation.digest,
         "ollama_request_sha256": plan.ollama_request_sha256,
@@ -890,8 +1049,8 @@ def _capture_chat_chain(
 ) -> _ChatChain:
     store = ArtifactStore(tmp_path / "chat-cas", min_free_gib=0)
     workspace = _capture_workspace_observation(observed, store)
-    plan = _plan(observed, workspace)
-    execution, start_result = _execution_and_start(
+    plan = _plan(observed, workspace, store)
+    execution, start_result, claim, authorization = _execution_and_start(
         plan, tmp_path / "chat-effects.sqlite3"
     )
     tags_request_sha = _sha("GET /api/tags chat-chain")
@@ -900,13 +1059,15 @@ def _capture_chat_chain(
         store=store,
         plan=plan,
         execution=execution,
+        claim=claim,
         start=start_result.receipt,
         metadata_request_sha256=tags_request_sha,
         raw=tags_raw,
     )
     model_observation = OllamaModelObservation.capture_from_response_bytes(
         execution_request=execution,
-        start_result=start_result,
+        execution_claim=claim,
+        authorization=authorization,
         execution_plan=plan,
         metadata_request_sha256=tags_request_sha,
         raw_response_bytes=tags_raw,
@@ -917,6 +1078,7 @@ def _capture_chat_chain(
         trace_id="trace-1",
     )
 
+    authorization.require_live_claim(claim, execution)
     raw = _chat_response(plan, candidate_text)
     parsed = parse_offload_chat_response(
         raw_response_bytes=raw,
@@ -926,6 +1088,7 @@ def _capture_chat_chain(
     raw_inputs = (
         execution.digest,
         start_result.receipt.receipt_sha256,
+        claim.claim_receipt.receipt_sha256,
         plan.digest,
         model_observation.digest,
         plan.ollama_request_sha256,
@@ -937,6 +1100,7 @@ def _capture_chat_chain(
         metadata=_raw_chat_metadata(
             plan=plan,
             execution=execution,
+            execution_claim=claim,
             start_result=start_result,
             model_observation=model_observation,
             raw_sha256=parsed.raw_response_sha256,
@@ -969,6 +1133,7 @@ def _capture_chat_chain(
             observed=observed,
             plan=plan,
             execution=execution,
+            execution_claim=claim,
             start_result=start_result,
             model_observation=model_observation,
             parsed=parsed,
@@ -984,7 +1149,8 @@ def _capture_chat_chain(
     )
     observation = OllamaChatObservation.capture_from_response_bytes(
         execution_request=execution,
-        start_result=start_result,
+        execution_claim=claim,
+        authorization=authorization,
         execution_plan=plan,
         model_observation=model_observation,
         target_before=observed.target,
@@ -1002,6 +1168,8 @@ def _capture_chat_chain(
         plan=plan,
         execution=execution,
         start_result=start_result,
+        execution_claim=claim,
+        authorization=authorization,
         model_observation=model_observation,
         raw_response_bytes=raw,
         parsed_candidate=parsed,
@@ -1026,13 +1194,32 @@ def test_chat_observation_retains_a_real_no_change_candidate_as_negative_evidenc
     assert chain.store.get_bytes(chain.observation.candidate_sha256) == before_text.encode(
         "utf-8"
     )
-    schema = _schema("ollama-chat-observation-v1.schema.json")
+    assert chain.observation.claim_receipt_sha256 == (
+        chain.execution_claim.claim_receipt.receipt_sha256
+    )
+    schema = _schema("ollama-chat-observation-v2.schema.json")
     jsonschema.Draft202012Validator.check_schema(schema)
     jsonschema.validate(chain.observation.to_dict(), schema)
     restored = OllamaChatObservation.from_dict(chain.observation.to_dict())
     assert restored == chain.observation
     assert restored.digest == chain.observation.digest
     assert set(restored.to_dict()) == set(schema["properties"]) == set(schema["required"])
+    v1_payload = chain.observation.to_dict()
+    v1_payload["contract_version"] = "1.0.0"
+    v1_payload.pop("claim_receipt_sha256")
+    v1_payload["provenance"]["input_digests"].remove(
+        chain.execution_claim.claim_receipt.receipt_sha256
+    )
+    v1_schema = _schema("ollama-chat-observation-v1.schema.json")
+    jsonschema.validate(v1_payload, v1_schema)
+    historical_chat = decode_ollama_chat_observation(v1_payload)
+    assert type(historical_chat) is OllamaChatObservationV1
+    assert historical_chat.to_dict() == v1_payload
+    assert OllamaChatObservationV1.from_dict(v1_payload).digest == (
+        historical_chat.digest
+    )
+    with pytest.raises(ValueError, match="contract_version"):
+        OllamaChatObservation.from_dict(v1_payload)
 
 
 def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
@@ -1048,6 +1235,7 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
     raw_metadata = _raw_chat_metadata(
         plan=chain.plan,
         execution=chain.execution,
+        execution_claim=chain.execution_claim,
         start_result=chain.start_result,
         model_observation=chain.model_observation,
         raw_sha256=chain.parsed_candidate.raw_response_sha256,
@@ -1056,6 +1244,7 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
         observed=observed_workspace,
         plan=chain.plan,
         execution=chain.execution,
+        execution_claim=chain.execution_claim,
         start_result=chain.start_result,
         model_observation=chain.model_observation,
         parsed=chain.parsed_candidate,
@@ -1098,6 +1287,21 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
             input_digests=candidate_inputs,
         ).to_dict(),
     )
+    other_store = ArtifactStore(tmp_path / "other-chat-cas", min_free_gib=0)
+    other_raw_locator = other_store.put_bytes(
+        chain.raw_response_bytes,
+        expected_sha256=chain.parsed_candidate.raw_response_sha256,
+        media_type="application/json",
+        metadata=chain.raw_response_locator.metadata,
+        provenance=chain.raw_response_locator.provenance,
+    )
+    other_candidate_locator = other_store.put_bytes(
+        chain.parsed_candidate.content_bytes,
+        expected_sha256=chain.parsed_candidate.content_sha256,
+        media_type="text/plain; charset=utf-8",
+        metadata=chain.candidate_locator.metadata,
+        provenance=chain.candidate_locator.provenance,
+    )
     wrong_model_sha = _sha("wrong-observed-model")
     wrong_model = replace(
         chain.model_observation,
@@ -1110,26 +1314,25 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
             ),
         ),
     )
-    inert_start = EffectStartResult(
-        receipt=chain.start_result.receipt,
-        execute=False,
-        completion_capability=None,
-    )
-    _, wrong_live_start = _execution_and_start(
+    _, _, wrong_claim, _ = _execution_and_start(
         chain.plan,
         tmp_path / "wrong-chat-effects.sqlite3",
         execution_id="offload-execution-other",
         idempotency_key="offload-idempotency-other",
     )
-    forged_capability_start = EffectStartResult(
-        receipt=chain.start_result.receipt,
-        execute=True,
-        completion_capability=object(),  # type: ignore[arg-type]
-    )
-    cross_bound_start = EffectStartResult(
-        receipt=chain.start_result.receipt,
-        execute=True,
-        completion_capability=wrong_live_start.completion_capability,
+    wrong_model_claim_sha = wrong_claim.claim_receipt.receipt_sha256
+    wrong_claim_model = replace(
+        chain.model_observation,
+        claim_receipt_sha256=wrong_model_claim_sha,
+        provenance=replace(
+            chain.model_observation.provenance,
+            input_digests=tuple(
+                wrong_model_claim_sha
+                if value == chain.model_observation.claim_receipt_sha256
+                else value
+                for value in chain.model_observation.provenance.input_digests
+            ),
+        ),
     )
     wrong_target = replace(observed_workspace.target, target_path="src/other.py")
     wrong_parsed = replace(
@@ -1139,7 +1342,8 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
 
     common = {
         "execution_request": chain.execution,
-        "start_result": chain.start_result,
+        "execution_claim": chain.execution_claim,
+        "authorization": chain.authorization,
         "execution_plan": chain.plan,
         "model_observation": chain.model_observation,
         "target_before": observed_workspace.target,
@@ -1156,11 +1360,14 @@ def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
         {"candidate_locator": wrong_candidate_metadata},
         {"raw_response_locator": wrong_raw_bytes_locator},
         {"candidate_locator": wrong_candidate_bytes_locator},
+        {
+            "artifact_store": other_store,
+            "raw_response_locator": other_raw_locator,
+            "candidate_locator": other_candidate_locator,
+        },
         {"model_observation": wrong_model},
-        {"start_result": inert_start},
-        {"start_result": forged_capability_start},
-        {"start_result": cross_bound_start},
-        {"start_result": wrong_live_start},
+        {"model_observation": wrong_claim_model},
+        {"execution_claim": wrong_claim},
         {"target_before": wrong_target},
         {"parsed_candidate": wrong_parsed},
         {"raw_response_bytes": chain.raw_response_bytes + b" "},

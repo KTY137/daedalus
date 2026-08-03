@@ -48,6 +48,7 @@ __all__ = [
     "ArtifactNotFound",
     "ArtifactStore",
     "ArtifactStoreError",
+    "artifact_store_root_sha256",
     "DEFAULT_MIN_FREE_GIB",
     "StorageStatus",
     "StorageUnavailable",
@@ -257,6 +258,20 @@ def _canonical_json_bytes(value: Any) -> bytes:
     return text.encode("ascii")
 
 
+def artifact_store_root_sha256(root: str | os.PathLike[str]) -> str:
+    """Bind one resolved local CAS root without making its path portable identity."""
+
+    resolved = Path(root).expanduser().resolve(strict=False)
+    return hashlib.sha256(
+        _canonical_json_bytes(
+            {
+                "domain": "daedalus.artifact-store-root/1",
+                "resolved_path": _resolved_os_path(resolved),
+            }
+        )
+    ).hexdigest()
+
+
 def _json_mapping(value: Mapping[str, Any] | None, *, name: str) -> dict[str, Any]:
     if value is None:
         return {}
@@ -402,6 +417,7 @@ class ArtifactStore:
         # later paths appear to live somewhere different from their real root.
         self.root = raw.expanduser().resolve(strict=False)
         self._root_identity = _resolved_os_path(self.root)
+        self.root_sha256 = artifact_store_root_sha256(self.root)
         self.min_free_gib = min_free_gib
 
     def blob_path(self, digest: str) -> Path:

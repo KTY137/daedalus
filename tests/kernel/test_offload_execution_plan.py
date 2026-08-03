@@ -18,8 +18,11 @@ from daedalus.kernel.contracts import (
     OffloadExecutionPlan,
     OffloadExecutionPlanV1,
     OffloadExecutionPlanV2,
+    OffloadExecutionPlanV3,
     decode_offload_execution_plan,
+    derive_offload_recovery_path,
     derive_offload_staging_path,
+    offload_recovery_path_sha256,
     offload_staging_path_sha256,
 )
 from daedalus.kernel.runtime_tools import RuntimeToolBinding, RuntimeToolBindingError
@@ -68,6 +71,7 @@ def _scope(
     *,
     target_path: str = TARGET,
     staging_path: str | None = None,
+    recovery_path: str | None = None,
     endpoint: str = "http://127.0.0.1:11434",
     tool_id: str = TOOL_ID,
     timeout_s: int = 120,
@@ -77,9 +81,14 @@ def _scope(
         workspace_id=WORKSPACE_ID,
         target_path=target_path,
     )
+    exact_recovery = recovery_path or derive_offload_recovery_path(
+        attempt_id=ATTEMPT_ID,
+        workspace_id=WORKSPACE_ID,
+        target_path=target_path,
+    )
     return EffectScope(
         read_only=False,
-        writable_paths=tuple(sorted((target_path, exact_staging))),
+        writable_paths=tuple(sorted((target_path, exact_staging, exact_recovery))),
         egress_endpoints=(endpoint,),
         tools=(tool_id,),
         secret_refs=(),
@@ -106,6 +115,20 @@ def _plan(**overrides: object) -> OffloadExecutionPlan:
         )
     )
     staging_sha = offload_staging_path_sha256(staging_path)
+    recovery_path = str(
+        overrides.get(
+            "recovery_path",
+            derive_offload_recovery_path(
+                attempt_id=attempt_id,
+                workspace_id=workspace_id,
+                target_path=target_path,
+            ),
+        )
+    )
+    recovery_sha = offload_recovery_path_sha256(recovery_path)
+    store_root_sha = str(
+        overrides.get("artifact_store_root_sha256", _sha("artifact-store-root"))
+    )
     values: dict[str, object] = {
         "spine_intent_id": 1,
         "mission_id": "mission-1",
@@ -136,19 +159,28 @@ def _plan(**overrides: object) -> OffloadExecutionPlan:
         "effect_scope": _scope(
             target_path=target_path,
             staging_path=staging_path,
+            recovery_path=recovery_path,
         ),
         "kill_switch_generation": 3,
         "total_timeout_s": 120,
         "max_cost_microusd": 0,
         "provenance": ContractProvenance(
-            origin="tests.offload-plan-v3",
+            origin="tests.offload-plan-v4",
             source_revision=REVISION,
             created_at=NOW,
-            input_digests=(*digests.values(), staging_sha),
+            input_digests=(
+                *digests.values(),
+                staging_sha,
+                recovery_sha,
+                store_root_sha,
+            ),
             trace_id="mission-1",
         ),
         "staging_path": staging_path,
         "staging_path_sha256": staging_sha,
+        "recovery_path": recovery_path,
+        "recovery_path_sha256": recovery_sha,
+        "artifact_store_root_sha256": store_root_sha,
     }
     values.update(overrides)
     return OffloadExecutionPlan(**values)
@@ -215,7 +247,7 @@ def _v1_payload() -> dict[str, object]:
     }
 
 
-def test_v3_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
+def test_v4_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
     argv = [TOOL_ID, "-q", "tests/test_module.py"]
     plan = _plan(
         provider_endpoint="http://127.0.0.1:11434/",
@@ -225,7 +257,7 @@ def test_v3_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
     digest = plan.digest
     argv.append("--unsafe")
 
-    assert plan.CONTRACT_VERSION == "3.0.0"
+    assert plan.CONTRACT_VERSION == "4.0.0"
     assert plan.provider_endpoint == "http://127.0.0.1:11434"
     assert plan.verifier_argv == (TOOL_ID, "-q", "tests/test_module.py")
     assert plan.digest == digest == canonical_sha(plan.to_dict())
@@ -244,10 +276,42 @@ def test_v3_plan_is_frozen_canonical_closed_and_roundtrips() -> None:
         OffloadExecutionPlan.from_dict(missing)
 
 
+def test_historical_v3_wire_remains_decodable_but_is_not_current_authority() -> None:
+    current = _plan()
+    payload = current.to_dict()
+    payload["contract_version"] = "3.0.0"
+    payload.pop("recovery_path")
+    recovery_sha = payload.pop("recovery_path_sha256")
+    store_root_sha = payload.pop("artifact_store_root_sha256")
+    payload["effect_scope"] = {
+        **payload["effect_scope"],
+        "writable_paths": sorted((TARGET, current.staging_path)),
+    }
+    payload["provenance"] = {
+        **payload["provenance"],
+        "origin": "tests.offload-plan-v3",
+        "input_digests": [
+            value
+            for value in payload["provenance"]["input_digests"]
+            if value not in {recovery_sha, store_root_sha}
+        ],
+    }
+
+    decoded = decode_offload_execution_plan(payload)
+    assert isinstance(decoded, OffloadExecutionPlanV3)
+    assert not isinstance(decoded, OffloadExecutionPlan)
+    assert decoded.to_dict() == payload
+    with pytest.raises(ValueError, match="contract_version"):
+        OffloadExecutionPlan.from_dict(payload)
+
+
 def test_historical_v2_wire_remains_decodable_but_is_not_current_authority() -> None:
     current = _plan()
     payload = current.to_dict()
     payload["contract_version"] = "2.0.0"
+    payload.pop("recovery_path")
+    recovery_sha = payload.pop("recovery_path_sha256")
+    store_root_sha = payload.pop("artifact_store_root_sha256")
     payload.pop("staging_path")
     staging_sha = payload.pop("staging_path_sha256")
     payload["effect_scope"] = {
@@ -260,7 +324,7 @@ def test_historical_v2_wire_remains_decodable_but_is_not_current_authority() -> 
         "input_digests": [
             value
             for value in payload["provenance"]["input_digests"]
-            if value != staging_sha
+            if value not in {staging_sha, recovery_sha, store_root_sha}
         ],
     }
 
@@ -395,11 +459,11 @@ def test_target_path_is_strictly_portable(target_path: str) -> None:
         _plan(target_path=target_path)
 
 
-def test_v3_json_schema_is_closed_complete_and_matches_constants() -> None:
+def test_v4_json_schema_is_closed_complete_and_matches_constants() -> None:
     plan = _plan()
     root = Path(__file__).resolve().parents[2]
     schema = json.loads(
-        (root / "configs/schemas/offload-execution-plan-v3.schema.json").read_text(
+        (root / "configs/schemas/offload-execution-plan-v4.schema.json").read_text(
             encoding="utf-8"
         )
     )
@@ -408,7 +472,7 @@ def test_v3_json_schema_is_closed_complete_and_matches_constants() -> None:
     assert schema["properties"]["contract_type"] == {
         "const": "daedalus.offload-execution-plan"
     }
-    assert schema["properties"]["contract_version"] == {"const": "3.0.0"}
+    assert schema["properties"]["contract_version"] == {"const": "4.0.0"}
     assert schema["properties"]["provider_id"] == {"const": "ollama"}
     assert schema["properties"]["runtime_id"] == {"const": "ollama_http"}
     assert schema["properties"]["temperature_milli"] == {"const": 0}
@@ -420,10 +484,10 @@ def test_v3_json_schema_is_closed_complete_and_matches_constants() -> None:
     }
     assert schema["$defs"]["effectScope"]["properties"]["writable_paths"][
         "minItems"
-    ] == 2
+    ] == 3
     assert schema["$defs"]["effectScope"]["properties"]["writable_paths"][
         "maxItems"
-    ] == 2
+    ] == 3
     jsonschema.Draft202012Validator.check_schema(schema)
     jsonschema.validate(plan.to_dict(), schema)
     assert tuple(

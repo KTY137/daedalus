@@ -21,6 +21,7 @@ from daedalus.storage import (
     ArtifactNotFound,
     ArtifactStore,
     ArtifactStoreError,
+    artifact_store_root_sha256,
 )
 
 
@@ -68,6 +69,9 @@ def test_put_verifies_identity_and_emits_a_provenance_locator(tmp_path):
     assert loaded == locator
     assert store.verify(locator) == locator
     assert store.get_bytes(locator.uri) == PAYLOAD
+    assert store.root_sha256 == artifact_store_root_sha256(store.root)
+    assert ArtifactStore(tmp_path / "." / "cas").root_sha256 == store.root_sha256
+    assert ArtifactStore(tmp_path / "other-cas").root_sha256 != store.root_sha256
 
 
 def test_wrong_claim_is_refused_before_the_store_root_exists(tmp_path):

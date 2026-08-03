@@ -11,7 +11,9 @@ from daedalus.kernel.contracts import (
     OFFLOAD_EXECUTION_EFFECTS,
     EffectLeaseRequest,
     OffloadExecutionPlan,
+    derive_offload_recovery_path,
     derive_offload_staging_path,
+    offload_recovery_path_sha256,
     offload_staging_path_sha256,
 )
 from daedalus.kernel.effects import (
@@ -258,6 +260,13 @@ def _plan(
         target_path=TARGET,
     )
     staging_sha = offload_staging_path_sha256(staging_path)
+    recovery_path = derive_offload_recovery_path(
+        attempt_id=attempt.attempt_id,
+        workspace_id=workspace_attestation.workspace_id,
+        target_path=TARGET,
+    )
+    recovery_sha = offload_recovery_path_sha256(recovery_path)
+    store_root_sha = _sha("artifact-store-root")
     digests = {
         "spine_intent_sha256": _sha("spine-intent"),
         "attempt_contract_sha256": attempt.digest,
@@ -278,7 +287,9 @@ def _plan(
     }
     scope = EffectScope(
         read_only=False,
-        writable_paths=tuple(sorted((*attempt.writable_paths, staging_path))),
+        writable_paths=tuple(
+            sorted((*attempt.writable_paths, staging_path, recovery_path))
+        ),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=(TOOL_ID,),
         secret_refs=(),
@@ -320,11 +331,19 @@ def _plan(
         max_cost_microusd=0,
         staging_path=staging_path,
         staging_path_sha256=staging_sha,
+        recovery_path=recovery_path,
+        recovery_path_sha256=recovery_sha,
+        artifact_store_root_sha256=store_root_sha,
         provenance=ContractProvenance(
-            origin="tests.offload-authority-plan-v3",
+            origin="tests.offload-authority-plan-v4",
             source_revision=attempt.base_revision,
             created_at=NOW.isoformat(),
-            input_digests=(*digests.values(), staging_sha),
+            input_digests=(
+                *digests.values(),
+                staging_sha,
+                recovery_sha,
+                store_root_sha,
+            ),
             trace_id=attempt.mission_id,
         ),
     )
@@ -692,6 +711,12 @@ def _tamper(parts: _Parts, case: str) -> _Parts:
             target_path=plan.target_path,
         )
         other_staging_sha = offload_staging_path_sha256(other_staging)
+        other_recovery = derive_offload_recovery_path(
+            attempt_id=plan.attempt_id,
+            workspace_id=other_workspace,
+            target_path=plan.target_path,
+        )
+        other_recovery_sha = offload_recovery_path_sha256(other_recovery)
         return dataclasses.replace(
             parts,
             plan=dataclasses.replace(
@@ -699,16 +724,22 @@ def _tamper(parts: _Parts, case: str) -> _Parts:
                 workspace_id=other_workspace,
                 staging_path=other_staging,
                 staging_path_sha256=other_staging_sha,
+                recovery_path=other_recovery,
+                recovery_path_sha256=other_recovery_sha,
                 effect_scope=dataclasses.replace(
                     plan.effect_scope,
                     writable_paths=tuple(
-                        sorted((plan.target_path, other_staging))
+                        sorted((plan.target_path, other_staging, other_recovery))
                     ),
                 ),
                 provenance=_replace_provenance_input(
-                    plan.provenance,
-                    plan.staging_path_sha256,
-                    other_staging_sha,
+                    _replace_provenance_input(
+                        plan.provenance,
+                        plan.staging_path_sha256,
+                        other_staging_sha,
+                    ),
+                    plan.recovery_path_sha256,
+                    other_recovery_sha,
                 ),
             ),
         )

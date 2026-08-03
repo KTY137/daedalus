@@ -182,6 +182,40 @@ def offload_staging_path_sha256(staging_path: str) -> str:
     )
 
 
+def derive_offload_recovery_path(
+    *, attempt_id: str, workspace_id: str, target_path: str
+) -> str:
+    """Derive the exact sibling that retains bytes displaced at publication."""
+
+    attempt = _identifier(attempt_id, "attempt_id")
+    workspace = _identifier(workspace_id, "workspace_id")
+    target = _portable_target_path(target_path)
+    identity = canonical_sha(
+        {
+            "domain": "daedalus.offload-recovery-identity/1",
+            "attempt_id": attempt,
+            "workspace_id": workspace,
+            "target_path": target,
+        }
+    )
+    parent, separator, _name = target.rpartition("/")
+    filename = f".daedalus-offload-recovery-{identity}.tmp"
+    recovery = f"{parent}/{filename}" if separator else filename
+    return _portable_target_path(recovery, "recovery_path")
+
+
+def offload_recovery_path_sha256(recovery_path: str) -> str:
+    """Return the provenance identity of one canonical recovery path."""
+
+    recovery = _portable_target_path(recovery_path, "recovery_path")
+    return canonical_sha(
+        {
+            "domain": "daedalus.offload-recovery-path/1",
+            "recovery_path": recovery,
+        }
+    )
+
+
 @dataclass(frozen=True)
 class OwnerApproval(CanonicalContract):
     """Authenticated, bounded and single-candidate owner authorization.
@@ -720,8 +754,8 @@ class OffloadExecutionPlanV2(CanonicalContract):
 
 
 @dataclass(frozen=True)
-class OffloadExecutionPlan(OffloadExecutionPlanV2):
-    """Current plan with one target and one exact atomic staging path.
+class OffloadExecutionPlanV3(OffloadExecutionPlanV2):
+    """Historical plan with one target and one exact atomic staging path.
 
     The staging path is derived from pre-plan canonical identities so it can be
     included in the lease scope without a digest cycle.  V2 remains decodable
@@ -758,6 +792,54 @@ class OffloadExecutionPlan(OffloadExecutionPlanV2):
 
     def _expected_writable_paths(self) -> tuple[str, ...]:
         return tuple(sorted((self.staging_path, self.target_path)))
+
+
+@dataclass(frozen=True)
+class OffloadExecutionPlan(OffloadExecutionPlanV3):
+    """Current plan retaining the exact target displaced by publication.
+
+    The deterministic recovery sibling is an authoritative crash/race artifact,
+    not a second candidate identity.  It lets the executor validate the bytes
+    present at the atomic swap linearization point without losing a concurrent
+    writer's content.  V3 remains inert history and is rejected by current
+    offload authority.
+    """
+
+    CONTRACT_VERSION: ClassVar[str] = "4.0.0"
+
+    recovery_path: str
+    recovery_path_sha256: str
+    artifact_store_root_sha256: str
+
+    def __post_init__(self) -> None:
+        recovery = _portable_target_path(self.recovery_path, "recovery_path")
+        object.__setattr__(self, "recovery_path", recovery)
+        expected = derive_offload_recovery_path(
+            attempt_id=self.attempt_id,
+            workspace_id=self.workspace_id,
+            target_path=self.target_path,
+        )
+        if recovery != expected:
+            raise ValueError("recovery_path must equal the canonical derived path")
+        if recovery in {self.target_path, self.staging_path}:
+            raise ValueError("recovery_path must differ from target and staging paths")
+        recovery_sha = _sha256(self.recovery_path_sha256, "recovery_path_sha256")
+        object.__setattr__(self, "recovery_path_sha256", recovery_sha)
+        if recovery_sha != offload_recovery_path_sha256(recovery):
+            raise ValueError("recovery_path_sha256 mismatches recovery_path")
+        store_root_sha = _sha256(
+            self.artifact_store_root_sha256, "artifact_store_root_sha256"
+        )
+        object.__setattr__(self, "artifact_store_root_sha256", store_root_sha)
+        super().__post_init__()
+        _require_provenance_inputs(
+            self.provenance,
+            (recovery_sha, store_root_sha),
+            "offload execution plan recovery/store bindings",
+        )
+
+    def _expected_writable_paths(self) -> tuple[str, ...]:
+        return tuple(sorted((self.recovery_path, self.staging_path, self.target_path)))
 
 
 def _loopback_ollama_endpoint_v1(value: Any) -> str:
@@ -977,7 +1059,12 @@ class OffloadExecutionPlanV1(CanonicalContract):
 
 def decode_offload_execution_plan(
     payload: Mapping[str, Any],
-) -> OffloadExecutionPlanV1 | OffloadExecutionPlanV2 | OffloadExecutionPlan:
+) -> (
+    OffloadExecutionPlanV1
+    | OffloadExecutionPlanV2
+    | OffloadExecutionPlanV3
+    | OffloadExecutionPlan
+):
     """Decode the exact historical or current wire version without coercion."""
 
     if not isinstance(payload, Mapping):
@@ -987,6 +1074,8 @@ def decode_offload_execution_plan(
         return OffloadExecutionPlanV1.from_dict(payload)
     if version == OffloadExecutionPlanV2.CONTRACT_VERSION:
         return OffloadExecutionPlanV2.from_dict(payload)
+    if version == OffloadExecutionPlanV3.CONTRACT_VERSION:
+        return OffloadExecutionPlanV3.from_dict(payload)
     if version == OffloadExecutionPlan.CONTRACT_VERSION:
         return OffloadExecutionPlan.from_dict(payload)
     raise ValueError(f"unsupported offload execution plan version: {version!r}")

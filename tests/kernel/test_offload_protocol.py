@@ -10,7 +10,9 @@ import pytest
 from daedalus.kernel.contracts import (
     OFFLOAD_EXECUTION_EFFECTS,
     OffloadExecutionPlan,
+    derive_offload_recovery_path,
     derive_offload_staging_path,
+    offload_recovery_path_sha256,
     offload_staging_path_sha256,
 )
 from daedalus.kernel.offload_observations import (
@@ -138,9 +140,16 @@ def _plan(attempt: AttemptContract, target: TargetBeforeObservation):
         target_path=TARGET,
     )
     staging_sha = offload_staging_path_sha256(staging_path)
+    recovery_path = derive_offload_recovery_path(
+        attempt_id=attempt.attempt_id,
+        workspace_id=workspace_id,
+        target_path=TARGET,
+    )
+    recovery_sha = offload_recovery_path_sha256(recovery_path)
+    store_root_sha = _sha("artifact-store-root")
     scope = EffectScope(
         read_only=False,
-        writable_paths=tuple(sorted((TARGET, staging_path))),
+        writable_paths=tuple(sorted((TARGET, staging_path, recovery_path))),
         egress_endpoints=("http://127.0.0.1:11434",),
         tools=("python.test-runner",),
         secret_refs=(),
@@ -182,11 +191,19 @@ def _plan(attempt: AttemptContract, target: TargetBeforeObservation):
         max_cost_microusd=0,
         staging_path=staging_path,
         staging_path_sha256=staging_sha,
+        recovery_path=recovery_path,
+        recovery_path_sha256=recovery_sha,
+        artifact_store_root_sha256=store_root_sha,
         provenance=ContractProvenance(
             origin="tests.offload-protocol",
             source_revision=REVISION,
             created_at=NOW,
-            input_digests=(*digests.values(), staging_sha),
+            input_digests=(
+                *digests.values(),
+                staging_sha,
+                recovery_sha,
+                store_root_sha,
+            ),
         ),
     )
     return plan, bundle

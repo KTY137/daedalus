@@ -29,10 +29,14 @@ from daedalus.kernel.contracts import (
     _portable_target_path,
 )
 from daedalus.kernel.effects import (
+    ClaimCompletionCapability,
     CompletionCapability,
+    EffectExecutionClaim,
+    EffectExecutionClaimReceipt,
     EffectExecutionRequest,
     EffectLeaseError,
     EffectStartResult,
+    LeasedEffectAuthorization,
     LeasedEffectStartReceipt,
 )
 from daedalus.schemas import (
@@ -83,6 +87,72 @@ def _require_live_start(
             f"{role} start capability does not bind the exact start receipt"
         ) from exc
     return receipt
+
+
+def _require_live_execution_claim(
+    execution_claim: EffectExecutionClaim | None,
+    execution_request: EffectExecutionRequest,
+    authorization: LeasedEffectAuthorization | None,
+    *,
+    role: str,
+) -> tuple[LeasedEffectStartReceipt, EffectExecutionClaimReceipt]:
+    """Return the exact live durable claim that precedes provider evidence."""
+
+    if type(execution_claim) is not EffectExecutionClaim:
+        raise TypeError("execution_claim must be an exact EffectExecutionClaim")
+    if not isinstance(execution_request, EffectExecutionRequest):
+        raise TypeError("execution_request must be canonical")
+    if type(authorization) is not LeasedEffectAuthorization:
+        raise TypeError(
+            "authorization must be an exact LeasedEffectAuthorization"
+        )
+    try:
+        authorization.require_live_claim(execution_claim, execution_request)
+    except EffectLeaseError as exc:
+        raise OffloadObservationError(
+            f"{role} requires the exact durable EXECUTING claim"
+        ) from exc
+    start_receipt = execution_claim.start_receipt
+    claim_receipt = execution_claim.claim_receipt
+    capability = execution_claim.completion_capability
+    if type(capability) is not ClaimCompletionCapability:
+        raise OffloadObservationError(
+            f"{role} requires one exact live execution-claim capability"
+        )
+    try:
+        capability.verify_claim_receipt(start_receipt, claim_receipt)
+    except EffectLeaseError as exc:
+        raise OffloadObservationError(
+            f"{role} claim capability does not bind the exact claim receipt"
+        ) from exc
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            (
+                "execution_request_sha256",
+                claim_receipt.execution_request_sha256,
+                execution_request.digest,
+            ),
+            ("execution_id", claim_receipt.execution_id, execution_request.execution_id),
+            (
+                "start_execution_request_sha256",
+                start_receipt.execution_request_sha256,
+                execution_request.digest,
+            ),
+            ("start_execution_id", start_receipt.execution_id, execution_request.execution_id),
+            (
+                "claim_start_receipt_sha256",
+                claim_receipt.start_receipt_sha256,
+                start_receipt.receipt_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if mismatches:
+        raise OffloadObservationError(
+            f"{role} execution-claim binding mismatch: " + ", ".join(mismatches)
+        )
+    return start_receipt, claim_receipt
 
 
 def _is_link_or_reparse(metadata: os.stat_result) -> bool:
@@ -1139,10 +1209,11 @@ def _strict_json_object(raw: bytes) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class OllamaModelObservation(CanonicalContract):
-    """Bind one exact model record parsed from raw post-begin Ollama bytes."""
+class OllamaModelObservationV1(CanonicalContract):
+    """Historical start-bound model observation retained for exact replay."""
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.ollama-model-observation"
+    CONTRACT_VERSION: ClassVar[str] = "1.0.0"
 
     execution_request_sha256: str
     start_receipt_sha256: str
@@ -1221,7 +1292,9 @@ class OllamaModelObservation(CanonicalContract):
         cls,
         *,
         execution_request: EffectExecutionRequest,
-        start_result: EffectStartResult,
+        execution_claim: EffectExecutionClaim | None = None,
+        authorization: LeasedEffectAuthorization | None = None,
+        start_result: EffectStartResult | None = None,
         execution_plan: OffloadExecutionPlan,
         metadata_request_sha256: str,
         raw_response_bytes: bytes,
@@ -1230,10 +1303,29 @@ class OllamaModelObservation(CanonicalContract):
         origin: str,
         created_at: str,
         trace_id: str | None = None,
-    ) -> "OllamaModelObservation":
+    ) -> "OllamaModelObservationV1":
         if not isinstance(execution_request, EffectExecutionRequest):
             raise TypeError("execution_request must be canonical")
-        start_receipt = _require_live_start(start_result, role="model metadata")
+        if cls is OllamaModelObservationV1:
+            if execution_claim is not None or authorization is not None:
+                raise TypeError(
+                    "v1 model capture does not accept claim authorization"
+                )
+            start_receipt = _require_live_start(
+                start_result, role="model metadata"
+            )
+            claim_receipt = None
+        elif cls is OllamaModelObservation:
+            if start_result is not None:
+                raise TypeError("v2 model capture requires execution_claim, not start_result")
+            start_receipt, claim_receipt = _require_live_execution_claim(
+                execution_claim,
+                execution_request,
+                authorization,
+                role="model metadata",
+            )
+        else:
+            raise TypeError("unsupported Ollama model observation wire version")
         if not isinstance(execution_plan, OffloadExecutionPlan):
             raise TypeError("execution_plan must be canonical")
         if not isinstance(raw_response_bytes, bytes):
@@ -1242,6 +1334,10 @@ class OllamaModelObservation(CanonicalContract):
             raise TypeError("raw_response_locator must be an ArtifactLocator")
         if not isinstance(artifact_store, ArtifactStore):
             raise TypeError("artifact_store must be an ArtifactStore")
+        if artifact_store.root_sha256 != execution_plan.artifact_store_root_sha256:
+            raise OffloadObservationError(
+                "model metadata artifact store root mismatches execution plan"
+            )
         if execution_request.digest != start_receipt.execution_request_sha256:
             raise OffloadObservationError("start receipt binds a different execution request")
         if execution_request.execution_id != start_receipt.execution_id:
@@ -1265,6 +1361,8 @@ class OllamaModelObservation(CanonicalContract):
             "metadata_request_sha256": request_sha,
             "start_receipt_sha256": start_receipt.receipt_sha256,
         }
+        if claim_receipt is not None:
+            expected_metadata["claim_receipt_sha256"] = claim_receipt.receipt_sha256
         if locator.metadata != expected_metadata:
             raise OffloadObservationError("raw Ollama response CAS metadata mismatch")
         if locator.provenance.get("source_revision") != execution_plan.source_revision:
@@ -1275,6 +1373,7 @@ class OllamaModelObservation(CanonicalContract):
                 execution_plan.digest,
                 execution_request.digest,
                 start_receipt.receipt_sha256,
+                *((claim_receipt.receipt_sha256,) if claim_receipt is not None else ()),
                 request_sha,
             ),
             role="raw Ollama response",
@@ -1316,6 +1415,7 @@ class OllamaModelObservation(CanonicalContract):
         inputs = (
             execution_request.digest,
             start_receipt.receipt_sha256,
+            *((claim_receipt.receipt_sha256,) if claim_receipt is not None else ()),
             execution_plan.digest,
             execution_plan.runtime_manifest_sha256,
             request_sha,
@@ -1325,44 +1425,69 @@ class OllamaModelObservation(CanonicalContract):
             execution_plan.expected_model_sha256,
             details_sha,
         )
-        return cls(
-            execution_request_sha256=execution_request.digest,
-            start_receipt_sha256=start_receipt.receipt_sha256,
-            execution_plan_sha256=execution_plan.digest,
-            source_revision=execution_plan.source_revision,
-            runtime_manifest_sha256=execution_plan.runtime_manifest_sha256,
-            provider_id=execution_plan.provider_id,
-            runtime_id=execution_plan.runtime_id,
-            provider_endpoint=execution_plan.provider_endpoint,
-            metadata_request_sha256=request_sha,
-            raw_response_sha256=raw_sha,
-            raw_response_size=len(raw_response_bytes),
-            raw_response_artifact_locator=locator.locator_uri,
-            selected_record_sha256=selected_sha,
-            model_id=execution_plan.model_id,
-            model_sha256=execution_plan.expected_model_sha256,
-            model_size=size,
-            model_modified_at=modified_at,
-            model_details_sha256=details_sha,
-            provenance=ContractProvenance(
+        values: dict[str, Any] = {
+            "execution_request_sha256": execution_request.digest,
+            "start_receipt_sha256": start_receipt.receipt_sha256,
+            "execution_plan_sha256": execution_plan.digest,
+            "source_revision": execution_plan.source_revision,
+            "runtime_manifest_sha256": execution_plan.runtime_manifest_sha256,
+            "provider_id": execution_plan.provider_id,
+            "runtime_id": execution_plan.runtime_id,
+            "provider_endpoint": execution_plan.provider_endpoint,
+            "metadata_request_sha256": request_sha,
+            "raw_response_sha256": raw_sha,
+            "raw_response_size": len(raw_response_bytes),
+            "raw_response_artifact_locator": locator.locator_uri,
+            "selected_record_sha256": selected_sha,
+            "model_id": execution_plan.model_id,
+            "model_sha256": execution_plan.expected_model_sha256,
+            "model_size": size,
+            "model_modified_at": modified_at,
+            "model_details_sha256": details_sha,
+            "provenance": ContractProvenance(
                 origin=origin,
                 source_revision=execution_plan.source_revision,
                 created_at=created_at,
                 input_digests=inputs,
                 trace_id=trace_id,
             ),
-        )
+        }
+        if claim_receipt is not None:
+            values["claim_receipt_sha256"] = claim_receipt.receipt_sha256
+        return cls(**values)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "OllamaModelObservation":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OllamaModelObservationV1":
         body = cls._contract_payload(payload)
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
 
 
 @dataclass(frozen=True)
-class OllamaChatObservation(CanonicalContract):
-    """Bind one complete post-begin chat response and its inert candidate.
+class OllamaModelObservation(OllamaModelObservationV1):
+    """Bind one exact model record to the durable pre-provider claim."""
+
+    CONTRACT_VERSION: ClassVar[str] = "2.0.0"
+
+    claim_receipt_sha256: str
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(
+            self,
+            "claim_receipt_sha256",
+            _sha256(self.claim_receipt_sha256, "claim_receipt_sha256"),
+        )
+        _require_provenance_inputs(
+            self.provenance,
+            (self.claim_receipt_sha256,),
+            "Ollama model v2 observation",
+        )
+
+
+@dataclass(frozen=True)
+class OllamaChatObservationV1(CanonicalContract):
+    """Historical start-bound chat observation retained for exact replay.
 
     Both payloads must already exist in the canonical artifact store.  Capture
     only re-reads and compares them; it performs no provider, process, network,
@@ -1371,6 +1496,7 @@ class OllamaChatObservation(CanonicalContract):
     """
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.ollama-chat-observation"
+    CONTRACT_VERSION: ClassVar[str] = "1.0.0"
 
     execution_request_sha256: str
     start_receipt_sha256: str
@@ -1451,9 +1577,11 @@ class OllamaChatObservation(CanonicalContract):
         cls,
         *,
         execution_request: EffectExecutionRequest,
-        start_result: EffectStartResult,
+        execution_claim: EffectExecutionClaim | None = None,
+        authorization: LeasedEffectAuthorization | None = None,
+        start_result: EffectStartResult | None = None,
         execution_plan: OffloadExecutionPlan,
-        model_observation: OllamaModelObservation,
+        model_observation: OllamaModelObservationV1,
         target_before: TargetBeforeObservation,
         parsed_candidate: "ParsedOffloadCandidate",
         raw_response_bytes: bytes,
@@ -1463,7 +1591,7 @@ class OllamaChatObservation(CanonicalContract):
         origin: str,
         created_at: str,
         trace_id: str | None = None,
-    ) -> "OllamaChatObservation":
+    ) -> "OllamaChatObservationV1":
         # Local import avoids a module cycle: the pure protocol imports the
         # TargetBeforeObservation contract used to parse this candidate.
         from daedalus.kernel.offload_protocol import (
@@ -1473,11 +1601,30 @@ class OllamaChatObservation(CanonicalContract):
 
         if not isinstance(execution_request, EffectExecutionRequest):
             raise TypeError("execution_request must be canonical")
-        start_receipt = _require_live_start(start_result, role="chat")
+        if cls is OllamaChatObservationV1:
+            if execution_claim is not None or authorization is not None:
+                raise TypeError(
+                    "v1 chat capture does not accept claim authorization"
+                )
+            start_receipt = _require_live_start(start_result, role="chat")
+            claim_receipt = None
+            if type(model_observation) is not OllamaModelObservationV1:
+                raise TypeError("v1 chat requires an exact v1 model observation")
+        elif cls is OllamaChatObservation:
+            if start_result is not None:
+                raise TypeError("v2 chat capture requires execution_claim, not start_result")
+            start_receipt, claim_receipt = _require_live_execution_claim(
+                execution_claim,
+                execution_request,
+                authorization,
+                role="chat",
+            )
+            if type(model_observation) is not OllamaModelObservation:
+                raise TypeError("v2 chat requires an exact v2 model observation")
+        else:
+            raise TypeError("unsupported Ollama chat observation wire version")
         if not isinstance(execution_plan, OffloadExecutionPlan):
             raise TypeError("execution_plan must be canonical")
-        if not isinstance(model_observation, OllamaModelObservation):
-            raise TypeError("model_observation must be canonical")
         if not isinstance(target_before, TargetBeforeObservation):
             raise TypeError("target_before must be canonical")
         if not isinstance(parsed_candidate, ParsedOffloadCandidate):
@@ -1490,6 +1637,10 @@ class OllamaChatObservation(CanonicalContract):
             raise TypeError("candidate_locator must be an ArtifactLocator")
         if not isinstance(artifact_store, ArtifactStore):
             raise TypeError("artifact_store must be an ArtifactStore")
+        if artifact_store.root_sha256 != execution_plan.artifact_store_root_sha256:
+            raise OffloadObservationError(
+                "chat artifact store root mismatches execution plan"
+            )
 
         mismatches = sorted(
             name
@@ -1594,6 +1745,12 @@ class OllamaChatObservation(CanonicalContract):
             )
             if actual != expected
         )
+        if (
+            claim_receipt is not None
+            and model_observation.claim_receipt_sha256
+            != claim_receipt.receipt_sha256
+        ):
+            mismatches.append("model_claim_receipt")
         if mismatches:
             raise OffloadObservationError(
                 "chat authority/input binding mismatch: " + ", ".join(mismatches)
@@ -1647,6 +1804,10 @@ class OllamaChatObservation(CanonicalContract):
             "raw_response_sha256": raw_sha,
             "start_receipt_sha256": start_receipt.receipt_sha256,
         }
+        if claim_receipt is not None:
+            expected_raw_metadata["claim_receipt_sha256"] = (
+                claim_receipt.receipt_sha256
+            )
         changes_target = candidate_sha != target_before.content_sha256
         expected_candidate_metadata = {
             "assistant_content_sha256": parsed_candidate.assistant_content_sha256,
@@ -1665,6 +1826,10 @@ class OllamaChatObservation(CanonicalContract):
             "target_before_sha256": target_before.content_sha256,
             "target_path": target_before.target_path,
         }
+        if claim_receipt is not None:
+            expected_candidate_metadata["claim_receipt_sha256"] = (
+                claim_receipt.receipt_sha256
+            )
         if (
             raw_locator.metadata != expected_raw_metadata
             or raw_locator.to_dict().get("media_type") != "application/json"
@@ -1685,6 +1850,7 @@ class OllamaChatObservation(CanonicalContract):
         raw_inputs = (
             execution_request.digest,
             start_receipt.receipt_sha256,
+            *((claim_receipt.receipt_sha256,) if claim_receipt is not None else ()),
             execution_plan.digest,
             model_observation.digest,
             execution_plan.ollama_request_sha256,
@@ -1709,38 +1875,93 @@ class OllamaChatObservation(CanonicalContract):
                 }
             )
         )
-        return cls(
-            execution_request_sha256=execution_request.digest,
-            start_receipt_sha256=start_receipt.receipt_sha256,
-            execution_plan_sha256=execution_plan.digest,
-            source_revision=execution_plan.source_revision,
-            ollama_model_observation_sha256=model_observation.digest,
-            ollama_request_sha256=execution_plan.ollama_request_sha256,
-            raw_response_sha256=raw_sha,
-            raw_response_size=len(raw_response_bytes),
-            raw_response_artifact_locator=raw_locator.locator_uri,
-            target_before_observation_sha256=target_before.digest,
-            target_path=target_before.target_path,
-            target_before_sha256=target_before.content_sha256,
-            assistant_content_sha256=parsed_candidate.assistant_content_sha256,
-            candidate_sha256=candidate_sha,
-            candidate_size=len(parsed_candidate.content_bytes),
-            candidate_artifact_locator=candidate_ref.locator_uri,
-            changes_target=changes_target,
-            provenance=ContractProvenance(
+        values: dict[str, Any] = {
+            "execution_request_sha256": execution_request.digest,
+            "start_receipt_sha256": start_receipt.receipt_sha256,
+            "execution_plan_sha256": execution_plan.digest,
+            "source_revision": execution_plan.source_revision,
+            "ollama_model_observation_sha256": model_observation.digest,
+            "ollama_request_sha256": execution_plan.ollama_request_sha256,
+            "raw_response_sha256": raw_sha,
+            "raw_response_size": len(raw_response_bytes),
+            "raw_response_artifact_locator": raw_locator.locator_uri,
+            "target_before_observation_sha256": target_before.digest,
+            "target_path": target_before.target_path,
+            "target_before_sha256": target_before.content_sha256,
+            "assistant_content_sha256": parsed_candidate.assistant_content_sha256,
+            "candidate_sha256": candidate_sha,
+            "candidate_size": len(parsed_candidate.content_bytes),
+            "candidate_artifact_locator": candidate_ref.locator_uri,
+            "changes_target": changes_target,
+            "provenance": ContractProvenance(
                 origin=origin,
                 source_revision=execution_plan.source_revision,
                 created_at=created_at,
                 input_digests=provenance_inputs,
                 trace_id=trace_id,
             ),
-        )
+        }
+        if claim_receipt is not None:
+            values["claim_receipt_sha256"] = claim_receipt.receipt_sha256
+        return cls(**values)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "OllamaChatObservation":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OllamaChatObservationV1":
         body = cls._contract_payload(payload)
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+
+@dataclass(frozen=True)
+class OllamaChatObservation(OllamaChatObservationV1):
+    """Bind one complete chat response and candidate to the durable claim."""
+
+    CONTRACT_VERSION: ClassVar[str] = "2.0.0"
+
+    claim_receipt_sha256: str
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        object.__setattr__(
+            self,
+            "claim_receipt_sha256",
+            _sha256(self.claim_receipt_sha256, "claim_receipt_sha256"),
+        )
+        _require_provenance_inputs(
+            self.provenance,
+            (self.claim_receipt_sha256,),
+            "Ollama chat v2 observation",
+        )
+
+
+def decode_ollama_model_observation(
+    payload: Mapping[str, Any],
+) -> OllamaModelObservationV1 | OllamaModelObservation:
+    """Decode one exact historical or current model observation version."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("daedalus.ollama-model-observation must be an object")
+    version = payload.get("contract_version")
+    if version == OllamaModelObservationV1.CONTRACT_VERSION:
+        return OllamaModelObservationV1.from_dict(payload)
+    if version == OllamaModelObservation.CONTRACT_VERSION:
+        return OllamaModelObservation.from_dict(payload)
+    raise ValueError(f"unsupported Ollama model observation version: {version!r}")
+
+
+def decode_ollama_chat_observation(
+    payload: Mapping[str, Any],
+) -> OllamaChatObservationV1 | OllamaChatObservation:
+    """Decode one exact historical or current chat observation version."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("daedalus.ollama-chat-observation must be an object")
+    version = payload.get("contract_version")
+    if version == OllamaChatObservationV1.CONTRACT_VERSION:
+        return OllamaChatObservationV1.from_dict(payload)
+    if version == OllamaChatObservation.CONTRACT_VERSION:
+        return OllamaChatObservation.from_dict(payload)
+    raise ValueError(f"unsupported Ollama chat observation version: {version!r}")
 
 
 __all__ = [
@@ -1752,8 +1973,12 @@ __all__ = [
     "OffloadObservationError",
     "OffloadWorkspaceObservation",
     "OllamaModelObservation",
+    "OllamaModelObservationV1",
     "OllamaChatObservation",
+    "OllamaChatObservationV1",
     "TargetBeforeObservation",
     "TargetBeforeObservationV1",
     "TaskAttemptWorkspaceAttestation",
+    "decode_ollama_chat_observation",
+    "decode_ollama_model_observation",
 ]
