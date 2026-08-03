@@ -1,61 +1,55 @@
 {
   "schema": "daedalus-gate0-effect-inventory-review/1",
   "work_packet": "G0-ATT-13B",
-  "status": "open",
+  "status": "resolved_at_local_guards",
   "security_boundary_claimed": false,
-  "summary": "Public isolated-attempt lifecycle methods are effectful but are not yet represented by the canonical effect registry or its static discovery classifier.",
-  "findings": [
+  "summary": "The three public isolated-attempt lifecycle methods now have exactly one canonical registry owner and are rediscovered by the static classifier. They remain local_guards and therefore remain Gate-0 closure gaps until the dependent execution packet enforces Effect Lease, runtime-conformance and sandbox capabilities.",
+  "findings": [],
+  "resolved_findings": [
     {
       "code": "entrypoint.discovery_gap",
-      "severity": "blocker",
       "registry_id": "kernel.attempt.begin",
       "target": "daedalus.kernel.attempt_ledger:AttemptLedger.begin",
       "effects": ["filesystem_write"],
       "required_guards": ["spine.intent_ledger"],
-      "current_wiring": "unregistered",
-      "minimum_honest_wiring": "local_guards",
+      "current_wiring": "local_guards",
       "gate0_target_wiring": "central",
       "anchors": ["record_intent"],
-      "reason": "The method commits the canonical Attempt start intent and is exported through the stable kernel API."
+      "resolution": "canonical registry row and exact static classifier added"
     },
     {
       "code": "entrypoint.discovery_gap",
-      "severity": "blocker",
       "registry_id": "kernel.attempt.complete",
       "target": "daedalus.kernel.attempt_ledger:AttemptLedger.complete",
       "effects": ["filesystem_write"],
       "required_guards": ["spine.intent_ledger"],
-      "current_wiring": "unregistered",
-      "minimum_honest_wiring": "local_guards",
+      "current_wiring": "local_guards",
       "gate0_target_wiring": "central",
       "anchors": ["mark_completed"],
-      "reason": "The method commits the terminal Event-Store receipt and verifies CAS-backed terminal material."
+      "resolution": "canonical registry row and exact static classifier added"
     },
     {
       "code": "entrypoint.discovery_gap",
-      "severity": "blocker",
       "registry_id": "kernel.attempt.prepare",
       "target": "daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare",
       "effects": ["filesystem_write"],
       "required_guards": ["spine.intent_ledger", "containment.attempt"],
-      "current_wiring": "unregistered",
-      "minimum_honest_wiring": "local_guards",
+      "current_wiring": "local_guards",
       "gate0_target_wiring": "central",
       "anchors": ["begin", "materialize_tree"],
-      "reason": "The method persists a start and materializes the exact CAS source tree into a checkout-external workspace."
+      "resolution": "canonical registry row and exact static classifier added"
     }
   ],
-  "required_resolution": [
-    "Extend the canonical static discovery classifier to identify the three exact class methods.",
-    "Add exactly one canonical registry row per target with the declared effects, guards and mechanical anchors.",
-    "Represent the methods as local_guards until persisted Effect Lease, Runtime Manifest, current Conformance Receipt and sandbox composition are mechanically enforced.",
-    "Upgrade to central only after the dependent execution packet consumes those capabilities and exact-head adversarial verification is green.",
-    "Remove this blocker artifact only when the canonical gate report itself emits equivalent rows and no entrypoint.unregistered finding remains."
+  "remaining_resolution": [
+    "Compose the lifecycle and workspace writes with the exact persisted Effect Lease, Runtime Manifest, current Runtime Conformance Receipt and Docker sandbox capability.",
+    "Upgrade these rows to central only after exact-head adversarial verification is green.",
+    "Do not use this resolved inventory review as evidence that Gate 0 is closed."
   ],
   "verification_state": {
     "builder_static_review": "performed",
-    "independent_review": "open",
-    "exact_head_ci": "blocked_by_github_actions_issue_67",
-    "registry_patch": "open"
+    "independent_review": "performed_against_parent_pinned_ids_guards_and_anchors",
+    "focused_mutation_specification": "present",
+    "exact_head_ci": "blocked_by_github_actions_issue_67_until_a_job_executes_steps",
+    "registry_patch": "implemented_at_local_guards"
   }
 }
