@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import ast
 import inspect
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -74,7 +72,20 @@ def test_absent_workspace_inside_cas_is_refused_without_creating_it(
     assert _tree_paths(store.root) == before
 
 
-def test_symlinked_parent_component_cannot_redirect_creation_into_primary(
+def test_absent_external_workspace_is_refused_without_creation(tmp_path: Path) -> None:
+    primary, store, ledger = _roots(tmp_path)
+    requested = tmp_path / "external-workspaces"
+    with pytest.raises(AttemptWorkspaceError, match="already exist"):
+        IsolatedAttemptCoordinator(
+            primary_checkout=primary,
+            workspace_parent=requested,
+            source_store=store,
+            ledger=ledger,
+        )
+    assert not requested.exists()
+
+
+def test_symlinked_parent_component_cannot_redirect_admission_into_primary(
     tmp_path: Path,
 ) -> None:
     primary, store, ledger = _roots(tmp_path)
@@ -103,7 +114,7 @@ def test_existing_file_is_a_normalized_workspace_refusal(tmp_path: Path) -> None
     requested = tmp_path / "not-a-directory"
     requested.write_text("not a workspace\n", encoding="utf-8")
 
-    with pytest.raises(AttemptWorkspaceError, match="directory|created"):
+    with pytest.raises(AttemptWorkspaceError, match="directory"):
         IsolatedAttemptCoordinator(
             primary_checkout=primary,
             workspace_parent=requested,
@@ -114,21 +125,41 @@ def test_existing_file_is_a_normalized_workspace_refusal(tmp_path: Path) -> None
     assert requested.read_text(encoding="utf-8") == "not a workspace\n"
 
 
-def test_source_orders_nonmutating_preflight_before_mkdir_and_rechecks_after() -> None:
-    source = textwrap.dedent(
-        inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
+def test_parent_replacement_after_admission_is_refused_before_materialization(
+    tmp_path: Path,
+) -> None:
+    primary, store, ledger = _roots(tmp_path)
+    workspace = tmp_path / "external-workspaces"
+    workspace.mkdir()
+    coordinator = IsolatedAttemptCoordinator(
+        primary_checkout=primary,
+        workspace_parent=workspace,
+        source_store=store,
+        ledger=ledger,
     )
-    tree = ast.parse(source)
-    calls = [
-        ast.unparse(node)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-    ]
-    prospective = next(
-        value for value in calls if "raw_parent.resolve(strict=False)" in value
+    backup = tmp_path / "external-workspaces-original"
+    workspace.rename(backup)
+    try:
+        workspace.symlink_to(primary, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        backup.rename(workspace)
+        pytest.skip("directory symlink creation is unavailable")
+
+    with pytest.raises(AttemptWorkspaceError, match="primary checkout|identity changed"):
+        coordinator._require_stable_workspace_parent()
+    assert _tree_paths(primary) == ("tracked.py",)
+
+
+def test_source_never_creates_workspace_parent_and_revalidates_before_write() -> None:
+    init_source = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
+    prepare_source = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.prepare)
+    assert ".mkdir(" not in init_source
+    assert "raw_parent.resolve(strict=False)" in init_source
+    assert init_source.count("_require_disjoint_workspace_parent(") == 2
+    assert prepare_source.count("self._require_stable_workspace_parent()") == 2
+    assert prepare_source.index("self._require_stable_workspace_parent()") < prepare_source.index(
+        "self.ledger.begin"
     )
-    mkdir = next(value for value in calls if "raw_parent.mkdir" in value)
-    assert source.index(prospective) < source.index(mkdir)
-    assert source.count("_require_disjoint_workspace_parent(") == 2
-    assert source.index("_require_disjoint_workspace_parent(") < source.index(mkdir)
-    assert source.rindex("_require_disjoint_workspace_parent(") > source.index(mkdir)
+    assert prepare_source.rindex("self._require_stable_workspace_parent()") < prepare_source.index(
+        "self.source_store.materialize_tree"
+    )
