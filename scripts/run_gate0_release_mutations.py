@@ -25,6 +25,12 @@ MUTATIONS = (
         "    if False:\n        verify_evidence_trust_bundle(\n",
     ),
     Mutation(
+        "accept-foreign-local-gate-report",
+        "daedalus/gates/release.py",
+        "if local_report.source_revision != current:\n        raise ValueError(\"Gate report source revision is not the current exact head\")",
+        "if False:\n        raise ValueError(\"Gate report source revision is not the current exact head\")",
+    ),
+    Mutation(
         "trust-caller-security-claim",
         "daedalus/gates/release.py",
         "security_claimed = not local_boundary_blockers and not security_evidence_blockers",
