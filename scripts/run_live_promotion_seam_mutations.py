@@ -16,6 +16,7 @@ TESTS = (
     "tests/kernel/test_live_promotion_legacy_retirement.py",
     "tests/kernel/test_persisted_promotion_authorization.py",
     "tests/kernel/test_persisted_promotion_authorization_review.py",
+    "tests/kernel/test_promotion_material_review.py",
 )
 
 
@@ -122,7 +123,7 @@ def main() -> int:
             "promotion",
             [
                 (
-                    "        if not hmac.compare_digest(actual_diff_sha256, str(artifact.diff_sha256)):\n",
+                    "        if not hmac.compare_digest(actual_diff_sha256, declared_diff_sha256):\n",
                     "        if False:\n",
                 )
             ],
