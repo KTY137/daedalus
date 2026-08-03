@@ -30,4 +30,4 @@ jobs:
           name: daedalus-checkout
           path: /tmp/daedalus-checkout.tar.gz
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 2
