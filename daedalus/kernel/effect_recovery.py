@@ -106,13 +106,19 @@ class ExternalEffectObservation:
         )
         if not isinstance(self.provenance, ContractProvenance):
             raise ValueError("provenance must be ContractProvenance")
-        required = {
-            self.start_receipt_sha256,
-            self.acknowledgement_sha256,
-            *self.output_digests,
-        }
-        if not required.issubset(set(self.provenance.input_digests)):
-            raise ValueError("observation provenance must bind all evidence digests")
+        required = tuple(
+            sorted(
+                {
+                    self.start_receipt_sha256,
+                    self.acknowledgement_sha256,
+                    *self.output_digests,
+                }
+            )
+        )
+        if tuple(self.provenance.input_digests) != required:
+            raise ValueError(
+                "observation provenance must bind exactly the retained evidence digests"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -195,6 +201,29 @@ def _parse_utc(value: str, label: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _validate_start_binding(
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+) -> datetime:
+    comparisons = {
+        "execution_id": (start_receipt.execution_id, execution.execution_id),
+        "idempotency_key": (start_receipt.idempotency_key, execution.idempotency_key),
+        "execution_request_sha256": (
+            start_receipt.execution_request_sha256,
+            execution.digest,
+        ),
+    }
+    mismatches = sorted(
+        name for name, (actual, expected) in comparisons.items() if actual != expected
+    )
+    if mismatches:
+        raise EffectRecoveryBindingError(
+            "start receipt does not match the external effect request: "
+            + ", ".join(mismatches)
+        )
+    return _parse_utc(start_receipt.started_at, "start_receipt.started_at")
+
+
 def issue_external_effect_observation(
     *,
     observation_id: str,
@@ -210,6 +239,11 @@ def issue_external_effect_observation(
 ) -> ExternalEffectObservation:
     revision = _revision(source_revision, "source_revision")
     instant = _as_utc(observed_at, "observed_at")
+    started = _validate_start_binding(execution, start_receipt)
+    if instant < started:
+        raise EffectRecoveryBindingError(
+            "external acknowledgement predates the durable effect start"
+        )
     outputs = tuple(output_digests)
     acknowledgement = _sha256(acknowledgement_sha256, "acknowledgement_sha256")
     provenance = ContractProvenance(
@@ -259,6 +293,11 @@ def verify_external_effect_observation(
         raise EffectRecoverySignatureError("recovery observation signature mismatch")
     instant = _as_utc(now, "now")
     observed = _parse_utc(observation.observed_at, "observed_at")
+    started = _validate_start_binding(execution, start_receipt)
+    if observed < started:
+        raise EffectRecoveryBindingError(
+            "external acknowledgement predates the durable effect start"
+        )
     if observed > instant:
         raise EffectRecoveryBindingError("recovery observation is from the future")
     if instant - observed > _MAX_OBSERVATION_AGE:
@@ -273,15 +312,6 @@ def verify_external_effect_observation(
         "start_receipt_sha256": (
             observation.start_receipt_sha256,
             start_receipt.receipt_sha256,
-        ),
-        "start_execution_id": (start_receipt.execution_id, execution.execution_id),
-        "start_idempotency_key": (
-            start_receipt.idempotency_key,
-            execution.idempotency_key,
-        ),
-        "start_execution_request_sha256": (
-            start_receipt.execution_request_sha256,
-            execution.digest,
         ),
         "source_revision": (
             observation.provenance.source_revision,
