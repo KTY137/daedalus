@@ -95,7 +95,7 @@ def _resolve_workspace_parent(
         raise AttemptWorkspaceError(
             "workspace parent must already exist"
         ) from exc
-n    if raw_parent.is_symlink():
+    if raw_parent.is_symlink():
         raise AttemptWorkspaceError("workspace parent must not be a symlink")
     if not parent.is_dir():
         raise AttemptWorkspaceError("workspace parent must be a directory")
