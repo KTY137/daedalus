@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import shutil
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from daedalus.schemas import (
     ResourceUsage,
 )
 from daedalus.spine.envelope import canonical_sha
-from daedalus.twin import compile_reference_project
+from daedalus.twin import FourfoldSnapshot, compile_reference_project
 
 REVISION = "b" * 40
 OTHER_REVISION = "c" * 40
@@ -67,6 +68,34 @@ def _packet(result) -> EvidencePacket:
     )
 
 
+def _partial_snapshot(result) -> FourfoldSnapshot:
+    planes = list(result.snapshot.planes)
+    planes[0] = dataclasses.replace(
+        planes[0],
+        status="partial",
+        reason="deliberately incomplete code semantics",
+    )
+    provenance = ContractProvenance(
+        origin="tests.partial-fourfold-snapshot",
+        source_revision=result.snapshot.source_revision,
+        created_at=NOW,
+        input_digests=(
+            result.snapshot.source_forest_sha256,
+            *(plane.digest for plane in planes),
+            *(binding.digest for binding in result.snapshot.bindings),
+        ),
+        trace_id="g0-rcp-04a-partial",
+    )
+    return FourfoldSnapshot(
+        repository_id=result.snapshot.repository_id,
+        source_revision=result.snapshot.source_revision,
+        source_forest_sha256=result.snapshot.source_forest_sha256,
+        planes=tuple(planes),
+        bindings=result.snapshot.bindings,
+        provenance=provenance,
+    )
+
+
 def test_real_wiki_snapshot_is_bound_to_candidate_and_revision() -> None:
     result = _compile(FIXTURE)
     packet = _packet(result)
@@ -81,11 +110,59 @@ def test_real_wiki_snapshot_is_bound_to_candidate_and_revision() -> None:
     assert item.output_sha256 == result.snapshot.digest
     assert item.details["fourfold_snapshot_sha256"] == result.snapshot.digest
     assert item.details["source_forest_sha256"] == result.forest.content_sha256
+    assert dict(item.details["plane_statuses"]) == {
+        "code": "complete",
+        "type": "complete",
+        "data": "complete",
+        "knowledge": "complete",
+    }
+    assert item.details["verified_binding_count"] == 31
     verify_fourfold_evidence_packet(
         packet,
         snapshot=result.snapshot,
         expectation=_expectation(result),
     )
+
+
+def test_partial_snapshot_cannot_be_upgraded_to_passed_promotion_evidence() -> None:
+    result = _compile(FIXTURE)
+    partial = _partial_snapshot(result)
+    expectation = FourfoldEvidenceExpectation(
+        candidate_artifact_sha256=result.source_bundle_sha256,
+        candidate_artifact_locator=(
+            f"artifact-locator:sha256:{result.source_bundle_sha256}"
+        ),
+        snapshot_sha256=partial.digest,
+        source_revision=partial.source_revision,
+    )
+
+    with pytest.raises(
+        FourfoldEvidenceMismatch,
+        match="all Fourfold planes to be complete.*code:partial",
+    ):
+        assemble_fourfold_evidence_packet(
+            snapshot=partial,
+            candidate_artifact_sha256=result.source_bundle_sha256,
+            candidate_artifact_locator=(
+                f"artifact-locator:sha256:{result.source_bundle_sha256}"
+            ),
+            packet_id="partial-evidence",
+            mission_id="g0-rcp-04a",
+            attempt_id="partial-attempt",
+            attempt_contract_sha256=ATTEMPT_SHA,
+            policy_decision_sha256=POLICY_SHA,
+            collected_at=NOW,
+        )
+
+    with pytest.raises(
+        FourfoldEvidenceMismatch,
+        match="all Fourfold planes to be complete.*code:partial",
+    ):
+        verify_fourfold_evidence_packet(
+            _packet(result),
+            snapshot=partial,
+            expectation=expectation,
+        )
 
 
 def test_source_mutation_changes_candidate_and_snapshot_and_old_packet_refuses(
@@ -212,6 +289,13 @@ def test_missing_or_repackaged_fourfold_evidence_is_refused() -> None:
             "candidate_artifact_sha256": result.source_bundle_sha256,
             "source_forest_sha256": result.snapshot.source_forest_sha256,
             "fourfold_snapshot_sha256": wrong_snapshot,
+            "plane_statuses": {
+                "code": "complete",
+                "type": "complete",
+                "data": "complete",
+                "knowledge": "complete",
+            },
+            "verified_binding_count": len(result.snapshot.bindings),
         },
     )
     manipulated_packet = EvidencePacket(
