@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Generic, Iterable, Mapping, Sequence, TypeVar
 
 from daedalus.kernel.effects import (
@@ -92,6 +93,29 @@ def _registry_map(
     return {row.id: row for row in rows}
 
 
+def _validate_distinct_ledger_paths(
+    authorization: RuntimeBoundEffectAuthorization,
+) -> None:
+    """Refuse a self-deadlocking trust/effect SQLite configuration up front."""
+
+    trust_ledger = getattr(authorization, "runtime_trust_ledger", None)
+    effect_ledger = getattr(authorization, "effect_ledger", None)
+    trust_path = getattr(trust_ledger, "path", None)
+    effect_path = getattr(effect_ledger, "path", None)
+    if trust_path is None or effect_path is None:
+        return
+    try:
+        same_path = Path(trust_path).resolve() == Path(effect_path).resolve()
+    except (OSError, TypeError, ValueError) as exc:
+        raise RuntimeProviderBindingMismatch(
+            "runtime trust and effect ledger paths cannot be resolved"
+        ) from exc
+    if same_path:
+        raise RuntimeProviderBindingMismatch(
+            "runtime trust and effect ledgers must use distinct SQLite files"
+        )
+
+
 def _validate_binding(
     entrypoint_id: str,
     authorization: RuntimeBoundEffectAuthorization,
@@ -128,6 +152,7 @@ def _validate_binding(
         raise RuntimeProviderBindingMismatch(
             "runtime provider identity does not match the bound capability"
         )
+    _validate_distinct_ledger_paths(authorization)
     return spec
 
 
@@ -266,7 +291,6 @@ def _finish_completed_under_runtime_fence(
 
     ledger, capability = components
     connection = ledger._connect()  # noqa: SLF001 - same persisted authority seam
-    terminal: EffectTerminalReceipt | None = None
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
