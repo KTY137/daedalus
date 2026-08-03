@@ -42,6 +42,11 @@ class NonRuntimeEffectAuthorization:
     Runtime-bearing registry rows are deliberately refused here. They must use
     :class:`daedalus.kernel.runtime_effects.RuntimeBoundEffectAuthorization`
     so a generic caller cannot omit live runtime-trust rechecks.
+
+    The facade owns every authoritative timestamp. Production callers cannot
+    backdate grant, start, verification or terminalization to keep an expired
+    lease usable or to forge lifecycle chronology. The lower-level ledger keeps
+    explicit timestamp parameters for deterministic contract tests only.
     """
 
     lease: EffectLease
@@ -88,24 +93,27 @@ class NonRuntimeEffectAuthorization:
         object.__setattr__(self, "guard_decisions", tuple(self.guard_decisions))
         object.__setattr__(self, "lease_keyring", dict(self.lease_keyring))
 
-    def verify(self, *, now: datetime | None = None) -> None:
-        """Authenticate every retained binding against the current registry."""
-
+    def _verify_at(self, instant: datetime) -> None:
         verify_effect_lease(
             self.lease,
             request=self.request,
             policy_decision=self.policy_decision,
             keyring=self.lease_keyring,
             current_kill_switch_generation=self.current_kill_switch_generation,
-            now=(now or _utc_now()),
+            now=instant,
             registry=self.registry,
         )
 
-    def grant(self, *, granted_at: datetime | None = None) -> None:
+    def verify(self) -> None:
+        """Authenticate every retained binding at the facade-owned instant."""
+
+        self._verify_at(_utc_now())
+
+    def grant(self) -> None:
         """Persist the authenticated lease before any execution may start."""
 
-        instant = granted_at or _utc_now()
-        self.verify(now=instant)
+        instant = _utc_now()
+        self._verify_at(instant)
         self.effect_ledger.grant(
             self.lease,
             request=self.request,
@@ -119,13 +127,11 @@ class NonRuntimeEffectAuthorization:
     def begin_effect(
         self,
         execution: EffectExecutionRequest,
-        *,
-        started_at: datetime | None = None,
     ) -> EffectStartResult:
         """Commit a start receipt before returning ``execute=True``."""
 
-        instant = started_at or _utc_now()
-        self.verify(now=instant)
+        instant = _utc_now()
+        self._verify_at(instant)
         return self.effect_ledger.begin(
             self.lease,
             execution,
@@ -145,7 +151,6 @@ class NonRuntimeEffectAuthorization:
         outcome: str,
         output_digests: Iterable[str] = (),
         detail_sha256: str | None = None,
-        finished_at: datetime | None = None,
     ) -> EffectTerminalReceipt:
         """Persist one terminal receipt bound to this exact authorization."""
 
@@ -158,7 +163,7 @@ class NonRuntimeEffectAuthorization:
             outcome=outcome,
             output_digests=output_digests,
             detail_sha256=detail_sha256,
-            finished_at=finished_at,
+            finished_at=_utc_now(),
         )
 
 
