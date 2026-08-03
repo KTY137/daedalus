@@ -27,7 +27,7 @@ def _assert_disjoint(candidate: Path, protected: Path, label: str) -> None:
 
 
 def _workspace_root_identity(path: Path) -> str:
-    """Bind the resolved path and the concrete directory object retained there."""
+    """Bind the resolved path and concrete directory object retained there."""
     try:
         metadata = os.stat(path, follow_symlinks=False)
     except OSError as exc:
@@ -43,6 +43,7 @@ def _workspace_root_identity(path: Path) -> str:
             "path": normalized,
             "st_dev": int(metadata.st_dev),
             "st_ino": int(metadata.st_ino),
+            "st_ctime_ns": int(metadata.st_ctime_ns),
         }
     )
 
