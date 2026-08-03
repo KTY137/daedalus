@@ -1,0 +1,88 @@
+name: Gate 0 Fourfold Promotion Binding
+
+on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+      - g0/owner-approval
+      - g0/gate-reporting
+      - core/fourfold-v2
+    paths:
+      - "daedalus/kernel/promotion.py"
+      - "daedalus/kernel/approvals.py"
+      - "daedalus/kernel/contracts.py"
+      - "daedalus/schemas.py"
+      - "daedalus/twin/**"
+      - "examples/fourfold_wiki_app/**"
+      - "tests/kernel/test_fourfold_promotion.py"
+      - "tests/kernel/test_owner_approval.py"
+      - "tests/twin/**"
+      - "docs/work-packets/G0-WP-04A_FOURFOLD_PROMOTION_BINDING.md"
+      - ".github/workflows/gate0-fourfold-promotion.yml"
+  push:
+    branches:
+      - g0/fourfold-promotion-binding
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate0-fourfold-promotion-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_fourfold_promotion.py
+          tests/twin/test_fourfold_contracts.py
+          tests/twin/test_projection_verifier.py
+          tests/twin/test_wiki_reference.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-wheel
+      - run: /tmp/daedalus-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-wheel/bin/python -c
+          "from daedalus.kernel.promotion import prepare_promotion,
+          consume_prepared_promotion, assert_authorized_promotion_start"
