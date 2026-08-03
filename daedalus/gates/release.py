@@ -1,11 +1,11 @@
 """Exact-head Gate-0 release assembly.
 
 This module composes the local machine-readable Gate report with the separately
-anchored :class:`~daedalus.gates.evidence.GateEvidenceIndex`.  It has no manual
+anchored :class:`~daedalus.gates.evidence.GateEvidenceIndex`. It has no manual
 ``closed`` or security-boundary switch: both are derived from the canonical
 local blockers and strict exact-head evidence verification.
 
-The assembly remains a projection.  It does not fetch CI data, trust a model
+The assembly remains a projection. It does not fetch CI data, trust a model
 review, authenticate an owner, merge, promote, or mutate a repository ref.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ from daedalus.schemas import (
     ContractProvenance,
     _freeze_json,
     _identifier,
-    _record_payload,
+    _json_value,
     _require_provenance_inputs,
     _revision,
     _sha256,
@@ -42,19 +42,16 @@ def _report_sha256(report: GateReport) -> str:
 
 
 def _strict_gate_report(payload: Mapping[str, Any]) -> tuple[GateReport, dict[str, Any]]:
-    """Parse only the exact canonical GateReport wire representation.
-
-    ``GateReport.from_dict`` intentionally retains compatibility with the first
-    reporting packet.  Release assembly is a stricter untrusted boundary: type
-    coercion, unknown fields, reordered blocker lists, or a claimed derived
-    value that differs from reconstruction are refused.
-    """
+    """Parse only the exact canonical GateReport wire representation."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("gate_report must be an object")
-    parsed = GateReport.from_dict(payload)
+    wire = _json_value(payload)
+    if not isinstance(wire, dict):
+        raise ValueError("gate_report must be an object")
+    parsed = GateReport.from_dict(wire)
     canonical = parsed.to_dict()
-    if dict(payload) != canonical:
+    if wire != canonical:
         raise ValueError("gate_report must be the exact canonical GateReport payload")
     return parsed, canonical
 
@@ -137,14 +134,14 @@ class Gate0ReleaseReport(CanonicalContract):
         return not self.blockers
 
     def to_dict(self) -> dict[str, Any]:
-        body = {
+        return {
             "contract_type": self.CONTRACT_TYPE,
             "contract_version": self.CONTRACT_VERSION,
             "release_id": self.release_id,
             "source_revision": self.source_revision,
             "source_tree_revision": self.source_tree_revision,
             "mechanical_report_sha256": self.mechanical_report_sha256,
-            "gate_report": dict(self.gate_report),
+            "gate_report": _json_value(self.gate_report),
             "evidence_index_sha256": self.evidence_index_sha256,
             "exact_head_blockers": list(self.exact_head_blockers),
             "generated_at": self.generated_at,
@@ -152,7 +149,6 @@ class Gate0ReleaseReport(CanonicalContract):
             "closed": self.closed,
             "blockers": list(self.blockers),
         }
-        return body
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "Gate0ReleaseReport":
@@ -189,7 +185,8 @@ def assemble_gate0_release_report(
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
-    provenance: ContractProvenance,
+    provenance_origin: str = "daedalus.gates.release",
+    trace_id: str | None = None,
     trusted_requirements_sha256s: Iterable[str] = (),
     trusted_iron_plan_sha256s: Iterable[str] = (),
     trusted_registry_sha256s: Iterable[str] = (),
@@ -203,10 +200,10 @@ def assemble_gate0_release_report(
     """Assemble a fail-closed release report without accepting a claim boolean.
 
     The input ``local_report.security_boundary_claimed`` value is deliberately
-    ignored.  The returned Gate report claims the boundary only when every
+    ignored. The returned Gate report claims the boundary only when every
     non-owner exact-head evidence check and every local technical blocker is
-    empty.  The separate authenticated owner decision remains a release blocker
-    and cannot be replaced by promotion-guard wiring or a model review.
+    empty. The separately authenticated owner decision remains a release
+    blocker and cannot be replaced by promotion-guard wiring or a model review.
     """
 
     current = _revision(current_revision, "current_revision")
@@ -256,6 +253,15 @@ def assemble_gate0_release_report(
         local_report,
         security_boundary_claimed=security_claimed,
     )
+    derived_sha = _report_sha256(derived_report)
+    generated_at = _utc_timestamp(now.isoformat(), "generated_at")
+    provenance = ContractProvenance(
+        origin=provenance_origin,
+        source_revision=current,
+        created_at=generated_at,
+        input_digests=(mechanical_sha, derived_sha, evidence_index.digest),
+        trace_id=trace_id,
+    )
 
     return Gate0ReleaseReport(
         release_id=release_id,
@@ -265,7 +271,7 @@ def assemble_gate0_release_report(
         gate_report=derived_report.to_dict(),
         evidence_index_sha256=evidence_index.digest,
         exact_head_blockers=tuple(sorted(evidence_blockers)),
-        generated_at=now.isoformat(),
+        generated_at=generated_at,
         provenance=provenance,
     )
 
