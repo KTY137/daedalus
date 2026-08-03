@@ -18,11 +18,15 @@ class FakeTree:
 
 
 class FakeRootFile:
-    closed = False
+    def __init__(self, *, fail_enumeration: bool = False) -> None:
+        self.closed = False
+        self.fail_enumeration = fail_enumeration
 
     def classnames(self, *, recursive: bool, cycle: bool):
         assert recursive is True
         assert cycle is False
+        if self.fail_enumeration:
+            raise RuntimeError("corrupt object directory")
         return {"Events": "TTree"}
 
     def __getitem__(self, path: str):
@@ -34,8 +38,8 @@ class FakeRootFile:
 
 
 class FakeUproot:
-    def __init__(self) -> None:
-        self.file = FakeRootFile()
+    def __init__(self, *, fail_enumeration: bool = False) -> None:
+        self.file = FakeRootFile(fail_enumeration=fail_enumeration)
 
     def open(self, stream, *, object_cache, array_cache):
         assert stream.read() == CONTENT
@@ -75,6 +79,22 @@ def test_metadata_inventory_is_partial_without_optional_uproot(monkeypatch) -> N
         "voltage",
         "channel",
     }
+
+
+def test_metadata_enumeration_failure_returns_failed_report_and_closes(monkeypatch) -> None:
+    fake = FakeUproot(fail_enumeration=True)
+    monkeypatch.setattr(adapter, "_load_uproot", lambda: (fake, "fake-uproot=1"))
+
+    report = adapter.inspect_root_artifact(
+        artifact(),
+        CONTENT,
+        source_bundle_sha256=BUNDLE,
+    )
+
+    assert report.result.status == "failed"
+    assert report.result.diagnostics[0].code == "root-metadata-enumeration-failed"
+    assert not report.objects
+    assert fake.file.closed is True
 
 
 def test_root_adapter_contains_no_success_complete_assignment() -> None:
