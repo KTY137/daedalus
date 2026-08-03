@@ -8,6 +8,7 @@ import pytest
 from daedalus.kernel.artifacts import (
     ArtifactCorruptionError,
     ArtifactStore,
+    ArtifactStoreError,
     SourceTreeEntry,
     SourceTreeError,
     SourceTreeManifest,
@@ -91,7 +92,7 @@ def test_duplicate_blobs_are_deduplicated_but_paths_remain_distinct(tmp_path: Pa
     assert len(captured.manifest.entries) == 2
     assert len({entry.blob_sha256 for entry in captured.manifest.entries}) == 1
     object_files = [path for path in store.objects.rglob("*") if path.is_file()]
-    assert len(object_files) == 2
+    assert len(object_files) == 2  # one shared blob plus one manifest object
 
 
 def test_git_and_daedalus_metadata_are_not_candidate_identity(tmp_path: Path) -> None:
@@ -110,19 +111,51 @@ def test_git_and_daedalus_metadata_are_not_candidate_identity(tmp_path: Path) ->
     assert captured.manifest.ignored_roots == (".daedalus", ".git")
 
 
-def test_symlinks_are_refused_instead_of_followed(tmp_path: Path) -> None:
+def test_symlink_source_root_and_entries_are_refused(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
     outside = tmp_path / "secret"
     outside.write_text("secret", encoding="utf-8")
     link = source / "escape"
+    root_link = tmp_path / "source-link"
     try:
         link.symlink_to(outside)
+        root_link.symlink_to(source, target_is_directory=True)
     except (OSError, NotImplementedError):
         pytest.skip("symlinks are unavailable on this platform")
 
+    store = ArtifactStore(tmp_path / "cas")
     with pytest.raises(SourceTreeError, match="symlink"):
-        capture(ArtifactStore(tmp_path / "cas"), source)
+        capture(store, source)
+    with pytest.raises(SourceTreeError, match="source root"):
+        capture(store, root_link)
+
+
+def test_special_files_and_address_symlinks_are_refused(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    if hasattr(os, "mkfifo"):
+        fifo = source / "pipe"
+        os.mkfifo(fifo)
+        with pytest.raises(SourceTreeError, match="not a regular file"):
+            capture(ArtifactStore(tmp_path / "cas-fifo"), source)
+    else:
+        pytest.skip("special-file creation unavailable on this platform")
+
+    store = ArtifactStore(tmp_path / "cas-object")
+    locator = store.put_bytes(b"trusted")
+    target = store._object_path(locator_sha256(locator))
+    target.unlink()
+    outside = tmp_path / "outside-object"
+    outside.write_bytes(b"trusted")
+    try:
+        target.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("object symlinks are unavailable on this platform")
+    with pytest.raises(ArtifactCorruptionError, match="regular file"):
+        store.read_bytes(locator)
+    with pytest.raises(ArtifactCorruptionError, match="regular file"):
+        store.put_bytes(b"trusted")
 
 
 def test_malformed_traversal_and_stale_revision_manifests_fail_closed(tmp_path: Path) -> None:
@@ -196,12 +229,41 @@ def test_materialization_refuses_existing_destination_and_missing_blob(tmp_path:
 
     blob = captured.manifest.entries[0].blob_sha256
     store._object_path(blob).unlink()
-    with pytest.raises(Exception, match="missing"):
-        store.materialize_tree(captured.locator, tmp_path / "missing-candidate")
-    assert not (tmp_path / "missing-candidate").exists()
+    missing_destination = tmp_path / "missing-candidate"
+    with pytest.raises(ArtifactStoreError, match="missing"):
+        store.materialize_tree(captured.locator, missing_destination)
+    assert not missing_destination.exists()
+    assert not list(tmp_path.glob(".missing-candidate.tmp-*"))
 
 
-def test_contract_rejects_case_collisions_and_file_child_conflicts() -> None:
+def test_read_and_materialization_bounds_fail_before_publication(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "large.bin").write_bytes(b"0123456789")
+    store = ArtifactStore(tmp_path / "cas")
+    captured = capture(store, source)
+
+    blob_locator = "artifact-locator:sha256:" + captured.manifest.entries[0].blob_sha256
+    with pytest.raises(ArtifactStoreError, match="read bound"):
+        store.read_bytes(blob_locator, max_bytes=9)
+    with pytest.raises(SourceTreeError, match="max_file_bytes"):
+        store.materialize_tree(
+            captured.locator,
+            tmp_path / "bounded-candidate",
+            max_file_bytes=9,
+        )
+    assert not (tmp_path / "bounded-candidate").exists()
+
+    with pytest.raises(SourceTreeError, match="max_total_bytes"):
+        store.materialize_tree(
+            captured.locator,
+            tmp_path / "total-bounded-candidate",
+            max_total_bytes=9,
+        )
+    assert not (tmp_path / "total-bounded-candidate").exists()
+
+
+def test_contract_rejects_case_collisions_file_child_conflicts_and_ignored_collisions() -> None:
     digest = "1" * 64
     provenance = ContractProvenance(
         origin="tests.source-tree",
@@ -231,13 +293,23 @@ def test_contract_rejects_case_collisions_and_file_child_conflicts() -> None:
             ignored_roots=(".git",),
             provenance=provenance,
         )
+    with pytest.raises(ValueError, match="case-insensitively unique"):
+        SourceTreeManifest(
+            tree_id="tree-1",
+            source_revision=REVISION,
+            entries=(SourceTreeEntry("safe.txt", digest, 0),),
+            ignored_roots=(".GIT", ".git"),
+            provenance=provenance,
+        )
 
 
 def test_failed_atomic_replace_leaves_no_addressed_object(tmp_path: Path, monkeypatch) -> None:
+    import hashlib
+
     import daedalus.kernel.artifacts as artifacts
 
     store = ArtifactStore(tmp_path / "cas")
-    digest = __import__("hashlib").sha256(b"payload").hexdigest()
+    digest = hashlib.sha256(b"payload").hexdigest()
 
     def fail_replace(source, target):
         raise OSError("fault injection")
