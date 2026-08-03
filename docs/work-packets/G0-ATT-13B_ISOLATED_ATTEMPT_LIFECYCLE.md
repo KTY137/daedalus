@@ -30,6 +30,7 @@ The corrected implementation is a facade over `SpineLedger`:
 
 The implementation is split strangler-style along real responsibilities:
 
+- `attempt_clock.py` owns trusted monotonic lifecycle observation time;
 - `attempt_contracts.py` owns canonical records and shared invariants;
 - `attempt_spine_reader.py` owns the strict raw Event-Store projection;
 - `attempt_ledger.py` owns lifecycle transitions through `SpineLedger`;
@@ -57,9 +58,43 @@ The projection rejects:
 - wrong terminal detail shapes;
 - terminal `effect_id` values that do not bind the receipt digest.
 
-## Ordering
+## Trusted lifecycle time
 
-For one canonical `AttemptContract`, the coordinator performs this order:
+The predecessor API accepted `started_at` and `completed_at` from callers. That
+made security-relevant lifecycle chronology caller-authored. The compatibility
+keywords remain accepted so dependent source does not break, but their values
+are explicitly discarded and never enter a contract or provenance record.
+
+`AttemptLifecycleClock` samples trusted UTC wall time once and advances it from
+`time.monotonic_ns`. It maintains a strict nondecreasing floor and can floor a
+terminal observation above a persisted start after restart. Start and terminal
+provenance timestamps must exactly equal their corresponding trusted lifecycle
+timestamps. The strict Event-Store projection additionally refuses a start time
+that follows its `INTENDED` event or a completion time that follows its terminal
+event. A terminal receipt must be strictly later than its bound start.
+
+Adversarial tests pass far-future and far-past compatibility timestamps and
+prove they have no authority. Repacked records that consistently change both the
+embedded lifecycle time and provenance time are still refused against the
+canonical Event-Store event time.
+
+## Workspace preflight and ordering
+
+The original constructor created `workspace_parent` before checking whether it
+was nested under the primary checkout or CAS. A malformed path could therefore
+mutate a protected tree before being refused.
+
+The corrected constructor:
+
+1. resolves and validates the primary checkout and CAS roots read-only;
+2. rejects a leaf symlink, broken symlink or non-directory workspace target;
+3. resolves the prospective workspace path without creating it;
+4. checks prospective disjointness from primary checkout and CAS;
+5. creates the workspace parent only after those checks;
+6. resolves and checks the created directory again to catch redirected parent
+   symlinks or topology changes.
+
+For one canonical `AttemptContract`, preparation then performs this order:
 
 1. verify the input manifest from the selected CAS;
 2. verify exact base-revision equality;
@@ -68,8 +103,9 @@ For one canonical `AttemptContract`, the coordinator performs this order:
 5. materialize the exact input tree into a new external workspace only for the
    single fresh winner.
 
-The lifecycle never writes candidate bytes into the primary checkout. Workspace
-parent, primary checkout and CAS root must be pairwise disjoint where relevant.
+Tests prove refused primary-nested and CAS-nested paths are not created, the
+primary tree digest is unchanged, parent-symlink redirects are refused before
+child creation, and broken workspace symlinks remain untouched.
 
 ## Restart and replay semantics
 
@@ -78,8 +114,8 @@ parent, primary checkout and CAS root must be pairwise disjoint where relevant.
   `pending_reconciliation`; it is never materialized or executed again.
 - A terminal replay returns the first persisted receipt and does not expose a
   workspace.
-- Replay comparison ignores a newly supplied observation timestamp but requires
-  identical start/receipt identifiers and all immutable subject material.
+- Replay comparison ignores newly observed trusted time but requires identical
+  start/receipt identifiers and all immutable subject material.
 - A failed or cancelled Attempt can only be retried under a new canonical
   `attempt_id`; the old Attempt remains terminal.
 - `KeyboardInterrupt` and `SystemExit` are not converted into known failures;
@@ -128,10 +164,13 @@ Behavioral and context-separated review cover:
 
 - start-before-materialization order;
 - pending and terminal replay without rematerialization;
-- timestamp-independent idempotency;
+- trusted monotonic time and caller-time rejection;
+- provenance-time and Event-Store-time causal binding;
 - concurrent start serialization;
 - stale input and candidate revisions;
+- protected-tree preflight before workspace creation;
 - primary-checkout immutability and root disjointness;
+- parent and leaf symlink redirection;
 - foreign CAS input, report and candidate refusal;
 - selected-store and event-spine substitution;
 - read-only spine refusal and no-create inspection;
@@ -148,8 +187,10 @@ Behavioral and context-separated review cover:
 The bounded mutation campaign attacks pending re-execution, store substitution,
 changed replay material, success without a candidate, process-abort
 terminalization, skipped CAS checks, event-spine removal, extra terminal events,
-read-only spine misuse, read-inspection database creation and terminal digest
-binding.
+read-only spine misuse, read-inspection database creation, forged lifecycle
+time, detached provenance time, removed event-time causality, protected-tree
+creation before refusal, symlink acceptance, monotonic-floor removal and
+terminal digest binding.
 
 These passes were performed from separate review contexts within the same
 builder session. They are useful builder/adversarial evidence but do **not**
