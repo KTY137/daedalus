@@ -12,6 +12,7 @@ from .profiles import (
     materialize_runtime_manifest,
     verify_runtime_envelope,
 )
+from .trust import verify_production_runtime_envelope
 
 __all__ = [
     "REQUIRED_GATE0_RUNTIME_IDS",
@@ -23,5 +24,6 @@ __all__ = [
     "build_probe_identity",
     "load_runtime_profiles",
     "materialize_runtime_manifest",
+    "verify_production_runtime_envelope",
     "verify_runtime_envelope",
 ]
