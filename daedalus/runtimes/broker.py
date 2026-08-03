@@ -7,6 +7,14 @@ start receipt before invoking external code, makes exact replay inert, and
 persists a terminal receipt for success, failure, cancellation, or runtime-trust
 loss.
 
+A successful terminal receipt is written while the exact runtime-trust row is
+held under the trust ledger's SQLite writer transaction. Quarantine, expiry
+persistence, or runtime rotation therefore cannot interleave between the last
+trust observation and the durable ``COMPLETED`` receipt. This is a narrow
+cross-ledger serialization fence, not a distributed transaction: the trust row
+is read-only during the fence and the effect ledger remains the terminal-state
+authority.
+
 It does not make an existing provider safe merely by existing. A production
 provider row may move to ``CENTRAL`` only after its public call path requires
 this broker, produces content-addressed output evidence, and has no direct
@@ -44,6 +52,10 @@ class RuntimeProviderBindingMismatch(RuntimeProviderBrokerError):
 
 class RuntimeProviderStateError(RuntimeProviderBrokerError):
     """The external call ran but its terminal state could not be persisted."""
+
+
+class RuntimeProviderTrustFenceError(RuntimeProviderBrokerError):
+    """Runtime trust changed before a successful terminal receipt was durable."""
 
 
 @dataclass(frozen=True)
@@ -182,6 +194,162 @@ def _cancel_for_trust_loss(
     )
 
 
+def _parse_record_expiry(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as exc:
+        raise RuntimeProviderTrustFenceError(
+            "runtime trust record has a malformed expiry"
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise RuntimeProviderTrustFenceError(
+            "runtime trust record expiry is timezone-naive"
+        )
+    return parsed.astimezone(timezone.utc)
+
+
+def _runtime_fence_components(authorization: RuntimeBoundEffectAuthorization):
+    """Return the concrete trust-ledger seam, or ``None`` for narrow test doubles.
+
+    Production ``RuntimeBoundEffectAuthorization`` objects always carry the
+    persisted trust ledger and the exact runtime capability. The fallback keeps
+    the broker's provider-neutral unit doubles small; the dedicated SQLite fence
+    tests exercise the concrete path.
+    """
+
+    ledger = getattr(authorization, "runtime_trust_ledger", None)
+    capability = getattr(authorization, "capability", None)
+    connect = getattr(ledger, "_connect", None)
+    from_row = getattr(ledger, "_from_row", None)
+    required = (
+        "runtime_id",
+        "runtime_envelope_sha256",
+        "runtime_trust_record_sha256",
+        "runtime_manifest_sha256",
+        "runtime_conformance_sha256",
+        "source_revision",
+    )
+    if (
+        ledger is None
+        or capability is None
+        or not callable(connect)
+        or not callable(from_row)
+        or any(not hasattr(capability, name) for name in required)
+    ):
+        return None
+    return ledger, capability
+
+
+def _finish_completed_under_runtime_fence(
+    authorization: RuntimeBoundEffectAuthorization,
+    start_receipt: LeasedEffectStartReceipt,
+    *,
+    output_digests: tuple[str, ...],
+) -> EffectTerminalReceipt:
+    """Persist ``COMPLETED`` while quarantine/rotation is serialized out.
+
+    Both runtime admission/quarantine and this fence use ``BEGIN IMMEDIATE`` on
+    the same trust database. Whichever boundary acquires the writer transaction
+    first establishes the order: a prior quarantine is observed and completion
+    is refused; a completion that already owns the fence becomes durable before
+    a later quarantine can commit.
+    """
+
+    components = _runtime_fence_components(authorization)
+    if components is None:
+        return _finish_or_raise_state(
+            authorization,
+            start_receipt,
+            outcome="completed",
+            output_digests=output_digests,
+        )
+
+    ledger, capability = components
+    connection = ledger._connect()  # noqa: SLF001 - same persisted authority seam
+    terminal: EffectTerminalReceipt | None = None
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT * FROM runtime_trust_records "
+            "WHERE runtime_id=? AND envelope_sha256=?",
+            (capability.runtime_id, capability.runtime_envelope_sha256),
+        ).fetchone()
+        if row is None:
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust record disappeared before terminal completion"
+            )
+        try:
+            record = ledger._from_row(row)  # noqa: SLF001 - authenticates persisted row
+        except BaseException as exc:
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust record failed authentication at terminal completion"
+            ) from exc
+        if record.state != "ACTIVE":
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust was quarantined before terminal completion"
+            )
+        if _utc_now() >= _parse_record_expiry(record.expires_at):
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust expired before terminal completion"
+            )
+        comparisons = {
+            "runtime_id": (record.runtime_id, capability.runtime_id),
+            "envelope_sha256": (
+                record.envelope_sha256,
+                capability.runtime_envelope_sha256,
+            ),
+            "record_sha256": (
+                record.record_sha256,
+                capability.runtime_trust_record_sha256,
+            ),
+            "runtime_manifest_sha256": (
+                record.runtime_manifest_sha256,
+                capability.runtime_manifest_sha256,
+            ),
+            "conformance_receipt_sha256": (
+                record.conformance_receipt_sha256,
+                capability.runtime_conformance_sha256,
+            ),
+            "source_revision": (
+                record.source_revision,
+                capability.source_revision,
+            ),
+        }
+        mismatches = sorted(
+            name
+            for name, (actual, expected) in comparisons.items()
+            if actual != expected
+        )
+        if mismatches:
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust changed before terminal completion: "
+                + ", ".join(mismatches)
+            )
+
+        terminal = _finish_or_raise_state(
+            authorization,
+            start_receipt,
+            outcome="completed",
+            output_digests=output_digests,
+        )
+        try:
+            connection.execute("COMMIT")
+        except BaseException as exc:
+            raise RuntimeProviderStateError(
+                "runtime trust terminal fence could not be committed"
+            ) from exc
+        return terminal
+    except BaseException:
+        if connection.in_transaction:
+            try:
+                connection.execute("ROLLBACK")
+            except BaseException:
+                pass
+        raise
+    finally:
+        connection.close()
+
+
 def run_runtime_provider(
     entrypoint_id: str,
     *,
@@ -256,10 +424,9 @@ def run_runtime_provider(
         )
         raise
 
-    # Evidence extraction can be non-trivial. Recheck once more at the final
-    # completion boundary so an expired or rotated runtime cannot receive a
-    # successful terminal receipt merely because the first post-call check won
-    # a race.
+    # Evidence extraction can be non-trivial. Recheck once more before entering
+    # the terminal fence. The fence then authenticates the exact row again while
+    # holding the trust ledger's writer transaction through effect completion.
     try:
         authorization.verify(now=_utc_now())
     except BaseException as exc:
@@ -271,12 +438,21 @@ def run_runtime_provider(
         )
         raise
 
-    terminal = _finish_or_raise_state(
-        authorization,
-        start.receipt,
-        outcome="completed",
-        output_digests=digests,
-    )
+    try:
+        terminal = _finish_completed_under_runtime_fence(
+            authorization,
+            start.receipt,
+            output_digests=digests,
+        )
+    except RuntimeProviderTrustFenceError as exc:
+        _cancel_for_trust_loss(
+            authorization,
+            start.receipt,
+            phase="terminal-runtime-fence",
+            error=exc,
+        )
+        raise
+
     return RuntimeInvocationResult(
         entrypoint_id=spec.id,
         runtime_id=spec.runtime_id,
@@ -292,5 +468,6 @@ __all__ = [
     "RuntimeProviderBindingMismatch",
     "RuntimeProviderBrokerError",
     "RuntimeProviderStateError",
+    "RuntimeProviderTrustFenceError",
     "run_runtime_provider",
 ]
