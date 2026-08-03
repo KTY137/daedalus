@@ -4,7 +4,8 @@ Reconciliation grants no permission to start or repeat an effect.  It accepts
 one terminal receipt that was frozen at the live boundary, authenticates the
 exact historical lease grant and start identity, verifies a short-lived
 operator decision, and atomically consumes that decision's nonce while closing
-the existing ``STARTED`` row in :class:`EffectLeaseLedger`.
+the existing ``STARTED`` or exclusively claimed ``EXECUTING`` row in
+:class:`EffectLeaseLedger`.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from typing import Any, ClassVar, Mapping
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
+    EffectExecutionClaimReceipt,
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
     EffectLeaseError,
@@ -30,6 +32,7 @@ from daedalus.kernel.effects import (
     _authenticate_effect_lease_contracts,
     _authenticate_persisted_grant,
     _authenticated_replay_start,
+    _load_persisted_execution_claim,
     _validate_narrowed_scope,
 )
 from daedalus.schemas import (
@@ -461,18 +464,25 @@ def _load_authenticated_start(
 def _verify_causal_ordering(
     *,
     start: LeasedEffectStartReceipt,
+    claim: EffectExecutionClaimReceipt | None,
     terminal: EffectTerminalReceipt,
     decision: EffectReconciliationDecision,
     reconciled_at: datetime,
 ) -> None:
     started = _parse_utc(start.started_at, "start.started_at")
+    claimed = (
+        _parse_utc(claim.claimed_at, "claim.claimed_at")
+        if claim is not None
+        else started
+    )
     finished = _parse_utc(terminal.finished_at, "terminal.finished_at")
     issued = _parse_utc(decision.issued_at, "decision.issued_at")
     expires = _parse_utc(decision.expires_at, "decision.expires_at")
-    if not started <= finished <= issued <= reconciled_at < expires:
+    if not started <= claimed <= finished <= issued <= reconciled_at < expires:
         raise EffectReconciliationBindingError(
             "effect reconciliation violates "
-            "start <= terminal <= decision <= reconciliation < expiry ordering"
+            "start <= claim <= terminal <= decision <= reconciliation < expiry "
+            "ordering"
         )
 
 
@@ -537,7 +547,7 @@ def reconcile_effect_terminal(
     operator_keyring: Mapping[tuple[str, str], bytes | str],
     now: datetime | None = None,
 ) -> EffectReconciliationResult:
-    """Atomically consume authority and close exactly one ``STARTED`` row.
+    """Atomically close one indeterminate ``STARTED`` or ``EXECUTING`` row.
 
     Lease expiry, revocation, current kill-switch generation, guard state and
     registry drift are intentionally absent: they govern a *new start*, while
@@ -563,7 +573,8 @@ def reconcile_effect_terminal(
             """
             SELECT execution_id, lease_sha256, idempotency_key,
                    request_sha256, request_json, start_receipt_sha256,
-                   start_receipt_json, state, started_at, finished_at,
+                   start_receipt_json, state, started_at, claimed_at,
+                   claim_receipt_sha256, claim_receipt_json, finished_at,
                    terminal_receipt_sha256, terminal_receipt_json
             FROM effect_executions WHERE execution_id=?
             """,
@@ -591,6 +602,13 @@ def reconcile_effect_terminal(
         )
         execution, start = _load_authenticated_start(
             execution_row,
+            lease=lease,
+            historical_keyring=historical_keyring,
+        )
+        claim = _load_persisted_execution_claim(
+            execution_row,
+            execution=execution,
+            start_receipt=start,
             lease=lease,
             historical_keyring=historical_keyring,
         )
@@ -671,6 +689,7 @@ def reconcile_effect_terminal(
                 )
             _verify_causal_ordering(
                 start=start,
+                claim=claim,
                 terminal=pending_terminal_receipt,
                 decision=decision,
                 reconciled_at=consumed,
@@ -686,6 +705,7 @@ def reconcile_effect_terminal(
             )
             _verify_causal_ordering(
                 start=start,
+                claim=claim,
                 terminal=pending_terminal_receipt,
                 decision=decision,
                 reconciled_at=instant,
@@ -726,13 +746,23 @@ def reconcile_effect_terminal(
                 ),
             )
 
-        if state != "STARTED":
+        if state not in {"STARTED", "EXECUTING"}:
             raise EffectLeaseStateError(
-                f"effect reconciliation requires STARTED, got {state!r}"
+                "effect reconciliation requires STARTED or EXECUTING, "
+                f"got {state!r}"
             )
         if existing is not None:
             raise EffectLeaseStateError(
-                "consumed reconciliation decision points to a STARTED execution"
+                "consumed reconciliation decision points to an indeterminate "
+                "execution"
+            )
+        if state == "STARTED" and claim is not None:
+            raise EffectLeaseStateError(
+                "STARTED reconciliation row unexpectedly carries claim fields"
+            )
+        if state == "EXECUTING" and claim is None:
+            raise EffectLeaseStateError(
+                "EXECUTING reconciliation row is missing its authenticated claim"
             )
         if any(
             execution_row[name] is not None
@@ -766,25 +796,47 @@ def reconcile_effect_terminal(
                 reconciled_at,
             ),
         )
-        updated = conn.execute(
-            """
-            UPDATE effect_executions
-            SET state=?, finished_at=?, terminal_receipt_sha256=?,
-                terminal_receipt_json=?
-            WHERE execution_id=? AND lease_sha256=? AND state='STARTED'
-              AND request_sha256=? AND start_receipt_sha256=?
-            """,
-            (
-                pending_terminal_receipt.outcome,
-                pending_terminal_receipt.finished_at,
-                pending_terminal_receipt.receipt_sha256,
-                canonical_json(pending_terminal_receipt.to_dict()),
-                pending_terminal_receipt.execution_id,
-                pending_terminal_receipt.lease_sha256,
-                execution.digest,
-                pending_terminal_receipt.start_receipt_sha256,
-            ),
+        terminal_values = (
+            pending_terminal_receipt.outcome,
+            pending_terminal_receipt.finished_at,
+            pending_terminal_receipt.receipt_sha256,
+            canonical_json(pending_terminal_receipt.to_dict()),
+            pending_terminal_receipt.execution_id,
+            pending_terminal_receipt.lease_sha256,
+            execution.digest,
+            pending_terminal_receipt.start_receipt_sha256,
         )
+        if claim is None:
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state=?, finished_at=?, terminal_receipt_sha256=?,
+                    terminal_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='STARTED'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at IS NULL AND claim_receipt_sha256 IS NULL
+                  AND claim_receipt_json IS NULL
+                """,
+                terminal_values,
+            )
+        else:
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state=?, finished_at=?, terminal_receipt_sha256=?,
+                    terminal_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='EXECUTING'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at=? AND claim_receipt_sha256=?
+                  AND claim_receipt_json=?
+                """,
+                terminal_values
+                + (
+                    claim.claimed_at,
+                    claim.receipt_sha256,
+                    canonical_json(claim.to_dict()),
+                ),
+            )
         if updated.rowcount != 1:
             raise EffectReconciliationConflict(
                 "effect execution changed while reconciliation held the ledger lock"

@@ -53,10 +53,18 @@ _MAX_LEASE_TTL = timedelta(hours=24)
 _TERMINAL_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 _START_RECEIPT_HMAC_DOMAIN = b"daedalus.effect-start-receipt.v1\x00"
 _COMPLETION_CAPABILITY_DOMAIN = b"daedalus.effect-completion-capability.v1\x00"
+_EXECUTION_CLAIM_HMAC_DOMAIN = b"daedalus.effect-execution-claim.v1\x00"
+_CLAIM_COMPLETION_CAPABILITY_DOMAIN = (
+    b"daedalus.effect-claim-completion-capability.v1\x00"
+)
 _TERMINAL_AUTHORIZATION_HMAC_DOMAIN = (
     b"daedalus.effect-terminal-authorization.v1\x00"
 )
+_CLAIM_TERMINAL_AUTHORIZATION_HMAC_DOMAIN = (
+    b"daedalus.effect-claim-terminal-authorization.v1\x00"
+)
 _COMPLETION_CAPABILITY_MINT_TOKEN = object()
+_CLAIM_COMPLETION_CAPABILITY_MINT_TOKEN = object()
 
 
 class EffectLeaseError(RuntimeError):
@@ -90,9 +98,10 @@ class EffectLeaseStateError(EffectLeaseError):
 class EffectReconciliationRequired(EffectLeaseStateError):
     """A started external effect could not publish its terminal receipt.
 
-    The durable ``STARTED`` row is intentionally retained as an indeterminate
-    state.  Re-entering the same execution remains inert, so an operator can
-    reconcile the external outcome without risking a duplicate effect.
+    The durable ``STARTED`` or exclusively claimed ``EXECUTING`` row is
+    intentionally retained as an indeterminate state.  Re-entering the same
+    execution remains inert, so an operator can reconcile the external outcome
+    without risking a duplicate effect.
     """
 
     def __init__(
@@ -280,6 +289,60 @@ class LeasedEffectStartReceipt:
 
 
 @dataclass(frozen=True)
+class EffectExecutionClaimReceipt:
+    """Authenticated durable transition from ``STARTED`` to ``EXECUTING``.
+
+    The receipt commits a fresh live-only completion capability without storing
+    its secret.  Losing that capability leaves this receipt as evidence for the
+    existing operator reconciliation path; it never permits another execution.
+    """
+
+    lease_sha256: str
+    issuer_key_id: str
+    execution_id: str
+    execution_request_sha256: str
+    start_receipt_sha256: str
+    claim_capability_sha256: str
+    claimed_at: str
+    signature_sha256: str
+    receipt_sha256: str
+
+    def __post_init__(self) -> None:
+        for name in ("issuer_key_id", "execution_id"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        for name in (
+            "lease_sha256",
+            "execution_request_sha256",
+            "start_receipt_sha256",
+            "claim_capability_sha256",
+            "signature_sha256",
+            "receipt_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        canonical_claimed = _timestamp(_parse_utc(self.claimed_at, "claimed_at"))
+        if canonical_claimed != self.claimed_at:
+            raise EffectLeaseBindingMismatch(
+                "execution claim timestamp is not canonical UTC"
+            )
+        if canonical_sha(self.authenticated_dict()) != self.receipt_sha256:
+            raise EffectLeaseBindingMismatch("execution claim digest mismatch")
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+    def signing_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        body.pop("signature_sha256")
+        return body
+
+    def authenticated_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        return body
+
+
+@dataclass(frozen=True)
 class EffectTerminalReceipt:
     lease_sha256: str
     execution_id: str
@@ -387,6 +450,52 @@ class TerminalAuthorization:
 
     def __repr__(self) -> str:
         return "TerminalAuthorization(<redacted>)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class ClaimTerminalAuthorization:
+    """Opaque authority from one exact persisted execution claim."""
+
+    _lease_sha256: str
+    _execution_id: str
+    _start_receipt_sha256: str
+    _claim_receipt_sha256: str
+    _terminal_receipt_sha256: str
+    _signature_sha256: str
+    _secret: bytes = field(repr=False, compare=False)
+
+    @classmethod
+    def _issue(
+        cls,
+        *,
+        lease_sha256: str,
+        execution_id: str,
+        start_receipt_sha256: str,
+        claim_receipt_sha256: str,
+        terminal_receipt_sha256: str,
+        secret: bytes,
+    ) -> "ClaimTerminalAuthorization":
+        payload = {
+            "lease_sha256": lease_sha256,
+            "execution_id": execution_id,
+            "start_receipt_sha256": start_receipt_sha256,
+            "claim_receipt_sha256": claim_receipt_sha256,
+            "terminal_receipt_sha256": terminal_receipt_sha256,
+        }
+        return cls(
+            _lease_sha256=lease_sha256,
+            _execution_id=execution_id,
+            _start_receipt_sha256=start_receipt_sha256,
+            _claim_receipt_sha256=claim_receipt_sha256,
+            _terminal_receipt_sha256=terminal_receipt_sha256,
+            _signature_sha256=_claim_terminal_authorization_signature(
+                payload, secret
+            ),
+            _secret=bytes(secret),
+        )
+
+    def __repr__(self) -> str:
+        return "ClaimTerminalAuthorization(<redacted>)"
 
 
 class CompletionCapability:
@@ -520,6 +629,204 @@ class CompletionCapability:
         )
 
 
+class ClaimCompletionCapability:
+    """Live-only terminal authority minted by a durable execution claim."""
+
+    __slots__ = (
+        "_lease_sha256",
+        "_execution_id",
+        "_start_receipt_sha256",
+        "_claim_receipt_sha256",
+        "_commitment_sha256",
+        "_secret",
+        "_bound_terminal_sha256",
+        "_lock",
+    )
+
+    def __init__(
+        self,
+        *,
+        start_receipt: LeasedEffectStartReceipt,
+        claim_receipt: EffectExecutionClaimReceipt,
+        secret: bytes,
+        _mint_token: object | None = None,
+    ) -> None:
+        if _mint_token is not _CLAIM_COMPLETION_CAPABILITY_MINT_TOKEN:
+            raise EffectLeaseStateError(
+                "claim completion capabilities may only be minted by a "
+                "persisted execution transition"
+            )
+        secret_value = bytes(secret)
+        commitment = _claim_completion_capability_sha256(secret_value)
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                (
+                    "lease_sha256",
+                    claim_receipt.lease_sha256,
+                    start_receipt.lease_sha256,
+                ),
+                (
+                    "execution_id",
+                    claim_receipt.execution_id,
+                    start_receipt.execution_id,
+                ),
+                (
+                    "start_receipt_sha256",
+                    claim_receipt.start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_capability_sha256",
+                    claim_receipt.claim_capability_sha256,
+                    commitment,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "claim completion capability binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        object.__setattr__(self, "_lease_sha256", claim_receipt.lease_sha256)
+        object.__setattr__(self, "_execution_id", claim_receipt.execution_id)
+        object.__setattr__(
+            self, "_start_receipt_sha256", start_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self, "_claim_receipt_sha256", claim_receipt.receipt_sha256
+        )
+        object.__setattr__(self, "_commitment_sha256", commitment)
+        object.__setattr__(self, "_secret", secret_value)
+        object.__setattr__(self, "_bound_terminal_sha256", None)
+        object.__setattr__(self, "_lock", threading.Lock())
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("ClaimCompletionCapability is immutable")
+
+    def __repr__(self) -> str:
+        return "ClaimCompletionCapability(<redacted>)"
+
+    def verify_claim_receipt(
+        self,
+        start_receipt: LeasedEffectStartReceipt,
+        claim_receipt: EffectExecutionClaimReceipt,
+    ) -> None:
+        if not isinstance(start_receipt, LeasedEffectStartReceipt):
+            raise TypeError("start_receipt must be a LeasedEffectStartReceipt")
+        if not isinstance(claim_receipt, EffectExecutionClaimReceipt):
+            raise TypeError("claim_receipt must be an EffectExecutionClaimReceipt")
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", self._lease_sha256, claim_receipt.lease_sha256),
+                ("execution_id", self._execution_id, claim_receipt.execution_id),
+                (
+                    "start_receipt_sha256",
+                    self._start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_start_receipt_sha256",
+                    claim_receipt.start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_receipt_sha256",
+                    self._claim_receipt_sha256,
+                    claim_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_capability_sha256",
+                    self._commitment_sha256,
+                    claim_receipt.claim_capability_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "claim completion capability receipt mismatch: "
+                + ", ".join(mismatches)
+            )
+        expected_commitment = _claim_completion_capability_sha256(self._secret)
+        if not hmac.compare_digest(expected_commitment, self._commitment_sha256):
+            raise EffectLeaseSignatureError(
+                "claim completion capability secret does not match its commitment"
+            )
+
+    def authorize(
+        self, receipt: EffectTerminalReceipt
+    ) -> ClaimTerminalAuthorization:
+        if not isinstance(receipt, EffectTerminalReceipt):
+            raise TypeError("receipt must be an EffectTerminalReceipt")
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", receipt.lease_sha256, self._lease_sha256),
+                ("execution_id", receipt.execution_id, self._execution_id),
+                (
+                    "start_receipt_sha256",
+                    receipt.start_receipt_sha256,
+                    self._start_receipt_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "claim completion terminal binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        with self._lock:
+            if self._bound_terminal_sha256 is None:
+                object.__setattr__(
+                    self, "_bound_terminal_sha256", receipt.receipt_sha256
+                )
+            elif not hmac.compare_digest(
+                self._bound_terminal_sha256, receipt.receipt_sha256
+            ):
+                raise EffectLeaseStateError(
+                    "claim completion capability is already bound to another "
+                    "terminal receipt"
+                )
+        return ClaimTerminalAuthorization._issue(
+            lease_sha256=self._lease_sha256,
+            execution_id=self._execution_id,
+            start_receipt_sha256=self._start_receipt_sha256,
+            claim_receipt_sha256=self._claim_receipt_sha256,
+            terminal_receipt_sha256=receipt.receipt_sha256,
+            secret=self._secret,
+        )
+
+
+@dataclass(frozen=True)
+class EffectExecutionClaim:
+    """Live claim result returned only after ``EXECUTING`` is durable."""
+
+    start_receipt: LeasedEffectStartReceipt
+    claim_receipt: EffectExecutionClaimReceipt
+    completion_capability: ClaimCompletionCapability = field(
+        repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if type(self.start_receipt) is not LeasedEffectStartReceipt:
+            raise TypeError("start_receipt must be an exact LeasedEffectStartReceipt")
+        if type(self.claim_receipt) is not EffectExecutionClaimReceipt:
+            raise TypeError(
+                "claim_receipt must be an exact EffectExecutionClaimReceipt"
+            )
+        if type(self.completion_capability) is not ClaimCompletionCapability:
+            raise TypeError(
+                "completion_capability must be an exact ClaimCompletionCapability"
+            )
+        self.completion_capability.verify_claim_receipt(
+            self.start_receipt, self.claim_receipt
+        )
+
+
 @dataclass(frozen=True)
 class EffectStartResult:
     receipt: LeasedEffectStartReceipt
@@ -610,6 +917,7 @@ class PersistedEffectExecution:
     request: EffectExecutionRequest
     start_receipt: LeasedEffectStartReceipt
     state: str
+    claim_receipt: EffectExecutionClaimReceipt | None = None
     terminal_receipt: EffectTerminalReceipt | None = None
 
 
@@ -665,11 +973,36 @@ def _completion_capability_sha256(secret: bytes) -> str:
     ).hexdigest()
 
 
+def _execution_claim_signature(
+    signing_payload: Mapping[str, object], secret: bytes | str
+) -> str:
+    message = _EXECUTION_CLAIM_HMAC_DOMAIN + canonical_json(
+        signing_payload
+    ).encode("utf-8")
+    return hmac.new(_secret_bytes(secret), message, hashlib.sha256).hexdigest()
+
+
+def _claim_completion_capability_sha256(secret: bytes) -> str:
+    return hashlib.sha256(
+        _CLAIM_COMPLETION_CAPABILITY_DOMAIN + bytes(secret)
+    ).hexdigest()
+
+
 def _terminal_authorization_signature(
     payload: Mapping[str, object], secret: bytes
 ) -> str:
     message = (
         _TERMINAL_AUTHORIZATION_HMAC_DOMAIN
+        + canonical_json(payload).encode("utf-8")
+    )
+    return hmac.new(bytes(secret), message, hashlib.sha256).hexdigest()
+
+
+def _claim_terminal_authorization_signature(
+    payload: Mapping[str, object], secret: bytes
+) -> str:
+    message = (
+        _CLAIM_TERMINAL_AUTHORIZATION_HMAC_DOMAIN
         + canonical_json(payload).encode("utf-8")
     )
     return hmac.new(bytes(secret), message, hashlib.sha256).hexdigest()
@@ -691,6 +1024,24 @@ def _authenticate_start_receipt(
     expected = _start_receipt_signature(receipt.signing_dict(), secret)
     if not hmac.compare_digest(receipt.signature_sha256, expected):
         raise EffectLeaseSignatureError("start receipt signature mismatch")
+
+
+def _authenticate_execution_claim_receipt(
+    receipt: EffectExecutionClaimReceipt,
+    *,
+    lease: EffectLease,
+    keyring: Mapping[str, bytes | str],
+) -> None:
+    if receipt.issuer_key_id != lease.issuer_key_id:
+        raise EffectLeaseSignatureError(
+            "execution claim issuer does not match historical lease"
+        )
+    secret = keyring.get(receipt.issuer_key_id)
+    if secret is None:
+        raise EffectLeaseSignatureError("execution claim issuer key is unknown")
+    expected = _execution_claim_signature(receipt.signing_dict(), secret)
+    if not hmac.compare_digest(receipt.signature_sha256, expected):
+        raise EffectLeaseSignatureError("execution claim signature mismatch")
 
 
 def _authenticate_terminal_authorization(
@@ -744,6 +1095,74 @@ def _authenticate_terminal_authorization(
     ):
         raise EffectLeaseSignatureError(
             "terminal authorization does not match signed start capability"
+        )
+
+
+def _authenticate_claim_terminal_authorization(
+    authorization: ClaimTerminalAuthorization,
+    *,
+    receipt: EffectTerminalReceipt,
+    start_receipt: LeasedEffectStartReceipt,
+    claim_receipt: EffectExecutionClaimReceipt,
+) -> None:
+    if not isinstance(authorization, ClaimTerminalAuthorization):
+        raise TypeError("authorization must be a ClaimTerminalAuthorization")
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            ("lease_sha256", authorization._lease_sha256, receipt.lease_sha256),
+            ("execution_id", authorization._execution_id, receipt.execution_id),
+            (
+                "start_receipt_sha256",
+                authorization._start_receipt_sha256,
+                receipt.start_receipt_sha256,
+            ),
+            (
+                "claim_receipt_sha256",
+                authorization._claim_receipt_sha256,
+                claim_receipt.receipt_sha256,
+            ),
+            (
+                "terminal_receipt_sha256",
+                authorization._terminal_receipt_sha256,
+                receipt.receipt_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if start_receipt.receipt_sha256 != receipt.start_receipt_sha256:
+        mismatches.append("persisted_start_receipt_sha256")
+    if claim_receipt.start_receipt_sha256 != start_receipt.receipt_sha256:
+        mismatches.append("claim_start_receipt_sha256")
+    if mismatches:
+        raise EffectLeaseBindingMismatch(
+            "claim terminal authorization binding mismatch: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+    expected_signature = _claim_terminal_authorization_signature(
+        {
+            "lease_sha256": authorization._lease_sha256,
+            "execution_id": authorization._execution_id,
+            "start_receipt_sha256": authorization._start_receipt_sha256,
+            "claim_receipt_sha256": authorization._claim_receipt_sha256,
+            "terminal_receipt_sha256": authorization._terminal_receipt_sha256,
+        },
+        authorization._secret,
+    )
+    if not hmac.compare_digest(
+        authorization._signature_sha256, expected_signature
+    ):
+        raise EffectLeaseSignatureError(
+            "claim terminal authorization signature mismatch"
+        )
+    expected_commitment = _claim_completion_capability_sha256(
+        authorization._secret
+    )
+    if not hmac.compare_digest(
+        expected_commitment, claim_receipt.claim_capability_sha256
+    ):
+        raise EffectLeaseSignatureError(
+            "claim terminal authorization does not match signed claim capability"
         )
 
 
@@ -1190,6 +1609,100 @@ def _authenticated_replay_start(
     )
 
 
+def _load_persisted_execution_claim(
+    row: sqlite3.Row,
+    *,
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+    lease: EffectLease | None = None,
+    historical_keyring: Mapping[str, bytes | str] | None = None,
+) -> EffectExecutionClaimReceipt | None:
+    """Validate exact persisted claim bytes and optionally their issuer HMAC."""
+
+    claim_fields = (
+        "claimed_at",
+        "claim_receipt_sha256",
+        "claim_receipt_json",
+    )
+    present = tuple(row[name] is not None for name in claim_fields)
+    if not any(present):
+        return None
+    if not all(present):
+        raise EffectLeaseStateError(
+            "persisted effect execution contains a partial execution claim"
+        )
+    try:
+        payload = json.loads(row["claim_receipt_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("execution claim JSON must contain an object")
+        claim = EffectExecutionClaimReceipt(**payload)
+    except (
+        TypeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        EffectLeaseBindingMismatch,
+    ) as exc:
+        raise EffectLeaseStateError(
+            "persisted effect execution contains invalid claim bytes"
+        ) from exc
+
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            (
+                "claim_receipt_json",
+                row["claim_receipt_json"],
+                canonical_json(claim.to_dict()),
+            ),
+            (
+                "claim_receipt_sha256",
+                row["claim_receipt_sha256"],
+                claim.receipt_sha256,
+            ),
+            ("claimed_at", row["claimed_at"], claim.claimed_at),
+            ("lease_sha256", claim.lease_sha256, start_receipt.lease_sha256),
+            ("issuer_key_id", claim.issuer_key_id, start_receipt.issuer_key_id),
+            ("execution_id", claim.execution_id, execution.execution_id),
+            (
+                "execution_request_sha256",
+                claim.execution_request_sha256,
+                execution.digest,
+            ),
+            (
+                "start_receipt_sha256",
+                claim.start_receipt_sha256,
+                start_receipt.receipt_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if lease is not None:
+        if claim.lease_sha256 != lease.digest:
+            mismatches.append("historical_lease_sha256")
+        if claim.issuer_key_id != lease.issuer_key_id:
+            mismatches.append("issuer_key_id")
+    if mismatches:
+        raise EffectLeaseStateError(
+            "persisted effect execution failed claim identity checks: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+    if _parse_utc(claim.claimed_at, "claim.claimed_at") < _parse_utc(
+        start_receipt.started_at, "start.started_at"
+    ):
+        raise EffectLeaseStateError("execution claim predates its persisted start")
+    if (lease is None) != (historical_keyring is None):
+        raise TypeError(
+            "lease and historical_keyring must be supplied together for "
+            "claim authentication"
+        )
+    if lease is not None and historical_keyring is not None:
+        _authenticate_execution_claim_receipt(
+            claim, lease=lease, keyring=historical_keyring
+        )
+    return claim
+
+
 class EffectLeaseLedger:
     """SQLite authority for grants, starts, replay, revocation and terminals."""
 
@@ -1254,6 +1767,9 @@ class EffectLeaseLedger:
                     start_receipt_json TEXT NOT NULL,
                     state TEXT NOT NULL,
                     started_at TEXT NOT NULL,
+                    claimed_at TEXT,
+                    claim_receipt_sha256 TEXT,
+                    claim_receipt_json TEXT,
                     finished_at TEXT,
                     terminal_receipt_sha256 TEXT UNIQUE,
                     terminal_receipt_json TEXT,
@@ -1261,13 +1777,32 @@ class EffectLeaseLedger:
                 )
                 """
             )
+            execution_columns = {
+                str(row[1])
+                for row in conn.execute("PRAGMA table_info(effect_executions)")
+            }
+            for column in (
+                "claimed_at",
+                "claim_receipt_sha256",
+                "claim_receipt_json",
+            ):
+                if column not in execution_columns:
+                    conn.execute(
+                        f"ALTER TABLE effect_executions ADD COLUMN {column} TEXT"
+                    )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "idx_effect_executions_claim_receipt "
+                "ON effect_executions(claim_receipt_sha256) "
+                "WHERE claim_receipt_sha256 IS NOT NULL"
+            )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_effect_executions_active "
                 "ON effect_executions(lease_sha256, state)"
             )
             # Reconciliation is not a second ledger.  The signed operator
             # decision and nonce are consumed in the same SQLite authority and
-            # transaction that closes the existing STARTED execution.
+            # transaction that closes the existing indeterminate execution.
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS effect_reconciliations (
@@ -1602,7 +2137,8 @@ class EffectLeaseLedger:
             ):
                 raise EffectLeaseExpired("persisted effect lease expired before start")
             active = conn.execute(
-                "SELECT COUNT(*) FROM effect_executions WHERE lease_sha256=? AND state='STARTED'",
+                "SELECT COUNT(*) FROM effect_executions "
+                "WHERE lease_sha256=? AND state IN ('STARTED', 'EXECUTING')",
                 (lease.digest,),
             ).fetchone()[0]
             if active >= lease.effect_scope.max_concurrency:
@@ -1680,6 +2216,237 @@ class EffectLeaseLedger:
         finally:
             conn.close()
 
+    def claim_execution(
+        self,
+        start: EffectStartResult,
+        execution: EffectExecutionRequest,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        claimed_at: datetime | None = None,
+    ) -> EffectExecutionClaim:
+        """Atomically claim one exact fresh start before any external effect.
+
+        The successful ``STARTED -> EXECUTING`` transaction commits only a
+        capability digest and an issuer-HMAC receipt.  The corresponding live
+        secret is returned once and is never written to SQLite.  A retry after
+        an indeterminate commit therefore cannot mint replacement authority.
+        """
+
+        if type(start) is not EffectStartResult:
+            raise TypeError("start must be an exact EffectStartResult")
+        if (
+            not start.execute
+            or type(start.completion_capability) is not CompletionCapability
+        ):
+            raise EffectLeaseStateError(
+                "execution claim requires one newly persisted live start"
+            )
+        if type(execution) is not EffectExecutionRequest:
+            raise TypeError("execution must be an exact EffectExecutionRequest")
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        _validate_narrowed_scope(execution, lease)
+        start.completion_capability.verify_start_receipt(start.receipt)
+        _authenticate_start_receipt(
+            start.receipt, lease=lease, keyring=historical_keyring
+        )
+        supplied_claim_instant = (
+            _as_utc(claimed_at, "claimed_at")
+            if claimed_at is not None
+            else None
+        )
+
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            # For live callers, sample the wall clock only after acquiring the
+            # writer lock.  Otherwise lock contention could let a claim commit
+            # after lease expiry while carrying a stale pre-lock timestamp.
+            claim_instant = supplied_claim_instant or _utc_now()
+            row = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                """,
+                (execution.execution_id, lease.digest),
+            ).fetchone()
+            if row is None:
+                raise EffectLeaseStateError("unknown effect execution")
+            grant_row = conn.execute(
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (lease.digest,),
+            ).fetchone()
+            if grant_row is None:
+                raise EffectLeaseStateError(
+                    "effect execution is missing its historical grant"
+                )
+            _authenticate_persisted_grant(
+                grant_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            persisted_start = _authenticated_replay_start(
+                row,
+                lease=lease,
+                execution=execution,
+                request_json=canonical_json(execution.to_dict()),
+                keyring=historical_keyring,
+            ).receipt
+            if persisted_start != start.receipt:
+                raise EffectLeaseStateError(
+                    "execution claim start differs from persisted authority"
+                )
+            persisted_claim = _load_persisted_execution_claim(
+                row,
+                execution=execution,
+                start_receipt=persisted_start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            state = str(row["state"])
+            if state != "STARTED":
+                if state == "EXECUTING" and persisted_claim is not None:
+                    raise EffectLeaseStateError(
+                        "effect execution is already claimed and requires "
+                        "terminalization or reconciliation"
+                    )
+                raise EffectLeaseStateError(
+                    f"execution claim requires STARTED, got {state!r}"
+                )
+            if persisted_claim is not None:
+                raise EffectLeaseStateError(
+                    "STARTED execution unexpectedly carries claim fields"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "STARTED execution unexpectedly carries terminal fields"
+                )
+            if grant_row["revoked_at"] is not None:
+                raise EffectLeaseStateError(
+                    "effect lease was revoked before execution claim"
+                )
+            if claim_instant >= _parse_utc(
+                grant_row["expires_at"], "persisted lease expiry"
+            ):
+                raise EffectLeaseExpired(
+                    "persisted effect lease expired before execution claim"
+                )
+            if claim_instant < _parse_utc(
+                persisted_start.started_at, "start.started_at"
+            ):
+                raise EffectLeaseStateError(
+                    "execution claim predates its persisted start"
+                )
+
+            claim_secret = secrets.token_bytes(32)
+            claim_payload = {
+                "lease_sha256": lease.digest,
+                "issuer_key_id": lease.issuer_key_id,
+                "execution_id": execution.execution_id,
+                "execution_request_sha256": execution.digest,
+                "start_receipt_sha256": persisted_start.receipt_sha256,
+                "claim_capability_sha256": (
+                    _claim_completion_capability_sha256(claim_secret)
+                ),
+                "claimed_at": _timestamp(claim_instant),
+            }
+            issuer_secret = historical_keyring.get(lease.issuer_key_id)
+            if issuer_secret is None:
+                raise EffectLeaseSignatureError(
+                    "effect lease issuer key disappeared before claim persistence"
+                )
+            claim_signature = _execution_claim_signature(
+                claim_payload, issuer_secret
+            )
+            authenticated_claim = {
+                **claim_payload,
+                "signature_sha256": claim_signature,
+            }
+            claim_receipt = EffectExecutionClaimReceipt(
+                **authenticated_claim,
+                receipt_sha256=canonical_sha(authenticated_claim),
+            )
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state='EXECUTING', claimed_at=?, claim_receipt_sha256=?,
+                    claim_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='STARTED'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at IS NULL AND claim_receipt_sha256 IS NULL
+                  AND claim_receipt_json IS NULL AND finished_at IS NULL
+                  AND terminal_receipt_sha256 IS NULL
+                  AND terminal_receipt_json IS NULL
+                """,
+                (
+                    claim_receipt.claimed_at,
+                    claim_receipt.receipt_sha256,
+                    canonical_json(claim_receipt.to_dict()),
+                    execution.execution_id,
+                    lease.digest,
+                    execution.digest,
+                    persisted_start.receipt_sha256,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise EffectLeaseStateError(
+                    "effect execution changed while claim held the ledger lock"
+                )
+            conn.execute("COMMIT")
+        except sqlite3.IntegrityError as exc:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise EffectLeaseReplay(
+                "execution claim conflicts with persisted identity"
+            ) from exc
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            conn.close()
+
+        claim_capability = ClaimCompletionCapability(
+            start_receipt=persisted_start,
+            claim_receipt=claim_receipt,
+            secret=claim_secret,
+            _mint_token=_CLAIM_COMPLETION_CAPABILITY_MINT_TOKEN,
+        )
+        return EffectExecutionClaim(
+            start_receipt=persisted_start,
+            claim_receipt=claim_receipt,
+            completion_capability=claim_capability,
+        )
+
     def finish(
         self,
         start_receipt: LeasedEffectStartReceipt,
@@ -1749,7 +2516,8 @@ class EffectLeaseLedger:
                 """
                 SELECT execution_id, lease_sha256, idempotency_key,
                        request_sha256, request_json, start_receipt_sha256,
-                       start_receipt_json, state, started_at, finished_at,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, finished_at,
                        terminal_receipt_sha256, terminal_receipt_json
                 FROM effect_executions WHERE execution_id=? AND lease_sha256=?
                 """,
@@ -1806,6 +2574,18 @@ class EffectLeaseLedger:
                 request_json=canonical_json(execution.to_dict()),
                 keyring=historical_keyring,
             ).receipt
+            persisted_claim = _load_persisted_execution_claim(
+                row,
+                execution=execution,
+                start_receipt=start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            if persisted_claim is not None:
+                raise EffectLeaseStateError(
+                    "normal completion capability is disabled after an "
+                    "execution claim"
+                )
             terminal_mismatches = sorted(
                 name
                 for name, actual, expected in (
@@ -1883,6 +2663,8 @@ class EffectLeaseLedger:
                     terminal_receipt_json=?
                 WHERE execution_id=? AND lease_sha256=? AND state='STARTED'
                   AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at IS NULL AND claim_receipt_sha256 IS NULL
+                  AND claim_receipt_json IS NULL
                 """,
                 (
                     receipt.outcome,
@@ -1910,6 +2692,266 @@ class EffectLeaseLedger:
         finally:
             conn.close()
 
+    def finish_claim(
+        self,
+        claim: EffectExecutionClaim,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        outcome: str,
+        output_digests: Iterable[str] = (),
+        detail_sha256: str | None = None,
+        finished_at: datetime | None = None,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Bind and persist a terminal using the exclusive claim capability."""
+
+        if type(claim) is not EffectExecutionClaim:
+            raise TypeError("claim must be an exact EffectExecutionClaim")
+        claim.completion_capability.verify_claim_receipt(
+            claim.start_receipt, claim.claim_receipt
+        )
+        receipt = freeze_effect_terminal_receipt(
+            claim.start_receipt,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+            finished_at=finished_at,
+        )
+        authorization = claim.completion_capability.authorize(receipt)
+        return self.finish_claim_receipt(
+            receipt,
+            claim_receipt=claim.claim_receipt,
+            authorization=authorization,
+            lease=lease,
+            request=request,
+            policy_decision=policy_decision,
+            historical_keyring=historical_keyring,
+            persisted_at=persisted_at,
+        )
+
+    def finish_claim_receipt(
+        self,
+        receipt: EffectTerminalReceipt,
+        *,
+        claim_receipt: EffectExecutionClaimReceipt,
+        authorization: ClaimTerminalAuthorization,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Persist one exact terminal from the exclusive ``EXECUTING`` claim."""
+
+        if not isinstance(receipt, EffectTerminalReceipt):
+            raise TypeError("receipt must be an EffectTerminalReceipt")
+        if not isinstance(claim_receipt, EffectExecutionClaimReceipt):
+            raise TypeError("claim_receipt must be an EffectExecutionClaimReceipt")
+        if not isinstance(authorization, ClaimTerminalAuthorization):
+            raise TypeError("authorization must be a ClaimTerminalAuthorization")
+        persistence_instant = (
+            _as_utc(persisted_at, "persisted_at")
+            if persisted_at is not None
+            else _utc_now()
+        )
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                """,
+                (receipt.execution_id, receipt.lease_sha256),
+            ).fetchone()
+            if row is None:
+                raise EffectLeaseStateError("unknown effect execution")
+            grant_row = conn.execute(
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (receipt.lease_sha256,),
+            ).fetchone()
+            if grant_row is None:
+                raise EffectLeaseStateError(
+                    "effect execution is missing its historical grant"
+                )
+            _authenticate_effect_lease_contracts(
+                lease,
+                request=request,
+                policy_decision=policy_decision,
+                keyring=historical_keyring,
+            )
+            _authenticate_persisted_grant(
+                grant_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            try:
+                execution_payload = json.loads(row["request_json"])
+                if not isinstance(execution_payload, dict):
+                    raise ValueError("execution request JSON must contain an object")
+                execution = EffectExecutionRequest(**execution_payload)
+            except (
+                TypeError,
+                ValueError,
+                KeyError,
+                json.JSONDecodeError,
+                EffectLeaseBindingMismatch,
+            ) as exc:
+                raise EffectLeaseStateError(
+                    "persisted effect execution contains invalid request bytes"
+                ) from exc
+            _validate_narrowed_scope(execution, lease)
+            start = _authenticated_replay_start(
+                row,
+                lease=lease,
+                execution=execution,
+                request_json=canonical_json(execution.to_dict()),
+                keyring=historical_keyring,
+            ).receipt
+            persisted_claim = _load_persisted_execution_claim(
+                row,
+                execution=execution,
+                start_receipt=start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            if persisted_claim is None:
+                raise EffectLeaseStateError(
+                    "claim terminal authority requires a persisted execution claim"
+                )
+            if persisted_claim != claim_receipt:
+                raise EffectLeaseBindingMismatch(
+                    "claim terminal receipt differs from persisted claim authority"
+                )
+            terminal_mismatches = sorted(
+                name
+                for name, actual, expected in (
+                    ("lease_sha256", receipt.lease_sha256, start.lease_sha256),
+                    ("execution_id", receipt.execution_id, start.execution_id),
+                    (
+                        "start_receipt_sha256",
+                        receipt.start_receipt_sha256,
+                        start.receipt_sha256,
+                    ),
+                )
+                if actual != expected
+            )
+            if terminal_mismatches:
+                raise EffectLeaseBindingMismatch(
+                    "claim terminal receipt start binding mismatch: "
+                    + ", ".join(terminal_mismatches)
+                )
+            _authenticate_claim_terminal_authorization(
+                authorization,
+                receipt=receipt,
+                start_receipt=start,
+                claim_receipt=persisted_claim,
+            )
+            started = _parse_utc(start.started_at, "start.started_at")
+            claimed = _parse_utc(
+                persisted_claim.claimed_at, "claim.claimed_at"
+            )
+            finished = _parse_utc(receipt.finished_at, "receipt.finished_at")
+            if not started <= claimed <= finished <= persistence_instant:
+                raise EffectLeaseStateError(
+                    "claim terminal violates "
+                    "start <= claim <= terminal <= persistence ordering"
+                )
+
+            state = str(row["state"])
+            if state in _TERMINAL_STATES:
+                if any(
+                    row[name] is None
+                    for name in (
+                        "finished_at",
+                        "terminal_receipt_sha256",
+                        "terminal_receipt_json",
+                    )
+                ):
+                    raise EffectLeaseStateError(
+                        "terminal execution is missing terminal receipt fields"
+                    )
+                if (
+                    row["terminal_receipt_sha256"] != receipt.receipt_sha256
+                    or row["terminal_receipt_json"]
+                    != canonical_json(receipt.to_dict())
+                    or row["finished_at"] != receipt.finished_at
+                    or state != receipt.outcome
+                ):
+                    raise EffectLeaseStateError(
+                        "effect execution already has a different terminal receipt"
+                    )
+                conn.execute("COMMIT")
+                return receipt
+            if state != "EXECUTING":
+                raise EffectLeaseStateError(
+                    f"claim terminal requires EXECUTING, got {state!r}"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "EXECUTING execution unexpectedly carries terminal fields"
+                )
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state=?, finished_at=?, terminal_receipt_sha256=?,
+                    terminal_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='EXECUTING'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at=? AND claim_receipt_sha256=?
+                  AND claim_receipt_json=?
+                """,
+                (
+                    receipt.outcome,
+                    receipt.finished_at,
+                    receipt.receipt_sha256,
+                    canonical_json(receipt.to_dict()),
+                    receipt.execution_id,
+                    receipt.lease_sha256,
+                    execution.digest,
+                    receipt.start_receipt_sha256,
+                    persisted_claim.claimed_at,
+                    persisted_claim.receipt_sha256,
+                    canonical_json(persisted_claim.to_dict()),
+                ),
+            )
+            if updated.rowcount != 1:
+                raise EffectLeaseStateError(
+                    "effect execution changed while claim terminal authority "
+                    "held the ledger lock"
+                )
+            conn.execute("COMMIT")
+            return receipt
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            conn.close()
+
     def reconcile(
         self,
         pending_terminal_receipt: EffectTerminalReceipt,
@@ -1919,7 +2961,7 @@ class EffectLeaseLedger:
         operator_keyring: Mapping[tuple[str, str], bytes | str],
         now: datetime | None = None,
     ) -> "EffectReconciliationResult":
-        """Close a STARTED execution through the canonical reconciliation API."""
+        """Close an indeterminate execution through canonical reconciliation."""
 
         # Runtime import keeps the contract module free to reuse the canonical
         # receipt and ledger types without creating an import cycle.
@@ -1949,7 +2991,8 @@ class EffectLeaseLedger:
 
         Unlike :meth:`load_grant`, this historical/reconciliation read does not
         require a currently valid lease.  It performs no effect and never turns
-        a ``STARTED`` row into permission to call the provider again.
+        a ``STARTED`` or ``EXECUTING`` row into permission to call the provider
+        again.
         """
 
         value = _identifier(execution_id, "execution_id")
@@ -1958,7 +3001,8 @@ class EffectLeaseLedger:
                 """
                 SELECT lease_sha256, idempotency_key, request_sha256,
                        request_json, start_receipt_sha256,
-                       start_receipt_json, state, started_at, finished_at,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, finished_at,
                        terminal_receipt_sha256, terminal_receipt_json
                 FROM effect_executions WHERE execution_id=?
                 """,
@@ -2018,9 +3062,18 @@ class EffectLeaseLedger:
                 + ", ".join(sorted(set(start_mismatches)))
             )
 
+        claim = _load_persisted_execution_claim(
+            row,
+            execution=request,
+            start_receipt=start,
+        )
         state = str(row["state"])
         terminal: EffectTerminalReceipt | None = None
         if state == "STARTED":
+            if claim is not None:
+                raise EffectLeaseStateError(
+                    "STARTED execution unexpectedly carries claim fields"
+                )
             if any(
                 row[name] is not None
                 for name in (
@@ -2031,6 +3084,22 @@ class EffectLeaseLedger:
             ):
                 raise EffectLeaseStateError(
                     "STARTED execution unexpectedly carries terminal fields"
+                )
+        elif state == "EXECUTING":
+            if claim is None:
+                raise EffectLeaseStateError(
+                    "EXECUTING execution is missing its authenticated claim"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "EXECUTING execution unexpectedly carries terminal fields"
                 )
         elif state in _TERMINAL_STATES:
             if any(
@@ -2095,6 +3164,7 @@ class EffectLeaseLedger:
             request=request,
             start_receipt=start,
             state=state,
+            claim_receipt=claim,
             terminal_receipt=terminal,
         )
 
@@ -2159,6 +3229,69 @@ class EffectLeaseLedger:
             )
         return record
 
+    def require_live_claim(
+        self,
+        claim: EffectExecutionClaim,
+        execution: EffectExecutionRequest,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+    ) -> PersistedEffectExecution:
+        """Authenticate exact live claim authority against ``EXECUTING``."""
+
+        if type(claim) is not EffectExecutionClaim:
+            raise TypeError("claim must be an exact EffectExecutionClaim")
+        if type(execution) is not EffectExecutionRequest:
+            raise TypeError("execution must be an exact EffectExecutionRequest")
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        claim.completion_capability.verify_claim_receipt(
+            claim.start_receipt, claim.claim_receipt
+        )
+        _authenticate_start_receipt(
+            claim.start_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        _authenticate_execution_claim_receipt(
+            claim.claim_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        record = self.execution_record(execution.execution_id)
+        if record is None:
+            raise EffectLeaseStateError(
+                "live execution claim is absent from the canonical ledger"
+            )
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("state", record.state, "EXECUTING"),
+                ("terminal_receipt", record.terminal_receipt, None),
+                ("execution_request", record.request, execution),
+                ("start_receipt", record.start_receipt, claim.start_receipt),
+                ("claim_receipt", record.claim_receipt, claim.claim_receipt),
+                (
+                    "lease_sha256",
+                    record.start_receipt.lease_sha256,
+                    lease.digest,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseStateError(
+                "live execution claim differs from persisted authority: "
+                + ", ".join(mismatches)
+            )
+        return record
+
 
 @dataclass(frozen=True)
 class LeasedEffectAuthorization:
@@ -2214,6 +3347,25 @@ class LeasedEffectAuthorization:
             registry=self.registry,
         )
 
+    def claim_execution(
+        self,
+        start: EffectStartResult,
+        execution: EffectExecutionRequest,
+        *,
+        claimed_at: datetime | None = None,
+    ) -> EffectExecutionClaim:
+        """Persist the exclusive execution claim before external work."""
+
+        return self.ledger.claim_execution(
+            start,
+            execution,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            claimed_at=claimed_at,
+        )
+
     def finish_effect(
         self,
         start: EffectStartResult,
@@ -2246,6 +3398,31 @@ class LeasedEffectAuthorization:
             persisted_at=persisted_at,
         )
 
+    def finish_claimed_effect(
+        self,
+        claim: EffectExecutionClaim,
+        *,
+        outcome: str,
+        output_digests: Iterable[str] = (),
+        detail_sha256: str | None = None,
+        finished_at: datetime | None = None,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Terminalize one exclusively claimed execution."""
+
+        return self.ledger.finish_claim(
+            claim,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+            finished_at=finished_at,
+            persisted_at=persisted_at,
+        )
+
     def require_live_start(
         self,
         start: EffectStartResult,
@@ -2262,6 +3439,22 @@ class LeasedEffectAuthorization:
             historical_keyring=self.keyring,
         )
 
+    def require_live_claim(
+        self,
+        claim: EffectExecutionClaim,
+        execution: EffectExecutionRequest,
+    ) -> PersistedEffectExecution:
+        """Verify exact claim authority immediately before provider work."""
+
+        return self.ledger.require_live_claim(
+            claim,
+            execution,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+        )
+
     def finish_terminal(
         self,
         receipt: EffectTerminalReceipt,
@@ -2273,6 +3466,27 @@ class LeasedEffectAuthorization:
 
         return self.ledger.finish_receipt(
             receipt,
+            authorization=authorization,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            persisted_at=persisted_at,
+        )
+
+    def finish_claim_terminal(
+        self,
+        receipt: EffectTerminalReceipt,
+        *,
+        claim_receipt: EffectExecutionClaimReceipt,
+        authorization: ClaimTerminalAuthorization,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Persist a pre-frozen terminal under exact claim authority."""
+
+        return self.ledger.finish_claim_receipt(
+            receipt,
+            claim_receipt=claim_receipt,
             authorization=authorization,
             lease=self.lease,
             request=self.request,

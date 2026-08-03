@@ -9,6 +9,8 @@ import pytest
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
+    ClaimCompletionCapability,
+    EffectExecutionClaimReceipt,
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
     EffectLeaseConcurrencyError,
@@ -18,6 +20,7 @@ from daedalus.kernel.effects import (
     EffectLeaseScopeError,
     EffectLeaseSignatureError,
     EffectLeaseStateError,
+    LeasedEffectAuthorization,
     LeasedEffectStartReceipt,
     TerminalAuthorization,
     freeze_effect_terminal_receipt,
@@ -222,6 +225,70 @@ def finish_live(
         output_digests=output_digests,
         detail_sha256=detail_sha256,
         finished_at=finished_at,
+    )
+
+
+def claim_live(
+    ledger: EffectLeaseLedger,
+    lease_value: EffectLease,
+    req: EffectLeaseRequest,
+    policy: PolicyDecision,
+    started,
+    execution_value=None,
+    *,
+    claimed_at=None,
+):
+    return ledger.claim_execution(
+        started,
+        execution_value or execution(),
+        lease=lease_value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        claimed_at=claimed_at or (NOW + timedelta(milliseconds=1500)),
+    )
+
+
+def finish_claim_live(
+    ledger: EffectLeaseLedger,
+    lease_value: EffectLease,
+    req: EffectLeaseRequest,
+    policy: PolicyDecision,
+    claimed,
+    *,
+    outcome: str,
+    output_digests=(),
+    detail_sha256=None,
+    finished_at=None,
+):
+    return ledger.finish_claim(
+        claimed,
+        lease=lease_value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        outcome=outcome,
+        output_digests=output_digests,
+        detail_sha256=detail_sha256,
+        finished_at=finished_at,
+    )
+
+
+def authorization(
+    ledger: EffectLeaseLedger,
+    lease_value: EffectLease,
+    req: EffectLeaseRequest,
+    policy: PolicyDecision,
+) -> LeasedEffectAuthorization:
+    return LeasedEffectAuthorization(
+        lease=lease_value,
+        request=req,
+        policy_decision=policy,
+        ledger=ledger,
+        keyring={"kernel-key-1": SECRET},
+        guard_decisions=guards(),
+        current_kill_switch_generation=7,
+        registry=registry(),
     )
 
 
@@ -1692,3 +1759,362 @@ def test_reconciliation_concurrency_chain_consumes_once_and_refuses_nonce_rebind
         assert connection.execute(
             "SELECT COUNT(*) FROM effect_reconciliations"
         ).fetchone()[0] == 1
+
+
+def test_execution_claim_chain_is_exclusive_and_only_claim_terminal_wins(
+    tmp_path,
+) -> None:
+    import concurrent.futures
+    import threading
+
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "exclusive-claim.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(ledger, value, req, policy, execution_value)
+
+    contenders = [EffectLeaseLedger(path) for _ in range(8)]
+    claim_barrier = threading.Barrier(len(contenders))
+
+    def contend(index):
+        claim_barrier.wait()
+        try:
+            return claim_live(
+                contenders[index],
+                value,
+                req,
+                policy,
+                started,
+                execution_value,
+            )
+        except EffectLeaseStateError as exc:
+            return exc
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        claim_results = list(pool.map(contend, range(8)))
+
+    claims = [
+        result
+        for result in claim_results
+        if not isinstance(result, EffectLeaseStateError)
+    ]
+    refusals = [
+        result
+        for result in claim_results
+        if isinstance(result, EffectLeaseStateError)
+    ]
+    assert len(claims) == 1
+    assert len(refusals) == 7
+    assert all("already claimed" in str(refusal) for refusal in refusals)
+    claimed = claims[0]
+
+    auth = authorization(ledger, value, req, policy)
+    live_record = auth.require_live_claim(claimed, execution_value)
+    assert live_record.state == "EXECUTING"
+    assert live_record.claim_receipt == claimed.claim_receipt
+    assert live_record.terminal_receipt is None
+    with pytest.raises(EffectLeaseStateError, match="execution_request"):
+        auth.require_live_claim(
+            claimed,
+            dataclasses.replace(execution_value, max_cost_microusd=99),
+        )
+    assert repr(claimed.completion_capability) == (
+        "ClaimCompletionCapability(<redacted>)"
+    )
+
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """
+            SELECT state, claim_receipt_sha256, claim_receipt_json
+            FROM effect_executions WHERE execution_id=?
+            """,
+            (execution_value.execution_id,),
+        ).fetchone()
+    persisted_claim = json.loads(row["claim_receipt_json"])
+    assert row["state"] == "EXECUTING"
+    assert row["claim_receipt_sha256"] == claimed.claim_receipt.receipt_sha256
+    assert persisted_claim == claimed.claim_receipt.to_dict()
+    assert set(persisted_claim) == {
+        "lease_sha256",
+        "issuer_key_id",
+        "execution_id",
+        "execution_request_sha256",
+        "start_receipt_sha256",
+        "claim_capability_sha256",
+        "claimed_at",
+        "signature_sha256",
+        "receipt_sha256",
+    }
+    assert claimed.claim_receipt.receipt_sha256 == canonical_sha(
+        claimed.claim_receipt.authenticated_dict()
+    )
+    assert "secret" not in row["claim_receipt_json"].lower()
+
+    with pytest.raises(EffectLeaseStateError, match="only be minted"):
+        ClaimCompletionCapability(
+            start_receipt=started.receipt,
+            claim_receipt=claimed.claim_receipt,
+            secret=b"not-ledger-minted" * 2,
+        )
+    with pytest.raises(EffectLeaseConcurrencyError):
+        begin(
+            ledger,
+            value,
+            req,
+            policy,
+            execution(
+                execution_id="execution-2",
+                idempotency_key="idem-2",
+            ),
+            started_at=NOW + timedelta(milliseconds=1750),
+        )
+
+    with pytest.raises(
+        EffectLeaseStateError, match="normal completion capability is disabled"
+    ):
+        auth.finish_effect(
+            started,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    assert ledger.execution_state(execution_value.execution_id) == "EXECUTING"
+
+    finish_barrier = threading.Barrier(2)
+
+    def normal_finish():
+        finish_barrier.wait()
+        try:
+            return auth.finish_effect(
+                started,
+                outcome="failed",
+                detail_sha256="8" * 64,
+                finished_at=NOW + timedelta(seconds=2),
+            )
+        except EffectLeaseStateError as exc:
+            return exc
+
+    def claim_finish():
+        finish_barrier.wait()
+        return auth.finish_claimed_effect(
+            claimed,
+            outcome="completed",
+            output_digests=("f" * 64,),
+            finished_at=NOW + timedelta(seconds=2),
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        normal_future = pool.submit(normal_finish)
+        claim_future = pool.submit(claim_finish)
+        normal_result = normal_future.result()
+        claim_result = claim_future.result()
+
+    assert isinstance(normal_result, EffectLeaseStateError)
+    assert "normal completion capability is disabled" in str(normal_result)
+    assert claim_result.outcome == "COMPLETED"
+    assert auth.finish_claimed_effect(
+        claimed,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    ) == claim_result
+    with pytest.raises(
+        EffectLeaseStateError, match="normal completion capability is disabled"
+    ):
+        auth.finish_effect(
+            started,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    with pytest.raises(EffectLeaseStateError, match="state"):
+        auth.require_live_claim(claimed, execution_value)
+
+    terminal_record = ledger.execution_record(execution_value.execution_id)
+    assert terminal_record is not None
+    assert terminal_record.state == "COMPLETED"
+    assert terminal_record.claim_receipt == claimed.claim_receipt
+    assert terminal_record.terminal_receipt == claim_result
+
+
+def test_crashed_execution_claim_restarts_inert_and_reconciles_exactly_once(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "crashed-claim.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(ledger, value, req, policy, execution_value)
+    claimed = claim_live(
+        ledger,
+        value,
+        req,
+        policy,
+        started,
+        execution_value,
+    )
+
+    restarted = EffectLeaseLedger(path)
+    durable = restarted.execution_record(execution_value.execution_id)
+    assert durable is not None
+    assert durable.state == "EXECUTING"
+    assert durable.claim_receipt == claimed.claim_receipt
+    assert durable.terminal_receipt is None
+
+    replayed_start = begin(
+        restarted,
+        value,
+        req,
+        policy,
+        execution_value,
+        started_at=NOW + timedelta(seconds=2),
+    )
+    assert replayed_start.execute is False
+    assert replayed_start.completion_capability is None
+    with pytest.raises(EffectLeaseStateError, match="newly persisted live start"):
+        claim_live(
+            restarted,
+            value,
+            req,
+            policy,
+            replayed_start,
+            execution_value,
+        )
+
+    pending = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="completed",
+        output_digests=("e" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    operator_decision = _operator_decision(
+        value,
+        execution_value,
+        started,
+        pending,
+    )
+    reconciled = restarted.reconcile(
+        pending,
+        operator_decision,
+        historical_keyring={"kernel-key-1": SECRET},
+        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+        now=NOW + timedelta(seconds=4),
+    )
+    assert reconciled.applied is True
+    assert reconciled.nonce_consumed is True
+    assert restarted.reconcile(
+        pending,
+        operator_decision,
+        historical_keyring={"kernel-key-1": SECRET},
+        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+        now=NOW + timedelta(seconds=4),
+    ).applied is False
+
+    terminal = restarted.execution_record(execution_value.execution_id)
+    assert terminal is not None
+    assert terminal.state == "COMPLETED"
+    assert terminal.claim_receipt == claimed.claim_receipt
+    assert terminal.terminal_receipt == pending
+    with pytest.raises(EffectLeaseStateError, match="state"):
+        authorization(restarted, value, req, policy).require_live_claim(
+            claimed, execution_value
+        )
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 1
+
+
+def test_persisted_execution_claim_tamper_blocks_all_completion_paths(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "tampered-claim.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(ledger, value, req, policy, execution_value)
+    claimed = claim_live(
+        ledger,
+        value,
+        req,
+        policy,
+        started,
+        execution_value,
+    )
+
+    forged_payload = claimed.claim_receipt.to_dict()
+    forged_payload["claim_capability_sha256"] = "0" * 64
+    forged_payload.pop("receipt_sha256")
+    forged = EffectExecutionClaimReceipt(
+        **forged_payload,
+        receipt_sha256=canonical_sha(forged_payload),
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET claim_receipt_sha256=?, claim_receipt_json=?
+            WHERE execution_id=?
+            """,
+            (
+                forged.receipt_sha256,
+                canonical_json(forged.to_dict()),
+                execution_value.execution_id,
+            ),
+        )
+
+    auth = authorization(ledger, value, req, policy)
+    with pytest.raises(EffectLeaseStateError, match="claim_receipt"):
+        auth.require_live_claim(claimed, execution_value)
+    with pytest.raises(EffectLeaseSignatureError, match="execution claim signature"):
+        auth.finish_claimed_effect(
+            claimed,
+            outcome="completed",
+            output_digests=("f" * 64,),
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    with pytest.raises(EffectLeaseSignatureError, match="execution claim signature"):
+        auth.finish_effect(
+            started,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+
+    pending = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    operator_decision = _operator_decision(
+        value,
+        execution_value,
+        started,
+        pending,
+    )
+    with pytest.raises(EffectLeaseSignatureError, match="execution claim signature"):
+        ledger.reconcile(
+            pending,
+            operator_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=4),
+        )
+    assert ledger.execution_state(execution_value.execution_id) == "EXECUTING"
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 0
