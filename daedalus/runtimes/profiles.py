@@ -1,17 +1,8 @@
-"""Strict Gate-0 runtime profiles and conformance-evidence bindings.
+"""Strict, pure runtime-profile and conformance-envelope contracts for Gate 0.
 
-This module is intentionally pure. It does not launch a vendor runtime, read
-secrets, write evidence, or issue an Effect Lease. The existing
-``daedalus.kernel.runtime_conformance`` harness remains the authority that
-assembles content-addressed observations. This layer adds two missing pieces:
-
-* versioned, strict profiles for each production runtime adapter; and
-* an envelope that distinguishes deterministic offline contract fixtures from
-  live runtime evidence that may authorize a production lease.
-
-An offline fixture can prove that Daedalus' provider-neutral observation
-protocol is internally coherent. It cannot prove that Claude, Codex, or Ollama
-currently conforms, and ``verify_runtime_envelope`` refuses it by default.
+Offline fixtures prove only the provider-neutral Daedalus protocol. They are
+labelled ``offline-fixture`` and are refused by the default verifier; live
+production evidence additionally needs an externally trusted exact envelope.
 """
 from __future__ import annotations
 
@@ -42,13 +33,9 @@ from daedalus.schemas import (
 from daedalus.spine.envelope import canonical_sha
 
 RUNTIME_PROFILE_SCHEMA = "daedalus-runtime-profile-catalog/1"
-REQUIRED_GATE0_RUNTIME_IDS = (
-    "claude_code_cli",
-    "codex_cli",
-    "ollama_http",
-)
-_PROBE_AUTHORITIES = frozenset({"offline-fixture", "live-runtime"})
-_PROFILE_KEYS = frozenset(
+REQUIRED_GATE0_RUNTIME_IDS = ("claude_code_cli", "codex_cli", "ollama_http")
+_AUTHORITIES = frozenset({"offline-fixture", "live-runtime"})
+_PROFILE_FIELDS = frozenset(
     {
         "runtime_id",
         "adapter_id",
@@ -62,7 +49,7 @@ _PROFILE_KEYS = frozenset(
         "capabilities",
     }
 )
-_CAPABILITY_KEYS = frozenset(
+_CAPABILITY_FIELDS = frozenset(
     {
         "streaming",
         "tool_events",
@@ -76,24 +63,35 @@ _CAPABILITY_KEYS = frozenset(
 )
 
 
-def _strict_json_object(raw: str) -> Mapping[str, Any]:
-    def reject_duplicates(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
-        value: dict[str, Any] = {}
-        for key, nested in pairs:
-            if key in value:
+def _strict_json(raw: str) -> Mapping[str, Any]:
+    def object_from_pairs(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
                 raise ValueError(f"duplicate JSON key {key!r}")
-            value[key] = nested
-        return value
+            result[key] = value
+        return result
 
-    parsed = json.loads(raw, object_pairs_hook=reject_duplicates)
-    if not isinstance(parsed, Mapping):
+    value = json.loads(raw, object_pairs_hook=object_from_pairs)
+    if not isinstance(value, Mapping):
         raise ValueError("runtime profile catalog must be a JSON object")
-    return parsed
+    return value
+
+
+def _exact_fields(
+    payload: Mapping[str, Any], expected: frozenset[str], label: str
+) -> None:
+    missing = sorted(expected - set(payload))
+    unknown = sorted(set(payload) - expected)
+    if missing or unknown:
+        raise ValueError(
+            f"{label} fields differ (missing={missing}, unknown={unknown})"
+        )
 
 
 @dataclass(frozen=True)
 class RuntimeProfile:
-    """A checked-in adapter profile, not runtime-conformance evidence."""
+    """Checked-in adapter metadata; never observational evidence."""
 
     runtime_id: str
     adapter_id: str
@@ -110,40 +108,23 @@ class RuntimeProfile:
         object.__setattr__(self, "runtime_id", _identifier(self.runtime_id, "runtime_id"))
         object.__setattr__(self, "adapter_id", _identifier(self.adapter_id, "adapter_id"))
         object.__setattr__(
-            self,
-            "adapter_module",
-            _identifier(self.adapter_module, "adapter_module"),
+            self, "adapter_module", _identifier(self.adapter_module, "adapter_module")
         )
         object.__setattr__(
             self, "command", _non_empty(self.command, "command", max_length=300)
         )
         if self.mode not in {"cli", "local-http"}:
             raise ValueError("runtime profile mode must be cli or local-http")
+        for field_name in ("declared_tools", "egress_transports", "workspace_modes"):
+            object.__setattr__(
+                self,
+                field_name,
+                _sorted_strings(
+                    getattr(self, field_name), field_name, identifiers=True
+                ),
+            )
         object.__setattr__(
-            self,
-            "declared_tools",
-            _sorted_strings(
-                self.declared_tools, "declared_tools", identifiers=True
-            ),
-        )
-        object.__setattr__(
-            self,
-            "egress_transports",
-            _sorted_strings(
-                self.egress_transports, "egress_transports", identifiers=True
-            ),
-        )
-        object.__setattr__(
-            self,
-            "workspace_modes",
-            _sorted_strings(
-                self.workspace_modes, "workspace_modes", identifiers=True
-            ),
-        )
-        object.__setattr__(
-            self,
-            "cost_model",
-            _non_empty(self.cost_model, "cost_model", max_length=200),
+            self, "cost_model", _non_empty(self.cost_model, "cost_model", max_length=200)
         )
         RuntimeManifest(
             runtime_id=self.runtime_id,
@@ -161,7 +142,6 @@ class RuntimeProfile:
                 origin="runtimes.profile-validation",
                 source_revision="0" * 40,
                 created_at="2000-01-01T00:00:00+00:00",
-                input_digests=(),
             ),
         )
 
@@ -178,7 +158,7 @@ class RuntimeProfile:
             "cost_model": self.cost_model,
             "capabilities": {
                 name: getattr(self.capabilities, name)
-                for name in sorted(_CAPABILITY_KEYS)
+                for name in sorted(_CAPABILITY_FIELDS)
             },
         }
 
@@ -190,31 +170,20 @@ class RuntimeProfile:
     def from_dict(cls, payload: Mapping[str, Any]) -> "RuntimeProfile":
         if not isinstance(payload, Mapping):
             raise ValueError("runtime profile must be an object")
-        unknown = sorted(set(payload) - _PROFILE_KEYS)
-        missing = sorted(_PROFILE_KEYS - set(payload))
-        if unknown or missing:
-            raise ValueError(
-                f"runtime profile fields differ (missing={missing}, unknown={unknown})"
-            )
+        _exact_fields(payload, _PROFILE_FIELDS, "runtime profile")
         capabilities = payload["capabilities"]
         if not isinstance(capabilities, Mapping):
             raise ValueError("runtime profile capabilities must be an object")
-        cap_unknown = sorted(set(capabilities) - _CAPABILITY_KEYS)
-        cap_missing = sorted(_CAPABILITY_KEYS - set(capabilities))
-        if cap_unknown or cap_missing:
-            raise ValueError(
-                "runtime profile capability fields differ "
-                f"(missing={cap_missing}, unknown={cap_unknown})"
-            )
+        _exact_fields(capabilities, _CAPABILITY_FIELDS, "runtime capability")
         return cls(
             runtime_id=payload["runtime_id"],
             adapter_id=payload["adapter_id"],
             adapter_module=payload["adapter_module"],
             command=payload["command"],
             mode=payload["mode"],
-            declared_tools=tuple(payload["declared_tools"]),
-            egress_transports=tuple(payload["egress_transports"]),
-            workspace_modes=tuple(payload["workspace_modes"]),
+            declared_tools=payload["declared_tools"],
+            egress_transports=payload["egress_transports"],
+            workspace_modes=payload["workspace_modes"],
             cost_model=payload["cost_model"],
             capabilities=RuntimeCapabilities(**dict(capabilities)),
         )
@@ -225,38 +194,27 @@ def load_runtime_profiles(
     *,
     required_runtime_ids: Sequence[str] = REQUIRED_GATE0_RUNTIME_IDS,
 ) -> Mapping[str, RuntimeProfile]:
-    """Load one canonical profile per required runtime and refuse drift."""
-
-    payload = _strict_json_object(Path(path).read_text(encoding="utf-8"))
-    unknown = sorted(set(payload) - {"schema", "profiles"})
-    missing = sorted({"schema", "profiles"} - set(payload))
-    if unknown or missing:
-        raise ValueError(
-            f"runtime catalog fields differ (missing={missing}, unknown={unknown})"
-        )
+    payload = _strict_json(Path(path).read_text(encoding="utf-8"))
+    _exact_fields(payload, frozenset({"schema", "profiles"}), "runtime catalog")
     if payload["schema"] != RUNTIME_PROFILE_SCHEMA:
-        raise ValueError(
-            f"runtime catalog schema must be {RUNTIME_PROFILE_SCHEMA!r}"
-        )
-    raw_profiles = payload["profiles"]
-    if not isinstance(raw_profiles, list) or not raw_profiles:
+        raise ValueError(f"runtime catalog schema must be {RUNTIME_PROFILE_SCHEMA!r}")
+    rows = payload["profiles"]
+    if not isinstance(rows, list) or not rows:
         raise ValueError("runtime catalog profiles must be a non-empty array")
-    profiles = [RuntimeProfile.from_dict(row) for row in raw_profiles]
+    profiles = [RuntimeProfile.from_dict(row) for row in rows]
     by_id = {profile.runtime_id: profile for profile in profiles}
     if len(by_id) != len(profiles):
         raise ValueError("runtime catalog contains duplicate runtime_id values")
-    required = tuple(
+    required = {
         _identifier(value, "required_runtime_id") for value in required_runtime_ids
-    )
-    absent = sorted(set(required) - set(by_id))
-    extra = sorted(set(by_id) - set(required))
-    if absent or extra:
+    }
+    missing = sorted(required - set(by_id))
+    extra = sorted(set(by_id) - required)
+    if missing or extra:
         raise ValueError(
-            f"runtime catalog membership differs (missing={absent}, extra={extra})"
+            f"runtime catalog membership differs (missing={missing}, extra={extra})"
         )
-    return MappingProxyType(
-        {runtime_id: by_id[runtime_id] for runtime_id in sorted(by_id)}
-    )
+    return MappingProxyType({key: by_id[key] for key in sorted(by_id)})
 
 
 def materialize_runtime_manifest(
@@ -271,16 +229,14 @@ def materialize_runtime_manifest(
     fixture_suite_sha256: str,
     created_at: str,
 ) -> RuntimeManifest:
-    """Bind a declared manifest to exact adapter/binary/environment identities."""
-
-    digests = (
+    revision = _revision(source_revision, "source_revision")
+    inputs = (
         profile.digest,
         _sha256(adapter_sha256, "adapter_sha256"),
         _sha256(executable_sha256, "executable_sha256"),
         _sha256(environment_sha256, "environment_sha256"),
         _sha256(fixture_suite_sha256, "fixture_suite_sha256"),
     )
-    revision = _revision(source_revision, "source_revision")
     return RuntimeManifest(
         runtime_id=profile.runtime_id,
         runtime_version=runtime_version,
@@ -297,7 +253,7 @@ def materialize_runtime_manifest(
             origin="runtimes.materialized-manifest",
             source_revision=revision,
             created_at=created_at,
-            input_digests=tuple(sorted(digests)),
+            input_digests=tuple(sorted(inputs)),
             trace_id=profile.runtime_id,
         ),
     )
@@ -305,8 +261,6 @@ def materialize_runtime_manifest(
 
 @dataclass(frozen=True)
 class RuntimeProbeIdentity(CanonicalContract):
-    """Exact identity of the thing that produced conformance observations."""
-
     CONTRACT_TYPE: ClassVar[str] = "daedalus.runtime-probe-identity"
 
     probe_id: str
@@ -325,7 +279,7 @@ class RuntimeProbeIdentity(CanonicalContract):
     def __post_init__(self) -> None:
         object.__setattr__(self, "probe_id", _identifier(self.probe_id, "probe_id"))
         object.__setattr__(self, "runtime_id", _identifier(self.runtime_id, "runtime_id"))
-        if self.authority not in _PROBE_AUTHORITIES:
+        if self.authority not in _AUTHORITIES:
             raise ValueError("probe authority must be offline-fixture or live-runtime")
         for name in (
             "runtime_manifest_sha256",
@@ -337,17 +291,15 @@ class RuntimeProbeIdentity(CanonicalContract):
         ):
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
         object.__setattr__(
-            self,
-            "source_revision",
-            _revision(self.source_revision, "source_revision"),
+            self, "source_revision", _revision(self.source_revision, "source_revision")
         )
         object.__setattr__(
-            self,
-            "collected_at",
-            _utc_timestamp(self.collected_at, "collected_at"),
+            self, "collected_at", _utc_timestamp(self.collected_at, "collected_at")
         )
         if self.provenance.source_revision != self.source_revision:
             raise ValueError("probe source revision contradicts provenance")
+        if self.provenance.created_at != self.collected_at:
+            raise ValueError("probe collected_at contradicts provenance.created_at")
         _require_provenance_inputs(
             self.provenance,
             (
@@ -368,6 +320,22 @@ class RuntimeProbeIdentity(CanonicalContract):
         return cls(**body)
 
 
+def _probe_component_inputs(
+    profile_sha256: str,
+    adapter_sha256: str,
+    executable_sha256: str,
+    environment_sha256: str,
+    fixture_suite_sha256: str,
+) -> tuple[str, ...]:
+    return (
+        _sha256(profile_sha256, "profile_sha256"),
+        _sha256(adapter_sha256, "adapter_sha256"),
+        _sha256(executable_sha256, "executable_sha256"),
+        _sha256(environment_sha256, "environment_sha256"),
+        _sha256(fixture_suite_sha256, "fixture_suite_sha256"),
+    )
+
+
 def build_probe_identity(
     profile: RuntimeProfile,
     manifest: RuntimeManifest,
@@ -380,18 +348,24 @@ def build_probe_identity(
     fixture_suite_sha256: str,
     collected_at: str,
 ) -> RuntimeProbeIdentity:
-    if manifest.runtime_id != profile.runtime_id:
-        raise ValueError("runtime manifest belongs to another profile")
-    if manifest.adapter_id != profile.adapter_id:
-        raise ValueError("runtime manifest names another adapter")
-    inputs = (
-        manifest.digest,
+    if (manifest.runtime_id, manifest.adapter_id) != (
+        profile.runtime_id,
+        profile.adapter_id,
+    ):
+        raise ValueError("runtime manifest belongs to another profile or adapter")
+    components = _probe_component_inputs(
         profile.digest,
-        _sha256(adapter_sha256, "adapter_sha256"),
-        _sha256(executable_sha256, "executable_sha256"),
-        _sha256(environment_sha256, "environment_sha256"),
-        _sha256(fixture_suite_sha256, "fixture_suite_sha256"),
+        adapter_sha256,
+        executable_sha256,
+        environment_sha256,
+        fixture_suite_sha256,
     )
+    missing = sorted(set(components) - set(manifest.provenance.input_digests))
+    if missing:
+        raise ValueError(
+            "runtime manifest provenance does not bind probe component digest(s): "
+            + ", ".join(missing)
+        )
     return RuntimeProbeIdentity(
         probe_id=probe_id,
         runtime_id=profile.runtime_id,
@@ -408,7 +382,7 @@ def build_probe_identity(
             origin="runtimes.probe-identity",
             source_revision=manifest.source_revision,
             created_at=collected_at,
-            input_digests=tuple(sorted(inputs)),
+            input_digests=tuple(sorted((manifest.digest, *components))),
             trace_id=probe_id,
         ),
     )
@@ -416,8 +390,6 @@ def build_probe_identity(
 
 @dataclass(frozen=True)
 class RuntimeConformanceEnvelope(CanonicalContract):
-    """Authority-labelled binding of manifest, probe identity, and receipt."""
-
     CONTRACT_TYPE: ClassVar[str] = "daedalus.runtime-conformance-envelope"
 
     envelope_id: str
@@ -436,7 +408,7 @@ class RuntimeConformanceEnvelope(CanonicalContract):
             self, "envelope_id", _identifier(self.envelope_id, "envelope_id")
         )
         object.__setattr__(self, "runtime_id", _identifier(self.runtime_id, "runtime_id"))
-        if self.authority not in _PROBE_AUTHORITIES:
+        if self.authority not in _AUTHORITIES:
             raise ValueError("envelope authority must be offline-fixture or live-runtime")
         if self.status not in {"passed", "failed"}:
             raise ValueError("envelope status must be passed or failed")
@@ -447,15 +419,15 @@ class RuntimeConformanceEnvelope(CanonicalContract):
         ):
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
         object.__setattr__(
-            self,
-            "source_revision",
-            _revision(self.source_revision, "source_revision"),
+            self, "source_revision", _revision(self.source_revision, "source_revision")
         )
         object.__setattr__(
             self, "created_at", _utc_timestamp(self.created_at, "created_at")
         )
         if self.provenance.source_revision != self.source_revision:
             raise ValueError("envelope source revision contradicts provenance")
+        if self.provenance.created_at != self.created_at:
+            raise ValueError("envelope created_at contradicts provenance.created_at")
         _require_provenance_inputs(
             self.provenance,
             (
@@ -479,6 +451,26 @@ class RuntimeConformanceEnvelope(CanonicalContract):
         return cls(**body)
 
 
+def _verify_manifest_probe_inputs(
+    manifest: RuntimeManifest, identity: RuntimeProbeIdentity
+) -> None:
+    required = set(
+        _probe_component_inputs(
+            identity.profile_sha256,
+            identity.adapter_sha256,
+            identity.executable_sha256,
+            identity.environment_sha256,
+            identity.fixture_suite_sha256,
+        )
+    )
+    missing = sorted(required - set(manifest.provenance.input_digests))
+    if missing:
+        raise RuntimeConformanceError(
+            "runtime manifest provenance does not bind probe component digest(s): "
+            + ", ".join(missing)
+        )
+
+
 def bind_conformance_envelope(
     manifest: RuntimeManifest,
     identity: RuntimeProbeIdentity,
@@ -487,14 +479,13 @@ def bind_conformance_envelope(
     envelope_id: str,
     created_at: str,
 ) -> RuntimeConformanceEnvelope:
-    """Bind exact observations without upgrading their authority."""
-
     if identity.runtime_id != manifest.runtime_id:
         raise RuntimeConformanceError("probe identity belongs to another runtime")
     if identity.runtime_manifest_sha256 != manifest.digest:
         raise RuntimeConformanceError("probe identity binds another runtime manifest")
     if identity.source_revision != manifest.source_revision:
         raise RuntimeConformanceError("probe identity binds another source revision")
+    _verify_manifest_probe_inputs(manifest, identity)
     if receipt.runtime_manifest_sha256 != manifest.digest:
         raise RuntimeConformanceError("conformance receipt binds another manifest")
     if receipt.source_revision != manifest.source_revision:
@@ -517,9 +508,7 @@ def bind_conformance_envelope(
             origin="runtimes.conformance-envelope",
             source_revision=manifest.source_revision,
             created_at=created_at,
-            input_digests=tuple(
-                sorted({manifest.digest, identity.digest, receipt.digest})
-            ),
+            input_digests=tuple(sorted({manifest.digest, identity.digest, receipt.digest})),
             trace_id=envelope_id,
         ),
     )
@@ -534,43 +523,29 @@ def verify_runtime_envelope(
     now,
     require_live: bool = True,
 ) -> None:
-    """Verify exact identity and refuse offline evidence for production by default."""
-
     comparisons = {
         "runtime_id": (envelope.runtime_id, manifest.runtime_id),
         "authority": (envelope.authority, identity.authority),
         "status": (envelope.status, receipt.status),
-        "runtime_manifest_sha256": (
-            envelope.runtime_manifest_sha256,
-            manifest.digest,
-        ),
-        "probe_identity_sha256": (
-            envelope.probe_identity_sha256,
-            identity.digest,
-        ),
+        "runtime_manifest_sha256": (envelope.runtime_manifest_sha256, manifest.digest),
+        "probe_identity_sha256": (envelope.probe_identity_sha256, identity.digest),
         "conformance_receipt_sha256": (
             envelope.conformance_receipt_sha256,
             receipt.digest,
         ),
         "source_revision": (envelope.source_revision, manifest.source_revision),
-        "identity_manifest": (
-            identity.runtime_manifest_sha256,
-            manifest.digest,
-        ),
+        "identity_manifest": (identity.runtime_manifest_sha256, manifest.digest),
         "identity_runtime": (identity.runtime_id, manifest.runtime_id),
-        "identity_revision": (
-            identity.source_revision,
-            manifest.source_revision,
-        ),
+        "identity_revision": (identity.source_revision, manifest.source_revision),
     }
     mismatches = sorted(
         name for name, (actual, expected) in comparisons.items() if actual != expected
     )
     if mismatches:
         raise RuntimeConformanceError(
-            "runtime conformance envelope binding mismatch: "
-            + ", ".join(mismatches)
+            "runtime conformance envelope binding mismatch: " + ", ".join(mismatches)
         )
+    _verify_manifest_probe_inputs(manifest, identity)
     if identity.digest not in receipt.provenance.input_digests:
         raise RuntimeConformanceError(
             "runtime receipt does not retain the probe identity digest"
