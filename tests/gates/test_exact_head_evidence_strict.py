@@ -224,8 +224,8 @@ def trust_sets(value: GateEvidenceIndex) -> dict[str, tuple[str, ...]]:
         "trusted_workflow_evidence_sha256s": tuple(
             item.digest for item in value.workflows
         ),
-        "trusted_artifact_sha256s": tuple(
-            item.content_sha256 for item in value.artifacts
+        "trusted_artifact_evidence_sha256s": tuple(
+            item.digest for item in value.artifacts
         ),
         "trusted_runtime_envelope_sha256s": tuple(
             item.envelope_sha256 for item in value.runtimes
@@ -233,8 +233,8 @@ def trust_sets(value: GateEvidenceIndex) -> dict[str, tuple[str, ...]]:
         "trusted_fault_matrix_sha256s": tuple(
             item.matrix_sha256 for item in value.fault_matrices
         ),
-        "trusted_review_transcript_sha256s": tuple(
-            item.transcript_sha256 for item in value.reviews
+        "trusted_review_evidence_sha256s": tuple(
+            item.digest for item in value.reviews
         ),
         "trusted_owner_verifier_sha256s": (
             value.owner_decision.verifier_receipt_sha256,
@@ -273,10 +273,10 @@ def test_empty_external_trust_sets_fail_closed() -> None:
     assert "index:untrusted-iron-plan" in blockers
     assert "index:untrusted-registry" in blockers
     assert "workflow:iron-plan:untrusted-evidence" in blockers
-    assert "artifact:wheel:untrusted-content" in blockers
+    assert "artifact:wheel:untrusted-evidence" in blockers
     assert "runtime:claude-code-cli:untrusted-envelope" in blockers
     assert "fault-matrix:gate0-faults:untrusted-matrix" in blockers
-    assert "review:architecture:untrusted-transcript" in blockers
+    assert "review:architecture:untrusted-evidence" in blockers
     assert "owner-decision:untrusted-verifier-receipt" in blockers
 
 
