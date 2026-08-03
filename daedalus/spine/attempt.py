@@ -613,6 +613,8 @@ class RunnerContext:
     base_revision: str
     task: TaskSpec
     is_cancelled: Callable[[], bool]
+    spine_intent_id: int | None = None
+    intent_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1328,7 +1330,9 @@ class TaskAttempt:
 
         ctx = RunnerContext(worktree=worktree, branch=self.branch,
                             base_revision=base_revision, task=self.task,
-                            is_cancelled=self._is_cancelled)
+                            is_cancelled=self._is_cancelled,
+                            spine_intent_id=intent.id,
+                            intent_sha256=intent.payload_sha)
         state = STATE_CLEAN
         artifact: PatchArtifact | None = None
         gates: GateResult | None = None

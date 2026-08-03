@@ -348,6 +348,33 @@ def test_runner_raising_yields_runner_failed_and_marks_intent_failed(
     assert_primary_untouched(repo, head)
 
 
+def test_runner_context_carries_exact_persisted_intent_identity(
+        repo, worktree_root, ledger):
+    head = head_of(repo)
+    seen = {}
+
+    def runner(ctx):
+        stored = ledger.get(ctx.spine_intent_id)
+        assert stored is not None
+        seen["context"] = ctx
+        seen["stored_while_open"] = stored
+        (ctx.worktree / "a.txt").write_text("a\n", encoding="utf-8")
+
+    result = TaskAttempt(spec(), runner=runner, gate=passing_gate(),
+                         repo_root=repo, ledger=ledger).run()
+
+    ctx = seen["context"]
+    stored_while_open = seen["stored_while_open"]
+    stored_after = ledger.get(result.intent_id)
+    assert stored_after is not None
+    assert ctx.spine_intent_id == result.intent_id == stored_while_open.id
+    assert ctx.intent_sha256 == stored_while_open.payload_sha
+    assert ctx.intent_sha256 == stored_after.payload_sha
+    assert stored_after.payload_sha == hashlib.sha256(
+        stored_after.payload_json.encode("ascii")).hexdigest()
+    assert_primary_untouched(repo, head)
+
+
 def test_indeterminate_effect_keeps_attempt_intent_branch_and_worktree_open(
         repo, worktree_root, ledger):
     """The complete return arc must preserve, not flatten, indeterminate work.
