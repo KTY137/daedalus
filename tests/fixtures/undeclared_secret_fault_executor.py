@@ -425,8 +425,12 @@ def _execute_undeclared_secret(scenario) -> HostFaultResult:
             try:
                 receipt = run_in_docker_sandbox(policy, _secret_probe_command())
             finally:
-                retained = os.environ.pop(_SECRET_NAME, None)
-                host_environment_restored = retained == canary
+                retained = os.environ.get(_SECRET_NAME)
+                if retained == canary:
+                    del os.environ[_SECRET_NAME]
+                    host_environment_restored = True
+                else:
+                    host_environment_restored = False
             elapsed_ms = int((time.monotonic() - started) * 1000)
             started_marker_exists = start_marker.is_file()
 
