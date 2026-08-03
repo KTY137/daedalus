@@ -62,6 +62,53 @@ def test_successful_wait_cannot_hide_a_live_normal_session(tmp_path: Path) -> No
     assert all(not session.running for session in adapter.sessions)
 
 
+@dataclass
+class ParseObserverFailureSession(ScriptedSession):
+    @property
+    def parse_errors(self) -> tuple[str, ...]:
+        # The transcript is valid, but the adapter's final observer boundary fails.
+        # No already-captured normal data may survive as passing evidence.
+        raise RuntimeError("observer failed")
+
+
+class ParseObserverFailureAdapter(ScriptedAdapter):
+    def start(self, request: RuntimeProbeRequest) -> ScriptedSession:
+        if request.mode == "normal":
+            (request.workspace / "fixture-output.txt").write_text(
+                "fixture\n", encoding="utf-8"
+            )
+            session = ParseObserverFailureSession(valid_events())
+            self.sessions.append(session)
+            return session
+        return super().start(request)
+
+
+def test_late_parse_observer_failure_cannot_retain_a_passing_transcript(
+    tmp_path: Path,
+) -> None:
+    receipt, evidence = execute(
+        tmp_path,
+        ParseObserverFailureAdapter(valid_events()),
+    )
+
+    checks = {check.name: check for check in receipt.checks}
+    assert receipt.status == "failed"
+    for name in (
+        "start",
+        "stream",
+        "tool-events",
+        "structured-output",
+        "cost",
+        "workspace-isolation",
+    ):
+        assert not checks[name].passed
+
+    start_payload = json.loads(evidence.objects[checks["start"].evidence_sha256])
+    assert start_payload["observations"]["observation_complete"] is False
+    assert start_payload["observations"]["exception"] == "RuntimeError"
+    assert start_payload["observations"]["event_shape"] == []
+
+
 def test_frozen_structured_output_is_retained_as_plain_canonical_json(
     tmp_path: Path,
 ) -> None:
