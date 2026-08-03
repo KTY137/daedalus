@@ -583,8 +583,8 @@ class OffloadExecutionPlan(CanonicalContract):
                 raise ValueError(
                     f"{name} must be an integer between {minimum} and {maximum}"
                 )
-        if self.num_predict > self.num_ctx:
-            raise ValueError("num_predict must not exceed num_ctx")
+        if self.num_predict >= self.num_ctx:
+            raise ValueError("num_predict must be smaller than num_ctx")
         if (
             isinstance(self.temperature_milli, bool)
             or not isinstance(self.temperature_milli, int)
