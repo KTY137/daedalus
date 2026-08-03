@@ -1,13 +1,19 @@
-"""A small, explicit Docker sandbox boundary for Gate 0 attempts.
+"""Explicit Docker sandbox policy and fail-closed launch classification.
 
 The policy is converted to argv without invoking a shell. It rejects privileged
 or host-coupled configurations, makes the root filesystem read-only, grants one
 bounded candidate workspace as the only writable bind mount, and keeps network
 access off unless an explicit internal proxy network is selected.
+
+A Docker CLI failure is not treated as an attempt result. Missing or
+non-executable runtimes, operating-system launch failures, and Docker exit code
+125 are represented as ``refused-before-start``. This module contains no host
+fallback path.
 """
 from __future__ import annotations
 
 import hashlib
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,9 +21,22 @@ from typing import Iterable
 
 from daedalus.spine.envelope import canonical_sha
 
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_LAUNCH_STATES = frozenset({"completed", "timed-out", "refused-before-start"})
+
 
 class SandboxPolicyError(ValueError):
     pass
+
+
+def _sha256(value: str, name: str) -> str:
+    if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
+        raise ValueError(f"{name} must be lowercase SHA-256")
+    return value
+
+
+def _hash(value: bytes | None) -> str:
+    return hashlib.sha256(value or b"").hexdigest()
 
 
 @dataclass(frozen=True)
@@ -104,6 +123,44 @@ class SandboxExecutionReceipt:
     timed_out: bool
     stdout_sha256: str
     stderr_sha256: str
+    launch_state: str = ""
+    error_code: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "argv_sha256", _sha256(self.argv_sha256, "argv_sha256"))
+        object.__setattr__(self, "stdout_sha256", _sha256(self.stdout_sha256, "stdout_sha256"))
+        object.__setattr__(self, "stderr_sha256", _sha256(self.stderr_sha256, "stderr_sha256"))
+        if not isinstance(self.timed_out, bool):
+            raise ValueError("timed_out must be boolean")
+        if self.returncode is not None and (
+            isinstance(self.returncode, bool) or not isinstance(self.returncode, int)
+        ):
+            raise ValueError("returncode must be an integer or null")
+        state = self.launch_state
+        if not state:
+            state = "timed-out" if self.timed_out else "completed"
+            object.__setattr__(self, "launch_state", state)
+        if state not in _LAUNCH_STATES:
+            raise ValueError(f"launch_state must be one of {sorted(_LAUNCH_STATES)}")
+        if state == "timed-out":
+            if not self.timed_out or self.returncode is not None:
+                raise ValueError("timed-out receipt must have timed_out=true and null returncode")
+            if self.error_code not in {None, "timeout"}:
+                raise ValueError("timed-out receipt has an invalid error_code")
+        elif state == "refused-before-start":
+            if self.timed_out or self.returncode not in {None, 125}:
+                raise ValueError("refused receipt must not represent an attempt result")
+            if not isinstance(self.error_code, str) or not self.error_code:
+                raise ValueError("refused receipt requires an error_code")
+        else:
+            if self.timed_out or self.returncode is None:
+                raise ValueError("completed receipt requires a terminal returncode")
+            if self.error_code is not None:
+                raise ValueError("completed receipt must not carry an error_code")
+
+    @property
+    def refused_before_start(self) -> bool:
+        return self.launch_state == "refused-before-start"
 
     @property
     def digest(self) -> str:
@@ -114,14 +171,44 @@ class SandboxExecutionReceipt:
                 "timed_out": self.timed_out,
                 "stdout_sha256": self.stdout_sha256,
                 "stderr_sha256": self.stderr_sha256,
+                "launch_state": self.launch_state,
+                "error_code": self.error_code,
             }
         )
+
+
+def _receipt(
+    argv: tuple[str, ...],
+    *,
+    returncode: int | None,
+    timed_out: bool,
+    stdout: bytes | None,
+    stderr: bytes | None,
+    launch_state: str,
+    error_code: str | None,
+) -> SandboxExecutionReceipt:
+    return SandboxExecutionReceipt(
+        argv_sha256=canonical_sha(list(argv)),
+        returncode=returncode,
+        timed_out=timed_out,
+        stdout_sha256=_hash(stdout),
+        stderr_sha256=_hash(stderr),
+        launch_state=launch_state,
+        error_code=error_code,
+    )
 
 
 def run_in_docker_sandbox(
     policy: DockerSandboxPolicy,
     command: Iterable[str],
 ) -> SandboxExecutionReceipt:
+    """Run one Docker command or return an explicit pre-start refusal.
+
+    Docker exit code 125 belongs to the Docker CLI rather than the attempted
+    command and is therefore classified as refusal before attempt execution.
+    Exit codes from a started container remain ordinary completed receipts.
+    """
+
     argv = policy.argv(command)
     try:
         proc = subprocess.run(
@@ -131,21 +218,65 @@ def run_in_docker_sandbox(
             timeout=policy.timeout_s,
             check=False,
         )
-        return SandboxExecutionReceipt(
-            argv_sha256=canonical_sha(list(argv)),
-            returncode=proc.returncode,
-            timed_out=False,
-            stdout_sha256=hashlib.sha256(proc.stdout).hexdigest(),
-            stderr_sha256=hashlib.sha256(proc.stderr).hexdigest(),
-        )
     except subprocess.TimeoutExpired as exc:
-        return SandboxExecutionReceipt(
-            argv_sha256=canonical_sha(list(argv)),
+        return _receipt(
+            argv,
             returncode=None,
             timed_out=True,
-            stdout_sha256=hashlib.sha256(exc.stdout or b"").hexdigest(),
-            stderr_sha256=hashlib.sha256(exc.stderr or b"").hexdigest(),
+            stdout=exc.stdout,
+            stderr=exc.stderr,
+            launch_state="timed-out",
+            error_code="timeout",
         )
+    except FileNotFoundError:
+        return _receipt(
+            argv,
+            returncode=None,
+            timed_out=False,
+            stdout=None,
+            stderr=None,
+            launch_state="refused-before-start",
+            error_code="runtime-not-found",
+        )
+    except PermissionError:
+        return _receipt(
+            argv,
+            returncode=None,
+            timed_out=False,
+            stdout=None,
+            stderr=None,
+            launch_state="refused-before-start",
+            error_code="runtime-not-executable",
+        )
+    except OSError:
+        return _receipt(
+            argv,
+            returncode=None,
+            timed_out=False,
+            stdout=None,
+            stderr=None,
+            launch_state="refused-before-start",
+            error_code="runtime-launch-error",
+        )
+    if proc.returncode == 125:
+        return _receipt(
+            argv,
+            returncode=125,
+            timed_out=False,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+            launch_state="refused-before-start",
+            error_code="docker-cli-refused",
+        )
+    return _receipt(
+        argv,
+        returncode=proc.returncode,
+        timed_out=False,
+        stdout=proc.stdout,
+        stderr=proc.stderr,
+        launch_state="completed",
+        error_code=None,
+    )
 
 
 __all__ = [
