@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ import sys
 
 import pytest
 
+import daedalus.spine.durability as durability
 from daedalus.spine.durability import (
     Gate0DurabilityError,
     enforce_gate0_durability,
@@ -129,51 +131,62 @@ def test_read_only_connection_can_be_inspected_but_never_hardened_as_writer(
     assert _sha(path) == before
 
 
-def test_non_ledger_and_weaker_readback_are_refused(tmp_path, monkeypatch) -> None:
+def test_non_ledger_and_non_wal_connection_are_refused(tmp_path, monkeypatch) -> None:
     with pytest.raises(Gate0DurabilityError, match="SpineLedger"):
         inspect_gate0_durability(object())
     with pytest.raises(Gate0DurabilityError, match="SpineLedger"):
         enforce_gate0_durability(object())
 
     ledger = SpineLedger(tmp_path / "spine.sqlite3")
+    real_read = durability._read_connection_status
+
+    def non_wal(connection):
+        return dataclasses.replace(real_read(connection), journal_mode="delete")
+
     try:
-        monkeypatch.setattr(
-            ledger,
-            "pragmas",
-            lambda: {
-                "journal_mode": "delete",
-                "synchronous": 2,
-                "busy_timeout": 30000,
-                "foreign_keys": 1,
-            },
-        )
+        monkeypatch.setattr(durability, "_read_connection_status", non_wal)
         with pytest.raises(Gate0DurabilityError, match="WAL"):
             enforce_gate0_durability(ledger)
     finally:
         ledger.close()
 
 
-def test_profile_raises_when_sqlite_readback_does_not_confirm_full(
+def test_profile_raises_when_atomic_readback_does_not_confirm_full(
     tmp_path, monkeypatch
 ) -> None:
     ledger = SpineLedger(tmp_path / "spine.sqlite3")
-    real_pragmas = ledger.pragmas
+    real_read = durability._read_connection_status
     calls = 0
 
-    def dishonest_readback():
+    def dishonest_readback(connection):
         nonlocal calls
         calls += 1
-        values = dict(real_pragmas())
+        status = real_read(connection)
         if calls > 1:
-            values["synchronous"] = 1
-        return values
+            return dataclasses.replace(
+                status,
+                synchronous=1,
+                satisfied=False,
+            )
+        return status
 
     try:
-        monkeypatch.setattr(ledger, "pragmas", dishonest_readback)
+        monkeypatch.setattr(
+            durability, "_read_connection_status", dishonest_readback
+        )
         with pytest.raises(Gate0DurabilityError, match="weaker"):
             enforce_gate0_durability(ledger)
     finally:
         ledger.close()
+
+
+def test_closed_connection_errors_are_normalized(tmp_path) -> None:
+    ledger = SpineLedger(tmp_path / "spine.sqlite3")
+    ledger.close()
+    with pytest.raises(Gate0DurabilityError, match="complete durability readback"):
+        inspect_gate0_durability(ledger)
+    with pytest.raises(Gate0DurabilityError, match="could not be applied"):
+        enforce_gate0_durability(ledger)
 
 
 _KILL_AFTER_COMMIT = r"""
