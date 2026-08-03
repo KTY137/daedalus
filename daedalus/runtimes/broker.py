@@ -428,7 +428,7 @@ def run_runtime_provider(
         raise
 
     try:
-        authorization.verify(now=_utc_now())
+        authorization.verify()
     except BaseException as exc:
         _cancel_for_trust_loss(
             authorization,
@@ -450,7 +450,7 @@ def run_runtime_provider(
         raise
 
     try:
-        authorization.verify(now=_utc_now())
+        authorization.verify()
     except BaseException as exc:
         _cancel_for_trust_loss(
             authorization,
