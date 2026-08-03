@@ -65,10 +65,12 @@ class IsolatedAttemptCoordinator:
         if raw_parent.is_symlink():
             raise AttemptWorkspaceError("workspace parent must not be a symlink")
 
-        # Resolve existing parent components without creating the requested
-        # path. The disjointness refusal must occur before mkdir: otherwise a
-        # rejected path such as <primary>/new-workspaces would already have
-        # mutated the primary checkout merely by constructing this coordinator.
+        # Admission is deliberately non-mutating. Workspace roots are an
+        # operator/runtime responsibility and must already exist. Creating a
+        # caller-chosen path here would allow a refused path below the primary
+        # checkout or CAS to mutate the protected tree before refusal, and a
+        # parent-component replacement between preflight and mkdir would reopen
+        # the same bug.
         prospective_parent = raw_parent.resolve(strict=False)
         cas_root = source_store.root.resolve(strict=True)
         _require_disjoint_workspace_parent(
@@ -76,27 +78,14 @@ class IsolatedAttemptCoordinator:
             primary_checkout=primary,
             cas_root=cas_root,
         )
-
-        try:
-            raw_parent.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            raise AttemptWorkspaceError(
-                "workspace parent could not be created"
-            ) from exc
-        if raw_parent.is_symlink():
-            raise AttemptWorkspaceError("workspace parent must not be a symlink")
         try:
             parent = raw_parent.resolve(strict=True)
         except OSError as exc:
             raise AttemptWorkspaceError(
-                "workspace parent disappeared during creation"
+                "workspace parent must already exist"
             ) from exc
         if not parent.is_dir():
             raise AttemptWorkspaceError("workspace parent must be a directory")
-
-        # A hostile filesystem may replace an ancestor between preflight and
-        # creation. Re-resolve and re-run the complete topology check before
-        # retaining any authority to materialize candidate bytes.
         _require_disjoint_workspace_parent(
             parent,
             primary_checkout=primary,
@@ -106,8 +95,33 @@ class IsolatedAttemptCoordinator:
         self.primary_checkout = primary
         self.workspace_parent = parent
         self.workspace_parent_sha256 = _path_identity(parent)
+        self._cas_root = cas_root
         self.source_store = source_store
         self.ledger = ledger
+
+    def _require_stable_workspace_parent(self) -> None:
+        """Revalidate the retained path before every materialization boundary."""
+
+        parent = self.workspace_parent
+        if parent.is_symlink():
+            raise AttemptWorkspaceError("workspace parent must not be a symlink")
+        try:
+            current = parent.resolve(strict=True)
+        except OSError as exc:
+            raise AttemptWorkspaceError(
+                "workspace parent is no longer available"
+            ) from exc
+        if not current.is_dir():
+            raise AttemptWorkspaceError("workspace parent must be a directory")
+        _require_disjoint_workspace_parent(
+            current,
+            primary_checkout=self.primary_checkout,
+            cas_root=self._cas_root,
+        )
+        if current != parent or _path_identity(current) != self.workspace_parent_sha256:
+            raise AttemptWorkspaceError(
+                "workspace parent identity changed after coordinator admission"
+            )
 
     def prepare(
         self,
@@ -117,6 +131,7 @@ class IsolatedAttemptCoordinator:
         start_id: str,
         started_at: str,
     ) -> PreparedAttempt:
+        self._require_stable_workspace_parent()
         if not isinstance(attempt, AttemptContract):
             raise AttemptBindingMismatch("attempt must be AttemptContract")
         if not isinstance(input_tree, StoredSourceTree):
@@ -141,6 +156,7 @@ class IsolatedAttemptCoordinator:
         )
         if not begin.execute:
             return PreparedAttempt(begin=begin, workspace=None)
+        self._require_stable_workspace_parent()
         workspace = self.workspace_parent.joinpath(*relative.split("/"))
         try:
             materialized = self.source_store.materialize_tree(
