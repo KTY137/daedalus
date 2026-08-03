@@ -2,42 +2,20 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 import daedalus.kairos.gated_writes as gated_writes
 import daedalus.kernel.promotion as promotion
-from daedalus.kernel.promotion import PromotionAuthorization
-from daedalus.kernel.promotion_receipts import (
-    PromotionLedger,
-    PromotionReceiptStateError,
-)
+from daedalus.kernel import PromotionAuthorization, PromotionLedger
 from daedalus.spine.envelope import canonical_sha
 
 
 REVISION = "a" * 40
-INTEGRATION = "b" * 40
-PRIMARY = "1" * 64
-PRIMARY_CHANGED = "2" * 64
-
-
-def _authorization() -> PromotionAuthorization:
-    body = {
-        "promotion_id": "promotion-live-receipt-1",
-        "candidate_artifact_sha256": "3" * 64,
-        "evidence_packet_sha256": "4" * 64,
-        "source_revision": REVISION,
-        "target_ref": "refs/heads/experimental",
-        "live_target_revision": REVISION,
-        "approval_consumption_sha256": "5" * 64,
-    }
-    return PromotionAuthorization(**body, authorization_sha256=canonical_sha(body))
 
 
 def _candidate():
     artifact = SimpleNamespace(
         is_empty=False,
         base_revision=REVISION,
-        diff_sha256="6" * 64,
+        diff_sha256="c" * 64,
         changed_paths=("src/example.py",),
     )
     result = SimpleNamespace(
@@ -49,17 +27,51 @@ def _candidate():
     return SimpleNamespace(result=result)
 
 
+def _authorization() -> PromotionAuthorization:
+    body = {
+        "promotion_id": "promotion-receipt-live",
+        "candidate_artifact_sha256": "c" * 64,
+        "evidence_packet_sha256": "d" * 64,
+        "source_revision": REVISION,
+        "target_ref": "refs/heads/experimental",
+        "live_target_revision": REVISION,
+        "approval_consumption_sha256": "e" * 64,
+    }
+    return PromotionAuthorization(
+        **body,
+        authorization_sha256=canonical_sha(body),
+    )
+
+
+class TrackingLedger(PromotionLedger):
+    def __init__(self, path, order):
+        self.order = order
+        super().__init__(path)
+
+    def begin(self, *args, **kwargs):
+        self.order.append("persist-start")
+        return super().begin(*args, **kwargs)
+
+    def complete(self, *args, **kwargs):
+        self.order.append("persist-terminal")
+        return super().complete(*args, **kwargs)
+
+    def verify_receipt(self, *args, **kwargs):
+        self.order.append("verify-terminal")
+        return super().verify_receipt(*args, **kwargs)
+
+
 def _install(
     monkeypatch,
     tmp_path,
+    order,
     *,
-    fingerprints,
-    report=None,
-    raised=None,
-    integration_revision=INTEGRATION,
+    promote_report=None,
+    promote_error=None,
+    fingerprints=None,
 ):
     authorization = _authorization()
-    calls = {"mutations": 0, "fingerprints": 0}
+    fingerprint_values = iter(fingerprints or [("f" * 64, True), ("f" * 64, True)])
 
     class Manager:
         def __init__(self, _root):
@@ -70,213 +82,233 @@ def _install(
             pass
 
         def __enter__(self):
+            order.append("lock-enter")
             return self
 
         def __exit__(self, *_args):
+            order.append("lock-exit")
             return False
 
-    def authorize(**_kwargs):
-        return authorization
-
-    def resolve(_root, _target_ref):
+    def resolve_target(_root, _ref):
+        order.append("resolve-target")
         return REVISION
 
-    values = iter(fingerprints)
+    def authorize(**_kwargs):
+        order.append("authorize")
+        return authorization
 
     def fingerprint(_root):
-        calls["fingerprints"] += 1
-        value = next(values)
-        if isinstance(value, BaseException):
-            raise value
-        return value
+        order.append("fingerprint")
+        return next(fingerprint_values)
 
-    def promote_locked(_root, _manager, _candidates, **kwargs):
-        calls["mutations"] += 1
-        if raised is not None:
-            raise raised
-        if report is not None:
-            return report(kwargs["integration_branch"]) if callable(report) else report
-        return {
+    def promote_locked(*_args, **_kwargs):
+        order.append("mutate-integration")
+        if promote_error is not None:
+            raise promote_error
+        return promote_report or {
             "promoted": [{"task_id": "task-1", "promoted": True}],
             "refused": [],
-            "integration_branch": kwargs["integration_branch"],
+            "integration_branch": "integration-test",
         }
 
-    def branch_revision(_root, _branch):
-        return integration_revision
+    def resolve_integration(_root, branch):
+        order.append("resolve-integration")
+        assert branch == "integration-test"
+        return "9" * 40
 
     monkeypatch.setattr(gated_writes, "GitWorktreeManager", Manager)
     monkeypatch.setattr(gated_writes, "_PromotionLock", Lock)
+    monkeypatch.setattr(promotion, "resolve_live_target_revision", resolve_target)
     monkeypatch.setattr(promotion, "authorize_persisted_promotion", authorize)
-    monkeypatch.setattr(promotion, "resolve_live_target_revision", resolve)
     monkeypatch.setattr(gated_writes, "_primary_checkout_fingerprint", fingerprint)
-    monkeypatch.setattr(gated_writes, "_promote_locked", promote_locked)
-    monkeypatch.setattr(gated_writes, "_branch_revision", branch_revision)
-    return authorization, calls
+    monkeypatch.setattr(gated_writes, "_resolve_integration_revision", resolve_integration)
+    monkeypatch.setattr(gated_writes._legacy, "_promote_locked", promote_locked)
+    return authorization
 
 
-def _promote(tmp_path, ledger, candidate):
+def _call(tmp_path, ledger):
     return gated_writes.promote_candidates(
         str(tmp_path),
-        [candidate],
+        [_candidate()],
         project=None,
         availability={},
         consumed_approval=object(),
         evidence_packet=object(),
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
-        promotion_ledger=ledger,
         owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_ledger=ledger,
         ledger_path=tmp_path / "events.sqlite3",
     )
 
 
-def test_terminal_replay_returns_receipt_without_second_mutation(monkeypatch, tmp_path) -> None:
-    _authorization_value, calls = _install(
-        monkeypatch,
-        tmp_path,
-        fingerprints=(PRIMARY, PRIMARY, PRIMARY),
-    )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
-    candidate = _candidate()
+def test_start_is_durable_before_retained_mutation_and_terminal_after(monkeypatch, tmp_path):
+    order = []
+    _install(monkeypatch, tmp_path, order)
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
 
-    first = _promote(tmp_path, ledger, candidate)
-    replay = _promote(tmp_path, ledger, candidate)
+    report = _call(tmp_path, ledger)
 
-    assert calls["mutations"] == 1
-    assert first["promotion_receipt"]["outcome"] == "succeeded"
-    assert first["promotion_start"]["replayed"] is False
+    assert order == [
+        "lock-enter",
+        "resolve-target",
+        "authorize",
+        "fingerprint",
+        "persist-start",
+        "mutate-integration",
+        "fingerprint",
+        "resolve-integration",
+        "persist-terminal",
+        "verify-terminal",
+        "lock-exit",
+    ]
+    assert report["promotion_receipt"]["outcome"] == "succeeded"
+    assert ledger.pending() == ()
+
+
+def test_exact_terminal_replay_never_reenters_integration(monkeypatch, tmp_path):
+    first_order = []
+    _install(monkeypatch, tmp_path, first_order)
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", first_order)
+    first = _call(tmp_path, ledger)
+    assert first["promotion_replayed"] is False
+
+    replay_order = []
+    _install(monkeypatch, tmp_path, replay_order)
+    ledger.order = replay_order
+    replay = _call(tmp_path, ledger)
+
+    assert "mutate-integration" not in replay_order
+    assert "persist-terminal" not in replay_order
+    assert replay["promotion_replayed"] is True
     assert replay["promotion_receipt"] == first["promotion_receipt"]
-    assert replay["promotion_start"]["replayed"] is True
-    assert replay["promoted"] == first["promoted"]
-    assert ledger.pending() == ()
 
 
-def test_pending_start_is_fault_reconciled_without_mutation(monkeypatch, tmp_path) -> None:
-    authorization, calls = _install(
-        monkeypatch,
-        tmp_path,
-        fingerprints=(PRIMARY, PRIMARY),
-        integration_revision=None,
-    )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
-    start = ledger.begin(
+def test_pending_start_blocks_automatic_reexecution(monkeypatch, tmp_path):
+    order = []
+    authorization = _install(monkeypatch, tmp_path, order)
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
+    start_id, _ = gated_writes._record_ids(authorization)
+    ledger.begin(
         authorization,
-        start_id=gated_writes._stable_start_id(authorization),
-        primary_checkout_before_sha256=PRIMARY,
+        start_id=start_id,
+        primary_checkout_before_sha256="f" * 64,
     )
-    assert start.execute
+    order.clear()
 
-    report = _promote(tmp_path, ledger, _candidate())
+    report = _call(tmp_path, ledger)
 
-    assert calls["mutations"] == 0
-    assert report["promotion_receipt"]["outcome"] == "faulted"
-    assert report["promotion_start"]["replayed"] is True
-    assert "automatic execution was refused" in report["fault"]
-    assert ledger.pending() == ()
-
-
-def test_primary_checkout_change_forces_fault_receipt(monkeypatch, tmp_path) -> None:
-    _authorization_value, calls = _install(
-        monkeypatch,
-        tmp_path,
-        fingerprints=(PRIMARY, PRIMARY_CHANGED),
-    )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
-
-    report = _promote(tmp_path, ledger, _candidate())
-
-    assert calls["mutations"] == 1
-    assert report["promotion_receipt"]["outcome"] == "faulted"
-    assert "primary checkout fingerprint changed" in report["fault"]
-    assert report["promotion_receipt"]["primary_checkout_before_sha256"] == PRIMARY
-    assert report["promotion_receipt"]["primary_checkout_after_sha256"] == PRIMARY_CHANGED
-
-
-def test_retained_mutation_exception_is_persisted_as_fault(monkeypatch, tmp_path) -> None:
-    _authorization_value, calls = _install(
-        monkeypatch,
-        tmp_path,
-        fingerprints=(PRIMARY, PRIMARY),
-        raised=RuntimeError("integration crash"),
-        integration_revision=None,
-    )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
-
-    report = _promote(tmp_path, ledger, _candidate())
-
-    assert calls["mutations"] == 1
-    assert report["promotion_receipt"]["outcome"] == "faulted"
-    assert "integration crash" in report["fault"]
-    assert ledger.pending() == ()
-
-
-def test_missing_after_fingerprint_leaves_non_executable_pending_start(monkeypatch, tmp_path) -> None:
-    _authorization_value, calls = _install(
-        monkeypatch,
-        tmp_path,
-        fingerprints=(PRIMARY, RuntimeError("unstable checkout")),
-    )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
-
-    report = _promote(tmp_path, ledger, _candidate())
-
-    assert calls["mutations"] == 1
+    assert "mutate-integration" not in order
+    assert report["promotion_pending_reconciliation"] is True
     assert report["promotion_receipt"] is None
-    assert report["pending_reconciliation"] is True
-    assert "could not be measured" in report["refused"][0]["reason"]
     assert len(ledger.pending()) == 1
 
 
-class _FailingCompletionLedger(PromotionLedger):
-    def complete(self, *args, **kwargs):
-        raise PromotionReceiptStateError("disk full")
-
-
-def test_terminal_persistence_failure_leaves_pending_and_never_claims_success(monkeypatch, tmp_path) -> None:
-    _authorization_value, calls = _install(
+def test_primary_checkout_change_forces_faulted_receipt(monkeypatch, tmp_path):
+    order = []
+    _install(
         monkeypatch,
         tmp_path,
-        fingerprints=(PRIMARY, PRIMARY),
+        order,
+        fingerprints=[("f" * 64, True), ("0" * 64, False)],
     )
-    ledger = _FailingCompletionLedger(tmp_path / "promotion.sqlite3")
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
 
-    report = _promote(tmp_path, ledger, _candidate())
+    report = _call(tmp_path, ledger)
 
-    assert calls["mutations"] == 1
-    assert report["promoted"] == []
-    assert report["promotion_receipt"] is None
-    assert report["pending_reconciliation"] is True
-    assert "PromotionReceipt persistence failed" in report["refused"][0]["reason"]
-    assert len(ledger.pending()) == 1
+    assert report["promoted"] == [{"task_id": "task-1", "promoted": True}]
+    assert report["fault"]["code"] == "primary-checkout-identity-changed"
+    assert report["promotion_receipt"]["outcome"] == "faulted"
+    assert report["promotion_receipt"]["primary_checkout_before_sha256"] != (
+        report["promotion_receipt"]["primary_checkout_after_sha256"]
+    )
 
 
-def test_refusal_is_receipted_without_claiming_promotion(monkeypatch, tmp_path) -> None:
-    def refused(branch):
-        return {
+def test_execution_exception_is_terminalized_as_fault(monkeypatch, tmp_path):
+    order = []
+    _install(
+        monkeypatch,
+        tmp_path,
+        order,
+        promote_error=RuntimeError("do not expose this detail"),
+    )
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
+
+    report = _call(tmp_path, ledger)
+
+    assert report["promotion_receipt"]["outcome"] == "faulted"
+    assert report["fault"] == {
+        "code": "promotion-execution-error",
+        "type": "RuntimeError",
+    }
+    assert "do not expose this detail" not in str(report)
+    assert ledger.pending() == ()
+
+
+def test_refused_integration_is_persisted_without_claiming_success(monkeypatch, tmp_path):
+    order = []
+    _install(
+        monkeypatch,
+        tmp_path,
+        order,
+        promote_report={
             "promoted": [],
             "refused": [
                 {
                     "task_id": "task-1",
                     "promoted": False,
-                    "reason": "gate failed",
-                    "integration_branch": branch,
+                    "reason": "cumulative gate refused",
                 }
             ],
-            "integration_branch": branch,
-        }
+            "integration_branch": "integration-test",
+        },
+    )
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
 
-    _authorization_value, calls = _install(
+    report = _call(tmp_path, ledger)
+
+    assert report["promotion_receipt"]["outcome"] == "refused"
+    assert report["promotion_receipt"]["integration_branch"] == "integration-test"
+    assert report["promotion_receipt"]["integration_revision"] == "9" * 40
+
+
+def test_dirty_primary_refuses_before_start(monkeypatch, tmp_path):
+    order = []
+    _install(
         monkeypatch,
         tmp_path,
-        fingerprints=(PRIMARY, PRIMARY),
-        report=refused,
+        order,
+        fingerprints=[("f" * 64, False)],
     )
-    ledger = PromotionLedger(tmp_path / "promotion.sqlite3")
+    ledger = TrackingLedger(tmp_path / "promotion.sqlite3", order)
 
-    report = _promote(tmp_path, ledger, _candidate())
+    report = _call(tmp_path, ledger)
 
-    assert calls["mutations"] == 1
+    assert "persist-start" not in order
+    assert "mutate-integration" not in order
+    assert ledger.pending() == ()
+    assert "must be clean" in report["refused"][0]["reason"]
+
+
+def test_noncanonical_promotion_ledger_cannot_authorize_mutation(monkeypatch, tmp_path):
+    class ForbiddenManager:
+        def __init__(self, _root):
+            raise AssertionError("manager must not be constructed")
+
+    monkeypatch.setattr(gated_writes, "GitWorktreeManager", ForbiddenManager)
+    report = gated_writes.promote_candidates(
+        str(tmp_path),
+        [_candidate()],
+        project=None,
+        availability={},
+        consumed_approval=object(),
+        evidence_packet=object(),
+        target_ref="refs/heads/experimental",
+        approval_ledger=object(),
+        owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_ledger=object(),
+        ledger_path=tmp_path / "events.sqlite3",
+    )
+
     assert report["promoted"] == []
-    assert report["promotion_receipt"]["outcome"] == "refused"
-    assert report["refused"][0]["reason"] == "gate failed"
+    assert "canonical PromotionLedger" in report["refused"][0]["reason"]
