@@ -11,6 +11,7 @@ TESTS = (
     "tests/kernel/test_isolated_attempt_lifecycle.py",
     "tests/kernel/test_isolated_attempt_lifecycle_adversarial.py",
     "tests/kernel/test_isolated_attempt_lifecycle_review.py",
+    "tests/kernel/test_isolated_attempt_cas_review.py",
     "tests/kernel/test_source_tree_store.py",
     "tests/kernel/test_source_tree_store_adversarial.py",
 )
