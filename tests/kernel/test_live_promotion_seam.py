@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -69,6 +70,14 @@ class _Authorization:
         }
 
 
+def _consumed(expected_target_revision: str = REVISION):
+    return SimpleNamespace(
+        verified=SimpleNamespace(
+            expected_target_revision=expected_target_revision,
+        )
+    )
+
+
 def _install_boundary_fakes(
     monkeypatch,
     tmp_path,
@@ -78,10 +87,12 @@ def _install_boundary_fakes(
     on_authorize=None,
 ):
     order: list[str] = []
-    calls: dict[str, object] = {}
+    calls: dict[str, object] = {"authorization_kwargs": []}
+    authorization_count = 0
 
     class Manager:
         def __init__(self, root):
+            order.append("manager")
             calls["manager_root"] = root
             self.worktree_root = tmp_path / "worktrees"
 
@@ -104,8 +115,11 @@ def _install_boundary_fakes(
         return (authorization or _Authorization()).live_target_revision
 
     def authorize(**kwargs):
-        order.append("authorize-persisted")
-        calls["authorization_kwargs"] = kwargs
+        nonlocal authorization_count
+        authorization_count += 1
+        phase = "authorize-preflight" if authorization_count == 1 else "authorize-live"
+        order.append(phase)
+        calls["authorization_kwargs"].append(kwargs)
         if on_authorize is not None:
             on_authorize(kwargs)
         if failure is not None:
@@ -135,7 +149,7 @@ def _promote(tmp_path, candidate, **changes):
         candidates=[candidate],
         project=None,
         availability={},
-        consumed_approval=object(),
+        consumed_approval=_consumed(),
         evidence_packet=object(),
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
@@ -146,30 +160,40 @@ def _promote(tmp_path, candidate, **changes):
     return gated_writes.promote_candidates(**values)
 
 
-def test_persisted_authorization_occurs_inside_lock_before_integration(monkeypatch, tmp_path) -> None:
+def test_capability_auth_precedes_effects_and_live_auth_precedes_integration(
+    monkeypatch,
+    tmp_path,
+) -> None:
     order, calls = _install_boundary_fakes(monkeypatch, tmp_path)
     candidate = _candidate()
 
     report = _promote(tmp_path, candidate)
 
     assert order == [
+        "authorize-preflight",
+        "manager",
         "lock-enter",
         "resolve-target",
-        "authorize-persisted",
+        "authorize-live",
         "create-integration",
         "lock-exit",
     ]
     assert report["authorization"]["live_target_revision"] == REVISION
-    kwargs = calls["authorization_kwargs"]
-    assert kwargs["approval_ledger"] is not None
-    assert kwargs["owner_keyring"]
-    assert len(kwargs["candidates"]) == 1
-    assert kwargs["candidates"][0].result == candidate.result
-    assert kwargs["candidates"][0] is not candidate
-    assert kwargs["live_target_revision"] == REVISION
+    preflight, live = calls["authorization_kwargs"]
+    for kwargs in (preflight, live):
+        assert kwargs["approval_ledger"] is not None
+        assert kwargs["owner_keyring"]
+        assert len(kwargs["candidates"]) == 1
+        assert kwargs["candidates"][0].result == candidate.result
+        assert kwargs["candidates"][0] is not candidate
+    assert preflight["live_target_revision"] == REVISION
+    assert live["live_target_revision"] == REVISION
 
 
-def test_authorization_failure_creates_no_integration_worktree(monkeypatch, tmp_path) -> None:
+def test_capability_auth_failure_creates_no_manager_lock_git_or_integration(
+    monkeypatch,
+    tmp_path,
+) -> None:
     order, _ = _install_boundary_fakes(
         monkeypatch,
         tmp_path,
@@ -178,12 +202,7 @@ def test_authorization_failure_creates_no_integration_worktree(monkeypatch, tmp_
 
     report = _promote(tmp_path, _candidate())
 
-    assert order == [
-        "lock-enter",
-        "resolve-target",
-        "authorize-persisted",
-        "lock-exit",
-    ]
+    assert order == ["authorize-preflight"]
     assert report["promoted"] == []
     assert report["authorization"] is None
     assert "foreign persisted receipt" in report["refused"][0]["reason"]
@@ -199,21 +218,23 @@ def test_stale_candidate_cannot_trigger_legacy_regeneration(monkeypatch, tmp_pat
     report = _promote(tmp_path, _candidate(base_revision=REVISION))
 
     assert "create-integration" not in order
+    assert order[-1] == "lock-exit"
     assert report["promoted"] == []
     assert "stale regeneration requires new evidence" in report["refused"][0]["reason"]
 
 
-def test_multi_candidate_legacy_batch_refuses_before_lock_or_manager(monkeypatch, tmp_path) -> None:
-    def forbidden_manager(_root):
-        raise AssertionError("manager must not be constructed")
+def test_multi_candidate_legacy_batch_refuses_before_auth_lock_or_manager(monkeypatch, tmp_path) -> None:
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("no authority or effect primitive may be reached")
 
-    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden_manager)
+    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden)
+    monkeypatch.setattr(promotion, "authorize_persisted_promotion", forbidden)
     report = gated_writes.promote_candidates(
         str(tmp_path),
         [_candidate(suffix="one"), _candidate(suffix="two")],
         project=None,
         availability={},
-        consumed_approval=object(),
+        consumed_approval=_consumed(),
         evidence_packet=object(),
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
@@ -226,38 +247,40 @@ def test_multi_candidate_legacy_batch_refuses_before_lock_or_manager(monkeypatch
     assert all("exactly one candidate" in row["reason"] for row in report["refused"])
 
 
-def test_ungated_candidate_refuses_before_lock(monkeypatch, tmp_path) -> None:
-    entered = False
+def test_ungated_candidate_refuses_before_auth_or_effect(monkeypatch, tmp_path) -> None:
+    reached = False
 
-    class ForbiddenLock:
-        def __init__(self, *_args, **_kwargs):
-            nonlocal entered
-            entered = True
+    def forbidden(*_args, **_kwargs):
+        nonlocal reached
+        reached = True
+        raise AssertionError("no authority or effect primitive may be reached")
 
-    monkeypatch.setattr(gated_writes, "_PromotionLock", ForbiddenLock)
+    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden)
+    monkeypatch.setattr(promotion, "authorize_persisted_promotion", forbidden)
     report = _promote(tmp_path, _candidate(ok=False))
 
-    assert not entered
+    assert not reached
     assert report["promoted"] == []
     assert "clean non-empty gated artifact" in report["refused"][0]["reason"]
 
 
-def test_mismatched_patch_digest_refuses_before_manager_or_lock(monkeypatch, tmp_path) -> None:
-    constructed = False
+def test_mismatched_patch_digest_refuses_before_auth_manager_or_lock(monkeypatch, tmp_path) -> None:
+    reached = False
 
-    def forbidden_manager(_root):
-        nonlocal constructed
-        constructed = True
-        raise AssertionError("manager must not be constructed")
+    def forbidden(*_args, **_kwargs):
+        nonlocal reached
+        reached = True
+        raise AssertionError("no authority or effect primitive may be reached")
 
     candidate = _candidate()
     bad_artifact = replace(candidate.result.artifact, diff_sha256="0" * 64)
     candidate.result = replace(candidate.result, artifact=bad_artifact)
-    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden_manager)
+    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden)
+    monkeypatch.setattr(promotion, "authorize_persisted_promotion", forbidden)
 
     report = _promote(tmp_path, candidate)
 
-    assert not constructed
+    assert not reached
     assert report["promoted"] == []
     assert "patch digest does not match patch bytes" in report["refused"][0]["reason"]
 
@@ -286,26 +309,28 @@ def test_result_swap_after_authorization_cannot_change_applied_bytes(monkeypatch
     assert candidate.result == replacement
 
 
-def test_lock_refusal_does_not_reference_unissued_authorization(monkeypatch, tmp_path) -> None:
-    class Manager:
-        def __init__(self, _root):
-            self.worktree_root = tmp_path / "worktrees"
+def test_lock_refusal_follows_successful_preflight_and_has_no_live_authorization(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    order, _ = _install_boundary_fakes(monkeypatch, tmp_path)
 
     class RefusingLock:
         def __init__(self, *_args, **_kwargs):
             pass
 
         def __enter__(self):
+            order.append("lock-refused")
             raise gated_writes.PromotionUnavailable("promotion lock unavailable")
 
         def __exit__(self, *_args):
             return False
 
-    monkeypatch.setattr(gated_writes, "GitWorktreeManager", Manager)
     monkeypatch.setattr(gated_writes, "_PromotionLock", RefusingLock)
 
     report = _promote(tmp_path, _candidate())
 
+    assert order == ["authorize-preflight", "manager", "lock-refused"]
     assert report["promoted"] == []
     assert report["authorization"] is None
     assert "promotion lock unavailable" in report["refused"][0]["reason"]
