@@ -3,7 +3,7 @@ name: Gate 0 — effect ledger contention fault
 on:
   pull_request:
     branches:
-      - g0/linux-process-fault-executors
+      - g0/secret-isolation-fault-linear
     paths:
       - "daedalus/kernel/effects.py"
       - "daedalus/runtimes/fault_matrix.py"
@@ -15,7 +15,7 @@ on:
       - ".github/workflows/g0-effect-ledger-contention-fault.yml"
   push:
     branches:
-      - g0/effect-ledger-contention-fault
+      - g0/effect-ledger-contention-fault-linear
   workflow_dispatch:
 
 permissions:
