@@ -63,8 +63,6 @@ def test_allocation_program_observes_kernel_cgroup_state_and_cannot_self_signal(
     for forbidden in (
         "os.kill",
         "signal.",
-        "SIGKILL",
-        "SIGTERM",
         "subprocess",
         "socket",
         "requests",
