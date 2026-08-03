@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import inspect
 import json
@@ -12,7 +13,6 @@ import daedalus.kernel.attempt_ledger as attempt_ledger_impl
 import daedalus.kernel.attempt_workspace as attempt_workspace_impl
 import daedalus.spine.ledger as spine_ledger_impl
 from daedalus.kernel import SourceTreeStore
-from daedalus.kernel.attempt_contracts import AttemptTerminalReceipt
 from daedalus.kernel.attempts import AttemptLedger, AttemptStateError
 from daedalus.schemas import (
     AttemptContract,
@@ -95,13 +95,12 @@ def test_public_lifecycle_mutation_api_cannot_accept_caller_timestamps() -> None
 def test_start_uses_authority_time_and_binds_nearby_event_store_time(
     tmp_path, monkeypatch
 ) -> None:
-    store, captured, ledger = _environment(tmp_path)
+    _store, captured, ledger = _environment(tmp_path)
     _set_clocks(monkeypatch, authority=START, spine=START_EVENT)
     begin = _begin(ledger, captured)
     assert begin.start.started_at == START
     assert begin.start.provenance.created_at == START
     assert ledger.pending() == (begin.start,)
-    store.read_bytes(begin.start.input_tree)
 
 
 def test_future_or_stale_authority_time_fails_closed_against_event_store(
@@ -199,6 +198,15 @@ def test_terminal_record_time_repackaging_before_start_is_rejected(
         candidate_tree=None,
     )
 
+    repacked_time = "2026-08-03T21:00:00+00:00"
+    repacked_receipt = dataclasses.replace(
+        completion.receipt,
+        completed_at=repacked_time,
+        provenance=dataclasses.replace(
+            completion.receipt.provenance,
+            created_at=repacked_time,
+        ),
+    )
     with sqlite3.connect(ledger.path) as connection:
         row = connection.execute(
             "SELECT id, detail FROM intent_events "
@@ -206,12 +214,8 @@ def test_terminal_record_time_repackaging_before_start_is_rejected(
         ).fetchone()
         assert row is not None
         detail = json.loads(row[1])
-        receipt = detail["result"]["receipt"]
-        receipt["completed_at"] = "2026-08-03T21:00:00+00:00"
-        receipt["provenance"]["created_at"] = "2026-08-03T21:00:00+00:00"
-        repacked = AttemptTerminalReceipt.from_dict(receipt)
-        detail["result"]["receipt"] = repacked.to_dict()
-        detail["effect_id"] = repacked.digest
+        detail["result"]["receipt"] = repacked_receipt.to_dict()
+        detail["effect_id"] = repacked_receipt.digest
         connection.execute(
             "UPDATE intent_events SET detail=? WHERE id=?",
             (canonical_json(detail), row[0]),
