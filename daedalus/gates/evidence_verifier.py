@@ -1,15 +1,16 @@
 """Strict verification of a :class:`GateEvidenceIndex` against live state.
 
-The index's own ``mechanical_blockers`` checks required membership. This module
-adds the adversarial rule that *every retained item* must also be coherent.
-Extra failed, stale, foreign, or content-address-mismatched evidence cannot be
-smuggled into the index and silently ignored.
+Canonical data is not authenticated merely because it parses. The strict
+verifier therefore requires independently obtained trust sets for every hard
+evidence class in addition to checking exact-head, freshness, and internal
+coherence. Empty trust sets fail closed.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
-from daedalus.schemas import _revision
+from daedalus.schemas import _revision, _sha256
 
 from .evidence import GateEvidenceIndex
 
@@ -24,18 +25,46 @@ def _parse(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
+def _trusted(values: Iterable[str], label: str) -> frozenset[str]:
+    return frozenset(_sha256(value, label) for value in values)
+
+
 def strict_mechanical_blockers(
     index: GateEvidenceIndex,
     *,
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
+    trusted_workflow_evidence_sha256s: Iterable[str] = (),
+    trusted_artifact_sha256s: Iterable[str] = (),
+    trusted_runtime_envelope_sha256s: Iterable[str] = (),
+    trusted_fault_matrix_sha256s: Iterable[str] = (),
+    trusted_review_transcript_sha256s: Iterable[str] = (),
+    trusted_owner_verifier_sha256s: Iterable[str] = (),
 ) -> tuple[str, ...]:
-    """Return all exact-head blockers, including inconsistent extra evidence."""
+    """Return exact-head blockers including authenticity and optional evidence."""
 
     current = _revision(current_revision, "current_revision")
     current_tree = _revision(current_tree_revision, "current_tree_revision")
     instant = _utc(now)
+    trusted_workflows = _trusted(
+        trusted_workflow_evidence_sha256s, "trusted_workflow_evidence_sha256"
+    )
+    trusted_artifacts = _trusted(
+        trusted_artifact_sha256s, "trusted_artifact_sha256"
+    )
+    trusted_runtimes = _trusted(
+        trusted_runtime_envelope_sha256s, "trusted_runtime_envelope_sha256"
+    )
+    trusted_faults = _trusted(
+        trusted_fault_matrix_sha256s, "trusted_fault_matrix_sha256"
+    )
+    trusted_reviews = _trusted(
+        trusted_review_transcript_sha256s, "trusted_review_transcript_sha256"
+    )
+    trusted_owner = _trusted(
+        trusted_owner_verifier_sha256s, "trusted_owner_verifier_sha256"
+    )
     blockers = set(
         index.mechanical_blockers(
             current_revision=current,
@@ -46,6 +75,8 @@ def strict_mechanical_blockers(
 
     for item in index.workflows:
         prefix = f"workflow:{item.workflow_id}"
+        if item.digest not in trusted_workflows:
+            blockers.add(f"{prefix}:untrusted-evidence")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.conclusion != "success":
@@ -57,6 +88,8 @@ def strict_mechanical_blockers(
 
     for item in index.artifacts:
         prefix = f"artifact:{item.artifact_kind}"
+        if item.content_sha256 not in trusted_artifacts:
+            blockers.add(f"{prefix}:untrusted-content")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.source_tree_revision != current_tree:
@@ -68,6 +101,8 @@ def strict_mechanical_blockers(
 
     for item in index.runtimes:
         prefix = f"runtime:{item.runtime_id}"
+        if item.envelope_sha256 not in trusted_runtimes:
+            blockers.add(f"{prefix}:untrusted-envelope")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.authority != "live-runtime":
@@ -81,6 +116,8 @@ def strict_mechanical_blockers(
 
     for item in index.fault_matrices:
         prefix = f"fault-matrix:{item.matrix_id}"
+        if item.matrix_sha256 not in trusted_faults:
+            blockers.add(f"{prefix}:untrusted-matrix")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.status != "passed":
@@ -90,6 +127,8 @@ def strict_mechanical_blockers(
 
     for item in index.reviews:
         prefix = f"review:{item.perspective}"
+        if item.transcript_sha256 not in trusted_reviews:
+            blockers.add(f"{prefix}:untrusted-transcript")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.unresolved_finding_ids:
@@ -100,6 +139,8 @@ def strict_mechanical_blockers(
             blockers.add(f"{prefix}:reviewed-in-future")
 
     if index.owner_decision is not None:
+        if index.owner_decision.verifier_receipt_sha256 not in trusted_owner:
+            blockers.add("owner-decision:untrusted-verifier-receipt")
         if index.owner_decision.source_revision != current:
             blockers.add("owner-decision:foreign-source-revision")
         if _parse(index.owner_decision.verified_at) > instant:
@@ -114,14 +155,26 @@ def assert_strict_exact_head(
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
+    trusted_workflow_evidence_sha256s: Iterable[str] = (),
+    trusted_artifact_sha256s: Iterable[str] = (),
+    trusted_runtime_envelope_sha256s: Iterable[str] = (),
+    trusted_fault_matrix_sha256s: Iterable[str] = (),
+    trusted_review_transcript_sha256s: Iterable[str] = (),
+    trusted_owner_verifier_sha256s: Iterable[str] = (),
 ) -> None:
-    """Raise with the deterministic blocker list when the index is not ready."""
+    """Raise with the deterministic blocker list when the index is not trusted."""
 
     blockers = strict_mechanical_blockers(
         index,
         current_revision=current_revision,
         current_tree_revision=current_tree_revision,
         now=now,
+        trusted_workflow_evidence_sha256s=trusted_workflow_evidence_sha256s,
+        trusted_artifact_sha256s=trusted_artifact_sha256s,
+        trusted_runtime_envelope_sha256s=trusted_runtime_envelope_sha256s,
+        trusted_fault_matrix_sha256s=trusted_fault_matrix_sha256s,
+        trusted_review_transcript_sha256s=trusted_review_transcript_sha256s,
+        trusted_owner_verifier_sha256s=trusted_owner_verifier_sha256s,
     )
     if blockers:
         raise ValueError("Gate evidence index has blocker(s): " + ", ".join(blockers))
