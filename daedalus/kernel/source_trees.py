@@ -160,7 +160,10 @@ class SourceTreeManifest(CanonicalContract):
         revision = _revision(self.source_revision, "source_revision")
         object.__setattr__(self, "source_revision", revision)
 
-        entries = tuple(sorted(tuple(self.entries), key=lambda entry: entry.path))
+        raw_entries = tuple(self.entries)
+        if not all(isinstance(entry, SourceTreeEntry) for entry in raw_entries):
+            raise ValueError("source tree entries must be SourceTreeEntry records")
+        entries = tuple(sorted(raw_entries, key=lambda entry: entry.path))
         paths = tuple(entry.path for entry in entries)
         if len(set(paths)) != len(paths):
             raise ValueError("source tree paths must be unique")
@@ -179,18 +182,15 @@ class SourceTreeManifest(CanonicalContract):
             raise ValueError("ignored_roots must contain top-level names only")
         if len({item.casefold() for item in ignored}) != len(ignored):
             raise ValueError("ignored_roots must be case-insensitively unique")
-        ignored_casefold = {item.casefold() for item in ignored}
-        missing = sorted(
-            item
-            for item in MANDATORY_IGNORED_ROOTS
-            if item.casefold() not in ignored_casefold
-        )
+        missing = sorted(set(MANDATORY_IGNORED_ROOTS) - set(ignored))
         if missing:
             raise ValueError(
                 "ignored_roots must retain mandatory exclusions: " + ", ".join(missing)
             )
         object.__setattr__(self, "ignored_roots", ignored)
 
+        if not isinstance(self.provenance, ContractProvenance):
+            raise ValueError("source tree provenance must be ContractProvenance")
         if self.provenance.source_revision != revision:
             raise ValueError("manifest revision must match provenance revision")
         _require_provenance_inputs(
@@ -218,6 +218,10 @@ class StoredSourceTree:
     ref: ArtifactRef
 
     def __post_init__(self) -> None:
+        if not isinstance(self.manifest, SourceTreeManifest):
+            raise ValueError("stored source tree manifest must be canonical")
+        if not isinstance(self.ref, ArtifactRef):
+            raise ValueError("stored source tree ref must be ArtifactRef")
         if self.ref.sha256 != self.manifest.digest:
             raise ValueError("source tree ArtifactRef must address the manifest digest")
 
@@ -314,6 +318,8 @@ class SourceTreeStore:
         if isinstance(ref, str):
             locator = _artifact_locator(ref, "artifact_locator")
             ref = ArtifactRef(sha256=_locator_sha256(locator), locator=locator)
+        elif not isinstance(ref, ArtifactRef):
+            raise ValueError("ref must be an ArtifactRef or canonical locator")
         target = self._object_path(ref.sha256)
         try:
             before_path = os.stat(target, follow_symlinks=False)
@@ -434,17 +440,13 @@ class SourceTreeStore:
             raise ValueError("ignored_roots must contain top-level names only")
         if len({item.casefold() for item in ignored}) != len(ignored):
             raise ValueError("ignored_roots must be case-insensitively unique")
-        ignored_casefold = {item.casefold() for item in ignored}
-        missing = sorted(
-            item
-            for item in MANDATORY_IGNORED_ROOTS
-            if item.casefold() not in ignored_casefold
-        )
+        missing = sorted(set(MANDATORY_IGNORED_ROOTS) - set(ignored))
         if missing:
             raise ValueError(
                 "ignored_roots must retain mandatory exclusions: "
                 + ", ".join(missing)
             )
+        ignored_casefold = {item.casefold() for item in ignored}
 
         entries: list[SourceTreeEntry] = []
         visited: dict[Path, os.stat_result] = {}
