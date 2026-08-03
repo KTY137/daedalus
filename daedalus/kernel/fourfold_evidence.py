@@ -35,18 +35,19 @@ class FourfoldEvidenceMismatch(ValueError):
 
 @dataclass(frozen=True)
 class FourfoldEvidenceExpectation:
-    """The exact identities and coverage a promotion reviewer expects.
+    """The exact identities a promotion reviewer expects to inspect.
 
     The candidate digest and locator are caller-owned inputs. They must be
     resolved from the candidate source-tree/CAS authority rather than copied
-    out of the EvidencePacket under review.
+    out of the EvidencePacket under review. Gate-0 Fourfold evidence is always
+    complete; partial semantics belong to a later, explicitly inconclusive
+    Gate-2 path and cannot be enabled by a caller switch here.
     """
 
     candidate_artifact_sha256: str
     candidate_artifact_locator: str
     snapshot_sha256: str
     source_revision: str
-    require_complete: bool = True
 
     def __post_init__(self) -> None:
         candidate_sha = _sha256(
@@ -57,8 +58,6 @@ class FourfoldEvidenceExpectation:
         )
         snapshot_sha = _sha256(self.snapshot_sha256, "snapshot_sha256")
         source_revision = _revision(self.source_revision, "source_revision")
-        if not isinstance(self.require_complete, bool):
-            raise ValueError("require_complete must be boolean")
         object.__setattr__(self, "candidate_artifact_sha256", candidate_sha)
         object.__setattr__(self, "candidate_artifact_locator", candidate_locator)
         object.__setattr__(self, "snapshot_sha256", snapshot_sha)
@@ -114,9 +113,8 @@ def assemble_fourfold_evidence_packet(
     usage: ResourceUsage | None = None,
     trace_id: str | None = None,
     extra_items: tuple[EvidenceItem, ...] = (),
-    require_complete: bool = True,
 ) -> EvidencePacket:
-    """Create a passed packet for one exact candidate and Fourfold snapshot."""
+    """Create a passed packet for one complete candidate Fourfold snapshot."""
 
     snapshot = _canonical_snapshot(snapshot)
     expectation = FourfoldEvidenceExpectation(
@@ -124,7 +122,6 @@ def assemble_fourfold_evidence_packet(
         candidate_artifact_locator=candidate_artifact_locator,
         snapshot_sha256=snapshot.digest,
         source_revision=snapshot.source_revision,
-        require_complete=require_complete,
     )
     attempt_sha = _sha256(attempt_contract_sha256, "attempt_contract_sha256")
     policy_sha = _sha256(policy_decision_sha256, "policy_decision_sha256")
@@ -270,7 +267,7 @@ def verify_fourfold_evidence_packet(
     snapshot: FourfoldSnapshot,
     expectation: FourfoldEvidenceExpectation,
 ) -> None:
-    """Fail closed unless packet, candidate and snapshot identities are exact."""
+    """Fail closed unless packet, candidate and complete snapshot are exact."""
 
     packet = _canonical_packet(packet)
     snapshot = _canonical_snapshot(snapshot)
@@ -282,12 +279,11 @@ def verify_fourfold_evidence_packet(
         mismatches.append("expected_source_revision")
     if expectation.snapshot_sha256 != snapshot.digest:
         mismatches.append("expected_snapshot")
-    if expectation.require_complete:
-        incomplete = [
-            plane.plane for plane in snapshot.planes if plane.status != "complete"
-        ]
-        if incomplete:
-            mismatches.append("incomplete_planes:" + "+".join(sorted(incomplete)))
+    incomplete = [
+        plane.plane for plane in snapshot.planes if plane.status != "complete"
+    ]
+    if incomplete:
+        mismatches.append("incomplete_planes:" + "+".join(sorted(incomplete)))
     if packet.subject_sha256 != expectation.candidate_artifact_sha256:
         mismatches.append("subject")
     if packet.candidate_artifact_sha256 != expectation.candidate_artifact_sha256:
