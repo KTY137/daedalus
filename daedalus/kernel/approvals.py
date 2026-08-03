@@ -45,6 +45,10 @@ class ApprovalReplay(ApprovalError):
     pass
 
 
+class ApprovalConsumptionMismatch(ApprovalError):
+    pass
+
+
 @dataclass(frozen=True)
 class ApprovalExpectation:
     operation: str
@@ -89,6 +93,7 @@ class ConsumedOwnerApproval:
     promotion_id: str
     consumed_at: str
     consumption_sha256: str
+    ledger_path: str = dataclasses.field(repr=False, compare=False)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -278,17 +283,46 @@ class ApprovalLedger:
 
     def consume(
         self,
+        approval: OwnerApproval,
+        *,
+        keyring: Mapping[tuple[str, str], bytes | str],
+        expectation: ApprovalExpectation,
+        promotion_id: str,
+        verified_at: datetime | None = None,
+        consumed_at: datetime | None = None,
+    ) -> ConsumedOwnerApproval:
+        """Authenticate and consume one signed approval exactly once.
+
+        Verification deliberately happens inside this public persistence
+        boundary.  A caller-supplied ``VerifiedOwnerApproval`` is only a Python
+        value and is forgeable; it is never accepted as authority here.
+        """
+
+        if not isinstance(approval, OwnerApproval):
+            raise ApprovalSignatureError(
+                "approval consumption requires a signed OwnerApproval contract"
+            )
+        verification_instant = verified_at or consumed_at or _utc_now()
+        verified = verify_owner_approval(
+            approval,
+            keyring=keyring,
+            expectation=expectation,
+            now=verification_instant,
+        )
+        return self._consume_verified(
+            verified,
+            promotion_id=promotion_id,
+            consumed_at=consumed_at,
+        )
+
+    def _consume_verified(
+        self,
         verified: VerifiedOwnerApproval,
         *,
         promotion_id: str,
         consumed_at: datetime | None = None,
     ) -> ConsumedOwnerApproval:
-        """Consume an authenticated approval exactly once.
-
-        The returned object is the only capability shape the later promotion
-        boundary should accept. The target HEAD is retained but must still be
-        compared to the live target immediately before mutation.
-        """
+        """Persist the capability produced by this module's verifier."""
 
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", promotion_id):
             raise ValueError("promotion_id must be a bounded identifier")
@@ -350,7 +384,80 @@ class ApprovalLedger:
             promotion_id=promotion_id,
             consumed_at=timestamp,
             consumption_sha256=record_sha256,
+            ledger_path=str(self.path.resolve()),
         )
+
+    def verify_consumed(
+        self, consumed: ConsumedOwnerApproval
+    ) -> ConsumedOwnerApproval:
+        """Re-bind a presented capability to its exact persisted record.
+
+        The dataclass is evidence transport, not authority. Promotion must call
+        this read before any Git, worktree, lock, or candidate mutation.
+        """
+
+        if not isinstance(consumed, ConsumedOwnerApproval):
+            raise ApprovalConsumptionMismatch(
+                "promotion requires a canonical consumed approval capability"
+            )
+        verified = consumed.verified
+        if not isinstance(verified, VerifiedOwnerApproval):
+            raise ApprovalConsumptionMismatch(
+                "consumed approval does not contain a verified capability"
+            )
+        if not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", consumed.promotion_id
+        ):
+            raise ApprovalConsumptionMismatch("consumed promotion_id is invalid")
+        _parse_utc(consumed.consumed_at)
+        expected_consumption = canonical_sha(
+            {
+                **verified.to_dict(),
+                "promotion_id": consumed.promotion_id,
+                "consumed_at": consumed.consumed_at,
+            }
+        )
+        if not hmac.compare_digest(
+            consumed.consumption_sha256, expected_consumption
+        ):
+            raise ApprovalConsumptionMismatch(
+                "approval consumption digest does not match its capability"
+            )
+
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT approval_sha256, approval_id, owner_id, key_id, nonce,
+                       operation, target_ref, target_revision, promotion_id,
+                       consumed_at, capability_sha256, consumption_sha256
+                FROM owner_approval_consumptions
+                WHERE approval_sha256=?
+                """,
+                (verified.approval_sha256,),
+            ).fetchone()
+        if row is None:
+            raise ApprovalConsumptionMismatch(
+                "approval consumption is not present in the canonical ledger"
+            )
+        expected_row = (
+            verified.approval_sha256,
+            verified.approval_id,
+            verified.owner_id,
+            verified.key_id,
+            verified.nonce,
+            verified.operation,
+            verified.target_ref,
+            verified.expected_target_revision,
+            consumed.promotion_id,
+            consumed.consumed_at,
+            verified.digest,
+            consumed.consumption_sha256,
+        )
+        if tuple(row) != expected_row:
+            raise ApprovalConsumptionMismatch(
+                "approval capability does not match its persisted consumption"
+            )
+        return consumed
 
     def consumed(self, approval_sha256: str) -> bool:
         with self._connect() as connection:

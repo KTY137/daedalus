@@ -84,6 +84,23 @@ def _verify(approval: OwnerApproval, **expectation_changes):
     )
 
 
+def _consume(
+    ledger: ApprovalLedger,
+    approval: OwnerApproval,
+    *,
+    promotion_id: str,
+    consumed_at: datetime | None = None,
+):
+    return ledger.consume(
+        approval,
+        keyring={("KTY137", "owner-key-1"): SECRET},
+        expectation=_expectation(),
+        promotion_id=promotion_id,
+        verified_at=NOW + timedelta(seconds=1),
+        consumed_at=consumed_at or NOW + timedelta(seconds=2),
+    )
+
+
 def test_owner_approval_is_canonical_signed_and_parseable() -> None:
     approval = _approval()
     assert approval.signature_sha256 != "0" * 64
@@ -142,24 +159,25 @@ def test_expired_and_not_yet_valid_are_rejected() -> None:
 
 
 def test_nonce_and_approval_are_consumed_once_atomically(tmp_path) -> None:
-    verified = _verify(_approval())
+    approval = _approval()
+    verified = _verify(approval)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    first = ledger.consume(verified, promotion_id="promotion-001", consumed_at=NOW)
+    first = _consume(ledger, approval, promotion_id="promotion-001")
     assert len(first.consumption_sha256) == 64
     assert first.verified == verified
     assert first.promotion_id == "promotion-001"
     assert ledger.consumed(verified.approval_sha256)
     with pytest.raises(ApprovalReplay):
-        ledger.consume(verified, promotion_id="promotion-002", consumed_at=NOW)
+        _consume(ledger, approval, promotion_id="promotion-002")
 
 
 def test_same_nonce_cannot_be_repackaged_into_another_approval(tmp_path) -> None:
-    first = _verify(_approval())
-    second = _verify(_approval(approval_id="approval-002"))
+    first = _approval()
+    second = _approval(approval_id="approval-002")
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    ledger.consume(first, promotion_id="promotion-001", consumed_at=NOW)
+    _consume(ledger, first, promotion_id="promotion-001")
     with pytest.raises(ApprovalReplay):
-        ledger.consume(second, promotion_id="promotion-002", consumed_at=NOW)
+        _consume(ledger, second, promotion_id="promotion-002")
 
 
 def test_secret_strength_and_contract_expiry_order_are_enforced() -> None:
@@ -172,12 +190,12 @@ def test_secret_strength_and_contract_expiry_order_are_enforced() -> None:
 def test_concurrent_consumption_allows_exactly_one_winner(tmp_path) -> None:
     import concurrent.futures
 
-    verified = _verify(_approval())
+    approval = _approval()
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
 
     def consume(index: int) -> str:
         try:
-            ledger.consume(verified, promotion_id=f"promotion-{index:03d}", consumed_at=NOW)
+            _consume(ledger, approval, promotion_id=f"promotion-{index:03d}")
             return "accepted"
         except ApprovalReplay:
             return "replayed"
@@ -196,12 +214,16 @@ def test_corrupt_replay_ledger_fails_closed(tmp_path) -> None:
 
 
 def test_expiry_is_rechecked_at_atomic_consumption(tmp_path) -> None:
-    verified = _verify(_approval())
+    approval = _approval()
+    verified = _verify(approval)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
     with pytest.raises(ApprovalExpired, match="expired before consumption"):
         ledger.consume(
-            verified,
+            approval,
+            keyring={("KTY137", "owner-key-1"): SECRET},
+            expectation=_expectation(),
             promotion_id="promotion-expired",
+            verified_at=NOW + timedelta(seconds=1),
             consumed_at=NOW + timedelta(minutes=10),
         )
     assert not ledger.consumed(verified.approval_sha256)
@@ -210,18 +232,31 @@ def test_expiry_is_rechecked_at_atomic_consumption(tmp_path) -> None:
 def test_consumption_digest_is_persisted_and_promotion_id_is_bounded(tmp_path) -> None:
     import sqlite3
 
-    verified = _verify(_approval())
+    approval = _approval()
+    verified = _verify(approval)
     path = tmp_path / "approvals.sqlite3"
     ledger = ApprovalLedger(path)
-    consumed = ledger.consume(verified, promotion_id="promotion-001", consumed_at=NOW)
+    consumed = _consume(ledger, approval, promotion_id="promotion-001")
     with sqlite3.connect(path) as connection:
         row = connection.execute(
             "SELECT capability_sha256, consumption_sha256 FROM owner_approval_consumptions"
         ).fetchone()
     assert row == (verified.digest, consumed.consumption_sha256)
-    other = _verify(_approval(approval_id="approval-002", nonce="nonce-002"))
+    other = _approval(approval_id="approval-002", nonce="nonce-002")
     with pytest.raises(ValueError, match="promotion_id"):
-        ledger.consume(other, promotion_id=" invalid ", consumed_at=NOW)
+        _consume(ledger, other, promotion_id=" invalid ")
+
+
+def test_public_consumption_refuses_a_fabricated_verified_dataclass(tmp_path) -> None:
+    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
+    with pytest.raises(ApprovalSignatureError, match="signed OwnerApproval"):
+        ledger.consume(
+            _verify(_approval()),
+            keyring={("KTY137", "owner-key-1"): SECRET},
+            expectation=_expectation(),
+            promotion_id="promotion-forged",
+            consumed_at=NOW + timedelta(seconds=2),
+        )
 
 
 def test_issue_and_verify_cli_are_stdout_only(tmp_path, monkeypatch, capsys) -> None:

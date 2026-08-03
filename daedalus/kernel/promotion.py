@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from daedalus.kernel.approvals import ConsumedOwnerApproval
-from daedalus.schemas import EvidencePacket, _identifier, _revision, _sha256
+from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
+from daedalus.schemas import EvidencePacket, _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
 
@@ -104,6 +104,16 @@ def authorize_promotion(
         raise PromotionAuthorizationError("promotion requires a consumed OwnerApproval")
     if not isinstance(evidence_packet, EvidencePacket):
         raise PromotionAuthorizationError("promotion requires a canonical EvidencePacket")
+    try:
+        ledger_path = Path(consumed_approval.ledger_path)
+        if not ledger_path.is_absolute():
+            raise ValueError("approval ledger locator must be absolute")
+        approval_ledger = ApprovalLedger(ledger_path)
+        consumed_approval = approval_ledger.verify_consumed(consumed_approval)
+    except Exception as exc:
+        raise PromotionAuthorizationError(
+            f"approval consumption is not authentic: {type(exc).__name__}: {exc}"
+        ) from exc
     verified = consumed_approval.verified
     candidate_sha = candidate_batch_sha256(candidates)
     packet_sha = evidence_packet.digest
@@ -112,7 +122,6 @@ def authorize_promotion(
 
     comparisons = {
         "operation": (verified.operation, "promote-candidate"),
-        "promotion_id": (consumed_approval.promotion_id, consumed_approval.promotion_id),
         "candidate_approval": (verified.candidate_artifact_sha256, candidate_sha),
         "candidate_packet": (evidence_packet.candidate_artifact_sha256, candidate_sha),
         "subject_packet": (evidence_packet.subject_sha256, candidate_sha),

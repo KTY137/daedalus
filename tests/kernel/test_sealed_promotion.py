@@ -11,8 +11,8 @@ from daedalus.kairos.gated_writes import GatedCandidate, promote_candidates
 from daedalus.kernel.approvals import (
     ApprovalExpectation,
     ApprovalLedger,
+    ConsumedOwnerApproval,
     issue_owner_approval,
-    verify_owner_approval,
 )
 from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
@@ -127,23 +127,25 @@ def _consumed(candidate_sha: str, packet: EvidencePacket, revision: str, target:
         ),
         secret=SECRET,
     )
-    verified = verify_owner_approval(
+    expectation = ApprovalExpectation(
+        operation="promote-candidate",
+        nomination_receipt_sha256=nomination,
+        candidate_artifact_sha256=candidate_sha,
+        evidence_packet_sha256=packet.digest,
+        base_revision=revision,
+        target_ref="experimental",
+        current_target_revision=target,
+    )
+    ledger = ApprovalLedger(tmp_path / "approval.sqlite3")
+    consumed = ledger.consume(
         approval,
         keyring={("KTY137", "owner-key"): SECRET},
-        expectation=ApprovalExpectation(
-            operation="promote-candidate",
-            nomination_receipt_sha256=nomination,
-            candidate_artifact_sha256=candidate_sha,
-            evidence_packet_sha256=packet.digest,
-            base_revision=revision,
-            target_ref="experimental",
-            current_target_revision=target,
-        ),
-        now=NOW + timedelta(seconds=1),
+        expectation=expectation,
+        promotion_id="promotion-001",
+        verified_at=NOW + timedelta(seconds=1),
+        consumed_at=NOW + timedelta(seconds=2),
     )
-    return ApprovalLedger(tmp_path / "approval.sqlite3").consume(
-        verified, promotion_id="promotion-001", consumed_at=NOW + timedelta(seconds=2)
-    )
+    return ledger, consumed
 
 
 def test_authorization_binds_consumed_approval_packet_batch_and_live_head(tmp_path: Path) -> None:
@@ -152,7 +154,7 @@ def test_authorization_binds_consumed_approval_packet_batch_and_live_head(tmp_pa
     candidates = [_candidate(revision)]
     candidate_sha = candidate_batch_sha256(candidates)
     packet = _packet(candidate_sha, revision)
-    consumed = _consumed(candidate_sha, packet, revision, target, tmp_path)
+    ledger, consumed = _consumed(candidate_sha, packet, revision, target, tmp_path)
 
     auth = authorize_promotion(
         consumed_approval=consumed,
@@ -173,7 +175,7 @@ def test_authorization_refuses_every_stale_binding(tmp_path: Path, mutation: str
     candidates = [_candidate(revision)]
     candidate_sha = candidate_batch_sha256(candidates)
     packet = _packet(candidate_sha, revision)
-    consumed = _consumed(candidate_sha, packet, revision, target, tmp_path)
+    ledger, consumed = _consumed(candidate_sha, packet, revision, target, tmp_path)
 
     if mutation == "candidate":
         candidates = [_candidate(revision, suffix="changed")]
@@ -210,7 +212,9 @@ def test_public_promotion_rechecks_head_before_worktree_or_lock(tmp_path: Path, 
     candidates = [_candidate(revision)]
     candidate_sha = candidate_batch_sha256(candidates)
     packet = _packet(candidate_sha, revision)
-    consumed = _consumed(candidate_sha, packet, revision, "f" * 40, tmp_path)
+    ledger, consumed = _consumed(
+        candidate_sha, packet, revision, "f" * 40, tmp_path
+    )
 
     class ForbiddenManager:
         def __init__(self, *_args, **_kwargs):
@@ -229,3 +233,40 @@ def test_public_promotion_rechecks_head_before_worktree_or_lock(tmp_path: Path, 
     assert report["integration_branch"] is None
     assert report["authorization"] is None
     assert "target_head" in report["refused"][0]["reason"]
+
+
+def test_fabricated_consumption_capability_cannot_enter_promotion(
+    tmp_path: Path,
+) -> None:
+    revision = "a" * 40
+    target = "b" * 40
+    candidates = [_candidate(revision)]
+    candidate_sha = candidate_batch_sha256(candidates)
+    packet = _packet(candidate_sha, revision)
+    _ledger, consumed = _consumed(
+        candidate_sha, packet, revision, target, tmp_path
+    )
+
+    consumed_at = (NOW + timedelta(seconds=3)).isoformat(timespec="microseconds")
+    record = {
+        **consumed.verified.to_dict(),
+        "promotion_id": "promotion-fabricated",
+        "consumed_at": consumed_at,
+    }
+    empty_ledger = ApprovalLedger(tmp_path / "empty-approval.sqlite3")
+    fabricated = ConsumedOwnerApproval(
+        verified=consumed.verified,
+        promotion_id="promotion-fabricated",
+        consumed_at=consumed_at,
+        consumption_sha256=canonical_sha(record),
+        ledger_path=str(empty_ledger.path.resolve()),
+    )
+
+    with pytest.raises(PromotionAuthorizationError, match="not authentic"):
+        authorize_promotion(
+            consumed_approval=fabricated,
+            evidence_packet=packet,
+            candidates=candidates,
+            target_ref="experimental",
+            live_target_revision=target,
+        )

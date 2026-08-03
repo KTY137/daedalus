@@ -8,6 +8,7 @@ canonical wire contracts remain in :mod:`daedalus.schemas`.
 from .contracts import OwnerApproval
 from .approvals import (
     ApprovalBindingMismatch,
+    ApprovalConsumptionMismatch,
     ApprovalExpired,
     ConsumedOwnerApproval,
     ApprovalLedger,
@@ -21,6 +22,7 @@ from .approvals import (
 
 __all__ = [
     "ApprovalBindingMismatch",
+    "ApprovalConsumptionMismatch",
     "ApprovalExpired",
     "ConsumedOwnerApproval",
     "ApprovalExpectation",

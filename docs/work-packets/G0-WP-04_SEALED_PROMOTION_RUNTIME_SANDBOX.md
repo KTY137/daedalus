@@ -34,6 +34,30 @@ Close three high-risk Gate-0 gaps without claiming Gate-0 closure:
 - the candidate workspace is the only read-write bind;
 - the primary checkout is not mutated by any test.
 
+## 2026-08-03 integration correction: persisted approval authenticity
+
+The original boundary accepted a `ConsumedOwnerApproval` dataclass whose
+fields matched the candidate and evidence, but did not prove that this exact
+consumption existed in the approval ledger. A caller could construct that
+Python value directly and reach promotion authorization.
+
+The corrected boundary treats capability objects as evidence transport, not
+authority:
+
+- public consumption accepts the signed `OwnerApproval` contract and performs
+  signature, expiry, and expectation verification inside the persistence
+  boundary;
+- public consumption never accepts a caller-created
+  `VerifiedOwnerApproval`;
+- promotion recomputes the capability and consumption digests and compares all
+  bound fields to the exact persisted row before entering the worktree path;
+- a missing, corrupt, substituted, or internally inconsistent ledger record
+  refuses promotion.
+
+The approval tables still need consolidation under the canonical Spine/Event
+Store authority before Gate-0 closure. This correction closes the dataclass
+forgery path; it does not bless another independent production ledger.
+
 ## Deliberate non-goals
 
 - migrating every production entrypoint to a central effect lease;
