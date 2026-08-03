@@ -53,8 +53,8 @@ def main() -> int:
         ),
         (
             "case-sensitive-metadata-filter",
-            "                    if name.casefold() not in ignored_casefold\n",
-            "                    if name not in set(ignored)\n",
+            "                dirnames[:] = sorted(\n                    name\n                    for name in dirnames\n                    if name.casefold() not in ignored_casefold\n                )\n",
+            "                dirnames[:] = sorted(\n                    name\n                    for name in dirnames\n                    if name not in set(ignored)\n                )\n",
         ),
         (
             "allow-symlink-source-file",
