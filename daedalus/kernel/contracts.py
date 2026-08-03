@@ -423,9 +423,9 @@ class OffloadExecutionPlan(CanonicalContract):
             raise ValueError("offload execution plan write_mode must be 'write'")
 
         targets = _sorted_strings(self.target_paths, "target_paths", paths=True)
-        if not targets or "." in targets:
+        if len(targets) != 1 or "." in targets:
             raise ValueError(
-                "offload execution plan requires non-empty, bounded target paths"
+                "Gate-0 offload execution plan requires exactly one bounded target path"
             )
         object.__setattr__(self, "target_paths", targets)
 

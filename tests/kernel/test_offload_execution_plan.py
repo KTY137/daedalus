@@ -79,7 +79,7 @@ def _plan(**overrides: object) -> OffloadExecutionPlan:
 
 
 def test_plan_is_immutable_canonical_and_roundtrips_without_type_drift() -> None:
-    target_paths = ["src\\package\\module.py", "docs//guide.md"]
+    target_paths = ["src\\package\\module.py"]
     tool_argv = ["python", "-m", "daedalus.tools.vet", "src/package/module.py"]
     scope = EffectScope(
         read_only=False,
@@ -102,7 +102,7 @@ def test_plan_is_immutable_canonical_and_roundtrips_without_type_drift() -> None
     target_paths.append("src/late-mutation.py")
     tool_argv.append("--unsafe")
 
-    assert plan.target_paths == ("docs/guide.md", "src/package/module.py")
+    assert plan.target_paths == ("src/package/module.py",)
     assert plan.provider_endpoint == "http://127.0.0.1:11434"
     assert plan.tool_argv == (
         "python",
@@ -204,6 +204,12 @@ def test_digest_tampering_requires_provenance_rebinding_and_breaks_sealed_digest
         (
             lambda body: body.update(max_model_calls=2),
             "max_model_calls",
+        ),
+        (
+            lambda body: body.update(
+                target_paths=["src/package/module.py", "docs/guide.md"]
+            ),
+            "exactly one",
         ),
     ),
 )
