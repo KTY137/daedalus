@@ -71,3 +71,19 @@ __all__ += [
     "issue_effect_lease",
     "verify_effect_lease",
 ]
+
+from .promotion import (
+    PromotionAuthorization,
+    PromotionAuthorizationError,
+    PromotionBindingMismatch,
+    PromotionEvidenceError,
+    authorize_fourfold_promotion,
+)
+
+__all__ += [
+    "PromotionAuthorization",
+    "PromotionAuthorizationError",
+    "PromotionBindingMismatch",
+    "PromotionEvidenceError",
+    "authorize_fourfold_promotion",
+]
