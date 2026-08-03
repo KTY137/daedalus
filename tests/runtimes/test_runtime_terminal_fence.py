@@ -15,6 +15,7 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.runtimes.broker import (
+    RuntimeProviderBindingMismatch,
     RuntimeProviderTrustFenceError,
     run_runtime_provider,
 )
@@ -156,6 +157,9 @@ class FenceLedger:
 class FenceAuthorization:
     def __init__(self, ledger: FenceLedger) -> None:
         self.runtime_trust_ledger = ledger
+        self.effect_ledger = SimpleNamespace(
+            path=ledger.path.with_name("effect-leases.sqlite3")
+        )
         self.request = SimpleNamespace(entrypoint_id=ENTRYPOINT)
         self.capability = SimpleNamespace(
             lease=SimpleNamespace(entrypoint_id=ENTRYPOINT),
@@ -227,6 +231,24 @@ class FenceAuthorization:
         )
 
 
+def test_runtime_trust_and_effect_ledgers_must_be_distinct(tmp_path: Path) -> None:
+    ledger = FenceLedger(tmp_path / "shared.sqlite3")
+    authorization = FenceAuthorization(ledger)
+    authorization.effect_ledger.path = ledger.path
+
+    with pytest.raises(RuntimeProviderBindingMismatch, match="distinct SQLite"):
+        run_runtime_provider(
+            ENTRYPOINT,
+            authorization=authorization,  # type: ignore[arg-type]
+            execution=_execution(),
+            invoke=lambda: {"must": "not run"},
+            output_digests=lambda value: (OUTPUT_SHA,),
+        )
+
+    assert authorization.verify_calls == 0
+    assert authorization.finish_calls == []
+
+
 def test_quarantine_waits_until_completed_receipt_is_durable(tmp_path: Path) -> None:
     ledger = FenceLedger(tmp_path / "runtime-trust.sqlite3")
     authorization = FenceAuthorization(ledger)
@@ -267,6 +289,8 @@ def test_quarantine_waits_until_completed_receipt_is_durable(tmp_path: Path) -> 
     broker_thread.join(timeout=5)
     quarantine_thread.join(timeout=5)
 
+    assert not broker_thread.is_alive()
+    assert not quarantine_thread.is_alive()
     assert not error_box
     result = result_box["result"]
     assert result.executed is True  # type: ignore[union-attr]
