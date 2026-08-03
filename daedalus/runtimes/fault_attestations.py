@@ -6,9 +6,10 @@ record to the canonical fault catalog, exact source revision, authority class,
 issuer/key identity, nonce, and bounded validity window. HMAC keys are supplied
 by the caller and are never read from repository configuration.
 
-The resulting helper does not create test evidence. It only verifies already
-retained observations and attestations, then delegates completeness and outcome
-checks to :func:`verify_runtime_fault_matrix`.
+The resulting helper does not create test evidence. It verifies already retained
+observations and attestations, delegates completeness/outcome checks to the
+canonical matrix verifier, and returns a content-addressed receipt retaining the
+exact attestation digests and verification time.
 """
 from __future__ import annotations
 
@@ -200,6 +201,55 @@ class RuntimeFaultAttestation:
         return cls(**_strict_payload(payload, cls, "runtime fault attestation"))
 
 
+@dataclass(frozen=True)
+class AttestedRuntimeFaultVerification:
+    """Content-addressed result retaining the exact trust derivation."""
+
+    fault_verification: RuntimeFaultVerification
+    attestation_sha256s: tuple[str, ...]
+    verified_at: str
+
+    def __post_init__(self) -> None:
+        rows = tuple(
+            sorted(
+                _sha256(value, f"attestation_sha256s[{index}]")
+                for index, value in enumerate(self.attestation_sha256s)
+            )
+        )
+        if len(rows) != len(set(rows)):
+            raise ValueError("attestation digests must be unique")
+        if len(rows) != len(self.fault_verification.trusted_observation_sha256s):
+            raise ValueError(
+                "attestation digests must map one-to-one to trusted observations"
+            )
+        object.__setattr__(self, "attestation_sha256s", rows)
+        object.__setattr__(self, "verified_at", _timestamp(self.verified_at, "verified_at"))
+
+    @property
+    def closed(self) -> bool:
+        return self.fault_verification.closed
+
+    @property
+    def blockers(self) -> tuple[str, ...]:
+        return self.fault_verification.blockers
+
+    @property
+    def trusted_observation_sha256s(self) -> tuple[str, ...]:
+        return self.fault_verification.trusted_observation_sha256s
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fault_verification": self.fault_verification.to_dict(),
+            "attestation_sha256s": list(self.attestation_sha256s),
+            "verified_at": self.verified_at,
+            "closed": self.closed,
+        }
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
 def issue_runtime_fault_attestation(
     observation: RuntimeFaultObservation,
     *,
@@ -318,7 +368,8 @@ def verify_attested_runtime_fault_matrix(
     keyring: Mapping[tuple[str, str], bytes],
     issuer_authorities: Mapping[str, Sequence[str]],
     now: datetime,
-) -> RuntimeFaultVerification:
+) -> AttestedRuntimeFaultVerification:
+    current = _normalize_now(now)
     if isinstance(attestations, (str, bytes)):
         raise ValueError("attestations must be an array")
     rows = tuple(attestations)
@@ -336,6 +387,7 @@ def verify_attested_runtime_fault_matrix(
 
     observations = {row.scenario_id: row for row in matrix.observations}
     trusted: list[str] = []
+    verified_attestations: list[str] = []
     for attestation in sorted(rows, key=lambda row: row.scenario_id):
         observation = observations.get(attestation.scenario_id)
         if observation is None:
@@ -350,19 +402,26 @@ def verify_attested_runtime_fault_matrix(
                 expected_source_revision=expected_source_revision,
                 keyring=keyring,
                 issuer_authorities=issuer_authorities,
-                now=now,
+                now=current,
             )
         )
+        verified_attestations.append(attestation.digest)
 
-    return verify_runtime_fault_matrix(
+    fault_verification = verify_runtime_fault_matrix(
         matrix,
         catalog=catalog,
         expected_source_revision=expected_source_revision,
         trusted_observation_digests=tuple(trusted),
     )
+    return AttestedRuntimeFaultVerification(
+        fault_verification=fault_verification,
+        attestation_sha256s=tuple(verified_attestations),
+        verified_at=current.isoformat(timespec="microseconds"),
+    )
 
 
 __all__ = [
+    "AttestedRuntimeFaultVerification",
     "RuntimeFaultAttestation",
     "RuntimeFaultAttestationBindingMismatch",
     "RuntimeFaultAttestationError",
