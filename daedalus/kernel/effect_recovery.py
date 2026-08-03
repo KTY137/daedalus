@@ -275,9 +275,29 @@ def verify_external_effect_observation(
             start_receipt.receipt_sha256,
         ),
         "start_execution_id": (start_receipt.execution_id, execution.execution_id),
+        "start_idempotency_key": (
+            start_receipt.idempotency_key,
+            execution.idempotency_key,
+        ),
+        "start_execution_request_sha256": (
+            start_receipt.execution_request_sha256,
+            execution.digest,
+        ),
         "source_revision": (
             observation.provenance.source_revision,
             _revision(expected_source_revision, "expected_source_revision"),
+        ),
+        "provenance_origin": (
+            observation.provenance.origin,
+            "kernel.external-effect-observation",
+        ),
+        "provenance_created_at": (
+            observation.provenance.created_at,
+            observation.observed_at,
+        ),
+        "provenance_trace_id": (
+            observation.provenance.trace_id,
+            execution.execution_id,
         ),
     }
     mismatches = sorted(name for name, pair in comparisons.items() if pair[0] != pair[1])
@@ -345,8 +365,6 @@ def _terminal_from_row(row: sqlite3.Row) -> EffectTerminalReceipt:
         )
         receipt = EffectTerminalReceipt(**values)
     except (TypeError, ValueError) as exc:
-        if isinstance(exc, EffectRecoveryStateError):
-            raise
         raise EffectRecoveryStateError("terminal receipt is malformed") from exc
     body = receipt.to_dict()
     claimed = body.pop("receipt_sha256")
