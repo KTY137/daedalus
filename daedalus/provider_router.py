@@ -27,11 +27,12 @@ import logging
 import os
 from dataclasses import dataclass
 
-from .config import external_write_lanes_for_repo
+from .config import KNOWN_EXTERNAL_WRITE_LANES, external_write_lanes_for_repo
 from .providers import available_providers
 from .providers.personas import culture, persona_for
 from .semantic_route import FALLBACK, LATENT, semantic_route_explained
 from .sensitivity import Policy, change_risk, classify_data
+from .structcore import graph as _structcore_graph
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,24 @@ FENCE_DOMINANCE_THRESHOLD = 0.75
 # 3-module repo costs three Claude calls. Below this many candidate modules the
 # fraction is ignored and the fence stays UP.
 FENCE_DOMINANCE_MIN_SAMPLE = 20
+
+# Frozen planning does not inspect the live filesystem to infer whether a path
+# missing from StructCore is a genuinely new file or a stale/mis-scoped index.
+# The source-artifact step supplies one of these facts for every target path.
+FROZEN_PATH_INDEXED = "indexed"
+FROZEN_PATH_ABSENT = "absent"
+FROZEN_PATH_PRESENT_UNINDEXED = "present-unindexed"
+FROZEN_PATH_UNREADABLE = "unreadable"
+FROZEN_PATH_STATES = frozenset({
+    FROZEN_PATH_INDEXED,
+    FROZEN_PATH_ABSENT,
+    FROZEN_PATH_PRESENT_UNINDEXED,
+    FROZEN_PATH_UNREADABLE,
+})
+
+
+class FrozenRoutingInputError(ValueError):
+    """A supposedly frozen routing input is missing or self-contradictory."""
 
 
 def _deepseek_write_allowed(
@@ -159,9 +178,17 @@ class ProviderDecision:
     # would read the same to every caller, which is how the capability went quiet
     # the first time.
     latent_route: dict | None = None
+    # Frozen planning resolves presentation data before entering the pure leaf.
+    # Legacy callers leave this None and retain the personas.json-backed lookup.
+    resolved_culture: str | None = None
+    # A non-authoritative receipt projection of the frozen observations used by
+    # :func:`select_provider_frozen`. It grants no runtime or effect capability.
+    frozen_route: dict | None = None
 
     @property
     def culture(self) -> str:
+        if self.resolved_culture is not None:
+            return self.resolved_culture
         return culture(self.provider)
 
     def as_dict(self) -> dict:
@@ -178,6 +205,8 @@ class ProviderDecision:
             out["reachability"] = self.reachability
         if self.latent_route is not None:
             out["latent_route"] = self.latent_route
+        if self.frozen_route is not None:
+            out["frozen_route"] = dict(self.frozen_route)
         return out
 
 
@@ -226,6 +255,7 @@ def _reachability_precheck(
     policy: Policy | None,
     repo_root: str | None,
     idx: dict | None,
+    path_states: dict[str, str] | None = None,
 ) -> dict | None:
     """Ask the import graph whether any edited path FEEDS a fenced module.
 
@@ -253,7 +283,7 @@ def _reachability_precheck(
     try:
         return _reachability_verdict(
             paths, (policy or DEFAULT_POLICY).high_risk_path_substrings,
-            repo_root, idx, verdict)
+            repo_root, idx, verdict, path_states=path_states)
     except Exception as exc:                       # noqa: BLE001 - see docstring
         verdict["error"] = f"{type(exc).__name__}: {exc}"
         verdict["escalate"] = True
@@ -264,14 +294,48 @@ def _reachability_precheck(
 
 
 def _reachability_verdict(paths: list[str], fenced, repo_root: str | None,
-                          idx: dict | None, verdict: dict) -> dict:
+                          idx: dict | None, verdict: dict, *,
+                          path_states: dict[str, str] | None = None) -> dict:
     """The traversal itself. Raises freely; ``_reachability_precheck`` owns the
     fail-closed translation of any failure into an escalation."""
-    from .structcore import graph as _graph
+    _graph = _structcore_graph
 
     if idx is None:
         from .structcore.index import cached_index
         idx = cached_index(repo_root)
+
+    roots = tuple(r for r in (str(idx.get("root") or ""), str(repo_root or "")) if r)
+
+    # A frozen planner must not rediscover path existence from the live
+    # checkout. Check the source-artifact facts before the dominance shortcut:
+    # otherwise a dominant graph could stand the fence down before noticing a
+    # stale/unreadable target. Every contradiction fails closed and no stat is
+    # performed here.
+    if path_states is not None:
+        for raw in paths:
+            rel = _index_rel(raw, roots)
+            state = path_states.get(rel)
+            known = _graph.canonical_node(idx, rel) is not None
+            reason = None
+            if state is None:
+                reason = f"frozen source fact missing for '{rel}'"
+            elif state not in FROZEN_PATH_STATES:
+                reason = f"invalid frozen source fact {state!r} for '{rel}'"
+            elif state == FROZEN_PATH_UNREADABLE:
+                reason = f"frozen source state for '{rel}' is unreadable"
+            elif state == FROZEN_PATH_PRESENT_UNINDEXED:
+                reason = f"'{rel}' is present but absent from the frozen StructCore index"
+            elif state == FROZEN_PATH_INDEXED and not known:
+                reason = f"'{rel}' is declared indexed but the frozen graph has no node"
+            elif state == FROZEN_PATH_ABSENT and known:
+                reason = f"'{rel}' is declared absent but the frozen graph contains it"
+            if reason is not None:
+                if not known:
+                    verdict["unresolved"].append(rel)
+                verdict["unresolved"] = sorted(set(verdict["unresolved"]))
+                verdict["escalate"] = True
+                verdict["reason"] = f"{reason}; dependents are unproven -> trusted lane"
+                return verdict
 
     # A DEGENERATE index is the fail-open trap here: pointing at something that
     # is not a repo does not RAISE, it returns an index with no modules, and
@@ -301,7 +365,6 @@ def _reachability_verdict(paths: list[str], fenced, repo_root: str | None,
             "stood down, path-local risk only")
         return verdict
 
-    roots = tuple(r for r in (str(idx.get("root") or ""), str(repo_root or "")) if r)
     best: tuple | None = None
     for raw in paths:
         rel = _index_rel(raw, roots)
@@ -322,7 +385,7 @@ def _reachability_verdict(paths: list[str], fenced, repo_root: str | None,
             # from the graph -- a mis-scoped repo_root or a stale index. There
             # the graph is wrong about the repo, not silent about a non-module,
             # and its silence must not be read as a clean bill of health.
-            if _looks_like_missed_source(raw, rel, roots):
+            if path_states is None and _looks_like_missed_source(raw, rel, roots):
                 verdict["escalate"] = True
                 verdict["reason"] = (
                     f"'{rel}' exists on disk but is absent from the blast-radius "
@@ -358,6 +421,10 @@ def select_provider(
     policy: Policy | None = None,
     repo_root: str | None = None,
     idx: dict | None = None,
+    resolved_external_write_lanes: tuple[str, ...] | None = None,
+    resolved_ollama_lane: str | None = None,
+    resolved_persona: str | None = None,
+    path_states: dict[str, str] | None = None,
 ) -> ProviderDecision:
     """``repo_root`` (or a pre-built ``idx``) is what turns on the SAFETY-CLASS
     REACHABILITY check: the literal path fence in ``change_risk`` only asks "is
@@ -373,7 +440,8 @@ def select_provider(
     # already-high task it cannot change the outcome and would just cost a scan.
     reach = None
     if risk != "high":
-        reach = _reachability_precheck(paths, policy, repo_root, idx)
+        reach = _reachability_precheck(
+            paths, policy, repo_root, idx, path_states=path_states)
         if reach and reach["escalate"]:
             risk = "high"
     review_only = _is_review_only(objective)
@@ -384,19 +452,36 @@ def select_provider(
     # opted in -- including every caller that passes no repo_root, so absence
     # keeps the pre-toggle routing exactly. Every failure mode inside the
     # resolver (no file, bad JSON, unknown lane name) also lands on empty.
-    write_lanes = external_write_lanes_for_repo(repo_root)
+    write_lanes = (
+        resolved_external_write_lanes
+        if resolved_external_write_lanes is not None
+        else external_write_lanes_for_repo(repo_root)
+    )
+
+    def persona(provider: str) -> str:
+        if resolved_persona is not None:
+            return resolved_persona
+        return persona_for(provider, name)
+
+    def ollama_lane() -> str:
+        if resolved_ollama_lane is not None:
+            return resolved_ollama_lane
+        from .sensitivity import lane_for_host
+
+        ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+        return lane_for_host(ollama_host)
 
     def decide(provider: str, reason: str) -> ProviderDecision:
         # Any provider that is chosen but unreachable degrades to Claude.
         if provider != "claude_cli" and not avail.get(provider, False):
             return ProviderDecision(
-                "claude_cli", "write", persona_for("claude_cli", name),
+                "claude_cli", "write", persona("claude_cli"),
                 f"{provider} unavailable; fell back to Claude ({reason})",
                 data.sensitive, risk, reach,
             )
         return ProviderDecision(
             provider, _mode(provider, review_only, risk, write_lanes),
-            persona_for(provider, name),
+            persona(provider),
             reason, data.sensitive, risk, reach,
         )
 
@@ -421,19 +506,17 @@ def select_provider(
         if reach and reach["escalate"]:
             return decide("claude_cli", reach["reason"])
         if avail.get("ollama", False):
-            from .sensitivity import lane_for_host
-            ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-            if lane_for_host(ollama_host) == "trusted":
+            if ollama_lane() == "trusted":
                 if review_only:
                     return ProviderDecision(
-                        "ollama", "advisory", persona_for("ollama", name),
+                        "ollama", "advisory", persona("ollama"),
                         f"role '{name}' is trusted-only and the local bench IS "
                         "the trusted lane (advisory review)",
                         data.sensitive, risk, reach,
                     )
                 if risk == "low":
                     return ProviderDecision(
-                        "ollama", "write", persona_for("ollama", name),
+                        "ollama", "write", persona("ollama"),
                         f"role '{name}' is trusted-only and the local bench IS "
                         "the trusted lane (low-risk write)",
                         data.sensitive, risk, reach,
@@ -477,9 +560,7 @@ def select_provider(
     # on an untrusted or absent bench the old order stands, and MID risk still
     # prefers the smarter advisory voice.
     if (risk == "low" and not review_only and avail.get("ollama", False)):
-        from .sensitivity import lane_for_host as _lane
-        if _lane(os.environ.get("OLLAMA_HOST",
-                                "http://127.0.0.1:11434")) == "trusted":
+        if ollama_lane() == "trusted":
             return decide("ollama",
                           "non-sensitive low -> trusted bench writes for free")
     # Opted-in external WRITE lane, second only to the free bench: a paid lane
@@ -498,6 +579,134 @@ def select_provider(
     if avail.get("ollama", False):
         return decide("ollama", "non-sensitive low/mid -> local bench")
     return decide("codex_cli", "non-sensitive low/mid -> Codex CLI (bench down)")
+
+
+def select_provider_frozen(
+    agent: dict,
+    objective: str,
+    paths: list[str] | tuple[str, ...],
+    *,
+    policy: Policy,
+    availability: dict[str, bool],
+    ollama_endpoint: str,
+    ollama_lane: str,
+    external_write_lanes: tuple[str, ...],
+    idx: dict,
+    path_states: dict[str, str],
+) -> ProviderDecision:
+    """Select a provider using only caller-supplied frozen observations.
+
+    This is a pure planning leaf, not an authority source. The caller must
+    obtain and bind the role, policy, provider observation, endpoint lane,
+    StructCore artifact, and target-path facts before entering it; execution
+    still requires the canonical policy/effect boundary.
+
+    Unlike :func:`select_provider`, this function never reads environment
+    variables, role/persona/policy files, or live path existence; it never
+    probes a provider, builds/caches an index, logs, starts a process, or opens
+    a network connection. A target that is present but missing from the graph
+    escalates to the trusted lane. An unreadable target or missing fact is a
+    malformed frozen observation and is refused before selection.
+    """
+    if not isinstance(agent, dict):
+        raise FrozenRoutingInputError("agent must be a frozen role mapping")
+    name = agent.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise FrozenRoutingInputError("frozen agent has no non-empty name")
+    if type(agent.get("external_ok")) is not bool:
+        raise FrozenRoutingInputError("frozen agent.external_ok must be boolean")
+    frozen_agent = dict(agent)
+
+    if not isinstance(objective, str) or not objective.strip():
+        raise FrozenRoutingInputError("objective must be non-empty text")
+    if isinstance(paths, (str, bytes)) or not isinstance(paths, (list, tuple)):
+        raise FrozenRoutingInputError("paths must be a frozen path sequence")
+    frozen_paths = list(paths)
+    if any(not isinstance(path, str) or not path for path in frozen_paths):
+        raise FrozenRoutingInputError("every frozen target path must be non-empty text")
+
+    if not isinstance(policy, Policy):
+        raise FrozenRoutingInputError("policy must be an explicit Policy value")
+    expected_providers = {"claude_cli", "ollama", "deepseek", "codex_cli"}
+    if not isinstance(availability, dict) or set(availability) != expected_providers:
+        raise FrozenRoutingInputError(
+            "availability must exactly cover claude_cli, ollama, deepseek, and codex_cli"
+        )
+    if any(type(value) is not bool for value in availability.values()):
+        raise FrozenRoutingInputError("every availability observation must be boolean")
+    frozen_availability = dict(availability)
+
+    if not isinstance(ollama_endpoint, str) or not ollama_endpoint.strip():
+        raise FrozenRoutingInputError("ollama_endpoint must be explicit")
+    if ollama_lane not in {"trusted", "untrusted"}:
+        raise FrozenRoutingInputError("ollama_lane must be trusted or untrusted")
+    if not isinstance(external_write_lanes, tuple):
+        raise FrozenRoutingInputError("external_write_lanes must be a frozen tuple")
+    unknown_lanes = sorted(set(external_write_lanes) - set(KNOWN_EXTERNAL_WRITE_LANES))
+    if unknown_lanes:
+        raise FrozenRoutingInputError(
+            f"unknown frozen external write lane(s): {unknown_lanes}"
+        )
+    frozen_write_lanes = tuple(
+        lane for lane in KNOWN_EXTERNAL_WRITE_LANES if lane in external_write_lanes
+    )
+
+    if not isinstance(idx, dict):
+        raise FrozenRoutingInputError("idx must be a precomputed StructCore index")
+    if not isinstance(path_states, dict):
+        raise FrozenRoutingInputError("path_states must be an explicit mapping")
+    roots = tuple(r for r in (str(idx.get("root") or ""),) if r)
+    frozen_path_states: dict[str, str] = {}
+    for raw in frozen_paths:
+        rel = _index_rel(raw, roots)
+        if rel not in path_states:
+            raise FrozenRoutingInputError(f"frozen source fact missing for '{rel}'")
+        state = path_states[rel]
+        if state not in FROZEN_PATH_STATES:
+            raise FrozenRoutingInputError(
+                f"invalid frozen source fact {state!r} for '{rel}'"
+            )
+        if state == FROZEN_PATH_UNREADABLE:
+            raise FrozenRoutingInputError(
+                f"frozen source state for '{rel}' is unreadable"
+            )
+        frozen_path_states[rel] = state
+
+    persona = frozen_agent.get("persona") or frozen_agent.get("call_name") or name
+    if not isinstance(persona, str) or not persona.strip():
+        raise FrozenRoutingInputError("frozen agent persona must be non-empty text")
+
+    decision = select_provider(
+        frozen_agent,
+        objective,
+        frozen_paths,
+        availability=frozen_availability,
+        policy=policy,
+        idx=idx,
+        resolved_external_write_lanes=frozen_write_lanes,
+        resolved_ollama_lane=ollama_lane,
+        resolved_persona=persona,
+        path_states=frozen_path_states,
+    )
+    # Avoid the personas.json-backed culture property during serialization.
+    # Culture/persona labels are presentation, not execution authority.
+    decision.resolved_culture = ""
+    decision.frozen_route = {
+        "agent": name,
+        "external_ok": frozen_agent["external_ok"],
+        "persona": persona,
+        "availability": {
+            provider: frozen_availability[provider]
+            for provider in sorted(frozen_availability)
+        },
+        "ollama_endpoint": ollama_endpoint,
+        "ollama_lane": ollama_lane,
+        "external_write_lanes": list(frozen_write_lanes),
+        "path_states": {
+            path: frozen_path_states[path] for path in sorted(frozen_path_states)
+        },
+    }
+    return decision
 
 
 def _latent_enabled(explicit: bool | None) -> bool:
@@ -707,8 +916,10 @@ def route_and_select(
     provenance outside this routing leaf. When supplied it is threaded into
     the reachability fence and no StructCore build/cache path is entered. The
     general entrypoint deliberately keeps its historical ``idx=None`` default;
-    callers that need an enforceable no-probe contract should use
-    :func:`route_and_select_precomputed` instead."""
+    :func:`route_and_select_precomputed` removes provider/index probes but still
+    reads ambient role, policy, endpoint, persona, and source-existence state.
+    Frozen planning resolves the role first and calls
+    :func:`select_provider_frozen` instead."""
     agent, keyword_agent, latent_receipt = _route_role(
         objective, paths or [], repo_root, active_agents, latent)
 
@@ -734,20 +945,21 @@ def route_and_select_precomputed(
     policy: Policy | None = None,
     active_agents: list[str] | None = None,
 ) -> tuple[dict, ProviderDecision]:
-    """Route from frozen local inputs without entering discovery/build paths.
+    """Route with precomputed availability/index, without provider discovery.
 
-    This is the planning-safe leaf for a caller that already owns both the
+    This is the compatibility leaf for a caller that already owns both the
     provider-availability observation and the StructCore index artifact. It
     always disables the latent embedding route, never probes providers, and
     supplies the precomputed index to the blast-radius fence, so routing cannot
     instantiate :class:`~daedalus.structcore.cache.FileCache`, start a process
     pool, contact an embedding/backend service, or run ``doctor``.
 
-    The contract is intentionally narrow rather than claiming global purity:
-    role, policy, and source-existence checks remain read-only filesystem
-    inputs. Index creation and freshness/revision validation belong to the
-    upstream artifact-producing step. The root binding below prevents a caller
-    from accidentally applying one repository's graph to another.
+    It is deliberately *not* the pure planning boundary: role, policy, endpoint
+    lane, persona, logging, and source-existence checks remain ambient inputs.
+    Use :func:`select_provider_frozen` after resolving those observations. Index
+    creation and freshness/revision validation remain upstream responsibilities;
+    the root binding below only prevents applying one repository's graph to
+    another by accident.
     """
     if not isinstance(availability, dict):
         raise TypeError("availability must be a precomputed provider mapping")
