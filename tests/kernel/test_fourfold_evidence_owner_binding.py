@@ -94,7 +94,9 @@ def _evidence(root: Path, revision: str = REVISION):
         details={
             "planes": [plane.plane for plane in snapshot.planes],
             "bindings": len(snapshot.bindings),
-            "snapshot_status": snapshot.status,
+            "all_planes_complete": all(
+                plane.status == "complete" for plane in snapshot.planes
+            ),
         },
     )
     packet_inputs = {
@@ -197,7 +199,7 @@ def test_real_fourfold_snapshot_binds_evidence_nomination_and_owner_approval() -
     compiled, candidate_sha, packet, nomination = _evidence(FIXTURE)
     snapshot = compiled.snapshot
 
-    assert snapshot.status == "complete"
+    assert all(plane.status == "complete" for plane in snapshot.planes)
     assert tuple(snapshot.plane_map) == ("code", "type", "data", "knowledge")
     assert len(snapshot.bindings) == 31
     assert packet.subject_sha256 == snapshot.digest
