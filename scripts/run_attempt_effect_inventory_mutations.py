@@ -46,7 +46,7 @@ def main() -> int:
         return Surface.PYTHON
 '''
     lifecycle_row = '''    EntrypointSpec(
-        id="python.attempt_lifecycle_begin",
+        id="kernel.attempt.begin",
         surface=Surface.PYTHON,
         target="daedalus.kernel.attempt_ledger:AttemptLedger.begin",
 '''
