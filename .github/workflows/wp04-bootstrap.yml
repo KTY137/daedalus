@@ -1,0 +1,41 @@
+name: WP04 bootstrap
+
+on:
+  push:
+    branches:
+      - g0/leased-attempts
+    paths:
+      - "tools/wp04_bootstrap.py"
+      - ".github/workflows/wp04-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/wp04_bootstrap.py
+      - run: python -m compileall -q daedalus tests/kernel/test_leased_attempts.py
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_leased_attempts.py
+          tests/kernel/test_effect_leases.py
+          tests/test_effect_boundary.py
+      - run: python tools/iron_plan_guard.py verify
+      - name: Commit materialized work packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "daedalus-work-packet"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(g0): add lease-gated isolated attempts"
+          git push origin HEAD:g0/leased-attempts
