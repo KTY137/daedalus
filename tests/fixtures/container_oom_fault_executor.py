@@ -31,14 +31,15 @@ from daedalus.runtimes.host_fault_runner import (
 )
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
-_REPORT_SCHEMA = "daedalus-container-oom-fault-report/2"
-_MARKER_SCHEMA = "daedalus-cgroup-oom-observation/1"
+_REPORT_SCHEMA = "daedalus-container-oom-fault-report/3"
+_MARKER_SCHEMA = "daedalus-cgroup-oom-observation/2"
 _SCENARIO_ID = "runtime.process.oom"
 _IMAGE_SHA256 = "6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df"
 _IMAGE = "python:3.12-alpine@sha256:" + _IMAGE_SHA256
 _MEMORY = "64m"
 _TIMEOUT_S = 30
 _OOM_OBSERVED_RETURNCODE = 70
+_CGROUP_UNAVAILABLE_RETURNCODE = 72
 _MAX_MARKER_BYTES = 4096
 
 
@@ -147,6 +148,9 @@ def _blocked_result(
     receipt=None,
     elapsed_ms: int = 0,
     started_marker_exists: bool = False,
+    marker: Mapping[str, Any] | None = None,
+    marker_status: str = "not-read",
+    marker_sha256: str | None = None,
 ) -> HostFaultResult:
     payload = {
         **_base_payload(
@@ -161,9 +165,9 @@ def _blocked_result(
             "receipt_sha256": receipt.digest,
         },
         "started_marker_exists": started_marker_exists,
-        "oom_marker_status": "not-read",
-        "oom_marker_sha256": None,
-        "oom_marker": None,
+        "oom_marker_status": marker_status,
+        "oom_marker_sha256": marker_sha256,
+        "oom_marker": marker,
         "host_fallback_observed": False,
     }
     return HostFaultResult(
@@ -190,13 +194,37 @@ def _allocation_command() -> tuple[str, ...]:
         "events_path = Path('/sys/fs/cgroup/memory.events')\n"
         "start_marker = Path('/workspace/oom-started')\n"
         "result_marker = Path('/workspace/oom-observed.json')\n"
+        "def write_result(payload):\n"
+        "    result_marker.write_text(\n"
+        "        json.dumps(payload, sort_keys=True, separators=(',', ':')),\n"
+        "        encoding='utf-8',\n"
+        "    )\n"
+        "def unsupported():\n"
+        "    write_result({\n"
+        "        'schema': 'daedalus-cgroup-oom-observation/2',\n"
+        "        'supported': False,\n"
+        "        'observed': False,\n"
+        "        'before_oom': 0,\n"
+        "        'after_oom': 0,\n"
+        "        'before_oom_kill': 0,\n"
+        "        'after_oom_kill': 0,\n"
+        "        'child_exitcode': None,\n"
+        "    })\n"
+        "    raise SystemExit(72)\n"
         "def read_events():\n"
         "    rows = {}\n"
         "    for line in events_path.read_text(encoding='utf-8').splitlines():\n"
         "        key, value = line.split()\n"
         "        rows[key] = int(value)\n"
         "    return rows\n"
-        "before = read_events()\n"
+        "if not events_path.is_file():\n"
+        "    unsupported()\n"
+        "try:\n"
+        "    before = read_events()\n"
+        "except (OSError, ValueError):\n"
+        "    unsupported()\n"
+        "if 'oom' not in before or 'oom_kill' not in before:\n"
+        "    unsupported()\n"
         "start_marker.write_text('started', encoding='utf-8')\n"
         "pid = os.fork()\n"
         "if pid == 0:\n"
@@ -224,19 +252,16 @@ def _allocation_command() -> tuple[str, ...]:
         "        break\n"
         "    time.sleep(0.05)\n"
         "after = read_events()\n"
-        "payload = {\n"
-        "    'schema': 'daedalus-cgroup-oom-observation/1',\n"
+        "write_result({\n"
+        "    'schema': 'daedalus-cgroup-oom-observation/2',\n"
+        "    'supported': True,\n"
         "    'observed': observed,\n"
         "    'before_oom': before.get('oom', 0),\n"
         "    'after_oom': after.get('oom', 0),\n"
         "    'before_oom_kill': before.get('oom_kill', 0),\n"
         "    'after_oom_kill': after.get('oom_kill', 0),\n"
         "    'child_exitcode': child_exitcode,\n"
-        "}\n"
-        "result_marker.write_text(\n"
-        "    json.dumps(payload, sort_keys=True, separators=(',', ':')),\n"
-        "    encoding='utf-8',\n"
-        ")\n"
+        "})\n"
         "raise SystemExit(70 if observed else 71)\n"
     )
     return ("python", "-c", script)
@@ -273,6 +298,7 @@ def _read_oom_marker(path: Path) -> tuple[Mapping[str, Any] | None, str, str | N
         return None, "invalid", digest
     expected = {
         "schema",
+        "supported",
         "observed",
         "before_oom",
         "after_oom",
@@ -282,7 +308,9 @@ def _read_oom_marker(path: Path) -> tuple[Mapping[str, Any] | None, str, str | N
     }
     if not isinstance(payload, dict) or set(payload) != expected:
         return None, "invalid", digest
-    if payload["schema"] != _MARKER_SCHEMA or not isinstance(payload["observed"], bool):
+    if payload["schema"] != _MARKER_SCHEMA:
+        return None, "invalid", digest
+    if not isinstance(payload["supported"], bool) or not isinstance(payload["observed"], bool):
         return None, "invalid", digest
     for name in (
         "before_oom",
@@ -343,6 +371,33 @@ def _execute_container_oom(scenario) -> HostFaultResult:
             )
 
         marker, marker_status, marker_sha256 = _read_oom_marker(result_marker)
+        if (
+            receipt.launch_state == "completed"
+            and receipt.returncode == _CGROUP_UNAVAILABLE_RETURNCODE
+            and receipt.timed_out is False
+            and receipt.error_code is None
+            and started_marker_exists is False
+            and marker_status == "valid"
+            and marker is not None
+            and marker["supported"] is False
+            and marker["observed"] is False
+            and marker["before_oom"] == 0
+            and marker["after_oom"] == 0
+            and marker["before_oom_kill"] == 0
+            and marker["after_oom_kill"] == 0
+            and marker["child_exitcode"] is None
+        ):
+            return _blocked_result(
+                scenario,
+                detail_code="cgroup-v2-memory-events-unavailable",
+                docker_cli_sha256=docker_cli_sha256,
+                receipt=receipt,
+                elapsed_ms=elapsed_ms,
+                marker=marker,
+                marker_status=marker_status,
+                marker_sha256=marker_sha256,
+            )
+
         payload = {
             **_base_payload(
                 scenario=scenario,
@@ -369,6 +424,7 @@ def _execute_container_oom(scenario) -> HostFaultResult:
             and started_marker_exists
             and marker_status == "valid"
             and marker is not None
+            and marker["supported"] is True
             and marker["observed"] is True
             and marker["after_oom"] > marker["before_oom"]
             and marker["after_oom_kill"] > marker["before_oom_kill"]
