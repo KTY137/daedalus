@@ -3,11 +3,15 @@ from __future__ import annotations
 import ast
 import inspect
 
-import daedalus.kernel.attempts as attempts
+import daedalus.kernel.attempt_contracts as contracts
+import daedalus.kernel.attempt_ledger as ledger_impl
+import daedalus.kernel.attempt_spine_reader as reader_impl
+import daedalus.kernel.attempt_workspace as workspace_impl
+import daedalus.kernel.attempts as compatibility
 
 
-def _method(class_name: str, method_name: str) -> ast.FunctionDef:
-    tree = ast.parse(inspect.getsource(attempts))
+def _method(module, class_name: str, method_name: str) -> ast.FunctionDef:
+    tree = ast.parse(inspect.getsource(module))
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == class_name:
             for child in node.body:
@@ -17,7 +21,7 @@ def _method(class_name: str, method_name: str) -> ast.FunctionDef:
 
 
 def test_prepare_persists_start_before_materialization_and_replay_returns_first() -> None:
-    method = _method("IsolatedAttemptCoordinator", "prepare")
+    method = _method(workspace_impl, "IsolatedAttemptCoordinator", "prepare")
     source = ast.unparse(method)
     assert source.index("self.ledger.begin") < source.index(
         "self.source_store.materialize_tree"
@@ -29,7 +33,7 @@ def test_prepare_persists_start_before_materialization_and_replay_returns_first(
 
 
 def test_process_abort_is_not_terminalized_as_known_failure() -> None:
-    method = _method("IsolatedAttemptCoordinator", "prepare")
+    method = _method(workspace_impl, "IsolatedAttemptCoordinator", "prepare")
     handlers = [node for node in ast.walk(method) if isinstance(node, ast.ExceptHandler)]
     materialization_handlers = [
         node
@@ -44,22 +48,26 @@ def test_process_abort_is_not_terminalized_as_known_failure() -> None:
 
 
 def test_attempt_lifecycle_extends_the_single_existing_event_spine() -> None:
-    module_source = inspect.getsource(attempts)
-    init_source = inspect.getsource(attempts.AttemptLedger.__init__)
+    implementation_source = "\n".join(
+        inspect.getsource(module)
+        for module in (contracts, reader_impl, ledger_impl, workspace_impl)
+    )
+    init_source = inspect.getsource(ledger_impl.AttemptLedger.__init__)
     install_source = inspect.getsource(
-        attempts.AttemptLedger._install_single_start_invariant
+        ledger_impl.AttemptLedger._install_single_start_invariant
     )
     assert "SpineLedger" in init_source
     assert "self.spine" in init_source
+    assert "read_only" in init_source
     assert "CREATE UNIQUE INDEX" in install_source
     assert "ON intents(effect_key)" in install_source
-    assert "CREATE TABLE" not in module_source
-    assert "attempt_starts" not in module_source
-    assert "attempt_terminals" not in module_source
+    assert "CREATE TABLE" not in implementation_source
+    assert "attempt_starts" not in implementation_source
+    assert "attempt_terminals" not in implementation_source
 
 
 def test_begin_records_one_canonical_spine_intent_and_pending_never_executes() -> None:
-    source = inspect.getsource(attempts.AttemptLedger.begin)
+    source = inspect.getsource(ledger_impl.AttemptLedger.begin)
     assert "self.spine.record_intent" in source
     assert "_ATTEMPT_INTENT_KIND" in source
     assert "persisted.same_subject(start)" in source
@@ -70,7 +78,7 @@ def test_begin_records_one_canonical_spine_intent_and_pending_never_executes() -
 
 
 def test_terminal_resolution_uses_the_same_spine_and_is_once_only() -> None:
-    source = inspect.getsource(attempts.AttemptLedger.complete)
+    source = inspect.getsource(ledger_impl.AttemptLedger.complete)
     assert "self.spine.mark_completed" in source
     assert "IntentAlreadyResolved" in source
     assert "existing.receipt.same_subject(receipt)" in source
@@ -79,15 +87,18 @@ def test_terminal_resolution_uses_the_same_spine_and_is_once_only() -> None:
 
 
 def test_workspace_and_primary_cas_roots_are_pairwise_disjoint() -> None:
-    source = inspect.getsource(attempts.IsolatedAttemptCoordinator.__init__)
+    source = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
     assert "workspace parent and primary checkout" in source
     assert "workspace parent and source-tree store" in source
     assert "_is_same_or_within(left, right)" in source
     assert "_is_same_or_within(right, left)" in source
 
 
-def test_lifecycle_module_has_no_runtime_provider_or_promotion_authority() -> None:
-    source = inspect.getsource(attempts)
+def test_lifecycle_modules_have_no_runtime_provider_or_promotion_authority() -> None:
+    source = "\n".join(
+        inspect.getsource(module)
+        for module in (contracts, reader_impl, ledger_impl, workspace_impl)
+    )
     forbidden = (
         "subprocess",
         "docker",
@@ -106,17 +117,35 @@ def test_lifecycle_module_has_no_runtime_provider_or_promotion_authority() -> No
 
 
 def test_success_receipt_structurally_requires_candidate_tree() -> None:
-    source = inspect.getsource(attempts.AttemptTerminalReceipt.__post_init__)
+    source = inspect.getsource(contracts.AttemptTerminalReceipt.__post_init__)
     assert 'self.outcome == "succeeded"' in source
     assert "successful attempt must bind a candidate source tree" in source
     assert "attempt terminal provenance must bind exactly its inputs" in source
 
 
 def test_persisted_start_and_terminal_are_reparsed_before_use() -> None:
-    start_source = inspect.getsource(attempts.AttemptLedger._decode_start_intent)
-    terminal_source = inspect.getsource(attempts.AttemptLedger._decode_terminal_result)
+    start_source = inspect.getsource(ledger_impl.AttemptLedger._decode_start_intent)
+    terminal_source = inspect.getsource(
+        ledger_impl.AttemptLedger._decode_terminal_result
+    )
+    reader_source = inspect.getsource(reader_impl.read_attempt_intents)
     assert "_strict_json" in start_source
     assert "AttemptStartRecord.from_dict" in start_source
     assert "payload digest is invalid" in start_source
     assert "AttemptTerminalReceipt.from_dict" in terminal_source
     assert "effect_id does not bind receipt digest" in terminal_source
+    assert "persisted attempt terminal event detail" in reader_source
+    assert "event sequence is invalid" in reader_source
+
+
+def test_stable_attempts_import_path_is_a_thin_compatibility_surface() -> None:
+    assert compatibility.AttemptLedger is ledger_impl.AttemptLedger
+    assert (
+        compatibility.IsolatedAttemptCoordinator
+        is workspace_impl.IsolatedAttemptCoordinator
+    )
+    assert compatibility.AttemptStartRecord is contracts.AttemptStartRecord
+    source = inspect.getsource(compatibility)
+    assert "Compatibility surface" in source
+    assert "sqlite3" not in source
+    assert "class AttemptLedger" not in source
