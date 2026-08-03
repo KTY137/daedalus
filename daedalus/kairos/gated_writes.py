@@ -3,16 +3,13 @@
 The historical gating implementation remains byte-identical as a non-importable
 package resource. It is verified against its exact Git blob identity and then
 executed into this module's namespace so existing classes, functions, import
-paths, pickle names and function globals stay compatible. The public promotion
-callable and its small locked helper are replaced with persisted-authority and
-persisted-receipt variants.
+paths, pickle names and function globals stay compatible; only the public
+promotion callable is replaced.
 """
 from __future__ import annotations
 
 import hashlib as _hashlib
 import hmac as _hmac
-import json as _json
-import stat as _stat
 from importlib.resources import files as _resource_files
 
 
@@ -26,7 +23,13 @@ def _git_blob_sha1(data: bytes) -> str:
 
 
 def _verify_retained_source(data: bytes) -> bytes:
-    """Refuse altered dynamically executed package data."""
+    """Refuse altered dynamically executed package data.
+
+    The retained source is an exact blob already committed in Git. Binding its
+    package bytes to that blob identity prevents packaging drift or a replaced
+    resource from becoming an unreviewed effectful implementation. This is an
+    integrity check over repository-owned bytes, not an authentication secret.
+    """
     actual = _git_blob_sha1(data)
     if not _hmac.compare_digest(actual, _RETAINED_SOURCE_GIT_BLOB_SHA1):
         raise RuntimeError(
@@ -43,25 +46,21 @@ exec(
     globals(),
 )
 
-# Remove both inherited live mutation functions before installing their sealed
-# replacements. Existing retained functions resolve globals dynamically.
+# Remove the historical callable immediately after materializing the retained
+# implementation. No second module exists and no reference to the former
+# unpersisted mutation seam is kept. Existing retained functions resolve the
+# global name ``promote_candidates`` dynamically and therefore see the sealed
+# replacement defined below.
 del promote_candidates
-del _promote_locked
 
 from daedalus.kernel.promotion import PromotionAuthorizationError
-from daedalus.kernel.promotion_receipts import (
-    PromotionLedger,
-    PromotionReceiptError,
-)
-from daedalus.spine.envelope import canonical_json as _canonical_json
-from daedalus.spine.envelope import canonical_sha as _canonical_sha
 
 
 __doc__ = """Compatibility strangler for the sealed Kairos promotion seam.
 
 All non-promotion symbols retain the canonical
-``daedalus.kairos.gated_writes`` module identity. The inherited live promotion
-functions are removed before persisted-authority replacements are defined.
+``daedalus.kairos.gated_writes`` module identity. The old promotion callable is
+removed before the persisted-authority replacement is defined.
 """
 
 
@@ -73,7 +72,12 @@ def _retired_legacy_promotion(*_args, **_kwargs):
 
 
 class _LegacyFacade:
-    """Test/review facade over retained helpers, never a second module."""
+    """Test/review facade over retained helpers, never a second module.
+
+    Attribute writes delegate to this module so monkeypatch-based compatibility
+    tests continue to intercept the exact helper used by the sealed callable.
+    The retired promotion function is the only deliberately divergent symbol.
+    """
 
     def __getattr__(self, name: str):
         if name == "promote_candidates":
@@ -111,8 +115,6 @@ def _promotion_refusal(candidates: list[Any], exc: BaseException) -> dict[str, A
         "not_gated": [],
         "integration_branch": None,
         "authorization": None,
-        "promotion_start": None,
-        "promotion_receipt": None,
     }
 
 
@@ -124,7 +126,14 @@ def _legacy_unpersisted_refusal(
     evidence_packet,
     target_ref: str,
 ) -> dict[str, Any]:
-    """Preserve old negative-call diagnostics without granting authority."""
+    """Preserve old negative-call diagnostics without granting authority.
+
+    Historical callers did not supply every persisted authority. They remain
+    import/call compatible, but this adapter can only refuse. A pure binding
+    preflight is used solely to retain a precise stale-head or candidate
+    mismatch reason; even a successful preflight is converted into a
+    persisted-authority-required refusal and cannot reach a lock or worktree.
+    """
     try:
         from daedalus.kernel.promotion import (
             authorize_promotion,
@@ -144,414 +153,103 @@ def _legacy_unpersisted_refusal(
     return _promotion_refusal(
         candidates,
         PromotionAuthorizationError(
-            "persisted ApprovalLedger, PromotionLedger and owner keyring are mandatory"
+            "persisted ApprovalLedger, owner keyring and PromotionLedger "
+            "are mandatory"
         ),
     )
 
 
-def _primary_git(
-    root: Path,
-    args: list[str],
-    *,
-    check: bool = True,
-) -> subprocess.CompletedProcess:
-    """Run one read-only Git query with repository-controlled hooks disabled."""
+def _run_primary_git(root: Path, args: list[str]) -> bytes:
+    """Run one read-only, non-interactive Git query against the primary tree."""
     pre: list[str] = []
     for key_value in _GIT_EXEC_CONFIG:
-        pre.extend(("-c", key_value))
-    environment = _hardened_env()
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
-    process = subprocess.run(
-        ["git", "-C", str(root), *pre, *args],
+        pre += ["-c", key_value]
+    env = _hardened_env()
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    proc = subprocess.run(
+        ["git", "--no-optional-locks", *pre, *args],
         cwd=str(root),
         capture_output=True,
-        timeout=120,
-        env=environment,
         check=False,
+        timeout=30,
+        env=env,
     )
-    if check and process.returncode != 0:
-        detail = process.stderr.decode("utf-8", "replace").strip()
-        raise RuntimeError(f"git {' '.join(args)} failed in {root}: {detail}")
-    return process
-
-
-def _split_nul(payload: bytes) -> tuple[bytes, ...]:
-    return tuple(item for item in payload.split(b"\0") if item)
-
-
-def _stat_signature(value: os.stat_result) -> tuple[int, int, int, int, int, int]:
-    return (
-        int(value.st_mode),
-        int(value.st_size),
-        int(getattr(value, "st_mtime_ns", int(value.st_mtime * 1_000_000_000))),
-        int(getattr(value, "st_ctime_ns", int(value.st_ctime * 1_000_000_000))),
-        int(getattr(value, "st_dev", 0)),
-        int(getattr(value, "st_ino", 0)),
-    )
-
-
-def _primary_path_state(root: Path, raw_path: bytes) -> dict[str, object]:
-    relative = os.fsdecode(raw_path)
-    path = Path(relative)
-    if path.is_absolute() or ".." in path.parts:
-        raise RuntimeError(f"Git returned an unsafe checkout path: {relative!r}")
-    full_path = root / path
-    encoded_path = raw_path.hex()
-    try:
-        before = os.lstat(full_path)
-    except FileNotFoundError:
-        return {"path_hex": encoded_path, "kind": "missing"}
-
-    kind = _stat.S_IFMT(before.st_mode)
-    state: dict[str, object] = {
-        "path_hex": encoded_path,
-        "mode": int(before.st_mode),
-        "size": int(before.st_size),
-        "mtime_ns": int(
-            getattr(before, "st_mtime_ns", int(before.st_mtime * 1_000_000_000))
-        ),
-    }
-    if kind == _stat.S_IFREG:
-        digest = _hashlib.sha256()
-        flags = os.O_RDONLY
-        if hasattr(os, "O_BINARY"):
-            flags |= os.O_BINARY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        descriptor = os.open(full_path, flags)
-        try:
-            opened = os.fstat(descriptor)
-            if _stat.S_IFMT(opened.st_mode) != _stat.S_IFREG:
-                raise RuntimeError(f"checkout path changed type while hashing: {relative!r}")
-            while True:
-                block = os.read(descriptor, 1024 * 1024)
-                if not block:
-                    break
-                digest.update(block)
-            opened_after = os.fstat(descriptor)
-        finally:
-            os.close(descriptor)
-        state.update(
-            {
-                "kind": "regular",
-                "content_sha256": digest.hexdigest(),
-            }
+    if proc.returncode != 0:
+        raise PromotionAuthorizationError(
+            f"primary checkout Git query failed: {args[0]}"
         )
-        if _stat_signature(opened) != _stat_signature(opened_after):
-            raise RuntimeError(f"checkout file changed while hashing: {relative!r}")
-    elif kind == _stat.S_IFLNK:
-        target = os.readlink(full_path)
-        state.update(
-            {
-                "kind": "symlink",
-                "target_hex": os.fsencode(target).hex(),
-            }
+    return bytes(proc.stdout)
+
+
+def _primary_checkout_fingerprint(root: Path) -> tuple[str, bool]:
+    """Bind HEAD and exact porcelain status without refreshing the Git index."""
+    head = _run_primary_git(root, ["rev-parse", "--verify", "HEAD"]).strip()
+    if len(head) not in {40, 64}:
+        raise PromotionAuthorizationError(
+            "primary checkout HEAD did not resolve to a revision"
         )
-    elif kind == _stat.S_IFDIR:
-        state["kind"] = "directory"
-    else:
-        state.update(
-            {
-                "kind": "special",
-                "device": int(getattr(before, "st_rdev", 0)),
-            }
-        )
-
-    try:
-        after = os.lstat(full_path)
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"checkout path disappeared while hashing: {relative!r}") from exc
-    if _stat_signature(before) != _stat_signature(after):
-        raise RuntimeError(f"checkout path changed while hashing: {relative!r}")
-    return state
-
-
-def _primary_inventory(root: Path) -> tuple[bytes, bytes, bytes, tuple[bytes, ...]]:
-    head = _primary_git(root, ["rev-parse", "--verify", "HEAD"]).stdout.strip()
-    index = _primary_git(root, ["ls-files", "--stage", "-z"]).stdout
-    status = _primary_git(
+    status = _run_primary_git(
         root,
         [
             "status",
-            "--porcelain=v2",
+            "--porcelain=v1",
             "-z",
             "--untracked-files=all",
             "--ignore-submodules=none",
         ],
-    ).stdout
-    paths = tuple(
-        sorted(
-            set(
-                _split_nul(
-                    _primary_git(
-                        root,
-                        [
-                            "ls-files",
-                            "-z",
-                            "--cached",
-                            "--others",
-                            "--exclude-standard",
-                        ],
-                    ).stdout
-                )
-            )
+    )
+    payload = (
+        b"daedalus-primary-checkout/1\0"
+        + head
+        + b"\0"
+        + _hashlib.sha256(status).digest()
+    )
+    return _hashlib.sha256(payload).hexdigest(), not status
+
+
+def _resolve_integration_revision(root: Path, branch: str) -> str:
+    raw = _run_primary_git(
+        root, ["rev-parse", "--verify", f"refs/heads/{branch}"]
+    ).decode("ascii", "strict").strip()
+    if len(raw) not in {40, 64} or any(ch not in "0123456789abcdef" for ch in raw):
+        raise PromotionAuthorizationError(
+            "integration branch did not resolve to a revision"
         )
-    )
-    return head, index, status, paths
+    return raw
 
 
-def _primary_checkout_fingerprint(root: Path) -> str:
-    """Hash HEAD, index, status and all tracked/nonignored worktree bytes.
-
-    Git metadata itself is deliberately excluded: creating an integration
-    branch changes refs under ``.git`` but must not count as a primary checkout
-    mutation. Ignored runtime state is also excluded. The complete inventory is
-    sampled twice around byte hashing and any unstable read fails closed.
-    """
-    first = _primary_inventory(root)
-    states = tuple(_primary_path_state(root, raw_path) for raw_path in first[3])
-    second = _primary_inventory(root)
-    if first != second:
-        raise RuntimeError("primary checkout changed during fingerprint capture")
-    head = first[0].decode("ascii", "strict")
-    if len(head) not in {40, 64} or any(character not in "0123456789abcdef" for character in head):
-        raise RuntimeError("primary checkout HEAD is not a canonical revision")
-    return _canonical_sha(
-        {
-            "schema": "daedalus.primary-checkout-fingerprint/1",
-            "head": head,
-            "index_hex": first[1].hex(),
-            "status_hex": first[2].hex(),
-            "paths": states,
-        }
-    )
+def _record_ids(authorization) -> tuple[str, str]:
+    digest = str(authorization.authorization_sha256)
+    if len(digest) != 64:
+        raise PromotionAuthorizationError(
+            "promotion authorization has no canonical digest"
+        )
+    token = digest[:32]
+    return f"promotion-start-{token}", f"promotion-receipt-{token}"
 
 
-def _planned_integration_branch(authorization) -> str:
-    return f"kairos-integration-{authorization.authorization_sha256[:40]}"
-
-
-def _stable_start_id(authorization) -> str:
-    return f"promotion-start-{authorization.authorization_sha256[:40]}"
-
-
-def _stable_receipt_id(authorization) -> str:
-    return f"promotion-receipt-{authorization.authorization_sha256[:40]}"
-
-
-def _branch_revision(root: Path, branch: str) -> str | None:
-    process = _primary_git(
-        root,
-        ["rev-parse", "--verify", f"refs/heads/{branch}"],
-        check=False,
-    )
-    if process.returncode != 0:
-        return None
-    revision = process.stdout.decode("ascii", "strict").strip()
-    if len(revision) not in {40, 64} or any(
-        character not in "0123456789abcdef" for character in revision
-    ):
-        raise RuntimeError("integration branch resolved to a malformed revision")
-    return revision
-
-
-def _promote_locked(
-    root: Path,
-    manager: GitWorktreeManager,
-    gated: list[GatedCandidate],
+def _terminal_response(
+    completion,
     *,
-    integration_branch: str,
-    project: str | None,
-    availability: dict,
-    ledger_path,
-    gate_timeout_s: float,
-    cancel: Any,
-) -> dict:
-    """Retained integration algorithm with a deterministic branch identity."""
-    if not _git_available(root):
-        return {
-            "promoted": [],
-            "refused": [
-                {"task_id": "all", "promoted": False, "reason": "git not available"}
-            ],
-            "integration_branch": None,
-        }
-
-    from daedalus.config import resolve_project
-
-    data = resolve_project(str(root), project) or {}
-    base_commit = _rev_parse_head(root)
-    integration_worktree = manager.create_worktree(base_commit, integration_branch)
-    integration_git = _PinnedWorktreeGit(integration_worktree)
-    if integration_git.admin_dir is None:
-        try:
-            manager.cleanup_worktree(integration_worktree)
-        except Exception:
-            pass
-        return {
-            "promoted": [],
-            "refused": [
-                {
-                    "task_id": "all",
-                    "promoted": False,
-                    "reason": (
-                        f"could not pin git admin dir for integration worktree "
-                        f"{integration_worktree}; refusing to apply candidate bytes"
-                    ),
-                }
-            ],
-            "integration_branch": integration_branch,
-        }
-
-    promoted: list[dict] = []
-    refused: list[dict] = []
-    cleanup_error: str | None = None
-    try:
-        for candidate in gated:
-            ok, reason, effective = _promote_one(
-                candidate,
-                root=root,
-                integration_worktree=integration_worktree,
-                integration_git=integration_git,
-                project_data=data,
-                project=project,
-                availability=availability,
-                ledger_path=ledger_path,
-                gate_timeout_s=gate_timeout_s,
-                cancel=cancel,
-            )
-            record = {
-                "task_id": candidate.result.task_id,
-                "promoted": ok,
-                "reason": reason,
-                "integration_branch": integration_branch,
-            }
-            if effective is not candidate:
-                record["reattempted"] = True
-                record["new_task_id"] = effective.result.task_id
-            (promoted if ok else refused).append(record)
-    finally:
-        try:
-            manager.cleanup_worktree(integration_worktree)
-            manager.reap_branches()
-        except Exception as exc:  # noqa: BLE001 - operation is already terminal
-            cleanup_error = f"{type(exc).__name__}: {exc}"
-
-    report = {
-        "promoted": promoted,
-        "refused": refused,
-        "integration_branch": integration_branch,
-    }
-    if cleanup_error is not None:
-        report["cleanup_error"] = cleanup_error
-    return report
-
-
-def _normalise_operation_report(
-    report: Mapping[str, object],
-    *,
-    actual_branch: str | None,
-) -> dict[str, object]:
-    try:
-        payload = _json.loads(_canonical_json(report))
-    except (TypeError, ValueError) as exc:
-        return {
-            "promoted": [],
-            "refused": [],
-            "not_gated": [],
-            "integration_branch": actual_branch,
-            "fault": f"retained promotion report was not canonical: {type(exc).__name__}: {exc}",
-        }
-    if not isinstance(payload, dict):
-        return {
-            "promoted": [],
-            "refused": [],
-            "not_gated": [],
-            "integration_branch": actual_branch,
-            "fault": "retained promotion report was not an object",
-        }
-    promoted = payload.get("promoted", [])
-    refused = payload.get("refused", [])
-    not_gated = payload.get("not_gated", [])
-    if not isinstance(promoted, list) or not isinstance(refused, list) or not isinstance(
-        not_gated, list
-    ):
-        return {
-            "promoted": [],
-            "refused": [],
-            "not_gated": [],
-            "integration_branch": actual_branch,
-            "fault": "retained promotion report outcome collections were malformed",
-            "retained_report_sha256": _canonical_sha(payload),
-        }
-    payload["promoted"] = promoted
-    payload["refused"] = refused
-    payload["not_gated"] = not_gated
-    reported_branch = payload.get("integration_branch")
-    if reported_branch != actual_branch:
-        payload["reported_integration_branch"] = reported_branch
-        payload["integration_branch"] = actual_branch
-        payload["fault"] = "retained promotion report integration branch mismatch"
-    return payload
-
-
-def _terminal_outcome(
-    report: dict[str, object],
-    *,
-    primary_before: str,
-    primary_after: str,
-    raised: BaseException | None,
-) -> str:
-    if primary_before != primary_after:
-        report["fault"] = "primary checkout fingerprint changed during promotion"
-        return "faulted"
-    if raised is not None:
-        report["fault"] = f"{type(raised).__name__}: {raised}"
-        return "faulted"
-    if report.get("cleanup_error") is not None or report.get("fault") is not None:
-        return "faulted"
-    promoted = report.get("promoted", [])
-    refused = report.get("refused", [])
-    not_gated = report.get("not_gated", [])
-    if (
-        isinstance(promoted, list)
-        and len(promoted) == 1
-        and isinstance(promoted[0], Mapping)
-        and promoted[0].get("promoted") is True
-        and refused == []
-        and not_gated == []
-    ):
-        return "succeeded"
-    if promoted == [] and (bool(refused) or bool(not_gated)):
-        return "refused"
-    report["fault"] = "promotion report did not describe one terminal outcome"
-    return "faulted"
-
-
-def _completion_report(completion, authorization, *, replayed: bool) -> dict[str, object]:
-    report = completion.report_dict()
-    report["authorization"] = authorization.to_dict()
-    report["promotion_start"] = {
-        "start_sha256": completion.receipt.start_sha256,
-        "replayed": replayed,
-    }
-    report["promotion_receipt"] = completion.receipt.to_dict()
-    return report
-
-
-def _pending_report(
-    candidate,
     authorization,
     start,
-    reason: str,
-    *,
-    operation_report: Mapping[str, object] | None = None,
-) -> dict[str, object]:
-    report: dict[str, object] = {
+    replayed: bool,
+) -> dict[str, Any]:
+    report = completion.report_dict()
+    report["authorization"] = authorization.to_dict()
+    report["promotion_start"] = start.to_dict()
+    report["promotion_receipt"] = completion.receipt.to_dict()
+    report["promotion_replayed"] = replayed
+    return report
+
+
+def _pending_response(candidates, *, authorization, start, reason: str) -> dict[str, Any]:
+    task_id = getattr(getattr(candidates[0], "result", None), "task_id", "unknown")
+    return {
         "promoted": [],
         "refused": [
             {
-                "task_id": getattr(candidate.result, "task_id", "unknown"),
+                "task_id": task_id,
                 "promoted": False,
                 "reason": reason,
             }
@@ -561,59 +259,37 @@ def _pending_report(
         "authorization": authorization.to_dict(),
         "promotion_start": start.to_dict(),
         "promotion_receipt": None,
-        "pending_reconciliation": True,
+        "promotion_pending_reconciliation": True,
     }
-    if operation_report is not None:
-        report["unreceipted_operation_report"] = _json.loads(
-            _canonical_json(operation_report)
-        )
-    return report
 
 
-def _reconcile_pending(
-    root: Path,
-    candidate,
-    authorization,
-    promotion_ledger: PromotionLedger,
-    start,
-) -> dict[str, object]:
-    """Terminalize an interrupted start without ever re-running mutation."""
-    try:
-        primary_after = _primary_checkout_fingerprint(root)
-        branch = _planned_integration_branch(authorization)
-        revision = _branch_revision(root, branch)
-        actual_branch = branch if revision is not None else None
-        report = {
-            "promoted": [],
-            "refused": [],
-            "not_gated": [],
-            "integration_branch": actual_branch,
-            "fault": (
-                "pending promotion start recovered without a terminal receipt; "
-                "automatic execution was refused"
-            ),
-            "reconciliation": {
-                "integration_branch_present": revision is not None,
-                "integration_revision": revision,
-            },
-        }
-        completion = promotion_ledger.complete(
-            start,
-            receipt_id=_stable_receipt_id(authorization),
-            outcome="faulted",
-            report=report,
-            primary_checkout_after_sha256=primary_after,
-            integration_branch=actual_branch,
-            integration_revision=revision,
-        )
-    except Exception as exc:  # noqa: BLE001 - remain pending rather than rerun
-        return _pending_report(
-            candidate,
-            authorization,
-            start,
-            f"pending promotion reconciliation failed: {type(exc).__name__}: {exc}",
-        )
-    return _completion_report(completion, authorization, replayed=True)
+def _classify_terminal_report(
+    report: Mapping[str, object],
+    *,
+    primary_unchanged: bool,
+) -> str:
+    promoted = report.get("promoted", [])
+    refused = report.get("refused", [])
+    not_gated = report.get("not_gated", [])
+    cleanup_error = report.get("cleanup_error")
+    if not primary_unchanged:
+        return "faulted"
+    if (
+        isinstance(promoted, list)
+        and len(promoted) == 1
+        and isinstance(promoted[0], Mapping)
+        and promoted[0].get("promoted") is True
+        and refused == []
+        and not_gated == []
+        and cleanup_error is None
+    ):
+        return "succeeded"
+    if promoted == [] and (
+        (isinstance(refused, list) and bool(refused))
+        or (isinstance(not_gated, list) and bool(not_gated))
+    ):
+        return "refused"
+    return "faulted"
 
 
 def promote_candidates(
@@ -626,8 +302,8 @@ def promote_candidates(
     evidence_packet,
     target_ref: str,
     approval_ledger=None,
-    promotion_ledger: PromotionLedger | None = None,
     owner_keyring: Mapping[tuple[str, str], bytes | str] | None = None,
+    promotion_ledger=None,
     ledger_path=None,
     lock_timeout_s: float = 120.0,
     gate_timeout_s: float = 900.0,
@@ -635,12 +311,19 @@ def promote_candidates(
 ) -> dict:
     """Promote one exact candidate with persisted start and terminal receipts.
 
-    This operation remains an explicit owner action and never merges the
-    integration branch. Every exact replay is non-executable.
+    The operation remains an explicit owner action and never merges the
+    integration branch. Under the cross-process promotion lock it re-reads the
+    live target, re-authenticates the persisted OwnerApproval, requires a clean
+    primary checkout, persists a PromotionStartRecord, and only then enters the
+    retained integration-worktree implementation.
+
+    Exact terminal replay returns the persisted report without re-execution.
+    A start without a terminal receipt is an unknown outcome and is never
+    retried automatically; an operator must reconcile it.
     """
     root = Path(repo_root).resolve()
 
-    if approval_ledger is None or promotion_ledger is None or not owner_keyring:
+    if approval_ledger is None or not owner_keyring or promotion_ledger is None:
         return _legacy_unpersisted_refusal(
             root,
             candidates,
@@ -648,11 +331,7 @@ def promote_candidates(
             evidence_packet=evidence_packet,
             target_ref=target_ref,
         )
-    if not isinstance(promotion_ledger, PromotionLedger):
-        return _promotion_refusal(
-            candidates,
-            PromotionAuthorizationError("promotion_ledger must be PromotionLedger"),
-        )
+
     if len(candidates) != 1:
         return _promotion_refusal(
             candidates,
@@ -675,6 +354,16 @@ def promote_candidates(
             ),
         )
 
+    from daedalus.kernel.promotion_receipts import PromotionLedger
+
+    if not isinstance(promotion_ledger, PromotionLedger):
+        return _promotion_refusal(
+            candidates,
+            PromotionAuthorizationError(
+                "sealed promotion requires the canonical PromotionLedger"
+            ),
+        )
+
     manager = GitWorktreeManager(root)
     if ledger_path is None:
         from daedalus.spine.picker import resolve_spine_db_path
@@ -686,8 +375,6 @@ def promote_candidates(
                 "not_gated": [],
                 "integration_branch": None,
                 "authorization": None,
-                "promotion_start": None,
-                "promotion_receipt": None,
                 "refused": [
                     {
                         "task_id": result.task_id,
@@ -698,6 +385,9 @@ def promote_candidates(
             }
 
     lock_path = manager.worktree_root / "promotion.lock"
+    authorization = None
+    begin_result = None
+    receipt_id = None
     try:
         with _PromotionLock(lock_path, timeout_s=lock_timeout_s):
             from daedalus.kernel.promotion import (
@@ -705,8 +395,6 @@ def promote_candidates(
                 resolve_live_target_revision,
             )
 
-            # Preserve the current effect-registry guard anchor while binding it
-            # to the stronger persisted primitive.
             authorize_promotion = authorize_persisted_promotion
             live_target_revision = resolve_live_target_revision(root, target_ref)
             authorization = authorize_promotion(
@@ -724,100 +412,157 @@ def promote_candidates(
                     "stale regeneration requires new evidence and OwnerApproval"
                 )
 
-            primary_before = _primary_checkout_fingerprint(root)
-            begin = promotion_ledger.begin(
+            primary_before, primary_clean = _primary_checkout_fingerprint(root)
+            if not primary_clean:
+                raise PromotionAuthorizationError(
+                    "primary checkout must be clean before promotion starts"
+                )
+            start_id, receipt_id = _record_ids(authorization)
+            begin_result = promotion_ledger.begin(
                 authorization,
-                start_id=_stable_start_id(authorization),
+                start_id=start_id,
                 primary_checkout_before_sha256=primary_before,
             )
-            if not begin.execute:
-                if begin.completion is not None:
-                    return _completion_report(
-                        begin.completion, authorization, replayed=True
+            if not begin_result.execute:
+                if begin_result.completion is not None:
+                    persisted = promotion_ledger.verify_receipt(
+                        begin_result.completion
                     )
-                return _reconcile_pending(
-                    root,
-                    candidate,
-                    authorization,
-                    promotion_ledger,
-                    begin.start,
+                    return _terminal_response(
+                        persisted,
+                        authorization=authorization,
+                        start=begin_result.start,
+                        replayed=True,
+                    )
+                return _pending_response(
+                    candidates,
+                    authorization=authorization,
+                    start=begin_result.start,
+                    reason=(
+                        "promotion start is pending reconciliation; automatic "
+                        "re-execution is forbidden"
+                    ),
                 )
 
-            integration_branch = _planned_integration_branch(authorization)
-            retained_report: Mapping[str, object] = {
-                "promoted": [],
-                "refused": [],
-                "not_gated": [],
-                "integration_branch": None,
-            }
-            raised: BaseException | None = None
+            execution_error = None
             try:
-                retained_report = _promote_locked(
+                report = _promote_locked(
                     root,
                     manager,
                     candidates,
-                    integration_branch=integration_branch,
                     project=project,
                     availability=availability,
                     ledger_path=ledger_path,
                     gate_timeout_s=gate_timeout_s,
                     cancel=cancel,
                 )
-            except Exception as exc:  # noqa: BLE001 - persist terminal fault
-                raised = exc
+            except BaseException as exc:  # persist unknown effect outcome first
+                execution_error = exc
+                report = {
+                    "promoted": [],
+                    "refused": [
+                        {
+                            "task_id": result.task_id,
+                            "promoted": False,
+                            "reason": (
+                                "promotion execution fault: "
+                                f"{type(exc).__name__}"
+                            ),
+                        }
+                    ],
+                    "not_gated": [],
+                    "integration_branch": None,
+                    "fault": {
+                        "code": "promotion-execution-error",
+                        "type": type(exc).__name__,
+                    },
+                }
 
-            try:
-                primary_after = _primary_checkout_fingerprint(root)
-            except Exception as exc:  # noqa: BLE001 - cannot invent after state
-                return _pending_report(
-                    candidate,
-                    authorization,
-                    begin.start,
-                    (
-                        "promotion executed but primary checkout fingerprint could "
-                        f"not be measured: {type(exc).__name__}: {exc}"
-                    ),
-                    operation_report=retained_report,
-                )
+            primary_after, primary_after_clean = _primary_checkout_fingerprint(root)
+            primary_unchanged = (
+                primary_after_clean
+                and primary_after == begin_result.start.primary_checkout_before_sha256
+            )
+            if not primary_unchanged:
+                report = dict(report)
+                report["fault"] = {
+                    "code": "primary-checkout-identity-changed",
+                    "type": "PromotionPrimaryCheckoutMutation",
+                }
 
-            revision = _branch_revision(root, integration_branch)
-            actual_branch = integration_branch if revision is not None else None
-            operation_report = _normalise_operation_report(
-                retained_report,
-                actual_branch=actual_branch,
+            report = dict(report)
+            report["not_gated"] = list(report.get("not_gated", []))
+            report["authorization"] = authorization.to_dict()
+            outcome = _classify_terminal_report(
+                report,
+                primary_unchanged=primary_unchanged,
             )
-            outcome = _terminal_outcome(
-                operation_report,
-                primary_before=primary_before,
-                primary_after=primary_after,
-                raised=raised,
+            integration_branch = report.get("integration_branch")
+            integration_revision = None
+            if integration_branch is not None and not isinstance(
+                integration_branch, str
+            ):
+                outcome = "faulted"
+                report["fault"] = {
+                    "code": "malformed-integration-branch",
+                    "type": "PromotionIntegrationIdentityError",
+                }
+                report["integration_branch"] = None
+                integration_branch = None
+            if isinstance(integration_branch, str):
+                try:
+                    integration_revision = _resolve_integration_revision(
+                        root, integration_branch
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    outcome = "faulted"
+                    report["fault"] = {
+                        "code": "integration-revision-unavailable",
+                        "type": type(exc).__name__,
+                    }
+                    report["integration_branch"] = None
+                    integration_branch = None
+            if outcome == "succeeded" and (
+                integration_branch is None or integration_revision is None
+            ):
+                outcome = "faulted"
+                report["fault"] = {
+                    "code": "missing-integration-identity",
+                    "type": "PromotionIntegrationIdentityError",
+                }
+            if outcome == "faulted" and not report.get("fault") and not report.get(
+                "cleanup_error"
+            ):
+                report["fault"] = {
+                    "code": "terminal-report-inconsistent",
+                    "type": "PromotionTerminalReportError",
+                }
+
+            completion = promotion_ledger.complete(
+                begin_result.start,
+                receipt_id=receipt_id,
+                outcome=outcome,
+                report=report,
+                primary_checkout_after_sha256=primary_after,
+                integration_branch=integration_branch,
+                integration_revision=integration_revision,
             )
-            try:
-                completion = promotion_ledger.complete(
-                    begin.start,
-                    receipt_id=_stable_receipt_id(authorization),
-                    outcome=outcome,
-                    report=operation_report,
-                    primary_checkout_after_sha256=primary_after,
-                    integration_branch=actual_branch,
-                    integration_revision=revision,
-                )
-            except PromotionReceiptError as exc:
-                return _pending_report(
-                    candidate,
-                    authorization,
-                    begin.start,
-                    f"terminal PromotionReceipt persistence failed: {type(exc).__name__}: {exc}",
-                    operation_report=operation_report,
-                )
-            return _completion_report(completion, authorization, replayed=False)
+            persisted = promotion_ledger.verify_receipt(completion)
+            response = _terminal_response(
+                persisted,
+                authorization=authorization,
+                start=begin_result.start,
+                replayed=False,
+            )
+            if execution_error is not None:
+                if isinstance(execution_error, (KeyboardInterrupt, SystemExit)):
+                    raise execution_error
+            return response
     except PromotionUnavailable as exc:
         return {
             "promoted": [],
             "integration_branch": None,
             "authorization": None,
-            "promotion_start": None,
-            "promotion_receipt": None,
             "not_gated": [],
             "refused": [
                 {
@@ -828,7 +573,19 @@ def promote_candidates(
             ],
         }
     except Exception as exc:  # noqa: BLE001 - public effect boundary fails closed
+        if begin_result is not None and begin_result.execute and authorization is not None:
+            return _pending_response(
+                candidates,
+                authorization=authorization,
+                start=begin_result.start,
+                reason=(
+                    "promotion terminal persistence or reconciliation failed; "
+                    f"pending operator review ({type(exc).__name__})"
+                ),
+            )
         return _promotion_refusal(candidates, exc)
+
+    raise AssertionError("sealed promotion boundary returned without a result")
 
 
 __all__ = tuple(sorted(name for name in globals() if not name.startswith("_")))
