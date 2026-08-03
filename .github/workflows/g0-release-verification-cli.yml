@@ -1,0 +1,133 @@
+name: Gate 0 — read-only release verification
+
+on:
+  pull_request:
+    branches:
+      - g0/exact-head-release-assembly-bundled
+    paths:
+      - "daedalus/gates/**"
+      - "tests/gates/**"
+      - "scripts/run_gate0_release_cli_mutations.py"
+      - "docs/work-packets/G0-RPT-08D_READ_ONLY_RELEASE_VERIFICATION.md"
+      - ".github/workflows/g0-release-verification-cli.yml"
+  push:
+    branches:
+      - g0/release-verification-cli-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-release-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: verifier / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m compileall -q
+          daedalus/gates/release.py
+          daedalus/gates/release_verifier.py
+          daedalus/gates/release_io.py
+          daedalus/gates/release_cli.py
+          tests/gates
+          scripts/run_gate0_release_cli_mutations.py
+      - name: Release, malformed-input, stale, bypass and counter-review tests
+        run: >-
+          python -m pytest -q
+          tests/gates/test_evidence_trust_bundle.py
+          tests/gates/test_evidence_trust_bundle_review.py
+          tests/gates/test_gate0_release_assembly.py
+          tests/gates/test_gate0_release_verifier.py
+          tests/gates/test_gate0_release_review.py
+          tests/gates/test_gate0_release_io.py
+          tests/gates/test_gate0_release_cli.py
+          tests/gates/test_gate0_release_cli_workflows.py
+          tests/gates/test_gate0_release_cli_review.py
+
+  mutations:
+    name: release verifier mutation campaign / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python scripts/run_gate0_release_cli_mutations.py
+      - name: Refuse dirty source after mutation restoration
+        shell: bash
+        run: >-
+          git diff --exit-code --
+          daedalus/gates/release_io.py
+          daedalus/gates/release_cli.py
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated wheel import and CLI smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-release-cli-wheel
+      - run: /tmp/daedalus-release-cli-wheel/bin/pip install dist/*.whl
+      - name: Import strict loaders outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-release-cli-wheel/bin/python -c
+          "from daedalus.gates import load_gate0_release_report,
+          parse_gate0_release_report;
+          assert load_gate0_release_report;
+          assert parse_gate0_release_report"
+      - name: Execute installed read-only verifier help outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-release-cli-wheel/bin/python
+          -m daedalus.gates.release_cli --help
