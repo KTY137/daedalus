@@ -74,6 +74,18 @@ def test_invalid_or_foreign_bundle_refuses_before_release_construction(tmp_path:
         )
 
 
+def test_foreign_local_gate_report_refuses_instead_of_becoming_a_blocker(
+    tmp_path: Path,
+) -> None:
+    root = _SUPPORT.repo_root(tmp_path)
+    foreign_report = _SUPPORT.local_report(source_revision="f" * 40)
+    index = _SUPPORT.evidence_index(foreign_report)
+    bundle = _SUPPORT.trust_bundle(index, root)
+
+    with pytest.raises(ValueError, match="current exact head"):
+        _SUPPORT.assemble(foreign_report, index, bundle, root)
+
+
 def test_manual_security_claim_is_recomputed_from_actual_blockers(tmp_path: Path) -> None:
     root = _SUPPORT.repo_root(tmp_path)
     report = _SUPPORT.local_report(
