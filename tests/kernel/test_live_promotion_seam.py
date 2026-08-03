@@ -239,7 +239,7 @@ def test_ungated_candidate_refuses_before_lock(monkeypatch, tmp_path) -> None:
 
     assert not entered
     assert report["promoted"] == []
-    assert "clean non-empty candidate" in report["refused"][0]["reason"]
+    assert "clean non-empty gated artifact" in report["refused"][0]["reason"]
 
 
 def test_mismatched_patch_digest_refuses_before_manager_or_lock(monkeypatch, tmp_path) -> None:
@@ -316,3 +316,5 @@ def test_strangler_preserves_existing_import_surface() -> None:
     assert gated_writes.gate_candidates is gated_writes._legacy.gate_candidates
     assert gated_writes.run_write_wave is gated_writes._legacy.run_write_wave
     assert gated_writes.promote_candidates is not gated_writes._legacy.promote_candidates
+    assert "snapshot_promotion_candidates" not in gated_writes.__all__
+    assert not hasattr(gated_writes, "snapshot_promotion_candidates")
