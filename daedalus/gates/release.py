@@ -638,7 +638,11 @@ def parse_gate0_release_receipt(
         raise ValueError("Gate-0 release receipt must be an object")
     if not isinstance(payload.get("provenance"), Mapping):
         raise ValueError("provenance must be an object")
-    return Gate0ReleaseReceipt.from_dict(payload)
+    wire = dict(payload)
+    receipt = Gate0ReleaseReceipt.from_dict(wire)
+    if wire != receipt.to_dict():
+        raise ValueError("Gate-0 release receipt must use its exact canonical wire form")
+    return receipt
 
 
 def load_gate0_release_receipt(path: str | Path) -> Gate0ReleaseReceipt:
