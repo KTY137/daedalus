@@ -28,6 +28,21 @@ def _function(name: str) -> ast.FunctionDef:
     raise AssertionError(f"missing function {name}")
 
 
+def _embedded_probe() -> str:
+    function = _function("_network_probe_command")
+    for statement in function.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "script"
+            for target in statement.targets
+        ):
+            value = ast.literal_eval(statement.value)
+            assert isinstance(value, str)
+            return value
+    raise AssertionError("missing embedded network probe")
+
+
 def test_fixture_has_one_production_sandbox_boundary_and_no_host_network_path() -> None:
     assert len(_calls("run_in_docker_sandbox")) == 1
     assert "import subprocess" not in SOURCE
@@ -59,9 +74,9 @@ def test_fixture_has_one_production_sandbox_boundary_and_no_host_network_path() 
             assert node.func.attr not in forbidden
 
 
-def test_probe_uses_fixed_ip_without_dns_and_inspects_namespace_state() -> None:
-    function = _function("_network_probe_command")
-    text = ast.get_source_segment(SOURCE, function) or ""
+def test_probe_compiles_uses_fixed_ip_and_inspects_namespace_state() -> None:
+    probe = _embedded_probe()
+    compile(probe, "<unauthorized-egress-probe>", "exec")
     required = (
         "/sys/class/net",
         "/proc/net/route",
@@ -69,6 +84,10 @@ def test_probe_uses_fixed_ip_without_dns_and_inspects_namespace_state() -> None:
         "socket.SOCK_STREAM",
         "sock.connect(('198.51.100.1', 443))",
         "interfaces == ['lo']",
+        "len(fields) >= 8",
+        "fields[1] == '00000000'",
+        "fields[7] == '00000000'",
+        "(int(fields[3], 16) & 1) != 0",
         "not default_route",
         "not connected",
         "error_number == 101",
@@ -76,7 +95,7 @@ def test_probe_uses_fixed_ip_without_dns_and_inspects_namespace_state() -> None:
         "egress-observed.json",
     )
     for expression in required:
-        assert expression in text
+        assert expression in probe
     for forbidden in (
         "getaddrinfo",
         "gethostbyname",
@@ -86,13 +105,7 @@ def test_probe_uses_fixed_ip_without_dns_and_inspects_namespace_state() -> None:
         "urllib",
         "requests",
     ):
-        assert forbidden not in text
-    compile_text = "".join(
-        node.value
-        for node in ast.walk(function)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    )
-    assert "198.51.100.1" in compile_text
+        assert forbidden not in probe
 
 
 def test_pass_requires_exact_network_none_namespace_and_connect_denial() -> None:
