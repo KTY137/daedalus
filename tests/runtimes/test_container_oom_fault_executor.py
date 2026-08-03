@@ -58,6 +58,7 @@ def _receipt(
 def _valid_marker(**changes):
     payload = {
         "schema": executor._MARKER_SCHEMA,
+        "supported": True,
         "observed": True,
         "before_oom": 4,
         "after_oom": 5,
@@ -67,6 +68,18 @@ def _valid_marker(**changes):
     }
     payload.update(changes)
     return payload
+
+
+def _unsupported_marker():
+    return _valid_marker(
+        supported=False,
+        observed=False,
+        before_oom=0,
+        after_oom=0,
+        before_oom_kill=0,
+        after_oom_kill=0,
+        child_exitcode=None,
+    )
 
 
 def _fake_docker(tmp_path: Path) -> Path:
@@ -189,6 +202,7 @@ def test_explicit_cgroup_oom_observation_passes(
     assert payload["receipt"]["timed_out"] is False
     assert payload["started_marker_exists"] is True
     assert payload["oom_marker_status"] == "valid"
+    assert payload["oom_marker"]["supported"] is True
     assert payload["oom_marker"]["after_oom_kill"] == 3
     assert payload["oom_marker"]["child_exitcode"] == -9
     assert payload["memory"] == executor._MEMORY
@@ -219,6 +233,7 @@ def test_explicit_marker_without_started_marker_cannot_pass(
         _valid_marker(after_oom=4),
         _valid_marker(after_oom_kill=2),
         _valid_marker(child_exitcode=1),
+        _valid_marker(supported=False),
         b'{"schema":"duplicate","schema":"duplicate"}',
         b"not-json",
     ],
@@ -240,7 +255,7 @@ def test_missing_malformed_or_non_oom_marker_cannot_pass(
     assert run.observation.detail_code == "container-oom-invariant"
 
 
-@pytest.mark.parametrize("returncode", [0, 1, 9, 71, 126, 127, 137, 143])
+@pytest.mark.parametrize("returncode", [0, 1, 9, 71, 72, 126, 127, 137, 143])
 def test_other_completed_results_cannot_pass(
     tmp_path: Path,
     monkeypatch,
@@ -252,6 +267,43 @@ def test_other_completed_results_cannot_pass(
         _receipt(returncode=returncode),
         create_start_marker=True,
         marker_payload=_valid_marker(),
+    )
+
+    assert run.observation.status == "failed"
+    assert run.observation.detail_code == "container-oom-invariant"
+
+
+def test_cgroup_v2_counter_unavailability_is_exact_block(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run = _simulate(
+        tmp_path,
+        monkeypatch,
+        _receipt(returncode=72),
+        create_start_marker=False,
+        marker_payload=_unsupported_marker(),
+    )
+
+    assert run.observation.status == "blocked"
+    assert run.observation.observed_outcome is None
+    assert run.observation.detail_code == "cgroup-v2-memory-events-unavailable"
+    payload = json.loads(run.raw_evidence.decode("utf-8"))
+    assert payload["oom_marker_status"] == "valid"
+    assert payload["oom_marker"]["supported"] is False
+    assert payload["receipt"]["returncode"] == 72
+
+
+def test_unsupported_claim_with_wrong_transport_cannot_block(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    run = _simulate(
+        tmp_path,
+        monkeypatch,
+        _receipt(returncode=70),
+        create_start_marker=False,
+        marker_payload=_unsupported_marker(),
     )
 
     assert run.observation.status == "failed"
@@ -388,5 +440,6 @@ def test_real_container_oom_is_exact_pass() -> None:
     payload = json.loads(run.raw_evidence.decode("utf-8"))
     assert payload["receipt"]["returncode"] == 70
     assert payload["started_marker_exists"] is True
+    assert payload["oom_marker"]["supported"] is True
     assert payload["oom_marker"]["after_oom_kill"] > payload["oom_marker"]["before_oom_kill"]
     assert payload["oom_marker"]["child_exitcode"] == -9
