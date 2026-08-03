@@ -14,6 +14,7 @@ matrix, or close Gate 0.
 A `RuntimeFaultObservation` remains an untrusted canonical record. A separate
 `RuntimeFaultAttestation` binds:
 
+- explicit schema `daedalus-runtime-fault-attestation/1`;
 - the exact complete observation-record digest;
 - canonical catalog digest and scenario ID;
 - exact source revision;
@@ -23,8 +24,14 @@ A `RuntimeFaultObservation` remains an untrusted canonical record. A separate
 - a bounded issue/expiry window.
 
 The signature is HMAC-SHA256 using caller-supplied key material of at least 32
-bytes. No key is loaded from repository configuration or persisted by this
-packet.
+bytes. The signing bytes are domain-separated with the schema before canonical
+JSON, preventing the same key/payload shape from being silently reused as a
+different protocol. No key is loaded from repository configuration or persisted
+by this packet.
+
+An attestation must be issued at or after the retained observation timestamp. A
+cryptographically valid record that claims to attest evidence from the future
+fails its binding check.
 
 ## Issuer policy
 
@@ -48,8 +55,9 @@ boundary and cannot produce trusted Gate evidence.
 1. rejects duplicate attestation IDs, duplicate issuer/key/nonces and multiple
    attestations for one scenario;
 2. locates the exact observation retained by the matrix;
-3. verifies catalog, scenario, observation digest, source revision, authority,
-   issuer policy, signature and validity window;
+3. verifies schema/domain, catalog, scenario, observation digest, source
+   revision, authority, temporal ordering, issuer policy, signature and validity
+   window;
 4. derives the trusted observation-record digest set; and
 5. delegates completeness, status and observed-outcome checks to the canonical
    runtime fault-matrix verifier.
@@ -63,16 +71,31 @@ capabilities. Reuse for the exact same observation, catalog and revision within
 the validity window is allowed. Cross-revision or repackaged reuse fails because
 the complete observation digest and revision are signed.
 
+## Adversarial review findings fixed
+
+1. **Protocol confusion.** The first draft signed canonical fields without an
+   explicit wire schema or HMAC domain separator. The format now includes both.
+2. **Impossible temporal ordering.** A valid signature could previously be
+   issued before the observation timestamp. Verification now refuses such a
+   record.
+3. **Candidate trust roots.** Candidate-authored keys are inert unless the
+   external verifier's keyring and issuer-authority policy contain them.
+4. **Pass laundering.** A valid attestation only authenticates the observation;
+   canonical matrix verification still rejects failed, blocked and
+   outcome-mismatched records.
+
 ## Adversarial coverage
 
 The focused tests request coverage for:
 
 - exact round trip and signature verification;
+- explicit schema and HMAC domain separation;
 - candidate-controlled signing keys;
 - unknown and weak keys;
 - signature tampering;
 - cross-authority issuer use;
 - foreign catalog, scenario, observation and source revision;
+- attestation-before-observation ordering;
 - future, expired and overlong attestations;
 - duplicate IDs, nonces and per-scenario attestations;
 - attestations targeting observations absent from the matrix;
@@ -88,7 +111,7 @@ The dedicated workflow requests:
 - Python 3.10 and 3.12;
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan verification and compile-all;
-- attestation and canonical catalog contract tests; and
+- attestation, hardening-mutation and canonical catalog contract tests; and
 - an isolated wheel import smoke.
 
 Exact-head CI remains subject to the repository-wide zero-step Actions blocker.
