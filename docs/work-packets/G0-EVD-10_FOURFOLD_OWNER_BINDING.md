@@ -9,13 +9,19 @@ owner authority or promotion path.
 The packet uses the existing repository-bound Wiki reference compiler and
 binds these exact identities:
 
-1. candidate source-tree digest and content-addressed locator;
+1. candidate source-bundle digest and content-addressed locator;
 2. one source revision;
 3. the compiled `KnowledgeForest` digest;
 4. the atomic `FourfoldSnapshot` digest and its four plane statuses;
 5. one canonical `EvidencePacket`;
 6. one canonical `NominationReceipt`;
 7. an independently authenticated `OwnerApproval` expectation.
+
+For this bounded compiler, the candidate identity is the compiler's canonical
+`source_bundle_sha256`: the manifest plus every declared Code, Data and
+Knowledge source input. The snapshot provenance must retain that exact digest.
+A later general repository/CAS compiler must retain its complete candidate-tree
+manifest digest through the same provenance boundary.
 
 The production bridge stops before approval issuance. The approval used in the
 focused test is signed only by an explicit test-fixture key, is never persisted
@@ -30,8 +36,11 @@ receipt.
   strict canonical parsers before comparing identities;
 - requires the candidate locator to resolve to the independently supplied
   candidate digest;
+- requires the snapshot compiler provenance to retain that exact candidate
+  source-bundle digest, preventing Snapshot A from being repackaged beside
+  Candidate B;
 - records the exact snapshot digest as deterministic evidence while retaining
-  the candidate tree as the packet subject;
+  the compiler-bound candidate as the packet subject;
 - records the source Forest digest, snapshot digest and every plane status in
   the evidence item;
 - unconditionally requires Code, Type, Data and Knowledge to be `complete` in
@@ -42,7 +51,7 @@ receipt.
 - performs no file writes, provider calls, approval issuance, approval
   consumption, git operation or promotion.
 
-## Counter-review finding
+## Counter-review findings
 
 The first draft exposed `require_complete=False` while the assembler still
 emitted `evaluation_status="passed"`. A caller could therefore have dressed a
@@ -52,6 +61,15 @@ counter-review forbids a partial-evidence parameter, and the mutation campaign
 attacks the unconditional refusal seam. Partial Polyglot semantics remain a
 later Gate-2 concern and must be represented as partial/inconclusive there.
 
+A later separate review found that the candidate digest and snapshot digest
+were only co-located in one packet. An internally consistent caller could pair
+a complete snapshot produced from Candidate A with the digest and locator of
+Candidate B. The reference compiler already retains `source_bundle_sha256` in
+`FourfoldSnapshot.provenance.input_digests`; assembly and verification now
+require that exact compiler-owned link. Focused tests refuse both cross-candidate
+repackaging and a structurally valid snapshot whose provenance omits the
+candidate identity.
+
 ## Adversarial coverage
 
 The focused suites cover:
@@ -59,7 +77,9 @@ The focused suites cover:
 - a real complete four-plane snapshot with 31 verified cross-plane bindings;
 - source mutation changing candidate, Forest/snapshot evidence, packet and
   nomination identities;
-- stale revision substitution with the same source-tree bytes;
+- stale revision substitution with the same candidate source-bundle bytes;
+- Snapshot A repackaged with Candidate B's internally consistent locator;
+- a structurally valid snapshot without candidate provenance;
 - a foreign candidate locator;
 - a valid but foreign EvidencePacket subject;
 - a frozen-dataclass constructor bypass attempt;
@@ -67,13 +87,14 @@ The focused suites cover:
 - a foreign nomination packet digest;
 - pairing a valid packet with another candidate's nomination;
 - an AST counter-review proving the bridge has no approval-consumption,
-  promotion or external-effect authority and no partial-evidence switch.
+  promotion or external-effect authority, no partial-evidence switch, and a
+  mandatory compiler-owned candidate binding.
 
-The bounded mutation runner attacks five load-bearing seams: candidate locator
-identity, complete-plane enforcement, packet subject binding, nomination packet
-binding and canonical packet reconstruction. Each mutation is valid only when
-the baseline suite is green, and the original source is restored byte-for-byte
-after every run.
+The bounded mutation runner attacks six load-bearing seams: candidate locator
+identity, snapshot-to-candidate provenance, complete-plane enforcement, packet
+subject binding, nomination packet binding and canonical packet reconstruction.
+Each mutation is valid only when the baseline suite is green, and the original
+source is restored byte-for-byte after every run.
 
 ## CI and packaging
 
