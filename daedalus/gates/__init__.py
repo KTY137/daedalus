@@ -19,6 +19,11 @@ from .evidence_verifier import (
     evidence_requirements_sha256,
     strict_mechanical_blockers,
 )
+from .release import Gate0ReleaseReport, assemble_gate0_release_report
+from .release_verifier import (
+    assert_gate0_release_report,
+    gate0_release_verification_blockers,
+)
 from .report import GateReport, build_gate0_report, load_gate_report
 from .trust_bundle import (
     EvidenceTrustBundle,
@@ -41,6 +46,7 @@ __all__ = [
     "EvidenceTrustBundleError",
     "EvidenceTrustBundleSignatureError",
     "FaultMatrixEvidence",
+    "Gate0ReleaseReport",
     "GateEvidenceIndex",
     "GateReport",
     "OwnerDecisionEvidence",
@@ -48,10 +54,13 @@ __all__ = [
     "RuntimeEnvelopeEvidence",
     "WorkflowDefinitionAnchor",
     "WorkflowRunEvidence",
+    "assemble_gate0_release_report",
+    "assert_gate0_release_report",
     "assert_strict_exact_head",
     "assert_strict_exact_head_with_bundle",
     "build_gate0_report",
     "evidence_requirements_sha256",
+    "gate0_release_verification_blockers",
     "issue_evidence_trust_bundle",
     "load_evidence_trust_bundle",
     "load_gate_evidence_index",
