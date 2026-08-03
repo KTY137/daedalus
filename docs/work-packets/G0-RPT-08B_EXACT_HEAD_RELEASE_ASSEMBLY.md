@@ -49,18 +49,20 @@ Focused tests cover:
 - verification after runtime, workflow or index expiry;
 - provenance input removal.
 
-The intended focused mutations are:
+## Automated mutation campaign
 
-1. trust the input `security_boundary_claimed` value;
-2. omit the mechanical report artifact comparison;
-3. ignore optional failed evidence;
-4. remove the owner-decision blocker;
-5. stop checking the exact Git tree;
-6. accept claimed `closed` without recomputation;
-7. trust a retained release without independent reconstruction;
-8. skip current-time expiry revalidation.
+`scripts/run_gate0_release_mutations.py` first requires the unmodified focused suite to pass. It then applies each mutant alone, compiles the mutated module, runs the focused tests in a fresh subprocess and restores the original bytes before continuing. A green mutant or invalid mutation seam fails the campaign; CI also refuses a dirty checkout afterward.
 
-Each mutation must be killed before the packet can become reviewable evidence.
+The bounded campaign attacks:
+
+1. trusting the input `security_boundary_claimed` value;
+2. omitting the mechanical report artifact comparison;
+3. removing owner-decision blockers;
+4. accepting a claimed release `closed` value;
+5. skipping retained-release reconstruction;
+6. skipping current evidence blockers and expiry results.
+
+This is focused packet evidence, not a substitute for the later full critical-code mutation score.
 
 ## Verification request
 
@@ -71,10 +73,11 @@ The dedicated workflow requests:
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan verification and `compileall`;
 - all exact-head evidence, assembly and independent-verifier tests;
+- a bounded six-mutant campaign on Ubuntu/Python 3.12;
 - the repository full suite on Ubuntu/Python 3.12;
 - isolated wheel import outside the checkout.
 
-GitHub Actions issue #67 currently prevents repository jobs from reaching Step 1. The latest attempted matrix again produced ten failed jobs with no recorded steps or logs. That is infrastructure evidence only and cannot establish a product verdict.
+GitHub Actions issue #67 currently prevents repository jobs from reaching Step 1. The latest attempted matrix again produced jobs with no recorded steps or logs. That is infrastructure evidence only and cannot establish a product verdict.
 
 ## Remaining boundary
 
