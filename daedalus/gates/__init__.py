@@ -24,7 +24,13 @@ from .release_verifier import (
     assert_gate0_release_report,
     gate0_release_verification_blockers,
 )
-from .report import GateReport, build_gate0_report, load_gate_report
+from .report import (
+    GateReport,
+    build_gate0_report,
+    gate_report_artifact_sha256,
+    load_gate_report,
+    render_gate_report,
+)
 from .trust_bundle import (
     EvidenceTrustBundle,
     EvidenceTrustBundleBindingError,
@@ -61,12 +67,14 @@ __all__ = [
     "build_gate0_report",
     "evidence_requirements_sha256",
     "gate0_release_verification_blockers",
+    "gate_report_artifact_sha256",
     "issue_evidence_trust_bundle",
     "load_evidence_trust_bundle",
     "load_gate_evidence_index",
     "load_gate_report",
     "parse_evidence_trust_bundle",
     "parse_gate_evidence_index",
+    "render_gate_report",
     "strict_mechanical_blockers",
     "verify_evidence_trust_bundle",
     "workflow_definition_sha256",
