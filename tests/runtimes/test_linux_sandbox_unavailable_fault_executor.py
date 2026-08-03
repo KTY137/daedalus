@@ -142,6 +142,7 @@ def test_published_artifacts_are_untrusted_and_self_consistent(
     assert hashlib.sha256(raw).hexdigest() == evidence.raw_evidence_sha256
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation is privilege-dependent")
 def test_output_directory_symlink_is_refused_without_touching_target(
     tmp_path: Path,
 ) -> None:
