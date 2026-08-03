@@ -1,0 +1,82 @@
+name: Gate 0 Source Tree CAS
+
+on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+    paths:
+      - "daedalus/kernel/artifacts.py"
+      - "daedalus/kernel/__init__.py"
+      - "configs/schemas/source-tree-manifest-v1.schema.json"
+      - "tests/kernel/test_artifact_store.py"
+      - "docs/work-packets/G0-WP-04_SOURCE_TREE_CAS.md"
+      - ".github/workflows/gate0-source-tree-cas.yml"
+  push:
+    branches:
+      - g0/source-tree-cas
+  workflow_dispatch:
+
+concurrency:
+  group: gate0-source-tree-cas-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install . pytest
+      - run: python -m pytest -q tests/kernel/test_artifact_store.py
+      - run: >-
+          python -c "from daedalus.kernel import ArtifactStore, SourceTreeManifest;
+          print(ArtifactStore.__name__, SourceTreeManifest.CONTRACT_TYPE)"
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test,yaml]" pytest
+      - run: python -m pytest -q
+
+  wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Isolated wheel import smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/daedalus-wheel
+          /tmp/daedalus-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/daedalus-wheel/bin/python - <<'PY'
+          from daedalus.kernel import ArtifactStore, SourceTreeManifest
+          print(ArtifactStore.__name__, SourceTreeManifest.CONTRACT_TYPE)
+          PY
