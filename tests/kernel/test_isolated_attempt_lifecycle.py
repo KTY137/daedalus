@@ -75,7 +75,7 @@ def _environment(tmp_path: Path):
         created_at=NOW,
         trace_id="attempt-1",
     )
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3")
+    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
     coordinator = IsolatedAttemptCoordinator(
         primary_checkout=primary,
         workspace_parent=tmp_path / "workspaces",
@@ -325,7 +325,7 @@ def test_only_one_concurrent_begin_can_execute(tmp_path) -> None:
 def test_workspace_parent_must_be_disjoint_from_primary_and_cas(tmp_path) -> None:
     primary = _primary(tmp_path)
     external_store = SourceTreeStore(tmp_path / "cas")
-    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3")
+    ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", external_store)
     with pytest.raises(AttemptWorkspaceError, match="primary checkout"):
         IsolatedAttemptCoordinator(
             primary_checkout=primary,
