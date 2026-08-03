@@ -6,11 +6,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = ROOT / "daedalus" / "kairos" / "gated_writes.py"
+TARGETS = {
+    "seam": ROOT / "daedalus" / "kairos" / "gated_writes.py",
+    "promotion": ROOT / "daedalus" / "kernel" / "promotion.py",
+}
 TESTS = (
     "tests/kernel/test_live_promotion_seam.py",
     "tests/kernel/test_live_promotion_seam_review.py",
     "tests/kernel/test_live_promotion_legacy_retirement.py",
+    "tests/kernel/test_persisted_promotion_authorization.py",
+    "tests/kernel/test_persisted_promotion_authorization_review.py",
 )
 
 
@@ -32,16 +37,17 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
 
 
 def main() -> int:
-    original = TARGET.read_bytes()
-    source = original.decode("utf-8")
+    originals = {name: path.read_bytes() for name, path in TARGETS.items()}
+    sources = {name: data.decode("utf-8") for name, data in originals.items()}
     baseline = _run()
     if baseline.returncode != 0:
         sys.stderr.write("focused baseline failed\n" + baseline.stdout + baseline.stderr)
         return 2
 
-    mutations: list[tuple[str, list[tuple[str, str]]]] = [
+    mutations: list[tuple[str, str, list[tuple[str, str]]]] = [
         (
             "bypass-retained-source-integrity",
+            "seam",
             [
                 (
                     "    if not _hmac.compare_digest(actual, _RETAINED_SOURCE_GIT_BLOB_SHA1):\n",
@@ -51,6 +57,7 @@ def main() -> int:
         ),
         (
             "bypass-persisted-approval",
+            "seam",
             [
                 (
                     "            authorize_promotion = authorize_persisted_promotion\n",
@@ -66,6 +73,7 @@ def main() -> int:
         ),
         (
             "authorize-outside-lock",
+            "seam",
             [
                 (
                     "        with _PromotionLock(lock_path, timeout_s=lock_timeout_s):\n",
@@ -75,37 +83,100 @@ def main() -> int:
         ),
         (
             "allow-stale-regeneration",
+            "seam",
             [
                 (
-                    "            if str(artifact.base_revision) != authorization.live_target_revision:\n",
+                    "            if artifact.base_revision != authorization.live_target_revision:\n",
                     "            if False:\n",
                 )
             ],
         ),
         (
             "allow-multi-candidate-retry",
-            [("    if len(candidates) != 1:\n", "    if False:\n")],
+            "seam",
+            [
+                (
+                    "    if len(submitted_candidates) != 1:\n",
+                    "    if False:\n",
+                )
+            ],
+        ),
+        (
+            "apply-mutable-original-after-authorization",
+            "seam",
+            [
+                (
+                    "            report = _promote_locked(\n"
+                    "                root,\n"
+                    "                manager,\n"
+                    "                sealed_candidates,\n",
+                    "            report = _promote_locked(\n"
+                    "                root,\n"
+                    "                manager,\n"
+                    "                list(submitted_candidates),\n",
+                )
+            ],
+        ),
+        (
+            "trust-declared-diff-digest",
+            "promotion",
+            [
+                (
+                    "        if not hmac.compare_digest(actual_diff_sha256, str(artifact.diff_sha256)):\n",
+                    "        if False:\n",
+                )
+            ],
+        ),
+        (
+            "allow-result-artifact-base-split",
+            "promotion",
+            [
+                (
+                    "        if result_base != artifact_base:\n",
+                    "        if False:\n",
+                )
+            ],
+        ),
+        (
+            "accept-unearned-terminal-gate",
+            "promotion",
+            [
+                (
+                    "        if (\n"
+                    "            not isinstance(gate, GateResult)\n"
+                    "            or not gate.passed\n"
+                    "            or gate.cancelled\n"
+                    "            or gate.timed_out\n"
+                    "        ):\n",
+                    "        if False:\n",
+                )
+            ],
         ),
     ]
 
     killed: list[str] = []
     try:
-        for label, replacements in mutations:
-            mutated = source
+        for label, target_name, replacements in mutations:
+            target = TARGETS[target_name]
+            mutated = sources[target_name]
             for old, new in replacements:
                 mutated = _replace_once(mutated, old, new, label)
-            TARGET.write_text(mutated, encoding="utf-8")
+            target.write_text(mutated, encoding="utf-8")
             result = _run()
             if result.returncode == 0:
                 sys.stderr.write(f"survived mutation: {label}\n")
                 return 1
             killed.append(label)
-            TARGET.write_bytes(original)
+            target.write_bytes(originals[target_name])
     finally:
-        TARGET.write_bytes(original)
+        for name, target in TARGETS.items():
+            target.write_bytes(originals[name])
 
-    if TARGET.read_bytes() != original:
-        raise RuntimeError("mutation runner failed to restore source bytes")
+    for name, target in TARGETS.items():
+        if target.read_bytes() != originals[name]:
+            raise RuntimeError(
+                f"mutation runner failed to restore source bytes for {name}"
+            )
     print("killed mutations: " + ", ".join(killed))
     return 0
 
