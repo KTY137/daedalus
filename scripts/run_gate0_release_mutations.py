@@ -49,6 +49,12 @@ MUTATIONS = (
         "if False:",
     ),
     Mutation(
+        "accept-expanded-release-provenance",
+        "daedalus/gates/release.py",
+        "if self.provenance.input_digests != expected_inputs:",
+        "if not set(expected_inputs).issubset(self.provenance.input_digests):",
+    ),
+    Mutation(
         "skip-retained-release-reconstruction",
         "daedalus/gates/release_verifier.py",
         "if reconstructed.to_dict() != release.to_dict():",
