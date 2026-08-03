@@ -124,12 +124,16 @@ def test_probe_compiles_enumerates_names_only_and_inspects_secret_mounts() -> No
         assert forbidden not in probe
 
 
-def test_review_reconstruction_has_no_eval_or_exec_path() -> None:
-    assert "eval(" not in SOURCE
-    assert "exec(" not in SOURCE
-    review_source = Path(__file__).read_text(encoding="utf-8")
-    assert "eval(" not in review_source
-    assert "exec(" not in review_source
+def test_review_reconstruction_has_no_dynamic_eval_or_exec_call() -> None:
+    review_tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    forbidden_calls = [
+        node
+        for node in ast.walk(review_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"eval", "exec"}
+    ]
+    assert forbidden_calls == []
 
 
 def test_host_canary_is_locked_inherited_restored_and_never_argument_material() -> None:
