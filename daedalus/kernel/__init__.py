@@ -128,6 +128,16 @@ from .sandbox import (
     SandboxPolicyError,
     run_in_docker_sandbox,
 )
+from .source_trees import (
+    MANDATORY_IGNORED_ROOTS,
+    SourceTreeCaptureError,
+    SourceTreeCorruptionError,
+    SourceTreeEntry,
+    SourceTreeManifest,
+    SourceTreeStore,
+    SourceTreeStoreError,
+    StoredSourceTree,
+)
 
 __all__ += [
     "PromotionAuthorization",
@@ -154,4 +164,12 @@ __all__ += [
     "SandboxMount",
     "SandboxPolicyError",
     "run_in_docker_sandbox",
+    "MANDATORY_IGNORED_ROOTS",
+    "SourceTreeCaptureError",
+    "SourceTreeCorruptionError",
+    "SourceTreeEntry",
+    "SourceTreeManifest",
+    "SourceTreeStore",
+    "SourceTreeStoreError",
+    "StoredSourceTree",
 ]
