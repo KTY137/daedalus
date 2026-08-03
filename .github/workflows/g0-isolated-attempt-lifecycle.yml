@@ -13,6 +13,7 @@ on:
       - "tests/kernel/test_isolated_attempt_lifecycle_adversarial.py"
       - "tests/kernel/test_isolated_attempt_lifecycle_review.py"
       - "tests/kernel/test_isolated_attempt_cas_review.py"
+      - "tests/kernel/test_isolated_attempt_schema_review.py"
       - "scripts/run_isolated_attempt_mutations.py"
       - "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md"
       - ".github/workflows/g0-isolated-attempt-lifecycle.yml"
@@ -56,6 +57,7 @@ jobs:
           tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
           tests/kernel/test_isolated_attempt_lifecycle_review.py
           tests/kernel/test_isolated_attempt_cas_review.py
+          tests/kernel/test_isolated_attempt_schema_review.py
           tests/kernel/test_source_tree_store.py
           tests/kernel/test_source_tree_store_adversarial.py
           tests/kernel/test_source_tree_store_constructor_adversarial.py
