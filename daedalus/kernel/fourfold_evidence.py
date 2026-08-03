@@ -1,20 +1,22 @@
 """Bind a real Fourfold snapshot into the canonical Gate-0 evidence chain.
 
 This module is deliberately narrow. It does not compile repositories, create a
-second evidence schema, consume approvals, or promote candidates. It projects
-one already compiled :class:`FourfoldSnapshot` into the existing
-:class:`EvidencePacket` contract and verifies that the packet still names the
-same candidate tree, source revision, Forest and snapshot.
+second evidence schema, authenticate artifact storage, consume approvals, or
+promote candidates. It projects one already compiled :class:`FourfoldSnapshot`
+into the existing :class:`EvidencePacket` and :class:`NominationReceipt`
+contracts and verifies that every record still names the same candidate tree,
+source revision, Forest and snapshot.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Sequence
 
 from daedalus.schemas import (
     ContractProvenance,
     EvidenceItem,
     EvidencePacket,
+    NominationReceipt,
     ResourceUsage,
     _artifact_locator,
     _locator_sha256,
@@ -33,12 +35,18 @@ class FourfoldEvidenceMismatch(ValueError):
 
 @dataclass(frozen=True)
 class FourfoldEvidenceExpectation:
-    """The exact identities a promotion reviewer expects to inspect."""
+    """The exact identities and coverage a promotion reviewer expects.
+
+    The candidate digest and locator are caller-owned inputs. They must be
+    resolved from the candidate source-tree/CAS authority rather than copied
+    out of the EvidencePacket under review.
+    """
 
     candidate_artifact_sha256: str
     candidate_artifact_locator: str
     snapshot_sha256: str
     source_revision: str
+    require_complete: bool = True
 
     def __post_init__(self) -> None:
         candidate_sha = _sha256(
@@ -49,6 +57,8 @@ class FourfoldEvidenceExpectation:
         )
         snapshot_sha = _sha256(self.snapshot_sha256, "snapshot_sha256")
         source_revision = _revision(self.source_revision, "source_revision")
+        if not isinstance(self.require_complete, bool):
+            raise ValueError("require_complete must be boolean")
         object.__setattr__(self, "candidate_artifact_sha256", candidate_sha)
         object.__setattr__(self, "candidate_artifact_locator", candidate_locator)
         object.__setattr__(self, "snapshot_sha256", snapshot_sha)
@@ -61,6 +71,33 @@ class FourfoldEvidenceExpectation:
 
 def _snapshot_locator(snapshot: FourfoldSnapshot) -> str:
     return f"artifact-locator:sha256:{snapshot.digest}"
+
+
+def _canonical_snapshot(snapshot: FourfoldSnapshot) -> FourfoldSnapshot:
+    if not isinstance(snapshot, FourfoldSnapshot):
+        raise TypeError("snapshot must be a FourfoldSnapshot")
+    rebuilt = FourfoldSnapshot.from_dict(snapshot.to_dict())
+    if rebuilt != snapshot:
+        raise FourfoldEvidenceMismatch("FourfoldSnapshot is not canonical")
+    return rebuilt
+
+
+def _canonical_packet(packet: EvidencePacket) -> EvidencePacket:
+    if not isinstance(packet, EvidencePacket):
+        raise TypeError("packet must be an EvidencePacket")
+    rebuilt = EvidencePacket.from_dict(packet.to_dict())
+    if rebuilt != packet:
+        raise FourfoldEvidenceMismatch("EvidencePacket is not canonical")
+    return rebuilt
+
+
+def _canonical_nomination(nomination: NominationReceipt) -> NominationReceipt:
+    if not isinstance(nomination, NominationReceipt):
+        raise TypeError("nomination must be a NominationReceipt")
+    rebuilt = NominationReceipt.from_dict(nomination.to_dict())
+    if rebuilt != nomination:
+        raise FourfoldEvidenceMismatch("NominationReceipt is not canonical")
+    return rebuilt
 
 
 def assemble_fourfold_evidence_packet(
@@ -77,22 +114,17 @@ def assemble_fourfold_evidence_packet(
     usage: ResourceUsage | None = None,
     trace_id: str | None = None,
     extra_items: tuple[EvidenceItem, ...] = (),
+    require_complete: bool = True,
 ) -> EvidencePacket:
-    """Create a minimal passed packet for one real Fourfold snapshot.
+    """Create a passed packet for one exact candidate and Fourfold snapshot."""
 
-    The packet's subject and durable candidate locator identify the candidate
-    source bundle. The deterministic evidence item carries the exact snapshot
-    digest. Both identities, the source revision, and the source Forest digest
-    are retained in canonical provenance and in structured evidence details.
-    """
-
-    if not isinstance(snapshot, FourfoldSnapshot):
-        raise TypeError("snapshot must be a FourfoldSnapshot")
+    snapshot = _canonical_snapshot(snapshot)
     expectation = FourfoldEvidenceExpectation(
         candidate_artifact_sha256=candidate_artifact_sha256,
         candidate_artifact_locator=candidate_artifact_locator,
         snapshot_sha256=snapshot.digest,
         source_revision=snapshot.source_revision,
+        require_complete=require_complete,
     )
     attempt_sha = _sha256(attempt_contract_sha256, "attempt_contract_sha256")
     policy_sha = _sha256(policy_decision_sha256, "policy_decision_sha256")
@@ -104,6 +136,9 @@ def assemble_fourfold_evidence_packet(
         "candidate_artifact_sha256": expectation.candidate_artifact_sha256,
         "source_forest_sha256": snapshot.source_forest_sha256,
         "fourfold_snapshot_sha256": snapshot.digest,
+        "plane_statuses": {
+            plane.plane: plane.status for plane in snapshot.planes
+        },
     }
     item = EvidenceItem(
         evidence_id=f"{attempt_id}:fourfold",
@@ -117,10 +152,14 @@ def assemble_fourfold_evidence_packet(
             origin="daedalus.kernel.fourfold-evidence",
             source_revision=snapshot.source_revision,
             created_at=collected_at,
-            input_digests=(
-                expectation.candidate_artifact_sha256,
-                snapshot.source_forest_sha256,
-                snapshot.digest,
+            input_digests=tuple(
+                sorted(
+                    {
+                        expectation.candidate_artifact_sha256,
+                        snapshot.source_forest_sha256,
+                        snapshot.digest,
+                    }
+                )
             ),
             trace_id=trace_id,
         ),
@@ -166,6 +205,65 @@ def assemble_fourfold_evidence_packet(
     return packet
 
 
+def assemble_fourfold_nomination_receipt(
+    *,
+    snapshot: FourfoldSnapshot,
+    packet: EvidencePacket,
+    expectation: FourfoldEvidenceExpectation,
+    nomination_id: str,
+    reasons: Sequence[str],
+    created_at: str,
+    trace_id: str | None = None,
+) -> NominationReceipt:
+    """Nominate the exact packet without creating owner or promotion authority."""
+
+    snapshot = _canonical_snapshot(snapshot)
+    packet = _canonical_packet(packet)
+    verify_fourfold_evidence_packet(
+        packet,
+        snapshot=snapshot,
+        expectation=expectation,
+    )
+    snapshot_locator = _snapshot_locator(snapshot)
+    nomination = NominationReceipt(
+        nomination_id=nomination_id,
+        mission_id=packet.mission_id,
+        attempt_id=packet.attempt_id,
+        source_revision=snapshot.source_revision,
+        candidate_artifact_sha256=expectation.candidate_artifact_sha256,
+        candidate_artifact_locator=expectation.candidate_artifact_locator,
+        evidence_packet_sha256=packet.digest,
+        evidence_locator=snapshot_locator,
+        policy_decision_sha256=packet.policy_decision_sha256,
+        nomination_status="nominated",
+        reasons=tuple(reasons),
+        provenance=ContractProvenance(
+            origin="daedalus.kernel.fourfold-nomination",
+            source_revision=snapshot.source_revision,
+            created_at=created_at,
+            input_digests=tuple(
+                sorted(
+                    {
+                        expectation.candidate_artifact_sha256,
+                        _locator_sha256(expectation.candidate_artifact_locator),
+                        packet.digest,
+                        _locator_sha256(snapshot_locator),
+                        packet.policy_decision_sha256,
+                    }
+                )
+            ),
+            trace_id=trace_id,
+        ),
+    )
+    verify_fourfold_nomination_receipt(
+        nomination,
+        packet=packet,
+        snapshot=snapshot,
+        expectation=expectation,
+    )
+    return nomination
+
+
 def verify_fourfold_evidence_packet(
     packet: EvidencePacket,
     *,
@@ -174,10 +272,8 @@ def verify_fourfold_evidence_packet(
 ) -> None:
     """Fail closed unless packet, candidate and snapshot identities are exact."""
 
-    if not isinstance(packet, EvidencePacket):
-        raise TypeError("packet must be an EvidencePacket")
-    if not isinstance(snapshot, FourfoldSnapshot):
-        raise TypeError("snapshot must be a FourfoldSnapshot")
+    packet = _canonical_packet(packet)
+    snapshot = _canonical_snapshot(snapshot)
 
     mismatches: list[str] = []
     if packet.source_revision != snapshot.source_revision:
@@ -186,6 +282,12 @@ def verify_fourfold_evidence_packet(
         mismatches.append("expected_source_revision")
     if expectation.snapshot_sha256 != snapshot.digest:
         mismatches.append("expected_snapshot")
+    if expectation.require_complete:
+        incomplete = [
+            plane.plane for plane in snapshot.planes if plane.status != "complete"
+        ]
+        if incomplete:
+            mismatches.append("incomplete_planes:" + "+".join(sorted(incomplete)))
     if packet.subject_sha256 != expectation.candidate_artifact_sha256:
         mismatches.append("subject")
     if packet.candidate_artifact_sha256 != expectation.candidate_artifact_sha256:
@@ -207,6 +309,9 @@ def verify_fourfold_evidence_packet(
             "candidate_artifact_sha256": expectation.candidate_artifact_sha256,
             "source_forest_sha256": snapshot.source_forest_sha256,
             "fourfold_snapshot_sha256": snapshot.digest,
+            "plane_statuses": {
+                plane.plane: plane.status for plane in snapshot.planes
+            },
         }
         if item.assurance != "deterministic" or item.verdict != "passed":
             mismatches.append("fourfold_verdict")
@@ -244,11 +349,57 @@ def verify_fourfold_evidence_packet(
         )
 
 
+def verify_fourfold_nomination_receipt(
+    nomination: NominationReceipt,
+    *,
+    packet: EvidencePacket,
+    snapshot: FourfoldSnapshot,
+    expectation: FourfoldEvidenceExpectation,
+) -> None:
+    """Verify that nomination retains the exact verified semantic evidence."""
+
+    nomination = _canonical_nomination(nomination)
+    packet = _canonical_packet(packet)
+    snapshot = _canonical_snapshot(snapshot)
+    verify_fourfold_evidence_packet(
+        packet,
+        snapshot=snapshot,
+        expectation=expectation,
+    )
+
+    mismatches: list[str] = []
+    if nomination.nomination_status != "nominated":
+        mismatches.append("nomination_status")
+    if nomination.source_revision != snapshot.source_revision:
+        mismatches.append("source_revision")
+    if nomination.mission_id != packet.mission_id:
+        mismatches.append("mission_id")
+    if nomination.attempt_id != packet.attempt_id:
+        mismatches.append("attempt_id")
+    if nomination.candidate_artifact_sha256 != expectation.candidate_artifact_sha256:
+        mismatches.append("candidate_digest")
+    if nomination.candidate_artifact_locator != expectation.candidate_artifact_locator:
+        mismatches.append("candidate_locator")
+    if nomination.evidence_packet_sha256 != packet.digest:
+        mismatches.append("evidence_packet")
+    if nomination.evidence_locator != _snapshot_locator(snapshot):
+        mismatches.append("snapshot_locator")
+    if nomination.policy_decision_sha256 != packet.policy_decision_sha256:
+        mismatches.append("policy_decision")
+    if mismatches:
+        raise FourfoldEvidenceMismatch(
+            "Fourfold nomination binding mismatch: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+
+
 __all__ = [
     "FOURFOLD_EVIDENCE_SCHEMA",
     "FOURFOLD_EVALUATOR",
     "FourfoldEvidenceExpectation",
     "FourfoldEvidenceMismatch",
     "assemble_fourfold_evidence_packet",
+    "assemble_fourfold_nomination_receipt",
     "verify_fourfold_evidence_packet",
+    "verify_fourfold_nomination_receipt",
 ]
