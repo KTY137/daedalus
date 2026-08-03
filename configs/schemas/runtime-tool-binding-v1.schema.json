@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/runtime-tool-binding-v1.schema.json",
+  "title": "Daedalus RuntimeToolBinding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "input_digests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "trace_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "tool_id",
+    "runtime_manifest_sha256",
+    "source_revision",
+    "executable_sha256",
+    "executable_size",
+    "executable_path_sha256",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {
+      "const": "daedalus.runtime-tool-binding"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "tool_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "runtime_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "executable_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "executable_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "executable_path_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  }
+}

@@ -80,6 +80,7 @@ import os
 import stat
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -87,6 +88,7 @@ from typing import Dict, List, Optional, Sequence
 from daedalus.storage import require_storage
 
 __all__ = [
+    "AllocatedWorktreeInspection",
     "GitWorktreeManager",
     "WorktreeContainmentError",
     "WorktreeRemovalRace",
@@ -129,6 +131,24 @@ class WorktreeRemovalRace(WorktreeContainmentError):
     worktree is a leak; finishing the walk through a redirected ancestor is a
     deleted repository.
     """
+
+
+@dataclass(frozen=True)
+class AllocatedWorktreeInspection:
+    """Read-only inputs proven by one live worktree manager.
+
+    This is deliberately not an authorization or a durable contract.  It is
+    the immutable return value of :meth:`GitWorktreeManager.inspect_allocated_worktree`,
+    which applies the existing containment decision and then requires the
+    candidate-writable disk record to agree with the manager's creation-time
+    in-memory allocation.  Kernel observation contracts may bind these bytes;
+    they do not gain another way to allocate, mutate, clean, or reap a worktree.
+    """
+
+    path: Path
+    branch: str
+    branch_tip_at_creation: str
+    allocation_record_bytes: bytes
 
 
 def _worktree_root_for(repo_path: Path) -> Path:
@@ -941,6 +961,126 @@ class GitWorktreeManager:
                         "for it (not allocated here, or moved out from under "
                         "the manager)")
         return target
+
+    def inspect_allocated_worktree(
+        self, path: str | Path
+    ) -> AllocatedWorktreeInspection:
+        """Return stable read-only inputs for one live allocation.
+
+        The containment authority remains :meth:`_require_allocated_worktree`.
+        This method invokes that existing decision before and after the read,
+        and narrows it further by requiring the disk record to agree exactly
+        with this manager's creation-time in-memory record.  It performs no
+        Git or filesystem mutation and grants no cleanup or execution right.
+
+        A fresh manager after a process restart intentionally cannot produce
+        this inspection: its on-disk record is candidate-writable and is useful
+        for conservative cleanup, but only the allocating live manager has the
+        independent memory fact needed for an execution-time attestation.
+        """
+
+        target = self._require_allocated_worktree(path)
+        self._refuse_if_the_primary_checkout_moved()
+        memory_before = self._allocations.get(_key(target))
+        if memory_before is None:
+            raise self._refuse(
+                target,
+                "the live manager has no creation-time in-memory allocation "
+                "for this worktree",
+            )
+        memory = dict(memory_before)
+        if memory.get("worktree_removed") is not False:
+            raise self._refuse(target, "the live allocation is already marked removed")
+
+        record_path = self._alloc_file(target)
+        try:
+            before = os.lstat(record_path)
+            if _is_reparse_point(record_path) or not stat.S_ISREG(before.st_mode):
+                raise self._refuse(
+                    target, "the allocation record is not a no-follow regular file"
+                )
+            with record_path.open("rb") as handle:
+                opened = os.fstat(handle.fileno())
+                if (
+                    _path_identity(record_path)
+                    != (getattr(opened, "st_dev", 0), getattr(opened, "st_ino", 0))
+                    or before.st_size != opened.st_size
+                    or before.st_mtime_ns != opened.st_mtime_ns
+                ):
+                    raise self._refuse(
+                        target, "the allocation record changed before it was opened"
+                    )
+                raw = handle.read()
+                after_open = os.fstat(handle.fileno())
+            after = os.lstat(record_path)
+        except WorktreeContainmentError:
+            raise
+        except OSError as exc:
+            raise self._refuse(
+                target, f"the allocation record could not be read stably: {exc}"
+            )
+
+        snapshots = (before, opened, after_open, after)
+        identities = {
+            (getattr(item, "st_dev", 0), getattr(item, "st_ino", 0))
+            for item in snapshots
+        }
+        contents = {(item.st_size, item.st_mtime_ns) for item in snapshots}
+        if len(identities) != 1 or len(contents) != 1 or len(raw) != after.st_size:
+            raise self._refuse(target, "the allocation record changed while read")
+
+        try:
+            disk = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, ValueError) as exc:
+            raise self._refuse(target, f"the allocation record is not valid UTF-8 JSON: {exc}")
+        expected_keys = {
+            "schema",
+            "path",
+            "repo",
+            "branch",
+            "created_ts",
+            "branch_tip_at_creation",
+        }
+        if not isinstance(disk, dict) or set(disk) != expected_keys:
+            raise self._refuse(
+                target, "the allocation record does not have its creation-time shape"
+            )
+
+        branch = disk.get("branch")
+        tip = disk.get("branch_tip_at_creation")
+        if not isinstance(branch, str) or not branch:
+            raise self._refuse(target, "the allocation record has no branch identity")
+        if (
+            not isinstance(tip, str)
+            or len(tip) not in {40, 64}
+            or any(character not in "0123456789abcdef" for character in tip)
+        ):
+            raise self._refuse(target, "the allocation record has no exact branch tip")
+
+        if (
+            _key(Path(str(memory.get("path", "")))) != _key(target)
+            or memory.get("branch") != branch
+            or memory.get("branch_tip_at_creation") != tip
+            or _key(Path(str(disk.get("path", "")))) != _key(target)
+            or _key(Path(str(disk.get("repo", "")))) != _key(self.repo_path)
+            or disk.get("schema") != ALLOC_SCHEMA
+        ):
+            raise self._refuse(
+                target,
+                "the candidate-writable disk allocation disagrees with the "
+                "live manager's creation-time allocation",
+            )
+
+        confirmed = self._require_allocated_worktree(target)
+        self._refuse_if_the_primary_checkout_moved()
+        if _key(confirmed) != _key(target) or self._allocations.get(_key(target)) != memory:
+            raise self._refuse(target, "the live allocation changed during inspection")
+        return AllocatedWorktreeInspection(
+            path=target,
+            branch=branch,
+            branch_tip_at_creation=tip,
+            allocation_record_bytes=raw,
+        )
 
     def create_worktree(self, base_commit: str, branch_name: str) -> Path:
         """

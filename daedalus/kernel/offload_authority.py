@@ -1,50 +1,60 @@
 """Pure Gate-0 binding for one already-authorized Ollama offload.
 
-This module does not issue leases, verify signatures, persist grants, consume a
-lease, or invoke a provider.  It only proves that the canonical attempt, frozen
-offload plan, signed lease bundle, and narrowed execution request all describe
-the same single effect.  Cryptographic and durable start authority remains in
-``verify_effect_lease`` and ``EffectLeaseLedger.begin``.
+This module neither issues nor consumes authority.  It proves that the v2
+plan, canonical attempt, observed workspace, exact runtime tool, signed lease
+bundle, and narrowed execution request all describe one bounded operation.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from daedalus.kernel.contracts import OffloadExecutionPlan
-from daedalus.kernel.effects import (
-    EffectExecutionRequest,
-    LeasedEffectAuthorization,
+from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectAuthorization
+from daedalus.kernel.offload_observations import (
+    OffloadWorkspaceObservation,
+    TargetBeforeObservation,
+    TaskAttemptWorkspaceAttestation,
 )
-from daedalus.schemas import AttemptContract, _sha256
+from daedalus.kernel.runtime_tools import RuntimeToolBinding
+from daedalus.schemas import AttemptContract
 from daedalus.spine.envelope import canonical_sha
+
+
+OFFLOAD_OPERATION = "single-target-ollama-rewrite"
 
 
 class OffloadAuthorityBindingError(ValueError):
     """Fail-closed refusal before any offload-side effect is consumed."""
 
 
-def derive_offload_execution_ids(
-    execution_plan_sha256: str,
-) -> tuple[str, str]:
-    """Return the sole execution/idempotency identity for one plan digest.
+def derive_offload_execution_ids(plan: OffloadExecutionPlan) -> tuple[str, str]:
+    """Derive retry identity from intent + attempt contract + operation.
 
-    Domain-separated digests keep the two identifiers distinct while making
-    both functions solely of the immutable plan.  Consequently, a second lease
-    for the same plan still collides with the first execution in the canonical
-    effect ledger instead of creating another provider call identity.
+    Plan provenance, timestamps, routing receipts, and model observations may
+    be legitimately re-sealed without authorizing another provider call.  A
+    second model call therefore requires a new AttemptContract (or intent),
+    while every plan revision for the same semantic attempt collides in the
+    canonical effect ledger.
     """
 
-    plan_sha = _sha256(execution_plan_sha256, "execution_plan_sha256")
+    if not isinstance(plan, OffloadExecutionPlan):
+        raise ValueError("plan must be an OffloadExecutionPlan")
+    semantic_identity = {
+        "spine_intent_id": plan.spine_intent_id,
+        "spine_intent_sha256": plan.spine_intent_sha256,
+        "attempt_contract_sha256": plan.attempt_contract_sha256,
+        "operation": OFFLOAD_OPERATION,
+    }
     execution_sha = canonical_sha(
         {
-            "domain": "daedalus.offload-execution-id/1",
-            "execution_plan_sha256": plan_sha,
+            "domain": "daedalus.offload-execution-id/2",
+            "semantic_identity": semantic_identity,
         }
     )
     idempotency_sha = canonical_sha(
         {
-            "domain": "daedalus.offload-idempotency-key/1",
-            "execution_plan_sha256": plan_sha,
+            "domain": "daedalus.offload-idempotency-key/2",
+            "semantic_identity": semantic_identity,
         }
     )
     return (
@@ -56,6 +66,10 @@ def derive_offload_execution_ids(
 def _mismatches(
     plan: OffloadExecutionPlan,
     attempt: AttemptContract,
+    workspace_attestation: TaskAttemptWorkspaceAttestation,
+    target_before: TargetBeforeObservation,
+    workspace_observation: OffloadWorkspaceObservation,
+    runtime_tool_binding: RuntimeToolBinding,
     authorization: LeasedEffectAuthorization,
     execution: EffectExecutionRequest,
 ) -> list[str]:
@@ -69,13 +83,10 @@ def _mismatches(
         if actual != expected:
             mismatches.append(label)
 
-    # The plan is downstream of, and must retain, the exact canonical attempt.
+    # Canonical attempt and immutable plan.
     exact("attempt_contract_sha256", plan.attempt_contract_sha256, attempt.digest)
-    # ``worktree_id`` names the concrete TaskAttempt workspace (today its
-    # randomized branch/effect key), not the logical AttemptContract id.  This
-    # value is protected by the plan/request/lease digest chain, but this pure
-    # binder has no RunnerContext from which to verify it.  The execution seam
-    # must compare it with ``RunnerContext.branch`` before consuming the lease.
+    exact("attempt_mission_id", plan.mission_id, attempt.mission_id)
+    exact("attempt_id", plan.attempt_id, attempt.attempt_id)
     exact("task_id", plan.task_id, attempt.task_id)
     exact("task_sha256", plan.task_sha256, attempt.task_sha256)
     exact("source_revision", plan.source_revision, attempt.base_revision)
@@ -89,12 +100,12 @@ def _mismatches(
         plan.runtime_manifest_sha256,
         attempt.runtime_manifest_sha256,
     )
-    exact("attempt_writable_paths", plan.target_paths, attempt.writable_paths)
+    exact("attempt_writable_paths", (plan.target_path,), attempt.writable_paths)
     if len(attempt.writable_paths) != 1:
         mismatches.append("attempt_single_target")
     if (
         attempt.budget.max_wall_time_s is not None
-        and plan.timeout_s > attempt.budget.max_wall_time_s
+        and plan.total_timeout_s > attempt.budget.max_wall_time_s
     ):
         mismatches.append("attempt_wall_time_budget")
     if (
@@ -102,9 +113,118 @@ def _mismatches(
         and plan.max_cost_microusd > attempt.budget.max_cost_microusd
     ):
         mismatches.append("attempt_cost_budget")
+    # ResourceBudget.max_tokens accounts for input + output.  num_predict is
+    # only an output ceiling, so accepting it alone could consume the whole
+    # budget before the non-empty prompt is counted.  num_ctx is the frozen
+    # total context ceiling and is therefore the conservative pre-call bound.
+    if (
+        attempt.budget.max_tokens is not None
+        and plan.num_ctx > attempt.budget.max_tokens
+    ):
+        mismatches.append("attempt_token_budget")
 
-    # The effect-policy subject is the request that explicitly contains the
-    # plan digest.  This keeps the pre-policy plan free of a hash cycle.
+    # RunnerContext-derived allocation identity and content observations.  No
+    # caller-authored digest bag is accepted here: all three inputs are the
+    # canonical contracts captured by the observation seam.
+    exact(
+        "workspace_attestation_sha256",
+        workspace_attestation.digest,
+        plan.workspace_attestation_sha256,
+    )
+    exact(
+        "workspace_spine_intent_id",
+        workspace_attestation.spine_intent_id,
+        plan.spine_intent_id,
+    )
+    exact(
+        "workspace_spine_intent_sha256",
+        workspace_attestation.spine_intent_sha256,
+        plan.spine_intent_sha256,
+    )
+    exact("workspace_id", workspace_attestation.workspace_id, plan.workspace_id)
+    exact(
+        "workspace_source_revision",
+        workspace_attestation.source_revision,
+        plan.source_revision,
+    )
+    exact("workspace_task_id", workspace_attestation.task_id, plan.task_id)
+    exact("workspace_task_sha256", workspace_attestation.task_sha256, plan.task_sha256)
+
+    exact(
+        "workspace_observation_sha256",
+        workspace_observation.digest,
+        plan.workspace_observation_sha256,
+    )
+    exact(
+        "observation_workspace_id",
+        workspace_observation.workspace_id,
+        plan.workspace_id,
+    )
+    exact(
+        "observation_workspace_attestation_sha256",
+        workspace_observation.workspace_attestation_sha256,
+        workspace_attestation.digest,
+    )
+    exact(
+        "observation_source_revision",
+        workspace_observation.source_revision,
+        plan.source_revision,
+    )
+    exact(
+        "workspace_base_source_artifact_sha256",
+        workspace_observation.base_source_artifact_sha256,
+        plan.base_source_artifact_sha256,
+    )
+    exact(
+        "observation_target_before_sha256",
+        workspace_observation.target_before_observation_sha256,
+        target_before.digest,
+    )
+
+    exact(
+        "target_workspace_attestation_sha256",
+        target_before.workspace_attestation_sha256,
+        workspace_attestation.digest,
+    )
+    exact("target_source_revision", target_before.source_revision, plan.source_revision)
+    exact("workspace_target_path", target_before.target_path, plan.target_path)
+    exact("workspace_target_kind", target_before.target_kind, plan.target_kind)
+    exact(
+        "workspace_target_before_sha256",
+        target_before.content_sha256,
+        plan.target_before_sha256,
+    )
+    exact(
+        "workspace_target_before_size",
+        target_before.byte_length,
+        plan.target_before_size,
+    )
+    exact(
+        "workspace_target_git_mode",
+        target_before.git_mode,
+        plan.target_git_mode,
+    )
+
+    # Symbolic verifier id -> runtime manifest -> exact host executable bytes.
+    exact(
+        "runtime_tool_binding_sha256",
+        runtime_tool_binding.digest,
+        plan.runtime_tool_binding_sha256,
+    )
+    exact("runtime_tool_id", runtime_tool_binding.tool_id, plan.verifier_argv[0])
+    exact(
+        "runtime_tool_manifest_sha256",
+        runtime_tool_binding.runtime_manifest_sha256,
+        plan.runtime_manifest_sha256,
+    )
+    exact(
+        "runtime_tool_source_revision",
+        runtime_tool_binding.source_revision,
+        plan.source_revision,
+    )
+
+    # The effect-policy subject is the request that explicitly carries the
+    # complete plan digest, avoiding a Plan -> Policy -> Request -> Plan cycle.
     exact("request_entrypoint", request.entrypoint_id, "python.offload")
     exact("request_mission_id", request.mission_id, attempt.mission_id)
     exact("request_attempt_id", request.attempt_id, attempt.attempt_id)
@@ -113,17 +233,12 @@ def _mismatches(
         request.provenance.source_revision,
         plan.source_revision,
     )
-    exact(
-        "request_execution_plan_sha256",
-        request.execution_plan_sha256,
-        plan.digest,
-    )
+    exact("request_execution_plan_sha256", request.execution_plan_sha256, plan.digest)
     if plan.digest not in request.provenance.input_digests:
         mismatches.append("request_plan_provenance")
 
-    # The lease and policy must name the exact request bytes.  Signature,
-    # expiry, registry freshness, persisted-grant identity, and replay remain
-    # deliberately delegated to the existing Effect Lease authority.
+    # Lease/policy byte identity. Signature, expiry, registry freshness,
+    # durable grant identity, and replay remain in the Effect Lease authority.
     exact("lease_request_id", lease.request_id, request.request_id)
     exact("lease_request_sha256", lease.request_sha256, request.digest)
     exact("lease_entrypoint", lease.entrypoint_id, request.entrypoint_id)
@@ -131,6 +246,11 @@ def _mismatches(
         "lease_idempotency_namespace",
         lease.idempotency_namespace,
         request.idempotency_namespace,
+    )
+    exact(
+        "request_idempotency_namespace",
+        request.idempotency_namespace,
+        f"{attempt.mission_id}/{attempt.attempt_id}",
     )
     exact(
         "lease_source_revision",
@@ -146,14 +266,9 @@ def _mismatches(
         request.provenance.source_revision,
     )
     exact("lease_policy_decision_id", lease.policy_decision_id, policy.decision_id)
-    exact(
-        "lease_policy_decision_sha256",
-        lease.policy_decision_sha256,
-        policy.digest,
-    )
+    exact("lease_policy_decision_sha256", lease.policy_decision_sha256, policy.digest)
 
-    # Gate-0 supports only the pinned Ollama HTTP runtime for this plan type.
-    exact("lease_runtime_id", lease.runtime_id, "ollama_http")
+    exact("lease_runtime_id", lease.runtime_id, plan.runtime_id)
     exact(
         "request_runtime_manifest_sha256",
         request.runtime_manifest_sha256,
@@ -175,16 +290,13 @@ def _mismatches(
         plan.runtime_conformance_sha256,
     )
 
-    # No subset or widening is accepted at this binder.  The generic lease
-    # implementation may support narrowing; this single-call plan intentionally
-    # binds the complete effects and scope end to end.
+    # This single-call path accepts neither widening nor narrowing.
     exact("request_effects", request.requested_effects, plan.requested_effects)
     exact("lease_effects", lease.requested_effects, plan.requested_effects)
     exact("execution_effects", execution.requested_effects, plan.requested_effects)
     exact("request_effect_scope", request.effect_scope, scope)
     exact("lease_effect_scope", lease.effect_scope, scope)
     exact("policy_effect_scope", policy.effect_scope, scope)
-
     exact("execution_writable_paths", execution.writable_paths, scope.writable_paths)
     exact("execution_egress_endpoints", execution.egress_endpoints, scope.egress_endpoints)
     exact("execution_tools", execution.tools, scope.tools)
@@ -217,16 +329,10 @@ def _mismatches(
         plan.kill_switch_generation,
     )
 
-    expected_execution_id, expected_idempotency_key = derive_offload_execution_ids(
-        plan.digest
-    )
+    expected_execution_id, expected_idempotency_key = derive_offload_execution_ids(plan)
     exact("execution_id", execution.execution_id, expected_execution_id)
     exact("idempotency_key", execution.idempotency_key, expected_idempotency_key)
-    exact(
-        "execution_execution_plan_sha256",
-        execution.execution_plan_sha256,
-        plan.digest,
-    )
+    exact("execution_execution_plan_sha256", execution.execution_plan_sha256, plan.digest)
     return mismatches
 
 
@@ -236,6 +342,10 @@ class AuthorizedOffloadExecution:
 
     plan: OffloadExecutionPlan
     attempt: AttemptContract
+    workspace_attestation: TaskAttemptWorkspaceAttestation
+    target_before: TargetBeforeObservation
+    workspace_observation: OffloadWorkspaceObservation
+    runtime_tool_binding: RuntimeToolBinding
     authorization: LeasedEffectAuthorization
     execution: EffectExecutionRequest
 
@@ -243,6 +353,18 @@ class AuthorizedOffloadExecution:
         expected_types = (
             ("plan", self.plan, OffloadExecutionPlan),
             ("attempt", self.attempt, AttemptContract),
+            (
+                "workspace_attestation",
+                self.workspace_attestation,
+                TaskAttemptWorkspaceAttestation,
+            ),
+            ("target_before", self.target_before, TargetBeforeObservation),
+            (
+                "workspace_observation",
+                self.workspace_observation,
+                OffloadWorkspaceObservation,
+            ),
+            ("runtime_tool_binding", self.runtime_tool_binding, RuntimeToolBinding),
             ("authorization", self.authorization, LeasedEffectAuthorization),
             ("execution", self.execution, EffectExecutionRequest),
         )
@@ -259,6 +381,10 @@ class AuthorizedOffloadExecution:
         mismatches = _mismatches(
             self.plan,
             self.attempt,
+            self.workspace_attestation,
+            self.target_before,
+            self.workspace_observation,
+            self.runtime_tool_binding,
             self.authorization,
             self.execution,
         )
@@ -273,6 +399,10 @@ def authorize_offload_execution(
     *,
     plan: OffloadExecutionPlan,
     attempt: AttemptContract,
+    workspace_attestation: TaskAttemptWorkspaceAttestation,
+    target_before: TargetBeforeObservation,
+    workspace_observation: OffloadWorkspaceObservation,
+    runtime_tool_binding: RuntimeToolBinding,
     authorization: LeasedEffectAuthorization,
     execution: EffectExecutionRequest,
 ) -> AuthorizedOffloadExecution:
@@ -281,6 +411,10 @@ def authorize_offload_execution(
     return AuthorizedOffloadExecution(
         plan=plan,
         attempt=attempt,
+        workspace_attestation=workspace_attestation,
+        target_before=target_before,
+        workspace_observation=workspace_observation,
+        runtime_tool_binding=runtime_tool_binding,
         authorization=authorization,
         execution=execution,
     )
@@ -288,6 +422,7 @@ def authorize_offload_execution(
 
 __all__ = [
     "AuthorizedOffloadExecution",
+    "OFFLOAD_OPERATION",
     "OffloadAuthorityBindingError",
     "authorize_offload_execution",
     "derive_offload_execution_ids",

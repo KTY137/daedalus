@@ -40,6 +40,8 @@ from .contracts import (
     EffectLease,
     EffectLeaseRequest,
     OffloadExecutionPlan,
+    OffloadExecutionPlanV1,
+    decode_offload_execution_plan,
 )
 from .effects import (
     CompletionCapability,
@@ -82,6 +84,21 @@ from .offload_authority import (
     authorize_offload_execution,
     derive_offload_execution_ids,
 )
+from .offload_observations import (
+    BASE_SOURCE_ARTIFACT_KIND,
+    OLLAMA_METADATA_ARTIFACT_KIND,
+    SOURCE_FINGERPRINT_ARTIFACT_KIND,
+    OffloadObservationError,
+    OffloadWorkspaceObservation,
+    OllamaModelObservation,
+    TargetBeforeObservation,
+    TaskAttemptWorkspaceAttestation,
+)
+from .runtime_tools import (
+    RuntimeToolBinding,
+    RuntimeToolBindingError,
+    VerifiedRuntimeToolHandle,
+)
 
 __all__ += [
     "CompletionCapability",
@@ -106,12 +123,25 @@ __all__ += [
     "freeze_effect_terminal_receipt",
     "OFFLOAD_EXECUTION_EFFECTS",
     "OffloadExecutionPlan",
+    "OffloadExecutionPlanV1",
+    "decode_offload_execution_plan",
     "issue_effect_lease",
     "verify_effect_lease",
     "AuthorizedOffloadExecution",
     "OffloadAuthorityBindingError",
     "authorize_offload_execution",
     "derive_offload_execution_ids",
+    "BASE_SOURCE_ARTIFACT_KIND",
+    "OLLAMA_METADATA_ARTIFACT_KIND",
+    "SOURCE_FINGERPRINT_ARTIFACT_KIND",
+    "OffloadObservationError",
+    "OffloadWorkspaceObservation",
+    "OllamaModelObservation",
+    "TargetBeforeObservation",
+    "TaskAttemptWorkspaceAttestation",
+    "RuntimeToolBinding",
+    "RuntimeToolBindingError",
+    "VerifiedRuntimeToolHandle",
     "EffectReconciliationBindingError",
     "EffectReconciliationConflict",
     "EffectReconciliationDecision",

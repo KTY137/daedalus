@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/task-attempt-workspace-attestation-v1.schema.json",
+  "title": "Daedalus TaskAttemptWorkspaceAttestation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": [
+    "contract_type", "contract_version", "workspace_id", "spine_intent_id",
+    "spine_intent_sha256", "task_id", "task_sha256", "source_revision", "branch",
+    "workspace_path_sha256", "worktree_root_path_sha256", "primary_checkout_path_sha256",
+    "workspace_identity_sha256", "primary_checkout_identity_sha256",
+    "git_admin_identity_sha256", "reach_chain_sha256", "allocation_record_sha256",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.task-attempt-workspace-attestation"},
+    "contract_version": {"const": "1.0.0"},
+    "workspace_id": {"$ref": "#/$defs/identifier"},
+    "spine_intent_id": {"type": "integer", "minimum": 1},
+    "spine_intent_sha256": {"$ref": "#/$defs/sha256"},
+    "task_id": {"$ref": "#/$defs/identifier"},
+    "task_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "branch": {"$ref": "#/$defs/identifier"},
+    "workspace_path_sha256": {"$ref": "#/$defs/sha256"},
+    "worktree_root_path_sha256": {"$ref": "#/$defs/sha256"},
+    "primary_checkout_path_sha256": {"$ref": "#/$defs/sha256"},
+    "workspace_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "primary_checkout_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "git_admin_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "reach_chain_sha256": {"$ref": "#/$defs/sha256"},
+    "allocation_record_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}

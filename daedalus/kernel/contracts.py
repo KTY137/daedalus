@@ -8,6 +8,8 @@ mechanical rewrite of the legacy schema module in the same security packet.
 from __future__ import annotations
 
 import ipaddress
+import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, ClassVar, Mapping
 from urllib.parse import urlsplit
@@ -34,6 +36,27 @@ OFFLOAD_EXECUTION_EFFECTS = (
     "process_spawn",
     "spend",
 )
+
+OFFLOAD_MAX_METADATA_CALLS = 1
+OFFLOAD_MAX_MODEL_CALLS = 1
+OFFLOAD_MAX_RESPONSE_BYTES = 2_000_000
+OFFLOAD_MAX_TOTAL_TIMEOUT_S = 3_600
+OFFLOAD_NUM_CTX_MIN = 2_048
+OFFLOAD_NUM_CTX_MAX = 131_072
+OFFLOAD_NUM_PREDICT_MAX = 8_192
+
+_WINDOWS_RESERVED_PATH_NAMES = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{number}" for number in range(1, 10)),
+        *(f"LPT{number}" for number in range(1, 10)),
+    }
+)
+_WINDOWS_INVALID_PATH_CHARS_RE = re.compile(r'[<>:"|?*\x00-\x1f]')
+_WINDOWS_SHORT_NAME_RE = re.compile(r"~[0-9]+(?:\.|$)", re.IGNORECASE)
 
 
 def _command_argv(value: Any, name: str) -> tuple[str, ...]:
@@ -72,12 +95,57 @@ def _loopback_ollama_endpoint(value: Any) -> str:
         raise ValueError(
             "provider_endpoint must use a valid numeric loopback address and port"
         ) from exc
-    if not address.is_loopback or port is None:
+    canonical_loopbacks = {
+        ipaddress.ip_address("127.0.0.1"),
+        ipaddress.ip_address("::1"),
+    }
+    if address not in canonical_loopbacks or port is None or port < 1:
         raise ValueError(
-            "provider_endpoint must use a numeric loopback address with explicit port"
+            "provider_endpoint must use canonical loopback 127.0.0.1 or ::1 "
+            "with an explicit port"
         )
     host = f"[{address.compressed}]" if address.version == 6 else address.compressed
     return f"http://{host}:{port}"
+
+
+def _portable_target_path(value: Any, name: str = "target_path") -> str:
+    """Validate one exact repository-relative path without normalization.
+
+    The execution plan is portable across the supported host platforms.  A
+    path that would normalize differently on POSIX and Windows is therefore
+    refused instead of silently rewritten into a broader effect scope.
+    """
+
+    raw = _non_empty(value, name, max_length=500)
+    if "\\" in raw:
+        raise ValueError(f"{name} must use POSIX '/' separators")
+    if raw.startswith("/") or raw.startswith("//"):
+        raise ValueError(f"{name} must be repository-relative")
+    if re.match(r"^[A-Za-z]:", raw):
+        raise ValueError(f"{name} must not be drive-qualified")
+
+    parts = raw.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError(
+            f"{name} must not contain empty, current, or parent path components"
+        )
+    for index, part in enumerate(parts):
+        if unicodedata.normalize("NFC", part) != part:
+            raise ValueError(
+                f"{name} component {index} must use canonical NFC Unicode"
+            )
+        if _WINDOWS_INVALID_PATH_CHARS_RE.search(part):
+            raise ValueError(f"{name} component {index} contains a non-portable character")
+        if part.endswith((".", " ")):
+            raise ValueError(f"{name} component {index} must not end in dot or space")
+        stem = part.split(".", 1)[0].upper()
+        if stem in _WINDOWS_RESERVED_PATH_NAMES:
+            raise ValueError(f"{name} component {index} is reserved on Windows")
+        if _WINDOWS_SHORT_NAME_RE.search(part):
+            raise ValueError(
+                f"{name} component {index} could be a Windows 8.3 path alias"
+            )
+    return raw
 
 
 @dataclass(frozen=True)
@@ -360,20 +428,293 @@ class EffectLease(CanonicalContract):
 
 @dataclass(frozen=True)
 class OffloadExecutionPlan(CanonicalContract):
-    """Inert, immutable authorization input for one bounded local offload.
+    """Frozen v2 authority input for one deterministic local rewrite.
 
-    The plan records what a later trusted authority may request.  It neither
-    issues an Effect Lease nor performs a provider call.  The first supported
-    slice is deliberately narrow: one pinned Ollama model at a numeric
-    loopback origin, one model call, exact workspace targets, deterministic
-    tool/verifier argv, and zero monetary spend.  The attempt-policy digest is
-    an upstream input already bound by ``AttemptContract``; the later effect
-    policy instead subjects the lease request containing this plan's digest.
-    Keeping those decisions distinct avoids a Plan -> Policy -> Request -> Plan
-    hash cycle.
+    This is an inert claim, not filesystem evidence and not permission to run.
+    A trusted execution seam must compare the target-before fields with a real
+    regular UTF-8 file and bind the runtime tool bytes before consuming a
+    lease.  ``expected_model_sha256`` is an expectation checked against the
+    live model observation produced only after ``ledger.begin``; that later
+    observation belongs in terminal/evidence output, never in this pre-effect
+    plan.  The intentionally narrow Gate-0 slice permits one metadata call, one
+    model call, one target, one verifier, canonical-loopback Ollama only, and no
+    monetary cost.
     """
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.offload-execution-plan"
+    CONTRACT_VERSION: ClassVar[str] = "2.0.0"
+
+    spine_intent_id: int
+    spine_intent_sha256: str
+    mission_id: str
+    attempt_id: str
+    attempt_contract_sha256: str
+    task_id: str
+    task_sha256: str
+
+    source_revision: str
+    base_source_artifact_sha256: str
+    workspace_id: str
+    workspace_attestation_sha256: str
+    workspace_observation_sha256: str
+
+    target_path: str
+    target_kind: str
+    target_before_sha256: str
+    target_before_size: int
+    target_git_mode: str
+
+    provider_id: str
+    runtime_id: str
+    provider_endpoint: str
+    model_id: str
+    expected_model_sha256: str
+
+    prompt_template_sha256: str
+    prompt_sha256: str
+    response_schema_sha256: str
+    ollama_request_sha256: str
+    num_ctx: int
+    num_predict: int
+    seed: int
+    temperature_milli: int
+    keep_alive: str
+    max_response_bytes: int
+    max_metadata_calls: int
+    max_model_calls: int
+
+    attempt_policy_decision_sha256: str
+    runtime_manifest_sha256: str
+    runtime_conformance_sha256: str
+    runtime_tool_binding_sha256: str
+
+    verifier_argv: tuple[str, ...]
+    verifier_timeout_s: int
+
+    requested_effects: tuple[str, ...]
+    effect_scope: EffectScope
+    kill_switch_generation: int
+    total_timeout_s: int
+    max_cost_microusd: int
+    provenance: ContractProvenance
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.spine_intent_id, bool)
+            or not isinstance(self.spine_intent_id, int)
+            or self.spine_intent_id < 1
+        ):
+            raise ValueError("spine_intent_id must be a positive Spine ledger id")
+        for name in (
+            "mission_id",
+            "attempt_id",
+            "task_id",
+            "workspace_id",
+        ):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+
+        digest_fields = (
+            "spine_intent_sha256",
+            "attempt_contract_sha256",
+            "task_sha256",
+            "base_source_artifact_sha256",
+            "workspace_attestation_sha256",
+            "workspace_observation_sha256",
+            "target_before_sha256",
+            "expected_model_sha256",
+            "prompt_template_sha256",
+            "prompt_sha256",
+            "response_schema_sha256",
+            "ollama_request_sha256",
+            "attempt_policy_decision_sha256",
+            "runtime_manifest_sha256",
+            "runtime_conformance_sha256",
+            "runtime_tool_binding_sha256",
+        )
+        for name in digest_fields:
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self, "source_revision", _revision(self.source_revision, "source_revision")
+        )
+
+        object.__setattr__(
+            self, "target_path", _portable_target_path(self.target_path)
+        )
+        if self.target_kind != "existing-regular-utf8-file":
+            raise ValueError(
+                "target_kind must be exactly 'existing-regular-utf8-file'"
+            )
+        if (
+            isinstance(self.target_before_size, bool)
+            or not isinstance(self.target_before_size, int)
+            or self.target_before_size < 0
+        ):
+            raise ValueError("target_before_size must be a non-negative integer")
+        if self.target_git_mode not in {"100644", "100755"}:
+            raise ValueError("target_git_mode must be '100644' or '100755'")
+
+        provider_id = _identifier(self.provider_id, "provider_id")
+        if provider_id != "ollama":
+            raise ValueError("provider_id must be exactly 'ollama'")
+        object.__setattr__(self, "provider_id", provider_id)
+        runtime_id = _identifier(self.runtime_id, "runtime_id")
+        if runtime_id != "ollama_http":
+            raise ValueError("runtime_id must be exactly 'ollama_http'")
+        object.__setattr__(self, "runtime_id", runtime_id)
+        object.__setattr__(
+            self, "provider_endpoint", _loopback_ollama_endpoint(self.provider_endpoint)
+        )
+        object.__setattr__(self, "model_id", _identifier(self.model_id, "model_id"))
+
+        integer_bounds = (
+            ("num_ctx", self.num_ctx, OFFLOAD_NUM_CTX_MIN, OFFLOAD_NUM_CTX_MAX),
+            ("num_predict", self.num_predict, 1, OFFLOAD_NUM_PREDICT_MAX),
+            ("seed", self.seed, 0, (2**63) - 1),
+            ("max_response_bytes", self.max_response_bytes, 1, OFFLOAD_MAX_RESPONSE_BYTES),
+            ("total_timeout_s", self.total_timeout_s, 1, OFFLOAD_MAX_TOTAL_TIMEOUT_S),
+        )
+        for name, value, minimum, maximum in integer_bounds:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < minimum
+                or value > maximum
+            ):
+                raise ValueError(
+                    f"{name} must be an integer between {minimum} and {maximum}"
+                )
+        if self.num_predict > self.num_ctx:
+            raise ValueError("num_predict must not exceed num_ctx")
+        if (
+            isinstance(self.temperature_milli, bool)
+            or not isinstance(self.temperature_milli, int)
+            or self.temperature_milli != 0
+        ):
+            raise ValueError("temperature_milli must be exactly 0")
+        if self.keep_alive != "0":
+            raise ValueError("keep_alive must be exactly '0'")
+        for name, value, expected in (
+            ("max_metadata_calls", self.max_metadata_calls, OFFLOAD_MAX_METADATA_CALLS),
+            ("max_model_calls", self.max_model_calls, OFFLOAD_MAX_MODEL_CALLS),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value != expected:
+                raise ValueError(f"{name} must be exactly {expected}")
+        if (
+            isinstance(self.max_cost_microusd, bool)
+            or not isinstance(self.max_cost_microusd, int)
+            or self.max_cost_microusd != 0
+        ):
+            raise ValueError("max_cost_microusd must be exactly 0")
+
+        object.__setattr__(
+            self,
+            "verifier_argv",
+            _command_argv(self.verifier_argv, "verifier_argv"),
+        )
+        _identifier(self.verifier_argv[0], "verifier_argv[0]")
+        if (
+            isinstance(self.verifier_timeout_s, bool)
+            or not isinstance(self.verifier_timeout_s, int)
+            or self.verifier_timeout_s < 1
+            or self.verifier_timeout_s > self.total_timeout_s
+        ):
+            raise ValueError(
+                "verifier_timeout_s must be positive and not exceed total_timeout_s"
+            )
+
+        effects = _sorted_strings(
+            self.requested_effects, "requested_effects", identifiers=True
+        )
+        if effects != OFFLOAD_EXECUTION_EFFECTS:
+            raise ValueError(
+                "requested_effects must exactly match the canonical python.offload entrypoint"
+            )
+        object.__setattr__(self, "requested_effects", effects)
+        if not isinstance(self.effect_scope, EffectScope):
+            raise ValueError("effect_scope must be an EffectScope")
+        scope = self.effect_scope
+        if scope.read_only:
+            raise ValueError("offload execution plan requires a write-capable effect scope")
+        if scope.writable_paths != (self.target_path,):
+            raise ValueError("effect_scope.writable_paths must contain only target_path")
+        if scope.egress_endpoints != (self.provider_endpoint,):
+            raise ValueError(
+                "effect_scope.egress_endpoints must contain only provider_endpoint"
+            )
+        if scope.tools != (self.verifier_argv[0],):
+            raise ValueError(
+                "effect_scope.tools must contain only the symbolic verifier tool id"
+            )
+        if scope.secret_refs:
+            raise ValueError("loopback Ollama offload cannot request secret_refs")
+        if scope.max_cost_microusd != 0:
+            raise ValueError("effect_scope.max_cost_microusd must be exactly 0")
+        if scope.max_concurrency != 1:
+            raise ValueError("effect_scope.max_concurrency must be exactly 1")
+        if scope.timeout_s != self.total_timeout_s:
+            raise ValueError("effect_scope.timeout_s must equal total_timeout_s")
+        if not scope.kill_switch_ref:
+            raise ValueError("offload execution plan requires a kill_switch_ref")
+        if (
+            isinstance(self.kill_switch_generation, bool)
+            or not isinstance(self.kill_switch_generation, int)
+            or self.kill_switch_generation < 0
+        ):
+            raise ValueError("kill_switch_generation must be a non-negative integer")
+
+        if self.provenance.source_revision != self.source_revision:
+            raise ValueError(
+                "offload execution plan source_revision must match provenance"
+            )
+        _require_provenance_inputs(
+            self.provenance,
+            tuple(getattr(self, name) for name in digest_fields),
+            "offload execution plan",
+        )
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OffloadExecutionPlan":
+        body = cls._contract_payload(payload)
+        body["effect_scope"] = EffectScope.from_dict(body["effect_scope"])
+        body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        return cls(**body)
+
+
+def _loopback_ollama_endpoint_v1(value: Any) -> str:
+    """Preserve the historical v1 numeric-127/8 endpoint interpretation."""
+
+    endpoint = _egress_endpoint(value, "provider_endpoint")
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "http":
+        raise ValueError("provider_endpoint must use http on numeric loopback")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("provider_endpoint must be an origin without path/query/fragment")
+    try:
+        address = ipaddress.ip_address(parsed.hostname or "")
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError(
+            "provider_endpoint must use a valid numeric loopback address and port"
+        ) from exc
+    if not address.is_loopback or port is None:
+        raise ValueError(
+            "provider_endpoint must use a numeric loopback address with explicit port"
+        )
+    host = f"[{address.compressed}]" if address.version == 6 else address.compressed
+    return f"http://{host}:{port}"
+
+
+@dataclass(frozen=True)
+class OffloadExecutionPlanV1(CanonicalContract):
+    """Historical v1 decoder retained for ledger and artifact replay.
+
+    V1 is not accepted by the v2 authority and cannot be promoted into v2 by
+    inventing target observations or runtime bindings.  The separate type keeps
+    its original wire semantics available for audit without weakening v2.
+    """
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.offload-execution-plan"
+    CONTRACT_VERSION: ClassVar[str] = "1.0.0"
 
     plan_id: str
     spine_intent_id: int
@@ -420,7 +761,7 @@ class OffloadExecutionPlan(CanonicalContract):
         ):
             raise ValueError("spine_intent_id must be a positive Spine ledger id")
 
-        for name in (
+        digest_fields = (
             "intent_sha256",
             "attempt_contract_sha256",
             "task_sha256",
@@ -433,7 +774,8 @@ class OffloadExecutionPlan(CanonicalContract):
             "routing_decision_sha256",
             "runtime_manifest_sha256",
             "runtime_conformance_sha256",
-        ):
+        )
+        for name in digest_fields:
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
 
         object.__setattr__(
@@ -445,7 +787,9 @@ class OffloadExecutionPlan(CanonicalContract):
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(self, "model_id", _identifier(self.model_id, "model_id"))
         object.__setattr__(
-            self, "provider_endpoint", _loopback_ollama_endpoint(self.provider_endpoint)
+            self,
+            "provider_endpoint",
+            _loopback_ollama_endpoint_v1(self.provider_endpoint),
         )
         if self.write_mode != "write":
             raise ValueError("offload execution plan write_mode must be 'write'")
@@ -456,7 +800,6 @@ class OffloadExecutionPlan(CanonicalContract):
                 "Gate-0 offload execution plan requires exactly one bounded target path"
             )
         object.__setattr__(self, "target_paths", targets)
-
         effects = _sorted_strings(
             self.requested_effects, "requested_effects", identifiers=True
         )
@@ -492,10 +835,6 @@ class OffloadExecutionPlan(CanonicalContract):
             "verifier_argv",
             _command_argv(self.verifier_argv, "verifier_argv"),
         )
-        # argv[0] is a stable runtime-manifest tool id, not an ambient host
-        # executable path.  The pinned runtime manifest resolves that id to an
-        # exact binary; keeping the policy scope symbolic makes the wire
-        # contract portable without weakening the manifest binding.
         declared_tools = tuple(sorted({self.tool_argv[0], self.verifier_argv[0]}))
         for index, tool in enumerate(declared_tools):
             _identifier(tool, f"argv executable[{index}]")
@@ -538,33 +877,34 @@ class OffloadExecutionPlan(CanonicalContract):
                 raise ValueError(f"{name} must be boolean")
             if value:
                 raise ValueError(f"{name} must be false for the Gate-0 offload slice")
-
         if self.provenance.source_revision != self.source_revision:
             raise ValueError(
                 "offload execution plan source_revision must match provenance"
             )
         _require_provenance_inputs(
             self.provenance,
-            (
-                self.intent_sha256,
-                self.attempt_contract_sha256,
-                self.task_sha256,
-                self.source_artifact_sha256,
-                self.worktree_fingerprint_sha256,
-                self.model_sha256,
-                self.attempt_policy_decision_sha256,
-                self.availability_sha256,
-                self.routing_index_sha256,
-                self.routing_decision_sha256,
-                self.runtime_manifest_sha256,
-                self.runtime_conformance_sha256,
-            ),
+            tuple(getattr(self, name) for name in digest_fields),
             "offload execution plan",
         )
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "OffloadExecutionPlan":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OffloadExecutionPlanV1":
         body = cls._contract_payload(payload)
         body["effect_scope"] = EffectScope.from_dict(body["effect_scope"])
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+
+def decode_offload_execution_plan(
+    payload: Mapping[str, Any],
+) -> OffloadExecutionPlanV1 | OffloadExecutionPlan:
+    """Decode the exact historical or current wire version without coercion."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("daedalus.offload-execution-plan must be an object")
+    version = payload.get("contract_version")
+    if version == OffloadExecutionPlanV1.CONTRACT_VERSION:
+        return OffloadExecutionPlanV1.from_dict(payload)
+    if version == OffloadExecutionPlan.CONTRACT_VERSION:
+        return OffloadExecutionPlan.from_dict(payload)
+    raise ValueError(f"unsupported offload execution plan version: {version!r}")
