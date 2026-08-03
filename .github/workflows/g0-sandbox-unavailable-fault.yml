@@ -1,0 +1,126 @@
+name: Gate 0 — sandbox unavailable fault
+
+on:
+  pull_request:
+    branches:
+      - g0/linux-process-fault-executors
+    paths:
+      - "daedalus/kernel/sandbox.py"
+      - "daedalus/runtimes/host_fault_runner.py"
+      - "tests/kernel/test_docker_sandbox_policy.py"
+      - "tests/kernel/test_docker_sandbox_launch_states.py"
+      - "tests/kernel/test_docker_sandbox_launch_states_review.py"
+      - "tests/fixtures/sandbox_unavailable_fault_executor.py"
+      - "tests/runtimes/test_sandbox_unavailable_fault_executor.py"
+      - ".github/workflows/g0-sandbox-unavailable-fault.yml"
+      - "docs/work-packets/G0-RTC-06J_SANDBOX_UNAVAILABLE_FAULT.md"
+  push:
+    branches:
+      - g0/sandbox-unavailable-fault
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-sandbox-unavailable-fault-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contracts / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests
+      - name: Verify sandbox launch states and host fault evidence
+        run: >-
+          python -m pytest -q
+          tests/kernel/test_docker_sandbox_policy.py
+          tests/kernel/test_docker_sandbox_launch_states.py
+          tests/kernel/test_docker_sandbox_launch_states_review.py
+          tests/runtimes/test_sandbox_unavailable_fault_executor.py
+          tests/runtimes/test_linux_host_fault_runner.py
+          tests/runtimes/test_linux_host_fault_runner_review.py
+          tests/runtimes/test_runtime_fault_catalog.py
+          tests/runtimes/test_runtime_fault_attestations.py
+          tests/runtimes/test_runtime_fault_attestation_hardening.py
+          tests/runtimes/test_runtime_fault_attestation_receipt.py
+
+  retained-host-evidence:
+    name: retained untrusted sandbox-unavailable evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - name: Execute exact-head sandbox-unavailable fault
+        run: >-
+          python tests/fixtures/sandbox_unavailable_fault_executor.py
+          --source-revision "${GITHUB_SHA}"
+          --output-dir reports/sandbox-unavailable
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: untrusted-sandbox-unavailable-${{ github.sha }}
+          path: reports/sandbox-unavailable/*
+          if-no-files-found: error
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated sandbox receipt wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-sandbox-unavailable-wheel
+      - run: /tmp/daedalus-sandbox-unavailable-wheel/bin/pip install dist/*.whl
+      - name: Import packaged sandbox receipt outside the checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-sandbox-unavailable-wheel/bin/python -c
+          "from daedalus.kernel.sandbox import DockerSandboxPolicy, SandboxExecutionReceipt, run_in_docker_sandbox;
+          assert DockerSandboxPolicy and SandboxExecutionReceipt and run_in_docker_sandbox"
