@@ -27,7 +27,13 @@ def _assert_disjoint(candidate: Path, protected: Path, label: str) -> None:
 
 
 def _workspace_root_identity(path: Path) -> str:
-    """Bind the resolved path and concrete directory object retained there."""
+    """Bind the resolved path and concrete directory object retained there.
+
+    Directory timestamps are intentionally excluded: creating an Attempt child
+    legitimately changes parent metadata and must not invalidate the retained
+    root. Device and inode/file identifier remain stable for the same directory
+    object across ordinary child creation on the supported platforms.
+    """
     try:
         metadata = os.stat(path, follow_symlinks=False)
     except OSError as exc:
@@ -43,7 +49,6 @@ def _workspace_root_identity(path: Path) -> str:
             "path": normalized,
             "st_dev": int(metadata.st_dev),
             "st_ino": int(metadata.st_ino),
-            "st_ctime_ns": int(metadata.st_ctime_ns),
         }
     )
 
