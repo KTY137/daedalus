@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - g0/bootstrap-workspace
+  pull_request:
+    branches:
+      - core/fourfold-v2
+    paths:
+      - ".github/workflows/bootstrap-checkout-export.yml"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +34,7 @@ jobs:
           tar -tzf "$RUNNER_TEMP/daedalus-checkout.tar.gz" >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: daedalus-effect-leases-checkout
+          name: daedalus-effect-leases-checkout-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/daedalus-checkout.tar.gz
             ${{ runner.temp }}/CHECKOUT_HEAD
