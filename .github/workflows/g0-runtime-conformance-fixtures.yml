@@ -45,6 +45,7 @@ jobs:
           python -m pytest -q
           tests/kernel/test_runtime_conformance_harness.py
           tests/runtimes/test_runtime_conformance_profiles.py
+          tests/runtimes/test_runtime_profile_adversarial.py
           tests/runtimes/test_runtime_live_trust_anchor.py
           tests/test_effect_boundary.py
 
