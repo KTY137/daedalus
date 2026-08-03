@@ -96,6 +96,12 @@ def read_attempt_intents(
                 raise AttemptStateError(
                     "attempt lifecycle event sequence is invalid"
                 )
+            created_ts = str(row["created_ts"])
+            start_event_ts = str(events[0]["ts"])
+            if start_event_ts != created_ts:
+                raise AttemptStateError(
+                    "attempt intent row time differs from its start event time"
+                )
             start_detail_raw = str(events[0]["detail"])
             start_detail = _strict_json(
                 start_detail_raw, "persisted attempt start event detail"
@@ -156,7 +162,7 @@ def read_attempt_intents(
                     payload=dict(payload),
                     payload_json=raw_payload,
                     payload_sha=expected_payload_sha,
-                    created_ts=str(row["created_ts"]),
+                    created_ts=created_ts,
                     state=state,
                     resolved_ts=resolved_ts,
                     effect_id=effect_id,
