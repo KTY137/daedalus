@@ -58,13 +58,21 @@ boundary and cannot produce trusted Gate evidence.
 3. verifies schema/domain, catalog, scenario, observation digest, source
    revision, authority, temporal ordering, issuer policy, signature and validity
    window;
-4. derives the trusted observation-record digest set; and
+4. derives the trusted observation-record digest set;
 5. delegates completeness, status and observed-outcome checks to the canonical
-   runtime fault-matrix verifier.
+   runtime fault-matrix verifier; and
+6. returns an `AttestedRuntimeFaultVerification` receipt retaining the exact
+   attestation digests and verification timestamp.
 
 A missing attestation remains an `untrusted-observation` blocker. A valid
 attestation for a failed, blocked or outcome-mismatched observation does not
 convert it into success.
+
+The returned verification receipt keeps a one-to-one relation between trusted
+observation digests and attestation digests. Its canonical digest therefore
+retains which signed records formed the trust set and when their validity was
+checked. The receipt does not extend attestation expiry: a later Gate report must
+re-run verification at its own decision time.
 
 Attestations are evidence authentication records, not one-use effect
 capabilities. Reuse for the exact same observation, catalog and revision within
@@ -78,9 +86,13 @@ the complete observation digest and revision are signed.
 2. **Impossible temporal ordering.** A valid signature could previously be
    issued before the observation timestamp. Verification now refuses such a
    record.
-3. **Candidate trust roots.** Candidate-authored keys are inert unless the
+3. **Trust-derivation loss.** The first matrix helper returned only trusted
+   observation digests and discarded which attestations authorized them. The
+   content-addressed verification receipt now retains exact attestation digests
+   and `verified_at`.
+4. **Candidate trust roots.** Candidate-authored keys are inert unless the
    external verifier's keyring and issuer-authority policy contain them.
-4. **Pass laundering.** A valid attestation only authenticates the observation;
+5. **Pass laundering.** A valid attestation only authenticates the observation;
    canonical matrix verification still rejects failed, blocked and
    outcome-mismatched records.
 
@@ -100,9 +112,11 @@ The focused tests request coverage for:
 - duplicate IDs, nonces and per-scenario attestations;
 - attestations targeting observations absent from the matrix;
 - missing attestations;
-- valid attestations over failed/blocked observations; and
+- valid attestations over failed/blocked observations;
 - valid attestations over a passing record with the wrong observed terminal
-  outcome.
+  outcome; and
+- one-to-one retention of attestation digests in a deterministic verification
+  receipt.
 
 ## Verification contract
 
@@ -111,7 +125,8 @@ The dedicated workflow requests:
 - Python 3.10 and 3.12;
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan verification and compile-all;
-- attestation, hardening-mutation and canonical catalog contract tests; and
+- attestation, hardening-mutation, verification-receipt and canonical catalog
+  contract tests; and
 - an isolated wheel import smoke.
 
 Exact-head CI remains subject to the repository-wide zero-step Actions blocker.
