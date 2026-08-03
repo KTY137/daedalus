@@ -1,0 +1,123 @@
+name: Gate 0 Promotion Receipts
+
+on:
+  pull_request:
+    branches:
+      - g0/live-promotion-seam-linear
+    paths:
+      - "daedalus/kernel/promotion_receipts.py"
+      - "daedalus/kernel/__init__.py"
+      - "configs/schemas/promotion-receipt-v1.schema.json"
+      - "tests/kernel/test_promotion_receipts.py"
+      - "tests/kernel/test_promotion_receipts_review.py"
+      - "scripts/run_promotion_receipt_mutations.py"
+      - "docs/work-packets/G0-PRM-12C_PROMOTION_RECEIPTS.md"
+      - ".github/workflows/g0-promotion-receipts.yml"
+  push:
+    branches:
+      - g0/promotion-receipt-ledger-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-receipts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_receipts.py
+          tests/kernel/test_promotion_receipts_review.py
+          tests/kernel/test_live_promotion_seam.py
+          tests/kernel/test_live_promotion_seam_review.py
+          tests/kernel/test_live_promotion_legacy_retirement.py
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_persisted_promotion_authorization_review.py
+          tests/kernel/test_sealed_promotion.py
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_approval_consumption_review.py
+          tests/kernel/test_fourfold_approval_integration.py
+          tests/kernel/test_fourfold_evidence_owner_binding.py
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_effect_leases_adversarial.py
+          tests/gates/test_gate_report.py
+          tests/test_effect_boundary.py
+          tests/test_kernel_contracts.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_receipt_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-promotion-receipt-wheel
+      - run: /tmp/daedalus-promotion-receipt-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-promotion-receipt-wheel/bin/python - <<'PY'
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          from daedalus.kernel import PromotionAuthorization, PromotionLedger
+          from daedalus.spine.envelope import canonical_sha
+
+          body = {
+              "promotion_id": "wheel-promotion",
+              "candidate_artifact_sha256": "1" * 64,
+              "evidence_packet_sha256": "2" * 64,
+              "source_revision": "a" * 40,
+              "target_ref": "refs/heads/experimental",
+              "live_target_revision": "b" * 40,
+              "approval_consumption_sha256": "3" * 64,
+          }
+          authorization = PromotionAuthorization(
+              **body,
+              authorization_sha256=canonical_sha(body),
+          )
+          with TemporaryDirectory() as directory:
+              ledger = PromotionLedger(Path(directory) / "promotion.sqlite3")
+              first = ledger.begin(
+                  authorization,
+                  start_id="wheel-start",
+                  primary_checkout_before_sha256="4" * 64,
+                  started_at=datetime(2026, 8, 3, tzinfo=timezone.utc),
+              )
+              replay = ledger.begin(
+                  authorization,
+                  start_id="wheel-start",
+                  primary_checkout_before_sha256="4" * 64,
+                  started_at=datetime(2026, 8, 4, tzinfo=timezone.utc),
+              )
+              assert first.execute is True
+              assert replay.execute is False
+              assert replay.pending_reconciliation is True
+          PY

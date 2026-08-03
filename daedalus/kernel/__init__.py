@@ -104,6 +104,17 @@ from .promotion import (
     candidate_batch_sha256,
     resolve_live_target_revision,
 )
+from .promotion_receipts import (
+    PromotionBeginResult,
+    PromotionCompletion,
+    PromotionLedger,
+    PromotionReceipt,
+    PromotionReceiptBindingMismatch,
+    PromotionReceiptError,
+    PromotionReceiptReplay,
+    PromotionReceiptStateError,
+    PromotionStartRecord,
+)
 from .runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
@@ -121,6 +132,15 @@ from .sandbox import (
 __all__ += [
     "PromotionAuthorization",
     "PromotionAuthorizationError",
+    "PromotionBeginResult",
+    "PromotionCompletion",
+    "PromotionLedger",
+    "PromotionReceipt",
+    "PromotionReceiptBindingMismatch",
+    "PromotionReceiptError",
+    "PromotionReceiptReplay",
+    "PromotionReceiptStateError",
+    "PromotionStartRecord",
     "authorize_persisted_promotion",
     "authorize_promotion",
     "candidate_batch_sha256",

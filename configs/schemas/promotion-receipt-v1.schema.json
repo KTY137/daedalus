@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "identifier": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$",
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "input_digests": {
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "origin": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "trace_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "type": "object"
+    },
+    "revision": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "type": "string"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://daedalus.local/schemas/promotion-receipt-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approval_consumption_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authorization_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authorized_target_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "candidate_artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "completed_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "contract_type": {
+      "const": "daedalus.promotion-receipt"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "evidence_packet_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "integration_branch": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "integration_revision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/revision"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "succeeded",
+        "refused",
+        "faulted"
+      ]
+    },
+    "primary_checkout_after_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "primary_checkout_before_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "promotion_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "receipt_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "report_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "start_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "started_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "target_ref": {
+      "$ref": "#/$defs/identifier"
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "receipt_id",
+    "promotion_id",
+    "start_sha256",
+    "authorization_sha256",
+    "approval_consumption_sha256",
+    "candidate_artifact_sha256",
+    "evidence_packet_sha256",
+    "source_revision",
+    "target_ref",
+    "authorized_target_revision",
+    "outcome",
+    "integration_branch",
+    "integration_revision",
+    "report_sha256",
+    "primary_checkout_before_sha256",
+    "primary_checkout_after_sha256",
+    "started_at",
+    "completed_at",
+    "provenance"
+  ],
+  "title": "Daedalus PromotionReceipt v1",
+  "type": "object"
+}
