@@ -3,10 +3,10 @@
 The public provider method cannot invoke Claude from ambient authority. It
 requires one exact :class:`RuntimeBoundEffectAuthorization`, one narrowed
 :class:`EffectExecutionRequest`, and an isolated-workspace grant tied to the
-same request, execution, attempt, and source revision. The generic broker
-persists grant/start state, suppresses exact replay, rechecks runtime trust,
-retains output identities, and commits terminal state before a provider value
-is released.
+same request, execution, attempt, source revision, and invocation payload. The
+generic broker persists grant/start state, suppresses exact replay, rechecks
+runtime trust, retains output identities, and commits terminal state before a
+provider value is released.
 
 The subprocess implementation remains private in :mod:`daedalus.claude_bridge`.
 Calling that helper directly is not a supported production entrypoint.
@@ -52,6 +52,10 @@ class ClaudeProviderScopeMismatch(RuntimeError):
     """The narrowed execution scope understates what the agentic CLI can do."""
 
 
+class ClaudeInvocationBindingMismatch(RuntimeError):
+    """The execution idempotency identity does not bind the exact provider call."""
+
+
 @dataclass(frozen=True)
 class ClaudeWorkspaceGrant:
     """Narrow caller-to-provider binding for one already-created worktree.
@@ -85,6 +89,70 @@ class ClaudeWorkspaceGrant:
             raise ValueError("Claude workspace grant requires a worktree path")
 
 
+def _normalize_paths(paths: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for index, raw in enumerate(paths):
+        if not isinstance(raw, str) or not raw.strip():
+            raise ClaudeProviderScopeMismatch(f"Claude path hint {index} is empty")
+        candidate = PurePosixPath(raw.replace("\\", "/"))
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise ClaudeProviderScopeMismatch(
+                f"Claude path hint {raw!r} escapes the isolated worktree"
+            )
+        text = candidate.as_posix()
+        if text == ".":
+            continue
+        normalized.append(text)
+    return list(dict.fromkeys(normalized))
+
+
+def claude_invocation_sha256(
+    *,
+    objective: str,
+    worktree: str,
+    paths: list[str],
+    agent: Mapping[str, Any],
+    model: str,
+    timeout_s: int,
+    attempt_id: str,
+    source_revision: str,
+    request_sha256: str,
+) -> str:
+    """Canonical identity callers must bind into the execution idempotency key."""
+
+    try:
+        resolved_worktree = str(Path(worktree).expanduser().resolve(strict=True))
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ClaudeProviderWorkspaceMismatch(
+            "Claude invocation worktree could not be resolved"
+        ) from exc
+    return canonical_sha(
+        {
+            "entrypoint_id": ENTRYPOINT_ID,
+            "runtime_id": RUNTIME_ID,
+            "objective": objective,
+            "worktree": resolved_worktree,
+            "paths": _normalize_paths(paths),
+            "agent": dict(agent),
+            "model": model,
+            "timeout_s": timeout_s,
+            "attempt_id": attempt_id,
+            "source_revision": source_revision,
+            "request_sha256": request_sha256,
+        }
+    )
+
+
+def claude_idempotency_key(invocation_sha256: str) -> str:
+    if (
+        not isinstance(invocation_sha256, str)
+        or len(invocation_sha256) != 64
+        or any(char not in "0123456789abcdef" for char in invocation_sha256)
+    ):
+        raise ValueError("Claude invocation identity must be lowercase SHA-256")
+    return f"claude-{invocation_sha256}"
+
+
 def _validate_execution_shape(
     execution: EffectExecutionRequest,
     paths: list[str],
@@ -111,21 +179,7 @@ def _validate_execution_shape(
         raise ClaudeProviderScopeMismatch(
             "Claude execution requires a positive explicit spend ceiling"
         )
-
-    normalized: list[str] = []
-    for index, raw in enumerate(paths):
-        if not isinstance(raw, str) or not raw.strip():
-            raise ClaudeProviderScopeMismatch(f"Claude path hint {index} is empty")
-        candidate = PurePosixPath(raw.replace("\\", "/"))
-        if candidate.is_absolute() or ".." in candidate.parts:
-            raise ClaudeProviderScopeMismatch(
-                f"Claude path hint {raw!r} escapes the isolated worktree"
-            )
-        text = candidate.as_posix()
-        if text == ".":
-            continue
-        normalized.append(text)
-    return list(dict.fromkeys(normalized))
+    return _normalize_paths(paths)
 
 
 def _resolve_workspace(
@@ -170,18 +224,40 @@ def _resolve_workspace(
     return supplied
 
 
-def _output_digests(value: Mapping[str, Any]) -> tuple[str, ...]:
-    """Content-address the released semantic output, not ambient file paths."""
+def _output_digests(
+    value: Mapping[str, Any],
+    *,
+    invocation_sha256: str,
+) -> tuple[str, ...]:
+    """Content-address exact invocation, prompt, report and semantic output."""
 
     report = value.get("report")
     agent = value.get("agent")
+    prompt_sha256 = value.get("prompt_sha256")
+    report_sha256 = value.get("report_sha256")
     if not isinstance(report, Mapping) or not isinstance(agent, str) or not agent:
         raise ValueError("Claude provider returned malformed structured output")
+    computed_report = canonical_sha(dict(report))
+    if report_sha256 != computed_report:
+        raise ValueError("Claude provider report digest does not match report bytes")
+    for name, digest in (
+        ("prompt_sha256", prompt_sha256),
+        ("report_sha256", report_sha256),
+    ):
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in "0123456789abcdef" for char in digest)
+        ):
+            raise ValueError(f"Claude provider {name} is not lowercase SHA-256")
     return (
         canonical_sha(
             {
                 "provider": "claude_cli",
                 "agent": agent,
+                "invocation_sha256": invocation_sha256,
+                "prompt_sha256": prompt_sha256,
+                "report_sha256": report_sha256,
                 "report": dict(report),
             }
         ),
@@ -232,6 +308,23 @@ class ClaudeCLIProvider(Provider):
             execution=effect_execution,
             grant=workspace_grant,
         )
+        resolved_model = model or str(agent.get("model_tier", "sonnet"))
+        invocation_sha256 = claude_invocation_sha256(
+            objective=objective,
+            worktree=str(workspace),
+            paths=normalized_paths,
+            agent=agent,
+            model=resolved_model,
+            timeout_s=timeout_s,
+            attempt_id=runtime_authorization.request.attempt_id,
+            source_revision=runtime_authorization.request.provenance.source_revision,
+            request_sha256=runtime_authorization.request.digest,
+        )
+        expected_idempotency = claude_idempotency_key(invocation_sha256)
+        if effect_execution.idempotency_key != expected_idempotency:
+            raise ClaudeInvocationBindingMismatch(
+                "Claude execution idempotency key does not bind the exact invocation"
+            )
 
         invocation: RuntimeInvocationResult[dict[str, Any]] = run_runtime_provider(
             ENTRYPOINT_ID,
@@ -242,13 +335,17 @@ class ClaudeCLIProvider(Provider):
                 repo_root=str(workspace),
                 paths=normalized_paths,
                 agent=agent,
-                model=model or agent.get("model_tier", "sonnet"),
+                model=resolved_model,
                 timeout_s=timeout_s,
             ),
-            output_digests=_output_digests,
+            output_digests=lambda value: _output_digests(
+                value,
+                invocation_sha256=invocation_sha256,
+            ),
         )
         runtime_receipt = {
             "executed": invocation.executed,
+            "invocation_sha256": invocation_sha256,
             "start_receipt_sha256": invocation.start_receipt.receipt_sha256,
             "terminal_receipt_sha256": (
                 invocation.terminal_receipt.receipt_sha256
@@ -277,10 +374,13 @@ class ClaudeCLIProvider(Provider):
 
 __all__ = [
     "ClaudeCLIProvider",
+    "ClaudeInvocationBindingMismatch",
     "ClaudeProviderAuthorizationRequired",
     "ClaudeProviderScopeMismatch",
     "ClaudeProviderWorkspaceMismatch",
     "ClaudeWorkspaceGrant",
     "ENTRYPOINT_ID",
     "RUNTIME_ID",
+    "claude_idempotency_key",
+    "claude_invocation_sha256",
 ]
