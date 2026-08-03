@@ -91,10 +91,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError(
                 "collector secret environment variable is missing or shorter than 32 bytes"
             )
-        release = load_gate0_release_report(args.release)
-        mechanical_report = load_gate_report(args.mechanical_report)
-        evidence_index = load_gate_evidence_index(args.evidence_index)
-        trust_bundle = load_evidence_trust_bundle(args.trust_bundle)
+        release = load_gate0_release_report(Path(args.release))
+        mechanical_report = load_gate_report(Path(args.mechanical_report))
+        evidence_index = load_gate_evidence_index(Path(args.evidence_index))
+        trust_bundle = load_evidence_trust_bundle(Path(args.trust_bundle))
         blockers = gate0_release_verification_blockers(
             release,
             mechanical_report,
