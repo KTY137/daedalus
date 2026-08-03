@@ -161,6 +161,30 @@ def _valid_event_order(events: Sequence[RuntimeProbeEvent]) -> bool:
     return sequences == list(range(len(sequences)))
 
 
+def _strict_events(value: object) -> tuple[RuntimeProbeEvent, ...]:
+    if not isinstance(value, tuple) or not all(
+        isinstance(event, RuntimeProbeEvent) for event in value
+    ):
+        raise TypeError("runtime events must be a tuple of RuntimeProbeEvent records")
+    return value
+
+
+def _strict_parse_errors(value: object) -> tuple[str, ...]:
+    if not isinstance(value, tuple) or not all(
+        isinstance(item, str) and bool(item.strip()) for item in value
+    ):
+        raise TypeError("runtime parse_errors must be a tuple of non-empty strings")
+    return value
+
+
+def _strict_exit_code(value: object, label: str, *, allow_none: bool = False) -> int | None:
+    if allow_none and value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{label} must be an integer exit code")
+    return value
+
+
 def _wait_for_kind(
     session: RuntimeProbeSession,
     kind: str,
@@ -169,7 +193,7 @@ def _wait_for_kind(
 ) -> bool:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        if any(event.kind == kind for event in session.events()):
+        if any(event.kind == kind for event in _strict_events(session.events())):
             return True
         if not session.running:
             return False
@@ -301,6 +325,7 @@ def run_runtime_conformance(
         normal_observed_exit: int | None = None
         normal_errors: tuple[str, ...] = ()
         normal_exception = ""
+        normal_observation_ok = False
         normal_session: RuntimeProbeSession | None = None
         try:
             normal_session = adapter.start(
@@ -312,18 +337,40 @@ def run_runtime_conformance(
                     outside_canary=canary,
                 )
             )
-            normal_exit = normal_session.wait(normal_timeout_s)
-            normal_dead_before_cleanup = not normal_session.running
-            normal_observed_exit = normal_session.exit_code
+            observed_wait = _strict_exit_code(
+                normal_session.wait(normal_timeout_s), "normal wait result"
+            )
+            observed_dead = not normal_session.running
+            observed_exit = _strict_exit_code(
+                normal_session.exit_code,
+                "normal observed exit_code",
+            )
             _force_stop(
                 normal_session,
                 label="normal runtime session",
                 grace_s=cancellation_grace_s,
             )
-            normal_events = normal_session.events()
-            normal_errors = normal_session.parse_errors
+            observed_events = _strict_events(normal_session.events())
+            observed_errors = _strict_parse_errors(normal_session.parse_errors)
+
+            # Publish the observation atomically only after every adapter-owned
+            # accessor has succeeded and returned the exact protocol type. This
+            # prevents a late observer failure from retaining an otherwise valid
+            # transcript and being laundered into a passed receipt.
+            normal_exit = observed_wait
+            normal_dead_before_cleanup = observed_dead
+            normal_observed_exit = observed_exit
+            normal_events = observed_events
+            normal_errors = observed_errors
+            normal_observation_ok = True
         except Exception as exc:
             normal_exception = type(exc).__name__
+            normal_events = ()
+            normal_exit = None
+            normal_observed_exit = None
+            normal_dead_before_cleanup = False
+            normal_errors = (normal_exception,)
+            normal_observation_ok = False
             if normal_session is not None:
                 _force_stop(
                     normal_session,
@@ -336,7 +383,8 @@ def run_runtime_conformance(
         started_events = [event for event in normal_events if event.kind == "started"]
         finished_events = [event for event in normal_events if event.kind == "finished"]
         lifecycle_ok = (
-            len(started_events) == 1
+            normal_observation_ok
+            and len(started_events) == 1
             and bool(normal_events)
             and normal_events[0].kind == "started"
             and len(finished_events) == 1
@@ -351,9 +399,11 @@ def run_runtime_conformance(
             and normal_dead_before_cleanup
             and normal_observed_exit == normal_exit
             and event_order_ok
-            and not normal_errors,
+            and not normal_errors
+            and not normal_exception,
             "runtime starts once, emits the exact contiguous lifecycle, and exits successfully",
             {
+                "observation_complete": normal_observation_ok,
                 "lifecycle_ok": lifecycle_ok,
                 "started_count": len(started_events),
                 "finished_count": len(finished_events),
@@ -371,11 +421,13 @@ def run_runtime_conformance(
         stream_text = stream_events[0].payload.get("text") if stream_events else None
         retain(
             "stream",
-            manifest.capabilities.streaming
+            normal_observation_ok
+            and manifest.capabilities.streaming
             and len(stream_events) == 1
             and stream_text == "fixture",
             "declared streaming produces the expected provider-neutral delta",
             {
+                "observation_complete": normal_observation_ok,
                 "declared": manifest.capabilities.streaming,
                 "count": len(stream_events),
                 "text": stream_text,
@@ -387,7 +439,8 @@ def run_runtime_conformance(
         started_tool = tool_started[0].payload.get("tool") if tool_started else None
         finished_tool = tool_finished[0].payload.get("tool") if tool_finished else None
         paired = (
-            len(tool_started) == 1
+            normal_observation_ok
+            and len(tool_started) == 1
             and len(tool_finished) == 1
             and tool_started[0].sequence < tool_finished[0].sequence
             and tool_started[0].payload.get("call_id")
@@ -401,6 +454,7 @@ def run_runtime_conformance(
             manifest.capabilities.tool_events and paired,
             "declared tools expose ordered, paired provider-neutral start/finish events",
             {
+                "observation_complete": normal_observation_ok,
                 "declared": manifest.capabilities.tool_events,
                 "started_count": len(tool_started),
                 "finished_count": len(tool_finished),
@@ -415,11 +469,13 @@ def run_runtime_conformance(
         structured_value = structured[0].payload.get("value") if structured else None
         retain(
             "structured-output",
-            manifest.capabilities.structured_output
+            normal_observation_ok
+            and manifest.capabilities.structured_output
             and len(structured) == 1
             and structured_value == {"ok": True, "value": "fixture"},
             "declared structured output is parsed as the exact expected object",
             {
+                "observation_complete": normal_observation_ok,
                 "declared": manifest.capabilities.structured_output,
                 "count": len(structured),
                 "value": structured_value,
@@ -429,7 +485,7 @@ def run_runtime_conformance(
         usage_events = [event for event in normal_events if event.kind == "usage"]
         usage = ResourceUsage()
         usage_valid = False
-        if len(usage_events) == 1:
+        if normal_observation_ok and len(usage_events) == 1:
             try:
                 usage = ResourceUsage.from_dict(dict(usage_events[0].payload))
                 usage_valid = True
@@ -437,9 +493,12 @@ def run_runtime_conformance(
                 usage_valid = False
         retain(
             "cost",
-            manifest.capabilities.cost_reporting and usage_valid,
+            normal_observation_ok
+            and manifest.capabilities.cost_reporting
+            and usage_valid,
             "declared cost reporting emits validated integer resource usage",
             {
+                "observation_complete": normal_observation_ok,
                 "declared": manifest.capabilities.cost_reporting,
                 "count": len(usage_events),
                 "valid": usage_valid,
@@ -514,7 +573,8 @@ def run_runtime_conformance(
                 "started",
                 timeout_s=normal_timeout_s,
             )
-            cancellation_session.cancel(cancellation_grace_s)
+            cancel_result = cancellation_session.cancel(cancellation_grace_s)
+            _strict_exit_code(cancel_result, "cancellation exit code")
             cancellation_dead_before_cleanup = not cancellation_session.running
             _force_stop(
                 cancellation_session,
@@ -535,7 +595,8 @@ def run_runtime_conformance(
             "cancellation",
             manifest.capabilities.cancellation
             and cancellation_started
-            and cancellation_dead_before_cleanup,
+            and cancellation_dead_before_cleanup
+            and not cancellation_error,
             "declared cancellation stops an already-started runtime process",
             {
                 "declared": manifest.capabilities.cancellation,
@@ -549,7 +610,8 @@ def run_runtime_conformance(
         outside_unchanged = canary.is_file() and canary.read_bytes() == canary_before
         retain(
             "workspace-isolation",
-            manifest.capabilities.workspace_isolation
+            normal_observation_ok
+            and manifest.capabilities.workspace_isolation
             and manifest.capabilities.workspace_write
             and "isolated-worktree" in manifest.workspace_modes
             and output.is_file()
@@ -557,6 +619,7 @@ def run_runtime_conformance(
             and outside_unchanged,
             "all fixture phases remain in the declared workspace and preserve an outside canary",
             {
+                "normal_observation_complete": normal_observation_ok,
                 "declared_isolation": manifest.capabilities.workspace_isolation,
                 "declared_write": manifest.capabilities.workspace_write,
                 "inside_output": output.is_file(),
