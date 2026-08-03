@@ -47,10 +47,16 @@ MUTATIONS = (
         "    if delta != expected:\n",
         "    if False:\n",
     ),
+    Mutation(
+        "reject-exact-noop-delta",
+        "    return tuple(dict.fromkeys(values))\n",
+        "    return tuple(values)\n",
+    ),
 )
 
 FOCUSED_TESTS = (
     "tests/twin/test_graph_delta.py",
+    "tests/twin/test_graph_delta_exact_noop.py",
     "tests/twin/test_graph_delta_review.py",
 )
 
