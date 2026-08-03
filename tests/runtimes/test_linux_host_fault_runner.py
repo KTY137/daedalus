@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -13,10 +14,12 @@ from daedalus.runtimes.fault_matrix import (
 from daedalus.runtimes.host_fault_runner import (
     HostFaultFact,
     HostFaultResult,
+    LinuxHostExecutorBinding,
     LinuxHostFaultBindingMismatch,
     LinuxHostFaultClockError,
     LinuxHostFaultEvidence,
     LinuxHostFaultRun,
+    load_linux_host_fault_evidence_json,
     run_linux_host_fault,
     run_linux_host_fault_catalog,
 )
@@ -51,18 +54,28 @@ def passing_result(row=None) -> HostFaultResult:
     )
 
 
+def binding(row=None, execute=passing_result, *, locator: str | None = None):
+    row = row or scenario()
+    return LinuxHostExecutorBinding(
+        locator=locator or row.executor,
+        implementation_sha256="f" * 64,
+        execute=execute,
+    )
+
+
 def test_pass_run_binds_exact_scenario_evidence_and_provenance() -> None:
     row = scenario()
     run = run_linux_host_fault(
         row,
         source_revision=REVISION,
-        executor=passing_result,
+        executor=binding(),
         clock=StepClock(NOW, NOW + timedelta(seconds=2)),
     )
 
     assert run.evidence.scenario_id == row.scenario_id
     assert run.evidence.scenario_sha256 == row.digest
     assert run.evidence.executor == row.executor
+    assert run.evidence.executor_sha256 == "f" * 64
     assert run.evidence.status == "passed"
     assert run.observation.evidence_sha256 == run.evidence.digest
     assert run.observation.provenance.input_digests == tuple(
@@ -122,7 +135,7 @@ def test_reported_pass_with_wrong_outcome_is_downgraded_to_failed() -> None:
     run = run_linux_host_fault(
         row,
         source_revision=REVISION,
-        executor=wrong,
+        executor=binding(execute=wrong),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     assert run.observation.status == "failed"
@@ -140,7 +153,7 @@ def test_executor_exception_is_sanitized_and_does_not_retain_message() -> None:
     run = run_linux_host_fault(
         scenario(),
         source_revision=REVISION,
-        executor=explode,
+        executor=binding(execute=explode),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     wire = str(run.to_dict())
@@ -154,7 +167,7 @@ def test_non_result_executor_value_fails_closed() -> None:
     run = run_linux_host_fault(
         scenario(),
         source_revision=REVISION,
-        executor=lambda _: {"status": "passed"},
+        executor=binding(execute=lambda _: {"status": "passed"}),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     assert run.observation.status == "failed"
@@ -177,7 +190,20 @@ def test_foreign_authority_and_foreign_executor_registration_refuse() -> None:
         run_linux_host_fault_catalog(
             catalog=RUNTIME_FAULT_CATALOG,
             source_revision=REVISION,
-            executors={"host-fixture:not-in-catalog": passing_result},
+            executors={
+                "host-fixture:not-in-catalog": binding(
+                    locator="host-fixture:not-in-catalog"
+                )
+            },
+            clock=StepClock(NOW, NOW),
+        )
+
+    row = scenario()
+    with pytest.raises(LinuxHostFaultBindingMismatch, match="registry key"):
+        run_linux_host_fault_catalog(
+            catalog=RUNTIME_FAULT_CATALOG,
+            source_revision=REVISION,
+            executors={row.executor: binding(row, locator="host-fixture:other")},
             clock=StepClock(NOW, NOW),
         )
 
@@ -186,10 +212,22 @@ def test_evidence_strict_round_trip_and_repacking_refuse() -> None:
     run = run_linux_host_fault(
         scenario(),
         source_revision=REVISION,
-        executor=passing_result,
+        executor=binding(),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     assert LinuxHostFaultEvidence.from_dict(run.evidence.to_dict()) == run.evidence
+    wire = json.dumps(run.evidence.to_dict(), sort_keys=True)
+    assert load_linux_host_fault_evidence_json(wire) == run.evidence
+
+    duplicate_json = wire.replace(
+        '"schema": "daedalus-linux-host-fault-evidence/1"',
+        '"schema": "daedalus-linux-host-fault-evidence/1", '
+        '"schema": "daedalus-linux-host-fault-evidence/1"',
+    )
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        load_linux_host_fault_evidence_json(duplicate_json)
+    with pytest.raises(ValueError, match="non-finite"):
+        load_linux_host_fault_evidence_json('{"value": NaN}')
 
     duplicate = run.evidence.to_dict()
     duplicate["facts"] = [
@@ -221,13 +259,13 @@ def test_same_inputs_and_clock_produce_same_content_identity() -> None:
     first = run_linux_host_fault(
         scenario(),
         source_revision=REVISION,
-        executor=passing_result,
+        executor=binding(),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     second = run_linux_host_fault(
         scenario(),
         source_revision=REVISION,
-        executor=passing_result,
+        executor=binding(),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     assert first.evidence.digest == second.evidence.digest
@@ -240,14 +278,14 @@ def test_clock_regression_and_naive_clock_refuse() -> None:
         run_linux_host_fault(
             scenario(),
             source_revision=REVISION,
-            executor=passing_result,
+            executor=binding(),
             clock=StepClock(NOW, NOW - timedelta(seconds=1)),
         )
     with pytest.raises(LinuxHostFaultClockError, match="timezone-aware"):
         run_linux_host_fault(
             scenario(),
             source_revision=REVISION,
-            executor=passing_result,
+            executor=binding(),
             clock=StepClock(datetime(2026, 8, 3), NOW),
         )
 
@@ -281,7 +319,7 @@ def test_stale_revision_remains_visible_to_canonical_verifier() -> None:
     run = run_linux_host_fault(
         row,
         source_revision=REVISION,
-        executor=passing_result,
+        executor=binding(),
         clock=StepClock(NOW, NOW + timedelta(seconds=1)),
     )
     matrix = build_runtime_fault_matrix(
