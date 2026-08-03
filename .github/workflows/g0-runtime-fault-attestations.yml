@@ -10,6 +10,7 @@ on:
       - "daedalus/runtimes/faults.py"
       - "tests/runtimes/test_runtime_fault_attestations.py"
       - "tests/runtimes/test_runtime_fault_attestation_hardening.py"
+      - "tests/runtimes/test_runtime_fault_attestation_receipt.py"
       - "tests/runtimes/test_runtime_fault_catalog.py"
       - ".github/workflows/g0-runtime-fault-attestations.yml"
       - "docs/work-packets/G0-RTC-06G_RUNTIME_FAULT_ATTESTATIONS.md"
@@ -52,6 +53,7 @@ jobs:
           python -m pytest -q
           tests/runtimes/test_runtime_fault_attestations.py
           tests/runtimes/test_runtime_fault_attestation_hardening.py
+          tests/runtimes/test_runtime_fault_attestation_receipt.py
           tests/runtimes/test_runtime_fault_catalog.py
 
   isolated-wheel:
@@ -70,7 +72,7 @@ jobs:
         run: >-
           cd /tmp && PYTHONPATH=
           /tmp/daedalus-runtime-fault-attestation-wheel/bin/python -c
-          "from daedalus.runtimes.fault_attestations import RuntimeFaultAttestation, verify_attested_runtime_fault_matrix;
+          "from daedalus.runtimes.fault_attestations import AttestedRuntimeFaultVerification, RuntimeFaultAttestation, verify_attested_runtime_fault_matrix;
           from daedalus.runtimes.faults import RUNTIME_FAULT_CATALOG;
-          assert RuntimeFaultAttestation and verify_attested_runtime_fault_matrix;
+          assert AttestedRuntimeFaultVerification and RuntimeFaultAttestation and verify_attested_runtime_fault_matrix;
           assert len(RUNTIME_FAULT_CATALOG.scenarios) == 24"
