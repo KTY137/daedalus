@@ -103,7 +103,12 @@ def _satisfied(spec) -> list[GuardDecision]:
 # --------------------------------------------------------------------------- #
 # FAIL-CLOSED: protected effects                                              #
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("spec", ENTRYPOINTS, ids=lambda s: s.id)
+NON_CENTRAL_ENTRYPOINTS = tuple(
+    spec for spec in ENTRYPOINTS if spec.wiring is not Wiring.CENTRAL
+)
+
+
+@pytest.mark.parametrize("spec", NON_CENTRAL_ENTRYPOINTS, ids=lambda s: s.id)
 def test_every_non_central_row_refuses_an_effect_start(spec) -> None:
     """No row that is not CENTRAL may start an effect -- all 50, not 2 of them.
 
@@ -132,9 +137,6 @@ def test_every_non_central_row_refuses_an_effect_start(spec) -> None:
     guard-contract checks, and this test matches on "not central"
     specifically, so a row refused for any other reason still fails it.
     """
-    if spec.wiring is Wiring.CENTRAL:
-        pytest.skip(f"{spec.id} is CENTRAL; covered by the central-row test")
-
     with pytest.raises(EffectStartRefused, match="not central"):
         begin_effect(spec.id, spec.effects or [Effect.FILESYSTEM_WRITE], _satisfied(spec))
 
@@ -172,10 +174,10 @@ def test_a_central_row_may_not_rest_on_an_unimplemented_guard(monkeypatch) -> No
 def test_every_central_row_declares_only_implemented_guards() -> None:
     """The drift detector for the migration that has not happened yet.
 
-    Today this iterates an empty set -- no row is CENTRAL. It is here so that
-    the first row migrated to the central path cannot arrive carrying a guard
-    contract that is declared but not implemented, which is precisely how a
-    boundary becomes decorative: every row central, every guard a string.
+    This iterates the current central set (today ``python.offload``). It keeps
+    each migrated row out of the non-central refusal matrix while requiring it
+    to carry only guards whose implementations are present. That split avoids
+    recording an expected central row as a skipped test in Gate-0 receipts.
     """
     for spec in ENTRYPOINTS:
         if spec.wiring is not Wiring.CENTRAL:
