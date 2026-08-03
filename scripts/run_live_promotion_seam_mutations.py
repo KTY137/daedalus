@@ -17,6 +17,7 @@ TESTS = (
     "tests/kernel/test_persisted_promotion_authorization.py",
     "tests/kernel/test_persisted_promotion_authorization_review.py",
     "tests/kernel/test_promotion_material_review.py",
+    "tests/kernel/test_sealed_promotion.py",
 )
 
 
@@ -52,6 +53,16 @@ def main() -> int:
             [
                 (
                     "    if not _hmac.compare_digest(actual, _RETAINED_SOURCE_GIT_BLOB_SHA1):\n",
+                    "    if False:\n",
+                )
+            ],
+        ),
+        (
+            "allow-unpersisted-promotion-effects",
+            "seam",
+            [
+                (
+                    "    if approval_ledger is None or not owner_keyring:\n",
                     "    if False:\n",
                 )
             ],
