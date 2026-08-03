@@ -1,0 +1,453 @@
+{
+  "schema": "daedalus.experiment-packet/1",
+  "experiment_id": "EXP-TOMLKIT-DOTTED-PARENT-001",
+  "title": "Preserve qualified parent paths when serializing added TOML tables",
+  "classification": "EXPERIMENT",
+  "authority": "non-authoritative-evidence-specification",
+  "status": "frozen-design-not-activated-not-run",
+  "designed_at": "2026-08-03",
+  "active_gate": 0,
+  "target_evidence_gate": 3,
+  "iron_plan_revision": 3,
+  "iron_plan_sha256": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+  "hypothesis": "Under an equal generator and context budget, verified revision-atomic Fourfold context produces a higher rate of semantically correct regression-free repairs than BM25, a Code-only graph, or four unconnected plane indices.",
+  "claim_boundary": "This single-repository pilot may validate the real execution chain and produce negative evidence; it cannot close Gate 3 or establish general Fourfold superiority.",
+  "lifecycle": {
+    "expires_at": "2026-10-31T23:59:59Z",
+    "maximum_total_candidate_evaluations": 26,
+    "stop_on_first_limit": true,
+    "run_owner_approval_reference": null,
+    "activation_receipt_sha256": null,
+    "sealed_experiment_spec_sha256": null
+  },
+  "source": {
+    "repository_full_name": "python-poetry/tomlkit",
+    "repository_url": "https://github.com/python-poetry/tomlkit",
+    "git_url": "https://github.com/python-poetry/tomlkit.git",
+    "commit_sha": "d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727",
+    "commit_url": "https://github.com/python-poetry/tomlkit/commit/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727",
+    "release_version": "0.15.1",
+    "canonical_source_archive_sha256": null,
+    "base_candidate_store_artifact_sha256": null,
+    "license": {
+      "spdx": "MIT",
+      "license_file_url": "https://github.com/python-poetry/tomlkit/blob/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727/LICENSE",
+      "package_metadata_url": "https://github.com/python-poetry/tomlkit/blob/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727/pyproject.toml",
+      "license_evidence_sha256": null
+    },
+    "submodules": [
+      {
+        "path": "tests/toml-test",
+        "declared_git_url": "https://github.com/BurntSushi/toml-test.git",
+        "canonical_repository_url": "https://github.com/toml-lang/toml-test",
+        "commit_sha": "08ed8697864548b3cdb4b8decbf496bef47e1c82",
+        "commit_url": "https://github.com/toml-lang/toml-test/commit/08ed8697864548b3cdb4b8decbf496bef47e1c82",
+        "canonical_archive_sha256": null
+      }
+    ],
+    "wiki": {
+      "exists": false,
+      "checked_at": "2026-08-03",
+      "checked_url": "https://github.com/python-poetry/tomlkit/wiki",
+      "observation": "The wiki URL redirected to the repository and the corresponding wiki Git endpoint was absent; same-commit docs are the Knowledge-plane source."
+    },
+    "public_defect_provenance": {
+      "issue_number": 557,
+      "issue_url": "https://github.com/python-poetry/tomlkit/issues/557",
+      "opened_on": "2026-07-08",
+      "candidate_visible": false
+    }
+  },
+  "fourfold_inputs": {
+    "code_ast": [
+      "tomlkit/**"
+    ],
+    "type": [
+      "tomlkit/**/*.py",
+      "tomlkit/py.typed"
+    ],
+    "data": [
+      "tests/**",
+      "tests/toml-test/**"
+    ],
+    "knowledge": [
+      "docs/**",
+      "README.md",
+      "CHANGELOG.md"
+    ],
+    "excluded_knowledge": [
+      "issue-557-body-and-comments",
+      "external-pull-requests",
+      "post-pin-commits",
+      "prior-candidate-results",
+      "research-adaptive-memory"
+    ],
+    "extractor_manifest_sha256": null,
+    "base_forest_sha256": null,
+    "base_fourfold_snapshot_sha256": null,
+    "revision_atomicity_receipt_sha256": null
+  },
+  "task": {
+    "task_id": "tomlkit-qualified-dotted-parent",
+    "task_text": "Preserve the fully qualified parent path when a table is added below a container that originated from a parsed dotted key, without regressing valid TOML semantics or unaffected style.",
+    "public_input": "[t]\na.b = 1\n",
+    "public_mutation": "document[\"t\"][\"a\"][\"c\"] = {}",
+    "required_qualified_header": "[t.a.c]",
+    "forbidden_top_level_key": "a",
+    "expected_semantic_value": {
+      "t": {
+        "a": {
+          "b": 1,
+          "c": {}
+        }
+      }
+    },
+    "hidden_case_categories": [
+      "deeper-qualified-parent",
+      "quoted-parent-key",
+      "unaffected-siblings",
+      "style-preservation"
+    ],
+    "task_prompt_sha256": null
+  },
+  "baseline_reproduction": {
+    "status": "observed-research-evidence-not-yet-sealed",
+    "observed_at": "2026-08-03",
+    "package": "tomlkit",
+    "package_version": "0.15.1",
+    "research_command_summary": "uv run --isolated --no-project --with tomlkit==0.15.1 python -",
+    "package_artifact_sha256": null,
+    "research_environment_sha256": null,
+    "independent_oracle": {
+      "implementation": "python-stdlib-tomllib",
+      "version": null,
+      "toolchain_sha256": null
+    },
+    "actual_semantic_value": {
+      "a": {
+        "c": {}
+      },
+      "t": {
+        "a": {
+          "b": 1
+        }
+      }
+    },
+    "expected_semantic_value": {
+      "t": {
+        "a": {
+          "b": 1,
+          "c": {}
+        }
+      }
+    },
+    "observed_checks": {
+      "semantic_equal": false,
+      "wrong_top_level_a": true,
+      "expected_header_present": false
+    },
+    "canonical_baseline_receipt_sha256": null
+  },
+  "candidate_scope": {
+    "source_snapshot_excludes_git_metadata": true,
+    "readable_paths": [
+      "**"
+    ],
+    "writable_paths": [
+      "tomlkit/**"
+    ],
+    "immutable_paths": [
+      ".github/**",
+      ".gitmodules",
+      "CHANGELOG.md",
+      "LICENSE",
+      "README.md",
+      "docs/**",
+      "poetry.lock",
+      "pyproject.toml",
+      "tests/**",
+      "tox.ini"
+    ],
+    "candidate_inaccessible_material": [
+      "daedalus-experiment-packet",
+      "external-issue-and-pr-content",
+      "hidden-evaluator",
+      "evaluator-outputs",
+      "gold-patches",
+      "post-pin-git-history",
+      "prior-arm-candidates",
+      "research-adaptive-memory"
+    ],
+    "workspace_isolation_receipt_sha256": null
+  },
+  "effects": {
+    "network_egress": "denied-during-generation-and-evaluation",
+    "secrets": [],
+    "external_spend": "denied",
+    "repository_mutation": "isolated-candidate-tree-only",
+    "max_concurrency": 1,
+    "kill_switch_ref": null,
+    "effect_lease_sha256": null,
+    "runtime_manifest_sha256": null,
+    "runtime_conformance_sha256": null,
+    "policy_decision_sha256": null
+  },
+  "generator": {
+    "provider": "ollama-local",
+    "model_tag": "qwen2.5-coder:7b",
+    "official_release_url": "https://qwenlm.github.io/blog/qwen2.5-coder/",
+    "model_blob_digest": null,
+    "runtime_version": null,
+    "runtime_binary_sha256": null,
+    "tokenizer_sha256": null,
+    "sampling_manifest_sha256": null,
+    "prompt_template_sha256": null,
+    "hardware_manifest_sha256": null,
+    "temperature": 0.2,
+    "real_provider_required": true,
+    "mock_fake_canned_or_replay_generator_allowed": false
+  },
+  "seed_policy": {
+    "stochastic_seeds": [
+      17,
+      23,
+      42,
+      71,
+      101
+    ],
+    "candidates_per_seed_per_stochastic_arm": 1,
+    "cross_arm_candidate_reuse_allowed": false,
+    "cross_seed_memory_allowed": false
+  },
+  "equal_budget": {
+    "representation_budget_group": "representation-v1",
+    "repository_context_tokens_exact": 8192,
+    "generated_tokens_max": 2048,
+    "generator_calls_per_candidate": 1,
+    "evaluator_feedback_rounds": 0,
+    "generation_wall_time_seconds_max": 600,
+    "evaluation_wall_time_seconds_max": 1200,
+    "parallel_candidates_max": 1,
+    "identical_task_prompt_required": true,
+    "identical_model_blob_required": true,
+    "identical_runtime_required": true,
+    "identical_sampling_required": true,
+    "identical_evaluator_required": true,
+    "context_padding_with_external_material_allowed": false
+  },
+  "arms": [
+    {
+      "arm_id": "no_change",
+      "class": "sanity",
+      "stochastic": false,
+      "candidate_evaluations": 1,
+      "context_selector": "unchanged-pinned-source",
+      "implementation_sha256": null,
+      "expected_role": "must preserve green upstream tests and fail the sealed task chain"
+    },
+    {
+      "arm_id": "simple_local_mutation",
+      "class": "sanity",
+      "stochastic": true,
+      "candidate_evaluations": 5,
+      "context_selector": "none",
+      "implementation_sha256": null,
+      "expected_role": "non-model local mutation sanity baseline reported separately"
+    },
+    {
+      "arm_id": "bm25",
+      "class": "representation-comparator",
+      "budget_group": "representation-v1",
+      "stochastic": true,
+      "candidate_evaluations": 5,
+      "context_selector": "lexical-bm25",
+      "implementation_sha256": null
+    },
+    {
+      "arm_id": "code_only_graph",
+      "class": "representation-comparator",
+      "budget_group": "representation-v1",
+      "stochastic": true,
+      "candidate_evaluations": 5,
+      "context_selector": "code-ast-plane-only",
+      "implementation_sha256": null
+    },
+    {
+      "arm_id": "separate_planes",
+      "class": "representation-comparator",
+      "budget_group": "representation-v1",
+      "stochastic": true,
+      "candidate_evaluations": 5,
+      "context_selector": "four-independent-indices-without-cross-plane-fusion",
+      "implementation_sha256": null
+    },
+    {
+      "arm_id": "fourfold",
+      "class": "experimental-treatment",
+      "budget_group": "representation-v1",
+      "stochastic": true,
+      "candidate_evaluations": 5,
+      "context_selector": "verified-revision-atomic-cross-plane-project-twin",
+      "implementation_sha256": null
+    }
+  ],
+  "evaluation": {
+    "acceptance_mode": "single-atomic-full-chain",
+    "candidate_evaluator_access_allowed": false,
+    "candidate_test_edits_affect_score": false,
+    "source_identity_checks": [
+      "exact-source-commit",
+      "exact-submodule-commit",
+      "canonical-source-archive-sha256",
+      "candidate-parent-identity",
+      "candidate-source-tree-sha256",
+      "loaded-module-path-inside-candidate-tree"
+    ],
+    "chain": [
+      "verify-identities-effects-and-write-scope",
+      "materialize-and-content-address-complete-candidate-tree",
+      "import-and-compile-from-candidate-tree",
+      "build-wheel-and-install-in-fresh-environment",
+      "run-sealed-complete-upstream-pytest-including-pinned-toml-test",
+      "run-strict-type-check",
+      "run-sphinx-warning-as-error-build",
+      "run-sealed-parse-mutate-serialize-independent-tomllib-corpus",
+      "verify-semantics-qualified-placement-unaffected-content-and-style",
+      "archive-positive-and-negative-evidence-and-emit-terminal-receipt"
+    ],
+    "commands": {
+      "import_compile_smoke": null,
+      "wheel_build": null,
+      "fresh_install": null,
+      "upstream_pytest": null,
+      "strict_type_check": null,
+      "sphinx_warning_as_error": null,
+      "hidden_chain": null
+    },
+    "evaluator_tree_sha256": null,
+    "sealed_hidden_suite_sha256": null,
+    "sealed_upstream_tests_sha256": null,
+    "dependency_lock_sha256": null,
+    "toolchain_manifest_sha256": null,
+    "environment_manifest_sha256": null,
+    "pass_requires": [
+      "all-identity-checks-pass",
+      "all-effect-and-scope-checks-pass",
+      "complete-upstream-suite-green",
+      "package-type-and-docs-checks-green",
+      "all-hidden-chain-cases-match-independent-semantics",
+      "qualified-parent-preserved",
+      "no-regressions",
+      "no-forbidden-effects"
+    ]
+  },
+  "metrics": [
+    "success-rate",
+    "best-so-far-auc",
+    "wall-time",
+    "input-tokens",
+    "output-tokens",
+    "compute",
+    "variance",
+    "candidate-diversity",
+    "regressions",
+    "external-cost",
+    "human-intervention"
+  ],
+  "required_receipt_fields": [
+    "experiment-spec-id-and-sha256",
+    "iron-plan-revision-and-sha256",
+    "arm-and-seed",
+    "task-and-prompt-sha256",
+    "base-commit-and-submodule-commit",
+    "source-archive-forest-and-fourfold-sha256",
+    "retrieval-implementation-and-context-capsule-sha256",
+    "context-source-locators-and-per-plane-token-counts",
+    "provider-runtime-model-tokenizer-sampling-and-hardware-identities",
+    "requested-reserved-and-actual-budgets",
+    "policy-effect-lease-runtime-conformance-and-kill-switch-identities",
+    "workspace-and-writable-roots",
+    "candidate-tree-patch-and-changed-path-digests",
+    "evaluator-tests-dependencies-toolchain-command-and-environment-digests",
+    "stdout-stderr-exit-code-and-result-digests",
+    "timing-token-compute-cost-and-gpu-observations",
+    "success-failure-invalid-classification",
+    "regressions-human-intervention-and-negative-evidence-locators",
+    "promotion-allowed-false-and-terminal-archive-state"
+  ],
+  "logging": {
+    "authority": "canonical-event-store-and-content-addressed-artifact-store",
+    "human_readable_logs_are_projection_only": true,
+    "chat_is_workflow_state": false,
+    "second_experiment_store_allowed": false,
+    "retain_all_failures_and_invalid_runs": true
+  },
+  "leakage_controls": [
+    "exclude-issue-557-body-comments-and-linked-work-from-candidate-context",
+    "exclude-post-pin-commits-branches-prs-docs-and-graph-edges",
+    "exclude-gold-patches-private-tests-evaluator-paths-and-evaluator-outputs",
+    "deny-network-during-generation-and-evaluation",
+    "prefetch-content-address-and-read-only-mount-dependencies-before-sealing",
+    "reset-research-adaptive-memory-between-arms-and-seeds",
+    "forbid-cross-arm-candidate-reflection-and-failure-reuse",
+    "bind-every-plane-node-and-edge-to-exact-source-revision-and-locator",
+    "enforce-identical-task-model-runtime-sampling-and-context-token-budget",
+    "blind-human-review-until-verdicts-are-sealed"
+  ],
+  "invalidation_criteria": [
+    "any-required-activation-field-is-unresolved",
+    "identity-drift-across-arms",
+    "base-upstream-suite-is-not-green",
+    "base-does-not-reproduce-sealed-task-chain-failure",
+    "defect-is-already-fixed-in-materialized-base",
+    "partial-mixed-revision-or-unprovenanced-graph",
+    "post-cutoff-solution-content-enters-any-context",
+    "candidate-reads-evaluator-or-changes-immutable-path",
+    "write-root-egress-secret-spend-concurrency-or-kill-policy-violation",
+    "mock-fake-canned-or-replay-generator-used",
+    "no-real-source-delta-produced",
+    "evaluator-loads-package-outside-candidate-tree",
+    "unequal-token-candidate-count-sampling-seed-wall-or-evaluator-budget",
+    "harness-task-or-criteria-change-after-first-observed-result"
+  ],
+  "integrity_audit_before_interpreting_poor_fourfold_result": [
+    "revision-atomicity",
+    "plane-extraction-coverage",
+    "edge-provenance",
+    "query-results-and-source-locators",
+    "context-token-parity",
+    "evaluator-independence",
+    "model-runtime-and-prompt-identity"
+  ],
+  "kill_criteria": [
+    "replicated-budget-equal-fourfold-does-not-beat-bm25-or-code-only",
+    "four-separate-indices-are-equivalent-to-cross-plane-fusion",
+    "randomized-or-incorrect-cross-plane-edges-are-equivalent",
+    "a-plane-has-no-marginal-contribution",
+    "gain-is-explained-by-extra-context-tokens",
+    "graph-cost-worsens-the-quality-cost-frontier",
+    "benefit-disappears-on-held-out-repositories"
+  ],
+  "promotion": {
+    "nomination_allowed": false,
+    "promotion_allowed": false,
+    "automatic_merge_allowed": false,
+    "external_branch_push_allowed": false,
+    "external_issue_or_pr_creation_allowed": false,
+    "terminal_state": "archive-candidate-and-evidence-only"
+  },
+  "activation_blockers": [
+    "record-owner-run-approval-reference",
+    "seal-experiment-spec-sha256",
+    "materialize-and-hash-canonical-source-and-submodule-archives",
+    "record-license-evidence-sha256",
+    "build-and-hash-revision-atomic-forest-and-fourfold-snapshot",
+    "seal-task-prompt-and-prompt-template-sha256",
+    "resolve-ollama-model-blob-runtime-tokenizer-sampling-and-hardware-identities",
+    "seal-each-retrieval-and-simple-mutation-implementation-sha256",
+    "implement-review-and-hash-evaluator-hidden-suite-upstream-tests-commands-and-toolchain",
+    "prefetch-and-hash-dependency-lock-and-independent-tomllib-toolchain",
+    "obtain-effect-lease-policy-runtime-conformance-workspace-isolation-and-kill-switch-identities",
+    "reproduce-and-receipt-green-upstream-baseline-plus-expected-hidden-chain-failure"
+  ]
+}
