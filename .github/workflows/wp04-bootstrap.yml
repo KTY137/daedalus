@@ -7,16 +7,24 @@ on:
     paths:
       - "tools/wp04_bootstrap.py"
       - ".github/workflows/wp04-bootstrap.yml"
+  pull_request:
+    branches:
+      - g0/effect-leases
+    paths:
+      - "tools/wp04_bootstrap.py"
+      - ".github/workflows/wp04-bootstrap.yml"
 
 permissions:
   contents: write
 
 jobs:
   materialize:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: g0/leased-attempts
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
