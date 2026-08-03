@@ -1,0 +1,97 @@
+name: Gate 0 — runtime terminal capability binding
+
+on:
+  pull_request:
+    branches:
+      - g0/release-assessment-linear
+    paths:
+      - "daedalus/kernel/runtime_effects.py"
+      - "tests/kernel/test_runtime_effect_admission.py"
+      - "tests/kernel/test_runtime_terminal_capability.py"
+      - "tests/runtimes/**"
+      - "scripts/run_runtime_terminal_binding_mutations.py"
+      - "docs/work-packets/G0-RTC-09B_RUNTIME_TERMINAL_BINDING.md"
+      - ".github/workflows/g0-runtime-terminal-binding.yml"
+  push:
+    branches:
+      - g0/runtime-terminal-capability-binding-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-runtime-terminal-binding-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: runtime terminal / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts
+      - name: Parent, stale, malformed, capability and counter-review tests
+        run: >-
+          python -m pytest -q
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_runtime_effect_admission.py
+          tests/kernel/test_runtime_terminal_capability.py
+          tests/runtimes/test_provider_broker.py
+          tests/runtimes/test_provider_terminal_fence.py
+      - name: Exact terminal-ownership mutation
+        run: python scripts/run_runtime_terminal_binding_mutations.py
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated wheel smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-runtime-terminal-wheel
+      - run: /tmp/daedalus-runtime-terminal-wheel/bin/pip install dist/*.whl
+      - name: Import installed authority outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-runtime-terminal-wheel/bin/python -c
+          "from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization;
+          assert RuntimeBoundEffectAuthorization"
