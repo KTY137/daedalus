@@ -20,6 +20,10 @@ from .evidence_verifier import (
     strict_mechanical_blockers,
 )
 from .release import Gate0ReleaseReport, assemble_gate0_release_report
+from .release_verifier import (
+    assert_gate0_release_report,
+    gate0_release_verification_blockers,
+)
 from .report import GateReport, build_gate0_report, load_gate_report
 
 __all__ = [
@@ -33,9 +37,11 @@ __all__ = [
     "RuntimeEnvelopeEvidence",
     "WorkflowRunEvidence",
     "assemble_gate0_release_report",
+    "assert_gate0_release_report",
     "assert_strict_exact_head",
     "build_gate0_report",
     "evidence_requirements_sha256",
+    "gate0_release_verification_blockers",
     "load_gate_evidence_index",
     "load_gate_report",
     "parse_gate_evidence_index",
