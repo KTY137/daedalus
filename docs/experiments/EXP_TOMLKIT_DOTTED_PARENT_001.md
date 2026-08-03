@@ -73,6 +73,28 @@ The issue URL is retained here for provenance. This Daedalus packet, the issue
 body, comments, later commits, and any external solution must never be included
 in candidate-visible context.
 
+### Frozen source receipt — 2026-08-03
+
+The exact source and submodule commits were fetched into a dedicated local
+experiment staging directory and exported twice with `git archive`. Both
+independent exports were byte-identical. This resolves source preparation
+fields only; the experiment remains unactivated and no candidate has run.
+
+| Artifact | Identity |
+| --- | --- |
+| TOMLKit commit | `d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727` |
+| TOMLKit tree | `1af692f3944e67c7de962dc8094faf184ec3427f` |
+| TOMLKit archive | 563,200 bytes; SHA-256 `9184035b8a186089bad9ad8e3f09568182dbe43827b613f01ff269e84bbe996f` |
+| `toml-test` commit | `08ed8697864548b3cdb4b8decbf496bef47e1c82` |
+| `toml-test` tree | `4b9ff71fa2de930104473805a662117f5b38ea87` |
+| `toml-test` archive | 1,320,960 bytes; SHA-256 `0f3361e8b21f03bbf224647c2c541dc5732da42fca4a11c18fe174204be17434` |
+| `LICENSE` bytes | SHA-256 `7ed726815881ce2360bbe9024b9fd1541ceefbe9b84d67bf47392181f4b6ca24` |
+| `.gitmodules` bytes | SHA-256 `da0f4811c64c5b6f0ddeac28f5090449b4a9d44d3ed60b2bcafc9a75112e3af9` |
+
+The pinned TOMLKit tree records `tests/toml-test` as mode `160000` at the exact
+submodule commit above. Candidate materialization will use the exported trees
+without `.git` metadata and will not expose the staging repositories.
+
 ### Fourfold coverage
 
 - **Code / AST:** parser, item/container, document, and serializer

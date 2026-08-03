@@ -27,13 +27,13 @@
     "commit_sha": "d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727",
     "commit_url": "https://github.com/python-poetry/tomlkit/commit/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727",
     "release_version": "0.15.1",
-    "canonical_source_archive_sha256": null,
+    "canonical_source_archive_sha256": "9184035b8a186089bad9ad8e3f09568182dbe43827b613f01ff269e84bbe996f",
     "base_candidate_store_artifact_sha256": null,
     "license": {
       "spdx": "MIT",
       "license_file_url": "https://github.com/python-poetry/tomlkit/blob/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727/LICENSE",
       "package_metadata_url": "https://github.com/python-poetry/tomlkit/blob/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727/pyproject.toml",
-      "license_evidence_sha256": null
+      "license_evidence_sha256": "7ed726815881ce2360bbe9024b9fd1541ceefbe9b84d67bf47392181f4b6ca24"
     },
     "submodules": [
       {
@@ -42,7 +42,7 @@
         "canonical_repository_url": "https://github.com/toml-lang/toml-test",
         "commit_sha": "08ed8697864548b3cdb4b8decbf496bef47e1c82",
         "commit_url": "https://github.com/toml-lang/toml-test/commit/08ed8697864548b3cdb4b8decbf496bef47e1c82",
-        "canonical_archive_sha256": null
+        "canonical_archive_sha256": "0f3361e8b21f03bbf224647c2c541dc5732da42fca4a11c18fe174204be17434"
       }
     ],
     "wiki": {
