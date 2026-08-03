@@ -31,9 +31,10 @@ The executor requires Linux and a readable, executable Docker CLI. It uses:
 
 If the fixed name already exists in the host environment, the run blocks before
 launch rather than overwriting an unknown value. Otherwise the executor creates
-a random 256-bit canary, places it in the inherited Docker CLI environment, runs
-the production sandbox, and removes it in a `finally` block. A missing or
-changed host value at restoration time is an explicit failed invariant.
+a random 256-bit canary and places it in the inherited Docker CLI environment.
+In the `finally` block it deletes the variable only when the value is still the
+exact canary. A missing or changed value is an explicit failed invariant, and a
+foreign replacement is preserved rather than deleted.
 
 The canary itself is never included in the container command, Docker arguments,
 marker, facts, summary or raw retained evidence. Only its SHA-256 is retained.
@@ -66,8 +67,8 @@ following are exact:
    the protected runtime-fault catalog;
 2. the exact production sandbox has no reference mounts and network mode
    `none`;
-3. the host canary existed for the Docker CLI call and was exactly restored by
-   removal afterward;
+3. the host canary existed for the Docker CLI call and remained unchanged until
+   exact removal afterward;
 4. Docker reports a started-container `completed` receipt, not a pre-start
    refusal;
 5. the parent returns 76 without timeout or pre-start error;
@@ -92,7 +93,9 @@ unsupported claims fail.
 
 Any observed name/value, secret mount, artifact, unbounded scan, malformed or
 canary-bearing marker, wrong return code, timeout, missing start marker or host
-environment mutation fails the scenario.
+environment mutation fails the scenario. A foreign value observed during
+cleanup remains in the host environment and is never mistaken for successful
+restoration.
 
 ## Evidence binding
 
@@ -128,8 +131,8 @@ mandatory before this observation may enter the trusted matrix.
 The independent review perspective checks:
 
 - exactly one production sandbox call and no second launcher;
-- a locked host-canary lifecycle with collision refusal and `finally`
-  restoration;
+- a locked host-canary lifecycle with collision refusal, conditional exact
+  cleanup and preservation of foreign replacements;
 - absence of the canary from Docker arguments;
 - compilation of the embedded probe;
 - environment names only, never values;
@@ -141,10 +144,11 @@ The independent review perspective checks:
   exception laundering.
 
 Focused mutations cover environment injection, reference-mount substitution,
-canary argument leakage, restoration removal, secret-name/value acceptance,
-mount/artifact acceptance, scan-bound removal, canary-marker acceptance,
-unsupported-claim recombination, timeout/pre-start laundering, scenario drift
-and production-source identity substitution.
+canary argument leakage, unconditional or missing cleanup, foreign-value
+deletion, secret-name/value acceptance, mount/artifact acceptance, scan-bound
+removal, canary-marker acceptance, unsupported-claim recombination,
+timeout/pre-start laundering, scenario drift and production-source identity
+substitution.
 
 ## Verification request
 
