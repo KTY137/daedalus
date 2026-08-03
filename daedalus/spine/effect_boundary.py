@@ -250,11 +250,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes="Canonical attempt path, but direct Python callers do not yet obtain a boundary receipt.",
     ),
     EntrypointSpec(
-        id="python.attempt_lifecycle_begin",
+        id="kernel.attempt.begin",
         surface=Surface.PYTHON,
         target="daedalus.kernel.attempt_ledger:AttemptLedger.begin",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=("spine.intent_ledger", "containment.attempt"),
+        guard_contracts=("spine.intent_ledger",),
         wiring=Wiring.LOCAL_GUARDS,
         anchors=(
             GuardAnchor(
@@ -272,11 +272,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
     ),
     EntrypointSpec(
-        id="python.attempt_lifecycle_complete",
+        id="kernel.attempt.complete",
         surface=Surface.PYTHON,
         target="daedalus.kernel.attempt_ledger:AttemptLedger.complete",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=("spine.intent_ledger", "containment.attempt"),
+        guard_contracts=("spine.intent_ledger",),
         wiring=Wiring.LOCAL_GUARDS,
         anchors=(
             GuardAnchor(
@@ -294,7 +294,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
     ),
     EntrypointSpec(
-        id="python.attempt_workspace_prepare",
+        id="kernel.attempt.prepare",
         surface=Surface.PYTHON,
         target="daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare",
         effects=(Effect.FILESYSTEM_WRITE,),
