@@ -569,15 +569,8 @@ def issue_effect_lease(
     )
 
 
-def verify_effect_lease(
-    lease: EffectLease,
-    *,
-    request: EffectLeaseRequest,
-    policy_decision: PolicyDecision,
-    keyring: Mapping[str, bytes | str],
-    current_kill_switch_generation: int,
-    now: datetime | None = None,
-    registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
+def _authenticate_effect_lease_signature(
+    lease: EffectLease, keyring: Mapping[str, bytes | str]
 ) -> None:
     secret = keyring.get(lease.issuer_key_id)
     if secret is None:
@@ -585,25 +578,16 @@ def verify_effect_lease(
     expected_signature = _signature(lease.signing_digest, secret)
     if not hmac.compare_digest(lease.signature_sha256, expected_signature):
         raise EffectLeaseSignatureError("effect lease signature mismatch")
-    instant = (
-        _as_utc(now, "now") if now is not None else _utc_now()
-    )
-    issued = _parse_utc(lease.issued_at, "lease.issued_at")
-    expires = _parse_utc(lease.expires_at, "lease.expires_at")
-    if instant < issued:
-        raise EffectLeaseExpired("effect lease is not valid yet")
-    if instant >= expires:
-        raise EffectLeaseExpired("effect lease has expired")
-    if current_kill_switch_generation != lease.kill_switch_generation:
-        raise EffectLeaseBindingMismatch("effect lease kill-switch generation is stale")
-    _scope_requirements(lease.requested_effects, lease.effect_scope)
 
-    registry_map = _registry_map(registry)
-    spec = registry_map.get(lease.entrypoint_id)
-    if spec is None or spec.wiring is not Wiring.CENTRAL:
-        raise EffectLeaseBindingMismatch("leased entrypoint is not currently central")
-    if registry_sha256(tuple(registry_map.values())) != lease.registry_sha256:
-        raise EffectLeaseBindingMismatch("entrypoint registry changed after lease issuance")
+
+def _validate_effect_lease_contract_bindings(
+    lease: EffectLease,
+    *,
+    request: EffectLeaseRequest,
+    policy_decision: PolicyDecision,
+    check_runtime_id: bool = False,
+    expected_runtime_id: str = "",
+) -> None:
     comparisons = {
         "request_id": (lease.request_id, request.request_id),
         "request_sha256": (lease.request_sha256, request.digest),
@@ -628,7 +612,6 @@ def verify_effect_lease(
             lease.runtime_conformance_sha256,
             request.runtime_conformance_sha256,
         ),
-        "runtime_id": (lease.runtime_id, spec.runtime_id),
         "policy_subject_id": (policy_decision.subject_id, request.request_id),
         "policy_subject_sha256": (policy_decision.subject_sha256, request.digest),
         "policy_verdict": (policy_decision.verdict, "allow"),
@@ -642,6 +625,8 @@ def verify_effect_lease(
             request.provenance.source_revision,
         ),
     }
+    if check_runtime_id:
+        comparisons["runtime_id"] = (lease.runtime_id, expected_runtime_id)
     mismatches = sorted(
         name for name, (actual, expected) in comparisons.items() if actual != expected
     )
@@ -649,6 +634,169 @@ def verify_effect_lease(
         raise EffectLeaseBindingMismatch(
             "effect lease binding mismatch: " + ", ".join(mismatches)
         )
+
+
+def _authenticate_effect_lease_contracts(
+    lease: EffectLease,
+    *,
+    request: EffectLeaseRequest,
+    policy_decision: PolicyDecision,
+    keyring: Mapping[str, bytes | str],
+) -> None:
+    """Authenticate immutable bindings without checking current start state.
+
+    A persisted execution replay is an inert read of an already-started effect,
+    so expiry, revocation, guard decisions, registry drift, and a later kill-
+    switch generation must not turn recovery into a second effect.  The HMAC
+    and every signed contract binding still have to authenticate first.
+    """
+
+    _authenticate_effect_lease_signature(lease, keyring)
+    _scope_requirements(lease.requested_effects, lease.effect_scope)
+    _validate_effect_lease_contract_bindings(
+        lease,
+        request=request,
+        policy_decision=policy_decision,
+    )
+
+
+def verify_effect_lease(
+    lease: EffectLease,
+    *,
+    request: EffectLeaseRequest,
+    policy_decision: PolicyDecision,
+    keyring: Mapping[str, bytes | str],
+    current_kill_switch_generation: int,
+    now: datetime | None = None,
+    registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
+) -> None:
+    """Authenticate a lease and verify every current-world start condition."""
+
+    _authenticate_effect_lease_signature(lease, keyring)
+    instant = _as_utc(now, "now") if now is not None else _utc_now()
+    issued = _parse_utc(lease.issued_at, "lease.issued_at")
+    expires = _parse_utc(lease.expires_at, "lease.expires_at")
+    if instant < issued:
+        raise EffectLeaseExpired("effect lease is not valid yet")
+    if instant >= expires:
+        raise EffectLeaseExpired("effect lease has expired")
+    if current_kill_switch_generation != lease.kill_switch_generation:
+        raise EffectLeaseBindingMismatch("effect lease kill-switch generation is stale")
+
+    _scope_requirements(lease.requested_effects, lease.effect_scope)
+    registry_map = _registry_map(registry)
+    spec = registry_map.get(lease.entrypoint_id)
+    if spec is None or spec.wiring is not Wiring.CENTRAL:
+        raise EffectLeaseBindingMismatch("leased entrypoint is not currently central")
+    if registry_sha256(tuple(registry_map.values())) != lease.registry_sha256:
+        raise EffectLeaseBindingMismatch("entrypoint registry changed after lease issuance")
+    _validate_effect_lease_contract_bindings(
+        lease,
+        request=request,
+        policy_decision=policy_decision,
+        check_runtime_id=True,
+        expected_runtime_id=spec.runtime_id,
+    )
+
+
+def _authenticate_persisted_grant(
+    row: sqlite3.Row,
+    *,
+    lease: EffectLease,
+    request: EffectLeaseRequest,
+    policy_decision: PolicyDecision,
+) -> None:
+    """Require the SQLite grant row to be byte-identical to its HMAC grant."""
+
+    expected = {
+        "lease_sha256": lease.digest,
+        "lease_id": lease.lease_id,
+        "request_sha256": request.digest,
+        "request_json": request.to_json(),
+        "policy_decision_sha256": policy_decision.digest,
+        "policy_decision_json": policy_decision.to_json(),
+        "registry_sha256": lease.registry_sha256,
+        "entrypoint_id": lease.entrypoint_id,
+        "lease_json": lease.to_json(),
+        "issued_at": lease.issued_at,
+        "expires_at": lease.expires_at,
+    }
+    mismatches = sorted(
+        name for name, value in expected.items() if row[name] != value
+    )
+    if mismatches:
+        raise EffectLeaseStateError(
+            "persisted effect grant failed exact identity checks: "
+            + ", ".join(mismatches)
+        )
+
+
+def _authenticated_replay_start(
+    row: sqlite3.Row,
+    *,
+    lease: EffectLease,
+    execution: EffectExecutionRequest,
+    request_json: str,
+) -> EffectStartResult:
+    """Authenticate one persisted execution before returning an inert replay."""
+
+    identity_mismatches = sorted(
+        name
+        for name, actual, expected in (
+            ("lease_sha256", row["lease_sha256"], lease.digest),
+            ("execution_id", row["execution_id"], execution.execution_id),
+            ("idempotency_key", row["idempotency_key"], execution.idempotency_key),
+            ("request_sha256", row["request_sha256"], execution.digest),
+        )
+        if actual != expected
+    )
+    if identity_mismatches:
+        raise EffectLeaseReplay(
+            "execution identity or idempotency key was reused across a "
+            "different lease or scope: " + ", ".join(identity_mismatches)
+        )
+    if row["request_json"] != request_json:
+        raise EffectLeaseStateError(
+            "persisted execution request bytes do not match its authenticated digest"
+        )
+
+    try:
+        payload = json.loads(row["start_receipt_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("start receipt JSON must contain an object")
+        receipt = LeasedEffectStartReceipt(**payload)
+    except (
+        TypeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        EffectLeaseBindingMismatch,
+    ) as exc:
+        raise EffectLeaseStateError(
+            "persisted replay contains invalid start receipt bytes"
+        ) from exc
+
+    receipt_mismatches = []
+    if canonical_json(receipt.to_dict()) != row["start_receipt_json"]:
+        receipt_mismatches.append("start_receipt_json")
+    if receipt.receipt_sha256 != row["start_receipt_sha256"]:
+        receipt_mismatches.append("start_receipt_sha256")
+    if receipt.lease_sha256 != lease.digest:
+        receipt_mismatches.append("receipt_lease_sha256")
+    if receipt.execution_id != execution.execution_id:
+        receipt_mismatches.append("receipt_execution_id")
+    if receipt.idempotency_key != execution.idempotency_key:
+        receipt_mismatches.append("receipt_idempotency_key")
+    if receipt.execution_request_sha256 != execution.digest:
+        receipt_mismatches.append("receipt_request_sha256")
+    if receipt.started_at != row["started_at"]:
+        receipt_mismatches.append("started_at")
+    if receipt_mismatches:
+        raise EffectLeaseStateError(
+            "persisted replay failed exact start identity checks: "
+            + ", ".join(sorted(receipt_mismatches))
+        )
+    return EffectStartResult(receipt=receipt, execute=False)
 
 
 class EffectLeaseLedger:
@@ -964,36 +1112,75 @@ class EffectLeaseLedger:
         registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
     ) -> EffectStartResult:
         verification_instant = _as_utc(started_at, "started_at") if started_at is not None else _utc_now()
-        verify_effect_lease(
+        _authenticate_effect_lease_contracts(
             lease,
             request=request,
             policy_decision=policy_decision,
             keyring=keyring,
-            current_kill_switch_generation=current_kill_switch_generation,
-            now=verification_instant,
-            registry=registry,
         )
         _validate_narrowed_scope(execution, lease)
-        registry_map = _registry_map(registry)
-        boundary = begin_effect(
-            lease.entrypoint_id,
-            execution.requested_effects,
-            guard_decisions,
-            registry=registry_map,
-        )
         request_json = canonical_json(execution.to_dict())
 
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             lease_row = conn.execute(
-                "SELECT lease_json, expires_at, revoked_at FROM effect_leases WHERE lease_sha256=?",
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at
+                FROM effect_leases WHERE lease_sha256=?
+                """,
                 (lease.digest,),
             ).fetchone()
             if lease_row is None:
                 raise EffectLeaseStateError("effect lease was not persisted before start")
-            if lease_row["lease_json"] != lease.to_json():
-                raise EffectLeaseStateError("persisted lease bytes do not match supplied lease")
+            _authenticate_persisted_grant(
+                lease_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            existing = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json,
+                       start_receipt_sha256, start_receipt_json, started_at
+                FROM effect_executions
+                WHERE execution_id=? OR (lease_sha256=? AND idempotency_key=?)
+                """,
+                (execution.execution_id, lease.digest, execution.idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                replay = _authenticated_replay_start(
+                    existing,
+                    lease=lease,
+                    execution=execution,
+                    request_json=request_json,
+                )
+                conn.execute("COMMIT")
+                return replay
+
+            # Only a new external effect reaches current-world authorization.
+            # An exact replay above is already durable and is therefore an
+            # inert recovery read, not another effect start.
+            verify_effect_lease(
+                lease,
+                request=request,
+                policy_decision=policy_decision,
+                keyring=keyring,
+                current_kill_switch_generation=current_kill_switch_generation,
+                now=verification_instant,
+                registry=registry,
+            )
+            registry_map = _registry_map(registry)
+            boundary = begin_effect(
+                lease.entrypoint_id,
+                execution.requested_effects,
+                guard_decisions,
+                registry=registry_map,
+            )
             if lease_row["revoked_at"] is not None:
                 raise EffectLeaseStateError("effect lease is revoked")
             persistence_instant = (
@@ -1003,27 +1190,6 @@ class EffectLeaseLedger:
                 lease_row["expires_at"], "persisted lease expiry"
             ):
                 raise EffectLeaseExpired("persisted effect lease expired before start")
-            existing = conn.execute(
-                """
-                SELECT lease_sha256, idempotency_key, request_sha256, start_receipt_json
-                FROM effect_executions
-                WHERE execution_id=? OR (lease_sha256=? AND idempotency_key=?)
-                """,
-                (execution.execution_id, lease.digest, execution.idempotency_key),
-            ).fetchone()
-            if existing is not None:
-                if (
-                    existing["lease_sha256"] != lease.digest
-                    or existing["idempotency_key"] != execution.idempotency_key
-                    or existing["request_sha256"] != execution.digest
-                ):
-                    raise EffectLeaseReplay(
-                        "execution identity or idempotency key was reused across a different lease or scope"
-                    )
-                stored = json.loads(existing["start_receipt_json"])
-                replay_receipt = LeasedEffectStartReceipt(**stored)
-                conn.execute("COMMIT")
-                return EffectStartResult(receipt=replay_receipt, execute=False)
             active = conn.execute(
                 "SELECT COUNT(*) FROM effect_executions WHERE lease_sha256=? AND state='STARTED'",
                 (lease.digest,),

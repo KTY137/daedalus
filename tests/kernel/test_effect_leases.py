@@ -24,6 +24,7 @@ from daedalus.kernel.effects import (
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
     Effect,
+    EffectStartRefused,
     EntrypointSpec,
     GuardDecision,
     Surface,
@@ -485,6 +486,263 @@ def test_replay_returns_existing_receipt_without_second_effect(tmp_path) -> None
     assert first.execute is True
     assert second.execute is False
     assert second.receipt == first.receipt
+
+
+@pytest.mark.parametrize(
+    ("current_veto", "expected_new_error"),
+    (
+        ("expired", EffectLeaseExpired),
+        ("revoked", EffectLeaseStateError),
+        ("kill_switch", EffectLeaseBindingMismatch),
+        ("guards", EffectStartRefused),
+        ("registry", EffectLeaseBindingMismatch),
+    ),
+)
+def test_restart_exact_replay_is_inert_despite_current_start_vetos(
+    tmp_path, current_veto, expected_new_error
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / f"{current_veto}.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    first = begin(ledger, value, req, policy)
+
+    restarted = EffectLeaseLedger(path)
+    started_at = NOW + timedelta(seconds=3)
+    current_generation = 7
+    current_guards = guards()
+    current_registry = registry()
+    if current_veto == "expired":
+        started_at = NOW + timedelta(minutes=10)
+    elif current_veto == "revoked":
+        restarted.revoke(
+            value.digest,
+            reason="owner cancelled mission",
+            revoked_at=NOW + timedelta(seconds=2),
+        )
+    elif current_veto == "kill_switch":
+        current_generation = 8
+    elif current_veto == "guards":
+        current_guards = (
+            GuardDecision("budget.process_guard", False, "budget exhausted"),
+        )
+    elif current_veto == "registry":
+        changed = dataclasses.replace(central_spec(), notes="changed registry")
+        current_registry = {changed.id: changed}
+
+    replay = restarted.begin(
+        value,
+        execution(),
+        request=req,
+        policy_decision=policy,
+        keyring={"kernel-key-1": SECRET},
+        guard_decisions=current_guards,
+        current_kill_switch_generation=current_generation,
+        started_at=started_at,
+        registry=current_registry,
+    )
+    assert replay.execute is False
+    assert replay.receipt == first.receipt
+
+    new_execution = execution(
+        execution_id="execution-2", idempotency_key="idem-2"
+    )
+    with pytest.raises(expected_new_error):
+        restarted.begin(
+            value,
+            new_execution,
+            request=req,
+            policy_decision=policy,
+            keyring={"kernel-key-1": SECRET},
+            guard_decisions=current_guards,
+            current_kill_switch_generation=current_generation,
+            started_at=started_at,
+            registry=current_registry,
+        )
+    assert restarted.execution_state("execution-2") is None
+
+
+def test_restart_replay_still_authenticates_key_signature_identity_and_scope(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "leases.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    first = begin(ledger, value, req, policy)
+    restarted = EffectLeaseLedger(path)
+
+    common = {
+        "request": req,
+        "policy_decision": policy,
+        "guard_decisions": guards(),
+        "current_kill_switch_generation": 8,
+        "started_at": NOW + timedelta(minutes=10),
+        "registry": registry(),
+    }
+    with pytest.raises(EffectLeaseSignatureError, match="unknown"):
+        restarted.begin(value, execution(), keyring={}, **common)
+    with pytest.raises(EffectLeaseSignatureError, match="signature"):
+        restarted.begin(
+            value,
+            execution(),
+            keyring={"kernel-key-1": b"wrong-key-material-at-least-32-bytes"},
+            **common,
+        )
+    tampered = dataclasses.replace(value, signature_sha256="0" * 64)
+    with pytest.raises(EffectLeaseSignatureError, match="signature"):
+        restarted.begin(
+            tampered,
+            execution(),
+            keyring={"kernel-key-1": SECRET},
+            **common,
+        )
+
+    changed_request = dataclasses.replace(req, mission_id="mission-2")
+    with pytest.raises(EffectLeaseBindingMismatch, match="request_sha256"):
+        restarted.begin(
+            value,
+            execution(),
+            request=changed_request,
+            policy_decision=policy,
+            keyring={"kernel-key-1": SECRET},
+            guard_decisions=guards(),
+            current_kill_switch_generation=8,
+            started_at=NOW + timedelta(minutes=10),
+            registry=registry(),
+        )
+    changed_policy = dataclasses.replace(policy, reasons=("different policy",))
+    with pytest.raises(EffectLeaseBindingMismatch, match="policy_decision_sha256"):
+        restarted.begin(
+            value,
+            execution(),
+            request=req,
+            policy_decision=changed_policy,
+            keyring={"kernel-key-1": SECRET},
+            guard_decisions=guards(),
+            current_kill_switch_generation=8,
+            started_at=NOW + timedelta(minutes=10),
+            registry=registry(),
+        )
+
+    changed_scope = execution(path="workspace/other.txt")
+    with pytest.raises(EffectLeaseReplay, match="different lease or scope"):
+        restarted.begin(
+            value,
+            changed_scope,
+            keyring={"kernel-key-1": SECRET},
+            **common,
+        )
+    changed_execution_id = execution(
+        execution_id="execution-2", idempotency_key="idem-1"
+    )
+    with pytest.raises(EffectLeaseReplay, match="different lease or scope"):
+        restarted.begin(
+            value,
+            changed_execution_id,
+            keyring={"kernel-key-1": SECRET},
+            **common,
+        )
+    changed_idempotency = execution(idempotency_key="idem-2")
+    with pytest.raises(EffectLeaseReplay, match="different lease or scope"):
+        restarted.begin(
+            value,
+            changed_idempotency,
+            keyring={"kernel-key-1": SECRET},
+            **common,
+        )
+    assert restarted.execution_record("execution-1").start_receipt == first.receipt
+
+
+@pytest.mark.parametrize(
+    ("table", "column", "expected_error"),
+    (
+        ("effect_leases", "lease_json", EffectLeaseStateError),
+        ("effect_leases", "request_json", EffectLeaseStateError),
+        ("effect_leases", "policy_decision_json", EffectLeaseStateError),
+        ("effect_executions", "request_json", EffectLeaseStateError),
+        ("effect_executions", "request_sha256", EffectLeaseReplay),
+        ("effect_executions", "start_receipt_json", EffectLeaseStateError),
+        ("effect_executions", "start_receipt_sha256", EffectLeaseStateError),
+    ),
+)
+def test_restart_replay_refuses_tampered_persisted_identity_bytes(
+    tmp_path, table, column, expected_error
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / f"{table}-{column}.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    begin(ledger, value, req, policy)
+
+    with sqlite3.connect(path) as connection:
+        stored = connection.execute(
+            f"SELECT {column} FROM {table}"
+        ).fetchone()[0]
+        tampered = "0" * 64 if column.endswith("sha256") else stored + " "
+        connection.execute(f"UPDATE {table} SET {column}=?", (tampered,))
+
+    with pytest.raises(expected_error):
+        EffectLeaseLedger(path).begin(
+            value,
+            execution(),
+            request=req,
+            policy_decision=policy,
+            keyring={"kernel-key-1": SECRET},
+            guard_decisions=guards(),
+            current_kill_switch_generation=8,
+            started_at=NOW + timedelta(minutes=10),
+            registry=registry(),
+        )
+
+
+def test_concurrent_revoked_restart_replays_are_serialized_and_inert(
+    tmp_path,
+) -> None:
+    import concurrent.futures
+
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "leases.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    first = begin(ledger, value, req, policy)
+    ledger.revoke(
+        value.digest,
+        reason="owner cancelled mission",
+        revoked_at=NOW + timedelta(seconds=2),
+    )
+
+    def replay(_index):
+        return EffectLeaseLedger(path).begin(
+            value,
+            execution(),
+            request=req,
+            policy_decision=policy,
+            keyring={"kernel-key-1": SECRET},
+            guard_decisions=(
+                GuardDecision("budget.process_guard", False, "budget exhausted"),
+            ),
+            current_kill_switch_generation=8,
+            started_at=NOW + timedelta(minutes=10),
+            registry=registry(),
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(replay, range(8)))
+    assert all(result.execute is False for result in results)
+    assert all(result.receipt == first.receipt for result in results)
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_executions"
+        ).fetchone()[0] == 1
 
 
 def test_reused_idempotency_or_execution_identity_cannot_change_scope(tmp_path) -> None:
