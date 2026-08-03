@@ -3,7 +3,6 @@ from __future__ import annotations
 import concurrent.futures
 import dataclasses
 import importlib.util
-import json
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
@@ -84,6 +83,16 @@ def _verify(observation, execution, start_receipt, **changes):
     return verify_external_effect_observation(observation, **values)
 
 
+def _resign(observation):
+    return dataclasses.replace(
+        observation,
+        signature_sha256=fixture.recovery_module._signature(
+            observation.signing_digest,
+            SECRET,
+        ),
+    )
+
+
 def test_observation_round_trip_signature_and_exact_evidence_binding(tmp_path: Path) -> None:
     _, _, execution, start = _started(tmp_path)
     observation = _observation(execution, start)
@@ -120,30 +129,21 @@ def test_signature_unknown_key_future_and_stale_refuse(tmp_path: Path) -> None:
         ("provider_id", "provider.foreign"),
         ("execution_id", "execution-foreign"),
         ("idempotency_key", "idempotency-foreign"),
-        ("start_receipt_sha256", "4" * 64),
     ],
 )
-def test_every_observation_binding_dimension_refuses(
+def test_signed_foreign_binding_dimensions_refuse(
     tmp_path: Path,
     field: str,
     value: str,
 ) -> None:
     _, _, execution, start = _started(tmp_path)
     observation = _observation(execution, start)
-    changed = dataclasses.replace(observation, **{field: value})
-    # Re-sign to prove the exact binding, not only HMAC tamper detection.
-    changed = dataclasses.replace(
-        changed,
-        signature_sha256=fixture.recovery_module._signature(
-            changed.signing_digest,
-            SECRET,
-        ),
-    )
+    changed = _resign(dataclasses.replace(observation, **{field: value}))
     with pytest.raises(EffectRecoveryBindingError):
         _verify(changed, execution, start)
 
 
-def test_source_revision_and_start_execution_mismatch_refuse(tmp_path: Path) -> None:
+def test_source_revision_and_start_receipt_bindings_refuse(tmp_path: Path) -> None:
     _, _, execution, start = _started(tmp_path)
     observation = _observation(execution, start)
     with pytest.raises(EffectRecoveryBindingError, match="source_revision"):
@@ -153,9 +153,12 @@ def test_source_revision_and_start_execution_mismatch_refuse(tmp_path: Path) -> 
             start,
             expected_source_revision="b" * 40,
         )
-    changed_start = dataclasses.replace(start, execution_id="execution-foreign")
+    changed_execution = dataclasses.replace(start, execution_id="execution-foreign")
     with pytest.raises(EffectRecoveryBindingError, match="start_execution_id"):
-        _verify(observation, execution, changed_start)
+        _verify(observation, execution, changed_execution)
+    changed_digest = dataclasses.replace(start, receipt_sha256="4" * 64)
+    with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
+        _verify(observation, execution, changed_digest)
 
 
 def test_reconcile_is_terminal_exact_and_idempotent(tmp_path: Path) -> None:
