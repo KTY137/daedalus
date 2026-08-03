@@ -3,7 +3,8 @@
 
 The parent and child intentionally remain in the same new session/process group
 created by the caller. ``--ignore-sigterm`` installs the same SIGTERM behavior
-in both processes so the collector must escalate to SIGKILL.
+in both processes so the collector must escalate to SIGKILL. The parent does
+not publish readiness until the child confirms that its signal policy is active.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import time
 
 _SCHEMA = "daedalus-linux-process-tree-fixture/1"
 _SLEEP_SECONDS = 60
+_MAX_CHILD_READY_BYTES = 1024
 
 
 def _sleep_forever() -> None:
@@ -26,6 +28,12 @@ def _sleep_forever() -> None:
 def _child(*, ignore_sigterm: bool) -> int:
     if ignore_sigterm:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    payload = {
+        "schema": _SCHEMA,
+        "child_pid": os.getpid(),
+        "ignore_sigterm": ignore_sigterm,
+    }
+    print(json.dumps(payload, sort_keys=True, separators=(",", ":")), flush=True)
     _sleep_forever()
     return 0
 
@@ -39,10 +47,28 @@ def _parent(*, ignore_sigterm: bool) -> int:
     child = subprocess.Popen(
         command,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
+        text=True,
         close_fds=True,
     )
+    if child.stdout is None:
+        raise RuntimeError("child readiness pipe is unavailable")
+    line = child.stdout.readline()
+    if not line or len(line.encode("utf-8")) > _MAX_CHILD_READY_BYTES:
+        raise RuntimeError("child readiness record is unavailable")
+    child_ready = json.loads(line)
+    expected = {"schema", "child_pid", "ignore_sigterm"}
+    if not isinstance(child_ready, dict) or set(child_ready) != expected:
+        raise RuntimeError("child readiness record fields are invalid")
+    if child_ready["schema"] != _SCHEMA:
+        raise RuntimeError("child readiness schema mismatch")
+    if type(child_ready["child_pid"]) is not int or child_ready["child_pid"] != child.pid:
+        raise RuntimeError("child readiness PID mismatch")
+    if type(child_ready["ignore_sigterm"]) is not bool:
+        raise RuntimeError("child readiness signal policy is invalid")
+    if child_ready["ignore_sigterm"] is not ignore_sigterm:
+        raise RuntimeError("child readiness signal policy mismatch")
     payload = {
         "schema": _SCHEMA,
         "parent_pid": os.getpid(),
