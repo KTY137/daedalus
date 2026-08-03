@@ -21,6 +21,7 @@ from daedalus.spine.envelope import canonical_sha
 
 ENTRYPOINT = "provider.fake"
 RUNTIME = "fake_runtime"
+OUTPUT_SHA = "a" * 64
 
 
 def _spec(*, wiring: Wiring = Wiring.CENTRAL, runtime_id: str = RUNTIME) -> EntrypointSpec:
@@ -87,6 +88,7 @@ class FakeAuthorization:
         self.verify_calls = 0
         self.finish_calls: list[dict[str, object]] = []
         self.verify_error: BaseException | None = None
+        self.verify_error_at: int | None = None
         self.finish_error: BaseException | None = None
 
     def grant(self) -> None:
@@ -103,7 +105,13 @@ class FakeAuthorization:
     def verify(self, *, now) -> object:
         self.verify_calls += 1
         assert now.tzinfo is not None
-        if self.verify_error is not None:
+        if (
+            self.verify_error is not None
+            and (
+                self.verify_error_at is None
+                or self.verify_calls == self.verify_error_at
+            )
+        ):
             raise self.verify_error
         return object()
 
@@ -124,6 +132,7 @@ class FakeAuthorization:
             "detail_sha256": detail_sha256,
         }
         self.finish_calls.append(row)
+        finished_at = "2026-08-03T01:00:01+00:00"
         body = {
             "lease_sha256": start_receipt.lease_sha256,
             "execution_id": start_receipt.execution_id,
@@ -131,7 +140,7 @@ class FakeAuthorization:
             "outcome": outcome.upper(),
             "output_digests": list(outputs),
             "detail_sha256": detail_sha256,
-            "finished_at": "2026-08-03T01:00:01+00:00",
+            "finished_at": finished_at,
         }
         return EffectTerminalReceipt(
             lease_sha256=start_receipt.lease_sha256,
@@ -140,9 +149,13 @@ class FakeAuthorization:
             outcome=outcome.upper(),
             output_digests=outputs,
             detail_sha256=detail_sha256,
-            finished_at=body["finished_at"],
+            finished_at=finished_at,
             receipt_sha256=canonical_sha(body),
         )
+
+
+def _evidence(value) -> tuple[str, ...]:
+    return (OUTPUT_SHA,)
 
 
 def test_completed_provider_call_is_granted_started_rechecked_and_finished() -> None:
@@ -154,17 +167,17 @@ def test_completed_provider_call_is_granted_started_rechecked_and_finished() -> 
         authorization=auth,  # type: ignore[arg-type]
         execution=_execution(),
         invoke=lambda: calls.append("invoked") or {"answer": 42},
-        output_digests=lambda value: ("b" * 64, "a" * 64),
+        output_digests=lambda value: ("b" * 64, OUTPUT_SHA),
     )
 
     assert calls == ["invoked"]
     assert auth.grant_calls == 1
     assert auth.begin_calls == 1
-    assert auth.verify_calls == 1
+    assert auth.verify_calls == 2
     assert auth.finish_calls == [
         {
             "outcome": "completed",
-            "output_digests": ("a" * 64, "b" * 64),
+            "output_digests": (OUTPUT_SHA, "b" * 64),
             "detail_sha256": None,
         }
     ]
@@ -178,18 +191,21 @@ def test_completed_provider_call_is_granted_started_rechecked_and_finished() -> 
 def test_exact_replay_is_inert_and_has_no_second_terminal() -> None:
     auth = FakeAuthorization(replay=True)
     calls: list[str] = []
+    evidence_calls: list[str] = []
 
     result = run_runtime_provider(
         ENTRYPOINT,
         authorization=auth,  # type: ignore[arg-type]
         execution=_execution(),
         invoke=lambda: calls.append("invoked"),
+        output_digests=lambda value: evidence_calls.append("evidence") or (OUTPUT_SHA,),
     )
 
     assert result.executed is False
     assert result.value is None
     assert result.terminal_receipt is None
     assert calls == []
+    assert evidence_calls == []
     assert auth.grant_calls == 1
     assert auth.begin_calls == 1
     assert auth.verify_calls == 0
@@ -220,6 +236,7 @@ def test_foreign_noncentral_or_runtime_mismatched_authority_refuses_before_effec
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=invoke,
+            output_digests=_evidence,
         )
 
     assert called is False
@@ -239,6 +256,7 @@ def test_provider_exception_is_failed_before_it_escapes() -> None:
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=invoke,
+            output_digests=_evidence,
         )
 
     assert auth.finish_calls[0]["outcome"] == "failed"
@@ -258,6 +276,7 @@ def test_keyboard_interrupt_is_cancelled_before_it_escapes() -> None:
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=invoke,
+            output_digests=_evidence,
         )
 
     assert auth.finish_calls[0]["outcome"] == "cancelled"
@@ -266,6 +285,8 @@ def test_keyboard_interrupt_is_cancelled_before_it_escapes() -> None:
 def test_runtime_trust_loss_after_provider_call_withholds_output_and_cancels() -> None:
     auth = FakeAuthorization()
     auth.verify_error = RuntimeError("runtime quarantined")
+    auth.verify_error_at = 1
+    evidence_calls: list[str] = []
 
     with pytest.raises(RuntimeError, match="quarantined"):
         run_runtime_provider(
@@ -273,25 +294,56 @@ def test_runtime_trust_loss_after_provider_call_withholds_output_and_cancels() -
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=lambda: {"untrusted": "output"},
+            output_digests=lambda value: evidence_calls.append("evidence") or (OUTPUT_SHA,),
         )
 
     assert auth.verify_calls == 1
+    assert evidence_calls == []
     assert auth.finish_calls[0]["outcome"] == "cancelled"
 
 
-def test_malformed_output_evidence_marks_execution_failed() -> None:
+def test_runtime_trust_loss_after_evidence_extraction_blocks_completion() -> None:
     auth = FakeAuthorization()
+    auth.verify_error = RuntimeError("runtime rotated")
+    auth.verify_error_at = 2
+    evidence_calls: list[str] = []
 
-    with pytest.raises(ValueError, match="lowercase SHA-256"):
+    with pytest.raises(RuntimeError, match="rotated"):
         run_runtime_provider(
             ENTRYPOINT,
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=lambda: "output",
-            output_digests=lambda value: ("not-a-digest",),
+            output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
         )
 
-    assert auth.finish_calls[0]["outcome"] == "failed"
+    assert auth.verify_calls == 2
+    assert evidence_calls == ["output"]
+    assert auth.finish_calls[0]["outcome"] == "cancelled"
+
+
+def test_missing_or_malformed_output_evidence_marks_execution_failed() -> None:
+    missing = FakeAuthorization()
+    with pytest.raises(ValueError, match="requires output evidence"):
+        run_runtime_provider(
+            ENTRYPOINT,
+            authorization=missing,  # type: ignore[arg-type]
+            execution=_execution(),
+            invoke=lambda: "output",
+            output_digests=lambda value: (),
+        )
+    assert missing.finish_calls[0]["outcome"] == "failed"
+
+    malformed = FakeAuthorization()
+    with pytest.raises(ValueError, match="lowercase SHA-256"):
+        run_runtime_provider(
+            ENTRYPOINT,
+            authorization=malformed,  # type: ignore[arg-type]
+            execution=_execution(),
+            invoke=lambda: "output",
+            output_digests=lambda value: ("not-a-digest",),
+        )
+    assert malformed.finish_calls[0]["outcome"] == "failed"
 
 
 def test_terminal_persistence_failure_is_a_broker_state_error() -> None:
@@ -304,4 +356,5 @@ def test_terminal_persistence_failure_is_a_broker_state_error() -> None:
             authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
             invoke=lambda: "output",
+            output_digests=_evidence,
         )
