@@ -175,14 +175,16 @@ def test_real_wiki_fourfold_snapshot_is_bound_before_consumption(
     assert prepared.evidence_packet_sha256 == evidence.digest
     assert prepared.nomination_receipt_sha256 == nomination.digest
 
+    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
     authorization = consume_prepared_promotion(
         prepared,
-        ledger=ApprovalLedger(tmp_path / "approvals.sqlite3"),
+        ledger=ledger,
         current_target_revision=TARGET_REVISION,
         consumed_at=NOW + timedelta(seconds=3),
     )
     assert_authorized_promotion_start(
         authorization,
+        ledger=ledger,
         current_target_revision=TARGET_REVISION,
     )
     assert authorization.consumed_approval.promotion_id == "promotion-1"
@@ -269,6 +271,14 @@ def test_evidence_subject_must_be_exact_candidate(candidate_snapshot) -> None:
         )
 
 
+def test_prepared_capability_refuses_contradictory_owner_digest(
+    candidate_snapshot,
+) -> None:
+    prepared, _, _ = _prepared(candidate_snapshot)
+    with pytest.raises(PromotionCapabilityError, match="owner digest"):
+        dataclasses.replace(prepared, owner_approval_sha256="9" * 64)
+
+
 def test_consumed_approval_cannot_be_replayed(candidate_snapshot, tmp_path) -> None:
     prepared, _, _ = _prepared(candidate_snapshot)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
@@ -287,18 +297,28 @@ def test_consumed_approval_cannot_be_replayed(candidate_snapshot, tmp_path) -> N
         )
 
 
-def test_target_is_rechecked_after_consumption(candidate_snapshot, tmp_path) -> None:
+def test_target_and_ledger_are_rechecked_after_consumption(
+    candidate_snapshot, tmp_path
+) -> None:
     prepared, _, _ = _prepared(candidate_snapshot)
+    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
     authorization = consume_prepared_promotion(
         prepared,
-        ledger=ApprovalLedger(tmp_path / "approvals.sqlite3"),
+        ledger=ledger,
         current_target_revision=TARGET_REVISION,
         consumed_at=NOW + timedelta(seconds=3),
     )
     with pytest.raises(PromotionTargetMoved, match="new owner approval"):
         assert_authorized_promotion_start(
             authorization,
+            ledger=ledger,
             current_target_revision=MOVED_TARGET_REVISION,
+        )
+    with pytest.raises(PromotionCapabilityError, match="not present"):
+        assert_authorized_promotion_start(
+            authorization,
+            ledger=ApprovalLedger(tmp_path / "other.sqlite3"),
+            current_target_revision=TARGET_REVISION,
         )
 
 
