@@ -22,15 +22,21 @@ with:
 - `64m` memory and memory-swap limit;
 - one CPU, 32 processes, 16 MiB temporary filesystem, and 30-second timeout.
 
-A small parent process reads the kernel-owned cgroup-v2
-`/sys/fs/cgroup/memory.events` counters and creates the start marker. It forks
-one allocation child that repeatedly allocates and touches 8 MiB blocks. The
-parent retains a bounded canonical marker only after observing the kernel
-`oom_kill` counter increase and reaping the child. The allocation child has no
-shell, network, voluntary exit, signal, or self-kill path.
+A small parent process first proves that the kernel-owned cgroup-v2
+`/sys/fs/cgroup/memory.events` file is readable and contains both `oom` and
+`oom_kill`. It then creates the start marker and forks one allocation child that
+repeatedly allocates and touches 8 MiB blocks. The parent retains a bounded
+canonical marker only after observing the kernel `oom_kill` counter increase and
+reaping the child. The allocation child has no shell, network, voluntary exit,
+signal, or self-kill path.
 
 The parent uses return code 70 only as a transport outcome after retaining the
 kernel facts. Return code 70 by itself is never accepted as OOM evidence.
+
+If the exact cgroup-v2 counter surface is absent, unreadable or missing either
+required counter, the parent writes one exact `supported=false` marker before
+any allocation or start marker and returns 72. Only that full combination may be
+classified as an external runtime blocker.
 
 ## Pass invariant
 
@@ -45,7 +51,7 @@ following are exact:
 4. the sandbox did not time out and supplied no pre-start error code;
 5. the start marker exists;
 6. the strict cgroup marker is present, bounded, duplicate-key-free and uses the
-   exact marker schema;
+   exact marker schema with `supported=true` and `observed=true`;
 7. both `oom` and `oom_kill` increased relative to their pre-allocation values;
 8. the allocation child was reaped with exit code `-9`, proving SIGKILL;
 9. the observation finishes inside the bounded timeout window;
@@ -53,9 +59,12 @@ following are exact:
 
 A missing Docker CLI is `blocked/docker-cli-unavailable` or
 `blocked/docker-cli-unreadable`. Docker daemon, pull, image, or launch refusal is
-`blocked/sandbox-unavailable`. Timeout, missing/malformed marker, unchanged
-kernel counters, another child terminal state, or any other parent terminal code
-is a failed OOM invariant and cannot satisfy the scenario.
+`blocked/sandbox-unavailable`. Missing cgroup-v2 counters are blocked only for a
+started-container receipt with return code 72, no start marker, a strict valid
+`supported=false`/`observed=false` marker, zero counters and no child exit code.
+Any weakened or recombined unsupported claim fails. Timeout, missing/malformed
+marker, unchanged kernel counters, another child terminal state, or any other
+parent terminal code is a failed OOM invariant and cannot satisfy the scenario.
 
 ## Evidence binding
 
@@ -69,9 +78,9 @@ The executor implementation digest binds:
 
 Raw evidence retains scenario, implementation, production-source, Docker CLI,
 image and policy identities; bounded timing; start-marker state; the strict
-kernel-counter marker and its SHA-256; and the canonical sandbox receipt with
-only stdout/stderr digests. It does not retain Docker output text or the
-temporary workspace path.
+kernel-counter/capability marker and its SHA-256; and the canonical sandbox
+receipt with only stdout/stderr digests. It does not retain Docker output text or
+the temporary workspace path.
 
 Published files are atomic and output-directory symlinks refuse. Every summary
 hard-codes:
@@ -95,6 +104,8 @@ The independent counter-review checks that:
 - a pass requires counter increases, child SIGKILL, exact memory policy, start
   marker, launch state and parent terminal code;
 - malformed, oversized, duplicate-key and non-finite marker records refuse;
+- cgroup capability blocking requires the exact return code, absent start
+  marker, strict unsupported marker, zero counters and absent child result;
 - pre-start refusal remains blocked rather than becoming an OOM pass;
 - implementation identity covers production code, marker schema, image and
   limits;
@@ -103,8 +114,8 @@ The independent counter-review checks that:
 
 Focused mutations cover parent return-code substitution, start-marker removal,
 `oom`/`oom_kill` counter removal, child-exit substitution, malformed marker,
-timeout laundering, pre-start-refusal laundering, scenario drift and
-production-source identity substitution.
+unsupported-claim recombination, timeout laundering, pre-start-refusal
+laundering, scenario drift and production-source identity substitution.
 
 ## Verification request
 
