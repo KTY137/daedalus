@@ -130,6 +130,8 @@ def _resign(receipt: Gate0ReleaseReceipt, **changes) -> Gate0ReleaseReceipt:
         sorted(
             {
                 payload["gate_report_sha256"],
+                payload["gate_report_artifact_sha256"],
+                payload["registry_sha256"],
                 payload["evidence_index_sha256"],
                 payload["trust_bundle_sha256"],
                 payload["requirements_sha256"],
@@ -381,3 +383,22 @@ def test_receipt_wire_rejects_extra_fields_duplicate_keys_and_non_objects(
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_gate0_release_receipt(duplicate)
+
+
+def test_receipt_wire_refuses_reordered_signed_provenance_inputs(
+    tmp_path: Path,
+) -> None:
+    root, index, bundle = _inputs(tmp_path)
+    receipt = _issue(_report(), index, bundle, root)
+    payload = receipt.to_dict()
+    original = payload["provenance"]["input_digests"]
+    assert len(original) == 6
+    payload["provenance"]["input_digests"] = list(reversed(original))
+
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        parse_gate0_release_receipt(payload)
+
+    path = tmp_path / "noncanonical-receipt.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        load_gate0_release_receipt(path)
