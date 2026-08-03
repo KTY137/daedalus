@@ -1,0 +1,27 @@
+name: WP04 workspace export
+
+on:
+  push:
+    branches:
+      - ops/g0-wp04-workspace-export
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf /tmp/daedalus-wp04.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-wp04-workspace
+          path: /tmp/daedalus-wp04.tar.gz
+          if-no-files-found: error
+          retention-days: 1
