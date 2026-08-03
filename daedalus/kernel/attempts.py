@@ -2,7 +2,7 @@
 
 The records in this module are the Gate-0 execution-lifecycle authority. They do
 not invoke a provider or a runtime. A start is committed before an input source
-tree is materialized, exact terminal replay is read-only, and a start without a
+tree is materialized, terminal replay is read-only, and a start without a
 terminal receipt is an unknown outcome that cannot be executed automatically.
 """
 from __future__ import annotations
@@ -11,16 +11,11 @@ import json
 import os
 import sqlite3
 from dataclasses import dataclass
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, ClassVar, Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
-from daedalus.kernel.source_trees import (
-    SourceTreeManifest,
-    SourceTreeStore,
-    StoredSourceTree,
-)
+from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
 from daedalus.schemas import (
     AttemptContract,
     CanonicalContract,
@@ -63,8 +58,7 @@ class AttemptWorkspaceError(AttemptLifecycleError):
 def _artifact_ref(payload: Mapping[str, Any], label: str) -> ArtifactRef:
     if not isinstance(payload, Mapping):
         raise ValueError(f"{label} must be an object")
-    body = _record_payload(ArtifactRef, payload, label)
-    return ArtifactRef(**body)
+    return ArtifactRef(**_record_payload(ArtifactRef, payload, label))
 
 
 def _path_identity(path: Path) -> str:
@@ -144,16 +138,7 @@ class AttemptStartRecord(CanonicalContract):
             raise ValueError("start provenance must be ContractProvenance")
         if self.provenance.source_revision != revision:
             raise ValueError("start provenance must use the source revision")
-        _require_provenance_inputs(
-            self.provenance,
-            (
-                self.attempt_sha256,
-                self.input_tree.sha256,
-                self.workspace_parent_sha256,
-            ),
-            "attempt start",
-        )
-        if tuple(self.provenance.input_digests) != tuple(
+        expected = tuple(
             sorted(
                 {
                     self.attempt_sha256,
@@ -161,7 +146,9 @@ class AttemptStartRecord(CanonicalContract):
                     self.workspace_parent_sha256,
                 }
             )
-        ):
+        )
+        _require_provenance_inputs(self.provenance, expected, "attempt start")
+        if tuple(self.provenance.input_digests) != expected:
             raise ValueError("attempt start provenance must bind exactly its inputs")
 
     @classmethod
@@ -170,6 +157,26 @@ class AttemptStartRecord(CanonicalContract):
         body["input_tree"] = _artifact_ref(body["input_tree"], "input_tree")
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+    def same_subject(self, other: "AttemptStartRecord") -> bool:
+        """Compare replay identity while retaining the first persisted timestamp."""
+        return isinstance(other, AttemptStartRecord) and (
+            self.start_id,
+            self.attempt_id,
+            self.attempt_sha256,
+            self.source_revision,
+            self.input_tree,
+            self.workspace_parent_sha256,
+            self.workspace_relative_path,
+        ) == (
+            other.start_id,
+            other.attempt_id,
+            other.attempt_sha256,
+            other.source_revision,
+            other.input_tree,
+            other.workspace_parent_sha256,
+            other.workspace_relative_path,
+        )
 
 
 @dataclass(frozen=True)
@@ -226,12 +233,9 @@ class AttemptTerminalReceipt(CanonicalContract):
         }
         if self.candidate_tree is not None:
             required.add(self.candidate_tree.sha256)
-        _require_provenance_inputs(
-            self.provenance,
-            tuple(sorted(required)),
-            "attempt terminal",
-        )
-        if tuple(self.provenance.input_digests) != tuple(sorted(required)):
+        expected = tuple(sorted(required))
+        _require_provenance_inputs(self.provenance, expected, "attempt terminal")
+        if tuple(self.provenance.input_digests) != expected:
             raise ValueError("attempt terminal provenance must bind exactly its inputs")
 
     @classmethod
@@ -244,6 +248,30 @@ class AttemptTerminalReceipt(CanonicalContract):
             )
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+    def same_subject(self, other: "AttemptTerminalReceipt") -> bool:
+        """Compare exact terminal material while retaining first completion time."""
+        return isinstance(other, AttemptTerminalReceipt) and (
+            self.receipt_id,
+            self.start_sha256,
+            self.attempt_id,
+            self.attempt_sha256,
+            self.source_revision,
+            self.input_tree_sha256,
+            self.outcome,
+            self.report,
+            self.candidate_tree,
+        ) == (
+            other.receipt_id,
+            other.start_sha256,
+            other.attempt_id,
+            other.attempt_sha256,
+            other.source_revision,
+            other.input_tree_sha256,
+            other.outcome,
+            other.report,
+            other.candidate_tree,
+        )
 
 
 @dataclass(frozen=True)
@@ -273,6 +301,8 @@ class AttemptBeginResult:
     completion: AttemptCompletion | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.start, AttemptStartRecord):
+            raise ValueError("begin start must be AttemptStartRecord")
         if not isinstance(self.execute, bool):
             raise ValueError("execute must be boolean")
         if self.execute and self.completion is not None:
@@ -291,6 +321,8 @@ class PreparedAttempt:
     workspace: Path | None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.begin, AttemptBeginResult):
+            raise ValueError("prepared begin must be AttemptBeginResult")
         if self.begin.execute and self.workspace is None:
             raise ValueError("fresh prepared attempt must expose its workspace")
         if not self.begin.execute and self.workspace is not None:
@@ -375,10 +407,7 @@ class AttemptLedger:
         if row is None:
             return None
         receipt = self._decode_receipt(str(row["receipt_json"]))
-        completion = AttemptCompletion(start=start, receipt=receipt)
-        if receipt.start_sha256 != start.digest:
-            raise AttemptStateError("persisted terminal points at a foreign start")
-        return completion
+        return AttemptCompletion(start=start, receipt=receipt)
 
     def begin(
         self,
@@ -398,13 +427,17 @@ class AttemptLedger:
             raise AttemptBindingMismatch(
                 "input source tree revision must equal attempt base revision"
             )
+        parent_digest = _sha256(
+            workspace_parent_sha256,
+            "workspace_parent_sha256",
+        )
         start = AttemptStartRecord(
             start_id=start_id,
             attempt_id=attempt.attempt_id,
             attempt_sha256=attempt.digest,
             source_revision=attempt.base_revision,
             input_tree=input_tree.ref,
-            workspace_parent_sha256=workspace_parent_sha256,
+            workspace_parent_sha256=parent_digest,
             workspace_relative_path=workspace_relative_path,
             started_at=started_at,
             provenance=ContractProvenance(
@@ -416,10 +449,7 @@ class AttemptLedger:
                         {
                             attempt.digest,
                             input_tree.ref.sha256,
-                            _sha256(
-                                workspace_parent_sha256,
-                                "workspace_parent_sha256",
-                            ),
+                            parent_digest,
                         }
                     )
                 ),
@@ -435,7 +465,7 @@ class AttemptLedger:
                 ).fetchone()
                 if row is not None:
                     persisted = self._decode_start(str(row["start_json"]))
-                    if persisted != start:
+                    if not persisted.same_subject(start):
                         raise AttemptReplay(
                             "attempt_id was already started with different material"
                         )
@@ -553,7 +583,7 @@ class AttemptLedger:
                     )
                 existing = self._completion_for(connection, persisted_start)
                 if existing is not None:
-                    if existing != completion:
+                    if not existing.receipt.same_subject(receipt):
                         raise AttemptReplay(
                             "attempt already has a different terminal receipt"
                         )
@@ -691,7 +721,7 @@ class IsolatedAttemptCoordinator:
                 raise AttemptBindingMismatch(
                     "materialized input manifest differs from requested input"
                 )
-        except BaseException as exc:
+        except Exception as exc:
             report_payload = {
                 "schema": "daedalus-attempt-materialization-fault/1",
                 "attempt_sha256": attempt.digest,
