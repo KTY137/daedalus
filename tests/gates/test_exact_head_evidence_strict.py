@@ -4,7 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from daedalus.gates import assert_strict_exact_head, strict_mechanical_blockers
+from daedalus.gates import (
+    assert_strict_exact_head,
+    evidence_requirements_sha256,
+    strict_mechanical_blockers,
+)
 from daedalus.gates.evidence import (
     ArtifactEvidence,
     FaultMatrixEvidence,
@@ -214,6 +218,9 @@ def build_index(*, add_inconsistent_extras: bool = False) -> GateEvidenceIndex:
 def trust_sets(value: GateEvidenceIndex) -> dict[str, tuple[str, ...]]:
     assert value.owner_decision is not None
     return {
+        "trusted_requirements_sha256s": (evidence_requirements_sha256(value),),
+        "trusted_iron_plan_sha256s": (value.iron_plan_sha256,),
+        "trusted_registry_sha256s": (value.registry_sha256,),
         "trusted_workflow_evidence_sha256s": tuple(
             item.digest for item in value.workflows
         ),
@@ -262,12 +269,29 @@ def test_empty_external_trust_sets_fail_closed() -> None:
         current_tree_revision=TREE,
         now=NOW + timedelta(minutes=1),
     )
+    assert "index:untrusted-requirements" in blockers
+    assert "index:untrusted-iron-plan" in blockers
+    assert "index:untrusted-registry" in blockers
     assert "workflow:iron-plan:untrusted-evidence" in blockers
     assert "artifact:wheel:untrusted-content" in blockers
     assert "runtime:claude-code-cli:untrusted-envelope" in blockers
     assert "fault-matrix:gate0-faults:untrusted-matrix" in blockers
     assert "review:architecture:untrusted-transcript" in blockers
     assert "owner-decision:untrusted-verifier-receipt" in blockers
+
+
+def test_candidate_cannot_shrink_requirements_without_external_adoption() -> None:
+    value = build_index()
+    trusted = trust_sets(value)
+    trusted["trusted_requirements_sha256s"] = ("f" * 64,)
+    blockers = strict_mechanical_blockers(
+        value,
+        current_revision=REV,
+        current_tree_revision=TREE,
+        now=NOW + timedelta(minutes=1),
+        **trusted,
+    )
+    assert "index:untrusted-requirements" in blockers
 
 
 def test_inconsistent_extra_evidence_cannot_be_silently_ignored() -> None:
