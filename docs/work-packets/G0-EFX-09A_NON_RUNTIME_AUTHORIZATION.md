@@ -36,11 +36,25 @@ evidence is refused at construction. Runtime-bearing entrypoints must use
 `RuntimeBoundEffectAuthorization`, which adds live authenticated runtime-trust
 checks before grant and start. The generic path may not be used as a downgrade.
 
+## Independent counter-review finding
+
+The first builder revision delegated terminalization directly to the shared
+ledger. Although the ledger validates that a start receipt exists, a capability
+holding the same ledger could have been handed a valid start receipt belonging
+to another lease. The facade now requires
+`start_receipt.lease_sha256 == authorization.lease.digest` before terminalizing.
+A focused regression test and dedicated mutant pin this cross-capability
+boundary.
+
+This review is a separate source/authority perspective, not a human security
+approval and not Gate evidence by itself.
+
 ## Verification requested
 
 The focused suite covers:
 
 - authenticated grant, durable start, immutable terminal state and exact replay;
+- cross-lease terminal-receipt refusal;
 - runtime-path downgrade refusal;
 - request/lease binding mismatch;
 - signature tampering;
@@ -50,10 +64,10 @@ The focused suite covers:
   calls in the facade.
 
 The bounded mutation campaign attacks runtime downgrade refusal, request binding,
-guard evidence and lease authentication. CI requests Ubuntu and Windows,
-Python 3.10 and 3.12, two hash seeds, Iron Plan verification, compile-all,
-focused parent/facade tests, mutation execution, the repository full suite and
-an isolated-wheel import.
+guard evidence, lease authentication and cross-lease terminalization. CI requests
+Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan verification,
+compile-all, focused parent/facade tests, mutation execution, the repository full
+suite and an isolated-wheel import.
 
 ## Dependent migration path
 
