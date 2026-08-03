@@ -1,0 +1,32 @@
+name: Bootstrap current Gate 0 checkout export
+
+on:
+  push:
+    branches:
+      - bootstrap/g0-current-export
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git --exclude=daedalus-checkout.tar.gz -czf daedalus-checkout.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-g0-current-checkout
+          path: daedalus-checkout.tar.gz
+          if-no-files-found: error
+          retention-days: 2
