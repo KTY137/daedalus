@@ -4,12 +4,13 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
-from daedalus.schemas import AttemptContract, ContractProvenance, _sha256
+from daedalus.schemas import AttemptContract, ContractProvenance, _sha256, _utc_timestamp
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.ledger import (
     STATE_COMPLETED,
@@ -36,6 +37,42 @@ from .attempt_contracts import (
     AttemptTerminalReceipt,
 )
 from .attempt_spine_reader import read_attempt_intents
+
+_MAX_EVENT_TIME_SKEW_S = 60.0
+
+
+def _authority_now() -> str:
+    """Sample lifecycle evidence time inside the canonical lifecycle authority."""
+
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _time(value: str, label: str) -> datetime:
+    normalized = _utc_timestamp(value, label)
+    parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    if parsed.utcoffset() is None:
+        raise AttemptStateError(f"{label} must be timezone-aware")
+    return parsed
+
+
+def _require_authority_event_order(
+    authority_time: str,
+    event_time: str,
+    *,
+    label: str,
+) -> None:
+    delta = (_time(event_time, f"{label} event time") - _time(
+        authority_time,
+        f"{label} authority time",
+    )).total_seconds()
+    if delta < 0:
+        raise AttemptStateError(
+            f"{label} Event Store time precedes authority record time"
+        )
+    if delta > _MAX_EVENT_TIME_SKEW_S:
+        raise AttemptStateError(
+            f"{label} authority time is not bound to its Event Store transition"
+        )
 
 
 class AttemptLedger:
@@ -108,6 +145,11 @@ class AttemptLedger:
             raise AttemptStateError("persisted attempt start event is noncanonical")
         if intent.effect_key != _effect_key(start.attempt_id):
             raise AttemptStateError("persisted attempt effect key does not bind its start")
+        _require_authority_event_order(
+            start.started_at,
+            intent.created_ts,
+            label="attempt start",
+        )
         return start
 
     def _intent_for(self, attempt_id: str) -> Intent | None:
@@ -150,6 +192,23 @@ class AttemptLedger:
             raise AttemptStateError("terminal event effect_id does not bind receipt digest")
         if receipt.start_sha256 != start.digest:
             raise AttemptStateError("terminal receipt does not bind persisted start")
+        if intent.resolved_ts is None:
+            raise AttemptStateError("terminal attempt is missing Event Store time")
+        _require_authority_event_order(
+            receipt.completed_at,
+            intent.resolved_ts,
+            label="attempt completion",
+        )
+        if _time(receipt.completed_at, "completed_at") < _time(
+            start.started_at,
+            "started_at",
+        ):
+            raise AttemptStateError("attempt completion precedes persisted start")
+        if _time(intent.resolved_ts, "resolved_ts") < _time(
+            intent.created_ts,
+            "created_ts",
+        ):
+            raise AttemptStateError("attempt terminal Event Store time precedes start")
         return receipt
 
     def _completion_for(
@@ -185,7 +244,6 @@ class AttemptLedger:
         start_id: str,
         workspace_parent_sha256: str,
         workspace_relative_path: str,
-        started_at: str,
     ) -> AttemptBeginResult:
         if not isinstance(attempt, AttemptContract):
             raise AttemptBindingMismatch("attempt must be a canonical AttemptContract")
@@ -204,6 +262,7 @@ class AttemptLedger:
             workspace_parent_sha256,
             "workspace_parent_sha256",
         )
+        started_at = _authority_now()
         start = AttemptStartRecord(
             start_id=start_id,
             attempt_id=attempt.attempt_id,
@@ -267,7 +326,6 @@ class AttemptLedger:
         outcome: str,
         report: ArtifactRef,
         candidate_tree: StoredSourceTree | None,
-        completed_at: str,
     ) -> AttemptCompletion:
         if not isinstance(start, AttemptStartRecord):
             raise AttemptBindingMismatch("start must be AttemptStartRecord")
@@ -290,6 +348,12 @@ class AttemptLedger:
                     "candidate source tree revision must equal attempt source revision"
                 )
             candidate_ref = candidate_tree.ref
+        completed_at = _authority_now()
+        if _time(completed_at, "completed_at") < _time(
+            start.started_at,
+            "started_at",
+        ):
+            raise AttemptStateError("attempt completion cannot precede start")
         receipt = AttemptTerminalReceipt(
             receipt_id=receipt_id,
             start_sha256=start.digest,
