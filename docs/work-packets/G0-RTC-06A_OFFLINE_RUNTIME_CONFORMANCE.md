@@ -34,8 +34,9 @@ observations. This packet adds:
 fixture therefore raises instead of authorizing a production Effect Lease.
 Because canonical objects can still be constructed in memory, production
 verification additionally uses `verify_production_runtime_envelope()` and an
-externally protected exact set of trusted live-probe digests. Merely changing
-the authority string cannot create trust.
+externally protected exact set of trusted envelope digests. Trusting only the
+probe identity is insufficient because a different receipt could otherwise be
+repackaged around the same binary and environment.
 
 ## Deterministic fixture coverage
 
@@ -61,11 +62,14 @@ Tests refuse:
 - duplicate or unknown JSON fields;
 - missing or extra runtime profiles;
 - capability-schema drift;
+- strings repackaged as sequence fields;
+- manifests whose provenance omits a probe component;
 - cross-runtime evidence substitution;
 - stale receipts;
 - receipts repackaged without the probe-identity digest;
+- timestamp repackaging;
 - offline evidence presented as production-authorizing evidence;
-- a live-labelled probe absent from the external trusted-probe set.
+- a live-labelled envelope absent from the external trusted-evidence set.
 
 ## Deliberate remaining blockers
 
