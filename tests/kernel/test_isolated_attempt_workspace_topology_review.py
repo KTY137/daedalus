@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -114,7 +115,9 @@ def test_existing_file_is_a_normalized_workspace_refusal(tmp_path: Path) -> None
 
 
 def test_source_orders_nonmutating_preflight_before_mkdir_and_rechecks_after() -> None:
-    source = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
+    source = textwrap.dedent(
+        inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
+    )
     tree = ast.parse(source)
     calls = [
         ast.unparse(node)
