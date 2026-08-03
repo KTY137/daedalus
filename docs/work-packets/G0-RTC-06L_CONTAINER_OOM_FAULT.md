@@ -22,9 +22,15 @@ with:
 - `64m` memory and memory-swap limit;
 - one CPU, 32 processes, 16 MiB temporary filesystem, and 30-second timeout.
 
-The candidate command first creates `/workspace/oom-started` and then
-continuously allocates and touches 16 MiB blocks. It has no shell, subprocess,
-network, voluntary exit, signal, or self-kill path.
+A small parent process reads the kernel-owned cgroup-v2
+`/sys/fs/cgroup/memory.events` counters and creates the start marker. It forks
+one allocation child that repeatedly allocates and touches 8 MiB blocks. The
+parent retains a bounded canonical marker only after observing the kernel
+`oom_kill` counter increase and reaping the child. The allocation child has no
+shell, network, voluntary exit, signal, or self-kill path.
+
+The parent uses return code 70 only as a transport outcome after retaining the
+kernel facts. Return code 70 by itself is never accepted as OOM evidence.
 
 ## Pass invariant
 
@@ -35,17 +41,21 @@ following are exact:
    outcome match the protected runtime-fault catalog;
 2. Docker reports a started-container `completed` receipt rather than a
    pre-start refusal;
-3. the terminal return code is exactly 137;
+3. the parent returns exactly 70 after the observation protocol;
 4. the sandbox did not time out and supplied no pre-start error code;
-5. the start marker exists, proving that the pinned candidate command entered
-   the container before termination;
-6. the observation finishes inside the bounded timeout window;
-7. no host fallback exists.
+5. the start marker exists;
+6. the strict cgroup marker is present, bounded, duplicate-key-free and uses the
+   exact marker schema;
+7. both `oom` and `oom_kill` increased relative to their pre-allocation values;
+8. the allocation child was reaped with exit code `-9`, proving SIGKILL;
+9. the observation finishes inside the bounded timeout window;
+10. no host fallback exists.
 
 A missing Docker CLI is `blocked/docker-cli-unavailable` or
 `blocked/docker-cli-unreadable`. Docker daemon, pull, image, or launch refusal is
-`blocked/sandbox-unavailable`. Timeout, missing marker, or any other terminal
-code is a failed OOM invariant and cannot satisfy the scenario.
+`blocked/sandbox-unavailable`. Timeout, missing/malformed marker, unchanged
+kernel counters, another child terminal state, or any other parent terminal code
+is a failed OOM invariant and cannot satisfy the scenario.
 
 ## Evidence binding
 
@@ -53,13 +63,15 @@ The executor implementation digest binds:
 
 - exact fixture bytes;
 - exact production `daedalus.kernel.sandbox` bytes;
+- exact marker protocol schema;
 - exact pinned image reference;
 - exact memory and timeout limits.
 
 Raw evidence retains scenario, implementation, production-source, Docker CLI,
-image and policy identities; bounded timing; start-marker state; and the
-canonical sandbox receipt with only stdout/stderr digests. It does not retain
-Docker output text or the temporary workspace path.
+image and policy identities; bounded timing; start-marker state; the strict
+kernel-counter marker and its SHA-256; and the canonical sandbox receipt with
+only stdout/stderr digests. It does not retain Docker output text or the
+temporary workspace path.
 
 Published files are atomic and output-directory symlinks refuse. Every summary
 hard-codes:
@@ -75,19 +87,24 @@ still mandatory before the observation may enter the trusted matrix.
 
 The independent counter-review checks that:
 
-- the fixture has exactly one production sandbox invocation and no second
+- the fixture has exactly one production sandbox invocation and no second host
   subprocess or shell path;
-- the allocation program cannot self-signal or manufacture return code 137;
-- a pass requires the exact memory policy, started marker, launch state and
-  terminal code;
+- the allocation child cannot self-signal or manufacture the kernel counters;
+- the parent reads the cgroup control file, reaps the child and publishes an
+  exact marker;
+- a pass requires counter increases, child SIGKILL, exact memory policy, start
+  marker, launch state and parent terminal code;
+- malformed, oversized, duplicate-key and non-finite marker records refuse;
 - pre-start refusal remains blocked rather than becoming an OOM pass;
-- implementation identity covers production code, image and limits;
+- implementation identity covers production code, marker schema, image and
+  limits;
 - plaintext Docker output and temporary paths are absent from retained evidence;
 - no exception, trust, attestation or Gate-closure laundering exists.
 
-Focused mutations cover return-code substitution, marker removal, timeout
-laundering, pre-start-refusal laundering, scenario drift and production-source
-identity substitution.
+Focused mutations cover parent return-code substitution, start-marker removal,
+`oom`/`oom_kill` counter removal, child-exit substitution, malformed marker,
+timeout laundering, pre-start-refusal laundering, scenario drift and
+production-source identity substitution.
 
 ## Verification request
 
@@ -103,9 +120,9 @@ The dedicated workflow requests:
 - isolated wheel build/install/import.
 
 GitHub Actions issue #67 remains an external exact-head verification blocker
-while jobs terminate before their first step. A missing Docker daemon or image
-pull is a separate host-runtime blocker and must remain explicit; it is not
-permission to weaken the scenario.
+while jobs terminate before their first step. A missing Docker daemon, cgroup-v2
+memory counter, or image pull is a separate host-runtime blocker and must remain
+explicit; it is not permission to weaken the scenario.
 
 ## Remaining boundary
 
