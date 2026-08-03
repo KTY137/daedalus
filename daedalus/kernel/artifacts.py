@@ -32,6 +32,9 @@ from daedalus.spine.envelope import canonical_json
 
 _LOCATOR_PREFIX = "artifact-locator:sha256:"
 _DEFAULT_IGNORED_ROOTS = (".daedalus", ".git")
+_READ_CHUNK_BYTES = 1024 * 1024
+_STABLE_FILE_FIELDS = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+_STABLE_DIRECTORY_FIELDS = ("st_dev", "st_ino", "st_mtime_ns", "st_ctime_ns")
 
 
 class ArtifactStoreError(RuntimeError):
@@ -44,6 +47,43 @@ class ArtifactCorruptionError(ArtifactStoreError):
 
 class SourceTreeError(ArtifactStoreError):
     """A source tree is malformed, unsafe, or changed during capture."""
+
+
+def _metadata_differs(
+    left: os.stat_result,
+    right: os.stat_result,
+    fields: Sequence[str],
+) -> bool:
+    return any(getattr(left, field) != getattr(right, field) for field in fields)
+
+
+def _bounded_descriptor_read(
+    descriptor: int,
+    *,
+    max_bytes: int | None,
+    overflow: type[ArtifactStoreError],
+    overflow_message: str,
+) -> bytes:
+    """Read at most ``max_bytes + 1`` bytes before refusing an oversized file."""
+
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        if max_bytes is None:
+            request = _READ_CHUNK_BYTES
+        else:
+            remaining_with_sentinel = max_bytes + 1 - total
+            if remaining_with_sentinel <= 0:
+                raise overflow(overflow_message)
+            request = min(_READ_CHUNK_BYTES, remaining_with_sentinel)
+        chunk = os.read(descriptor, request)
+        if not chunk:
+            break
+        total += len(chunk)
+        if max_bytes is not None and total > max_bytes:
+            raise overflow(overflow_message)
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @dataclass(frozen=True)
@@ -118,12 +158,20 @@ class SourceTreeManifest(CanonicalContract):
                 if "/".join(parts[:stop]) in path_set:
                     raise ValueError("source tree cannot contain file/child path conflicts")
         object.__setattr__(self, "entries", entries)
+
         ignored = _sorted_strings(self.ignored_roots, "ignored_roots", paths=True)
         if any(root == "." or "/" in root for root in ignored):
             raise ValueError("ignored_roots must contain top-level names only")
         if len({root.casefold() for root in ignored}) != len(ignored):
             raise ValueError("ignored_roots must be case-insensitively unique")
+        missing_mandatory = sorted(set(_DEFAULT_IGNORED_ROOTS) - set(ignored))
+        if missing_mandatory:
+            raise ValueError(
+                "ignored_roots must retain mandatory metadata exclusions: "
+                + ", ".join(missing_mandatory)
+            )
         object.__setattr__(self, "ignored_roots", ignored)
+
         if self.provenance.source_revision != self.source_revision:
             raise ValueError(
                 "source tree source_revision must match provenance.source_revision"
@@ -169,8 +217,8 @@ class ArtifactStore:
     """Filesystem-backed immutable SHA-256 object store.
 
     Objects are written to temporary files in the final directory, fsynced, and
-    atomically replaced. Reads always recompute the digest, so corruption cannot
-    be mistaken for an existing valid object.
+    atomically replaced. Reads use descriptor identity checks, no-follow where
+    available, bounded streaming, and digest recomputation.
     """
 
     def __init__(self, root: str | os.PathLike[str]) -> None:
@@ -198,29 +246,102 @@ class ArtifactStore:
         finally:
             os.close(descriptor)
 
+    @staticmethod
+    def _open_flags() -> int:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        return flags
+
+    def _read_owned_object(
+        self,
+        target: Path,
+        *,
+        digest: str,
+        max_bytes: int | None,
+    ) -> bytes:
+        try:
+            before_path = os.stat(target, follow_symlinks=False)
+        except FileNotFoundError as exc:
+            raise ArtifactStoreError(f"artifact {digest} is missing") from exc
+        except OSError as exc:
+            raise ArtifactCorruptionError(f"cannot inspect artifact {digest}") from exc
+        if not stat.S_ISREG(before_path.st_mode) or target.is_symlink():
+            raise ArtifactCorruptionError(f"artifact {digest} is not a regular file")
+        try:
+            descriptor = os.open(target, self._open_flags())
+        except OSError as exc:
+            raise ArtifactCorruptionError(f"cannot safely open artifact {digest}") from exc
+        try:
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode):
+                raise ArtifactCorruptionError(f"artifact {digest} is not a regular file")
+            if _metadata_differs(before_path, before, ("st_dev", "st_ino")):
+                raise ArtifactCorruptionError(
+                    f"artifact {digest} changed before descriptor acquisition"
+                )
+            if max_bytes is not None and before.st_size > max_bytes:
+                raise ArtifactStoreError(
+                    f"artifact {digest} exceeds the declared read bound {max_bytes}"
+                )
+            payload = _bounded_descriptor_read(
+                descriptor,
+                max_bytes=max_bytes,
+                overflow=ArtifactStoreError,
+                overflow_message=(
+                    f"artifact {digest} exceeds the declared read bound {max_bytes}"
+                ),
+            )
+            after = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        try:
+            after_path = os.stat(target, follow_symlinks=False)
+        except OSError as exc:
+            raise ArtifactCorruptionError(
+                f"artifact {digest} disappeared during read"
+            ) from exc
+        if _metadata_differs(before, after, _STABLE_FILE_FIELDS) or _metadata_differs(
+            after, after_path, _STABLE_FILE_FIELDS
+        ):
+            raise ArtifactCorruptionError(f"artifact {digest} changed during read")
+        if len(payload) != after.st_size:
+            raise ArtifactCorruptionError(f"artifact {digest} changed size during read")
+        if sha256(payload).hexdigest() != digest:
+            raise ArtifactCorruptionError(
+                f"artifact {digest} does not match its content address"
+            )
+        return payload
+
     def put_bytes(self, payload: bytes) -> str:
         if not isinstance(payload, bytes):
             raise TypeError("artifact payload must be bytes")
         digest = sha256(payload).hexdigest()
+        locator = artifact_locator(digest)
         target = self._object_path(digest)
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.parent.is_symlink():
             raise ArtifactStoreError("artifact shard directory must not be a symlink")
         try:
-            existing_metadata = target.lstat()
+            target.lstat()
         except FileNotFoundError:
-            existing_metadata = None
-        if existing_metadata is not None:
-            if not stat.S_ISREG(existing_metadata.st_mode) or target.is_symlink():
+            existing = False
+        else:
+            existing = True
+        if existing:
+            try:
+                stored = self.read_bytes(locator, max_bytes=len(payload))
+            except ArtifactStoreError as exc:
                 raise ArtifactCorruptionError(
-                    f"existing object {digest} is not an owned regular file"
-                )
-            existing = target.read_bytes()
-            if sha256(existing).hexdigest() != digest:
+                    f"existing object {digest} is invalid: {exc}"
+                ) from exc
+            if stored != payload:
                 raise ArtifactCorruptionError(
-                    f"existing object {digest} does not match its content address"
+                    f"existing object {digest} does not match the submitted payload"
                 )
-            return artifact_locator(digest)
+            return locator
 
         handle, temporary_name = tempfile.mkstemp(
             prefix=f".{digest}.", dir=target.parent
@@ -236,12 +357,17 @@ class ArtifactStore:
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
-        stored = target.read_bytes()
-        if sha256(stored).hexdigest() != digest:
+        try:
+            stored = self.read_bytes(locator, max_bytes=len(payload))
+        except ArtifactStoreError as exc:
             raise ArtifactCorruptionError(
-                f"written object {digest} failed post-write verification"
+                f"written object {digest} failed post-write verification: {exc}"
+            ) from exc
+        if stored != payload:
+            raise ArtifactCorruptionError(
+                f"written object {digest} differs from submitted payload"
             )
-        return artifact_locator(digest)
+        return locator
 
     def put_json(self, payload: Mapping[str, Any]) -> str:
         return self.put_bytes(canonical_json(payload).encode("utf-8"))
@@ -252,23 +378,11 @@ class ArtifactStore:
         ):
             raise ValueError("max_bytes must be a non-negative integer or null")
         digest = locator_sha256(locator)
-        target = self._object_path(digest)
-        try:
-            metadata = target.lstat()
-        except FileNotFoundError as exc:
-            raise ArtifactStoreError(f"artifact {digest} is missing") from exc
-        if not stat.S_ISREG(metadata.st_mode) or target.is_symlink():
-            raise ArtifactCorruptionError(f"artifact {digest} is not a regular file")
-        if max_bytes is not None and metadata.st_size > max_bytes:
-            raise ArtifactStoreError(
-                f"artifact {digest} exceeds the declared read bound {max_bytes}"
-            )
-        payload = target.read_bytes()
-        if sha256(payload).hexdigest() != digest:
-            raise ArtifactCorruptionError(
-                f"artifact {digest} does not match its content address"
-            )
-        return payload
+        return self._read_owned_object(
+            self._object_path(digest),
+            digest=digest,
+            max_bytes=max_bytes,
+        )
 
     def exists(self, locator: str) -> bool:
         try:
@@ -277,38 +391,37 @@ class ArtifactStore:
             return False
         return True
 
-    def _read_source_file(self, path: Path) -> tuple[bytes, os.stat_result]:
+    def _read_source_file(
+        self,
+        path: Path,
+        *,
+        max_bytes: int,
+        limit_name: str,
+    ) -> tuple[bytes, os.stat_result]:
         try:
             path_before = os.stat(path, follow_symlinks=False)
         except OSError as exc:
             raise SourceTreeError(f"cannot inspect source file {path}") from exc
         if not stat.S_ISREG(path_before.st_mode):
             raise SourceTreeError(f"source entry is not a regular file: {path}")
-        flags = os.O_RDONLY
-        if hasattr(os, "O_BINARY"):
-            flags |= os.O_BINARY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
         try:
-            descriptor = os.open(path, flags)
+            descriptor = os.open(path, self._open_flags())
         except OSError as exc:
             raise SourceTreeError(f"cannot safely open source file {path}") from exc
         try:
             before = os.fstat(descriptor)
             if not stat.S_ISREG(before.st_mode):
                 raise SourceTreeError(f"source entry is not a regular file: {path}")
-            identity_fields = ("st_dev", "st_ino")
-            if any(
-                getattr(path_before, field) != getattr(before, field)
-                for field in identity_fields
-            ):
+            if _metadata_differs(path_before, before, ("st_dev", "st_ino")):
                 raise SourceTreeError(f"source file changed before capture: {path}")
-            chunks: list[bytes] = []
-            while True:
-                chunk = os.read(descriptor, 1024 * 1024)
-                if not chunk:
-                    break
-                chunks.append(chunk)
+            if before.st_size > max_bytes:
+                raise SourceTreeError(f"source file exceeds {limit_name}: {path}")
+            payload = _bounded_descriptor_read(
+                descriptor,
+                max_bytes=max_bytes,
+                overflow=SourceTreeError,
+                overflow_message=f"source file exceeds {limit_name}: {path}",
+            )
             after = os.fstat(descriptor)
         finally:
             os.close(descriptor)
@@ -316,15 +429,23 @@ class ArtifactStore:
             path_after = os.stat(path, follow_symlinks=False)
         except OSError as exc:
             raise SourceTreeError(f"source file disappeared during capture: {path}") from exc
-        stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
-        if any(getattr(before, field) != getattr(after, field) for field in stable_fields):
+        if _metadata_differs(before, after, _STABLE_FILE_FIELDS):
             raise SourceTreeError(f"source file changed during capture: {path}")
-        if any(getattr(after, field) != getattr(path_after, field) for field in stable_fields):
+        if _metadata_differs(after, path_after, _STABLE_FILE_FIELDS):
             raise SourceTreeError(f"source path changed during capture: {path}")
-        payload = b"".join(chunks)
         if len(payload) != after.st_size:
             raise SourceTreeError(f"source file size changed during capture: {path}")
         return payload, after
+
+    @staticmethod
+    def _directory_metadata(path: Path) -> os.stat_result:
+        try:
+            metadata = os.stat(path, follow_symlinks=False)
+        except OSError as exc:
+            raise SourceTreeError(f"cannot inspect source directory {path}") from exc
+        if not stat.S_ISDIR(metadata.st_mode) or path.is_symlink():
+            raise SourceTreeError(f"source entry is not a stable directory: {path}")
+        return metadata
 
     def capture_tree(
         self,
@@ -352,38 +473,69 @@ class ArtifactStore:
         root = raw_root.resolve(strict=True)
         if not root.is_dir():
             raise SourceTreeError("source root must be a directory")
+
         ignored = _sorted_strings(tuple(ignored_roots), "ignored_roots", paths=True)
         if any(item == "." or "/" in item for item in ignored):
             raise ValueError("ignored_roots must contain top-level names only")
         if len({item.casefold() for item in ignored}) != len(ignored):
             raise ValueError("ignored_roots must be case-insensitively unique")
+        missing_mandatory = sorted(set(_DEFAULT_IGNORED_ROOTS) - set(ignored))
+        if missing_mandatory:
+            raise ValueError(
+                "ignored_roots must retain mandatory metadata exclusions: "
+                + ", ".join(missing_mandatory)
+            )
         ignored_set = set(ignored)
 
         entries: list[SourceTreeEntry] = []
         total = 0
-        for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+        visited_directories: dict[Path, os.stat_result] = {}
+        expected_directories: set[Path] = {root}
+        for current, dirnames, filenames in os.walk(
+            root, topdown=True, followlinks=False
+        ):
             current_path = Path(current)
+            try:
+                current_path.relative_to(root)
+            except ValueError as exc:
+                raise SourceTreeError("source traversal escaped its root") from exc
+            visited_directories[current_path] = self._directory_metadata(current_path)
+
             relative_dir = current_path.relative_to(root)
             if relative_dir == Path("."):
-                dirnames[:] = sorted(name for name in dirnames if name not in ignored_set)
-                filenames = sorted(name for name in filenames if name not in ignored_set)
+                dirnames[:] = sorted(
+                    name for name in dirnames if name not in ignored_set
+                )
+                filenames = sorted(
+                    name for name in filenames if name not in ignored_set
+                )
             else:
                 dirnames[:] = sorted(dirnames)
                 filenames = sorted(filenames)
             for dirname in dirnames:
                 child = current_path / dirname
                 if child.is_symlink():
-                    raise SourceTreeError(f"source tree contains symlink directory: {child}")
+                    raise SourceTreeError(
+                        f"source tree contains symlink directory: {child}"
+                    )
+                expected_directories.add(child)
             for filename in filenames:
                 path = current_path / filename
                 if path.is_symlink():
                     raise SourceTreeError(f"source tree contains symlink file: {path}")
-                payload, metadata = self._read_source_file(path)
-                if len(payload) > max_file_bytes:
-                    raise SourceTreeError(f"source file exceeds max_file_bytes: {path}")
+                remaining_total = max_total_bytes - total
+                effective_limit = min(max_file_bytes, remaining_total)
+                limit_name = (
+                    "max_total_bytes"
+                    if remaining_total < max_file_bytes
+                    else "max_file_bytes"
+                )
+                payload, metadata = self._read_source_file(
+                    path,
+                    max_bytes=effective_limit,
+                    limit_name=limit_name,
+                )
                 total += len(payload)
-                if total > max_total_bytes:
-                    raise SourceTreeError("source tree exceeds max_total_bytes")
                 locator = self.put_bytes(payload)
                 entries.append(
                     SourceTreeEntry(
@@ -392,6 +544,22 @@ class ArtifactStore:
                         size=len(payload),
                         executable=bool(metadata.st_mode & stat.S_IXUSR),
                     )
+                )
+
+        missing_directories = sorted(
+            path.relative_to(root).as_posix()
+            for path in expected_directories - set(visited_directories)
+        )
+        if missing_directories:
+            raise SourceTreeError(
+                "source directories disappeared during capture: "
+                + ", ".join(missing_directories)
+            )
+        for directory, before in visited_directories.items():
+            after = self._directory_metadata(directory)
+            if _metadata_differs(before, after, _STABLE_DIRECTORY_FIELDS):
+                raise SourceTreeError(
+                    f"source directory changed during capture: {directory}"
                 )
 
         blob_digests = tuple(sorted({entry.blob_sha256 for entry in entries}))
@@ -459,10 +627,11 @@ class ArtifactStore:
             tempfile.mkdtemp(prefix=f".{target.name}.tmp-", dir=target.parent)
         )
         try:
+            staging_root = staging.resolve()
             for entry in manifest.entries:
                 output = staging.joinpath(*entry.path.split("/"))
                 resolved_parent = output.parent.resolve()
-                if staging.resolve() not in (resolved_parent, *resolved_parent.parents):
+                if staging_root not in (resolved_parent, *resolved_parent.parents):
                     raise SourceTreeError("manifest entry escapes materialization root")
                 output.parent.mkdir(parents=True, exist_ok=True)
                 payload = self.read_bytes(
