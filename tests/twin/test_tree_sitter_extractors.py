@@ -87,7 +87,8 @@ def test_tree_sitter_extracts_staged_structural_symbols(
         source,
         source_bundle_sha256=BUNDLE,
     )
-    assert report.result.status == "complete"
+    assert report.result.status == "partial"
+    assert {item.code for item in report.result.diagnostics} == {"structural-only"}
     assert expected <= {symbol.kind for symbol in report.symbols}
     assert set(report.result.node_ids) == {symbol.node_id for symbol in report.symbols}
     assert len(report.report_sha256) == 64
@@ -101,7 +102,7 @@ def test_tree_sitter_report_is_deterministic() -> None:
     assert first == second
 
 
-def test_parser_errors_are_partial_not_complete() -> None:
+def test_parser_errors_remain_partial_and_add_syntax_diagnostic() -> None:
     source = b"public class Broken { void run( { }"
     report = parse_artifact(
         artifact("src/Broken.java", "java", source),
@@ -110,7 +111,10 @@ def test_parser_errors_are_partial_not_complete() -> None:
     )
     assert report.result.status == "partial"
     assert report.error_nodes > 0
-    assert report.result.diagnostics[0].code == "syntax-errors"
+    assert [item.code for item in report.result.diagnostics] == [
+        "syntax-errors",
+        "structural-only",
+    ]
 
 
 def test_parser_limits_and_content_identity_fail_closed() -> None:

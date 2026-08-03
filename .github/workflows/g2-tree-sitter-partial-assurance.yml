@@ -1,0 +1,94 @@
+name: Gate 2 prep — Tree-sitter partial assurance
+
+on:
+  pull_request:
+    branches:
+      - g0/release-assessment-linear
+    paths:
+      - "daedalus/twin/extractors/tree_sitter_adapter.py"
+      - "tests/twin/test_tree_sitter_extractors.py"
+      - "tests/twin/test_tree_sitter_assurance_boundary.py"
+      - "scripts/run_tree_sitter_assurance_mutations.py"
+      - "docs/work-packets/G2-PREP-TS01_PARTIAL_ASSURANCE.md"
+      - ".github/workflows/g2-tree-sitter-partial-assurance.yml"
+  push:
+    branches:
+      - g2/tree-sitter-partial-assurance-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g2-tree-sitter-partial-assurance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: structural assurance / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test,polyglot]" pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts
+      - name: Contract, real grammar, malformed and assurance tests
+        run: >-
+          python -m pytest -q
+          tests/twin/test_extractor_contracts.py
+          tests/twin/test_tree_sitter_extractors.py
+          tests/twin/test_tree_sitter_assurance_boundary.py
+      - name: Structural overclaim mutation
+        run: python scripts/run_tree_sitter_assurance_mutations.py
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test,polyglot,root]" pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated wheel smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-tree-sitter-wheel
+      - run: /tmp/daedalus-tree-sitter-wheel/bin/pip install dist/*.whl
+      - name: Import installed structural adapter outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-tree-sitter-wheel/bin/python -c
+          "from daedalus.twin.extractors.tree_sitter_adapter import parse_artifact;
+          assert parse_artifact"

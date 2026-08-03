@@ -3,6 +3,10 @@
 Tree-sitter establishes syntax structure, not semantic truth. The adapter emits
 staged observations and a fail-closed :class:`ExtractorResult`; a separate
 verifier must map accepted observations into the authoritative Forest.
+
+Even a syntax-error-free parse is therefore ``partial``: it does not establish
+compiler-resolved definitions/references, type identity, data lineage,
+knowledge claims, or verified cross-plane bindings.
 """
 from __future__ import annotations
 
@@ -220,7 +224,7 @@ def parse_artifact(
     source_bundle_sha256: str,
     limits: ParseLimits = DEFAULT_PARSE_LIMITS,
 ) -> StructuralParseReport:
-    """Parse one immutable source artifact into staged structural symbols."""
+    """Parse one immutable artifact into staged, structurally partial symbols."""
 
     if not isinstance(artifact, SourceArtifact):
         raise ValueError("artifact must be a SourceArtifact")
@@ -341,18 +345,35 @@ def parse_artifact(
             for item in symbols_tuple
         ],
     })
-    diagnostics: tuple[ExtractorDiagnostic, ...] = ()
-    status = "complete"
+
+    # A parser can establish that a source file has a well-formed syntax tree,
+    # but it cannot establish compiler-resolved identity, types, references,
+    # data lineage, knowledge truth, or cross-plane assurance. Consequently a
+    # Tree-sitter result is always partial, even when ``error_nodes == 0``.
+    diagnostics_list: list[ExtractorDiagnostic] = []
     if error_nodes:
-        status = "partial"
-        diagnostics = (
+        diagnostics_list.append(
             ExtractorDiagnostic(
                 "syntax-errors",
                 "warning",
                 f"Tree-sitter retained {error_nodes} error or missing nodes",
                 artifact.path,
-            ),
+            )
         )
+    diagnostics_list.append(
+        ExtractorDiagnostic(
+            "structural-only",
+            "warning",
+            (
+                "Tree-sitter establishes syntax structure only; compiler-resolved "
+                "definitions, references, types, data lineage, knowledge claims, "
+                "and cross-plane bindings remain unverified"
+            ),
+            artifact.path,
+        )
+    )
+    status = "partial"
+    diagnostics = tuple(diagnostics_list)
     result = ExtractorResult(
         extractor_id=extractor_id,
         extractor_version=version,
