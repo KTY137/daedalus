@@ -4,6 +4,7 @@ The gate package is a projection over canonical contracts and registries. It
 must never become a second policy or workflow authority.
 """
 
+from . import trust_bundle as _trust_bundle
 from .evidence import (
     ArtifactEvidence,
     FaultMatrixEvidence,
@@ -42,11 +43,19 @@ from .trust_bundle import (
     WorkflowDefinitionAnchor,
     assert_strict_exact_head_with_bundle,
     issue_evidence_trust_bundle,
-    load_evidence_trust_bundle,
-    parse_evidence_trust_bundle,
     verify_evidence_trust_bundle,
     workflow_definition_sha256,
 )
+from .trust_bundle_io import (
+    load_evidence_trust_bundle,
+    parse_evidence_trust_bundle,
+)
+
+# Compatibility strangler: importing ``daedalus.gates.trust_bundle`` still
+# exposes the historical parser/loader names, but normal package initialization
+# replaces their permissive wire behavior with the strict supported boundary.
+_trust_bundle.parse_evidence_trust_bundle = parse_evidence_trust_bundle
+_trust_bundle.load_evidence_trust_bundle = load_evidence_trust_bundle
 
 __all__ = [
     "ArtifactEvidence",
