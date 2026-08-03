@@ -10,6 +10,7 @@ from daedalus.kernel.approvals import ApprovalLedger, ApprovalReplay, issue_owne
 from daedalus.kernel.promotion import (
     PromotionBindingMismatch,
     PromotionCapabilityError,
+    PromotionEvidenceError,
     PromotionTargetMoved,
     assert_authorized_promotion_start,
     build_approved_promotion_receipt,
@@ -33,6 +34,7 @@ MOVED_TARGET_REVISION = "e" * 40
 POLICY_SHA = "1" * 64
 ATTEMPT_SHA = "2" * 64
 SECRET = b"fourfold-promotion-owner-secret-material-32-bytes"
+KEYRING = {("KTY137", "owner-key-1"): SECRET}
 NOW = datetime(2026, 8, 3, 6, 0, tzinfo=timezone.utc)
 FIXTURE = Path(__file__).resolve().parents[2] / "examples" / "fourfold_wiki_app"
 
@@ -160,28 +162,35 @@ def _prepared(candidate_snapshot):
         candidate_snapshot=candidate_snapshot,
         target_ref="experimental",
         current_target_revision=TARGET_REVISION,
-        keyring={("KTY137", "owner-key-1"): SECRET},
+        keyring=KEYRING,
         now=NOW + timedelta(seconds=2),
     )
-    return prepared, evidence, nomination
+    return prepared, evidence, nomination, approval
 
 
-def test_real_wiki_fourfold_snapshot_is_bound_before_consumption(
+def _consume(prepared, approval, ledger):
+    return consume_prepared_promotion(
+        prepared,
+        approval=approval,
+        keyring=KEYRING,
+        ledger=ledger,
+        current_target_revision=TARGET_REVISION,
+        now=NOW + timedelta(seconds=3),
+        consumed_at=NOW + timedelta(seconds=3),
+    )
+
+
+def test_real_wiki_fourfold_snapshot_is_bound_and_consumed(
     candidate_snapshot, tmp_path
 ) -> None:
-    prepared, evidence, nomination = _prepared(candidate_snapshot)
+    prepared, evidence, nomination, approval = _prepared(candidate_snapshot)
     assert prepared.candidate_snapshot_sha256 == candidate_snapshot.digest
     assert prepared.candidate_snapshot_revision == CANDIDATE_SHA
     assert prepared.evidence_packet_sha256 == evidence.digest
     assert prepared.nomination_receipt_sha256 == nomination.digest
 
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    authorization = consume_prepared_promotion(
-        prepared,
-        ledger=ledger,
-        current_target_revision=TARGET_REVISION,
-        consumed_at=NOW + timedelta(seconds=3),
-    )
+    authorization = _consume(prepared, approval, ledger)
     assert_authorized_promotion_start(
         authorization,
         ledger=ledger,
@@ -190,16 +199,17 @@ def test_real_wiki_fourfold_snapshot_is_bound_before_consumption(
     assert authorization.consumed_approval.promotion_id == "promotion-1"
 
 
-def test_stale_target_refuses_before_approval_consumption(
-    candidate_snapshot, tmp_path
-) -> None:
-    prepared, _, _ = _prepared(candidate_snapshot)
+def test_stale_target_refuses_without_consuming(candidate_snapshot, tmp_path) -> None:
+    prepared, _, _, approval = _prepared(candidate_snapshot)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
     with pytest.raises(PromotionTargetMoved, match="moved"):
         consume_prepared_promotion(
             prepared,
+            approval=approval,
+            keyring=KEYRING,
             ledger=ledger,
             current_target_revision=MOVED_TARGET_REVISION,
+            now=NOW + timedelta(seconds=3),
             consumed_at=NOW + timedelta(seconds=3),
         )
     assert not ledger.consumed(prepared.owner_approval_sha256)
@@ -224,19 +234,21 @@ def test_candidate_snapshot_revision_must_equal_candidate_tree_digest() -> None:
             candidate_snapshot=other,
             target_ref="experimental",
             current_target_revision=TARGET_REVISION,
-            keyring={("KTY137", "owner-key-1"): SECRET},
+            keyring=KEYRING,
             now=NOW + timedelta(seconds=2),
         )
 
 
 def test_fourfold_evidence_detail_tampering_is_refused(candidate_snapshot) -> None:
-    details = {
-        "candidate_artifact_sha256": OTHER_CANDIDATE_SHA,
-        "snapshot_source_revision": candidate_snapshot.source_revision,
-        "repository_id": candidate_snapshot.repository_id,
-        "snapshot_contract_type": candidate_snapshot.CONTRACT_TYPE,
-    }
-    evidence = _evidence(candidate_snapshot, details=details)
+    evidence = _evidence(
+        candidate_snapshot,
+        details={
+            "candidate_artifact_sha256": OTHER_CANDIDATE_SHA,
+            "snapshot_source_revision": candidate_snapshot.source_revision,
+            "repository_id": candidate_snapshot.repository_id,
+            "snapshot_contract_type": candidate_snapshot.CONTRACT_TYPE,
+        },
+    )
     nomination = _nomination(evidence)
     approval = _approval(evidence, nomination)
     with pytest.raises(PromotionBindingMismatch, match="detail mismatch"):
@@ -248,7 +260,47 @@ def test_fourfold_evidence_detail_tampering_is_refused(candidate_snapshot) -> No
             candidate_snapshot=candidate_snapshot,
             target_ref="experimental",
             current_target_revision=TARGET_REVISION,
-            keyring={("KTY137", "owner-key-1"): SECRET},
+            keyring=KEYRING,
+            now=NOW + timedelta(seconds=2),
+        )
+
+
+def test_missing_or_duplicate_fourfold_evidence_is_refused(candidate_snapshot) -> None:
+    evidence = _evidence(candidate_snapshot)
+    renamed = dataclasses.replace(
+        evidence.items[0],
+        evaluator="other.evaluator",
+    )
+    missing = dataclasses.replace(evidence, items=(renamed,))
+    nomination = _nomination(missing)
+    approval = _approval(missing, nomination)
+    with pytest.raises(PromotionEvidenceError, match="exactly one"):
+        prepare_promotion(
+            promotion_id="promotion-1",
+            approval=approval,
+            nomination=nomination,
+            evidence=missing,
+            candidate_snapshot=candidate_snapshot,
+            target_ref="experimental",
+            current_target_revision=TARGET_REVISION,
+            keyring=KEYRING,
+            now=NOW + timedelta(seconds=2),
+        )
+
+    second = dataclasses.replace(evidence.items[0], evidence_id="candidate-fourfold-2")
+    duplicate = dataclasses.replace(evidence, items=(evidence.items[0], second))
+    nomination = _nomination(duplicate)
+    approval = _approval(duplicate, nomination)
+    with pytest.raises(PromotionEvidenceError, match="exactly one"):
+        prepare_promotion(
+            promotion_id="promotion-1",
+            approval=approval,
+            nomination=nomination,
+            evidence=duplicate,
+            candidate_snapshot=candidate_snapshot,
+            target_ref="experimental",
+            current_target_revision=TARGET_REVISION,
+            keyring=KEYRING,
             now=NOW + timedelta(seconds=2),
         )
 
@@ -266,33 +318,65 @@ def test_evidence_subject_must_be_exact_candidate(candidate_snapshot) -> None:
             candidate_snapshot=candidate_snapshot,
             target_ref="experimental",
             current_target_revision=TARGET_REVISION,
-            keyring={("KTY137", "owner-key-1"): SECRET},
+            keyring=KEYRING,
             now=NOW + timedelta(seconds=2),
         )
 
 
-def test_prepared_capability_refuses_contradictory_owner_digest(
-    candidate_snapshot,
-) -> None:
-    prepared, _, _ = _prepared(candidate_snapshot)
-    with pytest.raises(PromotionCapabilityError, match="owner digest"):
-        dataclasses.replace(prepared, owner_approval_sha256="9" * 64)
+def test_forged_prepared_candidate_is_reauthenticated(candidate_snapshot, tmp_path) -> None:
+    prepared, _, _, approval = _prepared(candidate_snapshot)
+    forged = dataclasses.replace(
+        prepared,
+        candidate_artifact_sha256=OTHER_CANDIDATE_SHA,
+        candidate_artifact_locator=f"artifact-locator:sha256:{OTHER_CANDIDATE_SHA}",
+        candidate_snapshot_revision=OTHER_CANDIDATE_SHA,
+    )
+    ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
+    with pytest.raises(PromotionCapabilityError, match="reauthentication"):
+        _consume(forged, approval, ledger)
+    assert not ledger.consumed(prepared.owner_approval_sha256)
+
+
+def test_different_signed_approval_cannot_consume_prepared(candidate_snapshot, tmp_path) -> None:
+    prepared, evidence, nomination, _ = _prepared(candidate_snapshot)
+    other = issue_owner_approval(
+        approval_id="approval-2",
+        owner_id="KTY137",
+        key_id="owner-key-1",
+        operation="promote-candidate",
+        nomination_receipt_sha256=nomination.digest,
+        candidate_artifact_sha256=CANDIDATE_SHA,
+        evidence_packet_sha256=evidence.digest,
+        base_revision=BASE_REVISION,
+        target_ref="experimental",
+        expected_target_revision=TARGET_REVISION,
+        nonce="nonce-2",
+        issued_at=NOW.isoformat(),
+        expires_at=(NOW + timedelta(minutes=10)).isoformat(),
+        provenance=_provenance(
+            "tests.owner-approval",
+            nomination.digest,
+            CANDIDATE_SHA,
+            evidence.digest,
+        ),
+        secret=SECRET,
+    )
+    with pytest.raises(PromotionCapabilityError, match="different signed"):
+        _consume(prepared, other, ApprovalLedger(tmp_path / "approvals.sqlite3"))
 
 
 def test_consumed_approval_cannot_be_replayed(candidate_snapshot, tmp_path) -> None:
-    prepared, _, _ = _prepared(candidate_snapshot)
+    prepared, _, _, approval = _prepared(candidate_snapshot)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    consume_prepared_promotion(
-        prepared,
-        ledger=ledger,
-        current_target_revision=TARGET_REVISION,
-        consumed_at=NOW + timedelta(seconds=3),
-    )
+    _consume(prepared, approval, ledger)
     with pytest.raises(ApprovalReplay):
         consume_prepared_promotion(
             prepared,
+            approval=approval,
+            keyring=KEYRING,
             ledger=ledger,
             current_target_revision=TARGET_REVISION,
+            now=NOW + timedelta(seconds=4),
             consumed_at=NOW + timedelta(seconds=4),
         )
 
@@ -300,14 +384,9 @@ def test_consumed_approval_cannot_be_replayed(candidate_snapshot, tmp_path) -> N
 def test_target_and_ledger_are_rechecked_after_consumption(
     candidate_snapshot, tmp_path
 ) -> None:
-    prepared, _, _ = _prepared(candidate_snapshot)
+    prepared, _, _, approval = _prepared(candidate_snapshot)
     ledger = ApprovalLedger(tmp_path / "approvals.sqlite3")
-    authorization = consume_prepared_promotion(
-        prepared,
-        ledger=ledger,
-        current_target_revision=TARGET_REVISION,
-        consumed_at=NOW + timedelta(seconds=3),
-    )
+    authorization = _consume(prepared, approval, ledger)
     with pytest.raises(PromotionTargetMoved, match="new owner approval"):
         assert_authorized_promotion_start(
             authorization,
@@ -325,12 +404,11 @@ def test_target_and_ledger_are_rechecked_after_consumption(
 def test_promotion_receipt_references_consumed_authorization(
     candidate_snapshot, tmp_path
 ) -> None:
-    prepared, evidence, nomination = _prepared(candidate_snapshot)
-    authorization = consume_prepared_promotion(
+    prepared, evidence, nomination, approval = _prepared(candidate_snapshot)
+    authorization = _consume(
         prepared,
-        ledger=ApprovalLedger(tmp_path / "approvals.sqlite3"),
-        current_target_revision=TARGET_REVISION,
-        consumed_at=NOW + timedelta(seconds=3),
+        approval,
+        ApprovalLedger(tmp_path / "approvals.sqlite3"),
     )
     provenance = _provenance(
         "tests.promotion-receipt",
