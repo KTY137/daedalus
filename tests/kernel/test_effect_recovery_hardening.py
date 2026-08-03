@@ -42,12 +42,12 @@ fixture = _load_fixture()
 
 
 def _started(tmp_path: Path):
-    ledger, authorization, execution = fixture._authority(
+    _, authorization, execution = fixture._authority(
         root=tmp_path,
         source_revision=REVISION,
         now=NOW,
     )
-    result = authorization.begin_effect(execution)
+    result = authorization.begin_effect(execution, started_at=NOW)
     assert result.execute is True
     return execution, result.receipt
 
@@ -96,7 +96,7 @@ def test_start_idempotency_key_is_bound_to_execution_request(tmp_path: Path) -> 
         start,
         idempotency_key="foreign-idempotency",
     )
-    with pytest.raises(EffectRecoveryBindingError, match="start_idempotency_key"):
+    with pytest.raises(EffectRecoveryBindingError, match="idempotency_key"):
         _verify(observation, execution, foreign_start)
 
 
@@ -109,7 +109,7 @@ def test_start_execution_request_digest_is_bound(tmp_path: Path) -> None:
     )
     with pytest.raises(
         EffectRecoveryBindingError,
-        match="start_execution_request_sha256",
+        match="execution_request_sha256",
     ):
         _verify(observation, execution, foreign_start)
 
