@@ -304,12 +304,14 @@ def test_the_policy_is_ordered_the_way_its_prose_claims():
 
     # what the model produced, hardest first
     assert r["clean"] == r["gates_failed"] == 0.0
+    assert r["reconciliation_required"] == 0.0
     assert r["clean"] < r["no_change"] < r["runner_failed"]
     # infrastructure barely moves the work
     assert r["runner_failed"] < r["worktree_failed"] <= r["cancelled"]
     assert r["cancelled"] < r["storage_unavailable"] < 1.0
     # at the floor, a finished patch is the last thing to pick up again
     assert s["clean"] > s["gates_failed"] > s["no_change"] > s["runner_failed"]
+    assert s["reconciliation_required"] == 1.0
     assert UNKNOWN_OUTCOME.severity > s["clean"]
     assert UNKNOWN_OUTCOME.residual == 0.0
 

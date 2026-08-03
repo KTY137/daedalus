@@ -1843,6 +1843,15 @@ OUTCOME_POLICY: dict[str, OutcomePolicy] = {
                 "instruction and a genuinely finished feature all look like "
                 "this -- but a lane was spent, so it sinks to half its band",
     ),
+    # An external effect may already have happened, but its terminal receipt
+    # was not persisted.  Re-attempting is unsafe until an operator reconciles
+    # that exact execution, so this is intentionally a harder stop than a
+    # normal provider failure.
+    "reconciliation_required": OutcomePolicy(
+        outcome="reconciliation_required", residual=0.0, severity=1.0,
+        meaning="an external effect started without a durable terminal receipt",
+        verdict="operator reconciliation is required before retry: another run "
+                "could duplicate an effect whose outcome is still unknown"),
     # From here down: the machine failed, not the work. Sinking hard here is how
     # one flaky provider call buries a real task.
     "runner_failed": OutcomePolicy(

@@ -1398,6 +1398,7 @@ class AttemptReceipt(CanonicalContract):
             "gates_failed": "failed",
             "cancelled": "cancelled",
             "no_change": "no-change",
+            "reconciliation_required": "error",
             "runner_failed": "error",
             "worktree_failed": "error",
             "storage_unavailable": "error",

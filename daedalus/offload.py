@@ -434,9 +434,11 @@ def _offload_impl(
     def _escalate(note: str, provider: str = "claude_cli") -> dict:
         result["action"] = "escalate_to_claude" if eligible else "senior"
         result["note"] = note
-        # Planning is a read-only inspection boundary.  Recording a routing
-        # metric creates a directory and appends a file, so a dry plan must not
-        # do it.  A live, leased call still records the actual outcome below.
+        # A dry call must not record a routing metric: doing so creates a
+        # directory and appends a file before any Effect Lease exists.  This
+        # only removes that specific hidden write.  The legacy router may still
+        # consult StructCore caches/processes, so `_offload_impl(live=False)` is
+        # NOT yet a generally effect-free planning boundary.
         if live:
             metrics.record(provider=provider, action=result["action"], owner=agent["name"],
                            risk=decision.risk, eligible=eligible, note=note)
@@ -727,13 +729,15 @@ def offload(
     effect_execution: "EffectExecutionRequest | None" = None,
     _attempt_workspace: dict[str, str] | None = None,
 ) -> dict:
-    """Plan freely; execute only behind one persisted Effect Lease.
+    """Run the legacy dry route or execute behind one persisted Effect Lease.
 
-    ``live=False`` remains a read-only planning operation. Every live call,
-    including advisory/provider work, must present an already-issued and
-    persisted authorization for the canonical ``python.offload`` entrypoint.
-    The entrypoint consumes the capability; it never discovers issuer secrets
-    or mints its own lease from ambient configuration.
+    ``live=False`` does not invoke a provider and does not append routing
+    metrics, but the legacy routing/index path is not yet guaranteed globally
+    effect-free.  Every live call, including advisory/provider work, must
+    present an already-issued and persisted authorization for the canonical
+    ``python.offload`` entrypoint.  The entrypoint consumes the capability; it
+    never discovers issuer secrets or mints its own lease from ambient
+    configuration.
     """
 
     if not live:

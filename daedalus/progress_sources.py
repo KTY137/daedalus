@@ -257,8 +257,15 @@ def record_attempt_result(unit_id: str, result: Any, *,
     """
     log = log or P.default_log()
     if result.runner_detail is not None:
-        P.record_tool_ran(unit_id, name="runner", ok=(result.state != "runner_failed"),
-                          source=source, detail={"state": result.state}, log=log)
+        P.record_tool_ran(
+            unit_id,
+            name="runner",
+            ok=(result.state not in {
+                "runner_failed", "reconciliation_required"}),
+            source=source,
+            detail={"state": result.state},
+            log=log,
+        )
     if result.gates is not None:
         P.record_gate_verdict(
             unit_id, name=result.gates.name, passed=result.gates.passed, source=source,

@@ -77,6 +77,10 @@ states:
 ``worktree_failed``      no isolated checkout could be produced, or the patch
                          could not be captured out of one
 ``runner_failed``        the injected runner raised
+``reconciliation_required``
+                         a leased external effect started but its terminal
+                         receipt could not be persisted; the intent and
+                         worktree stay open for operator reconciliation
 ``no_change``            the runner finished but changed nothing
 ``gates_failed``         a patch exists and the gates rejected it
 ``clean``                a patch exists and the gates passed
@@ -95,7 +99,9 @@ The recorded intent is "produce a candidate patch", so it is COMPLETED whenever
 an artifact exists -- including ``gates_failed``, because a rejected candidate
 is a successfully produced candidate, and the gate verdict is a judgement ABOUT
 the effect, not the effect. ``effect_id`` is the patch digest. Intents are
-marked FAILED only when no artifact was produced at all.
+marked FAILED only when no artifact was produced at all. The exception is
+``reconciliation_required``: an external effect may already exist without a
+terminal receipt, so its intent deliberately remains open.
 """
 from __future__ import annotations
 
@@ -156,6 +162,7 @@ __all__ = [
     "STATE_CLEAN",
     "STATE_GATES_FAILED",
     "STATE_NO_CHANGE",
+    "STATE_RECONCILIATION_REQUIRED",
     "STATE_RUNNER_FAILED",
     "STATE_STORAGE_UNAVAILABLE",
     "STATE_WORKTREE_FAILED",
@@ -175,6 +182,7 @@ INTENT_KIND = "attempt.candidate"
 STATE_CLEAN = "clean"
 STATE_GATES_FAILED = "gates_failed"
 STATE_NO_CHANGE = "no_change"
+STATE_RECONCILIATION_REQUIRED = "reconciliation_required"
 STATE_RUNNER_FAILED = "runner_failed"
 STATE_WORKTREE_FAILED = "worktree_failed"
 STATE_STORAGE_UNAVAILABLE = "storage_unavailable"
@@ -184,6 +192,7 @@ ATTEMPT_STATES = (
     STATE_CLEAN,
     STATE_GATES_FAILED,
     STATE_NO_CHANGE,
+    STATE_RECONCILIATION_REQUIRED,
     STATE_RUNNER_FAILED,
     STATE_WORKTREE_FAILED,
     STATE_STORAGE_UNAVAILABLE,
@@ -716,6 +725,7 @@ class AttemptResult:
     artifact_locator: dict[str, Any] | None = None
     persist_error: str | None = None
     runner_detail: Any = None
+    reconciliation: Mapping[str, str] | None = None
     reaped: tuple = ()
     reap_error: str | None = None
 
@@ -751,6 +761,7 @@ class AttemptResult:
             "artifact_locator": _jsonable(self.artifact_locator),
             "persist_error": self.persist_error,
             "runner_detail": _jsonable(self.runner_detail),
+            "reconciliation": _jsonable(self.reconciliation),
             "reaped": _jsonable(list(self.reaped)),
             "reap_error": self.reap_error,
         }
@@ -1217,8 +1228,10 @@ class TaskAttempt:
         #
         # `git worktree add -b` writes a ref into the SHARED .git that nothing
         # removed, so an overnight loop left one ref per attempt forever. This
-        # is the one safe moment to remove it: the intent is RESOLVED by the
-        # time _run_with_ledger returns. Doing it inside cleanup's `finally:`
+        # is the one safe moment to consider removing it: ordinary intents are
+        # RESOLVED by the time `_run_with_ledger` returns, while a
+        # `reconciliation_required` result is explicitly excluded by `_reap`.
+        # Doing it inside cleanup's `finally:`
         # would be strictly worse than the leak, because the branch IS the
         # effect key -- the documented way to answer "did this attempt happen?"
         # after a crash is `git branch --list <effect_key>`, and cleanup runs
@@ -1246,7 +1259,12 @@ class TaskAttempt:
         """
         from dataclasses import replace as _replace
 
-        if not self._reap_enabled:
+        # A reconciliation result deliberately leaves both the TaskAttempt
+        # intent and the worktree open.  Do not even ask the manager to reap:
+        # the branch is the durable world-side effect key an operator needs to
+        # inspect before deciding how to close the indeterminate execution.
+        if (not self._reap_enabled
+                or result.state == STATE_RECONCILIATION_REQUIRED):
             return result
         try:
             report = self._manager.reap_branches()
@@ -1258,6 +1276,11 @@ class TaskAttempt:
     # -- the recorded part -------------------------------------------------- #
     def _run_with_ledger(self, ledger: SpineLedger, base_revision: str,
                          finish: Callable[..., AttemptResult]) -> AttemptResult:
+        # Resolve this typed dependency before recording an intent or creating
+        # a worktree. If the kernel module itself cannot load, no attempt-side
+        # effect has happened and the caller gets the ordinary exception.
+        from daedalus.kernel.effects import EffectReconciliationRequired
+
         # 2. intent BEFORE effect, committed by record_intent.
         payload = dict(self.task.body())
         payload.update({
@@ -1314,6 +1337,7 @@ class TaskAttempt:
         artifact_path: str | None = None
         artifact_locator: dict[str, Any] | None = None
         persist_error: str | None = None
+        reconciliation: dict[str, str] | None = None
 
         try:
             if self._is_cancelled():
@@ -1322,6 +1346,14 @@ class TaskAttempt:
                 # 4. the work, inside the worktree and nowhere else.
                 try:
                     runner_detail = self._runner(ctx)
+                except EffectReconciliationRequired as exc:
+                    state = STATE_RECONCILIATION_REQUIRED
+                    error = str(exc)
+                    reconciliation = {
+                        "execution_id": exc.execution_id,
+                        "start_receipt_sha256": exc.start_receipt_sha256,
+                        "phase": exc.phase,
+                    }
                 except Exception as e:
                     state = STATE_RUNNER_FAILED
                     error = f"{type(e).__name__}: {e}"
@@ -1404,8 +1436,29 @@ class TaskAttempt:
                                 f"gate {gates.name!r} failed "
                                 f"(exit {gates.returncode})")
         finally:
-            # 8. cleanup, reported rather than swallowed.
-            removed, cleanup_error = self._cleanup(worktree)
+            if state == STATE_RECONCILIATION_REQUIRED:
+                # The external outcome is indeterminate.  Preserve the exact
+                # candidate workspace and its branch, and leave the enclosing
+                # TaskAttempt intent INTENDED.  Cleanup/resolution would erase
+                # the evidence needed to reconcile or falsely make a retry
+                # appear safe.
+                removed, cleanup_error = False, None
+            else:
+                # 8. cleanup, reported rather than swallowed.
+                removed, cleanup_error = self._cleanup(worktree)
+
+        if state == STATE_RECONCILIATION_REQUIRED:
+            return finish(
+                state,
+                intent_id=intent.id,
+                base_revision=base_revision,
+                error=error,
+                worktree_path=str(worktree),
+                worktree_removed=removed,
+                cleanup_error=cleanup_error,
+                runner_detail=runner_detail,
+                reconciliation=reconciliation,
+            )
 
         # 7. resolve the intent with the artifact digest as the effect id.
         return self._resolve_and_finish(

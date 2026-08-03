@@ -20,6 +20,7 @@ from daedalus.spine.attempt import (
     STATE_CLEAN,
     STATE_GATES_FAILED,
     STATE_NO_CHANGE,
+    STATE_RECONCILIATION_REQUIRED,
     STATE_RUNNER_FAILED,
     STATE_STORAGE_UNAVAILABLE,
     STATE_WORKTREE_FAILED,
@@ -31,7 +32,13 @@ from daedalus.spine.attempt import (
     command_gate,
     pytest_gate_argv,
 )
-from daedalus.spine.ledger import STATE_COMPLETED, STATE_FAILED, SpineLedger
+from daedalus.kernel.effects import EffectReconciliationRequired
+from daedalus.spine.ledger import (
+    STATE_COMPLETED,
+    STATE_FAILED,
+    STATE_INTENDED,
+    SpineLedger,
+)
 from daedalus.storage import ArtifactStore, StorageUnavailable
 
 
@@ -337,6 +344,66 @@ def test_runner_raising_yields_runner_failed_and_marks_intent_failed(
     assert "runner_failed" in intent.error
     assert ledger.open_intents() == []
     assert result.worktree_removed is True
+
+    assert_primary_untouched(repo, head)
+
+
+def test_indeterminate_effect_keeps_attempt_intent_branch_and_worktree_open(
+        repo, worktree_root, ledger):
+    """The complete return arc must preserve, not flatten, indeterminate work.
+
+    This exercises the chain from a typed leased-effect failure through
+    TaskAttempt classification, cleanup suppression, ledger state, result
+    serialization, and the branch/worktree recovery handles.
+    """
+    head = head_of(repo)
+    gate = passing_gate()
+    receipt_sha = "a" * 64
+
+    def indeterminate_runner(ctx):
+        # Model a provider that may already have changed the isolated checkout
+        # before terminal receipt persistence failed.
+        (ctx.worktree / "maybe_changed.txt").write_text("unknown outcome\n")
+        raise EffectReconciliationRequired(
+            execution_id="exec-terminal-write-1",
+            start_receipt_sha256=receipt_sha,
+            phase="completed-terminal-write",
+        )
+
+    result = TaskAttempt(
+        spec(target_paths=("maybe_changed.txt",)),
+        runner=indeterminate_runner,
+        gate=gate,
+        repo_root=repo,
+        ledger=ledger,
+    ).run()
+
+    assert result.state == STATE_RECONCILIATION_REQUIRED
+    assert result.ok is False
+    assert result.artifact is None
+    assert result.gates is None
+    assert gate.calls == []
+    assert result.reconciliation == {
+        "execution_id": "exec-terminal-write-1",
+        "start_receipt_sha256": receipt_sha,
+        "phase": "completed-terminal-write",
+    }
+    assert result.to_dict()["reconciliation"] == result.reconciliation
+
+    # Both recovery handles remain real and inspectable.  The ordinary cleanup
+    # and branch reaper must not run for an indeterminate external outcome.
+    retained = Path(result.worktree_path)
+    assert result.worktree_removed is False
+    assert result.cleanup_error is None
+    assert retained.is_dir()
+    assert (retained / "maybe_changed.txt").read_text() == "unknown outcome\n"
+    assert result.branch in _git_out(repo, "branch", "--list", result.branch)
+    assert result.reaped == ()
+
+    intent = ledger.get(result.intent_id)
+    assert intent.state == STATE_INTENDED
+    assert [item.id for item in ledger.open_intents()] == [result.intent_id]
+    assert ledger.events(result.intent_id)[-1].state == STATE_INTENDED
 
     assert_primary_untouched(repo, head)
 
