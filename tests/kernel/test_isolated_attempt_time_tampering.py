@@ -21,6 +21,7 @@ from daedalus.spine.envelope import canonical_json
 REVISION = "a" * 40
 FIXTURE_TIME = "2026-08-03T22:00:00+00:00"
 FUTURE = "2099-01-01T00:00:00+00:00"
+PAST = "2000-01-01T00:00:00+00:00"
 TASK_SHA = "1" * 64
 RUNTIME_SHA = "2" * 64
 POLICY_SHA = "3" * 64
@@ -67,17 +68,15 @@ def _environment(tmp_path: Path):
     return store, captured, ledger, coordinator, attempt
 
 
-def test_repacked_future_start_time_is_refused_against_event_store_time(tmp_path) -> None:
-    _store, captured, ledger, coordinator, attempt = _environment(tmp_path)
-    coordinator.prepare(attempt, captured, start_id="start-time-tamper")
-
+def _repack_start_time(ledger: AttemptLedger, timestamp: str) -> None:
     with sqlite3.connect(ledger.path) as connection:
         row = connection.execute(
             "SELECT id, payload FROM intents WHERE kind = 'attempt.lifecycle'"
         ).fetchone()
+        assert row is not None
         payload = json.loads(row[1])
-        payload["start"]["started_at"] = FUTURE
-        payload["start"]["provenance"]["created_at"] = FUTURE
+        payload["start"]["started_at"] = timestamp
+        payload["start"]["provenance"]["created_at"] = timestamp
         raw = canonical_json(payload)
         digest = hashlib.sha256(raw.encode("ascii")).hexdigest()
         connection.execute(
@@ -90,31 +89,18 @@ def test_repacked_future_start_time_is_refused_against_event_store_time(tmp_path
             (canonical_json({"payload_sha": digest}), row[0]),
         )
 
-    with pytest.raises(AttemptStateError, match="follows its Event-Store start"):
-        ledger.pending()
 
-
-def test_repacked_future_terminal_time_is_refused_against_event_store_time(tmp_path) -> None:
-    store, captured, ledger, coordinator, attempt = _environment(tmp_path)
-    prepared = coordinator.prepare(attempt, captured, start_id="start-time-tamper")
-    report = store.put_bytes(b"terminal")
-    ledger.complete(
-        prepared.begin.start,
-        receipt_id="terminal-time-tamper",
-        outcome="failed",
-        report=report,
-        candidate_tree=None,
-    )
-
+def _repack_terminal_time(ledger: AttemptLedger, timestamp: str) -> None:
     with sqlite3.connect(ledger.path) as connection:
         row = connection.execute(
             "SELECT id, detail FROM intent_events "
             "WHERE state = 'COMPLETED' ORDER BY id DESC LIMIT 1"
         ).fetchone()
+        assert row is not None
         detail = json.loads(row[1])
         receipt_payload = detail["result"]["receipt"]
-        receipt_payload["completed_at"] = FUTURE
-        receipt_payload["provenance"]["created_at"] = FUTURE
+        receipt_payload["completed_at"] = timestamp
+        receipt_payload["provenance"]["created_at"] = timestamp
         receipt = AttemptTerminalReceipt.from_dict(receipt_payload)
         detail["effect_id"] = receipt.digest
         connection.execute(
@@ -122,5 +108,53 @@ def test_repacked_future_terminal_time_is_refused_against_event_store_time(tmp_p
             (canonical_json(detail), row[0]),
         )
 
-    with pytest.raises(AttemptStateError, match="follows its Event-Store terminal"):
+
+def _complete(store, captured, ledger, coordinator, attempt) -> None:
+    prepared = coordinator.prepare(attempt, captured, start_id="start-time-tamper")
+    ledger.complete(
+        prepared.begin.start,
+        receipt_id="terminal-time-tamper",
+        outcome="failed",
+        report=store.put_bytes(b"terminal"),
+        candidate_tree=None,
+    )
+
+
+def test_repacked_future_start_time_is_refused_against_event_store_time(tmp_path) -> None:
+    _store, captured, ledger, coordinator, attempt = _environment(tmp_path)
+    coordinator.prepare(attempt, captured, start_id="start-time-tamper")
+    _repack_start_time(ledger, FUTURE)
+
+    with pytest.raises(AttemptStateError, match="follows its Event-Store transition"):
+        ledger.pending()
+
+
+def test_repacked_historical_start_time_is_refused_against_event_store_time(
+    tmp_path,
+) -> None:
+    _store, captured, ledger, coordinator, attempt = _environment(tmp_path)
+    coordinator.prepare(attempt, captured, start_id="start-time-tamper")
+    _repack_start_time(ledger, PAST)
+
+    with pytest.raises(AttemptStateError, match="not bound to its Event-Store transition"):
+        ledger.pending()
+
+
+def test_repacked_future_terminal_time_is_refused_against_event_store_time(tmp_path) -> None:
+    store, captured, ledger, coordinator, attempt = _environment(tmp_path)
+    _complete(store, captured, ledger, coordinator, attempt)
+    _repack_terminal_time(ledger, FUTURE)
+
+    with pytest.raises(AttemptStateError, match="follows its Event-Store transition"):
+        coordinator.prepare(attempt, captured, start_id="start-time-tamper")
+
+
+def test_repacked_historical_terminal_time_is_refused_against_event_store_time(
+    tmp_path,
+) -> None:
+    store, captured, ledger, coordinator, attempt = _environment(tmp_path)
+    _complete(store, captured, ledger, coordinator, attempt)
+    _repack_terminal_time(ledger, PAST)
+
+    with pytest.raises(AttemptStateError, match="not bound to its Event-Store transition"):
         coordinator.prepare(attempt, captured, start_id="start-time-tamper")
