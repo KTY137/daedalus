@@ -202,7 +202,10 @@ def test_persisted_authorization_accepts_exact_authenticated_consumption(
 
     assert authorization.promotion_id == consumed.promotion_id
     assert authorization.source_revision == revision
-    assert authorization.approval_consumption_sha256 == consumed.digest
+    assert (
+        authorization.approval_consumption_sha256
+        == consumed.consumption_sha256
+    )
     assert authorization.evidence_packet_sha256 == packet.digest
 
 
@@ -332,11 +335,7 @@ def test_persisted_authorization_requires_explicit_authorities(
 def test_source_review_pins_persistence_before_pure_authorization() -> None:
     source = inspect.getsource(authorize_persisted_promotion)
     tree = ast.parse(source)
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-    ]
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     verify_calls = [
         node
         for node in calls
