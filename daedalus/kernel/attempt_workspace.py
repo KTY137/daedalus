@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import os
+import stat
 from pathlib import Path
 
 from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
 from daedalus.schemas import AttemptContract
-from daedalus.spine.envelope import canonical_json
+from daedalus.spine.envelope import canonical_json, canonical_sha
 
 from .attempt_contracts import (
     _is_same_or_within,
-    _path_identity,
     _workspace_relative_path,
     AttemptBindingMismatch,
     AttemptWorkspaceError,
@@ -24,6 +24,27 @@ def _assert_disjoint(candidate: Path, protected: Path, label: str) -> None:
         protected, candidate
     ):
         raise AttemptWorkspaceError(f"{label} must be disjoint")
+
+
+def _workspace_root_identity(path: Path) -> str:
+    """Bind the resolved path and the concrete directory object retained there."""
+    try:
+        metadata = os.stat(path, follow_symlinks=False)
+    except OSError as exc:
+        raise AttemptWorkspaceError(
+            "workspace parent identity cannot be inspected"
+        ) from exc
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise AttemptWorkspaceError("workspace parent must be a directory")
+    normalized = os.path.normcase(str(path.resolve(strict=True))).replace("\\", "/")
+    return canonical_sha(
+        {
+            "schema": "daedalus-attempt-workspace-root/1",
+            "path": normalized,
+            "st_dev": int(metadata.st_dev),
+            "st_ino": int(metadata.st_ino),
+        }
+    )
 
 
 def _resolve_workspace_parent(
@@ -138,7 +159,7 @@ class IsolatedAttemptCoordinator:
 
         self.primary_checkout = primary
         self.workspace_parent = parent
-        self.workspace_parent_sha256 = _path_identity(parent)
+        self.workspace_parent_sha256 = _workspace_root_identity(parent)
         self._cas_root = cas_root
         self.source_store = source_store
         self.ledger = ledger
@@ -172,7 +193,7 @@ class IsolatedAttemptCoordinator:
         )
         if (
             current != parent
-            or _path_identity(current) != self.workspace_parent_sha256
+            or _workspace_root_identity(current) != self.workspace_parent_sha256
         ):
             raise AttemptWorkspaceError(
                 "workspace parent identity changed after admission"
