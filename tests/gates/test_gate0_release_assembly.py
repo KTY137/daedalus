@@ -74,20 +74,19 @@ def test_invalid_or_foreign_bundle_refuses_before_release_construction(tmp_path:
         )
 
 
-def test_manual_security_claim_cannot_replace_bundle_authentication(tmp_path: Path) -> None:
+def test_manual_security_claim_is_recomputed_from_actual_blockers(tmp_path: Path) -> None:
     root = _SUPPORT.repo_root(tmp_path)
-    report = _SUPPORT.local_report(security_boundary_claimed=True)
+    report = _SUPPORT.local_report(
+        security_boundary_claimed=True,
+        runtime_conformance_failures=("forced",),
+    )
     index = _SUPPORT.evidence_index(report)
     bundle = _SUPPORT.trust_bundle(index, root)
+    release = _SUPPORT.assemble(report, index, bundle, root)
 
-    with pytest.raises(EvidenceTrustBundleSignatureError):
-        _SUPPORT.assemble(
-            report,
-            index,
-            bundle,
-            root,
-            collector_keyring={},
-        )
+    assert not release.parsed_gate_report.security_boundary_claimed
+    assert "runtime_conformance_failures:forced" in release.blockers
+    assert "security_boundary_claimed:false" in release.blockers
 
 
 def test_owner_decision_remains_separate_from_technical_security(tmp_path: Path) -> None:
@@ -128,7 +127,10 @@ def test_authenticated_but_bad_evidence_remains_a_blocker(tmp_path: Path) -> Non
         architecture_assurance="model-opinion",
     )
     extra_workflow = root / ".github/workflows/optional.yml"
-    extra_workflow.write_text("name: Optional\non: [workflow_dispatch]\njobs: {}\n")
+    extra_workflow.write_text(
+        "name: Optional\non: [workflow_dispatch]\njobs: {}\n",
+        encoding="utf-8",
+    )
     bundle = _SUPPORT.issue_evidence_trust_bundle(
         index,
         repo_root=root,
