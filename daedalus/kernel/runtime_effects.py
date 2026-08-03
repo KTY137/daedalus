@@ -13,7 +13,7 @@ import hashlib
 import hmac
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterable, Mapping, Sequence
+from typing import ClassVar, Iterable, Mapping, Sequence
 
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
@@ -32,7 +32,6 @@ from daedalus.schemas import (
     ContractProvenance,
     PolicyDecision,
     _identifier,
-    _record_payload,
     _require_provenance_inputs,
     _revision,
     _sha256,
@@ -45,6 +44,10 @@ from daedalus.spine.effect_boundary import (
 )
 from daedalus.spine.envelope import canonical_sha
 
+_POST_START_TRUST_FAILURE_SHA256 = canonical_sha(
+    {"reason": "runtime-trust-invalid-after-durable-start"}
+)
+
 
 class RuntimeLeaseAdmissionError(RuntimeError):
     """Base class for runtime-trust/lease composition failures."""
@@ -56,6 +59,10 @@ class RuntimeLeaseSignatureError(RuntimeLeaseAdmissionError):
 
 class RuntimeLeaseBindingMismatch(RuntimeLeaseAdmissionError):
     pass
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _as_utc(value: datetime, label: str) -> datetime:
@@ -89,7 +96,7 @@ def _signature(signing_digest: str, secret: bytes | str) -> str:
 class RuntimeBoundEffectLease(CanonicalContract):
     """Authenticated binding between one EffectLease and live runtime evidence."""
 
-    CONTRACT_TYPE = "daedalus.runtime-bound-effect-lease"
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.runtime-bound-effect-lease"
 
     lease: EffectLease
     runtime_id: str
@@ -439,8 +446,8 @@ class RuntimeBoundEffectAuthorization:
             registry=self.registry,
         )
 
-    def grant(self, *, granted_at: datetime) -> None:
-        instant = _as_utc(granted_at, "granted_at")
+    def grant(self) -> None:
+        instant = _utc_now()
         self.verify(now=instant)
         self.effect_ledger.grant(
             self.capability.lease,
@@ -452,14 +459,9 @@ class RuntimeBoundEffectAuthorization:
             registry=self.registry,
         )
 
-    def begin_effect(
-        self,
-        execution: EffectExecutionRequest,
-        *,
-        started_at: datetime,
-    ) -> EffectStartResult:
-        instant = _as_utc(started_at, "started_at")
-        self.verify(now=instant)
+    def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
+        pre_start = _utc_now()
+        self.verify(now=pre_start)
         result = self.effect_ledger.begin(
             self.capability.lease,
             execution,
@@ -468,13 +470,22 @@ class RuntimeBoundEffectAuthorization:
             keyring=self.lease_keyring,
             guard_decisions=self.guard_decisions,
             current_kill_switch_generation=self.current_kill_switch_generation,
-            started_at=instant,
+            started_at=pre_start,
             registry=self.registry,
         )
         if result.execute:
-            # Recheck after the durable start receipt and before the caller is
-            # allowed to perform the external effect.
-            self.verify(now=instant)
+            try:
+                # Recheck after the durable start receipt and before the caller
+                # is allowed to perform the external effect.
+                self.verify(now=_utc_now())
+            except Exception:
+                self.effect_ledger.finish(
+                    result.receipt,
+                    outcome="cancelled",
+                    detail_sha256=_POST_START_TRUST_FAILURE_SHA256,
+                    finished_at=_utc_now(),
+                )
+                raise
         return result
 
     def finish_effect(
@@ -484,14 +495,12 @@ class RuntimeBoundEffectAuthorization:
         outcome: str,
         output_digests: Iterable[str] = (),
         detail_sha256: str | None = None,
-        finished_at: datetime | None = None,
     ) -> EffectTerminalReceipt:
         return self.effect_ledger.finish(
             start_receipt,
             outcome=outcome,
             output_digests=output_digests,
             detail_sha256=detail_sha256,
-            finished_at=finished_at,
         )
 
 
