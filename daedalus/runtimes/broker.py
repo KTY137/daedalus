@@ -21,6 +21,7 @@ effectful bypass.
 from __future__ import annotations
 
 import re
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,7 +55,7 @@ class RuntimeProviderStateError(RuntimeProviderBrokerError):
 
 
 class RuntimeProviderTrustFenceError(RuntimeProviderBrokerError):
-    """Runtime trust changed before a successful terminal receipt was durable."""
+    """Runtime trust changed or could not be fenced before terminal completion."""
 
 
 @dataclass(frozen=True)
@@ -264,6 +265,17 @@ def _runtime_fence_components(
     return ledger, capability
 
 
+def _rollback_runtime_fence(connection: sqlite3.Connection) -> None:
+    if not connection.in_transaction:
+        return
+    try:
+        connection.execute("ROLLBACK")
+    except BaseException:
+        # Closing the connection still releases its SQLite writer lock. A
+        # rollback failure must not replace the original trust-fence failure.
+        pass
+
+
 def _finish_completed_under_runtime_fence(
     authorization: RuntimeBoundEffectAuthorization,
     start_receipt: LeasedEffectStartReceipt,
@@ -282,7 +294,13 @@ def _finish_completed_under_runtime_fence(
         )
 
     ledger, capability = components
-    connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
+    try:
+        connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
+    except sqlite3.Error as exc:
+        raise RuntimeProviderTrustFenceError(
+            "runtime trust terminal fence could not open its SQLite authority"
+        ) from exc
+
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
@@ -355,19 +373,15 @@ def _finish_completed_under_runtime_fence(
         # intentional: if an unnecessary read-only COMMIT failed after the
         # separate effect ledger had already committed, raising would lose an
         # otherwise valid provider value and exact replay could not recover it.
-        try:
-            connection.execute("ROLLBACK")
-        except BaseException:
-            # Closing the connection below still releases the SQLite writer
-            # lock. The completed effect receipt is already the durable state.
-            pass
+        _rollback_runtime_fence(connection)
         return terminal
+    except sqlite3.Error as exc:
+        _rollback_runtime_fence(connection)
+        raise RuntimeProviderTrustFenceError(
+            "runtime trust terminal fence SQLite operation failed"
+        ) from exc
     except BaseException:
-        if connection.in_transaction:
-            try:
-                connection.execute("ROLLBACK")
-            except BaseException:
-                pass
+        _rollback_runtime_fence(connection)
         raise
     finally:
         connection.close()
