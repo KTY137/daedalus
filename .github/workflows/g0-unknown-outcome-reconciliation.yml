@@ -10,6 +10,7 @@ on:
       - "configs/schemas/external-effect-observation-v1.schema.json"
       - "tests/fixtures/unknown_outcome_reconciliation_fault_executor.py"
       - "tests/kernel/test_effect_recovery.py"
+      - "tests/kernel/test_effect_recovery_hardening.py"
       - "tests/runtimes/test_unknown_outcome_reconciliation_fault_executor.py"
       - "tests/runtimes/test_unknown_outcome_reconciliation_fault_executor_review.py"
       - "docs/work-packets/G0-RTC-06P_UNKNOWN_OUTCOME_RECONCILIATION.md"
@@ -62,6 +63,7 @@ jobs:
           python -m pytest -q
           tests/kernel/test_effect_leases.py
           tests/kernel/test_effect_recovery.py
+          tests/kernel/test_effect_recovery_hardening.py
           tests/runtimes/test_unknown_outcome_reconciliation_fault_executor.py
           tests/runtimes/test_unknown_outcome_reconciliation_fault_executor_review.py
           tests/runtimes/test_linux_host_fault_runner.py
@@ -131,7 +133,6 @@ jobs:
         run: >-
           cd /tmp && PYTHONPATH=
           /tmp/daedalus-effect-recovery-wheel/bin/python -c
-          "from daedalus.kernel.effect_recovery import
-          ExternalEffectObservation, reconcile_unknown_effect;
+          "from daedalus.kernel.effect_recovery import ExternalEffectObservation, reconcile_unknown_effect;
           assert ExternalEffectObservation;
           assert reconcile_unknown_effect"
