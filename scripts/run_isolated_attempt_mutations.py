@@ -107,6 +107,12 @@ def main() -> int:
         ),
         (
             "reader",
+            "allow-read-inspection-to-create-store",
+            '            f"file:{_uri_path(database)}?mode=ro",\n',
+            "            str(database),\n",
+        ),
+        (
+            "reader",
             "accept-extra-terminal-events",
             "            if len(events) > 2 or str(events[0][\"state\"]) != STATE_INTENDED:\n",
             "            if False:\n",
