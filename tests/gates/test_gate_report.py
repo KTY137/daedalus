@@ -16,6 +16,9 @@ def test_gate_report_is_deterministic_and_fail_closed() -> None:
     assert first.closed is False
     assert first.security_boundary_claimed is False
     assert first.owner_approval_enforced is True
+    assert "python.offload" not in first.noncentral_entrypoints
+    assert "python.promote_candidates" in first.noncentral_entrypoints
+    assert "mcp.runtime" in first.noncentral_entrypoints
     assert "python.offload" not in first.unguarded_entrypoints
     assert "python.offload" not in first.inventory_only_production_entrypoints
     assert "python.promote_candidates" not in first.unguarded_entrypoints
@@ -68,6 +71,27 @@ def test_serialized_shape_matches_gate_contract() -> None:
     assert payload["closed"] is True
     assert payload["blockers"] == []
     json.dumps(payload)
+
+
+def test_every_noncentral_wiring_is_a_closure_blocker() -> None:
+    report = GateReport(
+        gate=0,
+        source_revision="a",
+        registry_sha256="0" * 64,
+        security_boundary_claimed=True,
+        owner_approval_enforced=True,
+        noncentral_entrypoints=(
+            "local-guarded",
+            "inventory-only",
+            "unguarded",
+            "absent",
+        ),
+    )
+    assert report.closed is False
+    assert report.blockers == tuple(
+        f"noncentral_entrypoints:{name}"
+        for name in sorted(report.noncentral_entrypoints)
+    )
 
 
 def test_gate_report_accepts_bound_fault_results() -> None:

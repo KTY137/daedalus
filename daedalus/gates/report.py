@@ -33,6 +33,7 @@ class GateReport:
     registry_sha256: str
     security_boundary_claimed: bool
     unregistered_effectful_entrypoints: tuple[str, ...] = ()
+    noncentral_entrypoints: tuple[str, ...] = ()
     unguarded_entrypoints: tuple[str, ...] = ()
     inventory_only_production_entrypoints: tuple[str, ...] = ()
     missing_guard_contracts: tuple[str, ...] = ()
@@ -52,6 +53,7 @@ class GateReport:
         int(self.registry_sha256, 16)
         for name in (
             "unregistered_effectful_entrypoints",
+            "noncentral_entrypoints",
             "unguarded_entrypoints",
             "inventory_only_production_entrypoints",
             "missing_guard_contracts",
@@ -75,6 +77,7 @@ class GateReport:
         rows: list[str] = []
         for field_name in (
             "unregistered_effectful_entrypoints",
+            "noncentral_entrypoints",
             "unguarded_entrypoints",
             "inventory_only_production_entrypoints",
             "missing_guard_contracts",
@@ -98,6 +101,7 @@ class GateReport:
             "closed": self.closed,
             "security_boundary_claimed": self.security_boundary_claimed,
             "unregistered_effectful_entrypoints": list(self.unregistered_effectful_entrypoints),
+            "noncentral_entrypoints": list(self.noncentral_entrypoints),
             "unguarded_entrypoints": list(self.unguarded_entrypoints),
             "inventory_only_production_entrypoints": list(self.inventory_only_production_entrypoints),
             "missing_guard_contracts": list(self.missing_guard_contracts),
@@ -128,6 +132,7 @@ class GateReport:
             registry_sha256=str(payload["registry_sha256"]),
             security_boundary_claimed=bool(payload["security_boundary_claimed"]),
             unregistered_effectful_entrypoints=tuple(payload.get("unregistered_effectful_entrypoints", ())),
+            noncentral_entrypoints=tuple(payload.get("noncentral_entrypoints", ())),
             unguarded_entrypoints=tuple(payload.get("unguarded_entrypoints", ())),
             inventory_only_production_entrypoints=tuple(payload.get("inventory_only_production_entrypoints", ())),
             missing_guard_contracts=tuple(payload.get("missing_guard_contracts", ())),
@@ -155,6 +160,7 @@ def build_gate0_report(
         for finding in conformance.findings
         if finding.code == "entrypoint.unregistered"
     ]
+    noncentral = [row.id for row in conformance.matrix if row.wiring is not Wiring.CENTRAL]
     unguarded = [row.id for row in conformance.matrix if row.wiring is Wiring.UNGUARDED]
     inventory = [row.id for row in conformance.matrix if row.wiring is Wiring.INVENTORY_ONLY]
     missing_guards = [
@@ -200,6 +206,7 @@ def build_gate0_report(
         registry_sha256=conformance.registry_sha256,
         security_boundary_claimed=security_boundary_claimed,
         unregistered_effectful_entrypoints=tuple(unregistered),
+        noncentral_entrypoints=tuple(noncentral),
         unguarded_entrypoints=tuple(unguarded),
         inventory_only_production_entrypoints=tuple(inventory),
         missing_guard_contracts=tuple(missing_guards),

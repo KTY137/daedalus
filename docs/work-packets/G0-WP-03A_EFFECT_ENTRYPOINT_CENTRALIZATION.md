@@ -53,6 +53,12 @@ Two adversarial cases are load-bearing:
 
 ## Remaining blockers
 
+The Gate-0 report now carries `noncentral_entrypoints` as an explicit blocker
+set. `LOCAL_GUARDS`, `INVENTORY_ONLY`, `UNGUARDED`, and `ABSENT` rows can no
+longer disappear into diagnostics while a report claims closure. The current
+registry has 50 rows; only `python.offload` is `CENTRAL`, so the report remains
+closed regardless of other green evidence.
+
 - migrate and independently test every remaining effectful entry point;
 - add an operator-controlled reconciliation operation for indeterminate
   executions without weakening replay prevention;
@@ -60,4 +66,3 @@ Two adversarial cases are load-bearing:
   probes rather than treating mocked contract tests as host evidence;
 - produce exact-head CI, package-boundary, architecture, security, and owner
   closure receipts.
-
