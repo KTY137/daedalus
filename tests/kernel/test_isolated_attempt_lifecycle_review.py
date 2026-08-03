@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 
+import daedalus.kernel.attempt_clock as clock_impl
 import daedalus.kernel.attempt_contracts as contracts
 import daedalus.kernel.attempt_ledger as ledger_impl
 import daedalus.kernel.attempt_spine_reader as reader_impl
@@ -50,7 +51,13 @@ def test_process_abort_is_not_terminalized_as_known_failure() -> None:
 def test_attempt_lifecycle_extends_the_single_existing_event_spine() -> None:
     implementation_source = "\n".join(
         inspect.getsource(module)
-        for module in (contracts, reader_impl, ledger_impl, workspace_impl)
+        for module in (
+            clock_impl,
+            contracts,
+            reader_impl,
+            ledger_impl,
+            workspace_impl,
+        )
     )
     init_source = inspect.getsource(ledger_impl.AttemptLedger.__init__)
     install_source = inspect.getsource(
@@ -59,6 +66,7 @@ def test_attempt_lifecycle_extends_the_single_existing_event_spine() -> None:
     assert "SpineLedger" in init_source
     assert "self.spine" in init_source
     assert "read_only" in init_source
+    assert "AttemptLifecycleClock" in init_source
     assert "CREATE UNIQUE INDEX" in install_source
     assert "ON intents(effect_key)" in install_source
     assert "CREATE TABLE" not in implementation_source
@@ -86,18 +94,45 @@ def test_terminal_resolution_uses_the_same_spine_and_is_once_only() -> None:
     assert "return existing" in source
 
 
-def test_workspace_and_primary_cas_roots_are_pairwise_disjoint() -> None:
-    source = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.__init__)
-    assert "workspace parent and primary checkout" in source
-    assert "workspace parent and source-tree store" in source
-    assert "_is_same_or_within(left, right)" in source
-    assert "_is_same_or_within(right, left)" in source
+def test_workspace_topology_is_checked_before_and_after_creation() -> None:
+    source = inspect.getsource(workspace_impl._prepare_workspace_parent)
+    first_primary_check = source.index("workspace parent and primary checkout")
+    mkdir = source.index("raw_parent.mkdir")
+    second_primary_check = source.rindex("workspace parent and primary checkout")
+    assert first_primary_check < mkdir < second_primary_check
+    assert source.count("workspace parent and source-tree store") == 2
+    assert source.count("_assert_disjoint") == 4
+    assert source.index("raw_parent.is_symlink") < mkdir
+
+
+def test_caller_timestamps_are_compatibility_only_and_never_authoritative() -> None:
+    begin = inspect.getsource(ledger_impl.AttemptLedger.begin)
+    complete = inspect.getsource(ledger_impl.AttemptLedger.complete)
+    prepare = inspect.getsource(workspace_impl.IsolatedAttemptCoordinator.prepare)
+    clock = inspect.getsource(clock_impl.AttemptLifecycleClock)
+
+    assert "del started_at" in begin
+    assert "trusted_started_at = self._clock.now()" in begin
+    assert "created_at=trusted_started_at" in begin
+    assert "del completed_at" in complete
+    assert "self._clock.now(minimum=start.started_at)" in complete
+    assert "created_at=trusted_completed_at" in complete
+    assert "del started_at" in prepare
+    assert "started_at=started_at" not in prepare
+    assert "time.monotonic_ns" in clock
+    assert "datetime.now(timezone.utc)" in clock
 
 
 def test_lifecycle_modules_have_no_runtime_provider_or_promotion_authority() -> None:
     source = "\n".join(
         inspect.getsource(module)
-        for module in (contracts, reader_impl, ledger_impl, workspace_impl)
+        for module in (
+            clock_impl,
+            contracts,
+            reader_impl,
+            ledger_impl,
+            workspace_impl,
+        )
     )
     forbidden = (
         "subprocess",
@@ -116,11 +151,15 @@ def test_lifecycle_modules_have_no_runtime_provider_or_promotion_authority() -> 
         assert token not in source
 
 
-def test_success_receipt_structurally_requires_candidate_tree() -> None:
-    source = inspect.getsource(contracts.AttemptTerminalReceipt.__post_init__)
-    assert 'self.outcome == "succeeded"' in source
-    assert "successful attempt must bind a candidate source tree" in source
-    assert "attempt terminal provenance must bind exactly its inputs" in source
+def test_success_receipt_structurally_requires_candidate_tree_and_causal_time() -> None:
+    terminal_source = inspect.getsource(
+        contracts.AttemptTerminalReceipt.__post_init__
+    )
+    completion_source = inspect.getsource(contracts.AttemptCompletion.__post_init__)
+    assert 'self.outcome == "succeeded"' in terminal_source
+    assert "successful attempt must bind a candidate source tree" in terminal_source
+    assert "attempt terminal provenance must bind exactly its inputs" in terminal_source
+    assert "terminal completion time must follow start time" in completion_source
 
 
 def test_persisted_start_and_terminal_are_reparsed_before_use() -> None:
@@ -132,8 +171,10 @@ def test_persisted_start_and_terminal_are_reparsed_before_use() -> None:
     assert "_strict_json" in start_source
     assert "AttemptStartRecord.from_dict" in start_source
     assert "payload digest is invalid" in start_source
+    assert "follows its Event-Store start event" in start_source
     assert "AttemptTerminalReceipt.from_dict" in terminal_source
     assert "effect_id does not bind receipt digest" in terminal_source
+    assert "follows its Event-Store terminal event" in terminal_source
     assert "persisted attempt terminal event detail" in reader_source
     assert "event sequence is invalid" in reader_source
 
