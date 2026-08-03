@@ -399,7 +399,12 @@ def verify_runtime_bound_effect_lease(
 
 @dataclass(frozen=True)
 class RuntimeBoundEffectAuthorization:
-    """Capability bundle consumed by a runtime-bearing production entrypoint."""
+    """Capability bundle consumed by a runtime-bearing production entrypoint.
+
+    The low-level verifier keeps an explicit ``now`` parameter for deterministic
+    contract and fault tests. This production facade owns its clock so callers
+    cannot backdate trust verification after lease or runtime-evidence expiry.
+    """
 
     capability: RuntimeBoundEffectLease
     request: EffectLeaseRequest
@@ -433,7 +438,7 @@ class RuntimeBoundEffectAuthorization:
             self, "runtime_authority_keyring", dict(self.runtime_authority_keyring)
         )
 
-    def verify(self, *, now: datetime) -> RuntimeTrustRecord:
+    def _verify_at(self, instant: datetime) -> RuntimeTrustRecord:
         return verify_runtime_bound_effect_lease(
             self.capability,
             request=self.request,
@@ -442,13 +447,18 @@ class RuntimeBoundEffectAuthorization:
             runtime_authority_keyring=self.runtime_authority_keyring,
             runtime_trust_ledger=self.runtime_trust_ledger,
             current_kill_switch_generation=self.current_kill_switch_generation,
-            now=now,
+            now=instant,
             registry=self.registry,
         )
 
+    def verify(self) -> RuntimeTrustRecord:
+        """Require the exact runtime trust record active at the facade clock."""
+
+        return self._verify_at(_utc_now())
+
     def grant(self) -> None:
         instant = _utc_now()
-        self.verify(now=instant)
+        self._verify_at(instant)
         self.effect_ledger.grant(
             self.capability.lease,
             request=self.request,
@@ -461,7 +471,7 @@ class RuntimeBoundEffectAuthorization:
 
     def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
         pre_start = _utc_now()
-        self.verify(now=pre_start)
+        self._verify_at(pre_start)
         result = self.effect_ledger.begin(
             self.capability.lease,
             execution,
@@ -477,7 +487,7 @@ class RuntimeBoundEffectAuthorization:
             try:
                 # Recheck after the durable start receipt and before the caller
                 # is allowed to perform the external effect.
-                self.verify(now=_utc_now())
+                self._verify_at(_utc_now())
             except Exception:
                 self.effect_ledger.finish(
                     result.receipt,
