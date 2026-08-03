@@ -50,6 +50,7 @@ def test_locked_source_order_is_target_read_then_persisted_auth_then_integration
     assert len(promotion_locks) == 1
     body_source = ast.unparse(ast.Module(body=promotion_locks[0].body, type_ignores=[]))
     assert "authorize_promotion = authorize_persisted_promotion" in body_source
+    assert "candidates=sealed_candidates" in body_source
     calls = [
         _call_name(node)
         for statement in promotion_locks[0].body
@@ -61,16 +62,21 @@ def test_locked_source_order_is_target_read_then_persisted_auth_then_integration
     ) < calls.index("_promote_locked")
 
 
-def test_stale_and_multi_candidate_fences_precede_retained_mutation() -> None:
+def test_material_snapshot_and_stale_fences_precede_retained_mutation() -> None:
     source = inspect.getsource(gated_writes.promote_candidates)
-    assert "len(candidates) != 1" in source
+    assert "submitted_candidates = tuple(candidates)" in source
+    assert "len(submitted_candidates) != 1" in source
+    assert "snapshot_promotion_candidates(submitted_candidates)" in source
     assert "artifact.base_revision" in source
     assert "authorization.live_target_revision" in source
     assert "stale regeneration requires new evidence and OwnerApproval" in source
-    assert source.index("len(candidates) != 1") < source.index("_PromotionLock")
+    assert source.index("len(submitted_candidates) != 1") < source.index(
+        "snapshot_promotion_candidates(submitted_candidates)"
+    ) < source.index("GitWorktreeManager")
     assert source.index("authorization.live_target_revision") < source.index(
         "_promote_locked"
     )
+    assert "sealed_candidates" in source
 
 
 def test_effect_inventory_still_observes_the_promotion_guard_anchors() -> None:
@@ -105,6 +111,7 @@ def test_compatibility_module_has_no_second_legacy_promotion_authority() -> None
     assert "_retired_legacy_promotion" in source
     assert "persisted ApprovalLedger and owner keyring are mandatory" in source
     assert "authorize_promotion = authorize_persisted_promotion" in source
+    assert "snapshot_promotion_candidates" in source
     assert 'name.startswith("_")' in source
     assert "merge_pull_request" not in source
     assert "git push" not in source
