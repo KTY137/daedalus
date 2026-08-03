@@ -115,7 +115,6 @@ class IsolatedAttemptCoordinator:
         input_tree: StoredSourceTree,
         *,
         start_id: str,
-        started_at: str,
     ) -> PreparedAttempt:
         if not isinstance(attempt, AttemptContract):
             raise AttemptBindingMismatch("attempt must be AttemptContract")
@@ -137,7 +136,6 @@ class IsolatedAttemptCoordinator:
             start_id=start_id,
             workspace_parent_sha256=self.workspace_parent_sha256,
             workspace_relative_path=relative,
-            started_at=started_at,
         )
         if not begin.execute:
             return PreparedAttempt(begin=begin, workspace=None)
@@ -167,7 +165,6 @@ class IsolatedAttemptCoordinator:
                 outcome="faulted",
                 report=report,
                 candidate_tree=None,
-                completed_at=started_at,
             )
             raise AttemptWorkspaceError(
                 "attempt input materialization failed and was terminalized"
