@@ -122,42 +122,21 @@ def _promotion_refusal(candidates: list[Any], exc: BaseException) -> dict[str, A
     }
 
 
-def _legacy_unpersisted_refusal(
-    root: Path,
-    candidates: list[Any],
-    *,
-    consumed_approval,
-    evidence_packet,
-    target_ref: str,
-) -> dict[str, Any]:
-    """Preserve old negative-call diagnostics without granting authority.
+def _legacy_unpersisted_refusal(candidates: list[Any]) -> dict[str, Any]:
+    """Preserve the historical call shape without performing any effect.
 
-    Historical callers did not supply the persisted ledger or owner keyring.
-    They remain import/call compatible, but this adapter can only refuse. A
-    pure binding preflight is used solely to retain a precise stale-head or
-    candidate mismatch reason; even a successful preflight is converted into a
-    persisted-authority-required refusal and cannot reach a lock or worktree.
+    A previous compatibility adapter executed ``git rev-parse`` to improve the
+    refusal message before a persisted ApprovalLedger and owner keyring were
+    present. That process spawn was still an effect and therefore belonged
+    behind the same authority boundary as the later promotion work. Legacy
+    callers now receive one deterministic refusal without Git, lock, worktree,
+    ledger discovery, provider access or repository mutation.
     """
-    try:
-        from daedalus.kernel.promotion import (
-            authorize_promotion,
-            resolve_live_target_revision,
-        )
-
-        live_target_revision = resolve_live_target_revision(root, target_ref)
-        authorize_promotion(
-            consumed_approval=consumed_approval,
-            evidence_packet=evidence_packet,
-            candidates=candidates,
-            target_ref=target_ref,
-            live_target_revision=live_target_revision,
-        )
-    except Exception as exc:  # noqa: BLE001 - diagnostic refusal only
-        return _promotion_refusal(candidates, exc)
     return _promotion_refusal(
         candidates,
         PromotionAuthorizationError(
-            "persisted ApprovalLedger and owner keyring are mandatory"
+            "persisted ApprovalLedger and owner keyring are mandatory before "
+            "any promotion effect"
         ),
     )
 
@@ -206,7 +185,7 @@ def promote_candidates(
         )
     try:
         submitted_candidates = tuple(candidates)
-    except TypeError as exc:
+    except TypeError:
         return _promotion_refusal(
             [],
             PromotionAuthorizationError(
@@ -215,15 +194,10 @@ def promote_candidates(
         )
 
     # Compatibility is fail-closed: old callers still receive a structured
-    # diagnostic, but no path without persisted authority may acquire the lock.
+    # diagnostic, but no path without persisted authority may execute Git,
+    # acquire the lock, discover a ledger or construct a worktree manager.
     if approval_ledger is None or not owner_keyring:
-        return _legacy_unpersisted_refusal(
-            root,
-            list(submitted_candidates),
-            consumed_approval=consumed_approval,
-            evidence_packet=evidence_packet,
-            target_ref=target_ref,
-        )
+        return _legacy_unpersisted_refusal(list(submitted_candidates))
 
     # Exact candidate identity is an authorization input. Do not silently
     # discard an ungated member and then authorize only a subset of the batch.
@@ -245,27 +219,20 @@ def promote_candidates(
     result = candidate.result
     artifact = result.artifact
 
-    manager = GitWorktreeManager(root)
-    if ledger_path is None:
-        from daedalus.spine.picker import resolve_spine_db_path
+    try:
+        manager = GitWorktreeManager(root)
+        if ledger_path is None:
+            from daedalus.spine.picker import resolve_spine_db_path
 
-        ledger_path, ledger_error = resolve_spine_db_path(root)
-        if ledger_error or ledger_path is None:
-            return {
-                "promoted": [],
-                "not_gated": [],
-                "integration_branch": None,
-                "authorization": None,
-                "refused": [
-                    {
-                        "task_id": result.task_id,
-                        "promoted": False,
-                        "reason": f"ledger unavailable: {ledger_error}",
-                    }
-                ],
-            }
+            ledger_path, ledger_error = resolve_spine_db_path(root)
+            if ledger_error or ledger_path is None:
+                raise PromotionAuthorizationError(
+                    f"ledger unavailable: {ledger_error}"
+                )
+        lock_path = manager.worktree_root / "promotion.lock"
+    except Exception as exc:  # noqa: BLE001 - infrastructure refusal, no mutation
+        return _promotion_refusal(sealed_candidates, exc)
 
-    lock_path = manager.worktree_root / "promotion.lock"
     try:
         with _PromotionLock(lock_path, timeout_s=lock_timeout_s):
             # These imports are deliberately inside the locked region. The
@@ -309,19 +276,7 @@ def promote_candidates(
                 cancel=cancel,
             )
     except PromotionUnavailable as exc:
-        return {
-            "promoted": [],
-            "integration_branch": None,
-            "authorization": None,
-            "not_gated": [],
-            "refused": [
-                {
-                    "task_id": result.task_id,
-                    "promoted": False,
-                    "reason": str(exc),
-                }
-            ],
-        }
+        return _promotion_refusal(sealed_candidates, exc)
     except Exception as exc:  # noqa: BLE001 - public effect boundary fails closed
         return _promotion_refusal(sealed_candidates, exc)
 
