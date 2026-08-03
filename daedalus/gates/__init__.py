@@ -13,7 +13,11 @@ from .evidence import (
     RuntimeEnvelopeEvidence,
     WorkflowRunEvidence,
 )
-from .evidence_verifier import assert_strict_exact_head, strict_mechanical_blockers
+from .evidence_verifier import (
+    assert_strict_exact_head,
+    evidence_requirements_sha256,
+    strict_mechanical_blockers,
+)
 from .report import GateReport, build_gate0_report, load_gate_report
 
 __all__ = [
@@ -27,6 +31,7 @@ __all__ = [
     "WorkflowRunEvidence",
     "assert_strict_exact_head",
     "build_gate0_report",
+    "evidence_requirements_sha256",
     "load_gate_report",
     "strict_mechanical_blockers",
 ]
