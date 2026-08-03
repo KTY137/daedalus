@@ -43,6 +43,8 @@ only through the ordinary `SpineLedger` projection would parse event detail
 before this packet could reject duplicate JSON keys or noncanonical bytes. The
 lifecycle now reads the same canonical spine tables through a query-only strict
 projection while `SpineLedger` remains the sole writer and transition authority.
+The projection opens SQLite with URI `mode=ro`; read-only inspection cannot
+create a missing Event Store as a side effect.
 
 The projection rejects:
 
@@ -98,6 +100,28 @@ A normal materialization exception becomes a deterministic, CAS-backed
 `AttemptWorkspaceError`. A process-level abort remains pending because the
 system cannot prove whether effects occurred.
 
+## Effect inventory blocker
+
+The stable kernel API now exposes three effectful methods:
+
+- `AttemptLedger.begin` commits the start intent;
+- `AttemptLedger.complete` commits the terminal receipt;
+- `IsolatedAttemptCoordinator.prepare` commits a start and materializes the CAS
+  tree into an external workspace.
+
+The canonical effect registry and static discovery classifier do not yet contain
+these exact class methods. They therefore remain a Gate-0 blocker rather than
+being silently treated as read-only internals. The machine-readable
+`G0-ATT-13B_EFFECT_INVENTORY.json` records their exact targets, effects, guard
+contracts, anchors and required migration. A dedicated test requires each target
+to have exactly one canonical registry row or one explicit open blocker.
+
+The honest minimum registry state is `local_guards`; these methods must not be
+marked `central` until a dependent packet mechanically composes the persisted
+Effect Lease, Runtime Manifest, current Conformance Receipt and selected sandbox
+boundary. The blocker artifact may be removed only when the canonical Gate
+report itself emits equivalent rows and no unregistered finding remains.
+
 ## Adversarial review
 
 Behavioral and context-separated review cover:
@@ -110,7 +134,7 @@ Behavioral and context-separated review cover:
 - primary-checkout immutability and root disjointness;
 - foreign CAS input, report and candidate refusal;
 - selected-store and event-spine substitution;
-- read-only spine refusal;
+- read-only spine refusal and no-create inspection;
 - duplicate-key, noncanonical and payload-digest tampering;
 - multiple or unknown terminal events;
 - terminal `effect_id` substitution;
@@ -118,12 +142,14 @@ Behavioral and context-separated review cover:
 - constructor-shaped authority bypasses;
 - normal materialization faults versus process aborts;
 - stable compatibility imports after the responsibility split;
-- static refusal of a second Attempt-specific state store.
+- static refusal of a second Attempt-specific state store;
+- explicit inventory of newly exposed effectful kernel methods.
 
 The bounded mutation campaign attacks pending re-execution, store substitution,
 changed replay material, success without a candidate, process-abort
 terminalization, skipped CAS checks, event-spine removal, extra terminal events,
-read-only spine misuse and terminal digest binding.
+read-only spine misuse, read-inspection database creation and terminal digest
+binding.
 
 These passes were performed from separate review contexts within the same
 builder session. They are useful builder/adversarial evidence but do **not**
@@ -140,10 +166,15 @@ selected sandbox boundary, capture the candidate tree and complete the same
 Event Store record. Pending reconciliation remains an explicit recovery path,
 not an automatic retry.
 
+The new lifecycle methods must also be added to the canonical effect registry
+and static discovery classifier before this packet can be considered structurally
+complete. They remain explicitly unregistered in the machine-readable blocker
+artifact; no security boundary is claimed.
+
 GitHub Actions issue #67 remains an external exact-head execution blocker while
 hosted jobs terminate before Step 1 without logs or artifacts. Such runs are not
 represented as test, mutation, platform, packaging or Gate evidence.
 
-Iron Plan: **ALIGNED BY SCOPE; EXECUTION PENDING**  
+Iron Plan: **ALIGNED BY SCOPE; EFFECT INVENTORY AND EXECUTION OPEN**  
 Iron Gate: **0**  
 Promotion: **not requested**
