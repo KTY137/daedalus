@@ -100,6 +100,7 @@ _legacy = _LegacyFacade()
 
 
 def _promotion_refusal(candidates: list[Any], exc: BaseException) -> dict[str, Any]:
+    subjects = candidates if candidates else [None]
     return {
         "promoted": [],
         "refused": [
@@ -113,7 +114,7 @@ def _promotion_refusal(candidates: list[Any], exc: BaseException) -> dict[str, A
                     f"{type(exc).__name__}: {exc}"
                 ),
             }
-            for candidate in candidates
+            for candidate in subjects
         ],
         "not_gated": [],
         "integration_branch": None,
@@ -196,8 +197,22 @@ def promote_candidates(
     apply path, so a caller cannot swap a mutable ``GatedCandidate.result``
     between those two operations.
     """
-    root = Path(repo_root).resolve()
-    submitted_candidates = tuple(candidates)
+    try:
+        root = Path(repo_root).resolve()
+    except (TypeError, ValueError, OSError) as exc:
+        return _promotion_refusal(
+            [],
+            PromotionAuthorizationError(f"invalid repository root: {exc}"),
+        )
+    try:
+        submitted_candidates = tuple(candidates)
+    except TypeError as exc:
+        return _promotion_refusal(
+            [],
+            PromotionAuthorizationError(
+                "promotion candidates must be an iterable batch"
+            ),
+        )
 
     # Compatibility is fail-closed: old callers still receive a structured
     # diagnostic, but no path without persisted authority may acquire the lock.
