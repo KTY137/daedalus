@@ -9,6 +9,7 @@ from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseLedger,
+    EffectReconciliationRequired,
     LeasedEffectAuthorization,
     issue_effect_lease,
 )
@@ -208,3 +209,80 @@ def test_interrupt_is_recorded_cancelled_before_it_escapes(tmp_path) -> None:
                 effect_execution=execution,
             )
     assert ledger.execution_state(execution.execution_id) == "CANCELLED"
+
+
+def test_noncanonical_provider_output_is_failed_and_cannot_replay(tmp_path) -> None:
+    auth, execution, ledger = authorization(tmp_path, suffix="noncanonical")
+    provider_ran = []
+
+    def completed_external_effect(*_args, **_kwargs):
+        provider_ran.append(execution.execution_id)
+        return {"action": "offloaded", "opaque": object()}
+
+    with mock.patch(
+        "daedalus.offload._offload_impl", side_effect=completed_external_effect
+    ) as impl:
+        with pytest.raises(ValueError, match="JSON-serialisable"):
+            offload(
+                "review code",
+                str(tmp_path),
+                live=True,
+                effect_authorization=auth,
+                effect_execution=execution,
+            )
+        replay = offload(
+            "review code",
+            str(tmp_path),
+            live=True,
+            effect_authorization=auth,
+            effect_execution=execution,
+        )
+
+    assert provider_ran == [execution.execution_id]
+    assert impl.call_count == 1
+    assert ledger.execution_state(execution.execution_id) == "FAILED"
+    assert replay["action"] == "effect_replay"
+
+
+def test_terminal_write_failure_requires_reconciliation_and_replay_is_inert(
+    tmp_path,
+) -> None:
+    auth, execution, ledger = authorization(tmp_path, suffix="terminal-write")
+    provider_ran = []
+
+    def completed_external_effect(*_args, **_kwargs):
+        provider_ran.append(execution.execution_id)
+        return {"action": "offloaded", "wrote": []}
+
+    with mock.patch(
+        "daedalus.offload._offload_impl", side_effect=completed_external_effect
+    ) as impl, mock.patch.object(
+        ledger, "finish", side_effect=OSError("terminal store unavailable")
+    ):
+        with pytest.raises(EffectReconciliationRequired) as caught:
+            offload(
+                "review code",
+                str(tmp_path),
+                live=True,
+                effect_authorization=auth,
+                effect_execution=execution,
+            )
+
+    assert caught.value.execution_id == execution.execution_id
+    assert caught.value.phase == "completed-terminal-write"
+    assert ledger.execution_state(execution.execution_id) == "STARTED"
+
+    with mock.patch("daedalus.offload._offload_impl") as replay_impl:
+        replay = offload(
+            "review code",
+            str(tmp_path),
+            live=True,
+            effect_authorization=auth,
+            effect_execution=execution,
+        )
+
+    assert provider_ran == [execution.execution_id]
+    assert impl.call_count == 1
+    replay_impl.assert_not_called()
+    assert replay["action"] == "effect_replay"
+    assert replay["effect_start_receipt"]["execution_id"] == execution.execution_id

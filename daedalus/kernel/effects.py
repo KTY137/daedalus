@@ -73,6 +73,33 @@ class EffectLeaseStateError(EffectLeaseError):
     pass
 
 
+class EffectReconciliationRequired(EffectLeaseStateError):
+    """A started external effect could not publish its terminal receipt.
+
+    The durable ``STARTED`` row is intentionally retained as an indeterminate
+    state.  Re-entering the same execution remains inert, so an operator can
+    reconcile the external outcome without risking a duplicate effect.
+    """
+
+    def __init__(
+        self,
+        *,
+        execution_id: str,
+        start_receipt_sha256: str,
+        phase: str,
+    ) -> None:
+        self.execution_id = _identifier(execution_id, "execution_id")
+        self.start_receipt_sha256 = _sha256(
+            start_receipt_sha256, "start_receipt_sha256"
+        )
+        self.phase = _identifier(phase, "reconciliation phase")
+        super().__init__(
+            "effect execution requires reconciliation after terminal "
+            f"persistence failed during {self.phase}: {self.execution_id} "
+            f"(start receipt {self.start_receipt_sha256})"
+        )
+
+
 class EffectLeaseConcurrencyError(EffectLeaseError):
     pass
 

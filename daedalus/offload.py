@@ -784,7 +784,39 @@ def offload(
             "effect_start_receipt": start.receipt.to_dict(),
         }
 
+    from .kernel.effects import EffectReconciliationRequired
     from .spine.envelope import canonical_sha
+
+    def finish_or_require_reconciliation(
+        *,
+        outcome: str,
+        phase: str,
+        output_digests: tuple[str, ...] = (),
+        detail_sha256: str | None = None,
+    ):
+        """Publish one terminal receipt or surface an inert STARTED row.
+
+        Once ``begin_effect`` returns ``execute=True``, an external effect may
+        already have happened.  A terminal-write failure must therefore never
+        look like an ordinary retryable provider failure: the persisted STARTED
+        identity is retained and replay remains non-effectful until an operator
+        reconciles it.
+        """
+
+        try:
+            return effect_authorization.finish_effect(
+                start.receipt,
+                outcome=outcome,
+                output_digests=output_digests,
+                detail_sha256=detail_sha256,
+            )
+        except Exception as exc:
+            raise EffectReconciliationRequired(
+                execution_id=start.receipt.execution_id,
+                start_receipt_sha256=start.receipt.receipt_sha256,
+                phase=phase,
+            ) from exc
+
     try:
         result = _offload_impl(
             objective, repo_root, paths, live, availability, run_tests, project,
@@ -794,23 +826,43 @@ def offload(
         detail_sha256 = hashlib.sha256(
             f"{type(exc).__name__}: {exc}".encode("utf-8", "replace")
         ).hexdigest()
-        effect_authorization.finish_effect(
-            start.receipt, outcome="CANCELLED", detail_sha256=detail_sha256
+        finish_or_require_reconciliation(
+            outcome="CANCELLED",
+            phase="cancelled-terminal-write",
+            detail_sha256=detail_sha256,
         )
         raise
     except Exception as exc:
         detail_sha256 = hashlib.sha256(
             f"{type(exc).__name__}: {exc}".encode("utf-8", "replace")
         ).hexdigest()
-        effect_authorization.finish_effect(
-            start.receipt, outcome="FAILED", detail_sha256=detail_sha256
+        finish_or_require_reconciliation(
+            outcome="FAILED",
+            phase="failed-terminal-write",
+            detail_sha256=detail_sha256,
         )
         raise
 
-    terminal = effect_authorization.finish_effect(
-        start.receipt,
+    try:
+        output_digest = canonical_sha(result)
+    except Exception as exc:
+        detail_sha256 = hashlib.sha256(
+            (
+                "output-canonicalization: "
+                f"{type(exc).__name__}: {exc}"
+            ).encode("utf-8", "replace")
+        ).hexdigest()
+        finish_or_require_reconciliation(
+            outcome="FAILED",
+            phase="output-canonicalization-terminal-write",
+            detail_sha256=detail_sha256,
+        )
+        raise
+
+    terminal = finish_or_require_reconciliation(
         outcome="COMPLETED",
-        output_digests=(canonical_sha(result),),
+        phase="completed-terminal-write",
+        output_digests=(output_digest,),
     )
     result["effect_start_receipt"] = start.receipt.to_dict()
     result["effect_terminal_receipt"] = terminal.to_dict()
