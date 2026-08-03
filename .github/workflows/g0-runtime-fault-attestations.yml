@@ -9,6 +9,7 @@ on:
       - "daedalus/runtimes/fault_matrix.py"
       - "daedalus/runtimes/faults.py"
       - "tests/runtimes/test_runtime_fault_attestations.py"
+      - "tests/runtimes/test_runtime_fault_attestation_hardening.py"
       - "tests/runtimes/test_runtime_fault_catalog.py"
       - ".github/workflows/g0-runtime-fault-attestations.yml"
       - "docs/work-packets/G0-RTC-06G_RUNTIME_FAULT_ATTESTATIONS.md"
@@ -50,6 +51,7 @@ jobs:
         run: >-
           python -m pytest -q
           tests/runtimes/test_runtime_fault_attestations.py
+          tests/runtimes/test_runtime_fault_attestation_hardening.py
           tests/runtimes/test_runtime_fault_catalog.py
 
   isolated-wheel:
