@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/gate0-release-report-v1.schema.json",
+  "title": "Gate0ReleaseReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "release_id",
+    "source_revision",
+    "source_tree_revision",
+    "mechanical_report_sha256",
+    "gate_report",
+    "evidence_index_sha256",
+    "evidence_trust_bundle_sha256",
+    "exact_head_blockers",
+    "generated_at",
+    "provenance",
+    "closed",
+    "blockers"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus-gate0-release-report/1"},
+    "contract_version": {"const": "1.0.0"},
+    "release_id": {"$ref": "#/$defs/id"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "source_tree_revision": {"$ref": "#/$defs/revision"},
+    "mechanical_report_sha256": {"$ref": "#/$defs/sha256"},
+    "gate_report": {"type": "object"},
+    "evidence_index_sha256": {"$ref": "#/$defs/sha256"},
+    "evidence_trust_bundle_sha256": {"$ref": "#/$defs/sha256"},
+    "exact_head_blockers": {"$ref": "#/$defs/stringArray"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "closed": {"type": "boolean"},
+    "blockers": {"$ref": "#/$defs/stringArray"}
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    },
+    "digestArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sha256"}
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {"const": "daedalus.gates.release"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"$ref": "#/$defs/digestArray"},
+        "trace_id": {"$ref": "#/$defs/id"}
+      }
+    }
+  }
+}
