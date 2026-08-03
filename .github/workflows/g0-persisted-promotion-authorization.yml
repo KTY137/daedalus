@@ -1,0 +1,79 @@
+name: Gate 0 Persisted Promotion Authorization
+
+on:
+  pull_request:
+    branches:
+      - g0/authenticated-approval-consumption-linear
+    paths:
+      - "daedalus/kernel/promotion.py"
+      - "daedalus/kernel/__init__.py"
+      - "tests/kernel/test_persisted_promotion_authorization.py"
+      - "tests/kernel/test_persisted_promotion_authorization_review.py"
+      - "tests/kernel/test_sealed_promotion.py"
+      - "scripts/run_persisted_promotion_authorization_mutations.py"
+      - "docs/work-packets/G0-PRM-12A_PERSISTED_PROMOTION_AUTHORIZATION.md"
+      - ".github/workflows/g0-persisted-promotion-authorization.yml"
+  push:
+    branches:
+      - g0/persisted-promotion-authorization-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-persisted-promotion-authorization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_persisted_promotion_authorization_review.py
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_approval_consumption_review.py
+          tests/kernel/test_fourfold_approval_integration.py
+          tests/kernel/test_fourfold_evidence_owner_binding.py
+          tests/kernel/test_sealed_promotion.py
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_effect_leases_adversarial.py
+          tests/gates/test_gate_report.py
+          tests/test_kernel_contracts.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_persisted_promotion_authorization_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-persisted-promotion-wheel
+      - run: /tmp/daedalus-persisted-promotion-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-persisted-promotion-wheel/bin/python -c
+          "from daedalus.kernel import ApprovalLedger,
+          PromotionAuthorization, authorize_persisted_promotion"
