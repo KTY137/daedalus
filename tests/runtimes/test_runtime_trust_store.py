@@ -14,14 +14,20 @@ from daedalus.runtimes import (
     RuntimeTrustLedger,
     RuntimeTrustQuarantined,
 )
+from daedalus.spine.envelope import canonical_sha
 
 NOW = datetime(2026, 8, 3, 1, 0, tzinfo=timezone.utc)
 REVISION = "1" * 40
+KEY = b"runtime-trust-ledger-integrity-key-material-32-bytes"
 _DIGESTS = {
     "first": ("a" * 64, "b" * 64, "c" * 64, "d" * 64),
     "second": ("5" * 64, "6" * 64, "7" * 64, "8" * 64),
     "stale": ("9" * 64, "0" * 64, "e" * 64, "f" * 64),
 }
+
+
+def ledger(path) -> RuntimeTrustLedger:
+    return RuntimeTrustLedger(path, integrity_key=KEY)
 
 
 def objects(
@@ -53,7 +59,7 @@ def objects(
 
 
 def admit(
-    ledger: RuntimeTrustLedger,
+    trust_ledger: RuntimeTrustLedger,
     monkeypatch,
     *,
     variant: str = "first",
@@ -75,7 +81,7 @@ def admit(
         variant=variant,
         observed_at=observed,
     )
-    record = ledger.admit(
+    record = trust_ledger.admit(
         envelope,
         identity,
         receipt,
@@ -91,10 +97,10 @@ def admit(
 def test_admission_persists_exact_live_binding_and_replays_idempotently(
     tmp_path, monkeypatch
 ) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
-    record, envelope, identity, receipt, manifest = admit(ledger, monkeypatch)
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
+    record, envelope, identity, receipt, manifest = admit(trust_ledger, monkeypatch)
 
-    active = ledger.require_active(
+    active = trust_ledger.require_active(
         runtime_id=manifest.runtime_id,
         envelope_sha256=envelope.digest,
         runtime_manifest_sha256=manifest.digest,
@@ -109,8 +115,9 @@ def test_admission_persists_exact_live_binding_and_replays_idempotently(
     )
     assert record.state == "ACTIVE"
     assert len(record.record_sha256) == 64
+    assert len(record.record_hmac_sha256) == 64
 
-    replay = ledger.admit(
+    replay = trust_ledger.admit(
         envelope,
         identity,
         receipt,
@@ -120,11 +127,11 @@ def test_admission_persists_exact_live_binding_and_replays_idempotently(
         expires_at=NOW + timedelta(hours=6),
     )
     assert replay == record
-    assert ledger.records() == (record,)
+    assert trust_ledger.records() == (record,)
 
 
 def test_external_trust_failure_never_persists(monkeypatch, tmp_path) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
 
     def refuse(*args, **kwargs):
         raise RuntimeConformanceError("not externally trusted")
@@ -135,7 +142,7 @@ def test_external_trust_failure_never_persists(monkeypatch, tmp_path) -> None:
     )
     envelope, identity, receipt, manifest = objects()
     with pytest.raises(RuntimeConformanceError, match="externally trusted"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -144,16 +151,16 @@ def test_external_trust_failure_never_persists(monkeypatch, tmp_path) -> None:
             admitted_at=NOW,
             expires_at=NOW + timedelta(hours=1),
         )
-    assert ledger.records() == ()
+    assert trust_ledger.records() == ()
 
 
 def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatch) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
     first, first_envelope, _, first_receipt, first_manifest = admit(
-        ledger, monkeypatch, variant="first"
+        trust_ledger, monkeypatch, variant="first"
     )
     second, second_envelope, _, second_receipt, second_manifest = admit(
-        ledger,
+        trust_ledger,
         monkeypatch,
         variant="second",
         observed_at=NOW + timedelta(minutes=50),
@@ -161,7 +168,7 @@ def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatc
         expires_at=NOW + timedelta(hours=7),
     )
 
-    records = ledger.records("codex_cli")
+    records = trust_ledger.records("codex_cli")
     assert len(records) == 2
     old = next(item for item in records if item.envelope_sha256 == first.envelope_sha256)
     assert old.state == "QUARANTINED"
@@ -169,7 +176,7 @@ def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatc
     assert second.state == "ACTIVE"
 
     with pytest.raises(RuntimeTrustQuarantined, match="superseded"):
-        ledger.require_active(
+        trust_ledger.require_active(
             runtime_id="codex_cli",
             envelope_sha256=first_envelope.digest,
             runtime_manifest_sha256=first_manifest.digest,
@@ -177,7 +184,7 @@ def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatc
             source_revision=REVISION,
             now=NOW + timedelta(hours=2),
         )
-    assert ledger.require_active(
+    assert trust_ledger.require_active(
         runtime_id="codex_cli",
         envelope_sha256=second_envelope.digest,
         runtime_manifest_sha256=second_manifest.digest,
@@ -188,9 +195,9 @@ def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatc
 
 
 def test_older_observation_cannot_roll_back_active_runtime(tmp_path, monkeypatch) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
     current, _, _, _, _ = admit(
-        ledger,
+        trust_ledger,
         monkeypatch,
         variant="first",
         observed_at=NOW - timedelta(minutes=1),
@@ -204,7 +211,7 @@ def test_older_observation_cannot_roll_back_active_runtime(tmp_path, monkeypatch
         observed_at=NOW - timedelta(minutes=2),
     )
     with pytest.raises(RuntimeTrustBindingMismatch, match="not newer"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -213,18 +220,18 @@ def test_older_observation_cannot_roll_back_active_runtime(tmp_path, monkeypatch
             admitted_at=NOW + timedelta(minutes=1),
             expires_at=NOW + timedelta(hours=1),
         )
-    assert ledger.records() == (current,)
+    assert trust_ledger.records() == (current,)
 
 
 def test_expiry_is_persisted_as_monotonic_quarantine(tmp_path, monkeypatch) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
     _, envelope, _, receipt, manifest = admit(
-        ledger,
+        trust_ledger,
         monkeypatch,
         expires_at=NOW + timedelta(minutes=5),
     )
     with pytest.raises(RuntimeTrustExpired, match="expired"):
-        ledger.require_active(
+        trust_ledger.require_active(
             runtime_id=manifest.runtime_id,
             envelope_sha256=envelope.digest,
             runtime_manifest_sha256=manifest.digest,
@@ -232,11 +239,11 @@ def test_expiry_is_persisted_as_monotonic_quarantine(tmp_path, monkeypatch) -> N
             source_revision=REVISION,
             now=NOW + timedelta(minutes=5),
         )
-    persisted = ledger.records()[0]
+    persisted = trust_ledger.records()[0]
     assert persisted.state == "QUARANTINED"
     assert persisted.reason == "expired"
     with pytest.raises(RuntimeTrustQuarantined, match="expired"):
-        ledger.require_active(
+        trust_ledger.require_active(
             runtime_id=manifest.runtime_id,
             envelope_sha256=envelope.digest,
             runtime_manifest_sha256=manifest.digest,
@@ -249,8 +256,8 @@ def test_expiry_is_persisted_as_monotonic_quarantine(tmp_path, monkeypatch) -> N
 def test_lookup_refuses_manifest_receipt_and_revision_repackaging(
     tmp_path, monkeypatch
 ) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
-    record, _, _, _, _ = admit(ledger, monkeypatch)
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
+    record, _, _, _, _ = admit(trust_ledger, monkeypatch)
     for field, value in (
         ("runtime_manifest_sha256", "f" * 64),
         ("conformance_receipt_sha256", "e" * 64),
@@ -266,17 +273,17 @@ def test_lookup_refuses_manifest_receipt_and_revision_repackaging(
         }
         values[field] = value
         with pytest.raises(RuntimeTrustBindingMismatch, match=field):
-            ledger.require_active(**values)
-    assert ledger.records()[0].state == "ACTIVE"
+            trust_ledger.require_active(**values)
+    assert trust_ledger.records()[0].state == "ACTIVE"
 
 
 def test_replay_cannot_extend_expiry_and_quarantine_cannot_be_rewritten(
     tmp_path, monkeypatch
 ) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
-    record, envelope, identity, receipt, manifest = admit(ledger, monkeypatch)
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
+    record, envelope, identity, receipt, manifest = admit(trust_ledger, monkeypatch)
     with pytest.raises(RuntimeTrustBindingMismatch, match="changed persisted"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -285,21 +292,21 @@ def test_replay_cannot_extend_expiry_and_quarantine_cannot_be_rewritten(
             admitted_at=NOW,
             expires_at=NOW + timedelta(hours=7),
         )
-    quarantined = ledger.quarantine(
+    quarantined = trust_ledger.quarantine(
         runtime_id=record.runtime_id,
         envelope_sha256=record.envelope_sha256,
         reason="binary-revoked",
         quarantined_at=NOW + timedelta(minutes=2),
     )
     assert quarantined.state == "QUARANTINED"
-    assert ledger.quarantine(
+    assert trust_ledger.quarantine(
         runtime_id=record.runtime_id,
         envelope_sha256=record.envelope_sha256,
         reason="binary-revoked",
         quarantined_at=NOW + timedelta(minutes=3),
     ) == quarantined
     with pytest.raises(RuntimeTrustQuarantined, match="another reason"):
-        ledger.quarantine(
+        trust_ledger.quarantine(
             runtime_id=record.runtime_id,
             envelope_sha256=record.envelope_sha256,
             reason="different-story",
@@ -307,24 +314,36 @@ def test_replay_cannot_extend_expiry_and_quarantine_cannot_be_rewritten(
         )
 
 
-def test_database_tampering_is_detected_before_authorization(tmp_path, monkeypatch) -> None:
+def test_database_tampering_with_recomputed_digest_still_fails_authentication(
+    tmp_path, monkeypatch
+) -> None:
     path = tmp_path / "runtime-trust.sqlite3"
-    ledger = RuntimeTrustLedger(path)
-    record, _, _, _, _ = admit(ledger, monkeypatch)
+    trust_ledger = ledger(path)
+    record, _, _, _, _ = admit(trust_ledger, monkeypatch)
     with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT * FROM runtime_trust_records WHERE envelope_sha256=?",
+            (record.envelope_sha256,),
+        ).fetchone()
+        payload = dict(row)
+        payload["runtime_manifest_sha256"] = "f" * 64
+        payload.pop("record_sha256")
+        payload.pop("record_hmac_sha256")
+        forged_digest = canonical_sha(payload)
         connection.execute(
-            "UPDATE runtime_trust_records SET runtime_manifest_sha256=? "
-            "WHERE envelope_sha256=?",
-            ("f" * 64, record.envelope_sha256),
+            "UPDATE runtime_trust_records SET runtime_manifest_sha256=?, "
+            "record_sha256=? WHERE envelope_sha256=?",
+            ("f" * 64, forged_digest, record.envelope_sha256),
         )
-    with pytest.raises(RuntimeTrustCorrupt, match="persisted"):
-        ledger.records()
+    with pytest.raises(RuntimeTrustCorrupt, match="authentication"):
+        trust_ledger.records()
 
 
 def test_receipt_freshness_and_naive_timestamps_fail_before_external_verification(
     tmp_path, monkeypatch
 ) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
     monkeypatch.setattr(
         "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
         lambda *args, **kwargs: pytest.fail("external verifier must not run"),
@@ -333,7 +352,7 @@ def test_receipt_freshness_and_naive_timestamps_fail_before_external_verificatio
         observed_at=NOW - timedelta(days=6)
     )
     with pytest.raises(ValueError, match="freshness window"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -344,7 +363,7 @@ def test_receipt_freshness_and_naive_timestamps_fail_before_external_verificatio
         )
     envelope, identity, receipt, manifest = objects()
     with pytest.raises(ValueError, match="timezone-aware"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -356,7 +375,7 @@ def test_receipt_freshness_and_naive_timestamps_fail_before_external_verificatio
 
 
 def test_future_receipt_refuses_before_external_verification(tmp_path, monkeypatch) -> None:
-    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    trust_ledger = ledger(tmp_path / "runtime-trust.sqlite3")
     monkeypatch.setattr(
         "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
         lambda *args, **kwargs: pytest.fail("external verifier must not run"),
@@ -365,7 +384,7 @@ def test_future_receipt_refuses_before_external_verification(tmp_path, monkeypat
         observed_at=NOW + timedelta(seconds=1)
     )
     with pytest.raises(RuntimeTrustBindingMismatch, match="after trust admission"):
-        ledger.admit(
+        trust_ledger.admit(
             envelope,
             identity,
             receipt,
@@ -374,3 +393,8 @@ def test_future_receipt_refuses_before_external_verification(tmp_path, monkeypat
             admitted_at=NOW,
             expires_at=NOW + timedelta(hours=1),
         )
+
+
+def test_integrity_key_is_external_and_must_be_strong(tmp_path) -> None:
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        RuntimeTrustLedger(tmp_path / "weak.sqlite3", integrity_key=b"weak")
