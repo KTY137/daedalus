@@ -7,14 +7,13 @@ from types import SimpleNamespace
 import pytest
 
 from daedalus.kernel import SourceTreeStore
-from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.attempts import (
     AttemptLedger,
     AttemptStateError,
     AttemptWorkspaceError,
     IsolatedAttemptCoordinator,
 )
-from daedalus.kernel.source_trees import StoredSourceTree
+from daedalus.kernel.source_trees import SourceTreeStoreError
 from daedalus.schemas import (
     AttemptContract,
     ContractProvenance,
@@ -58,10 +57,15 @@ def _attempt() -> AttemptContract:
     )
 
 
-def _captured(store: SourceTreeStore, source: Path):
+def _captured(
+    store: SourceTreeStore,
+    source: Path,
+    *,
+    tree_id: str = "input-tree-adversarial",
+):
     return store.capture_tree(
         source,
-        tree_id="input-tree-adversarial",
+        tree_id=tree_id,
         source_revision=REVISION,
         origin="tests.attempt-adversarial-input",
         created_at=NOW,
@@ -91,7 +95,7 @@ def test_foreign_store_input_is_refused_before_start(tmp_path) -> None:
     selected_store = SourceTreeStore(tmp_path / "selected-cas")
     ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", selected_store)
 
-    with pytest.raises(Exception, match="unavailable|CAS object"):
+    with pytest.raises(SourceTreeStoreError, match="unavailable|CAS object"):
         _begin(ledger, captured)
     assert ledger.pending() == ()
 
@@ -119,7 +123,7 @@ def test_terminal_rejects_report_not_present_in_selected_store(tmp_path) -> None
     foreign_store = SourceTreeStore(tmp_path / "foreign-cas")
     foreign_report = foreign_store.put_bytes(b"foreign report")
 
-    with pytest.raises(Exception, match="unavailable|CAS object"):
+    with pytest.raises(SourceTreeStoreError, match="unavailable|CAS object"):
         ledger.complete(
             start,
             receipt_id="terminal-attempt-adversarial",
@@ -131,23 +135,31 @@ def test_terminal_rejects_report_not_present_in_selected_store(tmp_path) -> None
     assert len(ledger.pending()) == 1
 
 
-def test_terminal_rejects_candidate_shape_without_selected_cas_material(tmp_path) -> None:
+def test_terminal_rejects_candidate_not_present_in_selected_store(tmp_path) -> None:
     source = _source(tmp_path)
     store = SourceTreeStore(tmp_path / "selected-cas")
     captured = _captured(store, source)
     ledger = AttemptLedger(tmp_path / "state" / "attempts.sqlite3", store)
     start = _begin(ledger, captured).start
-    fake_ref = ArtifactRef.from_sha256("9" * 64)
-    forged = StoredSourceTree(manifest=captured.manifest, ref=fake_ref)
     report = store.put_bytes(b"failed")
 
-    with pytest.raises(Exception, match="unavailable|CAS object"):
+    foreign_source = tmp_path / "foreign-source"
+    foreign_source.mkdir()
+    (foreign_source / "work.py").write_text("value = 2\n", encoding="utf-8")
+    foreign_store = SourceTreeStore(tmp_path / "foreign-cas")
+    foreign_candidate = _captured(
+        foreign_store,
+        foreign_source,
+        tree_id="foreign-candidate",
+    )
+
+    with pytest.raises(SourceTreeStoreError, match="unavailable|CAS object"):
         ledger.complete(
             start,
             receipt_id="terminal-attempt-adversarial",
             outcome="failed",
             report=report,
-            candidate_tree=forged,
+            candidate_tree=foreign_candidate,
             completed_at=NOW,
         )
 
@@ -161,7 +173,10 @@ def test_persisted_start_wire_tampering_fails_closed(tmp_path) -> None:
     with sqlite3.connect(ledger.path) as connection:
         connection.execute(
             "UPDATE attempt_starts SET start_json = ?",
-            ('{"contract_type":"daedalus.attempt-start","contract_type":"duplicate"}',),
+            (
+                '{"contract_type":"daedalus.attempt-start",'
+                '"contract_type":"duplicate"}',
+            ),
         )
     with pytest.raises(AttemptStateError, match="duplicate key|malformed"):
         _begin(ledger, captured)
@@ -184,7 +199,7 @@ def test_persisted_terminal_artifact_is_reverified_on_replay(tmp_path) -> None:
     )
     store._object_path(report.sha256).write_bytes(b"corrupt")
 
-    with pytest.raises(Exception, match="address|invalid|bound"):
+    with pytest.raises(SourceTreeStoreError, match="address|invalid|bound"):
         _begin(ledger, captured)
 
 
