@@ -95,6 +95,12 @@ The pinned TOMLKit tree records `tests/toml-test` as mode `160000` at the exact
 submodule commit above. Candidate materialization will use the exported trees
 without `.git` metadata and will not expose the staging repositories.
 
+Both archives were then published through the existing canonical
+`ArtifactStore` (not a new experiment store). The verified TOMLKit locator is
+`artifact-locator:sha256:a075db85b7b4325d9522bf41c00df0dedae779e8b75d22d2d95a2e4b96786aed`;
+the verified `toml-test` locator is
+`artifact-locator:sha256:85cb2986e1ae343bd250ed58f9fc57feb5dca3258eabb02e018e40c494405197`.
+
 ### Fourfold coverage
 
 - **Code / AST:** parser, item/container, document, and serializer

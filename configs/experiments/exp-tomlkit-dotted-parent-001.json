@@ -28,7 +28,7 @@
     "commit_url": "https://github.com/python-poetry/tomlkit/commit/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727",
     "release_version": "0.15.1",
     "canonical_source_archive_sha256": "9184035b8a186089bad9ad8e3f09568182dbe43827b613f01ff269e84bbe996f",
-    "base_candidate_store_artifact_sha256": null,
+    "base_candidate_store_artifact_sha256": "9184035b8a186089bad9ad8e3f09568182dbe43827b613f01ff269e84bbe996f",
     "license": {
       "spdx": "MIT",
       "license_file_url": "https://github.com/python-poetry/tomlkit/blob/d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727/LICENSE",
