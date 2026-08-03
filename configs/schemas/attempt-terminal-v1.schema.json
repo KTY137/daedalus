@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/attempt-terminal-v1.schema.json",
+  "title": "Daedalus Attempt Terminal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "receipt_id",
+    "start_sha256",
+    "attempt_id",
+    "attempt_sha256",
+    "source_revision",
+    "input_tree_sha256",
+    "outcome",
+    "report",
+    "candidate_tree",
+    "completed_at",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.attempt-terminal"},
+    "contract_version": {"const": "1.0.0"},
+    "receipt_id": {"$ref": "#/$defs/identifier"},
+    "start_sha256": {"$ref": "#/$defs/sha256"},
+    "attempt_id": {"$ref": "#/$defs/identifier"},
+    "attempt_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "input_tree_sha256": {"$ref": "#/$defs/sha256"},
+    "outcome": {
+      "enum": ["succeeded", "failed", "cancelled", "faulted"]
+    },
+    "report": {"$ref": "#/$defs/artifactRef"},
+    "candidate_tree": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/artifactRef"}
+      ]
+    },
+    "completed_at": {"type": "string", "format": "date-time"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"outcome": {"const": "succeeded"}}},
+      "then": {"properties": {"candidate_tree": {"$ref": "#/$defs/artifactRef"}}}
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "locator"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "locator": {
+          "type": "string",
+          "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sha256"}
+        },
+        "trace_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/identifier"}
+          ]
+        }
+      }
+    }
+  }
+}
