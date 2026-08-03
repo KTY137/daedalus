@@ -60,6 +60,12 @@ from .effects import (
     issue_effect_lease,
     verify_effect_lease,
 )
+from .offload_authority import (
+    AuthorizedOffloadExecution,
+    OffloadAuthorityBindingError,
+    authorize_offload_execution,
+    derive_offload_execution_ids,
+)
 
 __all__ += [
     "EffectExecutionRequest",
@@ -83,6 +89,10 @@ __all__ += [
     "OffloadExecutionPlan",
     "issue_effect_lease",
     "verify_effect_lease",
+    "AuthorizedOffloadExecution",
+    "OffloadAuthorityBindingError",
+    "authorize_offload_execution",
+    "derive_offload_execution_ids",
 ]
 
 from .fourfold_evidence import (
