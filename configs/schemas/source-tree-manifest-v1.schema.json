@@ -43,8 +43,13 @@
     },
     "ignored_roots": {
       "type": "array",
+      "minItems": 2,
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+      "items": {"type": "string", "minLength": 1, "maxLength": 500},
+      "allOf": [
+        {"contains": {"const": ".git"}},
+        {"contains": {"const": ".daedalus"}}
+      ]
     },
     "provenance": {
       "type": "object",
