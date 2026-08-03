@@ -58,10 +58,10 @@ def strict_mechanical_blockers(
     trusted_iron_plan_sha256s: Iterable[str] = (),
     trusted_registry_sha256s: Iterable[str] = (),
     trusted_workflow_evidence_sha256s: Iterable[str] = (),
-    trusted_artifact_sha256s: Iterable[str] = (),
+    trusted_artifact_evidence_sha256s: Iterable[str] = (),
     trusted_runtime_envelope_sha256s: Iterable[str] = (),
     trusted_fault_matrix_sha256s: Iterable[str] = (),
-    trusted_review_transcript_sha256s: Iterable[str] = (),
+    trusted_review_evidence_sha256s: Iterable[str] = (),
     trusted_owner_verifier_sha256s: Iterable[str] = (),
 ) -> tuple[str, ...]:
     """Return exact-head blockers including authenticity and optional evidence."""
@@ -82,7 +82,7 @@ def strict_mechanical_blockers(
         trusted_workflow_evidence_sha256s, "trusted_workflow_evidence_sha256"
     )
     trusted_artifacts = _trusted(
-        trusted_artifact_sha256s, "trusted_artifact_sha256"
+        trusted_artifact_evidence_sha256s, "trusted_artifact_evidence_sha256"
     )
     trusted_runtimes = _trusted(
         trusted_runtime_envelope_sha256s, "trusted_runtime_envelope_sha256"
@@ -91,7 +91,7 @@ def strict_mechanical_blockers(
         trusted_fault_matrix_sha256s, "trusted_fault_matrix_sha256"
     )
     trusted_reviews = _trusted(
-        trusted_review_transcript_sha256s, "trusted_review_transcript_sha256"
+        trusted_review_evidence_sha256s, "trusted_review_evidence_sha256"
     )
     trusted_owner = _trusted(
         trusted_owner_verifier_sha256s, "trusted_owner_verifier_sha256"
@@ -126,8 +126,8 @@ def strict_mechanical_blockers(
 
     for item in index.artifacts:
         prefix = f"artifact:{item.artifact_kind}"
-        if item.content_sha256 not in trusted_artifacts:
-            blockers.add(f"{prefix}:untrusted-content")
+        if item.digest not in trusted_artifacts:
+            blockers.add(f"{prefix}:untrusted-evidence")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.source_tree_revision != current_tree:
@@ -165,8 +165,8 @@ def strict_mechanical_blockers(
 
     for item in index.reviews:
         prefix = f"review:{item.perspective}"
-        if item.transcript_sha256 not in trusted_reviews:
-            blockers.add(f"{prefix}:untrusted-transcript")
+        if item.digest not in trusted_reviews:
+            blockers.add(f"{prefix}:untrusted-evidence")
         if item.source_revision != current:
             blockers.add(f"{prefix}:foreign-source-revision")
         if item.unresolved_finding_ids:
@@ -197,10 +197,10 @@ def assert_strict_exact_head(
     trusted_iron_plan_sha256s: Iterable[str] = (),
     trusted_registry_sha256s: Iterable[str] = (),
     trusted_workflow_evidence_sha256s: Iterable[str] = (),
-    trusted_artifact_sha256s: Iterable[str] = (),
+    trusted_artifact_evidence_sha256s: Iterable[str] = (),
     trusted_runtime_envelope_sha256s: Iterable[str] = (),
     trusted_fault_matrix_sha256s: Iterable[str] = (),
-    trusted_review_transcript_sha256s: Iterable[str] = (),
+    trusted_review_evidence_sha256s: Iterable[str] = (),
     trusted_owner_verifier_sha256s: Iterable[str] = (),
 ) -> None:
     """Raise with the deterministic blocker list when the index is not trusted."""
@@ -214,10 +214,10 @@ def assert_strict_exact_head(
         trusted_iron_plan_sha256s=trusted_iron_plan_sha256s,
         trusted_registry_sha256s=trusted_registry_sha256s,
         trusted_workflow_evidence_sha256s=trusted_workflow_evidence_sha256s,
-        trusted_artifact_sha256s=trusted_artifact_sha256s,
+        trusted_artifact_evidence_sha256s=trusted_artifact_evidence_sha256s,
         trusted_runtime_envelope_sha256s=trusted_runtime_envelope_sha256s,
         trusted_fault_matrix_sha256s=trusted_fault_matrix_sha256s,
-        trusted_review_transcript_sha256s=trusted_review_transcript_sha256s,
+        trusted_review_evidence_sha256s=trusted_review_evidence_sha256s,
         trusted_owner_verifier_sha256s=trusted_owner_verifier_sha256s,
     )
     if blockers:
