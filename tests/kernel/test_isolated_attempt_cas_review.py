@@ -16,10 +16,10 @@ def test_ledger_requires_and_retains_one_exact_source_store() -> None:
     assert "share the exact SourceTreeStore" in coordinator_source
 
 
-def test_begin_reloads_input_manifest_from_ledger_store_before_transaction() -> None:
+def test_begin_reloads_input_manifest_from_selected_store_before_spine_write() -> None:
     source = inspect.getsource(attempts.AttemptLedger.begin)
     assert source.index("self.source_store.load_tree(input_tree.ref)") < source.index(
-        'connection.execute("BEGIN IMMEDIATE")'
+        "self.spine.record_intent"
     )
     assert "input tree manifest differs from the ledger CAS object" in source
 
