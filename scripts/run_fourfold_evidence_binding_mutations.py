@@ -24,7 +24,7 @@ MUTATIONS = (
     ),
     Mutation(
         "allow-partial-snapshot-as-gate-evidence",
-        "    if expectation.require_complete:\n",
+        "    if incomplete:\n",
         "    if False:\n",
     ),
     Mutation(
