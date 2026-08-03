@@ -5,6 +5,8 @@ on:
     paths:
       - "daedalus/orchestration/**"
       - "tests/orchestration/test_renovation_work_items.py"
+      - "tests/orchestration/test_renovation_work_items_review.py"
+      - "scripts/run_g1_renovation_work_item_mutations.py"
       - "docs/work-packets/G1-PREP-01_RENOVATION_WORK_ITEMS.md"
       - ".github/workflows/g1-prep-renovation-work-items.yml"
   push:
@@ -31,9 +33,23 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e . pytest
-      - run: python -m compileall -q daedalus tests
-      - run: python -m pytest -q tests/orchestration/test_renovation_work_items.py tests/twin/test_fourfold_contracts.py
+      - run: python -m compileall -q daedalus tests scripts
+      - run: >-
+          python -m pytest -q
+          tests/orchestration/test_renovation_work_items.py
+          tests/orchestration/test_renovation_work_items_review.py
+          tests/twin/test_fourfold_contracts.py
       - run: python tools/iron_plan_guard.py verify
+
+  mutations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_g1_renovation_work_item_mutations.py
 
   full-suite:
     runs-on: ubuntu-latest
