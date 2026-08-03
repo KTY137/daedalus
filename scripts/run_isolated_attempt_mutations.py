@@ -21,6 +21,8 @@ TESTS = (
     "tests/kernel/test_isolated_attempt_schema_review.py",
     "tests/kernel/test_isolated_attempt_spine_wire_review.py",
     "tests/kernel/test_isolated_attempt_time_and_preflight.py",
+    "tests/kernel/test_isolated_attempt_time_review.py",
+    "tests/kernel/test_isolated_attempt_time_tampering.py",
     "tests/kernel/test_isolated_attempt_effect_inventory.py",
     "tests/kernel/test_source_tree_store.py",
     "tests/kernel/test_source_tree_store_adversarial.py",
