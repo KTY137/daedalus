@@ -28,6 +28,8 @@ from daedalus.runtimes.fault_matrix import (
 )
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
+_SCHEMA = "daedalus-runtime-fault-attestation/1"
+_DOMAIN = (_SCHEMA + "\0").encode("utf-8")
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _REVISION_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -120,15 +122,13 @@ def _normalize_now(value: datetime) -> datetime:
 
 
 def _signature(body: Mapping[str, Any], secret: bytes) -> str:
-    return hmac.new(
-        _secret(secret),
-        canonical_json(body).encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+    payload = _DOMAIN + canonical_json(body).encode("utf-8")
+    return hmac.new(_secret(secret), payload, hashlib.sha256).hexdigest()
 
 
 @dataclass(frozen=True)
 class RuntimeFaultAttestation:
+    schema: str
     attestation_id: str
     issuer_id: str
     key_id: str
@@ -143,6 +143,8 @@ class RuntimeFaultAttestation:
     signature_sha256: str
 
     def __post_init__(self) -> None:
+        if self.schema != _SCHEMA:
+            raise ValueError(f"schema must be {_SCHEMA}")
         object.__setattr__(self, "attestation_id", _identifier(self.attestation_id, "attestation_id"))
         object.__setattr__(self, "issuer_id", _identifier(self.issuer_id, "issuer_id"))
         object.__setattr__(self, "key_id", _identifier(self.key_id, "key_id"))
@@ -172,6 +174,7 @@ class RuntimeFaultAttestation:
 
     def signing_payload(self) -> dict[str, Any]:
         return {
+            "schema": self.schema,
             "attestation_id": self.attestation_id,
             "issuer_id": self.issuer_id,
             "key_id": self.key_id,
@@ -212,6 +215,7 @@ def issue_runtime_fault_attestation(
     issued = _normalize_now(issued_at)
     expires = _normalize_now(expires_at)
     unsigned = RuntimeFaultAttestation(
+        schema=_SCHEMA,
         attestation_id=attestation_id,
         issuer_id=issuer_id,
         key_id=key_id,
@@ -293,6 +297,11 @@ def verify_runtime_fault_attestation(
 
     issued = _parse_timestamp(attestation.issued_at)
     expires = _parse_timestamp(attestation.expires_at)
+    observed = _parse_timestamp(observation.observed_at)
+    if issued < observed:
+        raise RuntimeFaultAttestationBindingMismatch(
+            "fault attestation predates the retained observation"
+        )
     if current < issued:
         raise RuntimeFaultAttestationExpired("fault attestation is not valid yet")
     if current >= expires:
