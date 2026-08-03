@@ -74,10 +74,26 @@ class ExternalEffectObservation:
     provenance: ContractProvenance
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "observation_id", _identifier(self.observation_id, "observation_id"))
-        object.__setattr__(self, "provider_id", _identifier(self.provider_id, "provider_id"))
-        object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
-        object.__setattr__(self, "idempotency_key", _identifier(self.idempotency_key, "idempotency_key"))
+        object.__setattr__(
+            self,
+            "observation_id",
+            _identifier(self.observation_id, "observation_id"),
+        )
+        object.__setattr__(
+            self,
+            "provider_id",
+            _identifier(self.provider_id, "provider_id"),
+        )
+        object.__setattr__(
+            self,
+            "execution_id",
+            _identifier(self.execution_id, "execution_id"),
+        )
+        object.__setattr__(
+            self,
+            "idempotency_key",
+            _identifier(self.idempotency_key, "idempotency_key"),
+        )
         object.__setattr__(
             self,
             "start_receipt_sha256",
@@ -95,10 +111,22 @@ class ExternalEffectObservation:
         object.__setattr__(
             self,
             "output_digests",
-            _sorted_strings(self.output_digests, "output_digests", digests=True),
+            _sorted_strings(
+                self.output_digests,
+                "output_digests",
+                digests=True,
+            ),
         )
-        object.__setattr__(self, "issuer_key_id", _identifier(self.issuer_key_id, "issuer_key_id"))
-        object.__setattr__(self, "observed_at", _utc_timestamp(self.observed_at, "observed_at"))
+        object.__setattr__(
+            self,
+            "issuer_key_id",
+            _identifier(self.issuer_key_id, "issuer_key_id"),
+        )
+        object.__setattr__(
+            self,
+            "observed_at",
+            _utc_timestamp(self.observed_at, "observed_at"),
+        )
         object.__setattr__(
             self,
             "signature_sha256",
@@ -182,7 +210,11 @@ def _secret_bytes(secret: bytes | str) -> bytes:
 
 
 def _signature(digest: str, secret: bytes | str) -> str:
-    return hmac.new(_secret_bytes(secret), digest.encode("ascii"), hashlib.sha256).hexdigest()
+    return hmac.new(
+        _secret_bytes(secret),
+        digest.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _as_utc(value: datetime, label: str) -> datetime:
@@ -205,23 +237,70 @@ def _validate_start_binding(
     execution: EffectExecutionRequest,
     start_receipt: LeasedEffectStartReceipt,
 ) -> datetime:
+    if not isinstance(start_receipt, LeasedEffectStartReceipt):
+        raise EffectRecoveryBindingError(
+            "start_receipt must be LeasedEffectStartReceipt"
+        )
+    try:
+        normalized = {
+            "lease_sha256": _sha256(
+                start_receipt.lease_sha256,
+                "start_receipt.lease_sha256",
+            ),
+            "execution_id": _identifier(
+                start_receipt.execution_id,
+                "start_receipt.execution_id",
+            ),
+            "idempotency_key": _identifier(
+                start_receipt.idempotency_key,
+                "start_receipt.idempotency_key",
+            ),
+            "execution_request_sha256": _sha256(
+                start_receipt.execution_request_sha256,
+                "start_receipt.execution_request_sha256",
+            ),
+            "boundary_receipt_sha256": _sha256(
+                start_receipt.boundary_receipt_sha256,
+                "start_receipt.boundary_receipt_sha256",
+            ),
+            "started_at": _utc_timestamp(
+                start_receipt.started_at,
+                "start_receipt.started_at",
+            ),
+        }
+        receipt_sha256 = _sha256(
+            start_receipt.receipt_sha256,
+            "start_receipt.receipt_sha256",
+        )
+    except ValueError as exc:
+        raise EffectRecoveryBindingError("start receipt is malformed") from exc
+    if canonical_sha(normalized) != receipt_sha256:
+        raise EffectRecoveryBindingError("start_receipt_sha256 digest mismatch")
     comparisons = {
-        "execution_id": (start_receipt.execution_id, execution.execution_id),
-        "idempotency_key": (start_receipt.idempotency_key, execution.idempotency_key),
-        "execution_request_sha256": (
-            start_receipt.execution_request_sha256,
+        "start_execution_id": (
+            normalized["execution_id"],
+            execution.execution_id,
+        ),
+        "start_idempotency_key": (
+            normalized["idempotency_key"],
+            execution.idempotency_key,
+        ),
+        "start_execution_request_sha256": (
+            normalized["execution_request_sha256"],
             execution.digest,
         ),
     }
     mismatches = sorted(
-        name for name, (actual, expected) in comparisons.items() if actual != expected
+        name
+        for name, (actual, expected) in comparisons.items()
+        if actual != expected
     )
     if mismatches:
         raise EffectRecoveryBindingError(
             "start receipt does not match the external effect request: "
             + ", ".join(mismatches)
         )
-    return _parse_utc(start_receipt.started_at, "start_receipt.started_at")
+    return _parse_utc(normalized["started_at"], "start_receipt.started_at")
 
 
 def issue_external_effect_observation(
@@ -245,7 +324,10 @@ def issue_external_effect_observation(
             "external acknowledgement predates the durable effect start"
         )
     outputs = tuple(output_digests)
-    acknowledgement = _sha256(acknowledgement_sha256, "acknowledgement_sha256")
+    acknowledgement = _sha256(
+        acknowledgement_sha256,
+        "acknowledgement_sha256",
+    )
     provenance = ContractProvenance(
         origin="kernel.external-effect-observation",
         source_revision=revision,
@@ -290,7 +372,9 @@ def verify_external_effect_observation(
         raise EffectRecoverySignatureError("recovery issuer key is unknown")
     expected = _signature(observation.signing_digest, secret)
     if not hmac.compare_digest(observation.signature_sha256, expected):
-        raise EffectRecoverySignatureError("recovery observation signature mismatch")
+        raise EffectRecoverySignatureError(
+            "recovery observation signature mismatch"
+        )
     instant = _as_utc(now, "now")
     observed = _parse_utc(observation.observed_at, "observed_at")
     started = _validate_start_binding(execution, start_receipt)
@@ -308,7 +392,10 @@ def verify_external_effect_observation(
             _identifier(expected_provider_id, "expected_provider_id"),
         ),
         "execution_id": (observation.execution_id, execution.execution_id),
-        "idempotency_key": (observation.idempotency_key, execution.idempotency_key),
+        "idempotency_key": (
+            observation.idempotency_key,
+            execution.idempotency_key,
+        ),
         "start_receipt_sha256": (
             observation.start_receipt_sha256,
             start_receipt.receipt_sha256,
@@ -330,7 +417,11 @@ def verify_external_effect_observation(
             execution.execution_id,
         ),
     }
-    mismatches = sorted(name for name, pair in comparisons.items() if pair[0] != pair[1])
+    mismatches = sorted(
+        name
+        for name, (actual, expected_value) in comparisons.items()
+        if actual != expected_value
+    )
     if mismatches:
         raise EffectRecoveryBindingError(
             "recovery observation binding mismatch: " + ", ".join(mismatches)
@@ -369,10 +460,18 @@ def _terminal_from_row(row: sqlite3.Row) -> EffectTerminalReceipt:
             digests=True,
         )
         if list(normalized_outputs) != outputs:
-            raise EffectRecoveryStateError("terminal output digests are not canonical")
+            raise EffectRecoveryStateError(
+                "terminal output digests are not canonical"
+            )
         values = dict(payload)
-        values["lease_sha256"] = _sha256(values["lease_sha256"], "terminal.lease_sha256")
-        values["execution_id"] = _identifier(values["execution_id"], "terminal.execution_id")
+        values["lease_sha256"] = _sha256(
+            values["lease_sha256"],
+            "terminal.lease_sha256",
+        )
+        values["execution_id"] = _identifier(
+            values["execution_id"],
+            "terminal.execution_id",
+        )
         values["start_receipt_sha256"] = _sha256(
             values["start_receipt_sha256"],
             "terminal.start_receipt_sha256",
