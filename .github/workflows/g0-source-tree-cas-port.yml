@@ -1,0 +1,85 @@
+name: Gate 0 Source Tree CAS Port
+
+on:
+  pull_request:
+    branches:
+      - g0/live-promotion-receipts-linear
+    paths:
+      - "daedalus/kernel/source_trees.py"
+      - "daedalus/kernel/__init__.py"
+      - "configs/schemas/source-tree-manifest-v1.schema.json"
+      - "tests/kernel/test_source_tree_store.py"
+      - "tests/kernel/test_source_tree_store_review.py"
+      - "scripts/run_source_tree_cas_mutations.py"
+      - "docs/work-packets/G0-ATT-13A_SOURCE_TREE_CAS_PORT.md"
+      - ".github/workflows/g0-source-tree-cas-port.yml"
+  push:
+    branches:
+      - g0/source-tree-cas-port-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-source-tree-cas-port-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/source-tree-manifest-v1.schema.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_source_tree_store.py
+          tests/kernel/test_source_tree_store_review.py
+          tests/kernel/test_live_promotion_seam.py
+          tests/kernel/test_live_promotion_receipts.py
+          tests/kernel/test_promotion_receipts.py
+          tests/kernel/test_fourfold_evidence_owner_binding.py
+          tests/kernel/test_effect_leases.py
+          tests/test_kernel_contracts.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_source_tree_cas_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-source-tree-wheel
+      - run: /tmp/daedalus-source-tree-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-source-tree-wheel/bin/python - <<'PY'
+          from daedalus.kernel import SourceTreeStore, SourceTreeManifest
+          from daedalus.kernel.artifacts import ArtifactRef
+          from daedalus.kernel import source_trees
+
+          assert SourceTreeStore.__module__ == "daedalus.kernel.source_trees"
+          assert SourceTreeManifest.__module__ == "daedalus.kernel.source_trees"
+          assert source_trees.ArtifactRef is ArtifactRef
+          PY
