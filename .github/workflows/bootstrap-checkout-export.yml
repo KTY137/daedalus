@@ -1,9 +1,6 @@
 name: Bootstrap checkout export
 
 on:
-  pull_request:
-    branches:
-      - core/fourfold-v2
   push:
     branches:
       - g0/bootstrap-workspace
@@ -19,19 +16,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - name: Create source archive outside the checkout
+          ref: g0/effect-leases
+          fetch-depth: 1
+      - name: Create exact tracked-source archive
         shell: bash
         run: |
           set -euo pipefail
           git status --short
-          git rev-parse HEAD > CHECKOUT_HEAD
-          tar --exclude=.git -C "$GITHUB_WORKSPACE" -czf "$RUNNER_TEMP/daedalus-checkout.tar.gz" .
+          git rev-parse HEAD | tee "$RUNNER_TEMP/CHECKOUT_HEAD"
+          git archive --format=tar.gz --output="$RUNNER_TEMP/daedalus-checkout.tar.gz" HEAD
           test -s "$RUNNER_TEMP/daedalus-checkout.tar.gz"
           tar -tzf "$RUNNER_TEMP/daedalus-checkout.tar.gz" >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: daedalus-checkout-${{ github.sha }}
-          path: ${{ runner.temp }}/daedalus-checkout.tar.gz
+          name: daedalus-effect-leases-checkout
+          path: |
+            ${{ runner.temp }}/daedalus-checkout.tar.gz
+            ${{ runner.temp }}/CHECKOUT_HEAD
           if-no-files-found: error
           retention-days: 2
