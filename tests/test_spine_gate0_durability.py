@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 
 import pytest
 
@@ -11,7 +14,7 @@ from daedalus.spine.durability import (
     enforce_gate0_durability,
     inspect_gate0_durability,
 )
-from daedalus.spine.ledger import SpineLedger
+from daedalus.spine.ledger import ROOT, SpineLedger
 
 
 def _sha(path) -> str:
@@ -171,3 +174,49 @@ def test_profile_raises_when_sqlite_readback_does_not_confirm_full(
             enforce_gate0_durability(ledger)
     finally:
         ledger.close()
+
+
+_KILL_AFTER_COMMIT = r"""
+import os
+import sys
+from daedalus.spine.durability import enforce_gate0_durability
+from daedalus.spine.ledger import SpineLedger
+ledger = SpineLedger(sys.argv[1])
+status = enforce_gate0_durability(ledger)
+assert status.synchronous == 2
+ledger.record_intent(
+    "durability.killed",
+    {"fault": "process-exit"},
+    effect_key="durability:killed",
+)
+sys.stdout.write("committed-full")
+sys.stdout.flush()
+os._exit(73)
+"""
+
+
+def test_full_profile_intent_survives_unclean_process_exit(tmp_path) -> None:
+    path = tmp_path / "state" / "spine.sqlite3"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(ROOT)
+    process = subprocess.run(
+        [sys.executable, "-c", _KILL_AFTER_COMMIT, str(path)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+        check=False,
+    )
+    assert process.returncode == 73, process.stderr
+    assert process.stdout == "committed-full"
+
+    survivor = SpineLedger(path)
+    try:
+        assert enforce_gate0_durability(survivor).satisfied is True
+        opened = survivor.resolve_by_effect("durability:killed")
+        assert len(opened) == 1
+        assert opened[0].payload == {"fault": "process-exit"}
+        assert opened[0].state == "INTENDED"
+        assert survivor._conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        survivor.close()
