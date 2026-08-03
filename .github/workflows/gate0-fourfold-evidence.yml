@@ -8,6 +8,7 @@ on:
       - "daedalus/kernel/fourfold_evidence.py"
       - "daedalus/kernel/__init__.py"
       - "tests/kernel/test_fourfold_evidence.py"
+      - "tests/kernel/test_fourfold_candidate_provenance.py"
       - "tests/kernel/test_fourfold_approval_integration.py"
       - "tests/kernel/test_owner_approval.py"
       - "tests/twin/**"
@@ -47,6 +48,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/kernel/test_fourfold_evidence.py
+          tests/kernel/test_fourfold_candidate_provenance.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_owner_approval.py
           tests/twin/test_wiki_reference.py
