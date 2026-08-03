@@ -44,11 +44,14 @@ def test_real_writer_contention_refuses_before_effect_start() -> None:
     assert run.observation.status == "passed"
     assert run.observation.observed_outcome == "refused-before-start"
     assert run.observation.detail_code is None
+    assert payload["writer_lock_held"] is True
     assert payload["contention_observed"] is True
     assert payload["provider_called"] is False
     assert payload["execution_row_count"] == 0
     assert payload["busy_timeout_ms"] == executor._BUSY_TIMEOUT_MS
-    assert payload["elapsed_ms"] >= executor._BUSY_TIMEOUT_MS // 2
+    assert payload["elapsed_ms"] >= (
+        executor._BUSY_TIMEOUT_MS - executor._TIMEOUT_TOLERANCE_MS
+    )
     assert payload["elapsed_ms"] < 5_000
     assert payload["exception_type"] == "OperationalError"
     assert "database_path" not in payload
@@ -100,6 +103,7 @@ def test_unrecognized_operational_error_cannot_be_laundered_as_contention(
     assert run.observation.status == "failed"
     assert run.observation.detail_code == "effect-ledger-contention-invariant"
     payload = json.loads(run.raw_evidence.decode("utf-8"))
+    assert payload["writer_lock_held"] is True
     assert payload["provider_called"] is False
     assert payload["execution_row_count"] == 0
 
