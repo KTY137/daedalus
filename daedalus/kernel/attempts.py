@@ -33,6 +33,7 @@ from daedalus.spine.envelope import canonical_json, canonical_sha
 
 _ATTEMPT_WORKSPACE_SCHEMA = "daedalus-attempt-workspace/1"
 _TERMINAL_OUTCOMES = {"succeeded", "failed", "cancelled", "faulted"}
+_MAX_REPORT_BYTES = 16 * 1024 * 1024
 
 
 class AttemptLifecycleError(RuntimeError):
@@ -330,11 +331,18 @@ class PreparedAttempt:
 
 
 class AttemptLedger:
-    """SQLite start/terminal authority with at-most-once Attempt identity."""
+    """SQLite start/terminal authority over one exact content-addressed store."""
 
-    def __init__(self, path: str | os.PathLike[str]) -> None:
+    def __init__(
+        self,
+        path: str | os.PathLike[str],
+        source_store: SourceTreeStore,
+    ) -> None:
+        if not isinstance(source_store, SourceTreeStore):
+            raise AttemptStateError("source_store must be SourceTreeStore")
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.source_store = source_store
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -407,6 +415,13 @@ class AttemptLedger:
         if row is None:
             return None
         receipt = self._decode_receipt(str(row["receipt_json"]))
+        self.source_store.read_bytes(receipt.report, max_bytes=_MAX_REPORT_BYTES)
+        if receipt.candidate_tree is not None:
+            candidate = self.source_store.load_tree(receipt.candidate_tree)
+            if candidate.source_revision != receipt.source_revision:
+                raise AttemptStateError(
+                    "persisted candidate tree revision differs from terminal receipt"
+                )
         return AttemptCompletion(start=start, receipt=receipt)
 
     def begin(
@@ -423,7 +438,12 @@ class AttemptLedger:
             raise AttemptBindingMismatch("attempt must be a canonical AttemptContract")
         if not isinstance(input_tree, StoredSourceTree):
             raise AttemptBindingMismatch("input_tree must be StoredSourceTree")
-        if input_tree.manifest.source_revision != attempt.base_revision:
+        loaded = self.source_store.load_tree(input_tree.ref)
+        if loaded != input_tree.manifest:
+            raise AttemptBindingMismatch(
+                "input tree manifest differs from the ledger CAS object"
+            )
+        if loaded.source_revision != attempt.base_revision:
             raise AttemptBindingMismatch(
                 "input source tree revision must equal attempt base revision"
             )
@@ -522,13 +542,19 @@ class AttemptLedger:
             raise AttemptBindingMismatch("start must be AttemptStartRecord")
         if not isinstance(report, ArtifactRef):
             raise AttemptBindingMismatch("report must be ArtifactRef")
+        self.source_store.read_bytes(report, max_bytes=_MAX_REPORT_BYTES)
         candidate_ref = None
         if candidate_tree is not None:
             if not isinstance(candidate_tree, StoredSourceTree):
                 raise AttemptBindingMismatch(
                     "candidate_tree must be StoredSourceTree or null"
                 )
-            if candidate_tree.manifest.source_revision != start.source_revision:
+            loaded_candidate = self.source_store.load_tree(candidate_tree.ref)
+            if loaded_candidate != candidate_tree.manifest:
+                raise AttemptBindingMismatch(
+                    "candidate tree manifest differs from the ledger CAS object"
+                )
+            if loaded_candidate.source_revision != start.source_revision:
                 raise AttemptBindingMismatch(
                     "candidate source tree revision must equal attempt source revision"
                 )
@@ -653,6 +679,10 @@ class IsolatedAttemptCoordinator:
             raise AttemptWorkspaceError("source_store must be SourceTreeStore")
         if not isinstance(ledger, AttemptLedger):
             raise AttemptWorkspaceError("ledger must be AttemptLedger")
+        if ledger.source_store is not source_store:
+            raise AttemptWorkspaceError(
+                "coordinator and ledger must share the exact SourceTreeStore"
+            )
         primary = Path(primary_checkout)
         if primary.is_symlink():
             raise AttemptWorkspaceError("primary checkout must not be a symlink")
