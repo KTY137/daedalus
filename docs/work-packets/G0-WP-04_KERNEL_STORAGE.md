@@ -101,9 +101,10 @@ kernel responsibilities.
 | packaging | isolated wheel install imports `ContentAddressedStore` and `EventStore` |
 | governance | `python tools/iron_plan_guard.py verify` |
 
-## Independent review record
+## Adversarial counter-review record
 
-A separate adversarial pass found and fixed four issues before dependent use:
+A context-separated adversarial pass by the same automation/model instance found
+and fixed four issues before dependent use:
 
 1. a destination symlink with matching target bytes could make a CAS write
    appear successful while verified reads refused the locator;
@@ -114,7 +115,9 @@ A separate adversarial pass found and fixed four issues before dependent use:
 4. append trusted the latest stored event hash without first validating the
    existing stream and could therefore extend corrupt history.
 
-Regression tests now cover all four cases.
+Regression tests now cover all four cases. This counter-review is builder-side
+evidence only. It is not independent review, may share blind spots with the
+implementation pass, and cannot satisfy the final Gate-0 review requirement.
 
 ## Adversarial mutation targets
 
@@ -137,15 +140,15 @@ results are development evidence only and do not replace exact-branch CI.
 
 ## Exact-branch verification status
 
-Current reviewed head before this documentation-only commit:
-`122badc6ce1af13d65eeee2e912ed5320ed35228`.
+Reviewed code head: `122badc6ce1af13d65eeee2e912ed5320ed35228`.
+Subsequent commits in this packet only qualify documentation evidence.
 
-GitHub Actions run `30848710330` instantiated all ten requested storage jobs,
-including Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, full suite
-and isolated wheel. Every job terminated before executing a step and returned
-`steps=null`. Iron Plan run `30848710328` failed in the same zero-step state.
-No test log exists, so neither run is accepted as green or as a product-code
-failure.
+GitHub Actions runs `30848710330` and `30848932265` each instantiated all ten
+requested storage jobs, including Ubuntu and Windows, Python 3.10 and 3.12, two
+hash seeds, full suite and isolated wheel. Every job terminated before executing
+a step and returned `steps=null`. Iron Plan runs failed in the same zero-step
+state. No test log exists, so these runs are accepted neither as green evidence
+nor as product-code failures.
 
 ## Rollback
 
@@ -162,6 +165,7 @@ or SQLite files are disposable fixtures.
   them;
 - no attempt workspace, candidate-tree archive, EvidencePacket binding or
   Fourfold integration is added here;
+- independent external review remains outstanding;
 - dependent work remains frozen until executable CI verifies the current parent
   and this branch.
 
