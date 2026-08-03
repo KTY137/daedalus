@@ -160,8 +160,11 @@ def promote_candidates(
     """Promote one exact, persisted-owner-authorized candidate into a branch.
 
     This is still an explicit owner operation and never merges the integration
-    branch. Persisted approval re-authentication and the live target-HEAD read
-    occur while the cross-process promotion lock is held, immediately before
+    branch. Before any process, lock or worktree effect, the exact consumed
+    approval is authenticated from its persisted ledger and checked against the
+    static candidate/evidence subject using its owner-bound expected target.
+    The same capability is re-authenticated while the cross-process promotion
+    lock is held against the freshly read live target HEAD immediately before
     the retained integration-worktree implementation is entered.
 
     The historical multi-candidate retry path is intentionally frozen here.
@@ -171,10 +174,10 @@ def promote_candidates(
     clean candidate and requires its base revision to equal the authorized live
     target revision. Every refusal happens before worktree creation.
 
-    Candidate material is snapshotted before the lock manager is constructed.
-    The immutable local snapshot is used for authorization and for the retained
-    apply path, so a caller cannot swap a mutable ``GatedCandidate.result``
-    between those two operations.
+    Candidate material is snapshotted before capability authentication. The
+    immutable local snapshot is used by both authorization passes and by the
+    retained apply path, so a caller cannot swap a mutable
+    ``GatedCandidate.result`` between those operations.
     """
     try:
         root = Path(repo_root).resolve()
@@ -219,6 +222,28 @@ def promote_candidates(
     result = candidate.result
     artifact = result.artifact
 
+    # Authenticate persisted authority and all static subject bindings before
+    # any process spawn, lock-file operation, worktree-manager construction or
+    # ledger-path discovery. The owner-bound expected target revision is used
+    # only for this effect-free preauthorization; it is replaced by a fresh Git
+    # ref read under the lock and rechecked immediately before mutation.
+    try:
+        from daedalus.kernel.promotion import authorize_persisted_promotion
+
+        authorize_persisted_promotion(
+            approval_ledger=approval_ledger,
+            owner_keyring=owner_keyring,
+            consumed_approval=consumed_approval,
+            evidence_packet=evidence_packet,
+            candidates=sealed_candidates,
+            target_ref=target_ref,
+            live_target_revision=(
+                consumed_approval.verified.expected_target_revision
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - no effect has occurred
+        return _promotion_refusal(sealed_candidates, exc)
+
     try:
         manager = GitWorktreeManager(root)
         if ledger_path is None:
@@ -235,10 +260,10 @@ def promote_candidates(
 
     try:
         with _PromotionLock(lock_path, timeout_s=lock_timeout_s):
-            # These imports are deliberately inside the locked region. The
-            # target ref is sampled only after lock acquisition, and the exact
-            # persisted approval is re-authenticated before _promote_locked can
-            # create an integration worktree.
+            # The capability was authenticated before the first effect. It is
+            # authenticated again inside the lock with the freshly sampled live
+            # target so stale or replaced authority cannot cross the mutation
+            # boundary.
             from daedalus.kernel.promotion import (
                 authorize_persisted_promotion,
                 resolve_live_target_revision,
