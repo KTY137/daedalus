@@ -11,7 +11,7 @@ on:
       - "tests/runtimes/test_runtime_terminal_fence.py"
       - "tests/runtimes/test_runtime_terminal_fence_release.py"
       - "tests/kernel/test_runtime_effect_admission.py"
-      - "docs/work-packets/G0-RTC-06L_RUNTIME_TRUST_LOCK_FAULT.md"
+      - "docs/work-packets/G0-RTC-06O_RUNTIME_TRUST_LOCK_FAULT.md"
       - ".github/workflows/g0-runtime-trust-lock-fault.yml"
   push:
     branches:
