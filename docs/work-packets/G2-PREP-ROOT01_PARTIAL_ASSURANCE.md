@@ -46,14 +46,27 @@ binds exact revision, file identity, schema coverage, payload checks,
 provenance/lineage and the relevant policy/evidence contracts. Uproot metadata
 inventory alone must never become trusted semantic completeness.
 
+## Independent counter-review finding
+
+The first correction still assumed that a successfully opened ROOT file could
+always enumerate its object directory. A malformed streamer or directory can
+allow `uproot.open()` to succeed and then make `classnames()` raise. That path
+previously escaped as an unstructured exception.
+
+The adapter now converts enumeration failure into the canonical fail-closed
+`root-metadata-enumeration-failed` report and closes the file in the surrounding
+`finally` block. The dependency-free fake reader proves both the failure status
+and close behavior. This is model-assisted review support, not an independent
+human approval or hard Gate evidence.
+
 ## Adversarial verification requested
 
 The packet adds:
 
 1. real Uproot/Numpy fixture tests requiring clean metadata inventory to remain
    partial while retaining objects, fields and deterministic relations;
-2. a dependency-free fake Uproot file proving the same public contract when the
-   optional packages are unavailable;
+2. a dependency-free fake Uproot file proving both the successful partial result
+   and fail-closed object-directory enumeration when optional packages are absent;
 3. an AST counter-review rejecting any successful `status="complete"`
    assignment;
 4. a bounded mutation changing the sole successful partial assignment to
