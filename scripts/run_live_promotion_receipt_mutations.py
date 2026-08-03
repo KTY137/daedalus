@@ -12,6 +12,9 @@ TESTS = (
     "tests/kernel/test_live_promotion_seam_review.py",
     "tests/kernel/test_live_promotion_receipts.py",
     "tests/kernel/test_primary_checkout_fingerprint.py",
+    "tests/kernel/test_live_promotion_legacy_retirement.py",
+    "tests/kernel/test_promotion_receipts.py",
+    "tests/kernel/test_promotion_receipts_review.py",
 )
 
 
@@ -40,44 +43,41 @@ def main() -> int:
         sys.stderr.write("focused baseline failed\n" + baseline.stdout + baseline.stderr)
         return 2
 
-    mutations: list[tuple[str, str, str]] = [
+    mutations = [
         (
-            "execute-pending-replay",
-            "            if not begin.execute:\n",
+            "accept-noncanonical-promotion-ledger",
+            "    if not isinstance(promotion_ledger, PromotionLedger):\n",
+            "    if False:\n",
+        ),
+        (
+            "reexecute-pending-or-terminal-start",
+            "            if not begin_result.execute:\n",
+            "            if False:\n",
+        ),
+        (
+            "allow-dirty-primary-before-start",
+            "            if not primary_clean:\n",
             "            if False:\n",
         ),
         (
             "ignore-primary-checkout-mutation",
-            "    if primary_before != primary_after:\n",
-            "    if False:\n",
+            "            primary_unchanged = (\n",
+            "            primary_unchanged = True or (\n",
         ),
         (
-            "single-sample-primary-fingerprint",
-            "    second = _primary_inventory(root)\n",
-            "    second = first\n",
-        ),
-        (
-            "randomize-integration-branch",
-            "    return f\"kairos-integration-{authorization.authorization_sha256[:40]}\"\n",
-            "    return f\"kairos-integration-{uuid.uuid4().hex}\"\n",
-        ),
-        (
-            "omit-promotion-ledger-authority",
-            "    if approval_ledger is None or promotion_ledger is None or not owner_keyring:\n",
-            "    if approval_ledger is None or not owner_keyring:\n",
-        ),
-        (
-            "retry-pending-mutation",
-            "                return _reconcile_pending(\n",
-            "                begin = type('Replay', (), {'execute': True, 'start': begin.start})()\n                if False:\n                    return _reconcile_pending(\n",
+            "skip-terminal-readback",
+            "            persisted = promotion_ledger.verify_receipt(completion)\n",
+            "            persisted = completion\n",
         ),
     ]
 
     killed: list[str] = []
     try:
         for label, old, new in mutations:
-            mutated = _replace_once(source, old, new, label)
-            TARGET.write_text(mutated, encoding="utf-8")
+            TARGET.write_text(
+                _replace_once(source, old, new, label),
+                encoding="utf-8",
+            )
             result = _run()
             if result.returncode == 0:
                 sys.stderr.write(f"survived mutation: {label}\n")
