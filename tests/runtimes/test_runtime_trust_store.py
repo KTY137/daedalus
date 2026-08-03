@@ -104,7 +104,9 @@ def test_admission_persists_exact_live_binding_and_replays_idempotently(
     )
     assert active == record
     assert record.probe_identity_sha256 == identity.digest
-    assert record.observed_at == receipt.finished_at.replace("+00:00", "+00:00") + ".000000" if False else record.observed_at
+    assert record.observed_at == (NOW - timedelta(minutes=10)).isoformat(
+        timespec="microseconds"
+    )
     assert record.state == "ACTIVE"
     assert len(record.record_sha256) == 64
 
