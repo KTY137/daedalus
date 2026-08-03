@@ -32,15 +32,20 @@ The new adapter:
 1. accepts an already compiled `FourfoldSnapshot`;
 2. uses the reference compiler's `source_bundle_sha256` as the content-addressed candidate identity;
 3. stores the exact `FourfoldSnapshot.digest` as deterministic evidence output;
-4. retains repository ID, source revision, candidate digest, Forest digest, and snapshot digest in structured evidence details;
-5. verifies the packet again before returning it;
-6. performs no effect, approval consumption, checkout write, or promotion.
+4. retains repository ID, source revision, candidate digest, Forest digest, snapshot digest, all plane statuses, and the verified binding count in structured evidence details;
+5. permits conclusive promotion evidence only when all four planes are `complete`;
+6. verifies the packet and plane completeness again before returning it;
+7. performs no effect, approval consumption, checkout write, or promotion.
+
+`partial` and `absent` remain valid and honest Fourfold snapshot states for discovery. This promotion-facing adapter refuses to upgrade either state into an overall `passed` packet.
 
 ## Acceptance criteria
 
 - The real wiki fixture compiles to four complete planes and 31 verified bindings.
 - The evidence packet binds exactly one candidate digest and locator.
 - The Fourfold evidence item output equals the real snapshot digest.
+- Plane completeness and verified-binding count are retained in canonical evidence details.
+- A `partial` or `absent` plane cannot produce or verify as passed promotion evidence.
 - A source mutation changes both candidate source-bundle and snapshot identity.
 - Evidence for the old candidate is refused against the changed candidate.
 - A snapshot compiled under another revision is refused.
@@ -48,6 +53,12 @@ The new adapter:
 - Candidate locator repackaging is refused.
 - `OwnerApproval` verifies only against the exact candidate and EvidencePacket digest.
 - A moved target HEAD is refused during the final live-head verification step.
+
+## Adversarial review
+
+The separate review perspective found that the first implementation accepted any structurally valid `FourfoldSnapshot`, including snapshots whose planes were honestly `partial` or `absent`, and then emitted a conclusive `passed` packet. That would allow incomplete polyglot semantics to be mistaken for promotion-grade evidence.
+
+The boundary now rechecks all four plane statuses during both assembly and verification. A focused mutation that removes this completeness check is killed by `test_partial_snapshot_cannot_be_upgraded_to_passed_promotion_evidence`.
 
 ## Deliberate boundary
 
