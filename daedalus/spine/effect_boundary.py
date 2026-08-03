@@ -246,8 +246,30 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.spine.attempt:run_attempt",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.REPOSITORY_MUTATION),
         guard_contracts=("spine.intent_ledger", "containment.attempt"),
-        wiring=Wiring.LOCAL_GUARDS,
-        notes="Canonical attempt path, but direct Python callers do not yet obtain a boundary receipt.",
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.spine.attempt:TaskAttempt._run_with_ledger",
+                "_begin_effect_boundary",
+            ),
+            GuardAnchor(
+                "daedalus.spine.attempt:TaskAttempt._begin_effect_boundary",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "First row migrated to the central start path. The two guards were "
+            "already real here -- the intent is committed to the spine ledger "
+            "before the first external effect, and the attempt cannot write the "
+            "primary checkout -- so the only thing this row ever lacked was the "
+            "receipt, which is why it went first. The boundary call sits between "
+            "record_intent and create_worktree: after the ledger row exists (so "
+            "spine.intent_ledger has an intent id as evidence rather than a "
+            "promise) and before any worktree is created (so a refusal costs no "
+            "effect). Both anchors are load-bearing in opposite directions: the "
+            "first proves the seam still calls the helper, the second proves the "
+            "helper still goes through begin_effect. Deleting either is a blocker."
+        ),
     ),
     EntrypointSpec(
         id="python.offload",
@@ -833,6 +855,25 @@ _HIGH_IMPACT_CALLS: Mapping[str, Effect] = {
     "ThreadingHTTPServer": Effect.LISTEN_SOCKET,
 }
 
+#: The call a CENTRAL row must be able to point at.
+#:
+#: MEASURED 2026-07-31: before this constant existed, the only things
+#: :func:`check_conformance` asked of a CENTRAL row were "declares a guard
+#: contract" and "that contract is implemented" -- both properties of the
+#: registry TEXT. Flipping ``wiring=Wiring.CENTRAL`` on any row whose contracts
+#: happened to be implemented therefore cleared its ``gate0.unguarded_entrypoint``
+#: blocker and moved it out of ``gate0.not_central`` without a single line of
+#: calling code changing. Verified by flipping ``python.offload`` in a
+#: standalone copy of this module: its blocker disappeared while
+#: ``daedalus/offload.py`` still never mentioned :func:`begin_effect`.
+#:
+#: That is the exact failure mode section 12 names -- a boundary that is a
+#: string rather than a call -- and it made the matrix's own headline number
+#: ("N rows CENTRAL") the easiest thing in the repository to fake. The rule
+#: below ties the claim to an anchor the AST pass can check, so "central" costs
+#: a real call site.
+_BOUNDARY_CALL = "begin_effect"
+
 _PUBLIC_ADAPTER_METHODS = {
     "create_session",
     "send",
@@ -1348,6 +1389,18 @@ def check_conformance(
             for name in row.guard_contracts
             if not GUARD_CONTRACT_IMPLEMENTED.get(name, False)
         )
+        if row.wiring is Wiring.CENTRAL and not any(
+            anchor.call == _BOUNDARY_CALL for anchor in row.anchors
+        ):
+            findings.append(
+                ConformanceFinding(
+                    "registry.central_without_boundary_anchor",
+                    "blocker",
+                    row.id,
+                    f"central row declares no anchor calling {_BOUNDARY_CALL}(), "
+                    "so nothing checks that the wiring exists in code",
+                )
+            )
         if row.wiring is Wiring.CENTRAL and unavailable_contracts:
             findings.append(
                 ConformanceFinding(

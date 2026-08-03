@@ -193,6 +193,12 @@ class Intent:
     def is_open(self) -> bool:
         return self.state == STATE_INTENDED
 
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as exc:
+            raise KeyError(key) from exc
+
     def to_statement(self) -> dict[str, Any]:
         """This intent as an in-toto ITE-6 statement. A PROJECTION, not storage.
 
