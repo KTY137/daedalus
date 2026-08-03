@@ -1,0 +1,30 @@
+name: Temporary G0 evidence checkout export
+
+on:
+  push:
+    branches:
+      - g0/fourfold-evidence-binding
+    paths:
+      - ".github/workflows/bootstrap-g0-evidence-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive
+        run: |
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git -czf /tmp/daedalus-g0-evidence.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-g0-evidence-checkout
+          path: /tmp/daedalus-g0-evidence.tar.gz
+          if-no-files-found: error
+          retention-days: 1
