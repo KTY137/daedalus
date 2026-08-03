@@ -1,15 +1,16 @@
 """Machine-readable runtime fault catalog and fail-closed matrix evaluation.
 
-The catalog defines *required questions*, not test results. A scenario becomes
-satisfied only when a separately retained observation binds the exact scenario,
-source revision, execution authority, and content-addressed evidence. Missing,
-failed, blocked, stale, foreign, or drifted observations remain mechanical
-blockers.
+The catalog defines required questions, not test results. A scenario is satisfied
+only when one exact observation binds the scenario, source revision, execution
+authority, and content-addressed evidence *and* the observation record digest is
+present in an externally supplied trust set. Candidate-authored ``status=passed``
+is therefore insufficient by construction.
 
-This module does not execute providers, Docker, pytest, or a host fault injector.
-It deliberately cannot turn a model assertion into hard evidence and it has no
-manual ``closed`` field. Exact-head evidence collection and external trust of the
-referenced payloads remain separate boundaries.
+This module does not execute providers, Docker, pytest, or host fault injectors.
+It cannot authenticate CI, a live runtime, or a human reviewer. Exact-head
+collectors must obtain trusted observation digests independently and pass them
+to :func:`verify_runtime_fault_matrix`. Missing, failed, blocked, stale, foreign,
+drifted, authority-mismatched, or untrusted observations remain blockers.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from daedalus.spine.envelope import canonical_sha
 _SCHEMA = "daedalus-runtime-fault-matrix/1"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-_REVISION_RE = re.compile(r"^[0-9a-f]{40}$|^[0-9a-f]{64}$")
+_REVISION_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 _AUTHORITIES = frozenset({"deterministic-fixture", "linux-host", "live-runtime"})
 _STATUSES = frozenset({"passed", "failed", "blocked"})
 _EXPECTED_OUTCOMES = frozenset(
@@ -111,9 +112,7 @@ def _record_dict(value: object) -> dict[str, Any]:
 
 
 def _strict_record(
-    payload: Mapping[str, Any],
-    expected: set[str],
-    name: str,
+    payload: Mapping[str, Any], expected: set[str], name: str
 ) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         raise ValueError(f"{name} must be an object")
@@ -121,9 +120,7 @@ def _strict_record(
     missing = sorted(expected - keys)
     extra = sorted(keys - expected)
     if missing or extra:
-        raise ValueError(
-            f"{name} fields mismatch; missing={missing}, extra={extra}"
-        )
+        raise ValueError(f"{name} fields mismatch; missing={missing}, extra={extra}")
     return dict(payload)
 
 
@@ -131,6 +128,20 @@ def _sequence(value: Any, name: str) -> tuple[Any, ...]:
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ValueError(f"{name} must be an array")
     return tuple(value)
+
+
+def _trusted_digests(values: Sequence[str]) -> tuple[str, ...]:
+    if isinstance(values, (str, bytes)):
+        raise ValueError("trusted observation digests must be an array")
+    normalized = tuple(
+        sorted(
+            _sha256(value, f"trusted_observation_digests[{index}]")
+            for index, value in enumerate(values)
+        )
+    )
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("trusted observation digests must be unique")
+    return normalized
 
 
 @dataclass(frozen=True)
@@ -145,24 +156,14 @@ class RuntimeFaultScenario:
     required_for_gate0: bool = True
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "scenario_id", _identifier(self.scenario_id, "scenario_id")
-        )
-        object.__setattr__(
-            self, "boundary", _choice(self.boundary, "boundary", _BOUNDARIES)
-        )
-        object.__setattr__(
-            self, "authority", _choice(self.authority, "authority", _AUTHORITIES)
-        )
+        object.__setattr__(self, "scenario_id", _identifier(self.scenario_id, "scenario_id"))
+        object.__setattr__(self, "boundary", _choice(self.boundary, "boundary", _BOUNDARIES))
+        object.__setattr__(self, "authority", _choice(self.authority, "authority", _AUTHORITIES))
         object.__setattr__(self, "injection", _non_empty(self.injection, "injection"))
         object.__setattr__(
             self,
             "expected_outcome",
-            _choice(
-                self.expected_outcome,
-                "expected_outcome",
-                _EXPECTED_OUTCOMES,
-            ),
+            _choice(self.expected_outcome, "expected_outcome", _EXPECTED_OUTCOMES),
         )
         object.__setattr__(self, "invariant", _non_empty(self.invariant, "invariant"))
         object.__setattr__(self, "executor", _non_empty(self.executor, "executor"))
@@ -239,41 +240,19 @@ class RuntimeFaultObservation:
     provenance: ContractProvenance
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "observation_id", _identifier(self.observation_id, "observation_id")
-        )
-        object.__setattr__(
-            self, "scenario_id", _identifier(self.scenario_id, "scenario_id")
-        )
-        object.__setattr__(
-            self,
-            "scenario_sha256",
-            _sha256(self.scenario_sha256, "scenario_sha256"),
-        )
-        object.__setattr__(
-            self, "source_revision", _revision(self.source_revision)
-        )
-        object.__setattr__(
-            self, "authority", _choice(self.authority, "authority", _AUTHORITIES)
-        )
+        object.__setattr__(self, "observation_id", _identifier(self.observation_id, "observation_id"))
+        object.__setattr__(self, "scenario_id", _identifier(self.scenario_id, "scenario_id"))
+        object.__setattr__(self, "scenario_sha256", _sha256(self.scenario_sha256, "scenario_sha256"))
+        object.__setattr__(self, "source_revision", _revision(self.source_revision))
+        object.__setattr__(self, "authority", _choice(self.authority, "authority", _AUTHORITIES))
         object.__setattr__(self, "status", _choice(self.status, "status", _STATUSES))
-        object.__setattr__(
-            self, "observed_at", _timestamp(self.observed_at, "observed_at")
-        )
-        object.__setattr__(
-            self,
-            "evidence_sha256",
-            _sha256(self.evidence_sha256, "evidence_sha256"),
-        )
+        object.__setattr__(self, "observed_at", _timestamp(self.observed_at, "observed_at"))
+        object.__setattr__(self, "evidence_sha256", _sha256(self.evidence_sha256, "evidence_sha256"))
         if self.status == "passed":
             if self.detail_code is not None:
                 raise ValueError("passed observations must not carry detail_code")
         else:
-            object.__setattr__(
-                self,
-                "detail_code",
-                _identifier(self.detail_code, "detail_code"),
-            )
+            object.__setattr__(self, "detail_code", _identifier(self.detail_code, "detail_code"))
         if self.provenance.source_revision != self.source_revision:
             raise ValueError("observation source revision contradicts provenance")
         if _timestamp(self.provenance.created_at, "provenance.created_at") != self.observed_at:
@@ -317,14 +296,8 @@ class RuntimeFaultMatrix:
         if self.schema != _SCHEMA:
             raise ValueError(f"schema must be {_SCHEMA}")
         object.__setattr__(self, "source_revision", _revision(self.source_revision))
-        object.__setattr__(
-            self,
-            "catalog_sha256",
-            _sha256(self.catalog_sha256, "catalog_sha256"),
-        )
-        observations = tuple(
-            sorted(self.observations, key=lambda row: row.scenario_id)
-        )
+        object.__setattr__(self, "catalog_sha256", _sha256(self.catalog_sha256, "catalog_sha256"))
+        observations = tuple(sorted(self.observations, key=lambda row: row.scenario_id))
         scenario_ids = [row.scenario_id for row in observations]
         observation_ids = [row.observation_id for row in observations]
         if len(scenario_ids) != len(set(scenario_ids)):
@@ -332,22 +305,16 @@ class RuntimeFaultMatrix:
         if len(observation_ids) != len(set(observation_ids)):
             raise ValueError("runtime fault matrix contains duplicate observation ids")
         object.__setattr__(self, "observations", observations)
-        object.__setattr__(
-            self, "generated_at", _timestamp(self.generated_at, "generated_at")
-        )
+        object.__setattr__(self, "generated_at", _timestamp(self.generated_at, "generated_at"))
         if any(row.source_revision != self.source_revision for row in observations):
             raise ValueError("matrix observations must share the exact source revision")
         if self.provenance.source_revision != self.source_revision:
             raise ValueError("matrix source revision contradicts provenance")
         if _timestamp(self.provenance.created_at, "provenance.created_at") != self.generated_at:
             raise ValueError("matrix timestamp contradicts provenance")
-        expected_inputs = tuple(
-            sorted((self.catalog_sha256, *(row.digest for row in observations)))
-        )
+        expected_inputs = tuple(sorted((self.catalog_sha256, *(row.digest for row in observations))))
         if tuple(self.provenance.input_digests) != expected_inputs:
-            raise ValueError(
-                "matrix provenance must bind the exact catalog and observations"
-            )
+            raise ValueError("matrix provenance must bind the exact catalog and observations")
 
     def to_dict(self) -> dict[str, Any]:
         return _record_dict(self)
@@ -376,16 +343,18 @@ class RuntimeFaultVerification:
     matrix_sha256: str
     catalog_sha256: str
     source_revision: str
+    trusted_observation_sha256s: tuple[str, ...]
     blockers: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "matrix_sha256", _sha256(self.matrix_sha256, "matrix_sha256")
-        )
-        object.__setattr__(
-            self, "catalog_sha256", _sha256(self.catalog_sha256, "catalog_sha256")
-        )
+        object.__setattr__(self, "matrix_sha256", _sha256(self.matrix_sha256, "matrix_sha256"))
+        object.__setattr__(self, "catalog_sha256", _sha256(self.catalog_sha256, "catalog_sha256"))
         object.__setattr__(self, "source_revision", _revision(self.source_revision))
+        object.__setattr__(
+            self,
+            "trusted_observation_sha256s",
+            _trusted_digests(self.trusted_observation_sha256s),
+        )
         blockers = tuple(sorted(_non_empty(row, "blocker") for row in self.blockers))
         if len(blockers) != len(set(blockers)):
             raise ValueError("verification blockers must be unique")
@@ -400,6 +369,7 @@ class RuntimeFaultVerification:
             "matrix_sha256": self.matrix_sha256,
             "catalog_sha256": self.catalog_sha256,
             "source_revision": self.source_revision,
+            "trusted_observation_sha256s": list(self.trusted_observation_sha256s),
             "blockers": list(self.blockers),
             "closed": self.closed,
         }
@@ -444,8 +414,11 @@ def verify_runtime_fault_matrix(
     *,
     catalog: RuntimeFaultCatalog,
     expected_source_revision: str,
+    trusted_observation_digests: Sequence[str],
 ) -> RuntimeFaultVerification:
     expected_revision = _revision(expected_source_revision, "expected_source_revision")
+    trusted = _trusted_digests(trusted_observation_digests)
+    trusted_set = frozenset(trusted)
     blockers: set[str] = set()
     if matrix.catalog_sha256 != catalog.digest:
         blockers.add("fault.catalog-mismatch")
@@ -464,6 +437,8 @@ def verify_runtime_fault_matrix(
         if observation is None:
             blockers.add(f"fault.missing:{scenario.scenario_id}")
             continue
+        if observation.digest not in trusted_set:
+            blockers.add(f"fault.untrusted-observation:{scenario.scenario_id}")
         if observation.source_revision != expected_revision:
             blockers.add(f"fault.stale-revision:{scenario.scenario_id}")
         if observation.scenario_sha256 != scenario.digest:
@@ -479,252 +454,234 @@ def verify_runtime_fault_matrix(
         matrix_sha256=matrix.digest,
         catalog_sha256=catalog.digest,
         source_revision=expected_revision,
+        trusted_observation_sha256s=trusted,
         blockers=tuple(blockers),
     )
 
 
-def _scenario(
-    scenario_id: str,
-    boundary: str,
-    authority: str,
-    injection: str,
-    expected_outcome: str,
-    invariant: str,
-    executor: str,
-) -> RuntimeFaultScenario:
-    return RuntimeFaultScenario(
-        scenario_id=scenario_id,
-        boundary=boundary,
-        authority=authority,
-        injection=injection,
-        expected_outcome=expected_outcome,
-        invariant=invariant,
-        executor=executor,
-    )
-
-
-RUNTIME_FAULT_CATALOG = RuntimeFaultCatalog(
-    catalog_id="gate0-runtime-faults-v1",
-    scenarios=(
-        _scenario(
-            "runtime.broker.exact-replay-inert",
-            "broker",
-            "deterministic-fixture",
-            "reuse the exact execution identity and idempotency key",
-            "refused-before-start",
-            "provider and output-evidence callbacks are not invoked twice",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_exact_replay_is_inert_and_has_no_second_terminal",
-        ),
-        _scenario(
-            "runtime.broker.foreign-authority",
-            "broker",
-            "deterministic-fixture",
-            "substitute request, lease, registry wiring, or runtime identity",
-            "refused-before-start",
-            "no grant, start, or provider effect occurs under foreign authority",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_runtime_mismatched_authority_refuses_before_effect",
-        ),
-        _scenario(
-            "runtime.broker.provider-exception",
-            "broker",
-            "deterministic-fixture",
-            "raise from the provider callback",
-            "failed",
-            "a FAILED terminal is durable before the exception escapes",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_provider_exception_is_failed_before_it_escapes",
-        ),
-        _scenario(
-            "runtime.broker.cancellation",
-            "broker",
-            "deterministic-fixture",
-            "raise KeyboardInterrupt from the provider callback",
-            "cancelled",
-            "a CANCELLED terminal is durable before cancellation escapes",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_keyboard_interrupt_is_cancelled_before_it_escapes",
-        ),
-        _scenario(
-            "runtime.broker.trust-loss-after-invoke",
-            "runtime-trust",
-            "deterministic-fixture",
-            "quarantine runtime immediately after provider return",
-            "cancelled",
-            "output evidence is not extracted or released",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_provider_call_withholds_output_and_cancels",
-        ),
-        _scenario(
-            "runtime.broker.trust-loss-after-evidence",
-            "runtime-trust",
-            "deterministic-fixture",
-            "rotate runtime evidence after output materialization",
-            "cancelled",
-            "COMPLETED is not persisted for stale runtime evidence",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_evidence_extraction_blocks_completion",
-        ),
-        _scenario(
-            "runtime.fence.quarantine-wins",
-            "runtime-trust",
-            "deterministic-fixture",
-            "commit quarantine after the last ordinary verify but before fence acquisition",
-            "cancelled",
-            "the terminal fence withholds output and records CANCELLED",
-            "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[quarantine]",
-        ),
-        _scenario(
-            "runtime.fence.record-rotation-wins",
-            "runtime-trust",
-            "deterministic-fixture",
-            "replace trust-record identity before terminal fence acquisition",
-            "cancelled",
-            "a foreign record cannot receive COMPLETED",
-            "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[replace-record]",
-        ),
-        _scenario(
-            "runtime.fence.completion-wins",
-            "runtime-trust",
-            "deterministic-fixture",
-            "race quarantine against a completion already holding the trust writer lock",
-            "completed-before-quarantine",
-            "quarantine cannot interleave before the terminal receipt is durable",
-            "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_quarantine_waits_until_completed_receipt_is_durable",
-        ),
-        _scenario(
-            "runtime.fence.shared-ledger",
-            "effect-ledger",
-            "deterministic-fixture",
-            "configure trust and effect authorities on the same SQLite path",
-            "refused-before-start",
-            "a self-deadlocking configuration is refused before grant",
-            "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_runtime_trust_and_effect_ledgers_must_be_distinct",
-        ),
-        _scenario(
-            "runtime.fence.readonly-commit-failure",
-            "runtime-trust",
-            "deterministic-fixture",
-            "reject COMMIT after the separate effect terminal is durable",
-            "completed-before-quarantine",
-            "the read-only fence rolls back and does not lose a valid result",
-            "pytest:tests/runtimes/test_runtime_terminal_fence_release.py::test_read_only_trust_fence_does_not_commit_after_effect_completion",
-        ),
-        _scenario(
-            "runtime.broker.malformed-output-evidence",
-            "broker",
-            "deterministic-fixture",
-            "return missing, malformed, or duplicate output digests",
-            "failed",
-            "successful output cannot escape without content-addressed evidence",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_missing_or_malformed_output_evidence_marks_execution_failed",
-        ),
-        _scenario(
-            "runtime.effect-terminal.disk-full",
-            "effect-ledger",
-            "deterministic-fixture",
-            "fail terminal receipt persistence with an I/O error",
-            "failed",
-            "the broker raises an explicit state error and never reports success",
-            "pytest:tests/runtimes/test_runtime_provider_broker.py::test_terminal_persistence_failure_is_a_broker_state_error",
-        ),
-        _scenario(
-            "runtime.trust-ledger.lock-contention",
-            "runtime-trust",
-            "linux-host",
-            "hold the trust writer lock past the configured busy timeout",
-            "cancelled",
-            "provider output is withheld and lock failure is retained explicitly",
-            "host-fixture:runtime-trust-lock-contention",
-        ),
-        _scenario(
-            "runtime.effect-ledger.lock-contention",
-            "effect-ledger",
-            "linux-host",
-            "hold the effect writer lock past the configured busy timeout",
-            "refused-before-start",
-            "no provider effect begins without a durable start receipt",
-            "host-fixture:runtime-effect-lock-contention",
-        ),
-        _scenario(
-            "runtime.live-envelope.expiry",
-            "runtime-trust",
-            "live-runtime",
-            "allow the externally signed runtime envelope to expire",
-            "refused-before-start",
-            "expired live evidence cannot authorize a production lease",
-            "live-probe:runtime-envelope-expiry",
-        ),
-        _scenario(
-            "runtime.live-envelope.binary-drift",
-            "runtime-trust",
-            "live-runtime",
-            "change provider binary or image identity after conformance",
-            "refused-before-start",
-            "runtime drift quarantines the exact envelope without fallback",
-            "live-probe:runtime-binary-drift",
-        ),
-        _scenario(
-            "runtime.process.timeout",
-            "provider-process",
-            "linux-host",
-            "run a provider process beyond its declared timeout",
-            "cancelled",
-            "the complete process tree is terminated and no output is accepted",
-            "host-fixture:runtime-process-timeout",
-        ),
-        _scenario(
-            "runtime.process.ignored-sigterm",
-            "provider-process",
-            "linux-host",
-            "make parent and child ignore SIGTERM",
-            "cancelled",
-            "escalated kill removes the entire process tree without orphans",
-            "host-fixture:runtime-process-tree-kill",
-        ),
-        _scenario(
-            "runtime.process.oom",
-            "sandbox",
-            "linux-host",
-            "exceed the runtime memory limit",
-            "failed",
-            "OOM is explicit and cannot fall back to an unsandboxed execution",
-            "host-fixture:runtime-container-oom",
-        ),
-        _scenario(
-            "runtime.sandbox.daemon-unavailable",
-            "sandbox",
-            "linux-host",
-            "make the required container runtime unavailable",
-            "refused-before-start",
-            "sandbox unavailability fails closed with no host-process fallback",
-            "host-fixture:runtime-sandbox-unavailable",
-        ),
-        _scenario(
-            "runtime.egress.unauthorized-endpoint",
-            "egress",
-            "linux-host",
-            "attempt egress outside the leased endpoint set",
-            "failed",
-            "undeclared network destinations are unreachable and evidenced",
-            "host-fixture:runtime-unauthorized-egress",
-        ),
-        _scenario(
-            "runtime.secrets.undeclared-access",
-            "secrets",
-            "linux-host",
-            "enumerate or read a secret not named by the lease",
-            "failed",
-            "undeclared secrets are absent and no secret value enters evidence",
-            "host-fixture:runtime-secret-isolation",
-        ),
-        _scenario(
-            "runtime.effect.unknown-outcome-replay",
-            "effect-ledger",
-            "linux-host",
-            "crash after external acknowledgement but before terminal persistence",
-            "unknown-reconciled",
-            "recovery reconciles the external idempotency key without a second effect",
-            "host-fixture:runtime-unknown-outcome-reconciliation",
-        ),
+_SCENARIO_ROWS: tuple[tuple[str, str, str, str, str, str, str], ...] = (
+    (
+        "runtime.broker.exact-replay-inert",
+        "broker",
+        "deterministic-fixture",
+        "reuse the exact execution identity and idempotency key",
+        "refused-before-start",
+        "provider and output-evidence callbacks are not invoked twice",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_exact_replay_is_inert_and_has_no_second_terminal",
+    ),
+    (
+        "runtime.broker.foreign-authority",
+        "broker",
+        "deterministic-fixture",
+        "substitute request, lease, registry wiring, or runtime identity",
+        "refused-before-start",
+        "no grant, start, or provider effect occurs under foreign authority",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_runtime_mismatched_authority_refuses_before_effect",
+    ),
+    (
+        "runtime.broker.provider-exception",
+        "broker",
+        "deterministic-fixture",
+        "raise from the provider callback",
+        "failed",
+        "a FAILED terminal is durable before the exception escapes",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_provider_exception_is_failed_before_it_escapes",
+    ),
+    (
+        "runtime.broker.cancellation",
+        "broker",
+        "deterministic-fixture",
+        "raise KeyboardInterrupt from the provider callback",
+        "cancelled",
+        "a CANCELLED terminal is durable before cancellation escapes",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_keyboard_interrupt_is_cancelled_before_it_escapes",
+    ),
+    (
+        "runtime.broker.trust-loss-after-invoke",
+        "runtime-trust",
+        "deterministic-fixture",
+        "quarantine runtime immediately after provider return",
+        "cancelled",
+        "output evidence is not extracted or released",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_provider_call_withholds_output_and_cancels",
+    ),
+    (
+        "runtime.broker.trust-loss-after-evidence",
+        "runtime-trust",
+        "deterministic-fixture",
+        "rotate runtime evidence after output materialization",
+        "cancelled",
+        "COMPLETED is not persisted for stale runtime evidence",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_evidence_extraction_blocks_completion",
+    ),
+    (
+        "runtime.fence.quarantine-wins",
+        "runtime-trust",
+        "deterministic-fixture",
+        "commit quarantine after the last ordinary verify but before fence acquisition",
+        "cancelled",
+        "the terminal fence withholds output and records CANCELLED",
+        "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[quarantine]",
+    ),
+    (
+        "runtime.fence.record-rotation-wins",
+        "runtime-trust",
+        "deterministic-fixture",
+        "replace trust-record identity before terminal fence acquisition",
+        "cancelled",
+        "a foreign record cannot receive COMPLETED",
+        "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[replace-record]",
+    ),
+    (
+        "runtime.fence.completion-wins",
+        "runtime-trust",
+        "deterministic-fixture",
+        "race quarantine against a completion already holding the trust writer lock",
+        "completed-before-quarantine",
+        "quarantine cannot interleave before the terminal receipt is durable",
+        "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_quarantine_waits_until_completed_receipt_is_durable",
+    ),
+    (
+        "runtime.fence.shared-ledger",
+        "effect-ledger",
+        "deterministic-fixture",
+        "configure trust and effect authorities on the same SQLite path",
+        "refused-before-start",
+        "a self-deadlocking configuration is refused before grant",
+        "pytest:tests/runtimes/test_runtime_terminal_fence.py::test_runtime_trust_and_effect_ledgers_must_be_distinct",
+    ),
+    (
+        "runtime.fence.readonly-commit-failure",
+        "runtime-trust",
+        "deterministic-fixture",
+        "reject COMMIT after the separate effect terminal is durable",
+        "completed-before-quarantine",
+        "the read-only fence rolls back and does not lose a valid result",
+        "pytest:tests/runtimes/test_runtime_terminal_fence_release.py::test_read_only_trust_fence_does_not_commit_after_effect_completion",
+    ),
+    (
+        "runtime.broker.malformed-output-evidence",
+        "broker",
+        "deterministic-fixture",
+        "return missing, malformed, or duplicate output digests",
+        "failed",
+        "successful output cannot escape without content-addressed evidence",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_missing_or_malformed_output_evidence_marks_execution_failed",
+    ),
+    (
+        "runtime.effect-terminal.disk-full",
+        "effect-ledger",
+        "deterministic-fixture",
+        "fail terminal receipt persistence with an I/O error",
+        "failed",
+        "the broker raises an explicit state error and never reports success",
+        "pytest:tests/runtimes/test_runtime_provider_broker.py::test_terminal_persistence_failure_is_a_broker_state_error",
+    ),
+    (
+        "runtime.trust-ledger.lock-contention",
+        "runtime-trust",
+        "linux-host",
+        "hold the trust writer lock past the configured busy timeout",
+        "cancelled",
+        "provider output is withheld and lock failure is retained explicitly",
+        "host-fixture:runtime-trust-lock-contention",
+    ),
+    (
+        "runtime.effect-ledger.lock-contention",
+        "effect-ledger",
+        "linux-host",
+        "hold the effect writer lock past the configured busy timeout",
+        "refused-before-start",
+        "no provider effect begins without a durable start receipt",
+        "host-fixture:runtime-effect-lock-contention",
+    ),
+    (
+        "runtime.live-envelope.expiry",
+        "runtime-trust",
+        "live-runtime",
+        "allow the externally signed runtime envelope to expire",
+        "refused-before-start",
+        "expired live evidence cannot authorize a production lease",
+        "live-probe:runtime-envelope-expiry",
+    ),
+    (
+        "runtime.live-envelope.binary-drift",
+        "runtime-trust",
+        "live-runtime",
+        "change provider binary or image identity after conformance",
+        "refused-before-start",
+        "runtime drift quarantines the exact envelope without fallback",
+        "live-probe:runtime-binary-drift",
+    ),
+    (
+        "runtime.process.timeout",
+        "provider-process",
+        "linux-host",
+        "run a provider process beyond its declared timeout",
+        "cancelled",
+        "the complete process tree is terminated and no output is accepted",
+        "host-fixture:runtime-process-timeout",
+    ),
+    (
+        "runtime.process.ignored-sigterm",
+        "provider-process",
+        "linux-host",
+        "make parent and child ignore SIGTERM",
+        "cancelled",
+        "escalated kill removes the entire process tree without orphans",
+        "host-fixture:runtime-process-tree-kill",
+    ),
+    (
+        "runtime.process.oom",
+        "sandbox",
+        "linux-host",
+        "exceed the runtime memory limit",
+        "failed",
+        "OOM is explicit and cannot fall back to an unsandboxed execution",
+        "host-fixture:runtime-container-oom",
+    ),
+    (
+        "runtime.sandbox.daemon-unavailable",
+        "sandbox",
+        "linux-host",
+        "make the required container runtime unavailable",
+        "refused-before-start",
+        "sandbox unavailability fails closed with no host-process fallback",
+        "host-fixture:runtime-sandbox-unavailable",
+    ),
+    (
+        "runtime.egress.unauthorized-endpoint",
+        "egress",
+        "linux-host",
+        "attempt egress outside the leased endpoint set",
+        "failed",
+        "undeclared network destinations are unreachable and evidenced",
+        "host-fixture:runtime-unauthorized-egress",
+    ),
+    (
+        "runtime.secrets.undeclared-access",
+        "secrets",
+        "linux-host",
+        "enumerate or read a secret not named by the lease",
+        "failed",
+        "undeclared secrets are absent and no secret value enters evidence",
+        "host-fixture:runtime-secret-isolation",
+    ),
+    (
+        "runtime.effect.unknown-outcome-replay",
+        "effect-ledger",
+        "linux-host",
+        "crash after external acknowledgement but before terminal persistence",
+        "unknown-reconciled",
+        "recovery reconciles the external idempotency key without a second effect",
+        "host-fixture:runtime-unknown-outcome-reconciliation",
     ),
 )
 
+RUNTIME_FAULT_CATALOG = RuntimeFaultCatalog(
+    catalog_id="gate0-runtime-faults-v1",
+    scenarios=tuple(RuntimeFaultScenario(*row) for row in _SCENARIO_ROWS),
+)
 
 __all__ = [
     "RUNTIME_FAULT_CATALOG",
