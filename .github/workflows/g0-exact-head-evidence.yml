@@ -43,6 +43,7 @@ jobs:
           tests/gates/test_gate_report.py
           tests/gates/test_exact_head_evidence.py
           tests/gates/test_exact_head_evidence_strict.py
+          tests/gates/test_exact_head_evidence_io.py
           tests/test_effect_boundary.py
 
   isolated-wheel:
@@ -62,6 +63,6 @@ jobs:
           cd /tmp && PYTHONPATH=
           /tmp/daedalus-wheel/bin/python -c
           "from daedalus.gates import GateEvidenceIndex,
-          strict_mechanical_blockers;
+          load_gate_evidence_index, strict_mechanical_blockers;
           assert GateEvidenceIndex.CONTRACT_TYPE ==
           'daedalus-gate-evidence-index/1'"
