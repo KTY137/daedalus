@@ -68,6 +68,18 @@ def main() -> int:
             ],
         ),
         (
+            "skip-pre-effect-persisted-auth",
+            "seam",
+            [
+                (
+                    "        from daedalus.kernel.promotion import authorize_persisted_promotion\n\n"
+                    "        authorize_persisted_promotion(\n",
+                    "        authorize_persisted_promotion = lambda **_kwargs: None\n\n"
+                    "        authorize_persisted_promotion(\n",
+                )
+            ],
+        ),
+        (
             "bypass-persisted-approval",
             "seam",
             [
