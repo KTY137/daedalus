@@ -21,6 +21,7 @@ effectful bypass.
 from __future__ import annotations
 
 import re
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -282,9 +283,16 @@ def _finish_completed_under_runtime_fence(
         )
 
     ledger, capability = components
-    connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
+    connection = None
     try:
-        connection.execute("BEGIN IMMEDIATE")
+        try:
+            connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
+            connection.execute("BEGIN IMMEDIATE")
+        except sqlite3.Error as exc:
+            raise RuntimeProviderTrustFenceError(
+                "runtime trust terminal fence could not be acquired"
+            ) from exc
+
         row = connection.execute(
             "SELECT * FROM runtime_trust_records "
             "WHERE runtime_id=? AND envelope_sha256=?",
@@ -363,14 +371,15 @@ def _finish_completed_under_runtime_fence(
             pass
         return terminal
     except BaseException:
-        if connection.in_transaction:
+        if connection is not None and connection.in_transaction:
             try:
                 connection.execute("ROLLBACK")
             except BaseException:
                 pass
         raise
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
 
 
 def run_runtime_provider(
