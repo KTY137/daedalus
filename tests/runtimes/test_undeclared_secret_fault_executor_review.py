@@ -28,30 +28,39 @@ def _function(name: str) -> ast.FunctionDef:
     raise AssertionError(f"missing function {name}")
 
 
+def _render_probe_node(node: ast.AST) -> str:
+    values: dict[str, object] = {
+        "_SECRET_NAME": "DAEDALUS_UNDECLARED_SECRET_PROBE",
+        "roots_literal": repr(
+            ("/run/secrets", "/var/run/secrets", "/run/credentials")
+        ),
+    }
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        return "".join(_render_probe_node(value) for value in node.values)
+    if isinstance(node, ast.FormattedValue):
+        if not isinstance(node.value, ast.Name) or node.value.id not in values:
+            raise AssertionError("unexpected formatted probe expression")
+        value = values[node.value.id]
+        if node.conversion == -1:
+            return str(value)
+        if node.conversion == ord("r"):
+            return repr(value)
+        raise AssertionError("unexpected probe format conversion")
+    raise AssertionError(f"unsupported probe AST node: {type(node).__name__}")
+
+
 def _embedded_probe() -> str:
     function = _function("_secret_probe_command")
-    namespace: dict[str, object] = {}
-    constants = {
-        "_SECRET_NAME": "DAEDALUS_UNDECLARED_SECRET_PROBE",
-        "_SECRET_ROOTS": ("/run/secrets", "/var/run/secrets", "/run/credentials"),
-    }
     for statement in function.body:
-        if isinstance(statement, ast.Assign):
-            target = statement.targets[0]
-            if not isinstance(target, ast.Name):
-                continue
-            if target.id == "roots_literal":
-                namespace[target.id] = repr(constants["_SECRET_ROOTS"])
-            elif target.id == "script":
-                expression = ast.Expression(statement.value)
-                compiled = compile(
-                    ast.fix_missing_locations(expression),
-                    "<secret-probe-builder>",
-                    "eval",
-                )
-                value = eval(compiled, {**constants, **namespace})
-                assert isinstance(value, str)
-                return value
+        if not isinstance(statement, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "script"
+            for target in statement.targets
+        ):
+            return _render_probe_node(statement.value)
     raise AssertionError("missing embedded secret probe")
 
 
@@ -113,6 +122,14 @@ def test_probe_compiles_enumerates_names_only_and_inspects_secret_mounts() -> No
         "stderr",
     ):
         assert forbidden not in probe
+
+
+def test_review_reconstruction_has_no_eval_or_exec_path() -> None:
+    assert "eval(" not in SOURCE
+    assert "exec(" not in SOURCE
+    review_source = Path(__file__).read_text(encoding="utf-8")
+    assert "eval(" not in review_source
+    assert "exec(" not in review_source
 
 
 def test_host_canary_is_locked_inherited_restored_and_never_argument_material() -> None:
