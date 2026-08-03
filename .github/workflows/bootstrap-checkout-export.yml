@@ -20,18 +20,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Create source archive
+      - name: Create source archive outside the checkout
         shell: bash
         run: |
           set -euo pipefail
           git status --short
           git rev-parse HEAD > CHECKOUT_HEAD
-          tar --exclude=.git --exclude=daedalus-checkout.tar.gz -czf daedalus-checkout.tar.gz .
-          test -s daedalus-checkout.tar.gz
-          tar -tzf daedalus-checkout.tar.gz >/dev/null
+          tar --exclude=.git -C "$GITHUB_WORKSPACE" -czf "$RUNNER_TEMP/daedalus-checkout.tar.gz" .
+          test -s "$RUNNER_TEMP/daedalus-checkout.tar.gz"
+          tar -tzf "$RUNNER_TEMP/daedalus-checkout.tar.gz" >/dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: daedalus-checkout-${{ github.sha }}
-          path: daedalus-checkout.tar.gz
+          path: ${{ runner.temp }}/daedalus-checkout.tar.gz
           if-no-files-found: error
           retention-days: 2
