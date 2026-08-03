@@ -10,15 +10,18 @@ from daedalus.spine.effect_boundary import Effect, Surface, Wiring
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = {
     "daedalus.kernel.attempt_ledger:AttemptLedger.begin": (
-        "python.attempt_lifecycle_begin",
+        "kernel.attempt.begin",
+        ("spine.intent_ledger",),
         ("record_intent",),
     ),
     "daedalus.kernel.attempt_ledger:AttemptLedger.complete": (
-        "python.attempt_lifecycle_complete",
+        "kernel.attempt.complete",
+        ("spine.intent_ledger",),
         ("mark_completed",),
     ),
     "daedalus.kernel.attempt_workspace:IsolatedAttemptCoordinator.prepare": (
-        "python.attempt_workspace_prepare",
+        "kernel.attempt.prepare",
+        ("spine.intent_ledger", "containment.attempt"),
         ("begin", "materialize_tree"),
     ),
 }
@@ -30,17 +33,14 @@ def _rows_by_target():
 
 def test_attempt_lifecycle_targets_have_one_honest_registry_owner() -> None:
     rows = _rows_by_target()
-    for target, (row_id, anchors) in TARGETS.items():
+    for target, (row_id, guards, anchors) in TARGETS.items():
         matching = [row for row in boundary.ENTRYPOINTS if row.target == target]
         assert len(matching) == 1
         row = rows[target]
         assert row.id == row_id
         assert row.surface is Surface.PYTHON
         assert row.effects == (Effect.FILESYSTEM_WRITE,)
-        assert row.guard_contracts == (
-            "spine.intent_ledger",
-            "containment.attempt",
-        )
+        assert row.guard_contracts == guards
         assert row.wiring is Wiring.LOCAL_GUARDS
         assert tuple(anchor.call for anchor in row.anchors) == anchors
         assert row.discoverable is True
