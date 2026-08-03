@@ -26,6 +26,18 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 _LOCATOR_PREFIX = "artifact-locator:sha256:"
 ZERO_EVENT_SHA256 = "0" * 64
+_EXPECTED_EVENT_COLUMNS = (
+    ("sequence", "INTEGER", 0, 1),
+    ("event_id", "TEXT", 1, 0),
+    ("stream_id", "TEXT", 1, 0),
+    ("kind", "TEXT", 1, 0),
+    ("subject_sha256", "TEXT", 1, 0),
+    ("payload_sha256", "TEXT", 1, 0),
+    ("payload_json", "TEXT", 1, 0),
+    ("created_at", "TEXT", 1, 0),
+    ("previous_event_sha256", "TEXT", 1, 0),
+    ("event_sha256", "TEXT", 1, 0),
+)
 
 __all__ = [
     "ArtifactCorrupt",
@@ -187,6 +199,8 @@ class ContentAddressedStore:
         digest = _sha256_bytes(data)
         destination = self._path(digest)
         destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.is_symlink():
+            raise ArtifactCorrupt(f"artifact {digest} is a symbolic link")
         if destination.exists():
             existing = destination.read_bytes()
             if _sha256_bytes(existing) != digest:
@@ -204,6 +218,10 @@ class ContentAddressedStore:
             try:
                 os.link(temp, destination)
             except FileExistsError:
+                if destination.is_symlink():
+                    raise ArtifactCorrupt(
+                        f"concurrent artifact {digest} is a symbolic link"
+                    )
                 existing = destination.read_bytes()
                 if _sha256_bytes(existing) != digest:
                     raise ArtifactCorrupt(f"concurrent blob {digest} is corrupt")
@@ -242,9 +260,10 @@ class ContentAddressedStore:
         data = self.get_bytes(sha256_or_locator)
         try:
             parsed = json.loads(data.decode("ascii"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ArtifactCorrupt("artifact is not JSON") from exc
-        if canonical_json(_validate_json(parsed)).encode("ascii") != data:
+            canonical = canonical_json(_validate_json(parsed)).encode("ascii")
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise ArtifactCorrupt("artifact is not canonical finite JSON") from exc
+        if canonical != data:
             raise ArtifactCorrupt("artifact is JSON but not in canonical encoding")
         return parsed
 
@@ -276,6 +295,8 @@ class EventStore:
         self.path = Path(path)
         self.read_only = bool(read_only)
         self.busy_timeout_ms = int(busy_timeout_ms)
+        if self.busy_timeout_ms < 0:
+            raise ValueError("busy_timeout_ms must be non-negative")
         self._lock = threading.RLock()
         if self.read_only:
             uri = self.path.resolve().as_uri() + "?mode=ro"
@@ -334,10 +355,40 @@ class EventStore:
             row = self._conn.execute(
                 "SELECT value FROM kernel_storage_meta WHERE key='schema_version'"
             ).fetchone()
+            columns = tuple(
+                (
+                    str(item["name"]),
+                    str(item["type"]).upper(),
+                    int(item["notnull"]),
+                    int(item["pk"]),
+                )
+                for item in self._conn.execute("PRAGMA table_info(events)").fetchall()
+            )
+            indexes = self._conn.execute("PRAGMA index_list(events)").fetchall()
+            unique_columns: set[tuple[str, ...]] = set()
+            named_indexes: set[str] = set()
+            for index in indexes:
+                name = str(index["name"])
+                named_indexes.add(name)
+                if int(index["unique"]):
+                    unique_columns.add(
+                        tuple(
+                            str(info["name"])
+                            for info in self._conn.execute(
+                                f'PRAGMA index_info("{name}")'
+                            ).fetchall()
+                        )
+                    )
         except sqlite3.DatabaseError as exc:
             raise EventCorrupt("event store schema is missing or unreadable") from exc
         if row is None or str(row["value"]) != "1":
             raise EventCorrupt("event store schema version is unsupported")
+        if columns != _EXPECTED_EVENT_COLUMNS:
+            raise EventCorrupt("event store events table shape is unsupported")
+        if {("event_id",), ("event_sha256",)} - unique_columns:
+            raise EventCorrupt("event store uniqueness constraints are missing")
+        if "idx_events_stream_sequence" not in named_indexes:
+            raise EventCorrupt("event store stream index is missing")
 
     @contextmanager
     def _txn(self) -> Iterator[None]:
@@ -355,21 +406,32 @@ class EventStore:
         with self._lock:
             self._conn.close()
 
-    def _head_row_unlocked(self, stream_id: str) -> sqlite3.Row | None:
+    def _rows_unlocked(self, stream_id: str) -> list[sqlite3.Row]:
         return self._conn.execute(
-            "SELECT event_sha256, created_at FROM events "
-            "WHERE stream_id=? ORDER BY sequence DESC LIMIT 1",
+            "SELECT * FROM events WHERE stream_id=? ORDER BY sequence",
             (stream_id,),
-        ).fetchone()
+        ).fetchall()
 
-    def _head_unlocked(self, stream_id: str) -> str:
-        row = self._head_row_unlocked(stream_id)
-        return str(row["event_sha256"]) if row else ZERO_EVENT_SHA256
+    def _read_stream_unlocked(self, stream_id: str) -> tuple[StoredEvent, ...]:
+        events: list[StoredEvent] = []
+        previous = ZERO_EVENT_SHA256
+        previous_time: str | None = None
+        for row in self._rows_unlocked(stream_id):
+            event = self._decode(row, previous)
+            if previous_time is not None and event.created_at < previous_time:
+                raise EventCorrupt(
+                    f"event {event.event_id} regresses its stream timestamp"
+                )
+            events.append(event)
+            previous = event.event_sha256
+            previous_time = event.created_at
+        return tuple(events)
 
     def head(self, stream_id: str) -> str:
         stream = _identifier(stream_id, "stream_id")
         with self._lock:
-            return self._head_unlocked(stream)
+            events = self._read_stream_unlocked(stream)
+            return events[-1].event_sha256 if events else ZERO_EVENT_SHA256
 
     def append(
         self,
@@ -395,17 +457,13 @@ class EventStore:
         payload_json = canonical_json(_validate_json(payload))
         payload_sha256 = _sha256_bytes(payload_json.encode("ascii"))
         with self._txn():
-            head_row = self._head_row_unlocked(stream_id)
-            head = (
-                str(head_row["event_sha256"])
-                if head_row
-                else ZERO_EVENT_SHA256
-            )
+            existing = self._read_stream_unlocked(stream_id)
+            head = existing[-1].event_sha256 if existing else ZERO_EVENT_SHA256
             if head != expected:
                 raise EventHeadMismatch(
                     f"expected stream head {expected}, found {head}"
                 )
-            if head_row is not None and timestamp < str(head_row["created_at"]):
+            if existing and timestamp < existing[-1].created_at:
                 raise EventTimeRegression(
                     "event time cannot precede the current stream head"
                 )
@@ -482,7 +540,13 @@ class EventStore:
                 f"event {row['event_id']} contains malformed metadata"
             ) from exc
         payload_json = str(row["payload_json"])
-        payload_sha = _sha256_bytes(payload_json.encode("ascii"))
+        try:
+            payload_bytes = payload_json.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise EventCorrupt(
+                f"event {row['event_id']} payload is not canonical ASCII JSON"
+            ) from exc
+        payload_sha = _sha256_bytes(payload_bytes)
         if payload_sha != row["payload_sha256"]:
             raise EventCorrupt(
                 f"event {row['event_id']} payload digest mismatch"
@@ -505,10 +569,15 @@ class EventStore:
             raise EventCorrupt(f"event {row['event_id']} digest mismatch")
         try:
             payload = json.loads(payload_json)
-        except json.JSONDecodeError as exc:
+            canonical = canonical_json(_validate_json(payload))
+        except (json.JSONDecodeError, ValueError) as exc:
             raise EventCorrupt(
                 f"event {row['event_id']} payload is invalid JSON"
             ) from exc
+        if canonical != payload_json:
+            raise EventCorrupt(
+                f"event {row['event_id']} payload is not canonically encoded"
+            )
         return StoredEvent(
             int(row["sequence"]),
             str(row["event_id"]),
@@ -525,14 +594,4 @@ class EventStore:
     def read_stream(self, stream_id: str) -> tuple[StoredEvent, ...]:
         stream = _identifier(stream_id, "stream_id")
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM events WHERE stream_id=? ORDER BY sequence",
-                (stream,),
-            ).fetchall()
-        events: list[StoredEvent] = []
-        previous = ZERO_EVENT_SHA256
-        for row in rows:
-            event = self._decode(row, previous)
-            events.append(event)
-            previous = event.event_sha256
-        return tuple(events)
+            return self._read_stream_unlocked(stream)
