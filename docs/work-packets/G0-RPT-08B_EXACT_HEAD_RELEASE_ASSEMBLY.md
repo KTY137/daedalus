@@ -28,6 +28,8 @@ The owner closure decision remains separate. A technically complete report can t
 
 `Gate0ReleaseReport.closed` is derived only from the union of the reconstructed Gate-report blockers and exact-head evidence blockers. The wire format retains `closed` and `blockers`, but strict parsing recomputes and compares both values.
 
+A parsed report is still not hard evidence by itself. `gate0_release_verification_blockers` and `assert_gate0_release_report` independently reconstruct the report from the retained mechanical report and evidence index, then recheck the current commit, tree, trust anchors, expiries and owner verifier. A directly constructed or repacked release contract therefore cannot become authoritative merely by containing `closed=true`.
+
 ## Fail-closed cases
 
 Focused tests cover:
@@ -42,6 +44,9 @@ Focused tests cover:
 - model-opinion architecture review in place of a human pass;
 - nested Gate-report field tampering;
 - forged release `closed` or blocker arrays;
+- direct contract repackaging;
+- replacement of the retained mechanical report or evidence index;
+- verification after runtime, workflow or index expiry;
 - provenance input removal.
 
 The intended focused mutations are:
@@ -51,7 +56,9 @@ The intended focused mutations are:
 3. ignore optional failed evidence;
 4. remove the owner-decision blocker;
 5. stop checking the exact Git tree;
-6. accept claimed `closed` without recomputation.
+6. accept claimed `closed` without recomputation;
+7. trust a retained release without independent reconstruction;
+8. skip current-time expiry revalidation.
 
 Each mutation must be killed before the packet can become reviewable evidence.
 
@@ -63,15 +70,15 @@ The dedicated workflow requests:
 - Python 3.10 and 3.12;
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan verification and `compileall`;
-- all exact-head evidence and release tests;
+- all exact-head evidence, assembly and independent-verifier tests;
 - the repository full suite on Ubuntu/Python 3.12;
 - isolated wheel import outside the checkout.
 
-GitHub Actions issue #67 currently prevents repository jobs from reaching Step 1. A zero-step failure is infrastructure evidence only and cannot establish product success or failure.
+GitHub Actions issue #67 currently prevents repository jobs from reaching Step 1. The latest attempted matrix again produced ten failed jobs with no recorded steps or logs. That is infrastructure evidence only and cannot establish a product verdict.
 
 ## Remaining boundary
 
-This packet creates the deterministic release-assembly contract only. Gate 0 remains open until a final linear candidate has:
+This packet creates deterministic release assembly and verification contracts only. Gate 0 remains open until a final linear candidate has:
 
 - real exact-head workflow/log/artifact evidence;
 - protected trust anchors;
@@ -80,7 +87,7 @@ This packet creates the deterministic release-assembly contract only. Gate 0 rem
 - no effect-inventory blockers;
 - exact-head human architecture and security approvals;
 - an authenticated owner closure decision;
-- a release report that actually derives `closed=true`.
+- a release report that derives `closed=true` and passes independent current-state verification.
 
 Iron Plan: **ALIGNED by scope; exact-head execution required**  
 Active gate: **Gate 0**  
