@@ -103,6 +103,38 @@ def test_start_uses_authority_time_and_binds_nearby_event_store_time(
     assert ledger.pending() == (begin.start,)
 
 
+def test_record_and_provenance_time_must_be_identical(tmp_path, monkeypatch) -> None:
+    store, captured, ledger = _environment(tmp_path)
+    _set_clocks(monkeypatch, authority=START, spine=START_EVENT)
+    start = _begin(ledger, captured).start
+    with pytest.raises(ValueError, match="provenance time"):
+        dataclasses.replace(
+            start,
+            provenance=dataclasses.replace(
+                start.provenance,
+                created_at="2026-08-03T20:00:00+00:00",
+            ),
+        )
+
+    monkeypatch.setattr(attempt_ledger_impl, "_authority_now", lambda: COMPLETE)
+    monkeypatch.setattr(spine_ledger_impl, "_now_iso", lambda: COMPLETE_EVENT)
+    completion = ledger.complete(
+        start,
+        receipt_id="terminal-time",
+        outcome="failed",
+        report=store.put_bytes(b"failed"),
+        candidate_tree=None,
+    )
+    with pytest.raises(ValueError, match="provenance time"):
+        dataclasses.replace(
+            completion.receipt,
+            provenance=dataclasses.replace(
+                completion.receipt.provenance,
+                created_at="2026-08-03T20:00:00+00:00",
+            ),
+        )
+
+
 def test_future_or_stale_authority_time_fails_closed_against_event_store(
     tmp_path, monkeypatch
 ) -> None:
