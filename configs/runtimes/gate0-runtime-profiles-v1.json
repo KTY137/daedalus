@@ -1,0 +1,86 @@
+{
+  "profiles": [
+    {
+      "adapter_id": "claude-cli-provider",
+      "adapter_module": "daedalus.providers.claude_cli",
+      "capabilities": {
+        "cancellation": false,
+        "cost_reporting": false,
+        "streaming": false,
+        "structured_output": true,
+        "timeout": true,
+        "tool_events": false,
+        "workspace_isolation": true,
+        "workspace_write": true
+      },
+      "command": "claude",
+      "cost_model": "unknown",
+      "declared_tools": [],
+      "egress_transports": [
+        "provider-broker"
+      ],
+      "mode": "cli",
+      "runtime_id": "claude_code_cli",
+      "workspace_modes": [
+        "isolated-worktree",
+        "read-only"
+      ]
+    },
+    {
+      "adapter_id": "codex-cli-provider",
+      "adapter_module": "daedalus.providers.codex_cli",
+      "capabilities": {
+        "cancellation": false,
+        "cost_reporting": false,
+        "streaming": false,
+        "structured_output": true,
+        "timeout": true,
+        "tool_events": false,
+        "workspace_isolation": true,
+        "workspace_write": true
+      },
+      "command": "codex",
+      "cost_model": "unknown",
+      "declared_tools": [],
+      "egress_transports": [
+        "provider-broker"
+      ],
+      "mode": "cli",
+      "runtime_id": "codex_cli",
+      "workspace_modes": [
+        "isolated-worktree",
+        "read-only"
+      ]
+    },
+    {
+      "adapter_id": "ollama-http-provider",
+      "adapter_module": "daedalus.providers.ollama",
+      "capabilities": {
+        "cancellation": false,
+        "cost_reporting": false,
+        "streaming": true,
+        "structured_output": true,
+        "timeout": true,
+        "tool_events": true,
+        "workspace_isolation": true,
+        "workspace_write": true
+      },
+      "command": "http://127.0.0.1:11434",
+      "cost_model": "unknown",
+      "declared_tools": [
+        "read_file",
+        "write_file"
+      ],
+      "egress_transports": [
+        "loopback-http"
+      ],
+      "mode": "local-http",
+      "runtime_id": "ollama_http",
+      "workspace_modes": [
+        "isolated-worktree",
+        "read-only"
+      ]
+    }
+  ],
+  "schema": "daedalus-runtime-profile-catalog/1"
+}
