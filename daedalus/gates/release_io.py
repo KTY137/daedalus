@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, TypeVar
+from typing import Any, Mapping
 
 from .release import Gate0ReleaseReport
 from .report import GateReport
-
-_T = TypeVar("_T")
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
