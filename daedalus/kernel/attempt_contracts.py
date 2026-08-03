@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Mapping
 
@@ -75,6 +76,11 @@ def _is_same_or_within(candidate: Path, parent: Path) -> bool:
     return candidate == parent or parent in candidate.parents
 
 
+def _timestamp_value(value: str, label: str) -> datetime:
+    normalized = _utc_timestamp(value, label)
+    return datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+
+
 def _strict_json(payload: str, label: str) -> Mapping[str, Any]:
     def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -130,15 +136,14 @@ class AttemptStartRecord(CanonicalContract):
         if relative == "." or not relative.startswith("attempts/"):
             raise ValueError("workspace_relative_path must be below attempts/")
         object.__setattr__(self, "workspace_relative_path", relative)
-        object.__setattr__(
-            self,
-            "started_at",
-            _utc_timestamp(self.started_at, "started_at"),
-        )
+        started_at = _utc_timestamp(self.started_at, "started_at")
+        object.__setattr__(self, "started_at", started_at)
         if not isinstance(self.provenance, ContractProvenance):
             raise ValueError("start provenance must be ContractProvenance")
         if self.provenance.source_revision != revision:
             raise ValueError("start provenance must use the source revision")
+        if self.provenance.created_at != started_at:
+            raise ValueError("start provenance time must equal trusted start time")
         expected = tuple(
             sorted(
                 {
@@ -217,15 +222,14 @@ class AttemptTerminalReceipt(CanonicalContract):
             raise ValueError("candidate_tree must be an ArtifactRef or null")
         if self.outcome == "succeeded" and self.candidate_tree is None:
             raise ValueError("successful attempt must bind a candidate source tree")
-        object.__setattr__(
-            self,
-            "completed_at",
-            _utc_timestamp(self.completed_at, "completed_at"),
-        )
+        completed_at = _utc_timestamp(self.completed_at, "completed_at")
+        object.__setattr__(self, "completed_at", completed_at)
         if not isinstance(self.provenance, ContractProvenance):
             raise ValueError("terminal provenance must be ContractProvenance")
         if self.provenance.source_revision != revision:
             raise ValueError("terminal provenance must use the source revision")
+        if self.provenance.created_at != completed_at:
+            raise ValueError("terminal provenance time must equal trusted completion time")
         required = {
             self.start_sha256,
             self.attempt_sha256,
@@ -293,6 +297,10 @@ class AttemptCompletion:
             raise ValueError("terminal receipt attempt digest does not bind the start")
         if self.receipt.input_tree_sha256 != self.start.input_tree.sha256:
             raise ValueError("terminal receipt input tree does not bind the start")
+        if _timestamp_value(
+            self.receipt.completed_at, "completed_at"
+        ) <= _timestamp_value(self.start.started_at, "started_at"):
+            raise ValueError("terminal completion time must follow start time")
 
 
 @dataclass(frozen=True)
