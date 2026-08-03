@@ -201,8 +201,20 @@ def test_derived_wire_fields_nested_report_and_provenance_are_tamper_evident(
     with pytest.raises(ValueError):
         Gate0ReleaseReport.from_dict(report_payload)
 
-    with pytest.raises(ValueError, match="does not bind"):
+    with pytest.raises(ValueError, match="exactly match"):
         dataclasses.replace(
             release,
             provenance=dataclasses.replace(release.provenance, input_digests=()),
+        )
+
+    expanded_inputs = tuple(
+        sorted((*release.provenance.input_digests, "0" * 64))
+    )
+    with pytest.raises(ValueError, match="exactly match"):
+        dataclasses.replace(
+            release,
+            provenance=dataclasses.replace(
+                release.provenance,
+                input_digests=expanded_inputs,
+            ),
         )
