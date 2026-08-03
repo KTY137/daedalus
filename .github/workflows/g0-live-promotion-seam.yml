@@ -14,6 +14,7 @@ on:
       - "tests/kernel/test_live_promotion_legacy_retirement.py"
       - "tests/kernel/test_persisted_promotion_authorization.py"
       - "tests/kernel/test_persisted_promotion_authorization_review.py"
+      - "tests/kernel/test_promotion_material_review.py"
       - "tests/kernel/test_sealed_promotion.py"
       - "scripts/run_live_promotion_seam_mutations.py"
       - "docs/work-packets/G0-PRM-12B_LIVE_PROMOTION_SEAM.md"
@@ -57,6 +58,7 @@ jobs:
           tests/kernel/test_live_promotion_legacy_retirement.py
           tests/kernel/test_persisted_promotion_authorization.py
           tests/kernel/test_persisted_promotion_authorization_review.py
+          tests/kernel/test_promotion_material_review.py
           tests/kernel/test_sealed_promotion.py
           tests/kernel/test_owner_approval.py
           tests/kernel/test_approval_consumption_review.py
@@ -92,6 +94,7 @@ jobs:
           s=inspect.signature(g.promote_candidates);
           assert 'approval_ledger' in s.parameters and 'owner_keyring' in s.parameters;
           assert callable(snapshot_promotion_candidates);
+          assert not hasattr(g, 'snapshot_promotion_candidates');
           r=files('daedalus.kairos').joinpath('_gated_writes_legacy.py.src');
           assert r.is_file();
           assert g._git_blob_sha1(r.read_bytes()) == g._RETAINED_SOURCE_GIT_BLOB_SHA1;
