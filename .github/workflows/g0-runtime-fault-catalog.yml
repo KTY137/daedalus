@@ -5,6 +5,7 @@ on:
     branches:
       - g0/runtime-terminal-fence
     paths:
+      - "daedalus/runtimes/fault_matrix.py"
       - "daedalus/runtimes/faults.py"
       - "tests/runtimes/test_runtime_fault_catalog.py"
       - "tests/runtimes/test_runtime_provider_broker.py"
@@ -92,10 +93,12 @@ jobs:
       - run: python -m build
       - run: python -m venv /tmp/daedalus-runtime-fault-catalog-wheel
       - run: /tmp/daedalus-runtime-fault-catalog-wheel/bin/pip install dist/*.whl
-      - name: Import and verify packaged catalog
+      - name: Import compatibility and canonical fault modules
         run: >-
           cd /tmp && PYTHONPATH=
           /tmp/daedalus-runtime-fault-catalog-wheel/bin/python -c
-          "from daedalus.runtimes.faults import RUNTIME_FAULT_CATALOG;
-          assert len(RUNTIME_FAULT_CATALOG.scenarios) == 24;
-          assert len(RUNTIME_FAULT_CATALOG.digest) == 64"
+          "from daedalus.runtimes.faults import RUNTIME_FAULT_CATALOG as compat;
+          from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG as canonical;
+          assert compat is canonical;
+          assert len(canonical.scenarios) == 24;
+          assert len(canonical.digest) == 64"
