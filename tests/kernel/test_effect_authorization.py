@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import ast
 import dataclasses
+import inspect
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
+import daedalus.kernel.authorization as authorization_module
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
+    EffectLeaseExpired,
     EffectLeaseLedger,
     EffectLeaseSignatureError,
     issue_effect_lease,
@@ -26,7 +31,7 @@ from daedalus.spine.effect_boundary import (
 REVISION = "a" * 40
 POLICY_SHA = "b" * 64
 SECRET = b"generic-effect-authorization-secret-32-bytes-minimum"
-NOW = datetime(2026, 8, 3, 11, 0, tzinfo=timezone.utc)
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def spec(*, runtime_id: str = "") -> EntrypointSpec:
@@ -114,7 +119,7 @@ def lease(*, runtime: bool = False):
         lease_id="lease-1",
         issuer_key_id="lease-key-1",
         issued_at=NOW,
-        expires_at=NOW + timedelta(minutes=10),
+        expires_at=NOW + timedelta(hours=1),
         secret=SECRET,
         registry=registry(runtime_id="runtime-1" if runtime else ""),
     )
@@ -154,33 +159,24 @@ def execution() -> EffectExecutionRequest:
 
 def test_grant_start_terminal_and_exact_replay(tmp_path) -> None:
     auth = authorization(tmp_path)
-    auth.grant(granted_at=NOW + timedelta(milliseconds=100))
+    auth.grant()
 
-    first = auth.begin_effect(
-        execution(), started_at=NOW + timedelta(seconds=1)
-    )
+    first = auth.begin_effect(execution())
     assert first.execute is True
 
     foreign = dataclasses.replace(first.receipt, lease_sha256="0" * 64)
     with pytest.raises(EffectLeaseBindingMismatch, match="different effect lease"):
-        auth.finish_effect(
-            foreign,
-            outcome="completed",
-            finished_at=NOW + timedelta(milliseconds=1500),
-        )
+        auth.finish_effect(foreign, outcome="completed")
 
     terminal = auth.finish_effect(
         first.receipt,
         outcome="completed",
         output_digests=("f" * 64,),
-        finished_at=NOW + timedelta(seconds=2),
     )
     assert terminal.outcome == "COMPLETED"
     assert terminal.output_digests == ("f" * 64,)
 
-    replay = auth.begin_effect(
-        execution(), started_at=NOW + timedelta(seconds=3)
-    )
+    replay = auth.begin_effect(execution())
     assert replay.execute is False
     assert replay.receipt == first.receipt
 
@@ -223,13 +219,13 @@ def test_request_policy_and_signature_mismatches_fail_closed(tmp_path) -> None:
         registry=registry(),
     )
     with pytest.raises(EffectLeaseSignatureError, match="signature"):
-        auth.verify(now=NOW + timedelta(seconds=1))
+        auth.verify()
 
 
 def test_stale_generation_and_missing_guards_are_refused(tmp_path) -> None:
     stale = authorization(tmp_path, generation=8)
     with pytest.raises(EffectLeaseBindingMismatch, match="kill-switch"):
-        stale.verify(now=NOW + timedelta(seconds=1))
+        stale.verify()
 
     value, req, policy = lease()
     with pytest.raises(EffectLeaseBindingMismatch, match="guard"):
@@ -245,10 +241,51 @@ def test_stale_generation_and_missing_guards_are_refused(tmp_path) -> None:
         )
 
 
-def test_counter_review_pins_authority_separation() -> None:
-    import ast
-    from pathlib import Path
+def test_facade_owns_verification_grant_start_and_terminal_clocks(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    public_parameters = {
+        name: tuple(inspect.signature(getattr(NonRuntimeEffectAuthorization, name)).parameters)
+        for name in ("verify", "grant", "begin_effect", "finish_effect")
+    }
+    assert public_parameters["verify"] == ("self",)
+    assert public_parameters["grant"] == ("self",)
+    assert public_parameters["begin_effect"] == ("self", "execution")
+    assert public_parameters["finish_effect"] == (
+        "self",
+        "start_receipt",
+        "outcome",
+        "output_digests",
+        "detail_sha256",
+    )
 
+    auth = authorization(tmp_path / "expired-grant")
+    monkeypatch.setattr(
+        authorization_module,
+        "_utc_now",
+        lambda: NOW + timedelta(hours=2),
+    )
+    with pytest.raises(EffectLeaseExpired, match="expired"):
+        auth.grant()
+
+    auth = authorization(tmp_path / "expired-start")
+    monkeypatch.setattr(
+        authorization_module,
+        "_utc_now",
+        lambda: NOW + timedelta(seconds=1),
+    )
+    auth.grant()
+    monkeypatch.setattr(
+        authorization_module,
+        "_utc_now",
+        lambda: NOW + timedelta(hours=2),
+    )
+    with pytest.raises(EffectLeaseExpired, match="expired"):
+        auth.begin_effect(execution())
+    assert auth.effect_ledger.execution_state("execution-1") is None
+
+
+def test_counter_review_pins_authority_separation() -> None:
     source = Path("daedalus/kernel/authorization.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     imported = {
@@ -271,3 +308,6 @@ def test_counter_review_pins_authority_separation() -> None:
     assert "verify_effect_lease" in calls
     assert {"grant", "begin", "finish"} <= calls
     assert "RuntimeBoundEffectAuthorization" in source
+    assert "granted_at: datetime" not in source
+    assert "started_at: datetime" not in source
+    assert "finished_at: datetime" not in source
