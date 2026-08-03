@@ -12,7 +12,6 @@ from daedalus.kernel.approvals import (
     ApprovalExpectation,
     ApprovalLedger,
     issue_owner_approval,
-    verify_owner_approval,
 )
 from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
@@ -103,7 +102,13 @@ def _packet(candidate_sha: str, revision: str) -> EvidencePacket:
     )
 
 
-def _consumed(candidate_sha: str, packet: EvidencePacket, revision: str, target: str, tmp_path: Path):
+def _consumed(
+    candidate_sha: str,
+    packet: EvidencePacket,
+    revision: str,
+    target: str,
+    tmp_path: Path,
+):
     nomination = _sha("nomination")
     approval = issue_owner_approval(
         approval_id="approval-promotion",
@@ -127,26 +132,35 @@ def _consumed(candidate_sha: str, packet: EvidencePacket, revision: str, target:
         ),
         secret=SECRET,
     )
-    verified = verify_owner_approval(
+    expected = ApprovalExpectation(
+        operation="promote-candidate",
+        nomination_receipt_sha256=nomination,
+        candidate_artifact_sha256=candidate_sha,
+        evidence_packet_sha256=packet.digest,
+        base_revision=revision,
+        target_ref="experimental",
+        current_target_revision=target,
+    )
+    ledger = ApprovalLedger(
+        tmp_path / "approval.sqlite3",
+        clock=lambda: NOW + timedelta(seconds=2),
+    )
+    receipt = ledger.consume(
         approval,
         keyring={("KTY137", "owner-key"): SECRET},
-        expectation=ApprovalExpectation(
-            operation="promote-candidate",
-            nomination_receipt_sha256=nomination,
-            candidate_artifact_sha256=candidate_sha,
-            evidence_packet_sha256=packet.digest,
-            base_revision=revision,
-            target_ref="experimental",
-            current_target_revision=target,
-        ),
-        now=NOW + timedelta(seconds=1),
+        expectation=expected,
+        promotion_id="promotion-001",
     )
-    return ApprovalLedger(tmp_path / "approval.sqlite3").consume(
-        verified, promotion_id="promotion-001", consumed_at=NOW + timedelta(seconds=2)
-    )
+    assert ledger.verify_consumption(
+        receipt,
+        keyring={("KTY137", "owner-key"): SECRET},
+    ) == receipt
+    return receipt
 
 
-def test_authorization_binds_consumed_approval_packet_batch_and_live_head(tmp_path: Path) -> None:
+def test_authorization_binds_consumed_approval_packet_batch_and_live_head(
+    tmp_path: Path,
+) -> None:
     revision = "a" * 40
     target = "b" * 40
     candidates = [_candidate(revision)]
@@ -167,7 +181,10 @@ def test_authorization_binds_consumed_approval_packet_batch_and_live_head(tmp_pa
 
 
 @pytest.mark.parametrize("mutation", ["candidate", "evidence", "head", "revision"])
-def test_authorization_refuses_every_stale_binding(tmp_path: Path, mutation: str) -> None:
+def test_authorization_refuses_every_stale_binding(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
     revision = "a" * 40
     target = "b" * 40
     candidates = [_candidate(revision)]
@@ -179,7 +196,9 @@ def test_authorization_refuses_every_stale_binding(tmp_path: Path, mutation: str
         candidates = [_candidate(revision, suffix="changed")]
     elif mutation == "evidence":
         packet = _packet(candidate_sha, revision)
-        packet = EvidencePacket.from_dict({**packet.to_dict(), "packet_id": "different-packet"})
+        packet = EvidencePacket.from_dict(
+            {**packet.to_dict(), "packet_id": "different-packet"}
+        )
     elif mutation == "head":
         target = "c" * 40
     else:
@@ -195,16 +214,31 @@ def test_authorization_refuses_every_stale_binding(tmp_path: Path, mutation: str
         )
 
 
-def test_public_promotion_rechecks_head_before_worktree_or_lock(tmp_path: Path, monkeypatch) -> None:
+def test_public_promotion_rechecks_head_before_worktree_or_lock(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=repo,
+        check=True,
+    )
     (repo / "x").write_text("base\n", encoding="utf-8")
     subprocess.run(["git", "add", "x"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True)
-    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        text=True,
+    ).strip()
     subprocess.run(["git", "branch", "experimental"], cwd=repo, check=True)
 
     candidates = [_candidate(revision)]
@@ -216,7 +250,10 @@ def test_public_promotion_rechecks_head_before_worktree_or_lock(tmp_path: Path, 
         def __init__(self, *_args, **_kwargs):
             raise AssertionError("worktree manager constructed before authorization")
 
-    monkeypatch.setattr("daedalus.kairos.gated_writes.GitWorktreeManager", ForbiddenManager)
+    monkeypatch.setattr(
+        "daedalus.kairos.gated_writes.GitWorktreeManager",
+        ForbiddenManager,
+    )
     report = promote_candidates(
         str(repo),
         candidates,

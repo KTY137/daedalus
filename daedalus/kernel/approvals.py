@@ -1,10 +1,10 @@
 """Authenticated, one-use owner approval capabilities.
 
-This module deliberately stops before promotion. It authenticates an approval,
-binds it to exact candidate/evidence/base/target identities, and atomically
-consumes the nonce. The later promotion Work Packet must re-check the live
-Target HEAD immediately before applying a candidate and must retain the
-returned capability as evidence.
+The signed approval remains inert until :class:`ApprovalLedger` authenticates
+it again and atomically persists a binding-complete consumption receipt.  The
+receipt is still not a promotion authority by itself: the later promotion
+boundary must verify it against this ledger and re-check the live target HEAD
+immediately before repository mutation.
 """
 from __future__ import annotations
 
@@ -13,16 +13,23 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
-from daedalus.schemas import ContractProvenance
 from daedalus.kernel.contracts import OwnerApproval
-from daedalus.spine.envelope import canonical_sha
+from daedalus.schemas import (
+    ContractProvenance,
+    _identifier,
+    _revision,
+    _sha256,
+    _utc_timestamp,
+)
+from daedalus.spine.envelope import canonical_json, canonical_sha
+
+_MAX_APPROVAL_TTL = timedelta(hours=24)
 
 
 class ApprovalError(RuntimeError):
@@ -45,6 +52,10 @@ class ApprovalReplay(ApprovalError):
     pass
 
 
+class ApprovalStateError(ApprovalError):
+    pass
+
+
 @dataclass(frozen=True)
 class ApprovalExpectation:
     operation: str
@@ -55,9 +66,41 @@ class ApprovalExpectation:
     target_ref: str
     current_target_revision: str
 
+    def __post_init__(self) -> None:
+        if self.operation != "promote-candidate":
+            raise ValueError("approval expectation operation must be promote-candidate")
+        for name in (
+            "nomination_receipt_sha256",
+            "candidate_artifact_sha256",
+            "evidence_packet_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self, "base_revision", _revision(self.base_revision, "base_revision")
+        )
+        object.__setattr__(
+            self,
+            "target_ref",
+            _identifier(self.target_ref, "target_ref"),
+        )
+        object.__setattr__(
+            self,
+            "current_target_revision",
+            _revision(self.current_target_revision, "current_target_revision"),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
 
 @dataclass(frozen=True)
 class VerifiedOwnerApproval:
+    """A fully bound result of authenticating one signed approval."""
+
     approval_sha256: str
     approval_id: str
     owner_id: str
@@ -72,9 +115,58 @@ class VerifiedOwnerApproval:
     expected_target_revision: str
     issued_at: str
     expires_at: str
+    signature_sha256: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "approval_sha256", _sha256(self.approval_sha256, "approval_sha256")
+        )
+        for name in ("approval_id", "owner_id", "key_id", "nonce"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        if self.operation != "promote-candidate":
+            raise ValueError("verified approval operation must be promote-candidate")
+        for name in (
+            "nomination_receipt_sha256",
+            "candidate_artifact_sha256",
+            "evidence_packet_sha256",
+            "signature_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self, "base_revision", _revision(self.base_revision, "base_revision")
+        )
+        object.__setattr__(
+            self, "target_ref", _identifier(self.target_ref, "target_ref")
+        )
+        object.__setattr__(
+            self,
+            "expected_target_revision",
+            _revision(self.expected_target_revision, "expected_target_revision"),
+        )
+        object.__setattr__(
+            self, "issued_at", _utc_timestamp(self.issued_at, "issued_at")
+        )
+        object.__setattr__(
+            self, "expires_at", _utc_timestamp(self.expires_at, "expires_at")
+        )
+        if self.expires_at <= self.issued_at:
+            raise ValueError("verified approval expires_at must be after issued_at")
 
     def to_dict(self) -> dict[str, str]:
         return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> "VerifiedOwnerApproval":
+        if not isinstance(payload, Mapping):
+            raise ValueError("verified owner approval must be an object")
+        expected = {field.name for field in dataclasses.fields(cls)}
+        actual = set(payload)
+        if actual != expected:
+            raise ValueError(
+                "verified owner approval fields mismatch: "
+                f"missing={sorted(expected - actual)} extra={sorted(actual - expected)}"
+            )
+        return cls(**{key: str(payload[key]) for key in expected})
 
     @property
     def digest(self) -> str:
@@ -83,20 +175,81 @@ class VerifiedOwnerApproval:
 
 @dataclass(frozen=True)
 class ConsumedOwnerApproval:
-    """Atomic replay-ledger evidence required by the promotion boundary."""
+    """Persisted, binding-complete evidence of atomic approval consumption."""
 
     verified: VerifiedOwnerApproval
+    expectation_sha256: str
     promotion_id: str
     consumed_at: str
     consumption_sha256: str
 
-    def to_dict(self) -> dict[str, object]:
+    def __post_init__(self) -> None:
+        if not isinstance(self.verified, VerifiedOwnerApproval):
+            raise ValueError("consumed approval requires a verified approval")
+        object.__setattr__(
+            self,
+            "expectation_sha256",
+            _sha256(self.expectation_sha256, "expectation_sha256"),
+        )
+        object.__setattr__(
+            self, "promotion_id", _identifier(self.promotion_id, "promotion_id")
+        )
+        object.__setattr__(
+            self, "consumed_at", _utc_timestamp(self.consumed_at, "consumed_at")
+        )
+        object.__setattr__(
+            self,
+            "consumption_sha256",
+            _sha256(self.consumption_sha256, "consumption_sha256"),
+        )
+        if self.consumed_at < self.verified.issued_at:
+            raise ValueError("approval cannot be consumed before it was issued")
+        if self.consumed_at >= self.verified.expires_at:
+            raise ValueError("approval cannot be consumed at or after expiry")
+        if self.consumption_sha256 != canonical_sha(self.payload_dict()):
+            raise ValueError("approval consumption digest mismatch")
+
+    def payload_dict(self) -> dict[str, object]:
         return {
             "verified": self.verified.to_dict(),
+            "expectation_sha256": self.expectation_sha256,
             "promotion_id": self.promotion_id,
             "consumed_at": self.consumed_at,
+        }
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            **self.payload_dict(),
             "consumption_sha256": self.consumption_sha256,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> "ConsumedOwnerApproval":
+        if not isinstance(payload, Mapping):
+            raise ValueError("consumed owner approval must be an object")
+        expected = {
+            "verified",
+            "expectation_sha256",
+            "promotion_id",
+            "consumed_at",
+            "consumption_sha256",
+        }
+        actual = set(payload)
+        if actual != expected:
+            raise ValueError(
+                "consumed owner approval fields mismatch: "
+                f"missing={sorted(expected - actual)} extra={sorted(actual - expected)}"
+            )
+        verified_payload = payload["verified"]
+        if not isinstance(verified_payload, Mapping):
+            raise ValueError("consumed approval verified field must be an object")
+        return cls(
+            verified=VerifiedOwnerApproval.from_dict(verified_payload),
+            expectation_sha256=str(payload["expectation_sha256"]),
+            promotion_id=str(payload["promotion_id"]),
+            consumed_at=str(payload["consumed_at"]),
+            consumption_sha256=str(payload["consumption_sha256"]),
+        )
 
     @property
     def digest(self) -> str:
@@ -107,11 +260,26 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _parse_utc(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+def _as_utc(value: datetime, label: str) -> datetime:
+    if not isinstance(value, datetime):
+        raise ValueError(f"{label} must be a datetime")
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{label} must be timezone-aware")
+    return value.astimezone(timezone.utc)
+
+
+def _parse_utc(value: str, label: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ApprovalBindingMismatch(f"{label} is not ISO-8601") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ApprovalBindingMismatch("approval timestamp is not timezone-aware")
+        raise ApprovalBindingMismatch(f"{label} is not timezone-aware")
     return parsed.astimezone(timezone.utc)
+
+
+def _timestamp(value: datetime) -> str:
+    return _as_utc(value, "timestamp").isoformat(timespec="microseconds")
 
 
 def _secret_bytes(secret: bytes | str) -> bytes:
@@ -164,6 +332,10 @@ def issue_owner_approval(
         signature_sha256="0" * 64,
         provenance=provenance,
     )
+    issued = _parse_utc(placeholder.issued_at, "approval.issued_at")
+    expires = _parse_utc(placeholder.expires_at, "approval.expires_at")
+    if expires - issued > _MAX_APPROVAL_TTL:
+        raise ValueError("owner approval TTL exceeds the 24-hour Gate-0 maximum")
     return dataclasses.replace(
         placeholder,
         signature_sha256=_signature(placeholder.signing_digest, secret),
@@ -179,6 +351,10 @@ def verify_owner_approval(
 ) -> VerifiedOwnerApproval:
     """Authenticate and validate every bounded approval dimension."""
 
+    if not isinstance(approval, OwnerApproval):
+        raise TypeError("verification requires a signed OwnerApproval")
+    if not isinstance(expectation, ApprovalExpectation):
+        raise TypeError("verification requires an ApprovalExpectation")
     secret = keyring.get((approval.owner_id, approval.key_id))
     if secret is None:
         raise ApprovalSignatureError("owner approval key is unknown")
@@ -186,9 +362,11 @@ def verify_owner_approval(
     if not hmac.compare_digest(approval.signature_sha256, expected_signature):
         raise ApprovalSignatureError("owner approval signature mismatch")
 
-    instant = (now or _utc_now()).astimezone(timezone.utc)
-    issued = _parse_utc(approval.issued_at)
-    expires = _parse_utc(approval.expires_at)
+    instant = _as_utc(now, "now") if now is not None else _utc_now()
+    issued = _parse_utc(approval.issued_at, "approval.issued_at")
+    expires = _parse_utc(approval.expires_at, "approval.expires_at")
+    if expires - issued > _MAX_APPROVAL_TTL:
+        raise ApprovalExpired("owner approval TTL exceeds the Gate-0 maximum")
     if instant < issued:
         raise ApprovalExpired("owner approval is not valid yet")
     if instant >= expires:
@@ -215,10 +393,14 @@ def verify_owner_approval(
             expectation.current_target_revision,
         ),
     }
-    mismatches = [name for name, (actual, expected) in comparisons.items() if actual != expected]
+    mismatches = sorted(
+        name
+        for name, (actual, expected) in comparisons.items()
+        if actual != expected
+    )
     if mismatches:
         raise ApprovalBindingMismatch(
-            "owner approval binding mismatch: " + ", ".join(sorted(mismatches))
+            "owner approval binding mismatch: " + ", ".join(mismatches)
         )
 
     return VerifiedOwnerApproval(
@@ -236,84 +418,167 @@ def verify_owner_approval(
         expected_target_revision=approval.expected_target_revision,
         issued_at=approval.issued_at,
         expires_at=approval.expires_at,
+        signature_sha256=approval.signature_sha256,
     )
 
 
 class ApprovalLedger:
-    """SQLite-backed atomic nonce consumption and replay refusal."""
+    """SQLite authority for authenticated, atomic approval consumption."""
 
-    def __init__(self, path: str | Path):
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        clock: Callable[[], datetime] | None = None,
+    ):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._clock = clock or _utc_now
         self._initialize()
 
+    def _now(self) -> datetime:
+        return _as_utc(self._clock(), "approval ledger clock")
+
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(str(self.path), isolation_level=None, timeout=30)
+        connection = sqlite3.connect(
+            str(self.path), isolation_level=None, timeout=30
+        )
+        connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA synchronous=FULL")
+        connection.execute("PRAGMA busy_timeout=30000")
         return connection
 
     def _initialize(self) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS owner_approval_consumptions (
+                CREATE TABLE IF NOT EXISTS owner_approval_consumptions_v2 (
                     approval_sha256 TEXT PRIMARY KEY,
                     approval_id TEXT NOT NULL UNIQUE,
                     owner_id TEXT NOT NULL,
                     key_id TEXT NOT NULL,
                     nonce TEXT NOT NULL,
                     operation TEXT NOT NULL,
+                    nomination_receipt_sha256 TEXT NOT NULL,
+                    candidate_artifact_sha256 TEXT NOT NULL,
+                    evidence_packet_sha256 TEXT NOT NULL,
+                    base_revision TEXT NOT NULL,
                     target_ref TEXT NOT NULL,
                     target_revision TEXT NOT NULL,
+                    issued_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    signature_sha256 TEXT NOT NULL,
+                    expectation_sha256 TEXT NOT NULL,
                     promotion_id TEXT NOT NULL UNIQUE,
                     consumed_at TEXT NOT NULL,
                     capability_sha256 TEXT NOT NULL,
                     consumption_sha256 TEXT NOT NULL UNIQUE,
+                    approval_json TEXT NOT NULL,
+                    expectation_json TEXT NOT NULL,
+                    consumption_json TEXT NOT NULL,
                     UNIQUE(owner_id, key_id, nonce)
                 )
                 """
             )
+            legacy = connection.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='owner_approval_consumptions'"
+            ).fetchone()
+            if legacy is not None:
+                legacy_count = connection.execute(
+                    "SELECT COUNT(*) FROM owner_approval_consumptions"
+                ).fetchone()[0]
+                if legacy_count:
+                    raise ApprovalStateError(
+                        "legacy approval consumptions require explicit migration"
+                    )
 
     def consume(
         self,
-        verified: VerifiedOwnerApproval,
+        approval: OwnerApproval,
         *,
+        keyring: Mapping[tuple[str, str], bytes | str],
+        expectation: ApprovalExpectation,
         promotion_id: str,
-        consumed_at: datetime | None = None,
     ) -> ConsumedOwnerApproval:
-        """Consume an authenticated approval exactly once.
+        """Authenticate and consume one signed approval inside one transaction."""
 
-        The returned object is the only capability shape the later promotion
-        boundary should accept. The target HEAD is retained but must still be
-        compared to the live target immediately before mutation.
-        """
+        if not isinstance(approval, OwnerApproval):
+            raise TypeError("consumption requires the signed OwnerApproval")
+        normalized_promotion_id = _identifier(promotion_id, "promotion_id")
+        preflight_at = self._now()
+        preflight = verify_owner_approval(
+            approval,
+            keyring=keyring,
+            expectation=expectation,
+            now=preflight_at,
+        )
+        approval_json = canonical_json(approval.to_dict())
+        expectation_json = canonical_json(expectation.to_dict())
 
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", promotion_id):
-            raise ValueError("promotion_id must be a bounded identifier")
-        consumed_instant = (consumed_at or _utc_now()).astimezone(timezone.utc)
-        if consumed_instant < _parse_utc(verified.issued_at):
-            raise ApprovalExpired("owner approval is not valid yet at consumption")
-        if consumed_instant >= _parse_utc(verified.expires_at):
-            raise ApprovalExpired("owner approval expired before consumption")
-        timestamp = consumed_instant.isoformat(timespec="microseconds")
-        record = {
-            **verified.to_dict(),
-            "promotion_id": promotion_id,
-            "consumed_at": timestamp,
-        }
-        record_sha256 = canonical_sha(record)
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
+            transaction_at = self._now()
+            if transaction_at < preflight_at:
+                raise ApprovalStateError(
+                    "approval ledger clock moved backwards before consumption"
+                )
+            verified = verify_owner_approval(
+                approval,
+                keyring=keyring,
+                expectation=expectation,
+                now=transaction_at,
+            )
+            if verified != preflight:
+                raise ApprovalStateError(
+                    "approval verification changed before consumption"
+                )
+            persistence_at = self._now()
+            if persistence_at < transaction_at:
+                raise ApprovalStateError(
+                    "approval ledger clock moved backwards during consumption"
+                )
+            consumed_at = _timestamp(persistence_at)
+            if consumed_at < verified.issued_at:
+                raise ApprovalExpired(
+                    "owner approval is not valid yet at consumption"
+                )
+            if consumed_at >= verified.expires_at:
+                raise ApprovalExpired(
+                    "owner approval expired before consumption persistence"
+                )
+            payload = {
+                "verified": verified.to_dict(),
+                "expectation_sha256": expectation.digest,
+                "promotion_id": normalized_promotion_id,
+                "consumed_at": consumed_at,
+            }
+            receipt = ConsumedOwnerApproval(
+                verified=verified,
+                expectation_sha256=expectation.digest,
+                promotion_id=normalized_promotion_id,
+                consumed_at=consumed_at,
+                consumption_sha256=canonical_sha(payload),
+            )
+            consumption_json = canonical_json(receipt.to_dict())
             connection.execute(
                 """
-                INSERT INTO owner_approval_consumptions (
+                INSERT INTO owner_approval_consumptions_v2 (
                     approval_sha256, approval_id, owner_id, key_id, nonce,
-                    operation, target_ref, target_revision, promotion_id,
-                    consumed_at, capability_sha256, consumption_sha256
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    operation, nomination_receipt_sha256,
+                    candidate_artifact_sha256, evidence_packet_sha256,
+                    base_revision, target_ref, target_revision,
+                    issued_at, expires_at, signature_sha256,
+                    expectation_sha256, promotion_id, consumed_at,
+                    capability_sha256, consumption_sha256,
+                    approval_json, expectation_json, consumption_json
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?
+                )
                 """,
                 (
                     verified.approval_sha256,
@@ -322,21 +587,35 @@ class ApprovalLedger:
                     verified.key_id,
                     verified.nonce,
                     verified.operation,
+                    verified.nomination_receipt_sha256,
+                    verified.candidate_artifact_sha256,
+                    verified.evidence_packet_sha256,
+                    verified.base_revision,
                     verified.target_ref,
                     verified.expected_target_revision,
-                    promotion_id,
-                    timestamp,
+                    verified.issued_at,
+                    verified.expires_at,
+                    verified.signature_sha256,
+                    expectation.digest,
+                    normalized_promotion_id,
+                    consumed_at,
                     verified.digest,
-                    record_sha256,
+                    receipt.consumption_sha256,
+                    approval_json,
+                    expectation_json,
+                    consumption_json,
                 ),
             )
             connection.execute("COMMIT")
+            return receipt
         except sqlite3.IntegrityError as exc:
             try:
                 connection.execute("ROLLBACK")
             except sqlite3.Error:
                 pass
-            raise ApprovalReplay("owner approval or nonce was already consumed") from exc
+            raise ApprovalReplay(
+                "owner approval, nonce, or promotion identity was already consumed"
+            ) from exc
         except Exception:
             try:
                 connection.execute("ROLLBACK")
@@ -345,18 +624,103 @@ class ApprovalLedger:
             raise
         finally:
             connection.close()
-        return ConsumedOwnerApproval(
-            verified=verified,
-            promotion_id=promotion_id,
-            consumed_at=timestamp,
-            consumption_sha256=record_sha256,
-        )
 
-    def consumed(self, approval_sha256: str) -> bool:
+    def verify_consumption(
+        self,
+        receipt: ConsumedOwnerApproval,
+        *,
+        keyring: Mapping[tuple[str, str], bytes | str],
+    ) -> ConsumedOwnerApproval:
+        """Re-authenticate and require exact persisted receipt equality."""
+
+        if not isinstance(receipt, ConsumedOwnerApproval):
+            raise TypeError("verification requires a ConsumedOwnerApproval")
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT 1 FROM owner_approval_consumptions WHERE approval_sha256=?",
-                (approval_sha256,),
+                """
+                SELECT approval_sha256, expectation_sha256, promotion_id,
+                       capability_sha256, approval_json, expectation_json,
+                       consumption_json
+                FROM owner_approval_consumptions_v2
+                WHERE consumption_sha256=?
+                """,
+                (receipt.consumption_sha256,),
+            ).fetchone()
+        if row is None:
+            raise ApprovalStateError("approval consumption is not persisted")
+        try:
+            consumption_payload = json.loads(row["consumption_json"])
+            approval_payload = json.loads(row["approval_json"])
+            expectation_payload = json.loads(row["expectation_json"])
+            if not isinstance(consumption_payload, dict):
+                raise ValueError("consumption JSON must be an object")
+            if not isinstance(approval_payload, dict):
+                raise ValueError("approval JSON must be an object")
+            if not isinstance(expectation_payload, dict):
+                raise ValueError("expectation JSON must be an object")
+            persisted = ConsumedOwnerApproval.from_dict(consumption_payload)
+            stored_approval = OwnerApproval.from_dict(approval_payload)
+            stored_expectation = ApprovalExpectation(**expectation_payload)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise ApprovalStateError(
+                "persisted approval consumption is corrupt"
+            ) from exc
+        secret = keyring.get(
+            (stored_approval.owner_id, stored_approval.key_id)
+        )
+        if secret is None:
+            raise ApprovalSignatureError(
+                "persisted owner approval key is unknown"
+            )
+        if not hmac.compare_digest(
+            stored_approval.signature_sha256,
+            _signature(stored_approval.signing_digest, secret),
+        ):
+            raise ApprovalSignatureError(
+                "persisted owner approval signature mismatch"
+            )
+        stored_verified = VerifiedOwnerApproval(
+            approval_sha256=stored_approval.digest,
+            approval_id=stored_approval.approval_id,
+            owner_id=stored_approval.owner_id,
+            key_id=stored_approval.key_id,
+            operation=stored_approval.operation,
+            nomination_receipt_sha256=stored_approval.nomination_receipt_sha256,
+            candidate_artifact_sha256=stored_approval.candidate_artifact_sha256,
+            evidence_packet_sha256=stored_approval.evidence_packet_sha256,
+            base_revision=stored_approval.base_revision,
+            nonce=stored_approval.nonce,
+            target_ref=stored_approval.target_ref,
+            expected_target_revision=stored_approval.expected_target_revision,
+            issued_at=stored_approval.issued_at,
+            expires_at=stored_approval.expires_at,
+            signature_sha256=stored_approval.signature_sha256,
+        )
+        if (
+            persisted != receipt
+            or canonical_json(receipt.to_dict()) != row["consumption_json"]
+            or canonical_json(stored_approval.to_dict()) != row["approval_json"]
+            or canonical_json(stored_expectation.to_dict())
+            != row["expectation_json"]
+            or stored_verified != receipt.verified
+            or stored_expectation.digest != receipt.expectation_sha256
+            or row["approval_sha256"] != receipt.verified.approval_sha256
+            or row["expectation_sha256"] != receipt.expectation_sha256
+            or row["promotion_id"] != receipt.promotion_id
+            or row["capability_sha256"] != receipt.verified.digest
+        ):
+            raise ApprovalStateError(
+                "approval consumption does not match its persisted authority"
+            )
+        return persisted
+
+    def consumed(self, approval_sha256: str) -> bool:
+        digest = _sha256(approval_sha256, "approval_sha256")
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM owner_approval_consumptions_v2 "
+                "WHERE approval_sha256=?",
+                (digest,),
             ).fetchone()
         return row is not None
 
@@ -367,24 +731,44 @@ def _cli_issue(input_path: Path, secret_env: str) -> int:
         raise ValueError("owner approval request must be an object")
     secret = os.environ.get(secret_env)
     if secret is None:
-        raise ValueError(f"missing owner approval secret environment variable {secret_env}")
-    provenance = ContractProvenance.from_dict(payload.pop("provenance"))
-    payload.pop("contract_type", None)
-    payload.pop("contract_version", None)
-    payload.pop("signature_sha256", None)
-    approval = issue_owner_approval(**payload, provenance=provenance, secret=secret)
+        raise ValueError(
+            f"missing owner approval secret environment variable {secret_env}"
+        )
+    if "signature_sha256" in payload:
+        raise ValueError("owner approval issue input must not supply a signature")
+    contract_type = payload.pop("contract_type", None)
+    contract_version = payload.pop("contract_version", None)
+    if contract_type not in (None, OwnerApproval.CONTRACT_TYPE):
+        raise ValueError("owner approval issue input has wrong contract_type")
+    if contract_version not in (None, OwnerApproval.CONTRACT_VERSION):
+        raise ValueError("owner approval issue input has wrong contract_version")
+    provenance_payload = payload.pop("provenance", None)
+    if not isinstance(provenance_payload, Mapping):
+        raise ValueError("owner approval issue input requires provenance")
+    provenance = ContractProvenance.from_dict(provenance_payload)
+    approval = issue_owner_approval(
+        **payload, provenance=provenance, secret=secret
+    )
     print(json.dumps(approval.to_dict(), indent=2, sort_keys=True))
     return 0
 
 
-def _cli_verify(input_path: Path, expectation_path: Path, secret_env: str) -> int:
+def _cli_verify(
+    input_path: Path, expectation_path: Path, secret_env: str
+) -> int:
     approval_payload = json.loads(input_path.read_text(encoding="utf-8"))
-    expectation_payload = json.loads(expectation_path.read_text(encoding="utf-8"))
-    if not isinstance(approval_payload, dict) or not isinstance(expectation_payload, dict):
+    expectation_payload = json.loads(
+        expectation_path.read_text(encoding="utf-8")
+    )
+    if not isinstance(approval_payload, dict) or not isinstance(
+        expectation_payload, dict
+    ):
         raise ValueError("approval and expectation must be objects")
     secret = os.environ.get(secret_env)
     if secret is None:
-        raise ValueError(f"missing owner approval secret environment variable {secret_env}")
+        raise ValueError(
+            f"missing owner approval secret environment variable {secret_env}"
+        )
     approval = OwnerApproval.from_dict(approval_payload)
     expectation = ApprovalExpectation(**expectation_payload)
     verified = verify_owner_approval(
@@ -399,7 +783,9 @@ def _cli_verify(input_path: Path, expectation_path: Path, secret_env: str) -> in
 def main() -> int:
     import argparse
 
-    parser = argparse.ArgumentParser(prog="python -m daedalus.kernel.approvals")
+    parser = argparse.ArgumentParser(
+        prog="python -m daedalus.kernel.approvals"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     issue = sub.add_parser("issue")
     issue.add_argument("--input", type=Path, required=True)
@@ -412,7 +798,9 @@ def main() -> int:
     if args.command == "issue":
         return _cli_issue(args.input, args.secret_env)
     if args.command == "verify":
-        return _cli_verify(args.input, args.expectation, args.secret_env)
+        return _cli_verify(
+            args.input, args.expectation, args.secret_env
+        )
     raise AssertionError("unreachable")
 
 
