@@ -1,9 +1,9 @@
 """Strict verification of a :class:`GateEvidenceIndex` against live state.
 
 Canonical data is not authenticated merely because it parses. The strict
-verifier therefore requires independently obtained trust sets for every hard
-evidence class in addition to checking exact-head, freshness, and internal
-coherence. Empty trust sets fail closed.
+verifier therefore requires independently obtained trust sets for the adopted
+requirements, protected plan/registry digests, and every hard evidence class.
+Empty trust sets fail closed.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from daedalus.schemas import _revision, _sha256
+from daedalus.spine.envelope import canonical_sha
 
 from .evidence import GateEvidenceIndex
 
@@ -29,12 +30,33 @@ def _trusted(values: Iterable[str], label: str) -> frozenset[str]:
     return frozenset(_sha256(value, label) for value in values)
 
 
+def evidence_requirements_sha256(index: GateEvidenceIndex) -> str:
+    """Digest the adopted Gate-0 requirement set independently of observations."""
+
+    return canonical_sha(
+        {
+            "schema": "daedalus-gate-evidence-requirements/1",
+            "gate": index.gate,
+            "required_workflow_ids": list(index.required_workflow_ids),
+            "required_artifact_kinds": list(index.required_artifact_kinds),
+            "required_runtime_ids": list(index.required_runtime_ids),
+            "required_fault_matrix_ids": list(index.required_fault_matrix_ids),
+            "required_review_perspectives": list(
+                index.required_review_perspectives
+            ),
+        }
+    )
+
+
 def strict_mechanical_blockers(
     index: GateEvidenceIndex,
     *,
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
+    trusted_requirements_sha256s: Iterable[str] = (),
+    trusted_iron_plan_sha256s: Iterable[str] = (),
+    trusted_registry_sha256s: Iterable[str] = (),
     trusted_workflow_evidence_sha256s: Iterable[str] = (),
     trusted_artifact_sha256s: Iterable[str] = (),
     trusted_runtime_envelope_sha256s: Iterable[str] = (),
@@ -47,6 +69,15 @@ def strict_mechanical_blockers(
     current = _revision(current_revision, "current_revision")
     current_tree = _revision(current_tree_revision, "current_tree_revision")
     instant = _utc(now)
+    trusted_requirements = _trusted(
+        trusted_requirements_sha256s, "trusted_requirements_sha256"
+    )
+    trusted_plans = _trusted(
+        trusted_iron_plan_sha256s, "trusted_iron_plan_sha256"
+    )
+    trusted_registries = _trusted(
+        trusted_registry_sha256s, "trusted_registry_sha256"
+    )
     trusted_workflows = _trusted(
         trusted_workflow_evidence_sha256s, "trusted_workflow_evidence_sha256"
     )
@@ -72,6 +103,13 @@ def strict_mechanical_blockers(
             now=instant,
         )
     )
+
+    if evidence_requirements_sha256(index) not in trusted_requirements:
+        blockers.add("index:untrusted-requirements")
+    if index.iron_plan_sha256 not in trusted_plans:
+        blockers.add("index:untrusted-iron-plan")
+    if index.registry_sha256 not in trusted_registries:
+        blockers.add("index:untrusted-registry")
 
     for item in index.workflows:
         prefix = f"workflow:{item.workflow_id}"
@@ -155,6 +193,9 @@ def assert_strict_exact_head(
     current_revision: str,
     current_tree_revision: str,
     now: datetime,
+    trusted_requirements_sha256s: Iterable[str] = (),
+    trusted_iron_plan_sha256s: Iterable[str] = (),
+    trusted_registry_sha256s: Iterable[str] = (),
     trusted_workflow_evidence_sha256s: Iterable[str] = (),
     trusted_artifact_sha256s: Iterable[str] = (),
     trusted_runtime_envelope_sha256s: Iterable[str] = (),
@@ -169,6 +210,9 @@ def assert_strict_exact_head(
         current_revision=current_revision,
         current_tree_revision=current_tree_revision,
         now=now,
+        trusted_requirements_sha256s=trusted_requirements_sha256s,
+        trusted_iron_plan_sha256s=trusted_iron_plan_sha256s,
+        trusted_registry_sha256s=trusted_registry_sha256s,
         trusted_workflow_evidence_sha256s=trusted_workflow_evidence_sha256s,
         trusted_artifact_sha256s=trusted_artifact_sha256s,
         trusted_runtime_envelope_sha256s=trusted_runtime_envelope_sha256s,
@@ -180,4 +224,8 @@ def assert_strict_exact_head(
         raise ValueError("Gate evidence index has blocker(s): " + ", ".join(blockers))
 
 
-__all__ = ["assert_strict_exact_head", "strict_mechanical_blockers"]
+__all__ = [
+    "assert_strict_exact_head",
+    "evidence_requirements_sha256",
+    "strict_mechanical_blockers",
+]
