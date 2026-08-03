@@ -17,9 +17,8 @@ from typing import Sequence
 from daedalus.spine.envelope import canonical_json
 
 from .evidence_io import load_gate_evidence_index
-from .release_io import load_gate0_release_report
+from .release_io import load_gate0_release_report, load_mechanical_gate_report
 from .release_verifier import gate0_release_verification_blockers
-from .report import load_gate_report
 from .trust_bundle import load_evidence_trust_bundle
 
 _RESULT_SCHEMA = "daedalus-gate0-release-verification/1"
@@ -92,7 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "collector secret environment variable is missing or shorter than 32 bytes"
             )
         release = load_gate0_release_report(Path(args.release))
-        mechanical_report = load_gate_report(Path(args.mechanical_report))
+        mechanical_report = load_mechanical_gate_report(Path(args.mechanical_report))
         evidence_index = load_gate_evidence_index(Path(args.evidence_index))
         trust_bundle = load_evidence_trust_bundle(Path(args.trust_bundle))
         blockers = gate0_release_verification_blockers(
