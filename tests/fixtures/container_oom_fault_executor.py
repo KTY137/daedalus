@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import daedalus.kernel.sandbox as sandbox_module
 from daedalus.kernel.sandbox import DockerSandboxPolicy, run_in_docker_sandbox
@@ -30,13 +31,15 @@ from daedalus.runtimes.host_fault_runner import (
 )
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
-_REPORT_SCHEMA = "daedalus-container-oom-fault-report/1"
+_REPORT_SCHEMA = "daedalus-container-oom-fault-report/2"
+_MARKER_SCHEMA = "daedalus-cgroup-oom-observation/1"
 _SCENARIO_ID = "runtime.process.oom"
 _IMAGE_SHA256 = "6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df"
 _IMAGE = "python:3.12-alpine@sha256:" + _IMAGE_SHA256
 _MEMORY = "64m"
 _TIMEOUT_S = 30
-_OOM_RETURNCODE = 137
+_OOM_OBSERVED_RETURNCODE = 70
+_MAX_MARKER_BYTES = 4096
 
 
 class ContainerOomFaultError(RuntimeError):
@@ -65,6 +68,7 @@ def implementation_sha256() -> str:
     return canonical_sha(
         {
             "schema": _REPORT_SCHEMA,
+            "marker_schema": _MARKER_SCHEMA,
             "executor_sha256": _file_sha256(Path(__file__).resolve()),
             "sandbox_sha256": _file_sha256(_sandbox_source_path()),
             "image": _IMAGE,
@@ -141,13 +145,14 @@ def _blocked_result(
     detail_code: str,
     docker_cli_sha256: str | None = None,
     receipt=None,
-    marker_exists: bool = False,
+    elapsed_ms: int = 0,
+    started_marker_exists: bool = False,
 ) -> HostFaultResult:
     payload = {
         **_base_payload(
             scenario=scenario,
             docker_cli_sha256=docker_cli_sha256,
-            elapsed_ms=0,
+            elapsed_ms=elapsed_ms,
         ),
         "status": "blocked",
         "detail_code": detail_code,
@@ -155,7 +160,10 @@ def _blocked_result(
             **receipt.to_dict(),
             "receipt_sha256": receipt.digest,
         },
-        "started_marker_exists": marker_exists,
+        "started_marker_exists": started_marker_exists,
+        "oom_marker_status": "not-read",
+        "oom_marker_sha256": None,
+        "oom_marker": None,
         "host_fallback_observed": False,
     }
     return HostFaultResult(
@@ -171,20 +179,126 @@ def _blocked_result(
 
 
 def _allocation_command() -> tuple[str, ...]:
-    # The program has no voluntary exit, signal, shell, network, or child-process
-    # path. After publishing the start marker it repeatedly touches fresh memory.
-    # Under the exact Docker cgroup limit, terminal code 137 is therefore the
-    # expected host observation rather than a candidate-authored success signal.
+    # One small parent observes the kernel-owned cgroup v2 memory.events file.
+    # Its child only allocates and touches memory. The successful fault path is
+    # therefore not inferred from exit code 137: it requires a strict marker
+    # showing that oom_kill increased and that the allocating child died by
+    # SIGKILL. The parent exits 70 only after retaining those kernel facts.
     script = (
+        "import json, os, time\n"
         "from pathlib import Path\n"
-        "Path('/workspace/oom-started').write_text('started', encoding='utf-8')\n"
-        "blocks = []\n"
-        "while True:\n"
-        "    block = bytearray(16 * 1024 * 1024)\n"
-        "    block[:] = b'x' * len(block)\n"
-        "    blocks.append(block)\n"
+        "events_path = Path('/sys/fs/cgroup/memory.events')\n"
+        "start_marker = Path('/workspace/oom-started')\n"
+        "result_marker = Path('/workspace/oom-observed.json')\n"
+        "def read_events():\n"
+        "    rows = {}\n"
+        "    for line in events_path.read_text(encoding='utf-8').splitlines():\n"
+        "        key, value = line.split()\n"
+        "        rows[key] = int(value)\n"
+        "    return rows\n"
+        "before = read_events()\n"
+        "start_marker.write_text('started', encoding='utf-8')\n"
+        "pid = os.fork()\n"
+        "if pid == 0:\n"
+        "    blocks = []\n"
+        "    while True:\n"
+        "        block = bytearray(8 * 1024 * 1024)\n"
+        "        block[:] = b'x' * len(block)\n"
+        "        blocks.append(block)\n"
+        "deadline = time.monotonic() + 20\n"
+        "observed = False\n"
+        "child_exitcode = None\n"
+        "after = before\n"
+        "while time.monotonic() < deadline:\n"
+        "    after = read_events()\n"
+        "    if after.get('oom_kill', 0) > before.get('oom_kill', 0):\n"
+        "        _, status = os.waitpid(pid, 0)\n"
+        "        child_exitcode = os.waitstatus_to_exitcode(status)\n"
+        "        observed = True\n"
+        "        break\n"
+        "    done, status = os.waitpid(pid, os.WNOHANG)\n"
+        "    if done:\n"
+        "        child_exitcode = os.waitstatus_to_exitcode(status)\n"
+        "        after = read_events()\n"
+        "        observed = after.get('oom_kill', 0) > before.get('oom_kill', 0)\n"
+        "        break\n"
+        "    time.sleep(0.05)\n"
+        "after = read_events()\n"
+        "payload = {\n"
+        "    'schema': 'daedalus-cgroup-oom-observation/1',\n"
+        "    'observed': observed,\n"
+        "    'before_oom': before.get('oom', 0),\n"
+        "    'after_oom': after.get('oom', 0),\n"
+        "    'before_oom_kill': before.get('oom_kill', 0),\n"
+        "    'after_oom_kill': after.get('oom_kill', 0),\n"
+        "    'child_exitcode': child_exitcode,\n"
+        "}\n"
+        "result_marker.write_text(\n"
+        "    json.dumps(payload, sort_keys=True, separators=(',', ':')),\n"
+        "    encoding='utf-8',\n"
+        ")\n"
+        "raise SystemExit(70 if observed else 71)\n"
     )
     return ("python", "-c", script)
+
+
+def _strict_object(pairs):
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate marker key")
+        result[key] = value
+    return result
+
+
+def _read_oom_marker(path: Path) -> tuple[Mapping[str, Any] | None, str, str | None]:
+    if not path.is_file():
+        return None, "missing", None
+    try:
+        payload_bytes = path.read_bytes()
+    except OSError:
+        return None, "unreadable", None
+    digest = hashlib.sha256(payload_bytes).hexdigest()
+    if not payload_bytes or len(payload_bytes) > _MAX_MARKER_BYTES:
+        return None, "invalid", digest
+    try:
+        payload = json.loads(
+            payload_bytes.decode("utf-8"),
+            object_pairs_hook=_strict_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError("non-finite marker value")
+            ),
+        )
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return None, "invalid", digest
+    expected = {
+        "schema",
+        "observed",
+        "before_oom",
+        "after_oom",
+        "before_oom_kill",
+        "after_oom_kill",
+        "child_exitcode",
+    }
+    if not isinstance(payload, dict) or set(payload) != expected:
+        return None, "invalid", digest
+    if payload["schema"] != _MARKER_SCHEMA or not isinstance(payload["observed"], bool):
+        return None, "invalid", digest
+    for name in (
+        "before_oom",
+        "after_oom",
+        "before_oom_kill",
+        "after_oom_kill",
+    ):
+        value = payload[name]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None, "invalid", digest
+    child_exitcode = payload["child_exitcode"]
+    if child_exitcode is not None and (
+        isinstance(child_exitcode, bool) or not isinstance(child_exitcode, int)
+    ):
+        return None, "invalid", digest
+    return payload, "valid", digest
 
 
 def _execute_container_oom(scenario) -> HostFaultResult:
@@ -202,7 +316,8 @@ def _execute_container_oom(scenario) -> HostFaultResult:
         workspace = Path(temporary) / "candidate"
         workspace.mkdir(mode=0o777)
         workspace.chmod(0o777)
-        marker = workspace / "oom-started"
+        start_marker = workspace / "oom-started"
+        result_marker = workspace / "oom-observed.json"
         policy = DockerSandboxPolicy(
             image=_IMAGE,
             candidate_workspace=workspace,
@@ -215,7 +330,7 @@ def _execute_container_oom(scenario) -> HostFaultResult:
         )
         receipt = run_in_docker_sandbox(policy, _allocation_command())
         elapsed_ms = int((time.monotonic() - started) * 1000)
-        marker_exists = marker.is_file()
+        started_marker_exists = start_marker.is_file()
 
         if receipt.refused_before_start:
             return _blocked_result(
@@ -223,9 +338,11 @@ def _execute_container_oom(scenario) -> HostFaultResult:
                 detail_code="sandbox-unavailable",
                 docker_cli_sha256=docker_cli_sha256,
                 receipt=receipt,
-                marker_exists=marker_exists,
+                elapsed_ms=elapsed_ms,
+                started_marker_exists=started_marker_exists,
             )
 
+        marker, marker_status, marker_sha256 = _read_oom_marker(result_marker)
         payload = {
             **_base_payload(
                 scenario=scenario,
@@ -238,15 +355,24 @@ def _execute_container_oom(scenario) -> HostFaultResult:
                 **receipt.to_dict(),
                 "receipt_sha256": receipt.digest,
             },
-            "started_marker_exists": marker_exists,
+            "started_marker_exists": started_marker_exists,
+            "oom_marker_status": marker_status,
+            "oom_marker_sha256": marker_sha256,
+            "oom_marker": marker,
             "host_fallback_observed": False,
         }
         exact_oom = (
             receipt.launch_state == "completed"
-            and receipt.returncode == _OOM_RETURNCODE
+            and receipt.returncode == _OOM_OBSERVED_RETURNCODE
             and receipt.timed_out is False
             and receipt.error_code is None
-            and marker_exists
+            and started_marker_exists
+            and marker_status == "valid"
+            and marker is not None
+            and marker["observed"] is True
+            and marker["after_oom"] > marker["before_oom"]
+            and marker["after_oom_kill"] > marker["before_oom_kill"]
+            and marker["child_exitcode"] == -9
             and 0 < elapsed_ms < (_TIMEOUT_S + 15) * 1000
         )
         if exact_oom:
@@ -256,11 +382,13 @@ def _execute_container_oom(scenario) -> HostFaultResult:
                 detail_code=None,
                 raw_evidence=canonical_json(payload).encode("utf-8"),
                 facts=(
+                    HostFaultFact("child-exitcode", "-9"),
                     HostFaultFact("docker-cli-sha256", docker_cli_sha256),
                     HostFaultFact("image-sha256", _IMAGE_SHA256),
                     HostFaultFact("launch-state", "completed"),
                     HostFaultFact("memory-limit", _MEMORY),
-                    HostFaultFact("returncode", str(_OOM_RETURNCODE)),
+                    HostFaultFact("oom-kill-increased", "true"),
+                    HostFaultFact("returncode", str(_OOM_OBSERVED_RETURNCODE)),
                     HostFaultFact("started-marker", "true"),
                 ),
             )
@@ -271,11 +399,12 @@ def _execute_container_oom(scenario) -> HostFaultResult:
             raw_evidence=canonical_json(payload).encode("utf-8"),
             facts=(
                 HostFaultFact("launch-state", receipt.launch_state),
+                HostFaultFact("marker-status", marker_status),
                 HostFaultFact(
                     "returncode",
                     "none" if receipt.returncode is None else str(receipt.returncode),
                 ),
-                HostFaultFact("started-marker", str(marker_exists).lower()),
+                HostFaultFact("started-marker", str(started_marker_exists).lower()),
                 HostFaultFact("timed-out", str(receipt.timed_out).lower()),
             ),
         )
