@@ -1,0 +1,100 @@
+name: Gate 0 — authenticated evidence trust bundle
+
+on:
+  pull_request:
+    branches:
+      - g0/exact-head-evidence-index-linear
+    paths:
+      - "daedalus/gates/**"
+      - "configs/schemas/gate-evidence-trust-bundle-v1.schema.json"
+      - "tests/gates/**"
+      - "docs/work-packets/G0-RPT-08B_AUTHENTICATED_EVIDENCE_TRUST_BUNDLE.md"
+      - ".github/workflows/g0-evidence-trust-bundle.yml"
+  push:
+    branches:
+      - g0/evidence-trust-bundle-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-evidence-trust-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: trust bundle / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/gate-evidence-trust-bundle-v1.schema.json
+      - run: python -m compileall -q daedalus tests
+      - name: Authenticated, stale, malformed, bypass and counter-review tests
+        run: >-
+          python -m pytest -q
+          tests/gates/test_exact_head_evidence.py
+          tests/gates/test_exact_head_evidence_strict.py
+          tests/gates/test_exact_head_evidence_io.py
+          tests/gates/test_evidence_trust_bundle.py
+          tests/gates/test_evidence_trust_bundle_review.py
+          tests/gates/test_gate_report.py
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated wheel smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-trust-bundle-wheel
+      - run: /tmp/daedalus-trust-bundle-wheel/bin/pip install dist/*.whl
+      - name: Import installed trust contracts outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-trust-bundle-wheel/bin/python -c
+          "from daedalus.gates import EvidenceTrustBundle,
+          assert_strict_exact_head_with_bundle,
+          load_evidence_trust_bundle;
+          assert EvidenceTrustBundle.CONTRACT_TYPE ==
+          'daedalus-gate-evidence-trust-bundle/1';
+          assert assert_strict_exact_head_with_bundle;
+          assert load_evidence_trust_bundle"
