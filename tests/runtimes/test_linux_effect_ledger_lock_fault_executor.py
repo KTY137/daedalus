@@ -11,7 +11,12 @@ from pathlib import Path
 import pytest
 
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
-from daedalus.runtimes.host_fault_runner import LinuxHostFaultEvidence
+from daedalus.runtimes.host_fault_runner import (
+    HostFaultResult,
+    LinuxHostExecutorBinding,
+    LinuxHostFaultEvidence,
+    run_linux_host_fault,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTOR_PATH = ROOT / "tests" / "fixtures" / "linux_effect_ledger_lock_fault_executor.py"
@@ -120,18 +125,33 @@ def test_output_directory_symlink_is_refused(tmp_path: Path) -> None:
     assert list(real.iterdir()) == []
 
 
-def test_stale_or_malformed_revision_is_refused_before_executor_call(monkeypatch) -> None:
+def test_malformed_revision_is_refused_before_executor_call() -> None:
     called = False
 
     def forbidden(_scenario):
         nonlocal called
         called = True
-        raise AssertionError("executor must not run")
+        return HostFaultResult(
+            status="failed",
+            observed_outcome="failed",
+            detail_code="unexpected-call",
+            raw_evidence=b"unexpected",
+        )
 
-    binding = executor.effect_lock_binding()
-    monkeypatch.setattr(binding, "execute", forbidden, raising=False)
+    scenario = RUNTIME_FAULT_CATALOG.scenario_map[
+        "runtime.effect-ledger.lock-contention"
+    ]
+    binding = LinuxHostExecutorBinding(
+        locator=scenario.executor,
+        implementation_sha256="f" * 64,
+        execute=forbidden,
+    )
     with pytest.raises(ValueError, match="revision"):
-        executor.run_effect_lock_fault(source_revision="not-a-revision")
+        run_linux_host_fault(
+            scenario,
+            source_revision="not-a-revision",
+            executor=binding,
+        )
     assert called is False
 
 
