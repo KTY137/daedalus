@@ -16,7 +16,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Sequence
 
 import daedalus.kernel.effects as effects_module
 from daedalus.kernel.contracts import EffectLeaseRequest
@@ -46,6 +46,7 @@ from daedalus.spine.envelope import canonical_json, canonical_sha
 _REPORT_SCHEMA = "daedalus-effect-ledger-contention-fault/1"
 _SCENARIO_ID = "runtime.effect-ledger.lock-contention"
 _BUSY_TIMEOUT_MS = 125
+_TIMEOUT_TOLERANCE_MS = 25
 _NOW = datetime(2026, 8, 3, 8, 0, tzinfo=timezone.utc)
 _SECRET = b"effect-ledger-contention-secret-material-32-bytes"
 _POLICY_SHA = "b" * 64
@@ -128,12 +129,16 @@ class BoundedEffectLeaseLedger(EffectLeaseLedger):
             isolation_level=None,
             timeout=self.busy_timeout_ms / 1000,
         )
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA synchronous=FULL")
-        connection.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA synchronous=FULL")
+            connection.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
+            return connection
+        except sqlite3.Error:
+            connection.close()
+            raise
 
 
 def _central_spec() -> EntrypointSpec:
@@ -242,7 +247,7 @@ def _is_lock_contention(exc: sqlite3.OperationalError) -> bool:
         getattr(sqlite3, "SQLITE_BUSY", 5),
         getattr(sqlite3, "SQLITE_LOCKED", 6),
     }
-    if code in contention_codes:
+    if code is not None and (code & 0xFF) in contention_codes:
         return True
     # Python 3.10 may not expose sqlite_errorcode. The message is inspected only
     # for classification and is never retained in evidence.
@@ -302,6 +307,7 @@ def _execute_effect_contention(scenario) -> HostFaultResult:
         blocker.execute("PRAGMA journal_mode=WAL")
         blocker.execute("PRAGMA busy_timeout=1000")
         blocker.execute("BEGIN IMMEDIATE")
+        writer_lock_held = blocker.in_transaction
         provider_called = False
         observed_error: sqlite3.OperationalError | None = None
         started = time.monotonic()
@@ -345,6 +351,7 @@ def _execute_effect_contention(scenario) -> HostFaultResult:
             ).hexdigest(),
             "busy_timeout_ms": _BUSY_TIMEOUT_MS,
             "elapsed_ms": elapsed_ms,
+            "writer_lock_held": writer_lock_held,
             "contention_observed": contention,
             "exception_module": (
                 type(observed_error).__module__ if observed_error else None
@@ -357,10 +364,14 @@ def _execute_effect_contention(scenario) -> HostFaultResult:
             "execution_row_count": execution_count,
         }
         passed = (
-            contention
+            writer_lock_held
+            and contention
             and not provider_called
             and execution_count == 0
-            and elapsed_ms >= max(1, _BUSY_TIMEOUT_MS // 2)
+            and elapsed_ms >= max(
+                1,
+                _BUSY_TIMEOUT_MS - _TIMEOUT_TOLERANCE_MS,
+            )
             and elapsed_ms < 5_000
         )
         if passed:
@@ -377,6 +388,7 @@ def _execute_effect_contention(scenario) -> HostFaultResult:
                         "sqlite-errorcode",
                         "unavailable" if sqlite_code is None else str(sqlite_code),
                     ),
+                    HostFaultFact("writer-lock-held", "true"),
                 ),
             )
         return HostFaultResult(
@@ -388,6 +400,7 @@ def _execute_effect_contention(scenario) -> HostFaultResult:
                 HostFaultFact("contention-observed", str(contention).lower()),
                 HostFaultFact("execution-row-count", str(execution_count)),
                 HostFaultFact("provider-called", str(provider_called).lower()),
+                HostFaultFact("writer-lock-held", str(writer_lock_held).lower()),
             ),
         )
 
