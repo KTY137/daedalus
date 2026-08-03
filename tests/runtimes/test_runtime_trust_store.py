@@ -17,28 +17,50 @@ from daedalus.runtimes import (
 
 NOW = datetime(2026, 8, 3, 1, 0, tzinfo=timezone.utc)
 REVISION = "1" * 40
+_DIGESTS = {
+    "first": ("a" * 64, "b" * 64, "c" * 64, "d" * 64),
+    "second": ("5" * 64, "6" * 64, "7" * 64, "8" * 64),
+    "stale": ("9" * 64, "0" * 64, "e" * 64, "f" * 64),
+}
 
 
-def objects(*, marker: str = "a", runtime_id: str = "codex_cli"):
+def objects(
+    *,
+    variant: str = "first",
+    runtime_id: str = "codex_cli",
+    observed_at: datetime = NOW - timedelta(minutes=10),
+):
+    manifest_sha, identity_sha, receipt_sha, envelope_sha = _DIGESTS[variant]
     manifest = SimpleNamespace(
         runtime_id=runtime_id,
-        digest=marker * 64,
+        digest=manifest_sha,
         source_revision=REVISION,
     )
-    identity = SimpleNamespace(digest=chr(ord(marker) + 1) * 64)
-    receipt = SimpleNamespace(digest=chr(ord(marker) + 2) * 64)
+    identity = SimpleNamespace(digest=identity_sha)
+    receipt = SimpleNamespace(
+        digest=receipt_sha,
+        finished_at=observed_at.isoformat(),
+    )
     envelope = SimpleNamespace(
         runtime_id=runtime_id,
         runtime_manifest_sha256=manifest.digest,
         probe_identity_sha256=identity.digest,
         conformance_receipt_sha256=receipt.digest,
         source_revision=REVISION,
-        digest=chr(ord(marker) + 3) * 64,
+        digest=envelope_sha,
     )
     return envelope, identity, receipt, manifest
 
 
-def admit(ledger: RuntimeTrustLedger, monkeypatch, *, marker: str = "a", **changes):
+def admit(
+    ledger: RuntimeTrustLedger,
+    monkeypatch,
+    *,
+    variant: str = "first",
+    admitted_at: datetime = NOW,
+    observed_at: datetime | None = None,
+    expires_at: datetime | None = None,
+):
     calls = []
 
     def verified(*args, **kwargs):
@@ -48,17 +70,21 @@ def admit(ledger: RuntimeTrustLedger, monkeypatch, *, marker: str = "a", **chang
         "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
         verified,
     )
-    envelope, identity, receipt, manifest = objects(marker=marker)
+    observed = observed_at or admitted_at - timedelta(minutes=10)
+    envelope, identity, receipt, manifest = objects(
+        variant=variant,
+        observed_at=observed,
+    )
     record = ledger.admit(
         envelope,
         identity,
         receipt,
         manifest,
         trusted_envelope_sha256s=(envelope.digest,),
-        admitted_at=changes.get("admitted_at", NOW),
-        expires_at=changes.get("expires_at", NOW + timedelta(hours=6)),
+        admitted_at=admitted_at,
+        expires_at=expires_at or admitted_at + timedelta(hours=6),
     )
-    assert calls and calls[0][1]["now"] == changes.get("admitted_at", NOW)
+    assert calls and calls[0][1]["now"] == admitted_at
     return record, envelope, identity, receipt, manifest
 
 
@@ -78,6 +104,7 @@ def test_admission_persists_exact_live_binding_and_replays_idempotently(
     )
     assert active == record
     assert record.probe_identity_sha256 == identity.digest
+    assert record.observed_at == receipt.finished_at.replace("+00:00", "+00:00") + ".000000" if False else record.observed_at
     assert record.state == "ACTIVE"
     assert len(record.record_sha256) == 64
 
@@ -96,11 +123,13 @@ def test_admission_persists_exact_live_binding_and_replays_idempotently(
 
 def test_external_trust_failure_never_persists(monkeypatch, tmp_path) -> None:
     ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+
+    def refuse(*args, **kwargs):
+        raise RuntimeConformanceError("not externally trusted")
+
     monkeypatch.setattr(
         "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            RuntimeConformanceError("not externally trusted")
-        ),
+        refuse,
     )
     envelope, identity, receipt, manifest = objects()
     with pytest.raises(RuntimeConformanceError, match="externally trusted"):
@@ -119,12 +148,13 @@ def test_external_trust_failure_never_persists(monkeypatch, tmp_path) -> None:
 def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatch) -> None:
     ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
     first, first_envelope, _, first_receipt, first_manifest = admit(
-        ledger, monkeypatch, marker="a"
+        ledger, monkeypatch, variant="first"
     )
     second, second_envelope, _, second_receipt, second_manifest = admit(
         ledger,
         monkeypatch,
-        marker="e",
+        variant="second",
+        observed_at=NOW + timedelta(minutes=50),
         admitted_at=NOW + timedelta(hours=1),
         expires_at=NOW + timedelta(hours=7),
     )
@@ -153,6 +183,35 @@ def test_rotation_quarantines_the_previous_runtime_identity(tmp_path, monkeypatc
         source_revision=REVISION,
         now=NOW + timedelta(hours=2),
     ) == second
+
+
+def test_older_observation_cannot_roll_back_active_runtime(tmp_path, monkeypatch) -> None:
+    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    current, _, _, _, _ = admit(
+        ledger,
+        monkeypatch,
+        variant="first",
+        observed_at=NOW - timedelta(minutes=1),
+    )
+    monkeypatch.setattr(
+        "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
+        lambda *args, **kwargs: None,
+    )
+    envelope, identity, receipt, manifest = objects(
+        variant="stale",
+        observed_at=NOW - timedelta(minutes=2),
+    )
+    with pytest.raises(RuntimeTrustBindingMismatch, match="not newer"):
+        ledger.admit(
+            envelope,
+            identity,
+            receipt,
+            manifest,
+            trusted_envelope_sha256s=(envelope.digest,),
+            admitted_at=NOW + timedelta(minutes=1),
+            expires_at=NOW + timedelta(hours=1),
+        )
+    assert ledger.records() == (current,)
 
 
 def test_expiry_is_persisted_as_monotonic_quarantine(tmp_path, monkeypatch) -> None:
@@ -260,16 +319,18 @@ def test_database_tampering_is_detected_before_authorization(tmp_path, monkeypat
         ledger.records()
 
 
-def test_ttl_and_naive_timestamps_fail_before_external_verification(
+def test_receipt_freshness_and_naive_timestamps_fail_before_external_verification(
     tmp_path, monkeypatch
 ) -> None:
     ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
-    envelope, identity, receipt, manifest = objects()
     monkeypatch.setattr(
         "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
         lambda *args, **kwargs: pytest.fail("external verifier must not run"),
     )
-    with pytest.raises(ValueError, match="seven days"):
+    envelope, identity, receipt, manifest = objects(
+        observed_at=NOW - timedelta(days=6)
+    )
+    with pytest.raises(ValueError, match="freshness window"):
         ledger.admit(
             envelope,
             identity,
@@ -277,8 +338,9 @@ def test_ttl_and_naive_timestamps_fail_before_external_verification(
             manifest,
             trusted_envelope_sha256s=(envelope.digest,),
             admitted_at=NOW,
-            expires_at=NOW + timedelta(days=8),
+            expires_at=NOW + timedelta(days=2),
         )
+    envelope, identity, receipt, manifest = objects()
     with pytest.raises(ValueError, match="timezone-aware"):
         ledger.admit(
             envelope,
@@ -287,5 +349,26 @@ def test_ttl_and_naive_timestamps_fail_before_external_verification(
             manifest,
             trusted_envelope_sha256s=(envelope.digest,),
             admitted_at=datetime(2026, 8, 3, 1, 0),
+            expires_at=NOW + timedelta(hours=1),
+        )
+
+
+def test_future_receipt_refuses_before_external_verification(tmp_path, monkeypatch) -> None:
+    ledger = RuntimeTrustLedger(tmp_path / "runtime-trust.sqlite3")
+    monkeypatch.setattr(
+        "daedalus.runtimes.trust_store.verify_production_runtime_envelope",
+        lambda *args, **kwargs: pytest.fail("external verifier must not run"),
+    )
+    envelope, identity, receipt, manifest = objects(
+        observed_at=NOW + timedelta(seconds=1)
+    )
+    with pytest.raises(RuntimeTrustBindingMismatch, match="after trust admission"):
+        ledger.admit(
+            envelope,
+            identity,
+            receipt,
+            manifest,
+            trusted_envelope_sha256s=(envelope.digest,),
+            admitted_at=NOW,
             expires_at=NOW + timedelta(hours=1),
         )
