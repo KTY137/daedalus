@@ -5,6 +5,7 @@ import dataclasses
 import inspect
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -126,7 +127,13 @@ def lease(*, runtime: bool = False):
     return value, req, policy
 
 
-def authorization(tmp_path, *, runtime: bool = False, generation: int = 7):
+def authorization(
+    tmp_path,
+    *,
+    runtime: bool = False,
+    generation: int = 7,
+    generation_reader: Callable[[], int] | None = None,
+):
     value, req, policy = lease(runtime=runtime)
     return NonRuntimeEffectAuthorization(
         lease=value,
@@ -137,7 +144,9 @@ def authorization(tmp_path, *, runtime: bool = False, generation: int = 7):
         guard_decisions=(
             GuardDecision("containment.attempt", True, "artifact:sha256:" + "e" * 64),
         ),
-        current_kill_switch_generation=generation,
+        kill_switch_generation_reader=(
+            generation_reader if generation_reader is not None else lambda: generation
+        ),
         registry=registry(runtime_id="runtime-1" if runtime else ""),
     )
 
@@ -201,7 +210,7 @@ def test_request_policy_and_signature_mismatches_fail_closed(tmp_path) -> None:
             guard_decisions=(
                 GuardDecision("containment.attempt", True, "evidence"),
             ),
-            current_kill_switch_generation=7,
+            kill_switch_generation_reader=lambda: 7,
             registry=registry(),
         )
 
@@ -215,7 +224,7 @@ def test_request_policy_and_signature_mismatches_fail_closed(tmp_path) -> None:
         guard_decisions=(
             GuardDecision("containment.attempt", True, "evidence"),
         ),
-        current_kill_switch_generation=7,
+        kill_switch_generation_reader=lambda: 7,
         registry=registry(),
     )
     with pytest.raises(EffectLeaseSignatureError, match="signature"):
@@ -236,9 +245,78 @@ def test_stale_generation_and_missing_guards_are_refused(tmp_path) -> None:
             effect_ledger=EffectLeaseLedger(tmp_path / "other.sqlite3"),
             lease_keyring={"lease-key-1": SECRET},
             guard_decisions=(),
-            current_kill_switch_generation=7,
+            kill_switch_generation_reader=lambda: 7,
             registry=registry(),
         )
+
+
+@pytest.mark.parametrize("bad_value", [True, -1, "7", None])
+def test_live_generation_authority_must_return_nonnegative_integer(
+    tmp_path, bad_value
+) -> None:
+    with pytest.raises(ValueError, match="non-negative integer"):
+        authorization(tmp_path, generation_reader=lambda: bad_value)
+
+
+def test_live_generation_is_reread_before_every_material_boundary(tmp_path) -> None:
+    state = {"generation": 7}
+    auth = authorization(
+        tmp_path,
+        generation_reader=lambda: state["generation"],
+    )
+    auth.grant()
+
+    state["generation"] = 8
+    with pytest.raises(EffectLeaseBindingMismatch, match="kill-switch"):
+        auth.begin_effect(execution())
+    assert auth.effect_ledger.execution_state("execution-1") is None
+
+
+def test_generation_flip_after_durable_start_is_cancelled_before_release(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state = {"generation": 7}
+    auth = authorization(
+        tmp_path,
+        generation_reader=lambda: state["generation"],
+    )
+    auth.grant()
+    original_begin = auth.effect_ledger.begin
+
+    def begin_then_revoke(*args, **kwargs):
+        result = original_begin(*args, **kwargs)
+        state["generation"] = 8
+        return result
+
+    monkeypatch.setattr(auth.effect_ledger, "begin", begin_then_revoke)
+    with pytest.raises(EffectLeaseBindingMismatch, match="kill-switch"):
+        auth.begin_effect(execution())
+    assert auth.effect_ledger.execution_state("execution-1") == "CANCELLED"
+
+
+def test_completed_terminal_requires_live_generation_but_cancellation_does_not(
+    tmp_path,
+) -> None:
+    state = {"generation": 7}
+    auth = authorization(
+        tmp_path,
+        generation_reader=lambda: state["generation"],
+    )
+    auth.grant()
+    started = auth.begin_effect(execution())
+
+    state["generation"] = 8
+    with pytest.raises(EffectLeaseBindingMismatch, match="kill-switch"):
+        auth.finish_effect(
+            started.receipt,
+            outcome="completed",
+            output_digests=("f" * 64,),
+        )
+    assert auth.effect_ledger.execution_state("execution-1") == "STARTED"
+
+    terminal = auth.finish_effect(started.receipt, outcome="cancelled")
+    assert terminal.outcome == "CANCELLED"
+    assert terminal.output_digests == ()
 
 
 def test_facade_owns_verification_grant_start_and_terminal_clocks(
@@ -308,6 +386,10 @@ def test_counter_review_pins_authority_separation() -> None:
     assert "verify_effect_lease" in calls
     assert {"grant", "begin", "finish"} <= calls
     assert "RuntimeBoundEffectAuthorization" in source
+    assert "kill_switch_generation_reader" in source
+    assert "current_kill_switch_generation: int" not in source
+    assert "self.current_kill_switch_generation" not in source
+    assert "_POST_START_AUTHORITY_FAILURE_SHA256" in source
     assert "granted_at: datetime" not in source
     assert "started_at: datetime" not in source
     assert "finished_at: datetime" not in source
