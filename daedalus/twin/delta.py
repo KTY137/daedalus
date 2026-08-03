@@ -7,7 +7,7 @@ materializes, publishes or promotes either snapshot.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Iterable, Mapping
 
 from ..schemas import (
     CanonicalContract,
@@ -57,6 +57,18 @@ def _pairwise_disjoint(*groups: tuple[str, ...]) -> bool:
             return False
         seen.update(current)
     return True
+
+
+def _unique_digests(values: Iterable[str]) -> tuple[str, ...]:
+    """Retain each evidence identity once while preserving first-role order.
+
+    ContractProvenance deliberately refuses duplicate input digests. A graph
+    delta must nevertheless support the exact no-op comparison where base and
+    candidate are the same snapshot. The GraphDelta fields retain both roles;
+    provenance retains the unique evidence identities that authenticate them.
+    """
+
+    return tuple(dict.fromkeys(values))
 
 
 def _binding_semantic_payload(binding: CrossPlaneBinding) -> dict[str, str]:
@@ -419,12 +431,12 @@ class GraphDelta(CanonicalContract):
         for field_name in ("semantic_changed", "evidence_changed", "changed"):
             if type(getattr(self, field_name)) is not bool:
                 raise ValueError(f"{field_name} must be an exact boolean")
-        derived_semantic = any(item.semantic_changed for item in self.plane_deltas) or any(
-            item.semantic_changed for item in self.binding_deltas
-        )
-        derived_evidence = any(item.evidence_changed for item in self.plane_deltas) or any(
-            item.evidence_changed for item in self.binding_deltas
-        )
+        derived_semantic = any(
+            item.semantic_changed for item in self.plane_deltas
+        ) or any(item.semantic_changed for item in self.binding_deltas)
+        derived_evidence = any(
+            item.evidence_changed for item in self.plane_deltas
+        ) or any(item.evidence_changed for item in self.binding_deltas)
         if self.semantic_changed is not derived_semantic:
             raise ValueError("semantic_changed must be derived from delta records")
         if self.evidence_changed is not derived_evidence:
@@ -501,9 +513,9 @@ def compute_graph_delta(
     base_planes = base.plane_map
     candidate_planes = candidate.plane_map
     plane_deltas: list[PlaneDelta] = []
-    for plane in FOURFOLD_PLANES:
-        before = base_planes[plane]
-        after = candidate_planes[plane]
+    for plane_name in FOURFOLD_PLANES:
+        before = base_planes[plane_name]
+        after = candidate_planes[plane_name]
         before_nodes = set(before.node_ids)
         after_nodes = set(after.node_ids)
         before_relations = set(before.relation_sha256s)
@@ -512,7 +524,7 @@ def compute_graph_delta(
         after_evidence = set(after.evidence_sha256s)
         plane_deltas.append(
             PlaneDelta(
-                plane=plane,
+                plane=plane_name,
                 base_plane_sha256=before.digest,
                 candidate_plane_sha256=after.digest,
                 base_status=before.status,
@@ -570,11 +582,13 @@ def compute_graph_delta(
         origin="daedalus.twin.graph-delta",
         source_revision=candidate.source_revision,
         created_at=created_at,
-        input_digests=(
-            base.digest,
-            candidate.digest,
-            *(item.digest for item in plane_tuple),
-            *(item.digest for item in binding_tuple),
+        input_digests=_unique_digests(
+            (
+                base.digest,
+                candidate.digest,
+                *(item.digest for item in plane_tuple),
+                *(item.digest for item in binding_tuple),
+            )
         ),
         trace_id=trace_id,
     )
