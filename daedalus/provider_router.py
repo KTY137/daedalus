@@ -678,6 +678,7 @@ def route_and_select(
     active_agents: list[str] | None = None,
     repo_root: str | None = None,
     latent: bool | None = None,
+    idx: dict | None = None,
 ) -> tuple[dict, ProviderDecision]:
     """Convenience: pick both the role and the provider in one call.
 
@@ -700,13 +701,20 @@ def route_and_select(
     between the trusted-only and external-eligible lanes -- which is why
     :func:`_apply_lane_guard` forbids exactly that. The embedding may steer
     within a lane; it may not move one. Everything downstream still fences the
-    result as before."""
+    result as before.
+
+    ``idx`` is an already-built StructCore index for callers that own index
+    provenance outside this routing leaf. When supplied it is threaded into
+    the reachability fence and no StructCore build/cache path is entered. The
+    general entrypoint deliberately keeps its historical ``idx=None`` default;
+    callers that need an enforceable no-probe contract should use
+    :func:`route_and_select_precomputed` instead."""
     agent, keyword_agent, latent_receipt = _route_role(
         objective, paths or [], repo_root, active_agents, latent)
 
     def _select(role: dict) -> ProviderDecision:
         return select_provider(role, objective, paths, availability, policy,
-                               repo_root=repo_root)
+                               repo_root=repo_root, idx=idx)
 
     decision = _select(agent)
     if latent_receipt["mechanism"] == LATENT:
@@ -714,3 +722,56 @@ def route_and_select(
             agent, decision, keyword_agent, latent_receipt, _select)
     decision.latent_route = latent_receipt
     return agent, decision
+
+
+def route_and_select_precomputed(
+    objective: str,
+    paths: list[str] | None = None,
+    *,
+    availability: dict[str, bool],
+    repo_root: str,
+    idx: dict,
+    policy: Policy | None = None,
+    active_agents: list[str] | None = None,
+) -> tuple[dict, ProviderDecision]:
+    """Route from frozen local inputs without entering discovery/build paths.
+
+    This is the planning-safe leaf for a caller that already owns both the
+    provider-availability observation and the StructCore index artifact. It
+    always disables the latent embedding route, never probes providers, and
+    supplies the precomputed index to the blast-radius fence, so routing cannot
+    instantiate :class:`~daedalus.structcore.cache.FileCache`, start a process
+    pool, contact an embedding/backend service, or run ``doctor``.
+
+    The contract is intentionally narrow rather than claiming global purity:
+    role, policy, and source-existence checks remain read-only filesystem
+    inputs. Index creation and freshness/revision validation belong to the
+    upstream artifact-producing step. The root binding below prevents a caller
+    from accidentally applying one repository's graph to another.
+    """
+    if not isinstance(availability, dict):
+        raise TypeError("availability must be a precomputed provider mapping")
+    if not isinstance(idx, dict):
+        raise TypeError("idx must be a precomputed StructCore index")
+
+    index_root = idx.get("root")
+    if not isinstance(index_root, str) or not index_root:
+        raise ValueError("precomputed StructCore index has no root binding")
+    requested_root = os.path.normcase(os.path.realpath(os.fspath(repo_root)))
+    bound_root = os.path.normcase(os.path.realpath(index_root))
+    if requested_root != bound_root:
+        raise ValueError(
+            "precomputed StructCore index root does not match repo_root: "
+            f"{index_root!r} != {repo_root!r}"
+        )
+
+    return route_and_select(
+        objective,
+        paths,
+        availability=availability,
+        policy=policy,
+        active_agents=active_agents,
+        repo_root=repo_root,
+        latent=False,
+        idx=idx,
+    )
