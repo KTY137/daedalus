@@ -102,9 +102,8 @@ class FakeAuthorization:
             execute=not self.replay,
         )
 
-    def verify(self, *, now) -> object:
+    def verify(self) -> object:
         self.verify_calls += 1
-        assert now.tzinfo is not None
         if (
             self.verify_error is not None
             and (
