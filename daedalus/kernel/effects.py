@@ -1,6 +1,6 @@
 """Persisted, scope-bounded Effect Leases for the Gate-0 trust kernel.
 
-The lease layer is deliberately inert with respect to real effects.  It
+The lease layer is deliberately inert with respect to real effects. It
 persists authorization before an effect may start, validates a request against
 one exact policy decision and one exact entrypoint-registry revision, and
 returns an execution flag that prevents replay from causing a second effect.
@@ -29,6 +29,7 @@ from daedalus.schemas import (
     _repo_path,
     _sha256,
     _sorted_strings,
+    _utc_timestamp,
 )
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
@@ -93,14 +94,20 @@ class EffectExecutionRequest:
     kill_switch_generation: int = 0
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
         object.__setattr__(
-            self, "idempotency_key", _identifier(self.idempotency_key, "idempotency_key")
+            self, "execution_id", _identifier(self.execution_id, "execution_id")
+        )
+        object.__setattr__(
+            self,
+            "idempotency_key",
+            _identifier(self.idempotency_key, "idempotency_key"),
         )
         object.__setattr__(
             self,
             "requested_effects",
-            _sorted_strings(self.requested_effects, "requested_effects", identifiers=True),
+            _sorted_strings(
+                self.requested_effects, "requested_effects", identifiers=True
+            ),
         )
         if not self.requested_effects:
             raise ValueError("execution request must name at least one effect")
@@ -128,9 +135,11 @@ class EffectExecutionRequest:
             "secret_refs",
             _sorted_strings(self.secret_refs, "secret_refs", identifiers=True),
         )
-        if isinstance(self.max_cost_microusd, bool) or not isinstance(
-            self.max_cost_microusd, int
-        ) or self.max_cost_microusd < 0:
+        if (
+            isinstance(self.max_cost_microusd, bool)
+            or not isinstance(self.max_cost_microusd, int)
+            or self.max_cost_microusd < 0
+        ):
             raise ValueError("max_cost_microusd must be a non-negative integer")
         if self.kill_switch_ref:
             object.__setattr__(
@@ -138,12 +147,12 @@ class EffectExecutionRequest:
                 "kill_switch_ref",
                 _identifier(self.kill_switch_ref, "kill_switch_ref"),
             )
-        if isinstance(self.kill_switch_generation, bool) or not isinstance(
-            self.kill_switch_generation, int
-        ) or self.kill_switch_generation < 0:
+        if (
+            isinstance(self.kill_switch_generation, bool)
+            or not isinstance(self.kill_switch_generation, int)
+            or self.kill_switch_generation < 0
+        ):
             raise ValueError("kill_switch_generation must be a non-negative integer")
-        # Validate names against the canonical Effect enum without changing
-        # their deterministic sorted representation.
         for value in self.requested_effects:
             try:
                 Effect(value)
@@ -168,8 +177,49 @@ class LeasedEffectStartReceipt:
     started_at: str
     receipt_sha256: str
 
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "lease_sha256", _sha256(self.lease_sha256, "lease_sha256")
+        )
+        object.__setattr__(
+            self, "execution_id", _identifier(self.execution_id, "execution_id")
+        )
+        object.__setattr__(
+            self,
+            "idempotency_key",
+            _identifier(self.idempotency_key, "idempotency_key"),
+        )
+        object.__setattr__(
+            self,
+            "execution_request_sha256",
+            _sha256(self.execution_request_sha256, "execution_request_sha256"),
+        )
+        object.__setattr__(
+            self,
+            "boundary_receipt_sha256",
+            _sha256(self.boundary_receipt_sha256, "boundary_receipt_sha256"),
+        )
+        object.__setattr__(
+            self, "started_at", _utc_timestamp(self.started_at, "started_at")
+        )
+        object.__setattr__(
+            self, "receipt_sha256", _sha256(self.receipt_sha256, "receipt_sha256")
+        )
+        if self.receipt_sha256 != canonical_sha(self.payload_dict()):
+            raise ValueError("leased effect start receipt digest mismatch")
+
+    def payload_dict(self) -> dict[str, str]:
+        return {
+            "lease_sha256": self.lease_sha256,
+            "execution_id": self.execution_id,
+            "idempotency_key": self.idempotency_key,
+            "execution_request_sha256": self.execution_request_sha256,
+            "boundary_receipt_sha256": self.boundary_receipt_sha256,
+            "started_at": self.started_at,
+        }
+
     def to_dict(self) -> dict[str, str]:
-        return dataclasses.asdict(self)
+        return {**self.payload_dict(), "receipt_sha256": self.receipt_sha256}
 
 
 @dataclass(frozen=True)
@@ -189,11 +239,57 @@ class EffectTerminalReceipt:
     finished_at: str
     receipt_sha256: str
 
-    def to_dict(self) -> dict[str, object]:
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "lease_sha256", _sha256(self.lease_sha256, "lease_sha256")
+        )
+        object.__setattr__(
+            self, "execution_id", _identifier(self.execution_id, "execution_id")
+        )
+        object.__setattr__(
+            self,
+            "start_receipt_sha256",
+            _sha256(self.start_receipt_sha256, "start_receipt_sha256"),
+        )
+        normalized = str(self.outcome).upper()
+        if normalized not in _TERMINAL_STATES:
+            raise ValueError("outcome must be completed, failed, or cancelled")
+        object.__setattr__(self, "outcome", normalized)
+        object.__setattr__(
+            self,
+            "output_digests",
+            _sorted_strings(
+                self.output_digests, "output_digests", digests=True
+            ),
+        )
+        if self.detail_sha256 is not None:
+            object.__setattr__(
+                self,
+                "detail_sha256",
+                _sha256(self.detail_sha256, "detail_sha256"),
+            )
+        object.__setattr__(
+            self, "finished_at", _utc_timestamp(self.finished_at, "finished_at")
+        )
+        object.__setattr__(
+            self, "receipt_sha256", _sha256(self.receipt_sha256, "receipt_sha256")
+        )
+        if self.receipt_sha256 != canonical_sha(self.payload_dict()):
+            raise ValueError("effect terminal receipt digest mismatch")
+
+    def payload_dict(self) -> dict[str, object]:
         return {
-            **dataclasses.asdict(self),
+            "lease_sha256": self.lease_sha256,
+            "execution_id": self.execution_id,
+            "start_receipt_sha256": self.start_receipt_sha256,
+            "outcome": self.outcome,
             "output_digests": list(self.output_digests),
+            "detail_sha256": self.detail_sha256,
+            "finished_at": self.finished_at,
         }
+
+    def to_dict(self) -> dict[str, object]:
+        return {**self.payload_dict(), "receipt_sha256": self.receipt_sha256}
 
 
 def _utc_now() -> datetime:
@@ -238,7 +334,9 @@ def _registry_map(
 ) -> Mapping[str, EntrypointSpec]:
     if isinstance(registry, Mapping):
         rows = dict(registry)
-        mismatched = sorted(key for key, value in rows.items() if key != value.id)
+        mismatched = sorted(
+            key for key, value in rows.items() if key != value.id
+        )
         if mismatched:
             raise EffectLeaseBindingMismatch(
                 "entrypoint registry contains mismatched key/id rows: "
@@ -247,30 +345,69 @@ def _registry_map(
         return rows
     rows = list(registry)
     if len({row.id for row in rows}) != len(rows):
-        raise EffectLeaseBindingMismatch("entrypoint registry contains duplicate ids")
+        raise EffectLeaseBindingMismatch(
+            "entrypoint registry contains duplicate ids"
+        )
     return {row.id: row for row in rows}
+
+
+def _assert_registry_bound(
+    lease: EffectLease,
+    registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec],
+    *,
+    phase: str,
+) -> Mapping[str, EntrypointSpec]:
+    registry_map = _registry_map(registry)
+    spec = registry_map.get(lease.entrypoint_id)
+    if spec is None or spec.wiring is not Wiring.CENTRAL:
+        raise EffectLeaseBindingMismatch(
+            f"leased entrypoint is not central during {phase}"
+        )
+    if registry_sha256(tuple(registry_map.values())) != lease.registry_sha256:
+        raise EffectLeaseBindingMismatch(
+            f"entrypoint registry changed during {phase}"
+        )
+    if spec.runtime_id != lease.runtime_id:
+        raise EffectLeaseBindingMismatch(
+            f"entrypoint runtime changed during {phase}"
+        )
+    return registry_map
 
 
 def _scope_requirements(effects: Iterable[str], scope: EffectScope) -> None:
     try:
         values = {Effect(value) for value in effects}
     except ValueError as exc:
-        raise EffectLeaseScopeError("effect scope contains an unknown effect") from exc
+        raise EffectLeaseScopeError(
+            "effect scope contains an unknown effect"
+        ) from exc
     if values & {Effect.FILESYSTEM_WRITE, Effect.REPOSITORY_MUTATION}:
         if scope.read_only or not scope.writable_paths:
-            raise EffectLeaseScopeError("write effects require bounded writable_paths")
+            raise EffectLeaseScopeError(
+                "write effects require bounded writable_paths"
+            )
     if values & {Effect.NETWORK_EGRESS, Effect.LISTEN_SOCKET}:
         if not scope.egress_endpoints:
-            raise EffectLeaseScopeError("network effects require explicit egress_endpoints")
+            raise EffectLeaseScopeError(
+                "network effects require explicit egress_endpoints"
+            )
     if values & {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL}:
         if not scope.tools:
-            raise EffectLeaseScopeError("process effects require explicit tools")
+            raise EffectLeaseScopeError(
+                "process effects require explicit tools"
+            )
     if Effect.SECRETS in values and not scope.secret_refs:
-        raise EffectLeaseScopeError("secret effects require explicit secret_refs")
+        raise EffectLeaseScopeError(
+            "secret effects require explicit secret_refs"
+        )
     if Effect.SPEND in values and scope.max_cost_microusd is None:
-        raise EffectLeaseScopeError("spend effects require an explicit cost ceiling")
+        raise EffectLeaseScopeError(
+            "spend effects require an explicit cost ceiling"
+        )
     if not scope.kill_switch_ref:
-        raise EffectLeaseScopeError("effectful scope requires a kill_switch_ref")
+        raise EffectLeaseScopeError(
+            "effectful scope requires a kill_switch_ref"
+        )
     if scope.timeout_s is None:
         raise EffectLeaseScopeError("effectful scope requires a timeout_s")
 
@@ -278,10 +415,16 @@ def _scope_requirements(effects: Iterable[str], scope: EffectScope) -> None:
 def _path_within(candidate: str, root: str) -> bool:
     candidate_path = PurePosixPath(_repo_path(candidate, "candidate_path"))
     root_path = PurePosixPath(_repo_path(root, "root_path"))
-    return root_path == PurePosixPath(".") or candidate_path == root_path or root_path in candidate_path.parents
+    return (
+        root_path == PurePosixPath(".")
+        or candidate_path == root_path
+        or root_path in candidate_path.parents
+    )
 
 
-def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease) -> None:
+def _validate_narrowed_scope(
+    request: EffectExecutionRequest, lease: EffectLease
+) -> None:
     granted_effects = set(lease.requested_effects)
     requested_effects = set(request.requested_effects)
     if not requested_effects <= granted_effects:
@@ -291,45 +434,80 @@ def _validate_narrowed_scope(request: EffectExecutionRequest, lease: EffectLease
         )
     scope = lease.effect_scope
     for candidate in request.writable_paths:
-        if not any(_path_within(candidate, root) for root in scope.writable_paths):
+        if not any(
+            _path_within(candidate, root) for root in scope.writable_paths
+        ):
             raise EffectLeaseScopeError(
                 f"writable path {candidate!r} is outside the leased roots"
             )
     if not set(request.egress_endpoints) <= set(scope.egress_endpoints):
-        raise EffectLeaseScopeError("execution requested an unleased egress endpoint")
+        raise EffectLeaseScopeError(
+            "execution requested an unleased egress endpoint"
+        )
     if not set(request.tools) <= set(scope.tools):
         raise EffectLeaseScopeError("execution requested an unleased tool")
     if not set(request.secret_refs) <= set(scope.secret_refs):
         raise EffectLeaseScopeError("execution requested an unleased secret")
     if scope.max_cost_microusd is None:
         if request.max_cost_microusd:
-            raise EffectLeaseScopeError("execution requested spend from a no-spend lease")
+            raise EffectLeaseScopeError(
+                "execution requested spend from a no-spend lease"
+            )
     elif request.max_cost_microusd > scope.max_cost_microusd:
-        raise EffectLeaseScopeError("execution requested cost above the leased ceiling")
+        raise EffectLeaseScopeError(
+            "execution requested cost above the leased ceiling"
+        )
     if request.kill_switch_ref != scope.kill_switch_ref:
-        raise EffectLeaseScopeError("execution kill_switch_ref does not match the lease")
+        raise EffectLeaseScopeError(
+            "execution kill_switch_ref does not match the lease"
+        )
     if request.kill_switch_generation != lease.kill_switch_generation:
-        raise EffectLeaseScopeError("execution kill-switch generation is stale")
+        raise EffectLeaseScopeError(
+            "execution kill-switch generation is stale"
+        )
 
-    write_effects = {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
-    network_effects = {Effect.NETWORK_EGRESS.value, Effect.LISTEN_SOCKET.value}
-    process_effects = {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
+    write_effects = {
+        Effect.FILESYSTEM_WRITE.value,
+        Effect.REPOSITORY_MUTATION.value,
+    }
+    network_effects = {
+        Effect.NETWORK_EGRESS.value,
+        Effect.LISTEN_SOCKET.value,
+    }
+    process_effects = {
+        Effect.PROCESS_SPAWN.value,
+        Effect.PROCESS_CONTROL.value,
+    }
     if request.writable_paths and not requested_effects & write_effects:
-        raise EffectLeaseScopeError("writable_paths supplied without a write effect")
+        raise EffectLeaseScopeError(
+            "writable_paths supplied without a write effect"
+        )
     if requested_effects & write_effects and not request.writable_paths:
-        raise EffectLeaseScopeError("write execution must name its exact writable paths")
+        raise EffectLeaseScopeError(
+            "write execution must name its exact writable paths"
+        )
     if request.egress_endpoints and not requested_effects & network_effects:
-        raise EffectLeaseScopeError("egress_endpoints supplied without a network effect")
+        raise EffectLeaseScopeError(
+            "egress_endpoints supplied without a network effect"
+        )
     if requested_effects & network_effects and not request.egress_endpoints:
-        raise EffectLeaseScopeError("network execution must name its exact endpoint")
+        raise EffectLeaseScopeError(
+            "network execution must name its exact endpoint"
+        )
     if request.tools and not requested_effects & process_effects:
         raise EffectLeaseScopeError("tools supplied without a process effect")
     if requested_effects & process_effects and not request.tools:
-        raise EffectLeaseScopeError("process execution must name its exact tool")
+        raise EffectLeaseScopeError(
+            "process execution must name its exact tool"
+        )
     if request.secret_refs and Effect.SECRETS.value not in requested_effects:
-        raise EffectLeaseScopeError("secret_refs supplied without the secrets effect")
+        raise EffectLeaseScopeError(
+            "secret_refs supplied without the secrets effect"
+        )
     if Effect.SECRETS.value in requested_effects and not request.secret_refs:
-        raise EffectLeaseScopeError("secret execution must name its exact secret refs")
+        raise EffectLeaseScopeError(
+            "secret execution must name its exact secret refs"
+        )
     if request.max_cost_microusd and Effect.SPEND.value not in requested_effects:
         raise EffectLeaseScopeError("cost supplied without the spend effect")
 
@@ -350,32 +528,54 @@ def issue_effect_lease(
     registry_map = _registry_map(registry)
     spec = registry_map.get(request.entrypoint_id)
     if spec is None or spec.id != request.entrypoint_id:
-        raise EffectLeaseBindingMismatch("effect lease request names an unknown entrypoint")
+        raise EffectLeaseBindingMismatch(
+            "effect lease request names an unknown entrypoint"
+        )
     if spec.wiring is not Wiring.CENTRAL:
         raise EffectLeaseBindingMismatch(
             f"{spec.id} is {spec.wiring.value}, not central; migration is required first"
         )
     try:
-        wanted = tuple(sorted({Effect(value).value for value in request.requested_effects}))
+        wanted = tuple(
+            sorted({Effect(value).value for value in request.requested_effects})
+        )
     except ValueError as exc:
-        raise EffectLeaseBindingMismatch("effect lease request contains an unknown effect") from exc
-    undeclared = sorted(set(wanted) - {effect.value for effect in spec.effects})
+        raise EffectLeaseBindingMismatch(
+            "effect lease request contains an unknown effect"
+        ) from exc
+    undeclared = sorted(
+        set(wanted) - {effect.value for effect in spec.effects}
+    )
     if undeclared:
         raise EffectLeaseBindingMismatch(
-            "entrypoint did not declare requested effects: " + ", ".join(undeclared)
+            "entrypoint did not declare requested effects: "
+            + ", ".join(undeclared)
         )
     _scope_requirements(wanted, request.effect_scope)
 
     if policy_decision.verdict != "allow":
-        raise EffectLeaseBindingMismatch("deny policy decisions cannot issue leases")
+        raise EffectLeaseBindingMismatch(
+            "deny policy decisions cannot issue leases"
+        )
     if policy_decision.subject_id != request.request_id:
-        raise EffectLeaseBindingMismatch("policy subject_id does not match lease request")
+        raise EffectLeaseBindingMismatch(
+            "policy subject_id does not match lease request"
+        )
     if policy_decision.subject_sha256 != request.digest:
-        raise EffectLeaseBindingMismatch("policy subject digest does not match lease request")
+        raise EffectLeaseBindingMismatch(
+            "policy subject digest does not match lease request"
+        )
     if policy_decision.effect_scope != request.effect_scope:
-        raise EffectLeaseBindingMismatch("policy scope does not exactly match lease request")
-    if policy_decision.provenance.source_revision != request.provenance.source_revision:
-        raise EffectLeaseBindingMismatch("policy and lease request use different revisions")
+        raise EffectLeaseBindingMismatch(
+            "policy scope does not exactly match lease request"
+        )
+    if (
+        policy_decision.provenance.source_revision
+        != request.provenance.source_revision
+    ):
+        raise EffectLeaseBindingMismatch(
+            "policy and lease request use different revisions"
+        )
     if spec.runtime_id:
         if request.runtime_manifest_sha256 is None:
             raise EffectLeaseBindingMismatch(
@@ -391,7 +591,9 @@ def issue_effect_lease(
     if expires <= issued:
         raise ValueError("effect lease expires_at must be after issued_at")
     if expires - issued > _MAX_LEASE_TTL:
-        raise ValueError("effect lease TTL exceeds the 24-hour Gate-0 maximum")
+        raise ValueError(
+            "effect lease TTL exceeds the 24-hour Gate-0 maximum"
+        )
     reg_sha = registry_sha256(tuple(registry_map.values()))
     provenance = ContractProvenance(
         origin="kernel.effect-lease",
@@ -404,7 +606,10 @@ def issue_effect_lease(
                     policy_decision.digest,
                     reg_sha,
                     *(
-                        [request.runtime_manifest_sha256, request.runtime_conformance_sha256]
+                        [
+                            request.runtime_manifest_sha256,
+                            request.runtime_conformance_sha256,
+                        ]
                         if request.runtime_manifest_sha256 is not None
                         else []
                     ),
@@ -452,13 +657,13 @@ def verify_effect_lease(
 ) -> None:
     secret = keyring.get(lease.issuer_key_id)
     if secret is None:
-        raise EffectLeaseSignatureError("effect lease issuer key is unknown")
+        raise EffectLeaseSignatureError(
+            "effect lease issuer key is unknown"
+        )
     expected_signature = _signature(lease.signing_digest, secret)
     if not hmac.compare_digest(lease.signature_sha256, expected_signature):
         raise EffectLeaseSignatureError("effect lease signature mismatch")
-    instant = (
-        _as_utc(now, "now") if now is not None else _utc_now()
-    )
+    instant = _as_utc(now, "now") if now is not None else _utc_now()
     issued = _parse_utc(lease.issued_at, "lease.issued_at")
     expires = _parse_utc(lease.expires_at, "lease.expires_at")
     if instant < issued:
@@ -466,22 +671,31 @@ def verify_effect_lease(
     if instant >= expires:
         raise EffectLeaseExpired("effect lease has expired")
     if current_kill_switch_generation != lease.kill_switch_generation:
-        raise EffectLeaseBindingMismatch("effect lease kill-switch generation is stale")
+        raise EffectLeaseBindingMismatch(
+            "effect lease kill-switch generation is stale"
+        )
     _scope_requirements(lease.requested_effects, lease.effect_scope)
 
-    registry_map = _registry_map(registry)
-    spec = registry_map.get(lease.entrypoint_id)
-    if spec is None or spec.wiring is not Wiring.CENTRAL:
-        raise EffectLeaseBindingMismatch("leased entrypoint is not currently central")
-    if registry_sha256(tuple(registry_map.values())) != lease.registry_sha256:
-        raise EffectLeaseBindingMismatch("entrypoint registry changed after lease issuance")
+    registry_map = _assert_registry_bound(
+        lease, registry, phase="lease verification"
+    )
+    spec = registry_map[lease.entrypoint_id]
     comparisons = {
         "request_id": (lease.request_id, request.request_id),
         "request_sha256": (lease.request_sha256, request.digest),
-        "policy_decision_id": (lease.policy_decision_id, policy_decision.decision_id),
-        "policy_decision_sha256": (lease.policy_decision_sha256, policy_decision.digest),
+        "policy_decision_id": (
+            lease.policy_decision_id,
+            policy_decision.decision_id,
+        ),
+        "policy_decision_sha256": (
+            lease.policy_decision_sha256,
+            policy_decision.digest,
+        ),
         "entrypoint_id": (lease.entrypoint_id, request.entrypoint_id),
-        "requested_effects": (lease.requested_effects, request.requested_effects),
+        "requested_effects": (
+            lease.requested_effects,
+            request.requested_effects,
+        ),
         "effect_scope": (lease.effect_scope, request.effect_scope),
         "idempotency_namespace": (
             lease.idempotency_namespace,
@@ -500,10 +714,19 @@ def verify_effect_lease(
             request.runtime_conformance_sha256,
         ),
         "runtime_id": (lease.runtime_id, spec.runtime_id),
-        "policy_subject_id": (policy_decision.subject_id, request.request_id),
-        "policy_subject_sha256": (policy_decision.subject_sha256, request.digest),
+        "policy_subject_id": (
+            policy_decision.subject_id,
+            request.request_id,
+        ),
+        "policy_subject_sha256": (
+            policy_decision.subject_sha256,
+            request.digest,
+        ),
         "policy_verdict": (policy_decision.verdict, "allow"),
-        "policy_effect_scope": (policy_decision.effect_scope, request.effect_scope),
+        "policy_effect_scope": (
+            policy_decision.effect_scope,
+            request.effect_scope,
+        ),
         "lease_source_revision": (
             lease.provenance.source_revision,
             request.provenance.source_revision,
@@ -514,12 +737,26 @@ def verify_effect_lease(
         ),
     }
     mismatches = sorted(
-        name for name, (actual, expected) in comparisons.items() if actual != expected
+        name
+        for name, (actual, expected) in comparisons.items()
+        if actual != expected
     )
     if mismatches:
         raise EffectLeaseBindingMismatch(
             "effect lease binding mismatch: " + ", ".join(mismatches)
         )
+
+
+def _decode_start_receipt(raw: str) -> LeasedEffectStartReceipt:
+    try:
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("receipt JSON must be an object")
+        return LeasedEffectStartReceipt(**payload)
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        raise EffectLeaseStateError(
+            "persisted start receipt is corrupt"
+        ) from exc
 
 
 class EffectLeaseLedger:
@@ -531,7 +768,9 @@ class EffectLeaseLedger:
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.path), isolation_level=None, timeout=30)
+        conn = sqlite3.connect(
+            str(self.path), isolation_level=None, timeout=30
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA journal_mode=WAL")
@@ -593,28 +832,50 @@ class EffectLeaseLedger:
         granted_at: datetime | None = None,
         registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
     ) -> None:
+        verification_instant = (
+            _as_utc(granted_at, "granted_at")
+            if granted_at is not None
+            else _utc_now()
+        )
         verify_effect_lease(
             lease,
             request=request,
             policy_decision=policy_decision,
             keyring=keyring,
             current_kill_switch_generation=current_kill_switch_generation,
-            now=granted_at or _utc_now(),
+            now=verification_instant,
             registry=registry,
         )
         payload = lease.to_json()
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
+            persistence_instant = (
+                verification_instant
+                if granted_at is not None
+                else _utc_now()
+            )
+            if persistence_instant >= _parse_utc(
+                lease.expires_at, "lease.expires_at"
+            ):
+                raise EffectLeaseExpired(
+                    "effect lease expired before grant persistence"
+                )
+            _assert_registry_bound(
+                lease, registry, phase="grant persistence"
+            )
             row = conn.execute(
-                "SELECT lease_json FROM effect_leases WHERE lease_sha256=? OR lease_id=?",
+                "SELECT lease_json FROM effect_leases "
+                "WHERE lease_sha256=? OR lease_id=?",
                 (lease.digest, lease.lease_id),
             ).fetchone()
             if row is not None:
                 if row["lease_json"] == payload:
                     conn.execute("COMMIT")
                     return
-                raise EffectLeaseReplay("lease identity was already used for different content")
+                raise EffectLeaseReplay(
+                    "lease identity was already used for different content"
+                )
             conn.execute(
                 """
                 INSERT INTO effect_leases (
@@ -641,7 +902,9 @@ class EffectLeaseLedger:
                 conn.execute("ROLLBACK")
             except sqlite3.Error:
                 pass
-            raise EffectLeaseReplay("effect lease grant conflicts with persisted identity") from exc
+            raise EffectLeaseReplay(
+                "effect lease grant conflicts with persisted identity"
+            ) from exc
         except Exception:
             try:
                 conn.execute("ROLLBACK")
@@ -651,23 +914,47 @@ class EffectLeaseLedger:
         finally:
             conn.close()
 
-    def revoke(self, lease_sha256: str, *, reason: str, revoked_at: datetime | None = None) -> None:
+    def revoke(
+        self,
+        lease_sha256: str,
+        *,
+        reason: str,
+        revoked_at: datetime | None = None,
+    ) -> None:
         digest = _sha256(lease_sha256, "lease_sha256")
         if not reason.strip() or len(reason) > 1000:
-            raise ValueError("revocation reason must be non-empty and bounded")
-        timestamp = _timestamp(revoked_at or _utc_now())
+            raise ValueError(
+                "revocation reason must be non-empty and bounded"
+            )
+        instant = (
+            _as_utc(revoked_at, "revoked_at")
+            if revoked_at is not None
+            else _utc_now()
+        )
+        timestamp = _timestamp(instant)
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
-                "SELECT revoked_at FROM effect_leases WHERE lease_sha256=?", (digest,)
+                "SELECT issued_at, revoked_at FROM effect_leases "
+                "WHERE lease_sha256=?",
+                (digest,),
             ).fetchone()
             if row is None:
-                raise EffectLeaseStateError("cannot revoke an unknown lease")
+                raise EffectLeaseStateError(
+                    "cannot revoke an unknown lease"
+                )
             if row["revoked_at"] is not None:
-                raise EffectLeaseStateError("effect lease is already revoked")
+                raise EffectLeaseStateError(
+                    "effect lease is already revoked"
+                )
+            if instant < _parse_utc(row["issued_at"], "persisted lease issue"):
+                raise EffectLeaseStateError(
+                    "effect lease cannot be revoked before it was issued"
+                )
             conn.execute(
-                "UPDATE effect_leases SET revoked_at=?, revocation_reason=? WHERE lease_sha256=?",
+                "UPDATE effect_leases SET revoked_at=?, "
+                "revocation_reason=? WHERE lease_sha256=?",
                 (timestamp, reason, digest),
             )
             conn.execute("COMMIT")
@@ -693,7 +980,11 @@ class EffectLeaseLedger:
         started_at: datetime | None = None,
         registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = REGISTRY_BY_ID,
     ) -> EffectStartResult:
-        verification_instant = _as_utc(started_at, "started_at") if started_at is not None else _utc_now()
+        verification_instant = (
+            _as_utc(started_at, "started_at")
+            if started_at is not None
+            else _utc_now()
+        )
         verify_effect_lease(
             lease,
             request=request,
@@ -704,63 +995,119 @@ class EffectLeaseLedger:
             registry=registry,
         )
         _validate_narrowed_scope(execution, lease)
-        registry_map = _registry_map(registry)
+        registry_map = _assert_registry_bound(
+            lease, registry, phase="effect boundary start"
+        )
         boundary = begin_effect(
             lease.entrypoint_id,
             execution.requested_effects,
             guard_decisions,
             registry=registry_map,
         )
+        if boundary.registry_sha256 != lease.registry_sha256:
+            raise EffectLeaseBindingMismatch(
+                "entrypoint registry changed before boundary receipt"
+            )
+        if (
+            boundary.entrypoint_id != lease.entrypoint_id
+            or boundary.runtime_id != lease.runtime_id
+            or boundary.requested_effects != execution.requested_effects
+        ):
+            raise EffectLeaseBindingMismatch(
+                "effect boundary receipt does not match the leased execution"
+            )
         request_json = canonical_json(execution.to_dict())
 
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             lease_row = conn.execute(
-                "SELECT lease_json, expires_at, revoked_at FROM effect_leases WHERE lease_sha256=?",
+                "SELECT lease_json, expires_at, revoked_at "
+                "FROM effect_leases WHERE lease_sha256=?",
                 (lease.digest,),
             ).fetchone()
             if lease_row is None:
-                raise EffectLeaseStateError("effect lease was not persisted before start")
+                raise EffectLeaseStateError(
+                    "effect lease was not persisted before start"
+                )
             if lease_row["lease_json"] != lease.to_json():
-                raise EffectLeaseStateError("persisted lease bytes do not match supplied lease")
+                raise EffectLeaseStateError(
+                    "persisted lease bytes do not match supplied lease"
+                )
             if lease_row["revoked_at"] is not None:
                 raise EffectLeaseStateError("effect lease is revoked")
             persistence_instant = (
-                verification_instant if started_at is not None else _utc_now()
+                verification_instant
+                if started_at is not None
+                else _utc_now()
             )
             if persistence_instant >= _parse_utc(
                 lease_row["expires_at"], "persisted lease expiry"
             ):
-                raise EffectLeaseExpired("persisted effect lease expired before start")
+                raise EffectLeaseExpired(
+                    "persisted effect lease expired before start"
+                )
+            _assert_registry_bound(
+                lease, registry, phase="execution persistence"
+            )
             existing = conn.execute(
                 """
-                SELECT lease_sha256, idempotency_key, request_sha256, start_receipt_json
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, start_receipt_sha256,
+                       start_receipt_json
                 FROM effect_executions
-                WHERE execution_id=? OR (lease_sha256=? AND idempotency_key=?)
+                WHERE execution_id=?
+                   OR (lease_sha256=? AND idempotency_key=?)
                 """,
-                (execution.execution_id, lease.digest, execution.idempotency_key),
+                (
+                    execution.execution_id,
+                    lease.digest,
+                    execution.idempotency_key,
+                ),
             ).fetchone()
             if existing is not None:
                 if (
-                    existing["lease_sha256"] != lease.digest
-                    or existing["idempotency_key"] != execution.idempotency_key
+                    existing["execution_id"] != execution.execution_id
+                    or existing["lease_sha256"] != lease.digest
+                    or existing["idempotency_key"]
+                    != execution.idempotency_key
                     or existing["request_sha256"] != execution.digest
                 ):
                     raise EffectLeaseReplay(
-                        "execution identity or idempotency key was reused across a different lease or scope"
+                        "execution identity or idempotency key was reused "
+                        "across a different lease or scope"
                     )
-                stored = json.loads(existing["start_receipt_json"])
-                replay_receipt = LeasedEffectStartReceipt(**stored)
+                replay_receipt = _decode_start_receipt(
+                    existing["start_receipt_json"]
+                )
+                if (
+                    replay_receipt.receipt_sha256
+                    != existing["start_receipt_sha256"]
+                    or replay_receipt.execution_id
+                    != execution.execution_id
+                    or replay_receipt.lease_sha256 != lease.digest
+                    or replay_receipt.idempotency_key
+                    != execution.idempotency_key
+                    or replay_receipt.execution_request_sha256
+                    != execution.digest
+                ):
+                    raise EffectLeaseStateError(
+                        "persisted start receipt does not match its execution row"
+                    )
                 conn.execute("COMMIT")
-                return EffectStartResult(receipt=replay_receipt, execute=False)
+                return EffectStartResult(
+                    receipt=replay_receipt, execute=False
+                )
             active = conn.execute(
-                "SELECT COUNT(*) FROM effect_executions WHERE lease_sha256=? AND state='STARTED'",
+                "SELECT COUNT(*) FROM effect_executions "
+                "WHERE lease_sha256=? AND state='STARTED'",
                 (lease.digest,),
             ).fetchone()[0]
             if active >= lease.effect_scope.max_concurrency:
-                raise EffectLeaseConcurrencyError("effect lease concurrency ceiling reached")
-            payload = {
+                raise EffectLeaseConcurrencyError(
+                    "effect lease concurrency ceiling reached"
+                )
+            receipt_payload = {
                 "lease_sha256": lease.digest,
                 "execution_id": execution.execution_id,
                 "idempotency_key": execution.idempotency_key,
@@ -769,7 +1116,8 @@ class EffectLeaseLedger:
                 "started_at": _timestamp(persistence_instant),
             }
             receipt = LeasedEffectStartReceipt(
-                receipt_sha256=canonical_sha(payload), **payload
+                **receipt_payload,
+                receipt_sha256=canonical_sha(receipt_payload),
             )
             receipt_json = canonical_json(receipt.to_dict())
             conn.execute(
@@ -798,7 +1146,9 @@ class EffectLeaseLedger:
                 conn.execute("ROLLBACK")
             except sqlite3.Error:
                 pass
-            raise EffectLeaseReplay("effect execution identity was already consumed") from exc
+            raise EffectLeaseReplay(
+                "effect execution identity was already consumed"
+            ) from exc
         except Exception:
             try:
                 conn.execute("ROLLBACK")
@@ -819,51 +1169,81 @@ class EffectLeaseLedger:
     ) -> EffectTerminalReceipt:
         normalized_outcome = str(outcome).upper()
         if normalized_outcome not in _TERMINAL_STATES:
-            raise ValueError("outcome must be completed, failed, or cancelled")
-        outputs = tuple(
-            sorted({_sha256(value, "output_digest") for value in output_digests})
+            raise ValueError(
+                "outcome must be completed, failed, or cancelled"
+            )
+        outputs = _sorted_strings(
+            tuple(output_digests), "output_digests", digests=True
         )
-        detail = _sha256(detail_sha256, "detail_sha256") if detail_sha256 is not None else None
-        timestamp = _timestamp(finished_at or _utc_now())
-        payload = {
-            "lease_sha256": start_receipt.lease_sha256,
-            "execution_id": start_receipt.execution_id,
-            "start_receipt_sha256": start_receipt.receipt_sha256,
-            "outcome": normalized_outcome,
-            "output_digests": list(outputs),
-            "detail_sha256": detail,
-            "finished_at": timestamp,
-        }
-        receipt = EffectTerminalReceipt(
-            lease_sha256=start_receipt.lease_sha256,
-            execution_id=start_receipt.execution_id,
-            start_receipt_sha256=start_receipt.receipt_sha256,
-            outcome=normalized_outcome,
-            output_digests=outputs,
-            detail_sha256=detail,
-            finished_at=timestamp,
-            receipt_sha256=canonical_sha(payload),
+        detail = (
+            _sha256(detail_sha256, "detail_sha256")
+            if detail_sha256 is not None
+            else None
         )
+        instant = (
+            _as_utc(finished_at, "finished_at")
+            if finished_at is not None
+            else _utc_now()
+        )
+        timestamp = _timestamp(instant)
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 """
-                SELECT state, start_receipt_sha256
-                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                SELECT state, start_receipt_sha256,
+                       start_receipt_json, started_at
+                FROM effect_executions
+                WHERE execution_id=? AND lease_sha256=?
                 """,
-                (start_receipt.execution_id, start_receipt.lease_sha256),
+                (
+                    start_receipt.execution_id,
+                    start_receipt.lease_sha256,
+                ),
             ).fetchone()
             if row is None:
                 raise EffectLeaseStateError("unknown effect execution")
-            if row["start_receipt_sha256"] != start_receipt.receipt_sha256:
-                raise EffectLeaseStateError("start receipt does not match persisted execution")
             if row["state"] != "STARTED":
-                raise EffectLeaseStateError("effect execution is already terminal")
+                raise EffectLeaseStateError(
+                    "effect execution is already terminal"
+                )
+            persisted_receipt = _decode_start_receipt(
+                row["start_receipt_json"]
+            )
+            if (
+                row["start_receipt_sha256"]
+                != start_receipt.receipt_sha256
+                or persisted_receipt != start_receipt
+                or canonical_json(start_receipt.to_dict())
+                != row["start_receipt_json"]
+            ):
+                raise EffectLeaseStateError(
+                    "start receipt does not match persisted execution"
+                )
+            if instant < _parse_utc(
+                row["started_at"], "persisted execution start"
+            ):
+                raise EffectLeaseStateError(
+                    "effect execution cannot finish before it started"
+                )
+            receipt_payload = {
+                "lease_sha256": start_receipt.lease_sha256,
+                "execution_id": start_receipt.execution_id,
+                "start_receipt_sha256": start_receipt.receipt_sha256,
+                "outcome": normalized_outcome,
+                "output_digests": list(outputs),
+                "detail_sha256": detail,
+                "finished_at": timestamp,
+            }
+            receipt = EffectTerminalReceipt(
+                **receipt_payload,
+                receipt_sha256=canonical_sha(receipt_payload),
+            )
             conn.execute(
                 """
                 UPDATE effect_executions
-                SET state=?, finished_at=?, terminal_receipt_sha256=?, terminal_receipt_json=?
+                SET state=?, finished_at=?, terminal_receipt_sha256=?,
+                    terminal_receipt_json=?
                 WHERE execution_id=?
                 """,
                 (
@@ -889,6 +1269,7 @@ class EffectLeaseLedger:
         value = _identifier(execution_id, "execution_id")
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT state FROM effect_executions WHERE execution_id=?", (value,)
+                "SELECT state FROM effect_executions WHERE execution_id=?",
+                (value,),
             ).fetchone()
         return None if row is None else str(row["state"])
