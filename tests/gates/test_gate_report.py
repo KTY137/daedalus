@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -91,6 +93,36 @@ def test_artifact_digest_hashes_exact_cli_bytes_not_inner_report_identity() -> N
         rendered.encode("utf-8")
     ).hexdigest()
     assert gate_report_artifact_sha256(report) != report.to_dict()["report_sha256"]
+
+
+def test_cli_emits_the_shared_exact_artifact_format() -> None:
+    root = Path(__file__).resolve().parents[2]
+    revision = "d" * 40
+    report = build_gate0_report(root, source_revision=revision)
+    expected = render_gate_report(report)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "daedalus.gates",
+            "report",
+            "--gate",
+            "0",
+            "--repo-root",
+            str(root),
+            "--source-revision",
+            revision,
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout == expected
+    assert result.stderr == ""
+    assert hashlib.sha256(result.stdout.encode("utf-8")).hexdigest() == (
+        gate_report_artifact_sha256(report)
+    )
 
 
 def test_gate_report_accepts_bound_fault_results() -> None:
