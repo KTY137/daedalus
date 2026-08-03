@@ -32,13 +32,18 @@ discovered from an ambient default.
 
 ## Contracts
 
-`daedalus.gates.release_io` loads untrusted release JSON with:
+`daedalus.gates.release_io` loads both the release report and the original
+mechanical Gate report with:
 
 - strict UTF-8 decoding;
 - recursive duplicate-key refusal;
 - exact contract shape and derived-field verification;
 - exact canonical wire equality after parsing;
 - no normalization of a noncanonical attacker-controlled representation.
+
+The mechanical boundary specifically refuses a self-digested report whose
+arrays were reordered or whose derived `closed` and `blockers` claims disagree
+with the reconstructed `GateReport`.
 
 `python -m daedalus.gates.release_cli` emits exactly one JSON result:
 
@@ -61,10 +66,11 @@ are never accepted as command-line values and are never included in output.
 
 The focused suite covers:
 
-- duplicate keys at top and nested levels;
+- duplicate keys at top and nested levels in release and mechanical reports;
 - unknown, missing, trailing, invalid-UTF-8 and non-object JSON;
 - forged derived closure and blocker fields;
-- normalized but noncanonical provenance ordering;
+- self-digested but noncanonical Gate-report arrays;
+- normalized but noncanonical release provenance ordering;
 - absent and undersized collector secrets;
 - stale commit revision and changed workflow bytes;
 - duplicate and incorrect adopted workflow path mappings;
@@ -83,12 +89,13 @@ The bounded campaign first requires the unmodified focused suite to pass, then
 applies isolated mutants for:
 
 1. duplicate-key acceptance;
-2. noncanonical-wire acceptance;
-3. ignoring the selected secret environment variable;
-4. ignoring adopted workflow paths;
-5. successful exit with blockers;
-6. a forged `trusted=true` result;
-7. successful exit for malformed input.
+2. noncanonical release-wire acceptance;
+3. noncanonical mechanical-report acceptance;
+4. ignoring the selected secret environment variable;
+5. ignoring adopted workflow paths;
+6. successful exit with blockers;
+7. a forged `trusted=true` result;
+8. successful exit for malformed input.
 
 Every mutant must be killed and all source bytes restored.
 
