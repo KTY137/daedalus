@@ -1,0 +1,37 @@
+name: Bootstrap current checkout export
+
+on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+  push:
+    branches:
+      - g0/bootstrap-workspace-current
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git -C "$GITHUB_WORKSPACE" -czf "$RUNNER_TEMP/daedalus-checkout.tar.gz" .
+          test -s "$RUNNER_TEMP/daedalus-checkout.tar.gz"
+          tar -tzf "$RUNNER_TEMP/daedalus-checkout.tar.gz" >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-checkout-${{ github.sha }}
+          path: ${{ runner.temp }}/daedalus-checkout.tar.gz
+          if-no-files-found: error
+          retention-days: 2
