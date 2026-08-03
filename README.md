@@ -71,7 +71,7 @@ explicitly with a date and an owner.
 | `templates/` | Project-neutral defaults copied into any repo (`agents/`, `agentenv.json`, `project.example.json`, `CLAUDE.md`, `AGENTS.md`) |
 | `projects/` | Registered repos — one `<name>.json` per project, carrying its policy |
 | `tests/` | Harness test suite |
-| `docs/` | Architecture, protocol, ADR-style decision records, audit reports |
+| [`docs/`](docs/README.md) | Authority map, active projections, protocols, evidence, and archive navigation |
 | `tools/` | Standalone scripts that are not part of the shipped package |
 | `apps/`, `catalogue/`, `configs/` | Web/app surfaces, GUI catalogue, runtime configuration |
 | `structcore-rs/` | Rust structural core |

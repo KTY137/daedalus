@@ -18,7 +18,7 @@ mutated. This is the "second arm" ABSORPTION.md D1 asks F1 to grow: run this
 beside diff-scoped mutation on the same question and get a measured statement
 about what each signal covers, rather than trusting either alone.
 
-THE TWO INCIDENTS THIS IS MODELLED ON (docs/HANDOFF.md; the corpus entries in
+THE TWO INCIDENTS THIS IS MODELLED ON (docs/archive/2026-07/HANDOFF.md; the corpus entries in
 tools/gate_discrimination.py):
 
     worktree_moved_checkout_unguarded    Round 1: the primary checkout renamed

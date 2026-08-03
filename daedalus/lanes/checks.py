@@ -8,7 +8,8 @@ Every function here was lifted, not written: each one is a guard that already
 existed in ``providers/deepseek.py`` and each carries the measurement that put
 it there. The lift is the point -- see :mod:`daedalus.lanes`.
 
-Deviation from the shape sketched in docs/HANDOFF_2026-07-30_NIGHT.md, which
+Deviation from the shape sketched in
+docs/archive/2026-07/HANDOFF_2026-07-30_NIGHT.md, which
 proposed ``Check = (rel, original, proposed, repo_root, policy) -> str``: the
 first four arguments are bundled into :class:`WriteAttempt`. Two of the baseline
 checks need a fifth fact (is this file being CREATED, so that there is no

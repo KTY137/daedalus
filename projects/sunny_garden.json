@@ -5,7 +5,7 @@
   "test_command": "python -m unittest discover tests",
   "test_cwd": ".",
   "claude_model": "haiku",
-  "_comment": "Friendly demo/validation project -- a tiny plant-care tracker. Policy lives in the repo's own .agentenv/agentenv.json; the crew in .agentenv/agents/. Used by the Era-2 validation run (docs/VALIDATION_RUN.md).",
+  "_comment": "Friendly demo/validation project -- a tiny plant-care tracker. Policy lives in the repo's own .agentenv/agentenv.json; the crew in .agentenv/agents/. Used by the Era-2 validation run (docs/archive/2026-07/VALIDATION_RUN.md).",
   "policy": {
     "default_deny": true,
     "allow": ["garden/", "docs/", "tests/", ".md"],

@@ -105,7 +105,7 @@ th{background:var(--panel);font-weight:600}
 <hr>
 <h2>5. Free vs frontier — who does what</h2>
 <table><thead><tr><th></th><th><strong>Free bench (Ollama)</strong></th><th><strong>Frontier (Claude / Codex)</strong></th></tr></thead><tbody><tr><td>Cost</td><td>$0 (local)</td><td>metered</td></tr><tr><td>Trusted with IP</td><td>yes (local, no egress)</td><td>yes</td></tr><tr><td>Writes</td><td>scoped, low-risk, guarded, verified</td><td>anything, trusted</td></tr><tr><td>Best at</td><td>docstrings, notes, changelogs, reviews, scoped edits, <strong>constant bookkeeping</strong></td><td>architecture, multi-file features, risk calls</td></tr><tr><td>Reality check</td><td>one 7B model (qwen2.5-coder) reliably does <strong>full-file rewrites</strong>, <em>not</em> tool-calls; single-file scoped (≤3 files, ≤24k chars)</td><td>the actual builder</td></tr></tbody></table>
-<p>The point isn&#x27;t &quot;free replaces frontier&quot; — it&#x27;s <strong>let the free agents eat the cheap grind so frontier tokens go to what matters.</strong> Benchmarks bear this out: routine slice ~77% projected savings; a greenfield app build correctly stays frontier (see <code>benchmark</code>, <code>docs/VALIDATION_RUN.md</code>).</p>
+<p>The point isn&#x27;t &quot;free replaces frontier&quot; — it&#x27;s <strong>let the free agents eat the cheap grind so frontier tokens go to what matters.</strong> Benchmarks bear this out: routine slice ~77% projected savings; a greenfield app build correctly stays frontier (see <code>benchmark</code>, <code>docs/archive/2026-07/VALIDATION_RUN.md</code>).</p>
 <hr>
 <h2>6. Orchestration &amp; concurrency</h2>
 <ul>
@@ -115,7 +115,7 @@ th{background:var(--panel);font-weight:600}
 <ul>
 <li><strong>Dispatch is sequential by default</strong> — each live write is verified by a</li>
 </ul>
-<p>  whole-repo snapshot diff, and concurrent same-repo runs would cross-attribute   changes. <strong><code>parallel=True</code></strong> enables real concurrency <em>safely</em>: per-task   path-scoped attribution + refusal to parallelize path-conflicting write-tasks   (see <code>docs/PARALLEL_DISPATCH.md</code>). True multi-file throughput awaits   per-runtime worktrees.</p>
+<p>  whole-repo snapshot diff, and concurrent same-repo runs would cross-attribute   changes. <strong><code>parallel=True</code></strong> enables real concurrency <em>safely</em>: per-task   path-scoped attribution + refusal to parallelize path-conflicting write-tasks   (see <code>docs/archive/2026-07/PARALLEL_DISPATCH.md</code>). True multi-file throughput awaits   per-runtime worktrees.</p>
 <hr>
 <h2>7. The API-first webapp (Agent OS)</h2>
 <p><code>daedalus/web_api.py</code> (stdlib HTTP) exposes the core to any client and serves the built React app (<code>apps/web/</code>):</p>

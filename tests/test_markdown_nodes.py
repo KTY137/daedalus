@@ -343,12 +343,12 @@ class HonestDocumentSkeleton(unittest.TestCase):
         self.assertEqual(a.text, b.text)
         self.assertEqual(a.degraded, b.degraded)
 
-    def test_a_real_repo_document_distils_hard(self):
-        p = REPO / "docs" / "HANDOFF.md"
+    def test_a_real_archived_repo_document_distils_hard(self):
+        p = REPO / "docs" / "archive" / "2026-07" / "HANDOFF.md"
         if not p.exists():
-            self.skipTest("docs/HANDOFF.md absent")
+            self.skipTest("docs/archive/2026-07/HANDOFF.md absent")
         text = p.read_text(encoding="utf-8", errors="replace")
-        sk = md.document_skeleton("docs/HANDOFF.md", text)
+        sk = md.document_skeleton("docs/archive/2026-07/HANDOFF.md", text)
         self.assertTrue(sk.distilled)
         self.assertLess(len(sk.text), len(text) * 0.25)
 

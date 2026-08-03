@@ -199,7 +199,7 @@ MUTATIONS: tuple[Mutation, ...] = (
             "        if _is_reparse_point(self.repo_path):"
         ),
         incident=(
-            "docs/HANDOFF.md 'Round 1': the primary checkout renamed into the "
+            "docs/archive/2026-07/HANDOFF.md 'Round 1': the primary checkout renamed into the "
             "worktree and a junction hung on its name -- _refuse_if_the_"
             "primary_checkout_moved is the guard that closed it, measured "
             "40/40 tracked files destroyed before the fix, 'nothing refused'."
@@ -219,7 +219,7 @@ MUTATIONS: tuple[Mutation, ...] = (
             "        if _is_reparse_point(directory):"
         ),
         incident=(
-            "docs/HANDOFF.md 'Round 2': a junction renamed over an "
+            "docs/archive/2026-07/HANDOFF.md 'Round 2': a junction renamed over an "
             "already-drained subdirectory redirects every remaining rmdir "
             "out of the tree -- measured 3/3, 3000 directories removed "
             "inside a stand-in primary checkout, reported as success."

@@ -94,7 +94,7 @@ cascade cost.
 ## Related
 
 **Picking this up in a new session? Start here:**
-[docs/HANDOFF_2026-07-30_NIGHT.md](../HANDOFF_2026-07-30_NIGHT.md) — what can be
+[archived night-shift handoff](../archive/2026-07/HANDOFF_2026-07-30_NIGHT.md) — what can be
 lost, what order to do things in, and the list of claims that were checked and
 found false so nobody re-schedules them.
 

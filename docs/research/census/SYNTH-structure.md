@@ -294,7 +294,7 @@ them differently on disk".
 
 So the artefact that authorises promotion is consumed by the package's
 promotion gate and produced only by a standalone script that nothing calls.
-`docs/HANDOFF_ANTIGRAVITY.md:328` and `.room/room.md:1442` both record that the
+`docs/archive/2026-07/HANDOFF_ANTIGRAVITY.md:328` and `.room/room.md:1442` both record that the
 receipt on disk is currently stale against HEAD. This is the single most
 significant producer/consumer asymmetry in the tree: **a safety precondition
 whose producer is not part of the system that depends on it.**

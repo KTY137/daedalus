@@ -26,7 +26,7 @@ every fact below is tagged:
 - **FETCHED** — read off a named URL on 2026-07-29. Upstream facts age; a
   FETCHED version string is a snapshot, not a guarantee, and must be re-pinned
   before anyone acts on this ADR.
-- **INHERITED** — taken from `docs/HANDOFF.md` or another in-repo document and
+- **INHERITED** — taken from `docs/archive/2026-07/HANDOFF.md` or another in-repo document and
   not independently re-verified here.
 
 Line numbers in this file were MEASURED on 2026-07-29 while sixteen agents were
@@ -108,7 +108,7 @@ Nothing. It would **add**, against the five gaps in the Context table:
 **This is the exact shape ADR-002 rejected — "bypassed the scheduler and
 duplicated event types" — at a larger scale and with an upstream nobody here
 controls.** And it is the shape that already cost this repo real money twice in
-the last twenty-four hours. INHERITED from `docs/HANDOFF.md`: the three Momus
+the last twenty-four hours. INHERITED from `docs/archive/2026-07/HANDOFF.md`: the three Momus
 CRITICALs were closed in `daedalus/council/` and **live** in
 `runs/council/room.py`, a second implementation of the same council that never
 inherited the fixes — including a live RCE. The same RCE was then found in a
@@ -181,7 +181,7 @@ Everything this repo has built in the safety direction is about what **leaves**
 here for what **enters**, because until now nothing entered except a human at a
 terminal. A messaging gateway inverts that, and it would land on a repo whose
 egress fence was itself bypassed for a day by an environment variable
-(INHERITED, `docs/HANDOFF.md`: `OLLAMA_HOST` + a lane chosen from the provider
+(INHERITED, `docs/archive/2026-07/HANDOFF.md`: `OLLAMA_HOST` + a lane chosen from the provider
 name). Adding an inbound channel before the outbound one has been stable for a
 week is the wrong order.
 
@@ -215,7 +215,7 @@ ADR-016:
 1. write containment exists and is wired to **nothing** — MEASURED,
    `grep -rn "spine.containment" --include=*.py . | grep -v "^./tests/"` returns
    no output;
-2. the fitness signal is `pytest`, and INHERITED from `docs/HANDOFF.md`: *"Three
+2. the fitness signal is `pytest`, and INHERITED from `docs/archive/2026-07/HANDOFF.md`: *"Three
    times in one day a fully green suite sat over a live escape"*;
 3. there is no spend or iteration bound — MEASURED,
    `grep -rn "budget_usd\|max_usd\|spend_cap\|MAX_SPEND\|daily_budget\|cost_cap"

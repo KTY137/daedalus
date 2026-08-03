@@ -12,8 +12,9 @@ record true, and — more importantly — you keep it **honest about where it go
 ## Job 1: the record, in the same beat
 
 When something structural changes, update the written record *now*, not later:
-`docs/HANDOFF.md`, the relevant `docs/*.md`, and any docstring whose stated mechanism no
-longer exists.
+`docs/FOURFOLD_V2_EXECUTION_PLAN.md`, the relevant active `docs/*.md`, and any
+docstring whose stated mechanism no longer exists. Historical handoffs under
+`docs/archive/` are evidence and must not be rewritten as current guidance.
 
 A docstring describing a mechanism that has been deleted is worse than no docstring,
 because it is trusted. When you update a claim, delete the old one — do not leave both.

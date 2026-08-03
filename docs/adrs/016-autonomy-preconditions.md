@@ -28,14 +28,14 @@ permitted:
 ## Provenance
 
 **MEASURED** = a command was run on this box on 2026-07-29 and its output is
-quoted. **INHERITED** = taken from `docs/HANDOFF.md` (session-3 block) and not
+quoted. **INHERITED** = taken from `docs/archive/2026-07/HANDOFF.md` (session-3 block) and not
 independently re-verified. Line numbers drift — sixteen agents were editing in
 parallel while this was written, and the test count moved by 3 during the
 session. Symbol names do not drift; prefer them when re-checking.
 
 ## Context: what is measured true tonight, and what is not
 
-**True (INHERITED, `docs/HANDOFF.md`).** The circle is closed and was run on
+**True (INHERITED, `docs/archive/2026-07/HANDOFF.md`).** The circle is closed and was run on
 this repo, not mocked: `daedalus improve --once` picked from generated
 evidence, recorded the intent before the effect, attempted in an isolated
 worktree, cleaned up including the ref, and then *chose something else* — rank
@@ -117,7 +117,7 @@ rank in its top band if it could see it (see P7).
    path check.
 3. The same test, with containment unwired, goes **RED** — verified by
    physically deleting the wiring and re-running, in the style
-   `docs/HANDOFF.md` already uses for every other guard in this repo.
+   `docs/archive/2026-07/HANDOFF.md` already uses for every other guard in this repo.
 4. A test asserts that when `platform_supported()` is false, a `--live`
    unattended run **refuses to start** rather than proceeding uncontained.
 
@@ -187,7 +187,7 @@ is decoration, and a loop steered by it optimises for the decoration.
 2066 tests collected on this tree tonight.
 
 And the whole suite is measurably not an oracle. INHERITED,
-`docs/HANDOFF.md` and restated in `tools/system_check.py`'s own docstring:
+`docs/archive/2026-07/HANDOFF.md` and restated in `tools/system_check.py`'s own docstring:
 
 > "The unit suite is at 1732 green and that is not evidence the product works.
 > Three times in one day a fully green suite sat over a live escape; the A/B
@@ -518,7 +518,7 @@ Why this and not something else:
   tonight.
 - **It is verifiable in the way this repo already trusts** — physically delete
   the wiring, re-run, count the red tests, restore. The same sweep
-  `docs/HANDOFF.md` records for eleven other guards, one of which found two
+  `docs/archive/2026-07/HANDOFF.md` records for eleven other guards, one of which found two
   guards with *no* red at all and exposed two real test defects. Expect that to
   happen here too.
 - **It changes no behaviour anyone depends on.** Advisory runs are unaffected;

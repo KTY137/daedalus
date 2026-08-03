@@ -29,7 +29,7 @@ confident prose with no control behind it.
   acts on this document.**
 - **INHERITED** — taken from an in-repo document (`docs/FITNESS_SIGNAL.md`,
   `docs/GATE_DISCRIMINATION.md`, `docs/adrs/016`, `docs/adrs/017`,
-  `docs/HANDOFF.md`) and not independently re-verified here.
+  `docs/archive/2026-07/HANDOFF.md`) and not independently re-verified here.
 
 ---
 

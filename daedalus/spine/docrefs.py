@@ -16,7 +16,7 @@ WHAT IT MEASURES
 ----------------
 A reference in the documentation to a code symbol that does not exist.
 
-    docs/HANDOFF.md says  `daedalus.spine.picker.pick_next`
+    docs/archive/2026-07/HANDOFF.md says  `daedalus.spine.picker.pick_next`
     daedalus/spine/picker.py defines no `pick_next`
 
 That is a defect with a reader-visible cost (a human follows the doc and finds

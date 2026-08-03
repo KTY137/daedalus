@@ -115,7 +115,7 @@ two UIs can't drift into two products.
 The point isn't "free replaces frontier" — it's **let the free agents eat the
 cheap grind so frontier tokens go to what matters.** Benchmarks bear this out:
 routine slice ~77% projected savings; a greenfield app build correctly stays
-frontier (see `benchmark`, `docs/VALIDATION_RUN.md`).
+frontier (see `benchmark`, `docs/archive/2026-07/VALIDATION_RUN.md`).
 
 ---
 
@@ -128,7 +128,7 @@ frontier (see `benchmark`, `docs/VALIDATION_RUN.md`).
   whole-repo snapshot diff, and concurrent same-repo runs would cross-attribute
   changes. **`parallel=True`** enables real concurrency *safely*: per-task
   path-scoped attribution + refusal to parallelize path-conflicting write-tasks
-  (see `docs/PARALLEL_DISPATCH.md`). True multi-file throughput awaits
+  (see `docs/archive/2026-07/PARALLEL_DISPATCH.md`). True multi-file throughput awaits
   per-runtime worktrees.
 
 ---

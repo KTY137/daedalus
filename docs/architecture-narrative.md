@@ -12,7 +12,12 @@ nothing.
 
 PROVENANCE. Everything below was MOVED, not written: it is the narrative half
 of the ad-hoc `docs/architecture-map.html` built on 2026-07-28 from a nine-agent
-deep read (preserved verbatim at `docs/architecture-map.2026-07-28-handbuilt.html`).
+deep read (preserved verbatim at
+`docs/archive/2026-07/architecture-map.2026-07-28-handbuilt.html`).
+
+Historical citations below that use the former `docs/HANDOFF.md` or
+`docs/PARALLEL_DISPATCH.md` paths refer to their byte-identical bodies under
+`docs/archive/2026-07/`; the old Handoff path is now only a redirect.
 The per-section `Source` lines say where each part came from and which documents
 the readers were citing. Where the prose is German it is the original wording,
 kept unedited.
@@ -215,7 +220,8 @@ Behauptungen, die aufgestellt, gemessen und zurückgezogen wurden. Das ist der w
 - **Folge** — All eight struck from the vocabulary with named re-entry conditions per item. Sparse spectral analysis survives as read-only, size-limited VISUALISATION whose every payload carries a reason saying the cut does not prove conflict-free edit scopes. The candidate-authored-tests item is the one with the largest doctrine-vs-enforcement gap: prohibited in three documents, enforced in none, because there is no OS sandbox.
 
 Source: `docs/architecture-map.html` §“Die Umkehrungen”; the underlying
-records are in `docs/HANDOFF.md`, `runs/council/room.md`, `docs/FOUNDATION_AUDIT.md`
+records are in `docs/archive/2026-07/HANDOFF.md`, `runs/council/room.md`,
+`docs/FOUNDATION_AUDIT.md`
 and `docs/adrs/002-hermes-upstream.md`.
 
 ## Drift, von Hand belegt {#drift}
@@ -277,7 +283,8 @@ cannot produce: a scanner sees an island, not a reason autonomy is unsafe.
 - UNKNOWN, needs one run each (I was read-only): does `daedalus improve --once` complete end to end (runs/spine/spine.sqlite3 does not exist, so the ledger has never been written outside pytest); does the codex provider's argv prompt actually arrive truncated on Windows; is the `agy_room` scheduled task the fourth council vendor depends on functional (documented as never run); and which of the ~1,399 collected tests currently skip or fail.
 
 Source: `docs/architecture-map.html` §“Was gerade blockiert”; the CRITICALs
-are tracked in `docs/HANDOFF.md:8` and `docs/EXPERIMENT_A_B.md:113`.
+are tracked in `docs/archive/2026-07/HANDOFF.md:8` and
+`docs/EXPERIMENT_A_B.md:113`.
 
 ## Die Invarianten {#invariants}
 
@@ -303,4 +310,4 @@ not delete inside a `finally` block; this is where that kind of knowledge lives.
 
 Source: `docs/architecture-map.html` §“Die Invarianten”, each line citing
 its own file:line; the standing orders behind them are in
-`.claude/AGENT_PROTOCOL.md` and `docs/HANDOFF.md:25-30`.
+`.claude/AGENT_PROTOCOL.md` and `docs/archive/2026-07/HANDOFF.md:25-30`.

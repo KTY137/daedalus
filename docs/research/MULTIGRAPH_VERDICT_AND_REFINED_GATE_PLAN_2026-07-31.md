@@ -160,7 +160,8 @@ marketing sentence.
 - **Sealed promotion:** owner decided the trust root — signed tag
   (`git tag -s promote/<candidate_sha>`, verified via `git verify-tag` +
   committed allowed-signers file), regeneration VOIDS an approval. Not yet
-  implemented; steps in docs/GATE0_SEALED_OWNER_APPROVAL.md §6.
+  implemented; historical design steps in
+  docs/archive/2026-07/GATE0_SEALED_OWNER_APPROVAL.md §6.
 
 ## 4. The refined path — strictly inside the gates, in order
 

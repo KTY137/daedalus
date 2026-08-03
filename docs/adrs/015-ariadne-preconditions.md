@@ -199,12 +199,12 @@ This is the central question, and the answer is that the signal does not exist.
 
 Not an opinion in this repo — a measurement.
 
-- **18 of 61 mutants survive.** INHERITED, `docs/HANDOFF.md:699-703`: *"of 61
+- **18 of 61 mutants survive.** INHERITED, `docs/archive/2026-07/HANDOFF.md:699-703`: *"of 61
   mutants (final count), 18 guards survive their own deletion. Three times in one
   day a fully green suite sat over a live escape. That is now a measured property
   of this repo's tests, and it is the reason `tests pass` cannot be the fitness
   signal for the self-improvement loop."*
-- **The three escapes, itemised.** INHERITED, `docs/HANDOFF.md:495-497`: *"29
+- **The three escapes, itemised.** INHERITED, `docs/archive/2026-07/HANDOFF.md:495-497`: *"29
   green over a live repo deletion, 68 green over an out-of-tree delete reported
   as success, 121 green over seven gate bypasses."*
 - **A silently dropped task under a green suite.** INHERITED,
@@ -214,10 +214,10 @@ Not an opinion in this repo — a measurement.
   (Provenance note: `.room/room.md:740` states 1756 for the same incident. The
   two in-code sources agree on 1753; the discrepancy is unresolved and neither
   number was re-measured for this ADR.)
-- **The standing warning.** INHERITED, `docs/HANDOFF.md:757-760`: *"Fitness
+- **The standing warning.** INHERITED, `docs/archive/2026-07/HANDOFF.md:757-760`: *"Fitness
   signal warning, now MEASURED and not an opinion: `tests pass` is worthless as a
   promotion criterion here."*
-- **Already a quarantined claim.** `docs/HANDOFF.md:1183` lists
+- **Already a quarantined claim.** `docs/archive/2026-07/HANDOFF.md:1183` lists
   *"candidate-authored tests used as sole correctness proof"* among claims that
   may not be restored without an independent benchmark.
 
@@ -237,7 +237,7 @@ construction: candidates passing their own tests.
   `daedalus/eval/baseline.json`: 10 tasks, every one `tier: primary`,
   `label_provenance: hand_reachable`, `recall: 1.0`. A signal already at its
   maximum has no headroom for a selector to climb. Worse, the tier's provenance
-  is its own: `docs/HANDOFF.md:1461-1466` records the 100% as *"explicitly
+  is its own: `docs/archive/2026-07/HANDOFF.md:1461-1466` records the 100% as *"explicitly
   labelled PARTIALLY SELF-GRADED"* — the labels were derived from what the
   slicer could reach.
 - **The rest is quarantined by construction.** 17 minted tasks, all
@@ -412,7 +412,7 @@ a number that does not mean anything.
 for a comparison against Best-of-N; what exists is not one and never was. Either
 write a Best-of-N baseline deliberately, as an instrument, with P1–P3 satisfied —
 or delete the island and stop citing it as a baseline in ADR-009,
-`docs/HANDOFF.md:1157-1167`, and `docs/FEATURE_INVENTORY.json:1274`. The current
+`docs/archive/2026-07/HANDOFF.md:1157-1167`, and `docs/FEATURE_INVENTORY.json:1274`. The current
 state, where three files describe a baseline that has never executed, is the
 "confident prose with no control behind it" failure this repo keeps finding.
 
@@ -429,7 +429,7 @@ state, where three files describe a baseline that has never executed, is the
   authority. What that run does *not* establish is whether the corpus has grown
   enough for the reopen caveat at `ceiling.py:66-69` to matter — it is the same
   27-task corpus as the 2026-07-21 close.
-- **"18 of 61 guards survive" is INHERITED**, from `docs/HANDOFF.md:699-700`.
+- **"18 of 61 guards survive" is INHERITED**, from `docs/archive/2026-07/HANDOFF.md:699-700`.
   That mutation run targeted the worktree deletion paths; `tools/self_test.py`
   is a *different* instrument covering acceptance checks. No standing
   mutation-testing tool reproduces the 61-mutant number today.

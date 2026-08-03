@@ -81,7 +81,7 @@ _LOCAL_BRIEF_BUDGET_CHARS = 2_000
 # WINDOWED rewrite -- an edit that does not require reprinting the file        #
 # --------------------------------------------------------------------------- #
 # MEASURED 2026-07-29, the first live self-improvement runs: three docref
-# attempts against docs/HANDOFF.md (2496 lines / 148_291 bytes) all ended
+# attempts against docs/archive/2026-07/HANDOFF.md (2496 lines / 148_291 bytes) all ended
 # no_change/write_gate_failed. The file never reached the model -- 148 KB is
 # 6x MAX_REWRITE_CHARS, so _run_rewrite skipped it "too large for full rewrite"
 # and the write gate correctly saw no diff. Raising the cap does not fix it: the

@@ -917,7 +917,7 @@ def _augment_documented(documented: dict[str, list[str]],
                         mentioned: dict[str, list[str]], read: set[str]) -> None:
     """Count a bare doc mention as documentation for names the code truly reads.
 
-    ``docs/HANDOFF.md`` lists some variables as bare lines inside a fenced
+    ``docs/archive/2026-07/HANDOFF.md`` lists some variables as bare lines inside a fenced
     block, which matches no operator-shaped form. Requiring the strict form
     there would manufacture a "read but never documented" finding for a name
     the docs plainly show, and the whole point of the drift list is that every

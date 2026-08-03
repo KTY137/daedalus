@@ -88,7 +88,8 @@ If it can reach a model prompt it is prompt injection with a filename.  This
 module therefore renders prompt text through exactly one path,
 :func:`render_for_prompt`, which reuses
 ``daedalus.council.vendors.PROMPT_DATA_NOTICE`` -- the repo's ONE such notice,
-imported rather than copied, because ``docs/HANDOFF.md``'s recorded lesson is
+imported rather than copied, because
+``docs/archive/2026-07/HANDOFF.md``'s recorded lesson is
 that "a fix that lives in one of two implementations is not a closed class."
 Untrusted bytes are fenced, never interpolated into an instruction position,
 and each fence is labelled with the entry's origin so a reader can see whose
