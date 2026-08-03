@@ -1,6 +1,6 @@
 """Fourfold-bound, one-use authorization for the sealed promotion boundary.
 
-This packet deliberately stops before applying candidate bytes.  It joins the
+This packet deliberately stops before applying candidate bytes. It joins the
 existing canonical contracts without creating a second promotion mechanism:
 
 * a passed :class:`~daedalus.schemas.EvidencePacket` must identify the exact
@@ -11,8 +11,9 @@ existing canonical contracts without creating a second promotion mechanism:
   revision and live target HEAD must agree exactly;
 * the authenticated owner approval is consumed once in the existing SQLite
   replay ledger;
-* the resulting capability must be rechecked against the live target HEAD by
-  the later integration-worktree adapter immediately before mutation.
+* the resulting capability must be rechecked against both the ledger and the
+  live target HEAD by the later integration-worktree adapter immediately before
+  mutation.
 
 No function in this module writes a repository, creates a worktree, applies a
 patch, merges a branch, or manufactures an owner decision.
@@ -39,6 +40,7 @@ from daedalus.schemas import (
     _artifact_locator,
     _identifier,
     _revision,
+    _sha256,
 )
 from daedalus.spine.envelope import canonical_sha
 from daedalus.twin.contracts import FourfoldSnapshot
@@ -84,6 +86,78 @@ class PreparedPromotion:
     nomination_receipt_sha256: str
     owner_approval_sha256: str
     verified_approval: VerifiedOwnerApproval
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "promotion_id", _identifier(self.promotion_id, "promotion_id")
+        )
+        object.__setattr__(
+            self, "target_ref", _identifier(self.target_ref, "target_ref")
+        )
+        object.__setattr__(
+            self, "repository_id", _identifier(self.repository_id, "repository_id")
+        )
+        for name in (
+            "expected_target_revision",
+            "base_revision",
+            "candidate_snapshot_revision",
+        ):
+            object.__setattr__(self, name, _revision(getattr(self, name), name))
+        for name in (
+            "candidate_artifact_sha256",
+            "candidate_snapshot_sha256",
+            "evidence_packet_sha256",
+            "nomination_receipt_sha256",
+            "owner_approval_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self,
+            "candidate_artifact_locator",
+            _artifact_locator(
+                self.candidate_artifact_locator, "candidate_artifact_locator"
+            ),
+        )
+        object.__setattr__(
+            self,
+            "evidence_locator",
+            _artifact_locator(self.evidence_locator, "evidence_locator"),
+        )
+        if self.candidate_artifact_locator != (
+            f"artifact-locator:sha256:{self.candidate_artifact_sha256}"
+        ):
+            raise PromotionCapabilityError(
+                "prepared promotion candidate locator contradicts its digest"
+            )
+        if self.evidence_locator != (
+            f"artifact-locator:sha256:{self.evidence_packet_sha256}"
+        ):
+            raise PromotionCapabilityError(
+                "prepared promotion evidence locator contradicts its digest"
+            )
+        if self.candidate_snapshot_revision != self.candidate_artifact_sha256:
+            raise PromotionCapabilityError(
+                "prepared promotion snapshot revision contradicts candidate identity"
+            )
+        if self.verified_approval.approval_sha256 != self.owner_approval_sha256:
+            raise PromotionCapabilityError(
+                "prepared promotion owner digest contradicts verified approval"
+            )
+        if self.verified_approval.operation != "promote-candidate":
+            raise PromotionCapabilityError(
+                "prepared capability is not a promote-candidate approval"
+            )
+        if self.verified_approval.target_ref != self.target_ref:
+            raise PromotionCapabilityError(
+                "prepared capability contradicts the approved target ref"
+            )
+        if (
+            self.verified_approval.expected_target_revision
+            != self.expected_target_revision
+        ):
+            raise PromotionCapabilityError(
+                "prepared capability contradicts the approved target revision"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -138,7 +212,8 @@ class AuthorizedPromotion:
 
 def _fourfold_items(evidence: EvidencePacket) -> tuple[Any, ...]:
     return tuple(
-        item for item in evidence.items
+        item
+        for item in evidence.items
         if item.evaluator == FOURFOLD_PROMOTION_EVALUATOR
     )
 
@@ -197,7 +272,8 @@ def _require_fourfold_evidence(
         "snapshot_contract_type": snapshot.CONTRACT_TYPE,
     }
     mismatches = [
-        name for name, expected in expected_details.items()
+        name
+        for name, expected in expected_details.items()
         if item.details.get(name) != expected
     ]
     if mismatches:
@@ -236,7 +312,8 @@ def _require_nomination_bindings(
         ),
     }
     mismatches = [
-        name for name, (actual, expected) in comparisons.items()
+        name
+        for name, (actual, expected) in comparisons.items()
         if actual != expected
     ]
     if mismatches:
@@ -334,19 +411,64 @@ def consume_prepared_promotion(
         promotion_id=prepared.promotion_id,
         consumed_at=consumed_at,
     )
-    return AuthorizedPromotion(
+    authorization = AuthorizedPromotion(
         prepared=prepared,
         consumed_approval=consumed,
+    )
+    if not ledger.consumed(prepared.owner_approval_sha256):
+        raise PromotionCapabilityError(
+            "approval ledger did not retain the consumed owner capability"
+        )
+    return authorization
+
+
+def authorize_promotion(
+    *,
+    promotion_id: str,
+    approval: OwnerApproval,
+    nomination: NominationReceipt,
+    evidence: EvidencePacket,
+    candidate_snapshot: FourfoldSnapshot,
+    target_ref: str,
+    current_target_revision: str,
+    keyring: Mapping[tuple[str, str], bytes | str],
+    ledger: ApprovalLedger,
+    now: datetime | None = None,
+    consumed_at: datetime | None = None,
+) -> AuthorizedPromotion:
+    """Authenticate, bind and consume one owner capability in one public call."""
+
+    prepared = prepare_promotion(
+        promotion_id=promotion_id,
+        approval=approval,
+        nomination=nomination,
+        evidence=evidence,
+        candidate_snapshot=candidate_snapshot,
+        target_ref=target_ref,
+        current_target_revision=current_target_revision,
+        keyring=keyring,
+        now=now,
+    )
+    return consume_prepared_promotion(
+        prepared,
+        ledger=ledger,
+        current_target_revision=current_target_revision,
+        consumed_at=consumed_at,
     )
 
 
 def assert_authorized_promotion_start(
     authorization: AuthorizedPromotion,
     *,
+    ledger: ApprovalLedger,
     current_target_revision: str,
 ) -> None:
     """Fail closed immediately before the later adapter mutates integration state."""
 
+    if not ledger.consumed(authorization.prepared.owner_approval_sha256):
+        raise PromotionCapabilityError(
+            "owner approval consumption is not present in the replay ledger"
+        )
     current = _revision(current_target_revision, "current_target_revision")
     expected = authorization.prepared.expected_target_revision
     if current != expected:
@@ -370,10 +492,11 @@ def build_approved_promotion_receipt(
     """Build the canonical receipt after an integration adapter reports success.
 
     ``owner_approval_ref`` must locate the serialized ``AuthorizedPromotion``
-    itself, not merely the raw signature.  That artifact therefore retains the
+    itself, not merely the raw signature. That artifact therefore retains the
     one-use ledger consumption together with every Fourfold/candidate binding.
     """
 
+    target_revision = _revision(target_revision, "target_revision")
     expected_ref = f"artifact-locator:sha256:{authorization.digest}"
     owner_approval_ref = _artifact_locator(
         owner_approval_ref, "owner_approval_ref"
