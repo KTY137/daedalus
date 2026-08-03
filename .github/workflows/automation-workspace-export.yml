@@ -1,0 +1,33 @@
+name: Automation workspace export
+
+on:
+  push:
+    branches:
+      - g0/workspace-export-20260803
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > CHECKOUT_HEAD
+          tar --exclude=.git --exclude=daedalus-checkout.tar.gz -czf daedalus-checkout.tar.gz .
+          test -s daedalus-checkout.tar.gz
+          tar -tzf daedalus-checkout.tar.gz >/dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-checkout-${{ github.sha }}
+          path: daedalus-checkout.tar.gz
+          if-no-files-found: error
+          retention-days: 1
