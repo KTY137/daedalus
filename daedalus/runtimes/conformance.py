@@ -1,24 +1,19 @@
 """Vendor-neutral runtime conformance harness for Gate 0.
 
-The harness observes a real adapter session. It does not trust manifest claims,
-provider prose, or an LLM review. Every required check emits canonical evidence
-through an injected content-addressed writer and is bound into the existing
-:class:`daedalus.schemas.RuntimeConformanceReceipt` contract.
+The harness observes an injected runtime adapter session. It does not spawn a
+runtime itself, trust manifest prose, or accept an LLM review as evidence.
+Concrete subprocess/API fixtures live outside the production package until they
+are registered and leased effect boundaries.
 """
 from __future__ import annotations
 
-import json
 import os
-import subprocess
-import sys
 import tempfile
-import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from types import MappingProxyType
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from daedalus.schemas import (
@@ -102,6 +97,8 @@ class RuntimeProbeEvent:
 
 
 class RuntimeProbeSession(Protocol):
+    """One started runtime instance under adapter-controlled process/API I/O."""
+
     @property
     def running(self) -> bool: ...
 
@@ -113,163 +110,21 @@ class RuntimeProbeSession(Protocol):
 
     def events(self) -> tuple[RuntimeProbeEvent, ...]: ...
 
-    def wait(self, timeout_s: float) -> int: ...
+    def wait(self, timeout_s: float) -> int:
+        """Wait or terminate and raise RuntimeProbeTimeout at the hard bound."""
+        ...
 
-    def cancel(self, grace_s: float = 1.0) -> int: ...
+    def cancel(self, grace_s: float = 1.0) -> int:
+        """Stop the runtime and return only after it is no longer running."""
+        ...
 
 
 class RuntimeFixtureAdapter(Protocol):
+    """Adapter surface tested by the conformance harness."""
+
     runtime_id: str
 
     def start(self, request: RuntimeProbeRequest) -> RuntimeProbeSession: ...
-
-
-class SubprocessRuntimeSession:
-    """Strict JSON-lines observation surface around one fixture subprocess."""
-
-    def __init__(self, process: subprocess.Popen[str]) -> None:
-        self._process = process
-        self._events: list[RuntimeProbeEvent] = []
-        self._errors: list[str] = []
-        self._lock = threading.Lock()
-        self._reader = threading.Thread(target=self._read_stdout, daemon=True)
-        self._reader.start()
-
-    def _read_stdout(self) -> None:
-        stream = self._process.stdout
-        if stream is None:
-            with self._lock:
-                self._errors.append("runtime stdout was not captured")
-            return
-        for line_number, raw in enumerate(stream, start=1):
-            text = raw.strip()
-            if not text:
-                continue
-            try:
-                payload = json.loads(text)
-                if not isinstance(payload, Mapping):
-                    raise ValueError("event must be an object")
-                event = RuntimeProbeEvent(
-                    kind=payload["kind"],
-                    sequence=payload["sequence"],
-                    payload=payload.get("payload", {}),
-                )
-            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                with self._lock:
-                    self._errors.append(
-                        f"invalid JSON event at line {line_number}: {type(exc).__name__}"
-                    )
-                continue
-            with self._lock:
-                self._events.append(event)
-
-    @property
-    def running(self) -> bool:
-        return self._process.poll() is None
-
-    @property
-    def exit_code(self) -> int | None:
-        return self._process.poll()
-
-    @property
-    def parse_errors(self) -> tuple[str, ...]:
-        with self._lock:
-            return tuple(self._errors)
-
-    def events(self) -> tuple[RuntimeProbeEvent, ...]:
-        with self._lock:
-            return tuple(self._events)
-
-    def _join_reader(self) -> None:
-        self._reader.join(timeout=1.0)
-        if self._reader.is_alive():
-            with self._lock:
-                self._errors.append("stdout reader did not terminate")
-
-    def wait(self, timeout_s: float) -> int:
-        if timeout_s <= 0:
-            raise ValueError("timeout_s must be positive")
-        try:
-            code = self._process.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired as exc:
-            self._process.kill()
-            self._process.wait(timeout=2.0)
-            self._join_reader()
-            raise RuntimeProbeTimeout("runtime probe exceeded its wall-time bound") from exc
-        self._join_reader()
-        return code
-
-    def cancel(self, grace_s: float = 1.0) -> int:
-        if grace_s <= 0:
-            raise ValueError("grace_s must be positive")
-        if self._process.poll() is None:
-            self._process.terminate()
-            try:
-                self._process.wait(timeout=grace_s)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-                self._process.wait(timeout=2.0)
-        self._join_reader()
-        code = self._process.poll()
-        if code is None:
-            raise RuntimeConformanceError("cancelled runtime process remained alive")
-        return code
-
-
-class PythonFixtureRuntimeAdapter:
-    """No-network subprocess adapter used to verify the conformance harness."""
-
-    runtime_id = "python_fixture"
-
-    def __init__(self, *, escape_workspace: bool = False) -> None:
-        self.escape_workspace = bool(escape_workspace)
-
-    @staticmethod
-    def _sanitized_environment() -> dict[str, str]:
-        allowed = {
-            "PATH",
-            "PATHEXT",
-            "PYTHONPATH",
-            "SYSTEMROOT",
-            "WINDIR",
-            "TMP",
-            "TEMP",
-            "TMPDIR",
-        }
-        environment = {key: value for key, value in os.environ.items() if key in allowed}
-        environment["PYTHONIOENCODING"] = "utf-8"
-        environment["PYTHONUNBUFFERED"] = "1"
-        return environment
-
-    def start(self, request: RuntimeProbeRequest) -> SubprocessRuntimeSession:
-        if request.runtime_id != self.runtime_id:
-            raise RuntimeBindingError("probe request runtime does not match adapter")
-        argv = [
-            sys.executable,
-            "-m",
-            "daedalus.runtimes.fixture_worker",
-            "--mode",
-            request.mode,
-            "--workspace",
-            str(request.workspace),
-            "--outside-canary",
-            str(request.outside_canary),
-        ]
-        if self.escape_workspace:
-            argv.append("--escape")
-        process = subprocess.Popen(
-            argv,
-            cwd=request.workspace,
-            env=self._sanitized_environment(),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="strict",
-            close_fds=True,
-        )
-        return SubprocessRuntimeSession(process)
 
 
 def _utc_now() -> datetime:
@@ -323,7 +178,9 @@ def run_runtime_conformance(
     """Run the exact Gate-0 fixture matrix and emit a canonical receipt.
 
     The caller supplies a content-addressed evidence writer. The harness verifies
-    that every returned locator addresses the exact bytes it supplied.
+    that every returned locator addresses the exact bytes it supplied. Adapter
+    sessions, not this module, own subprocess/API effects and must already be
+    routed through the applicable effect boundary in production.
     """
 
     if manifest.runtime_id != adapter.runtime_id:
@@ -337,6 +194,12 @@ def run_runtime_conformance(
     ):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
             raise ValueError(f"{name} must be positive")
+
+    parent = Path(workspace_parent) if workspace_parent is not None else None
+    if parent is not None:
+        parent = parent.resolve(strict=True)
+        if not parent.is_dir():
+            raise ValueError("workspace_parent must be an existing directory")
 
     started_at = clock()
     checks: list[ConformanceCheck] = []
@@ -380,7 +243,6 @@ def run_runtime_conformance(
             )
         )
 
-    parent = Path(workspace_parent) if workspace_parent is not None else None
     with tempfile.TemporaryDirectory(prefix="daedalus-runtime-", dir=parent) as root_text:
         root = Path(root_text)
         workspace = root / "workspace"
@@ -430,19 +292,17 @@ def run_runtime_conformance(
         )
 
         stream_events = [event for event in normal_events if event.kind == "stream.delta"]
-        stream_ok = (
-            manifest.capabilities.streaming
-            and len(stream_events) == 1
-            and stream_events[0].payload.get("text") == "fixture"
-        )
+        stream_text = stream_events[0].payload.get("text") if stream_events else None
         retain(
             "stream",
-            stream_ok,
+            manifest.capabilities.streaming
+            and len(stream_events) == 1
+            and stream_text == "fixture",
             "declared streaming produces the expected provider-neutral delta",
             {
                 "declared": manifest.capabilities.streaming,
                 "count": len(stream_events),
-                "text": stream_events[0].payload.get("text") if stream_events else None,
+                "text": stream_text,
             },
         )
 
@@ -471,14 +331,11 @@ def run_runtime_conformance(
             event for event in normal_events if event.kind == "structured-output"
         ]
         structured_value = structured[0].payload.get("value") if structured else None
-        structured_ok = (
-            manifest.capabilities.structured_output
-            and len(structured) == 1
-            and structured_value == {"ok": True, "value": "fixture"}
-        )
         retain(
             "structured-output",
-            structured_ok,
+            manifest.capabilities.structured_output
+            and len(structured) == 1
+            and structured_value == {"ok": True, "value": "fixture"},
             "declared structured output is parsed as the exact expected object",
             {
                 "declared": manifest.capabilities.structured_output,
@@ -488,25 +345,21 @@ def run_runtime_conformance(
         )
 
         output = workspace / "fixture-output.txt"
-        workspace_ok = (
+        outside_unchanged = canary.is_file() and canary.read_bytes() == canary_before
+        retain(
+            "workspace-isolation",
             manifest.capabilities.workspace_isolation
             and manifest.capabilities.workspace_write
             and "isolated-worktree" in manifest.workspace_modes
             and output.is_file()
             and output.read_text(encoding="utf-8") == "fixture\n"
-            and canary.is_file()
-            and canary.read_bytes() == canary_before
-        )
-        retain(
-            "workspace-isolation",
-            workspace_ok,
+            and outside_unchanged,
             "writes remain in the declared isolated workspace and preserve an outside canary",
             {
                 "declared_isolation": manifest.capabilities.workspace_isolation,
                 "declared_write": manifest.capabilities.workspace_write,
                 "inside_output": output.is_file(),
-                "outside_canary_unchanged": canary.is_file()
-                and canary.read_bytes() == canary_before,
+                "outside_canary_unchanged": outside_unchanged,
             },
         )
 
@@ -628,7 +481,6 @@ def run_runtime_conformance(
 
 __all__ = [
     "EvidenceWriter",
-    "PythonFixtureRuntimeAdapter",
     "RuntimeBindingError",
     "RuntimeConformanceError",
     "RuntimeEvidenceError",
@@ -637,6 +489,5 @@ __all__ = [
     "RuntimeProbeRequest",
     "RuntimeProbeSession",
     "RuntimeProbeTimeout",
-    "SubprocessRuntimeSession",
     "run_runtime_conformance",
 ]
