@@ -219,6 +219,19 @@ class RenovationPlan(CanonicalContract):
                 "plan provenance must bind exactly mission, snapshot, and work items"
             )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "contract_type": self.CONTRACT_TYPE,
+            "contract_version": self.CONTRACT_VERSION,
+            "plan_id": self.plan_id,
+            "mission_id": self.mission_id,
+            "mission_sha256": self.mission_sha256,
+            "base_revision": self.base_revision,
+            "base_snapshot_sha256": self.base_snapshot_sha256,
+            "work_items": [item.to_dict() for item in self.work_items],
+            "provenance": self.provenance.to_dict(),
+        }
+
     @property
     def work_item_ids(self) -> tuple[str, ...]:
         return tuple(item.work_item_id for item in self.work_items)
@@ -253,6 +266,22 @@ def verify_renovation_plan(
         raise RenovationPlanBindingError("mission must be a MissionContract")
     if not isinstance(base_snapshot, FourfoldSnapshot):
         raise RenovationPlanBindingError("base snapshot must be a FourfoldSnapshot")
+    try:
+        rebuilt_plan = RenovationPlan.from_dict(plan.to_dict())
+        rebuilt_mission = MissionContract.from_dict(mission.to_dict())
+        rebuilt_snapshot = FourfoldSnapshot.from_dict(base_snapshot.to_dict())
+    except ValueError as exc:
+        raise RenovationPlanBindingError(
+            f"Renovation input is not a valid canonical contract: {exc}"
+        ) from exc
+    if rebuilt_plan != plan:
+        raise RenovationPlanBindingError("plan does not equal its canonical rebuild")
+    if rebuilt_mission != mission:
+        raise RenovationPlanBindingError("mission does not equal its canonical rebuild")
+    if rebuilt_snapshot != base_snapshot:
+        raise RenovationPlanBindingError(
+            "base snapshot does not equal its canonical rebuild"
+        )
     mismatches: list[str] = []
     if plan.mission_id != mission.mission_id:
         mismatches.append("mission_id")
