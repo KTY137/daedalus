@@ -10,9 +10,9 @@ no provider, runtime, Docker process, Effect Lease, evaluator or promotion path.
 ## Canonical authority
 
 The pre-review implementation introduced an independent `attempt_starts` /
-`attempt_terminals` SQLite database. Independent counter-review rejected that
-shape because Gate 0 requires one event spine and forbids a new state store
-outside the canonical kernel.
+`attempt_terminals` SQLite database. A context-separated adversarial
+counter-review rejected that shape because Gate 0 requires one event spine and
+forbids a new state store outside the canonical kernel.
 
 The corrected implementation is a facade over `SpineLedger`:
 
@@ -38,11 +38,11 @@ The implementation is split strangler-style along real responsibilities:
 
 ## Raw Event-Store integrity
 
-A second counter-review found that reading terminal state only through the
-ordinary `SpineLedger` projection would parse event detail before this packet
-could reject duplicate JSON keys or noncanonical bytes. The lifecycle now reads
-the same canonical spine tables through a query-only strict projection while
-`SpineLedger` remains the sole writer and transition authority.
+A second context-separated adversarial pass found that reading terminal state
+only through the ordinary `SpineLedger` projection would parse event detail
+before this packet could reject duplicate JSON keys or noncanonical bytes. The
+lifecycle now reads the same canonical spine tables through a query-only strict
+projection while `SpineLedger` remains the sole writer and transition authority.
 
 The projection rejects:
 
@@ -124,6 +124,12 @@ The bounded mutation campaign attacks pending re-execution, store substitution,
 changed replay material, success without a candidate, process-abort
 terminalization, skipped CAS checks, event-spine removal, extra terminal events,
 read-only spine misuse and terminal digest binding.
+
+These passes were performed from separate review contexts within the same
+builder session. They are useful builder/adversarial evidence but do **not**
+satisfy the Master Plan's required independent reviewer step. That step remains
+open until a genuinely separate reviewer examines the exact diff and executable
+evidence.
 
 ## Deliberate remaining Gate-0 boundary
 
