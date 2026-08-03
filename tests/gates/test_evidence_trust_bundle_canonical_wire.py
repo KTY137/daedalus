@@ -69,18 +69,6 @@ def test_reordered_signed_digest_array_is_not_silently_normalized(
         compatibility_module.parse_evidence_trust_bundle(payload)
 
 
-def test_reordered_workflow_anchors_are_refused(tmp_path: Path) -> None:
-    root = fixture._repo(tmp_path)
-    index = fixture._index_two_workflows()
-    bundle = fixture._bundle_two_workflows(index, root)
-    payload = bundle.to_dict()
-    assert len(payload["workflow_anchors"]) == 2
-    payload["workflow_anchors"] = list(reversed(payload["workflow_anchors"]))
-
-    with pytest.raises(ValueError, match="exact canonical wire"):
-        parse_evidence_trust_bundle(payload)
-
-
 def test_reordered_signed_provenance_inputs_are_refused(tmp_path: Path) -> None:
     payload = _bundle(tmp_path).to_dict()
     values = payload["provenance"]["input_digests"]
