@@ -1,0 +1,126 @@
+name: Gate 0 — runtime authorization clock
+
+on:
+  pull_request:
+    branches:
+      - g0/runtime-terminal-capability-binding-linear
+    paths:
+      - "daedalus/kernel/runtime_effects.py"
+      - "daedalus/runtimes/broker.py"
+      - "tests/kernel/test_runtime_effect_admission.py"
+      - "tests/kernel/test_runtime_terminal_capability.py"
+      - "tests/kernel/test_runtime_authorization_clock.py"
+      - "tests/runtimes/test_runtime_provider_broker.py"
+      - "scripts/run_runtime_authorization_clock_mutations.py"
+      - "docs/work-packets/G0-RTC-09C_RUNTIME_AUTHORIZATION_CLOCK.md"
+      - ".github/workflows/g0-runtime-authorization-clock.yml"
+  push:
+    branches:
+      - g0/runtime-authorization-clock-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-runtime-authorization-clock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: runtime clock / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m compileall -q
+          daedalus/kernel/runtime_effects.py
+          daedalus/runtimes/broker.py
+          tests/kernel/test_runtime_authorization_clock.py
+          scripts/run_runtime_authorization_clock_mutations.py
+      - name: Admission, terminal, provider and clock tests
+        run: >-
+          python -m pytest -q
+          tests/kernel/test_runtime_effect_admission.py
+          tests/kernel/test_runtime_terminal_capability.py
+          tests/kernel/test_runtime_authorization_clock.py
+          tests/runtimes/test_runtime_provider_broker.py
+
+  mutations:
+    name: runtime clock mutation campaign / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python scripts/run_runtime_authorization_clock_mutations.py
+      - name: Refuse dirty source after mutation restoration
+        shell: bash
+        run: >-
+          git diff --exit-code --
+          daedalus/kernel/runtime_effects.py
+          daedalus/runtimes/broker.py
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated wheel import
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-runtime-clock-wheel
+      - run: /tmp/daedalus-runtime-clock-wheel/bin/pip install dist/*.whl
+      - name: Import installed runtime authorization outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-runtime-clock-wheel/bin/python -c
+          "import inspect;
+          from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization;
+          from daedalus.runtimes.broker import run_runtime_provider;
+          assert tuple(inspect.signature(RuntimeBoundEffectAuthorization.verify).parameters) == ('self',);
+          assert run_runtime_provider"
