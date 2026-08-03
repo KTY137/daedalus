@@ -121,6 +121,8 @@ class SourceTreeManifest(CanonicalContract):
         ignored = _sorted_strings(self.ignored_roots, "ignored_roots", paths=True)
         if any(root == "." or "/" in root for root in ignored):
             raise ValueError("ignored_roots must contain top-level names only")
+        if len({root.casefold() for root in ignored}) != len(ignored):
+            raise ValueError("ignored_roots must be case-insensitively unique")
         object.__setattr__(self, "ignored_roots", ignored)
         if self.provenance.source_revision != self.source_revision:
             raise ValueError(
@@ -204,7 +206,15 @@ class ArtifactStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.parent.is_symlink():
             raise ArtifactStoreError("artifact shard directory must not be a symlink")
-        if target.exists():
+        try:
+            existing_metadata = target.lstat()
+        except FileNotFoundError:
+            existing_metadata = None
+        if existing_metadata is not None:
+            if not stat.S_ISREG(existing_metadata.st_mode) or target.is_symlink():
+                raise ArtifactCorruptionError(
+                    f"existing object {digest} is not an owned regular file"
+                )
             existing = target.read_bytes()
             if sha256(existing).hexdigest() != digest:
                 raise ArtifactCorruptionError(
@@ -236,7 +246,11 @@ class ArtifactStore:
     def put_json(self, payload: Mapping[str, Any]) -> str:
         return self.put_bytes(canonical_json(payload).encode("utf-8"))
 
-    def read_bytes(self, locator: str) -> bytes:
+    def read_bytes(self, locator: str, *, max_bytes: int | None = None) -> bytes:
+        if max_bytes is not None and (
+            isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0
+        ):
+            raise ValueError("max_bytes must be a non-negative integer or null")
         digest = locator_sha256(locator)
         target = self._object_path(digest)
         try:
@@ -245,6 +259,10 @@ class ArtifactStore:
             raise ArtifactStoreError(f"artifact {digest} is missing") from exc
         if not stat.S_ISREG(metadata.st_mode) or target.is_symlink():
             raise ArtifactCorruptionError(f"artifact {digest} is not a regular file")
+        if max_bytes is not None and metadata.st_size > max_bytes:
+            raise ArtifactStoreError(
+                f"artifact {digest} exceeds the declared read bound {max_bytes}"
+            )
         payload = target.read_bytes()
         if sha256(payload).hexdigest() != digest:
             raise ArtifactCorruptionError(
@@ -260,6 +278,12 @@ class ArtifactStore:
         return True
 
     def _read_source_file(self, path: Path) -> tuple[bytes, os.stat_result]:
+        try:
+            path_before = os.stat(path, follow_symlinks=False)
+        except OSError as exc:
+            raise SourceTreeError(f"cannot inspect source file {path}") from exc
+        if not stat.S_ISREG(path_before.st_mode):
+            raise SourceTreeError(f"source entry is not a regular file: {path}")
         flags = os.O_RDONLY
         if hasattr(os, "O_BINARY"):
             flags |= os.O_BINARY
@@ -273,6 +297,12 @@ class ArtifactStore:
             before = os.fstat(descriptor)
             if not stat.S_ISREG(before.st_mode):
                 raise SourceTreeError(f"source entry is not a regular file: {path}")
+            identity_fields = ("st_dev", "st_ino")
+            if any(
+                getattr(path_before, field) != getattr(before, field)
+                for field in identity_fields
+            ):
+                raise SourceTreeError(f"source file changed before capture: {path}")
             chunks: list[bytes] = []
             while True:
                 chunk = os.read(descriptor, 1024 * 1024)
@@ -282,9 +312,15 @@ class ArtifactStore:
             after = os.fstat(descriptor)
         finally:
             os.close(descriptor)
+        try:
+            path_after = os.stat(path, follow_symlinks=False)
+        except OSError as exc:
+            raise SourceTreeError(f"source file disappeared during capture: {path}") from exc
         stable_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
         if any(getattr(before, field) != getattr(after, field) for field in stable_fields):
             raise SourceTreeError(f"source file changed during capture: {path}")
+        if any(getattr(after, field) != getattr(path_after, field) for field in stable_fields):
+            raise SourceTreeError(f"source path changed during capture: {path}")
         payload = b"".join(chunks)
         if len(payload) != after.st_size:
             raise SourceTreeError(f"source file size changed during capture: {path}")
@@ -319,6 +355,8 @@ class ArtifactStore:
         ignored = _sorted_strings(tuple(ignored_roots), "ignored_roots", paths=True)
         if any(item == "." or "/" in item for item in ignored):
             raise ValueError("ignored_roots must contain top-level names only")
+        if len({item.casefold() for item in ignored}) != len(ignored):
+            raise ValueError("ignored_roots must be case-insensitively unique")
         ignored_set = set(ignored)
 
         entries: list[SourceTreeEntry] = []
@@ -373,8 +411,10 @@ class ArtifactStore:
         locator = self.put_json(manifest.to_dict())
         return StoredSourceTree(manifest=manifest, locator=locator)
 
-    def load_tree(self, locator: str) -> SourceTreeManifest:
-        payload = self.read_bytes(locator)
+    def load_tree(
+        self, locator: str, *, max_manifest_bytes: int = 16 * 1024 * 1024
+    ) -> SourceTreeManifest:
+        payload = self.read_bytes(locator, max_bytes=max_manifest_bytes)
         try:
             parsed = json.loads(payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -391,8 +431,26 @@ class ArtifactStore:
         self,
         locator: str,
         destination: str | os.PathLike[str],
+        *,
+        max_file_bytes: int = 64 * 1024 * 1024,
+        max_total_bytes: int = 1024 * 1024 * 1024,
     ) -> SourceTreeManifest:
+        for name, value in (
+            ("max_file_bytes", max_file_bytes),
+            ("max_total_bytes", max_total_bytes),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
         manifest = self.load_tree(locator)
+        total = 0
+        for entry in manifest.entries:
+            if entry.size > max_file_bytes:
+                raise SourceTreeError(
+                    f"manifest entry exceeds max_file_bytes: {entry.path}"
+                )
+            total += entry.size
+            if total > max_total_bytes:
+                raise SourceTreeError("manifest exceeds max_total_bytes")
         target = Path(destination)
         if target.exists() or target.is_symlink():
             raise SourceTreeError("materialization destination must not already exist")
@@ -407,7 +465,9 @@ class ArtifactStore:
                 if staging.resolve() not in (resolved_parent, *resolved_parent.parents):
                     raise SourceTreeError("manifest entry escapes materialization root")
                 output.parent.mkdir(parents=True, exist_ok=True)
-                payload = self.read_bytes(artifact_locator(entry.blob_sha256))
+                payload = self.read_bytes(
+                    artifact_locator(entry.blob_sha256), max_bytes=entry.size
+                )
                 if len(payload) != entry.size:
                     raise ArtifactCorruptionError(
                         f"blob {entry.blob_sha256} size does not match manifest"
