@@ -38,7 +38,8 @@ Receipt verification authenticates the separately scoped `(verifier_id, verifier
 
 `Gate0ReleaseReceipt` binds:
 
-- exact Gate-report digest;
+- exact Gate-report semantic digest and complete canonical report-artifact digest;
+- exact protected effect-registry digest;
 - exact evidence-index digest;
 - exact authenticated trust-bundle digest;
 - exact adopted-requirements digest;
@@ -47,6 +48,8 @@ Receipt verification authenticates the separately scoped `(verifier_id, verifier
 - verification time, passed status, exact provenance and HMAC-SHA256 signature.
 
 Collector and release-verifier keys are distinct capabilities and both are scoped by principal plus key ID. No key material is retained in the repository.
+
+Untrusted receipt JSON must use the exact canonical wire. Recursive duplicate keys, unknown fields and a signed receipt with reordered provenance inputs are refused rather than normalized. This prevents multiple accepted byte representations of one signed mechanical decision.
 
 ## Adversarial coverage
 
@@ -61,8 +64,12 @@ Builder and separate source-review tests attack:
 - signature tampering and foreign expected verifier identity;
 - receipt reuse with another report, index or bundle;
 - future and pre-bundle receipt timestamps;
-- unknown receipt fields and recursive duplicate JSON keys;
+- unknown receipt fields, recursive duplicate JSON keys and noncanonical signed provenance ordering;
 - accidental construction of Gate closure, OwnerApproval, promotion or merge authority.
+
+The test re-signing helper is itself required to retain all six receipt input identities: report semantic digest, report artifact digest, registry, evidence index, trust bundle and requirements. Omitting the later-added report-artifact or registry identities is treated as an invalid test fixture rather than evidence.
+
+A bounded mutation replaces the exact receipt-wire comparison with an unconditional acceptance. The focused builder and counter-review suites must kill it, and source restoration must remain byte exact.
 
 ## Deliberate remaining boundary
 
