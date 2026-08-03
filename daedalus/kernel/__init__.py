@@ -127,6 +127,20 @@ from .source_trees import (
     SourceTreeStoreError,
     StoredSourceTree,
 )
+from .attempts import (
+    AttemptBeginResult,
+    AttemptBindingMismatch,
+    AttemptCompletion,
+    AttemptLedger,
+    AttemptLifecycleError,
+    AttemptReplay,
+    AttemptStartRecord,
+    AttemptStateError,
+    AttemptTerminalReceipt,
+    AttemptWorkspaceError,
+    IsolatedAttemptCoordinator,
+    PreparedAttempt,
+)
 
 __all__ += [
     "PromotionAuthorization",
@@ -152,4 +166,16 @@ __all__ += [
     "SourceTreeStore",
     "SourceTreeStoreError",
     "StoredSourceTree",
+    "AttemptBeginResult",
+    "AttemptBindingMismatch",
+    "AttemptCompletion",
+    "AttemptLedger",
+    "AttemptLifecycleError",
+    "AttemptReplay",
+    "AttemptStartRecord",
+    "AttemptStateError",
+    "AttemptTerminalReceipt",
+    "AttemptWorkspaceError",
+    "IsolatedAttemptCoordinator",
+    "PreparedAttempt",
 ]
