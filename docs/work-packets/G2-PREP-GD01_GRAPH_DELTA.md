@@ -65,7 +65,9 @@ candidate uses a different source revision. Evidence drift on one unchanged
 semantic binding remains visible. A relation replacement is deliberately one
 removed semantic binding plus one added semantic binding.
 
-## Independent counter-review finding fixed
+## Independent counter-review findings fixed
+
+### Internal relation and coverage-reason drift
 
 The first builder version compared plane nodes and evidence only. It omitted the
 plane's internal `relation_sha256s` and the canonical reason attached to partial
@@ -77,13 +79,29 @@ Relation drift is semantic; reason drift is evidence drift. Isolated review
 fixtures ensure those dimensions cannot be hidden by simultaneous node or
 status changes.
 
-This is model-assisted source review, not independent human review or hard Gate
-evidence.
+### Exact identity no-op refusal
+
+A later review reproduced a failure on the most conservative comparison:
+`compute_graph_delta(snapshot, snapshot)`. Both semantic roles correctly retained
+the same snapshot digest, but `ContractProvenance` forbids duplicate input
+digests, so construction failed before a canonical no-op delta could exist.
+That breaks exact deterministic-rebuild checks, where equality rather than a
+changed candidate is the expected result.
+
+The delta now keeps base and candidate roles in their explicit contract fields
+and retains each provenance evidence identity once. A focused exact-identity
+fixture requires a canonical `changed=false` result, strict wire round trip and
+successful recomputation. A dedicated mutation restores the duplicate input and
+must be killed.
+
+These are model-assisted source-review findings, not independent human review or
+hard Gate evidence.
 
 ## Adversarial verification requested
 
 Builder and separate review tests cover:
 
+- exact snapshot-identity no-op comparison;
 - revision-only rebuilds with no semantic/evidence delta;
 - added, removed and retained nodes;
 - internal relation drift;
@@ -99,14 +117,15 @@ Builder and separate review tests cover:
 - overlapping partitions and impossible absent-plane content;
 - source review forbidding application, publication and promotion calls.
 
-The bounded mutation campaign attacks six seams:
+The bounded mutation campaign attacks seven seams:
 
 1. cross-repository comparison;
 2. internal relation changes;
 3. reason changes;
 4. binding evidence changes;
 5. strict delta-wire comparison;
-6. mandatory recomputation before consumption.
+6. mandatory recomputation before consumption;
+7. exact-identity provenance deduplication.
 
 Each mutation requires a green focused baseline, must be killed by the focused
 tests and must restore the source byte-exactly.
