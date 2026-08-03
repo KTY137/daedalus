@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
+import daedalus.kairos.gated_writes as gated_writes
 from daedalus.kairos.gated_writes import GatedCandidate, promote_candidates
 from daedalus.kernel.approvals import (
     ApprovalExpectation,
@@ -30,7 +30,6 @@ from daedalus.spine.attempt import (
     PatchArtifact,
     STATE_CLEAN,
 )
-from daedalus.spine.envelope import canonical_sha
 
 NOW = datetime(2026, 8, 2, 0, 0, tzinfo=timezone.utc)
 SECRET = b"owner-secret-material-must-be-at-least-thirty-two-bytes"
@@ -220,48 +219,25 @@ def test_authorization_refuses_every_stale_binding(
         )
 
 
-def test_public_promotion_rechecks_head_before_worktree_or_lock(
+def test_public_promotion_without_persisted_authority_executes_no_effect(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.invalid"],
-        cwd=repo,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=repo,
-        check=True,
-    )
-    (repo / "x").write_text("base\n", encoding="utf-8")
-    subprocess.run(["git", "add", "x"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "base"], cwd=repo, check=True)
-    revision = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo,
-        text=True,
-    ).strip()
-    subprocess.run(["git", "branch", "experimental"], cwd=repo, check=True)
-
+    revision = "a" * 40
     candidates = [_candidate(revision)]
     candidate_sha = candidate_batch_sha256(candidates)
     packet = _packet(candidate_sha, revision)
-    consumed = _consumed(candidate_sha, packet, revision, "f" * 40, tmp_path)
+    consumed = _consumed(candidate_sha, packet, revision, "b" * 40, tmp_path)
 
-    class ForbiddenManager:
-        def __init__(self, *_args, **_kwargs):
-            raise AssertionError("worktree manager constructed before authorization")
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("no process, manager or lock effect is permitted")
 
-    monkeypatch.setattr(
-        "daedalus.kairos.gated_writes.GitWorktreeManager",
-        ForbiddenManager,
-    )
+    monkeypatch.setattr(gated_writes.subprocess, "run", forbidden)
+    monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden)
+    monkeypatch.setattr(gated_writes, "_PromotionLock", forbidden)
+
     report = promote_candidates(
-        str(repo),
+        str(tmp_path),
         candidates,
         project=None,
         availability={},
@@ -271,4 +247,4 @@ def test_public_promotion_rechecks_head_before_worktree_or_lock(
     )
     assert report["integration_branch"] is None
     assert report["authorization"] is None
-    assert "target_head" in report["refused"][0]["reason"]
+    assert "mandatory before any promotion effect" in report["refused"][0]["reason"]
