@@ -1,15 +1,16 @@
 """Execute one runtime provider call behind persisted runtime and effect authority.
 
-This module is deliberately provider-neutral.  It composes the existing
+This module is deliberately provider-neutral. It composes the existing
 ``RuntimeBoundEffectAuthorization`` with one exact ``EffectExecutionRequest``
-and a zero-argument provider callable.  The broker persists the lease grant and
+and a zero-argument provider callable. The broker persists the lease grant and
 start receipt before invoking external code, makes exact replay inert, and
-persists a terminal receipt for success, failure, cancellation, or a post-call
-runtime-trust loss.
+persists a terminal receipt for success, failure, cancellation, or runtime-trust
+loss.
 
-It does not make an existing provider safe merely by existing.  A production
+It does not make an existing provider safe merely by existing. A production
 provider row may move to ``CENTRAL`` only after its public call path requires
-this broker and no direct effectful bypass remains.
+this broker, produces content-addressed output evidence, and has no direct
+effectful bypass.
 """
 from __future__ import annotations
 
@@ -138,6 +139,8 @@ def _normalize_output_digests(values: Iterable[str]) -> tuple[str, ...]:
         if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
             raise ValueError(f"output digest {index} must be lowercase SHA-256")
         normalized.append(value)
+    if not normalized:
+        raise ValueError("a completed runtime provider call requires output evidence")
     if len(set(normalized)) != len(normalized):
         raise ValueError("output digests must not contain duplicates")
     return tuple(sorted(normalized))
@@ -164,26 +167,45 @@ def _finish_or_raise_state(
         ) from exc
 
 
+def _cancel_for_trust_loss(
+    authorization: RuntimeBoundEffectAuthorization,
+    start_receipt: LeasedEffectStartReceipt,
+    *,
+    phase: str,
+    error: BaseException,
+) -> None:
+    _finish_or_raise_state(
+        authorization,
+        start_receipt,
+        outcome="cancelled",
+        detail_sha256=_exception_detail(phase, error),
+    )
+
+
 def run_runtime_provider(
     entrypoint_id: str,
     *,
     authorization: RuntimeBoundEffectAuthorization,
     execution: EffectExecutionRequest,
     invoke: Callable[[], T],
-    output_digests: Callable[[T], Iterable[str]] | None = None,
+    output_digests: Callable[[T], Iterable[str]],
 ) -> RuntimeInvocationResult[T]:
     """Run one exact provider effect after durable grant/start authorization.
 
     ``invoke`` receives no authority object and is called only after the exact
-    lease grant and start receipt exist.  Reusing the same execution identity
-    returns ``executed=False`` and never calls the provider a second time.
+    lease grant and start receipt exist. Reusing the same execution identity
+    returns ``executed=False`` and never calls the provider a second time. Every
+    successful execution must produce at least one content-addressed output
+    digest before its value can be released.
     """
 
     if not callable(invoke):
         raise TypeError("invoke must be callable")
+    if not callable(output_digests):
+        raise TypeError("output_digests must be callable")
     spec = _validate_binding(entrypoint_id, authorization)
 
-    # Grant is exact-replay idempotent.  Keeping it inside the broker prevents a
+    # Grant is exact-replay idempotent. Keeping it inside the broker prevents a
     # provider adapter from accidentally starting against an unpersisted lease.
     authorization.grant()
     start = authorization.begin_effect(execution)
@@ -210,31 +232,42 @@ def run_runtime_provider(
         raise
 
     # Runtime evidence may expire or be quarantined while a long provider call
-    # is running.  The effect cannot be undone, but its output is withheld and
+    # is running. The effect cannot be undone, but its output is withheld and
     # the durable execution is not represented as successfully completed.
     try:
         authorization.verify(now=_utc_now())
     except BaseException as exc:
-        _finish_or_raise_state(
+        _cancel_for_trust_loss(
             authorization,
             start.receipt,
-            outcome="cancelled",
-            detail_sha256=_exception_detail("post-invoke-runtime-verification", exc),
+            phase="post-invoke-runtime-verification",
+            error=exc,
         )
         raise
 
     try:
-        digests = (
-            ()
-            if output_digests is None
-            else _normalize_output_digests(output_digests(value))
-        )
+        digests = _normalize_output_digests(output_digests(value))
     except BaseException as exc:
         _finish_or_raise_state(
             authorization,
             start.receipt,
             outcome="failed",
             detail_sha256=_exception_detail("output-evidence", exc),
+        )
+        raise
+
+    # Evidence extraction can be non-trivial. Recheck once more at the final
+    # completion boundary so an expired or rotated runtime cannot receive a
+    # successful terminal receipt merely because the first post-call check won
+    # a race.
+    try:
+        authorization.verify(now=_utc_now())
+    except BaseException as exc:
+        _cancel_for_trust_loss(
+            authorization,
+            start.receipt,
+            phase="pre-terminal-runtime-verification",
+            error=exc,
         )
         raise
 
