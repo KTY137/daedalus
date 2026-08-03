@@ -33,9 +33,24 @@ MUTATIONS = (
         "        if False:\n",
     ),
     Mutation(
+        "cache-obsolete-kill-switch-generation",
+        "        value = self.kill_switch_generation_reader()\n",
+        "        value = self.lease.kill_switch_generation\n",
+    ),
+    Mutation(
         "skip-lease-authentication",
         "        verify_effect_lease(\n",
         "        if False:\n            verify_effect_lease(\n",
+    ),
+    Mutation(
+        "skip-post-start-revocation-check",
+        "        if result.execute:\n",
+        "        if False:\n",
+    ),
+    Mutation(
+        "allow-completed-terminal-after-revocation",
+        "        if isinstance(outcome, str) and outcome.strip().upper() == \"COMPLETED\":\n",
+        "        if False:\n",
     ),
     Mutation(
         "allow-cross-lease-terminal-receipt",
