@@ -4,10 +4,17 @@ from __future__ import annotations
 import hashlib
 import os
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from daedalus.spine.envelope import canonical_json
-from daedalus.spine.ledger import STATE_COMPLETED, STATE_FAILED, STATE_INTENDED, Intent
+from daedalus.spine.ledger import (
+    STATE_COMPLETED,
+    STATE_FAILED,
+    STATE_INTENDED,
+    Intent,
+    _uri_path,
+)
 
 from .attempt_contracts import (
     _ATTEMPT_EFFECT_PREFIX,
@@ -28,11 +35,17 @@ def read_attempt_intents(
     This reader deliberately retains the raw JSON long enough to reject
     duplicate keys, noncanonical bytes, digest substitution, unknown event
     sequences, and malformed terminal detail before constructing ``Intent``.
+    The SQLite handle is opened with ``mode=ro`` so inspection cannot create or
+    modify the Event Store, even when a caller supplies a missing path.
     """
     connection: sqlite3.Connection | None = None
     try:
+        database = Path(path).resolve()
         connection = sqlite3.connect(
-            str(path), timeout=30.0, isolation_level=None
+            f"file:{_uri_path(database)}?mode=ro",
+            uri=True,
+            timeout=30.0,
+            isolation_level=None,
         )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout=30000")
