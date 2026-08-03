@@ -692,7 +692,7 @@ nothing built → "no slice" looks like success).
 
 **Two safety predicates now disagree, and this is a finding, not a fix.**
 The council already derives its lane from the host (`session._is_local_http`,
-`vendors._LOCAL_HOSTS`), so this class was closed THERE and not in offload.
+`sensitivity.lane_for_host`), so this class was closed THERE and not in offload.
 Measured divergence against the new one:
 
 ```
