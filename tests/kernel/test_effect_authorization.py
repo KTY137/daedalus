@@ -161,6 +161,14 @@ def test_grant_start_terminal_and_exact_replay(tmp_path) -> None:
     )
     assert first.execute is True
 
+    foreign = dataclasses.replace(first.receipt, lease_sha256="0" * 64)
+    with pytest.raises(EffectLeaseBindingMismatch, match="different effect lease"):
+        auth.finish_effect(
+            foreign,
+            outcome="completed",
+            finished_at=NOW + timedelta(milliseconds=1500),
+        )
+
     terminal = auth.finish_effect(
         first.receipt,
         outcome="completed",
