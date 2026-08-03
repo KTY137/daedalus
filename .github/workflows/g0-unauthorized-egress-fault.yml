@@ -1,0 +1,141 @@
+name: Gate 0 — unauthorized egress fault
+
+on:
+  pull_request:
+    branches:
+      - g0/container-oom-fault
+    paths:
+      - "daedalus/kernel/sandbox.py"
+      - "daedalus/runtimes/fault_matrix.py"
+      - "daedalus/runtimes/host_fault_runner.py"
+      - "tests/fixtures/unauthorized_egress_fault_executor.py"
+      - "tests/runtimes/test_unauthorized_egress_fault_executor.py"
+      - "tests/runtimes/test_unauthorized_egress_fault_executor_review.py"
+      - "docs/work-packets/G0-RTC-06M_UNAUTHORIZED_EGRESS_FAULT.md"
+      - ".github/workflows/g0-unauthorized-egress-fault.yml"
+  push:
+    branches:
+      - g0/unauthorized-egress-fault-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-unauthorized-egress-fault-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contracts / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests
+      - name: Verify egress contracts and counter-review
+        run: >-
+          python -m pytest -q
+          tests/kernel/test_docker_sandbox_launch_states.py
+          tests/kernel/test_docker_sandbox_launch_states_review.py
+          tests/runtimes/test_unauthorized_egress_fault_executor.py
+          tests/runtimes/test_unauthorized_egress_fault_executor_review.py
+          tests/runtimes/test_linux_host_fault_runner.py
+          tests/runtimes/test_linux_host_fault_runner_review.py
+          tests/runtimes/test_runtime_fault_catalog.py
+          tests/runtimes/test_runtime_fault_attestations.py
+          tests/runtimes/test_runtime_fault_attestation_hardening.py
+          tests/runtimes/test_runtime_fault_attestation_receipt.py
+
+  retained-host-evidence:
+    name: retained untrusted unauthorized-egress evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DAEDALUS_RUN_REAL_UNAUTHORIZED_EGRESS: "1"
+      EGRESS_IMAGE: "python:3.12-alpine@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - name: Verify Docker host and pull exact image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+          docker pull "${EGRESS_IMAGE}"
+      - name: Execute exact-head unauthorized-egress fault
+        run: >-
+          python tests/fixtures/unauthorized_egress_fault_executor.py
+          --source-revision "${GITHUB_SHA}"
+          --output-dir reports/unauthorized-egress
+      - name: Re-run retained observation through focused assertion
+        run: >-
+          python -m pytest -q
+          tests/runtimes/test_unauthorized_egress_fault_executor.py::test_real_unauthorized_egress_is_exact_pass
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: untrusted-unauthorized-egress-${{ github.sha }}
+          path: reports/unauthorized-egress/*
+          if-no-files-found: error
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  package:
+    name: package / isolated wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-egress-wheel
+      - run: /tmp/daedalus-egress-wheel/bin/pip install dist/*.whl
+      - name: Import sandbox and canonical fault catalog outside checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-egress-wheel/bin/python -c
+          "from daedalus.kernel.sandbox import DockerSandboxPolicy;
+          from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG;
+          assert DockerSandboxPolicy;
+          assert RUNTIME_FAULT_CATALOG.scenario_map['runtime.egress.unauthorized-endpoint'].authority == 'linux-host'"
