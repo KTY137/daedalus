@@ -68,7 +68,7 @@ def test_pass_run_binds_exact_scenario_evidence_and_provenance() -> None:
     assert run.observation.provenance.input_digests == tuple(
         sorted((row.digest, run.evidence.digest))
     )
-    assert LinuxHostFaultRun(run.evidence, run.observation) == run
+    assert LinuxHostFaultRun(run.evidence, run.observation, run.raw_evidence) == run
 
 
 def test_missing_executors_are_explicit_blockers_and_cannot_close_matrix() -> None:
@@ -129,7 +129,7 @@ def test_reported_pass_with_wrong_outcome_is_downgraded_to_failed() -> None:
     assert run.observation.observed_outcome == "failed"
     assert run.observation.detail_code == "outcome-mismatch"
     assert {fact.name: fact.value for fact in run.evidence.facts}[
-        "expected-outcome"
+        "collector-expected-outcome"
     ] == row.expected_outcome
 
 
@@ -203,6 +203,18 @@ def test_evidence_strict_round_trip_and_repacking_refuse() -> None:
     extra["trusted"] = True
     with pytest.raises(ValueError, match="extra"):
         LinuxHostFaultEvidence.from_dict(extra)
+
+    with pytest.raises(ValueError, match="HostFaultFact"):
+        HostFaultResult(
+            status="failed",
+            observed_outcome="failed",
+            detail_code="malformed-fact",
+            raw_evidence=b"x",
+            facts=({"name": "not-a-record", "value": "x"},),
+        )
+
+    with pytest.raises(LinuxHostFaultBindingMismatch, match="raw evidence"):
+        LinuxHostFaultRun(run.evidence, run.observation, b"substituted")
 
 
 def test_same_inputs_and_clock_produce_same_content_identity() -> None:
