@@ -81,9 +81,13 @@ def test_observation_is_hmac_authenticated_and_exactly_bound() -> None:
         "signature_sha256",
         "provenance",
         'body["signature_sha256"] = "0" * 64',
+        "tuple(self.provenance.input_digests) != required",
+        "exactly the retained evidence digests",
     )
     for expression in required:
         assert expression in text
+    assert "issubset" not in text
+
     verify = ast.get_source_segment(
         RECOVERY_SOURCE,
         _function(RECOVERY_TREE, "verify_external_effect_observation"),
@@ -95,12 +99,40 @@ def test_observation_is_hmac_authenticated_and_exactly_bound() -> None:
         '"execution_id"',
         '"idempotency_key"',
         '"start_receipt_sha256"',
-        '"start_execution_id"',
         '"source_revision"',
         "recovery observation is from the future",
         "recovery observation is stale",
     ):
         assert expression in verify
+
+
+def test_start_binding_and_acknowledgement_causality_are_checked_twice() -> None:
+    binding = ast.get_source_segment(
+        RECOVERY_SOURCE,
+        _function(RECOVERY_TREE, "_validate_start_binding"),
+    ) or ""
+    for expression in (
+        "start_receipt.execution_id",
+        "execution.execution_id",
+        "start_receipt.idempotency_key",
+        "execution.idempotency_key",
+        "start_receipt.execution_request_sha256",
+        "execution.digest",
+        "start_receipt.started_at",
+    ):
+        assert expression in binding
+
+    issue = ast.get_source_segment(
+        RECOVERY_SOURCE,
+        _function(RECOVERY_TREE, "issue_external_effect_observation"),
+    ) or ""
+    verify = ast.get_source_segment(
+        RECOVERY_SOURCE,
+        _function(RECOVERY_TREE, "verify_external_effect_observation"),
+    ) or ""
+    for text in (issue, verify):
+        assert "_validate_start_binding(execution, start_receipt)" in text
+        assert "external acknowledgement predates the durable effect start" in text
 
 
 def test_recovery_can_only_complete_started_execution_under_exact_observation() -> None:
