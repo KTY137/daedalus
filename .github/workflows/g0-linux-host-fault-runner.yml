@@ -9,6 +9,7 @@ on:
       - "daedalus/runtimes/fault_matrix.py"
       - "daedalus/runtimes/fault_attestations.py"
       - "tests/runtimes/test_linux_host_fault_runner.py"
+      - "tests/runtimes/test_linux_host_fault_runner_review.py"
       - "tests/runtimes/test_runtime_fault_catalog.py"
       - "tests/runtimes/test_runtime_fault_attestations.py"
       - ".github/workflows/g0-linux-host-fault-runner.yml"
@@ -52,6 +53,7 @@ jobs:
         run: >-
           python -m pytest -q
           tests/runtimes/test_linux_host_fault_runner.py
+          tests/runtimes/test_linux_host_fault_runner_review.py
           tests/runtimes/test_runtime_fault_catalog.py
           tests/runtimes/test_runtime_fault_attestations.py
           tests/runtimes/test_runtime_fault_attestation_hardening.py
