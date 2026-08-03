@@ -259,7 +259,9 @@ def assemble_gate0_release_report(
         origin=provenance_origin,
         source_revision=current,
         created_at=generated_at,
-        input_digests=(mechanical_sha, derived_sha, evidence_index.digest),
+        input_digests=tuple(
+            sorted({mechanical_sha, derived_sha, evidence_index.digest})
+        ),
         trace_id=trace_id,
     )
 
