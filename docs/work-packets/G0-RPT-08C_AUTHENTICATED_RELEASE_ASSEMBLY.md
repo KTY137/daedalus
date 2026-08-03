@@ -12,11 +12,18 @@ The public assembler accepts the canonical local `GateReport`, the exact `GateEv
 
 It accepts no raw `trusted_*` digest sets. Before deriving a report it authenticates the bundle and rechecks commit, tree, evidence index, workflow identities and bytes, retained evidence sets and lifetime.
 
-`Gate0ReleaseReport` binds the exact commit and Git tree, original mechanical Gate-report digest, derived canonical Gate-report payload, evidence-index digest, trust-bundle digest, strict exact-head blockers and provenance. Provenance inputs must equal the exact retained identity set; both missing and extra digests are refused. Untrusted mappings must also use the exact canonical nested arrays and values rather than merely normalizing to the same object.
+`Gate0ReleaseReport` binds the exact commit and Git tree, original mechanical Gate-report identity, derived canonical Gate-report payload, evidence-index digest, trust-bundle digest, strict exact-head blockers and provenance. Provenance inputs must equal the exact retained identity set; both missing and extra digests are refused. Untrusted mappings must also use the exact canonical nested arrays and values rather than merely normalizing to the same object.
+
+The Gate report has two intentionally distinct hashes:
+
+- `report_sha256` is the report contract's inner semantic identity;
+- `ArtifactEvidence.content_sha256` is the SHA-256 of the exact UTF-8 CLI artifact bytes (`indent=2`, sorted keys and one trailing newline).
+
+The release stores the inner identity but verifies the retained `gate-report` artifact against the exact serialized bytes. Confusing the two hashes makes an otherwise valid release fail closed.
 
 ## Derived closure semantics
 
-The caller-provided `GateReport.security_boundary_claimed` value is ignored. The technical security claim becomes true only when the local report has no technical blocker other than the unset security claim, every non-owner strict exact-head evidence check passes under the authenticated bundle, the mechanical Gate report is a required content-addressed artifact, and report/index registry identities agree.
+The caller-provided `GateReport.security_boundary_claimed` value is ignored. The technical security claim becomes true only when the local report has no technical blocker other than the unset security claim, every non-owner strict exact-head evidence check passes under the authenticated bundle, the exact serialized Gate report is a required content-addressed artifact, and report/index registry identities agree.
 
 The authenticated owner closure decision remains separate. A technically complete nested Gate report may therefore be closed while the release stays `closed=false` with `owner-decision:missing`.
 
@@ -28,19 +35,19 @@ A serialized report is not authority merely because it parses or says `closed=tr
 
 ## Adversarial coverage
 
-Focused tests cover valid authenticated closure, absence of raw trust-set injection, invalid collectors and foreign revisions, caller-forced claims, missing owner closure, local runtime failure, failed optional workflows, model-only reviews, report artifact substitution, registry recombination, forged derived values, reduced or expanded provenance, non-canonical wire ordering, direct repackaging, bundle expiry, workflow drift, report/bundle substitution and timezone-naive verification.
+Focused tests cover valid authenticated closure, absence of raw trust-set injection, invalid collectors and foreign revisions, caller-forced claims, missing owner closure, local runtime failure, failed optional workflows, model-only reviews, report artifact substitution, semantic-report-versus-artifact hash confusion, registry recombination, forged derived values, reduced or expanded provenance, non-canonical wire ordering, direct repackaging, bundle expiry, workflow drift, report/bundle substitution and timezone-naive verification.
 
 A separate AST counter-review checks that authentication precedes mechanical projection and release construction, no effectful or promotion call appears, closure is derived only from the complete blocker union, and the verifier reconstructs before rechecking current state. This remains model-generated review support, not human or owner evidence.
 
 ## Bounded mutation campaign
 
-The campaign first requires the unmodified parent trust-bundle and release suites to pass. It then applies one mutant at a time, compiles it, runs the focused suite in a fresh subprocess and restores exact source bytes.
+The campaign first requires the unmodified parent trust-bundle, Gate-report and release suites to pass. It then applies one mutant at a time, compiles it, runs the focused suite in a fresh subprocess and restores exact source bytes.
 
-Mutants remove trust-bundle authentication, trust the caller security claim, omit the report-artifact comparison, remove owner blockers, accept claimed closure, accept expanded provenance, accept non-canonical release wire, skip retained-report reconstruction, skip current blockers/expiry, and accept trust-bundle substitution. A survivor, invalid seam or dirty checkout fails the job.
+Mutants remove trust-bundle authentication, trust the caller security claim, confuse exact report artifact bytes with the inner report identity, remove owner blockers, accept claimed closure, accept expanded provenance, accept non-canonical release wire, skip retained-report reconstruction, skip current blockers/expiry, and accept trust-bundle substitution. A survivor, invalid seam or dirty checkout fails the job.
 
 ## Verification request
 
-Dedicated CI requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan, JSON-schema parsing, compileall, parent trust-bundle tests, release and counter-review tests, the ten-mutant campaign, the full suite and isolated-wheel import.
+Dedicated CI requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan, JSON-schema parsing, compileall, parent trust-bundle tests, Gate-report artifact tests, release and counter-review tests, the ten-mutant campaign, the full suite and isolated-wheel import.
 
 Issue #67 currently terminates repository jobs before Step 1 without logs. Such runs are infrastructure observations only and cannot establish product, package, platform or mutation evidence.
 
