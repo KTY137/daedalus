@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import inspect
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
     authorize_persisted_promotion,
     candidate_batch_sha256,
+    snapshot_promotion_candidates,
 )
 from daedalus.schemas import (
     ContractProvenance,
@@ -27,7 +29,12 @@ from daedalus.schemas import (
     EvidencePacket,
     ResourceUsage,
 )
-from daedalus.spine.attempt import AttemptResult, PatchArtifact, STATE_CLEAN
+from daedalus.spine.attempt import (
+    AttemptResult,
+    GateResult,
+    PatchArtifact,
+    STATE_CLEAN,
+)
 
 NOW = datetime(2026, 8, 3, 18, 0, tzinfo=timezone.utc)
 SECRET = b"owner-secret-material-must-be-at-least-thirty-two-bytes"
@@ -59,6 +66,7 @@ def _candidate(base_revision: str, *, suffix: str = "one") -> GatedCandidate:
         branch=artifact.branch,
         base_revision=base_revision,
         artifact=artifact,
+        gates=GateResult(passed=True, name="fixture-gate"),
     )
     return GatedCandidate(assignment=None, spec=None, result=result)
 
@@ -330,6 +338,72 @@ def test_persisted_authorization_requires_explicit_authorities(
             target_ref="experimental",
             live_target_revision=target_revision,
         )
+
+
+def test_candidate_digest_recomputes_exact_patch_bytes() -> None:
+    candidate = _candidate("a" * 40)
+    artifact = replace(candidate.result.artifact, diff_sha256="0" * 64)
+    candidate.result = replace(candidate.result, artifact=artifact)
+
+    with pytest.raises(PromotionAuthorizationError, match="patch digest"):
+        candidate_batch_sha256([candidate])
+
+
+def test_candidate_result_and_artifact_identity_must_match() -> None:
+    candidate = _candidate("a" * 40)
+    candidate.result = replace(candidate.result, base_revision="b" * 40)
+    with pytest.raises(PromotionAuthorizationError, match="result base"):
+        candidate_batch_sha256([candidate])
+
+    candidate = _candidate("a" * 40)
+    candidate.result = replace(candidate.result, task_id="other-task")
+    with pytest.raises(PromotionAuthorizationError, match="task_id"):
+        candidate_batch_sha256([candidate])
+
+    candidate = _candidate("a" * 40)
+    candidate.result = replace(candidate.result, branch="other-branch")
+    with pytest.raises(PromotionAuthorizationError, match="branch"):
+        candidate_batch_sha256([candidate])
+
+
+def test_candidate_requires_real_passed_terminal_gate() -> None:
+    candidate = _candidate("a" * 40)
+    candidate.result = replace(candidate.result, gates=None)
+    with pytest.raises(PromotionAuthorizationError, match="passed terminal gate"):
+        candidate_batch_sha256([candidate])
+
+    candidate = _candidate("a" * 40)
+    candidate.result = replace(
+        candidate.result,
+        gates=GateResult(passed=True, cancelled=True),
+    )
+    with pytest.raises(PromotionAuthorizationError, match="passed terminal gate"):
+        candidate_batch_sha256([candidate])
+
+
+def test_candidate_paths_are_canonical_and_unique() -> None:
+    candidate = _candidate("a" * 40)
+    artifact = replace(candidate.result.artifact, changed_paths=("../outside",))
+    candidate.result = replace(candidate.result, artifact=artifact)
+    with pytest.raises(PromotionAuthorizationError, match="canonical"):
+        candidate_batch_sha256([candidate])
+
+    candidate = _candidate("a" * 40)
+    artifact = replace(candidate.result.artifact, changed_paths=("x", "x"))
+    candidate.result = replace(candidate.result, artifact=artifact)
+    with pytest.raises(PromotionAuthorizationError, match="duplicates"):
+        candidate_batch_sha256([candidate])
+
+
+def test_candidate_snapshot_is_immune_to_later_result_swap() -> None:
+    candidate = _candidate("a" * 40)
+    snapshots = snapshot_promotion_candidates([candidate])
+    approved_digest = candidate_batch_sha256(snapshots)
+
+    candidate.result = _candidate("a" * 40, suffix="changed").result
+
+    assert candidate_batch_sha256(snapshots) == approved_digest
+    assert candidate_batch_sha256([candidate]) != approved_digest
 
 
 def test_source_review_pins_persistence_before_pure_authorization() -> None:
