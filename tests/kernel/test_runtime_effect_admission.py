@@ -259,6 +259,13 @@ def authorization(tmp_path, trust_ledger, req, policy, capability):
     )
 
 
+def set_clock(monkeypatch, *values: datetime) -> None:
+    iterator = iter(values)
+    monkeypatch.setattr(
+        "daedalus.kernel.runtime_effects._utc_now", lambda: next(iterator)
+    )
+
+
 def test_runtime_capability_round_trip_grant_start_and_replay(
     tmp_path, monkeypatch
 ) -> None:
@@ -269,9 +276,16 @@ def test_runtime_capability_round_trip_grant_start_and_replay(
     assert verify(capability, req, policy, trust_ledger) == record
 
     auth = authorization(tmp_path, trust_ledger, req, policy, capability)
-    auth.grant(granted_at=NOW + timedelta(seconds=2))
-    first = auth.begin_effect(execution(), started_at=NOW + timedelta(seconds=3))
-    second = auth.begin_effect(execution(), started_at=NOW + timedelta(seconds=3))
+    set_clock(monkeypatch, NOW + timedelta(seconds=2))
+    auth.grant()
+    set_clock(
+        monkeypatch,
+        NOW + timedelta(seconds=3),
+        NOW + timedelta(seconds=3, microseconds=1),
+    )
+    first = auth.begin_effect(execution())
+    set_clock(monkeypatch, NOW + timedelta(seconds=4))
+    second = auth.begin_effect(execution())
     assert first.execute is True
     assert second.execute is False
     assert second.receipt == first.receipt
@@ -315,16 +329,54 @@ def test_quarantine_after_grant_blocks_start_before_external_effect(
     trust_ledger, record = admitted_ledger(tmp_path, monkeypatch)
     req, policy, capability = issue(trust_ledger)
     auth = authorization(tmp_path, trust_ledger, req, policy, capability)
-    auth.grant(granted_at=NOW + timedelta(seconds=2))
+    set_clock(monkeypatch, NOW + timedelta(seconds=2))
+    auth.grant()
     trust_ledger.quarantine(
         runtime_id=record.runtime_id,
         envelope_sha256=record.envelope_sha256,
         reason="binary-revoked",
         quarantined_at=NOW + timedelta(seconds=3),
     )
+    set_clock(monkeypatch, NOW + timedelta(seconds=4))
     with pytest.raises(RuntimeTrustQuarantined, match="binary-revoked"):
-        auth.begin_effect(execution(), started_at=NOW + timedelta(seconds=4))
+        auth.begin_effect(execution())
     assert auth.effect_ledger.execution_state("runtime-execution-1") is None
+
+
+def test_post_start_trust_loss_is_persisted_as_cancelled(
+    tmp_path, monkeypatch
+) -> None:
+    trust_ledger, record = admitted_ledger(tmp_path, monkeypatch)
+    req, policy, capability = issue(trust_ledger)
+    auth = authorization(tmp_path, trust_ledger, req, policy, capability)
+    set_clock(monkeypatch, NOW + timedelta(seconds=2))
+    auth.grant()
+
+    original = trust_ledger.require_active
+    calls = 0
+
+    def require_active(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            trust_ledger.quarantine(
+                runtime_id=record.runtime_id,
+                envelope_sha256=record.envelope_sha256,
+                reason="revoked-during-start",
+                quarantined_at=NOW + timedelta(seconds=3, microseconds=1),
+            )
+        return original(**kwargs)
+
+    monkeypatch.setattr(trust_ledger, "require_active", require_active)
+    set_clock(
+        monkeypatch,
+        NOW + timedelta(seconds=3),
+        NOW + timedelta(seconds=3, microseconds=2),
+        NOW + timedelta(seconds=3, microseconds=3),
+    )
+    with pytest.raises(RuntimeTrustQuarantined, match="revoked-during-start"):
+        auth.begin_effect(execution())
+    assert auth.effect_ledger.execution_state("runtime-execution-1") == "CANCELLED"
 
 
 def test_runtime_authority_signature_and_record_identity_are_exact(
