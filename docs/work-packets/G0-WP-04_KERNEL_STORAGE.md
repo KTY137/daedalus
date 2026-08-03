@@ -74,8 +74,11 @@ state only after measured compatibility.
   digest, timestamp and previous stream head;
 - caller supplies the exact expected stream head; stale writers fail closed;
 - per-stream timestamps cannot regress;
-- schema version is explicit and unsupported versions refuse;
-- reads revalidate metadata, payload digest, event digest and stream chain.
+- schema version, exact table shape, uniqueness constraints and stream index are
+  checked before use;
+- reads revalidate metadata, canonical payload, event digest, timestamp order
+  and the complete stream chain;
+- append verifies existing stream history before extending it.
 
 The hash chain detects accidental or unprivileged file corruption. It is not an
 authentication mechanism against an attacker who can rewrite the database and
@@ -90,13 +93,28 @@ kernel responsibilities.
 | concurrency | concurrent identical CAS writes converge; one stale-head event writer wins |
 | replay | duplicate event ID remains refused after process restart |
 | malformed input | invalid IDs/digests/locators, non-object payloads and non-finite values refuse |
-| corruption | blob bytes, JSON encoding, event payload, metadata and chain tampering refuse |
+| corruption | blob bytes, symlinks, JSON encoding, event payload, metadata, schema and chain tampering refuse |
 | crash/fault | failed publication leaves neither visible blob nor temporary file; aborted SQLite insert rolls back |
 | read-only | artifact/event writes refuse and event inspection leaves DB contents unchanged |
 | portability | focused suite on Python 3.10/3.12 on Ubuntu and Windows |
 | regression | relevant Gate-0 trust suites plus full suite on supported Linux interpreter |
 | packaging | isolated wheel install imports `ContentAddressedStore` and `EventStore` |
 | governance | `python tools/iron_plan_guard.py verify` |
+
+## Independent review record
+
+A separate adversarial pass found and fixed four issues before dependent use:
+
+1. a destination symlink with matching target bytes could make a CAS write
+   appear successful while verified reads refused the locator;
+2. non-finite JSON loaded from stored bytes escaped the artifact-corruption
+   error family;
+3. the schema version marker did not prove the actual events table and
+   constraints matched the contract;
+4. append trusted the latest stored event hash without first validating the
+   existing stream and could therefore extend corrupt history.
+
+Regression tests now cover all four cases.
 
 ## Adversarial mutation targets
 
@@ -110,6 +128,24 @@ The focused tests must kill at least these equivalent mutations:
 6. omit payload/chain verification during read;
 7. treat a failed SQLite constraint as a successful append;
 8. allow writes through a read-only handle.
+
+The isolated hardened implementation completed with 16 passing tests. Five
+temporary mutants were executed and killed: skipped blob-read verification,
+skipped expected-head comparison, unverified existing stream on append,
+noncanonical event-payload acceptance and destination-symlink acceptance. These
+results are development evidence only and do not replace exact-branch CI.
+
+## Exact-branch verification status
+
+Current reviewed head before this documentation-only commit:
+`122badc6ce1af13d65eeee2e912ed5320ed35228`.
+
+GitHub Actions run `30848710330` instantiated all ten requested storage jobs,
+including Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, full suite
+and isolated wheel. Every job terminated before executing a step and returned
+`steps=null`. Iron Plan run `30848710328` failed in the same zero-step state.
+No test log exists, so neither run is accepted as green or as a product-code
+failure.
 
 ## Rollback
 
