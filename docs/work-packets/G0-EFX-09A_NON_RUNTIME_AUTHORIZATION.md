@@ -29,6 +29,12 @@ and terminal-state enforcement to the existing `daedalus.kernel.effects`
 authority. It does not mint a lease or execute provider, subprocess, filesystem,
 repository or promotion operations.
 
+The facade owns all authoritative lifecycle timestamps. Its public verification,
+grant, start and terminal methods accept no caller-supplied clock. This prevents
+a production caller from backdating a grant/start to keep an expired lease
+usable or from forging terminal chronology. Explicit timestamps remain only on
+the lower-level ledger for deterministic contract and fault tests.
+
 ## Runtime separation
 
 A lease with `runtime_id` or a request carrying runtime manifest/conformance
@@ -36,7 +42,7 @@ evidence is refused at construction. Runtime-bearing entrypoints must use
 `RuntimeBoundEffectAuthorization`, which adds live authenticated runtime-trust
 checks before grant and start. The generic path may not be used as a downgrade.
 
-## Independent counter-review finding
+## Independent counter-review findings
 
 The first builder revision delegated terminalization directly to the shared
 ledger. Although the ledger validates that a start receipt exists, a capability
@@ -46,8 +52,17 @@ to another lease. The facade now requires
 A focused regression test and dedicated mutant pin this cross-capability
 boundary.
 
-This review is a separate source/authority perspective, not a human security
-approval and not Gate evidence by itself.
+A later authority review found that the facade publicly accepted `now`,
+`granted_at`, `started_at` and `finished_at`. Those parameters are appropriate
+for deterministic low-level ledger tests but are unsafe on the production
+capability facade: an effectful caller could select a still-valid historical
+instant after real expiry. The public clock parameters were removed. Tests now
+prove expiry using the facade-owned clock and inspect every public method
+signature. Four additional mutants attempt to reintroduce caller-controlled
+verification, grant, start and terminal timestamps.
+
+These reviews are separate source/authority perspectives, not human security
+approval and not Gate evidence by themselves.
 
 ## Verification requested
 
@@ -60,14 +75,16 @@ The focused suite covers:
 - signature tampering;
 - stale kill-switch generation;
 - missing guard evidence;
+- expired grant and start refusal using the facade-owned clock;
+- exact public signatures with no caller-controlled lifecycle timestamps;
 - an AST counter-review that forbids lease issuance, promotion and external run
   calls in the facade.
 
 The bounded mutation campaign attacks runtime downgrade refusal, request binding,
-guard evidence, lease authentication and cross-lease terminalization. CI requests
-Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan verification,
-compile-all, focused parent/facade tests, mutation execution, the repository full
-suite and an isolated-wheel import.
+guard evidence, lease authentication, cross-lease terminalization and four
+caller-clock regressions. CI requests Ubuntu and Windows, Python 3.10 and 3.12,
+two hash seeds, Iron Plan verification, compile-all, focused parent/facade tests,
+mutation execution, the repository full suite and an isolated-wheel import.
 
 ## Dependent migration path
 
