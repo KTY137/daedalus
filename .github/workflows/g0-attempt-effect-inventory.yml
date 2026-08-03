@@ -95,5 +95,5 @@ jobs:
         run: >-
           /tmp/daedalus-attempt-inventory-wheel/bin/python -c
           "from daedalus.spine.effect_boundary import ENTRYPOINTS;
-          required={'python.attempt_lifecycle_begin','python.attempt_lifecycle_complete','python.attempt_workspace_prepare'};
+          required={'kernel.attempt.begin','kernel.attempt.complete','kernel.attempt.prepare'};
           assert required <= {row.id for row in ENTRYPOINTS}"
