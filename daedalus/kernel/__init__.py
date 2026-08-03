@@ -52,6 +52,7 @@ from .effects import (
     issue_effect_lease,
     verify_effect_lease,
 )
+from .authorization import NonRuntimeEffectAuthorization
 
 __all__ += [
     "EffectExecutionRequest",
@@ -70,6 +71,7 @@ __all__ += [
     "EffectTerminalReceipt",
     "LeasedEffectStartReceipt",
     "LeasedEffectAuthorization",
+    "NonRuntimeEffectAuthorization",
     "issue_effect_lease",
     "verify_effect_lease",
 ]
