@@ -138,6 +138,34 @@ def test_persisted_start_and_terminal_are_reparsed_before_use() -> None:
     assert "event sequence is invalid" in reader_source
 
 
+def test_public_mutation_api_has_no_caller_supplied_lifecycle_time() -> None:
+    begin = inspect.signature(ledger_impl.AttemptLedger.begin)
+    complete = inspect.signature(ledger_impl.AttemptLedger.complete)
+    prepare = inspect.signature(workspace_impl.IsolatedAttemptCoordinator.prepare)
+    assert "started_at" not in begin.parameters
+    assert "started_at" not in prepare.parameters
+    assert "completed_at" not in complete.parameters
+
+
+def test_authority_time_is_sampled_inside_start_and_terminal_transitions() -> None:
+    begin_source = inspect.getsource(ledger_impl.AttemptLedger.begin)
+    complete_source = inspect.getsource(ledger_impl.AttemptLedger.complete)
+    assert "started_at = _authority_now()" in begin_source
+    assert begin_source.index("started_at = _authority_now()") < begin_source.index(
+        "self.spine.record_intent"
+    )
+    assert "completed_at = _authority_now()" in complete_source
+    assert complete_source.index("completed_at = _authority_now()") < complete_source.index(
+        "self.spine.mark_completed"
+    )
+    assert "_require_authority_event_order" in inspect.getsource(
+        ledger_impl.AttemptLedger._decode_start_intent
+    )
+    assert "_require_authority_event_order" in inspect.getsource(
+        ledger_impl.AttemptLedger._decode_terminal_result
+    )
+
+
 def test_stable_attempts_import_path_is_a_thin_compatibility_surface() -> None:
     assert compatibility.AttemptLedger is ledger_impl.AttemptLedger
     assert (
