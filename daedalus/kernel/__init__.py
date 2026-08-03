@@ -35,7 +35,12 @@ __all__ = [
     "verify_owner_approval",
 ]
 
-from .contracts import EffectLease, EffectLeaseRequest
+from .contracts import (
+    OFFLOAD_EXECUTION_EFFECTS,
+    EffectLease,
+    EffectLeaseRequest,
+    OffloadExecutionPlan,
+)
 from .effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -74,6 +79,8 @@ __all__ += [
     "EffectTerminalReceipt",
     "LeasedEffectStartReceipt",
     "LeasedEffectAuthorization",
+    "OFFLOAD_EXECUTION_EFFECTS",
+    "OffloadExecutionPlan",
     "issue_effect_lease",
     "verify_effect_lease",
 ]
