@@ -99,6 +99,7 @@ __all__ += [
 from .promotion import (
     PromotionAuthorization,
     PromotionAuthorizationError,
+    authorize_persisted_promotion,
     authorize_promotion,
     candidate_batch_sha256,
     resolve_live_target_revision,
@@ -120,6 +121,7 @@ from .sandbox import (
 __all__ += [
     "PromotionAuthorization",
     "PromotionAuthorizationError",
+    "authorize_persisted_promotion",
     "authorize_promotion",
     "candidate_batch_sha256",
     "resolve_live_target_revision",
