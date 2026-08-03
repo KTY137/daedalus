@@ -25,6 +25,7 @@ from daedalus.schemas import (
     RuntimeManifest,
     _freeze_json,
     _identifier,
+    _json_value,
     _locator_sha256,
     _non_empty,
 )
@@ -252,7 +253,7 @@ def run_runtime_conformance(
             "source_revision": manifest.source_revision,
             "check": name,
             "passed": bool(passed),
-            "observations": observations,
+            "observations": _json_value(observations),
         }
         payload = canonical_json(evidence).encode("utf-8")
         digest = sha256(payload).hexdigest()
