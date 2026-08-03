@@ -1,0 +1,69 @@
+name: Gate 0 Approval Consumption
+
+on:
+  pull_request:
+    branches:
+      - g0/effect-leases
+    paths:
+      - "daedalus/kernel/approvals.py"
+      - "daedalus/kernel/__init__.py"
+      - "daedalus/kernel/contracts.py"
+      - "tests/kernel/test_owner_approval.py"
+      - "docs/work-packets/G0-WP-04_APPROVAL_CONSUMPTION.md"
+      - ".github/workflows/gate0-approval-consumption.yml"
+  push:
+    branches:
+      - g0/approval-consumption
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate0-approval-consumption-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_owner_approval.py
+          tests/kernel/test_effect_leases.py
+          tests/kernel/test_effect_leases_adversarial.py
+          tests/gates/test_gate_report.py
+          tests/test_kernel_contracts.py
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-approval-wheel
+      - run: /tmp/daedalus-approval-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-approval-wheel/bin/python -c
+          "from daedalus.kernel import ApprovalLedger,
+          ApprovalStateError, ConsumedOwnerApproval,
+          VerifiedOwnerApproval"
