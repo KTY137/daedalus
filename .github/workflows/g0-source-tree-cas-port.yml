@@ -3,7 +3,7 @@ name: Gate 0 Source Tree CAS Port
 on:
   pull_request:
     branches:
-      - g0/live-promotion-receipts-linear
+      - g0/live-promotion-seam-linear
     paths:
       - "daedalus/kernel/source_trees.py"
       - "daedalus/kernel/__init__.py"
@@ -17,7 +17,7 @@ on:
       - ".github/workflows/g0-source-tree-cas-port.yml"
   push:
     branches:
-      - g0/source-tree-cas-port-linear
+      - g0/source-tree-cas-port-v2-linear
   workflow_dispatch:
 
 permissions:
@@ -55,8 +55,10 @@ jobs:
           tests/kernel/test_source_tree_store_constructor_adversarial.py
           tests/kernel/test_source_tree_store_review.py
           tests/kernel/test_live_promotion_seam.py
-          tests/kernel/test_live_promotion_receipts.py
-          tests/kernel/test_promotion_receipts.py
+          tests/kernel/test_live_promotion_seam_review.py
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_promotion_material_review.py
+          tests/kernel/test_sealed_promotion.py
           tests/kernel/test_fourfold_evidence_owner_binding.py
           tests/kernel/test_effect_leases.py
           tests/test_kernel_contracts.py
