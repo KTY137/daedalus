@@ -1,4 +1,5 @@
 # bench_run.ps1 — sync branches to the sophonone test bench and run the TCT suite there.
+# ARCHIVED: legacy project_tct bench transport; not a Daedalus gate runner.
 # Runs on the LAPTOP (uses the already-authorized SSH key; changes nothing on the
 # bench outside C:\bench). Usage examples:
 #   .\bench_run.ps1                                   # sync + run suite on design/cockpit-v5

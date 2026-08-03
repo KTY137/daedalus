@@ -1,5 +1,7 @@
 <#
 .SYNOPSIS
+    ARCHIVED project_tct workstation runbook; unrelated to Daedalus environments.
+
     Supervised runbook to recreate TCT_app\.venv with a REAL CPython 3.10
     (not the Microsoft Store alias). DRY-RUN BY DEFAULT: prints the exact
     plan and changes nothing. Pass -Execute to actually do it.

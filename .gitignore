@@ -28,6 +28,7 @@ inbox/*.json
 .env.*
 !.env.example
 *.log
+*.stackdump
 .DS_Store
 Thumbs.db
 node_modules/
