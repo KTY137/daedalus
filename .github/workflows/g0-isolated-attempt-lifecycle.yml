@@ -66,6 +66,7 @@ jobs:
           tests/kernel/test_effect_leases.py
           tests/kernel/test_runtime_conformance.py
           tests/kernel/test_docker_sandbox.py
+          tests/test_spine_ledger.py
           tests/test_kernel_contracts.py
       - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
         run: python scripts/run_isolated_attempt_mutations.py
