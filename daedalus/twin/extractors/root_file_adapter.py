@@ -3,6 +3,10 @@
 The adapter inventories object classes and TTree/RNTuple field schemas without
 reading event payloads. Its output is staged Data-Plane evidence, not an
 authoritative Forest publication.
+
+A successful inventory is therefore always ``partial``. It does not establish
+payload validity, event-level invariants, semantic type identity, provenance,
+or data lineage.
 """
 from __future__ import annotations
 
@@ -124,7 +128,7 @@ def inspect_root_artifact(
     source_bundle_sha256: str,
     limits: RootReadLimits = DEFAULT_ROOT_READ_LIMITS,
 ) -> RootDataReport:
-    """Inventory one immutable ROOT file without loading event arrays."""
+    """Inventory one immutable ROOT file as metadata-only partial evidence."""
 
     if not isinstance(artifact, SourceArtifact):
         raise ValueError("artifact must be a SourceArtifact")
@@ -285,6 +289,18 @@ def inspect_root_artifact(
         if callable(close):
             close()
 
+    diagnostics.append(
+        ExtractorDiagnostic(
+            "metadata-only",
+            "warning",
+            (
+                "Uproot inventories object and field metadata without reading "
+                "event payloads; payload validity, event invariants, semantic "
+                "types, provenance, and data lineage remain unverified"
+            ),
+            artifact.path,
+        )
+    )
     records_tuple = tuple(records)
     report_sha = canonical_sha({
         "schema": "daedalus-root-data-report/1",
@@ -326,12 +342,13 @@ def inspect_root_artifact(
             for field in record.fields
         ),
     }
+    status = "partial"
     result = ExtractorResult(
         extractor_id="uproot-root-file",
         extractor_version=version,
         source_revision=artifact.source_revision,
         source_bundle_sha256=source_bundle_sha256,
-        status="partial" if diagnostics else "complete",
+        status=status,
         node_ids=node_ids,
         relation_sha256s=tuple(relation_digests),
         evidence_sha256s=tuple(evidence),
