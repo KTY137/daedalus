@@ -19,9 +19,10 @@ claim Gate 0 closure.
 - one signed `EffectLease`;
 - the exact `EffectLeaseRequest` and `PolicyDecision` bound by that lease;
 - the persisted `EffectLeaseLedger`;
-- the issuer keyring supplied by the caller;
+- an immutable copy of the issuer keyring supplied by the trusted composition
+  boundary;
 - concrete guard decisions;
-- the current kill-switch generation;
+- a callable live kill-switch generation authority;
 - the exact entrypoint registry used for verification.
 
 It delegates signature, revision, registry, scope, expiry, replay, concurrency
@@ -34,6 +35,14 @@ grant, start and terminal methods accept no caller-supplied clock. This prevents
 a production caller from backdating a grant/start to keep an expired lease
 usable or from forging terminal chronology. Explicit timestamps remain only on
 the lower-level ledger for deterministic contract and fault tests.
+
+The kill-switch generation is not retained as a construction-time integer. The
+facade reads the live authority at construction for fail-fast validation and
+again at every verification, grant and start boundary. A successful durable
+start is rechecked before `execute=true` can escape; loss of authority at that
+point records `CANCELLED` before the exception is returned. `COMPLETED` terminal
+receipts and output digests also require live authority, while `FAILED` and
+`CANCELLED` remain recordable after revocation.
 
 ## Runtime separation
 
@@ -61,6 +70,16 @@ prove expiry using the facade-owned clock and inspect every public method
 signature. Four additional mutants attempt to reintroduce caller-controlled
 verification, grant, start and terminal timestamps.
 
+The latest separate review found a revocation gap: the facade captured
+`current_kill_switch_generation` as an immutable integer. A long-lived
+capability could therefore continue presenting the lease's old generation after
+the real kill switch advanced. The correction replaces the cached value with a
+live reader, rechecks after durable start, and fences successful terminal/output
+publication. Tests exercise revocation before start, between the committed
+start receipt and authority release, and before completion. Mutants attempt to
+cache the signed lease generation, remove the post-start fence and complete
+under revoked authority.
+
 These reviews are separate source/authority perspectives, not human security
 approval and not Gate evidence by themselves.
 
@@ -73,7 +92,10 @@ The focused suite covers:
 - runtime-path downgrade refusal;
 - request/lease binding mismatch;
 - signature tampering;
-- stale kill-switch generation;
+- stale and dynamically advanced kill-switch generations;
+- malformed live generation authority values;
+- revocation between durable start and effect-authority release;
+- completed-output refusal after revocation while cancellation remains durable;
 - missing guard evidence;
 - expired grant and start refusal using the facade-owned clock;
 - exact public signatures with no caller-controlled lifecycle timestamps;
@@ -81,7 +103,8 @@ The focused suite covers:
   calls in the facade.
 
 The bounded mutation campaign attacks runtime downgrade refusal, request binding,
-guard evidence, lease authentication, cross-lease terminalization and four
+guard evidence, live generation freshness, lease authentication, the post-start
+revocation fence, completed-output fencing, cross-lease terminalization and four
 caller-clock regressions. CI requests Ubuntu and Windows, Python 3.10 and 3.12,
 two hash seeds, Iron Plan verification, compile-all, focused parent/facade tests,
 mutation execution, the repository full suite and an isolated-wheel import.
