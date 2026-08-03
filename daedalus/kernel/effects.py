@@ -56,6 +56,7 @@ _COMPLETION_CAPABILITY_DOMAIN = b"daedalus.effect-completion-capability.v1\x00"
 _TERMINAL_AUTHORIZATION_HMAC_DOMAIN = (
     b"daedalus.effect-terminal-authorization.v1\x00"
 )
+_COMPLETION_CAPABILITY_MINT_TOKEN = object()
 
 
 class EffectLeaseError(RuntimeError):
@@ -412,7 +413,12 @@ class CompletionCapability:
         *,
         start_receipt: LeasedEffectStartReceipt,
         secret: bytes,
+        _mint_token: object | None = None,
     ) -> None:
+        if _mint_token is not _COMPLETION_CAPABILITY_MINT_TOKEN:
+            raise EffectLeaseStateError(
+                "completion capabilities may only be minted by a persisted ledger start"
+            )
         secret_value = bytes(secret)
         commitment = _completion_capability_sha256(secret_value)
         if not hmac.compare_digest(
@@ -1631,6 +1637,7 @@ class EffectLeaseLedger:
             completion_capability = CompletionCapability(
                 start_receipt=receipt,
                 secret=capability_secret,
+                _mint_token=_COMPLETION_CAPABILITY_MINT_TOKEN,
             )
             receipt_json = canonical_json(receipt.to_dict())
             conn.execute(
@@ -2091,6 +2098,67 @@ class EffectLeaseLedger:
             terminal_receipt=terminal,
         )
 
+    def require_live_start(
+        self,
+        start: EffectStartResult,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        execution: EffectExecutionRequest,
+        historical_keyring: Mapping[str, bytes | str],
+    ) -> PersistedEffectExecution:
+        """Authenticate one live capability against its durable STARTED row.
+
+        Possession of a shape-compatible receipt or capability object is not
+        authority.  This seam jointly requires the signed historical grant,
+        the issuer-HMAC start receipt, the exact execution request persisted by
+        ``begin``, a still-indeterminate ``STARTED`` row, and the live random
+        secret committed by that signed receipt.
+        """
+
+        if type(start) is not EffectStartResult:
+            raise TypeError("start must be an exact EffectStartResult")
+        capability = start.completion_capability
+        if not start.execute or type(capability) is not CompletionCapability:
+            raise EffectLeaseStateError(
+                "live effect verification requires a newly persisted start"
+            )
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        capability.verify_start_receipt(start.receipt)
+        _authenticate_start_receipt(
+            start.receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        record = self.execution_record(execution.execution_id)
+        if record is None:
+            raise EffectLeaseStateError(
+                "live effect start is absent from the canonical ledger"
+            )
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("state", record.state, "STARTED"),
+                ("terminal_receipt", record.terminal_receipt, None),
+                ("execution_request", record.request, execution),
+                ("start_receipt", record.start_receipt, start.receipt),
+                ("lease_sha256", record.start_receipt.lease_sha256, lease.digest),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseStateError(
+                "live effect start differs from persisted authority: "
+                + ", ".join(mismatches)
+            )
+        return record
+
 
 @dataclass(frozen=True)
 class LeasedEffectAuthorization:
@@ -2176,6 +2244,22 @@ class LeasedEffectAuthorization:
             detail_sha256=detail_sha256,
             finished_at=finished_at,
             persisted_at=persisted_at,
+        )
+
+    def require_live_start(
+        self,
+        start: EffectStartResult,
+        execution: EffectExecutionRequest,
+    ) -> PersistedEffectExecution:
+        """Verify the exact durable start carried by this authority bundle."""
+
+        return self.ledger.require_live_start(
+            start,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            execution=execution,
+            historical_keyring=self.keyring,
         )
 
     def finish_terminal(

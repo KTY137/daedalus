@@ -293,7 +293,7 @@ def test_real_worktree_index_file_fingerprint_cas_chain_is_closed_and_round_trip
         (
             observed_workspace.target,
             TargetBeforeObservation,
-            "target-before-observation-v1.schema.json",
+            "target-before-observation-v2.schema.json",
         ),
         (
             workspace_observation,

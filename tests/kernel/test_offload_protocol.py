@@ -13,7 +13,10 @@ from daedalus.kernel.contracts import (
     derive_offload_staging_path,
     offload_staging_path_sha256,
 )
-from daedalus.kernel.offload_observations import TargetBeforeObservation
+from daedalus.kernel.offload_observations import (
+    TargetBeforeObservation,
+    _filesystem_mode_sha256,
+)
 from daedalus.kernel.offload_protocol import (
     OffloadProtocolError,
     freeze_offload_protocol,
@@ -75,6 +78,7 @@ def _target() -> TargetBeforeObservation:
         _sha(BEFORE),
         _sha("file-identity"),
         _sha("parent-chain"),
+        _filesystem_mode_sha256(0o644),
     )
     return TargetBeforeObservation(
         workspace_attestation_sha256=inputs[0],
@@ -93,6 +97,7 @@ def _target() -> TargetBeforeObservation:
             created_at=NOW,
             input_digests=inputs,
         ),
+        filesystem_mode=0o644,
     )
 
 

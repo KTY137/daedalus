@@ -29,6 +29,7 @@ from daedalus.kernel.offload_observations import (
     OffloadWorkspaceObservation,
     TargetBeforeObservation,
     TaskAttemptWorkspaceAttestation,
+    _filesystem_mode_sha256,
 )
 from daedalus.kernel.runtime_tools import RuntimeToolBinding
 from daedalus.schemas import (
@@ -196,6 +197,7 @@ def _observations(
         _sha("target-before"),
         _sha("target-file-identity"),
         _sha("target-parent-chain"),
+        _filesystem_mode_sha256(0o644),
     )
     target = TargetBeforeObservation(
         workspace_attestation_sha256=attestation.digest,
@@ -215,6 +217,7 @@ def _observations(
             input_digests=target_inputs,
             trace_id=attempt.mission_id,
         ),
+        filesystem_mode=0o644,
     )
     workspace_inputs = (
         attestation.digest,

@@ -95,6 +95,7 @@ from .offload_observations import (
     OffloadWorkspaceObservation,
     OllamaModelObservation,
     TargetBeforeObservation,
+    TargetBeforeObservationV1,
     TaskAttemptWorkspaceAttestation,
 )
 from .runtime_tools import (
@@ -144,6 +145,7 @@ __all__ += [
     "OffloadWorkspaceObservation",
     "OllamaModelObservation",
     "TargetBeforeObservation",
+    "TargetBeforeObservationV1",
     "TaskAttemptWorkspaceAttestation",
     "RuntimeToolBinding",
     "RuntimeToolBindingError",

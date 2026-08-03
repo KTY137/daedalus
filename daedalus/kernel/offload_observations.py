@@ -127,6 +127,17 @@ def _identity_sha256(path: Path, metadata: os.stat_result, *, role: str) -> str:
     )
 
 
+def _filesystem_mode_sha256(mode: int) -> str:
+    if isinstance(mode, bool) or not isinstance(mode, int) or not 0 <= mode <= 0o7777:
+        raise ValueError("filesystem_mode must be an integer between 0 and 0o7777")
+    return canonical_sha(
+        {
+            "domain": "daedalus.observed-filesystem-mode/1",
+            "filesystem_mode": mode,
+        }
+    )
+
+
 def _lstat_real(path: Path, *, role: str, directory: bool | None = None) -> os.stat_result:
     try:
         metadata = os.lstat(path)
@@ -709,8 +720,8 @@ class TaskAttemptWorkspaceAttestation(CanonicalContract):
 
 
 @dataclass(frozen=True)
-class TargetBeforeObservation(CanonicalContract):
-    """Bind one exact stage-0 regular UTF-8 target before model execution."""
+class TargetBeforeObservationV1(CanonicalContract):
+    """Historical target observation retained for artifact decoding only."""
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.target-before-observation"
 
@@ -790,6 +801,7 @@ class TargetBeforeObservation(CanonicalContract):
             "content_sha256": hashlib.sha256(raw).hexdigest(),
             "byte_length": len(raw),
             "git_mode": index_before[0],
+            "filesystem_mode": stat.S_IMODE(metadata.st_mode),
             "file_identity_sha256": _identity_sha256(target, metadata, role="target file"),
             "parent_chain_sha256": parent_chain_before,
         }
@@ -805,7 +817,7 @@ class TargetBeforeObservation(CanonicalContract):
         origin: str,
         created_at: str,
         trace_id: str | None = None,
-    ) -> "TargetBeforeObservation":
+    ) -> "TargetBeforeObservationV1":
         if not isinstance(workspace_attestation, TaskAttemptWorkspaceAttestation):
             raise TypeError("workspace_attestation must be canonical")
         workspace_attestation.verify_current(manager, workspace_path)
@@ -861,10 +873,93 @@ class TargetBeforeObservation(CanonicalContract):
             )
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "TargetBeforeObservation":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "TargetBeforeObservationV1":
         body = cls._contract_payload(payload)
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+
+@dataclass(frozen=True)
+class TargetBeforeObservation(TargetBeforeObservationV1):
+    """Bind bytes, Git identity, host mode, and path identity before execution."""
+
+    CONTRACT_VERSION: ClassVar[str] = "2.0.0"
+
+    filesystem_mode: int
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        mode_digest = _filesystem_mode_sha256(self.filesystem_mode)
+        _require_provenance_inputs(
+            self.provenance,
+            (mode_digest,),
+            "target-before v2 observation",
+        )
+
+    @classmethod
+    def capture(
+        cls,
+        *,
+        manager: GitWorktreeManager,
+        workspace_path: str | os.PathLike[str],
+        workspace_attestation: TaskAttemptWorkspaceAttestation,
+        target_path: str,
+        origin: str,
+        created_at: str,
+        trace_id: str | None = None,
+    ) -> "TargetBeforeObservation":
+        if not isinstance(workspace_attestation, TaskAttemptWorkspaceAttestation):
+            raise TypeError("workspace_attestation must be canonical")
+        workspace_attestation.verify_current(manager, workspace_path)
+        portable = _portable_target_path(target_path)
+        material = cls._capture_material(_lexical_absolute(workspace_path), portable)
+        filesystem_mode = int(material["filesystem_mode"])
+        return cls(
+            workspace_attestation_sha256=workspace_attestation.digest,
+            source_revision=workspace_attestation.source_revision,
+            target_path=portable,
+            target_kind="existing-regular-utf8-file",
+            content_sha256=str(material["content_sha256"]),
+            byte_length=int(material["byte_length"]),
+            git_mode=str(material["git_mode"]),
+            encoding="utf-8",
+            file_identity_sha256=str(material["file_identity_sha256"]),
+            parent_chain_sha256=str(material["parent_chain_sha256"]),
+            provenance=ContractProvenance(
+                origin=origin,
+                source_revision=workspace_attestation.source_revision,
+                created_at=created_at,
+                input_digests=(
+                    workspace_attestation.digest,
+                    str(material["content_sha256"]),
+                    str(material["file_identity_sha256"]),
+                    str(material["parent_chain_sha256"]),
+                    _filesystem_mode_sha256(filesystem_mode),
+                ),
+                trace_id=trace_id,
+            ),
+            filesystem_mode=filesystem_mode,
+        )
+
+    def verify_current(
+        self,
+        *,
+        manager: GitWorktreeManager,
+        workspace_path: str | os.PathLike[str],
+        workspace_attestation: TaskAttemptWorkspaceAttestation,
+    ) -> None:
+        super().verify_current(
+            manager=manager,
+            workspace_path=workspace_path,
+            workspace_attestation=workspace_attestation,
+        )
+        material = self._capture_material(
+            _lexical_absolute(workspace_path), self.target_path
+        )
+        if material["filesystem_mode"] != self.filesystem_mode:
+            raise OffloadObservationError(
+                "target-before observation no longer matches: filesystem_mode"
+            )
 
 
 @dataclass(frozen=True)
@@ -1659,5 +1754,6 @@ __all__ = [
     "OllamaModelObservation",
     "OllamaChatObservation",
     "TargetBeforeObservation",
+    "TargetBeforeObservationV1",
     "TaskAttemptWorkspaceAttestation",
 ]
