@@ -16,6 +16,7 @@ externally trusted live RuntimeConformanceEnvelope
   → persisted EffectLease grant
   → active-trust recheck
   → persisted effect start receipt
+  → second active-trust recheck
   → caller may perform the external effect
 ```
 
@@ -31,31 +32,44 @@ externally trusted live RuntimeConformanceEnvelope
 - an external runtime-lease authority key;
 - canonical provenance containing every referenced digest.
 
-The runtime trust record is checked at issuance, grant and immediately before an
-entrypoint receives `execute=true`. A lease cannot outlive its runtime trust
-record. Quarantine, rotation, expiry, manifest substitution, receipt
-substitution, revision substitution and envelope substitution therefore fail
-closed.
+The runtime trust record is checked at issuance, grant, before the durable start
+and again before an entrypoint receives `execute=true`. A lease cannot outlive
+its runtime trust record. Quarantine, rotation, expiry, manifest substitution,
+receipt substitution, revision substitution and envelope substitution therefore
+fail closed. If the second check fails, the already-persisted start is closed as
+`CANCELLED`; the caller never receives authority to perform the effect.
 
 ## Scope
 
 This packet adds:
 
 - `daedalus.kernel.runtime_effects.RuntimeBoundEffectLease`;
+- strict canonical parsing plus
+  `configs/schemas/runtime-bound-effect-lease-v1.schema.json`;
 - authenticated issue and verify functions;
 - `RuntimeBoundEffectAuthorization`, the explicit capability bundle intended for
   runtime-bearing production entrypoints;
 - real SQLite trust-ledger and Effect-Lease-ledger integration tests;
-- replay, stale-revision, signature, expiry and quarantine negatives;
+- replay, stale-revision, signature, expiry, quarantine and post-start failure
+  negatives;
 - import-order and isolated-wheel checks.
 
-## Adversarial review finding fixed
+## Adversarial review findings fixed
 
-The first packaging draft re-exported the runtime authority from
-`daedalus.kernel.__init__`. Importing `daedalus.runtimes` first could then create
-a cycle through runtime profiles and the partially initialized kernel package.
-The re-export was removed. The stable public path for this packet is the direct
-module `daedalus.kernel.runtime_effects`; CI checks both import orders.
+1. **Import cycle.** The first packaging draft re-exported the runtime authority
+   from `daedalus.kernel.__init__`. Importing `daedalus.runtimes` first could then
+   enter a cycle through runtime profiles and the partially initialized kernel.
+   The re-export was removed. The stable path is
+   `daedalus.kernel.runtime_effects`; CI checks both import orders.
+2. **Caller-controlled security time.** The first capability API accepted
+   `granted_at` and `started_at` from its consumer. A privileged but stale caller
+   could attempt to backdate a trust or lease check. Grant and start now obtain
+   their instants inside the boundary. Tests replace the private clock only for
+   deterministic verification.
+3. **Dangling durable start.** A trust loss between the pre-start check and the
+   post-persistence check originally raised while leaving the execution in
+   `STARTED`. The boundary now persists a deterministic `CANCELLED` terminal
+   receipt before re-raising, and no external effect is authorized.
 
 ## Deliberate remaining boundaries
 
@@ -65,6 +79,9 @@ module `daedalus.kernel.runtime_effects`; CI checks both import orders.
   change their public call boundary to accept `RuntimeBoundEffectAuthorization`.
 - The generic non-runtime `EffectLease` API remains available. A runtime path is
   not considered migrated merely because it can construct an ordinary lease.
+- Runtime trust and effect intent use separate SQLite authorities. This packet
+  narrows the time-of-check boundary with a second check, but provider migration
+  and the final fault campaign must still exercise revocation races explicitly.
 - Live provider receipts, external trusted-envelope publication and integrity
   keys remain external operational inputs.
 - No automatic promotion, merge, Gate-0 closure or Gate-1 activation occurs.
@@ -72,10 +89,10 @@ module `daedalus.kernel.runtime_effects`; CI checks both import orders.
 ## Verification
 
 The dedicated workflow runs Python 3.10 and 3.12 under two hash seeds, the
-focused runtime-trust/effect-lease batch, `compileall`, and isolated wheel import
-in both import orders. GitHub Actions has recently failed before creating Step 1
-for this repository; a green exact-head claim must not be made until runners
-actually execute the workflow.
+focused runtime-trust/effect-lease batch, `compileall`, schema parsing, and
+isolated wheel import in both import orders. GitHub Actions is currently failing
+repository jobs before creating Step 1 (`steps=null`, no logs); a green
+exact-head claim must not be made until runners actually execute the workflow.
 
 Iron Plan: **ALIGNED**  
 Iron Gate: **0**  
