@@ -57,7 +57,16 @@ def test_bounded_ledger_changes_only_connection_timeout() -> None:
     assert methods == {"__init__", "_connect"}
     assert "super().__init__(path)" in source
     assert "PRAGMA busy_timeout" in source
-    assert "BEGIN IMMEDIATE" in source
+    assert "except sqlite3.Error" in source
+
+
+def test_writer_lock_and_full_busy_interval_are_required() -> None:
+    source, _ = _source_and_tree()
+    assert 'blocker.execute("BEGIN IMMEDIATE")' in source
+    assert "writer_lock_held = blocker.in_transaction" in source
+    assert "writer_lock_held\n            and contention" in source
+    assert "_BUSY_TIMEOUT_MS - _TIMEOUT_TOLERANCE_MS" in source
+    assert 'HostFaultFact("writer-lock-held", "true")' in source
 
 
 def test_raw_evidence_excludes_sqlite_message_and_plain_database_path() -> None:
