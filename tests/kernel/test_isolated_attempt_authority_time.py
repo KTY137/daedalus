@@ -136,17 +136,23 @@ def test_persisted_record_time_repackaging_outside_bound_is_rejected(
 ) -> None:
     _store, captured, ledger = _environment(tmp_path)
     _set_clocks(monkeypatch, authority=START, spine=START_EVENT)
-    _begin(ledger, captured)
+    begin = _begin(ledger, captured)
+    repacked_time = "2026-08-03T20:00:00+00:00"
+    repacked_start = dataclasses.replace(
+        begin.start,
+        started_at=repacked_time,
+        provenance=dataclasses.replace(
+            begin.start.provenance,
+            created_at=repacked_time,
+        ),
+    )
     with sqlite3.connect(ledger.path) as connection:
         row = connection.execute(
             "SELECT id, payload FROM intents WHERE kind='attempt.lifecycle'"
         ).fetchone()
         assert row is not None
         payload = json.loads(row[1])
-        payload["start"]["started_at"] = "2026-08-03T20:00:00+00:00"
-        payload["start"]["provenance"]["created_at"] = (
-            "2026-08-03T20:00:00+00:00"
-        )
+        payload["start"] = repacked_start.to_dict()
         wire = canonical_json(payload)
         digest = hashlib.sha256(wire.encode("ascii")).hexdigest()
         connection.execute(
