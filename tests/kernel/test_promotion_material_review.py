@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+import daedalus.kairos.gated_writes as gated_writes
 from daedalus.kairos.gated_writes import GatedCandidate
 from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
@@ -48,6 +49,21 @@ def _candidate() -> GatedCandidate:
     return GatedCandidate(assignment=None, spec=None, result=result)
 
 
+def _public_refusal(candidates, *, repo_root="."):
+    return gated_writes.promote_candidates(
+        repo_root,
+        candidates,
+        project=None,
+        availability={},
+        consumed_approval=object(),
+        evidence_packet=object(),
+        target_ref="experimental",
+        approval_ledger=object(),
+        owner_keyring={("owner", "key"): b"x" * 32},
+        ledger_path="unused.sqlite3",
+    )
+
+
 def test_noncanonical_declared_digest_is_a_promotion_refusal() -> None:
     candidate = _candidate()
     artifact = replace(candidate.result.artifact, diff_sha256="é" * 64)
@@ -81,3 +97,33 @@ def test_noncanonical_changed_path_is_a_promotion_refusal() -> None:
 
     with pytest.raises(PromotionAuthorizationError, match="canonical"):
         candidate_batch_sha256([candidate])
+
+
+def test_empty_public_batch_has_one_structured_refusal() -> None:
+    report = _public_refusal([])
+
+    assert report["promoted"] == []
+    assert report["authorization"] is None
+    assert len(report["refused"]) == 1
+    assert report["refused"][0]["task_id"] == "unknown"
+    assert "exactly one candidate" in report["refused"][0]["reason"]
+
+
+def test_noniterable_public_batch_has_one_structured_refusal() -> None:
+    report = _public_refusal(None)
+
+    assert report["promoted"] == []
+    assert report["authorization"] is None
+    assert len(report["refused"]) == 1
+    assert report["refused"][0]["task_id"] == "unknown"
+    assert "iterable batch" in report["refused"][0]["reason"]
+
+
+def test_invalid_repository_root_has_one_structured_refusal() -> None:
+    report = _public_refusal([], repo_root=None)
+
+    assert report["promoted"] == []
+    assert report["authorization"] is None
+    assert len(report["refused"]) == 1
+    assert report["refused"][0]["task_id"] == "unknown"
+    assert "invalid repository root" in report["refused"][0]["reason"]
