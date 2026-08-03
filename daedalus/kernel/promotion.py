@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
@@ -19,9 +20,37 @@ from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
 from daedalus.schemas import EvidencePacket, _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
 
 class PromotionAuthorizationError(RuntimeError):
     """Fail-closed refusal before any promotion-side effect."""
+
+
+def _canonical_sha256(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
+        raise PromotionAuthorizationError(
+            f"{name} must be a lowercase 64-character SHA-256 digest"
+        )
+    return value
+
+
+def _canonical_revision(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise PromotionAuthorizationError(f"{name} must be a revision string")
+    try:
+        return _revision(value, name)
+    except (TypeError, ValueError) as exc:
+        raise PromotionAuthorizationError(f"{name} is not a canonical revision") from exc
+
+
+def _canonical_identifier(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise PromotionAuthorizationError(f"{name} must be an identifier string")
+    try:
+        return _identifier(value, name)
+    except (TypeError, ValueError) as exc:
+        raise PromotionAuthorizationError(f"{name} is not a canonical identifier") from exc
 
 
 @dataclass(frozen=True)
@@ -149,17 +178,21 @@ def snapshot_promotion_candidates(
                 f"candidate[{index}] patch bytes are not immutable bytes"
             )
         actual_diff_sha256 = hashlib.sha256(artifact.diff_bytes).hexdigest()
-        if not hmac.compare_digest(actual_diff_sha256, str(artifact.diff_sha256)):
+        declared_diff_sha256 = _canonical_sha256(
+            artifact.diff_sha256,
+            f"candidate[{index}].artifact.diff_sha256",
+        )
+        if not hmac.compare_digest(actual_diff_sha256, declared_diff_sha256):
             raise PromotionAuthorizationError(
                 f"candidate[{index}] patch digest does not match patch bytes"
             )
 
-        artifact_base = _revision(
-            str(artifact.base_revision),
+        artifact_base = _canonical_revision(
+            artifact.base_revision,
             f"candidate[{index}].artifact.base_revision",
         )
-        result_base = _revision(
-            str(result.base_revision),
+        result_base = _canonical_revision(
+            result.base_revision,
             f"candidate[{index}].result.base_revision",
         )
         if result_base != artifact_base:
@@ -239,7 +272,7 @@ def candidate_batch_sha256(candidates: Sequence[Any]) -> str:
 
 def resolve_live_target_revision(repo_root: str | Path, target_ref: str) -> str:
     """Read the target ref immediately before the first promotion mutation."""
-    ref = _identifier(target_ref, "target_ref")
+    ref = _canonical_identifier(target_ref, "target_ref")
     root = Path(repo_root).resolve()
     proc = subprocess.run(
         ["git", "rev-parse", "--verify", ref],
@@ -253,10 +286,7 @@ def resolve_live_target_revision(repo_root: str | Path, target_ref: str) -> str:
         raise PromotionAuthorizationError(
             f"cannot resolve live target ref {ref!r}: {(proc.stderr or proc.stdout).strip()}"
         )
-    try:
-        return _revision(proc.stdout.strip(), "live_target_revision")
-    except ValueError as exc:
-        raise PromotionAuthorizationError("live target ref did not resolve to a revision") from exc
+    return _canonical_revision(proc.stdout.strip(), "live_target_revision")
 
 
 def authorize_promotion(
@@ -283,8 +313,11 @@ def authorize_promotion(
     verified = consumed_approval.verified
     candidate_sha = _candidate_batch_sha256_from_snapshots(snapshots)
     packet_sha = evidence_packet.digest
-    live_revision = _revision(live_target_revision, "live_target_revision")
-    ref = _identifier(target_ref, "target_ref")
+    live_revision = _canonical_revision(
+        live_target_revision,
+        "live_target_revision",
+    )
+    ref = _canonical_identifier(target_ref, "target_ref")
 
     comparisons = {
         "operation": (verified.operation, "promote-candidate"),
