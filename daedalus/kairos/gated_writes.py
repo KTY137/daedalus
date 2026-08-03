@@ -55,7 +55,7 @@ del promote_candidates
 
 from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
-    snapshot_promotion_candidates,
+    snapshot_promotion_candidates as _snapshot_promotion_candidates,
 )
 
 
@@ -221,7 +221,7 @@ def promote_candidates(
         )
     try:
         sealed_candidates = list(
-            snapshot_promotion_candidates(submitted_candidates)
+            _snapshot_promotion_candidates(submitted_candidates)
         )
     except Exception as exc:  # noqa: BLE001 - public boundary fails closed
         return _promotion_refusal(list(submitted_candidates), exc)
