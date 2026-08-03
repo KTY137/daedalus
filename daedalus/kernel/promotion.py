@@ -8,9 +8,11 @@ subject.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
@@ -20,6 +22,23 @@ from daedalus.spine.envelope import canonical_sha
 
 class PromotionAuthorizationError(RuntimeError):
     """Fail-closed refusal before any promotion-side effect."""
+
+
+@dataclass(frozen=True)
+class PromotionCandidateSnapshot:
+    """Immutable local view of the exact candidate material being authorized.
+
+    ``GatedCandidate`` is intentionally a compatibility dataclass and is not
+    frozen. The promotion boundary therefore copies its already-frozen
+    ``AttemptResult`` and ``PatchArtifact`` before authentication, then uses
+    this snapshot for both authorization and the retained integration path.
+    That prevents a caller thread from swapping ``candidate.result`` after the
+    owner-bound digest was checked but before patch bytes are applied.
+    """
+
+    assignment: Any
+    spec: Any
+    result: Any
 
 
 @dataclass(frozen=True)
@@ -46,28 +65,176 @@ class PromotionAuthorization:
         }
 
 
-def candidate_batch_sha256(candidates: Sequence[Any]) -> str:
-    """Digest the exact ordered, clean patch batch intended for promotion."""
-    if not candidates:
+def _canonical_changed_paths(paths: Any, *, index: int) -> tuple[str, ...]:
+    if not isinstance(paths, tuple) or not paths:
+        raise PromotionAuthorizationError(
+            f"candidate[{index}] changed_paths must be a non-empty tuple"
+        )
+    canonical: list[str] = []
+    for position, raw in enumerate(paths):
+        if not isinstance(raw, str) or not raw or "\x00" in raw or "\\" in raw:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] changed_paths[{position}] is not a canonical "
+                "repo-relative POSIX path"
+            )
+        path = PurePosixPath(raw)
+        if (
+            path.is_absolute()
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or path.as_posix() != raw
+        ):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] changed_paths[{position}] is not a canonical "
+                "repo-relative POSIX path"
+            )
+        canonical.append(raw)
+    if len(set(canonical)) != len(canonical):
+        raise PromotionAuthorizationError(
+            f"candidate[{index}] changed_paths contains duplicates"
+        )
+    return tuple(canonical)
+
+
+def snapshot_promotion_candidates(
+    candidates: Sequence[Any],
+) -> tuple[PromotionCandidateSnapshot, ...]:
+    """Validate and freeze the exact patch material used by promotion.
+
+    The candidate-batch digest must describe the bytes later passed to
+    ``git apply``. A ``PatchArtifact`` stores both bytes and a digest but its
+    dataclass constructor is intentionally lightweight, so this trust boundary
+    recomputes the digest rather than trusting the field. It also binds the
+    ``AttemptResult`` identity/base to the artifact and requires an actual
+    passed gate, not a caller-authored object that merely exposes ``ok=True``.
+    """
+    from daedalus.spine.attempt import (
+        AttemptResult,
+        GateResult,
+        PatchArtifact,
+        STATE_CLEAN,
+    )
+
+    submitted = tuple(candidates)
+    if not submitted:
         raise PromotionAuthorizationError("promotion candidate batch is empty")
-    rows: list[dict[str, object]] = []
-    for index, candidate in enumerate(candidates):
+
+    snapshots: list[PromotionCandidateSnapshot] = []
+    for index, candidate in enumerate(submitted):
         result = getattr(candidate, "result", None)
-        artifact = getattr(result, "artifact", None)
-        if not bool(getattr(result, "ok", False)) or artifact is None or artifact.is_empty:
+        if not isinstance(result, AttemptResult):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] does not carry a canonical AttemptResult"
+            )
+        artifact = result.artifact
+        if not isinstance(artifact, PatchArtifact):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] does not carry a canonical PatchArtifact"
+            )
+        if result.state != STATE_CLEAN or not result.ok or artifact.is_empty:
             raise PromotionAuthorizationError(
                 f"candidate[{index}] is not a clean non-empty gated artifact"
             )
+        gate = result.gates
+        if (
+            not isinstance(gate, GateResult)
+            or not gate.passed
+            or gate.cancelled
+            or gate.timed_out
+        ):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] does not carry one passed terminal gate"
+            )
+        if not isinstance(artifact.diff_bytes, bytes):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] patch bytes are not immutable bytes"
+            )
+        actual_diff_sha256 = hashlib.sha256(artifact.diff_bytes).hexdigest()
+        if not hmac.compare_digest(actual_diff_sha256, str(artifact.diff_sha256)):
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] patch digest does not match patch bytes"
+            )
+
+        artifact_base = _revision(
+            str(artifact.base_revision),
+            f"candidate[{index}].artifact.base_revision",
+        )
+        result_base = _revision(
+            str(result.base_revision),
+            f"candidate[{index}].result.base_revision",
+        )
+        if result_base != artifact_base:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] result base does not match artifact base"
+            )
+        if result.task_id != artifact.task_id:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] result task_id does not match artifact task_id"
+            )
+        if result.branch != artifact.branch:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] result branch does not match artifact branch"
+            )
+        if not isinstance(result.task_id, str) or not result.task_id:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] task_id must be a non-empty string"
+            )
+        if not isinstance(result.branch, str) or not result.branch:
+            raise PromotionAuthorizationError(
+                f"candidate[{index}] branch must be a non-empty string"
+            )
+        changed_paths = _canonical_changed_paths(
+            artifact.changed_paths,
+            index=index,
+        )
+
+        artifact_snapshot = replace(
+            artifact,
+            base_revision=artifact_base,
+            diff_bytes=bytes(artifact.diff_bytes),
+            diff_sha256=actual_diff_sha256,
+            changed_paths=changed_paths,
+        )
+        result_snapshot = replace(
+            result,
+            task_id=str(result.task_id),
+            branch=str(result.branch),
+            base_revision=result_base,
+            artifact=artifact_snapshot,
+        )
+        snapshots.append(
+            PromotionCandidateSnapshot(
+                assignment=getattr(candidate, "assignment", None),
+                spec=getattr(candidate, "spec", None),
+                result=result_snapshot,
+            )
+        )
+    return tuple(snapshots)
+
+
+def _candidate_batch_sha256_from_snapshots(
+    candidates: Sequence[PromotionCandidateSnapshot],
+) -> str:
+    rows: list[dict[str, object]] = []
+    for index, candidate in enumerate(candidates):
+        result = candidate.result
+        artifact = result.artifact
         rows.append(
             {
                 "index": index,
-                "task_id": str(result.task_id),
-                "base_revision": str(artifact.base_revision),
-                "diff_sha256": str(artifact.diff_sha256),
+                "task_id": result.task_id,
+                "base_revision": artifact.base_revision,
+                "diff_sha256": artifact.diff_sha256,
                 "changed_paths": list(artifact.changed_paths),
             }
         )
     return canonical_sha({"schema": "daedalus-candidate-batch/1", "candidates": rows})
+
+
+def candidate_batch_sha256(candidates: Sequence[Any]) -> str:
+    """Digest the exact ordered, validated patch batch intended for promotion."""
+    return _candidate_batch_sha256_from_snapshots(
+        snapshot_promotion_candidates(candidates)
+    )
 
 
 def resolve_live_target_revision(repo_root: str | Path, target_ref: str) -> str:
@@ -112,8 +279,9 @@ def authorize_promotion(
         raise PromotionAuthorizationError("promotion requires a consumed OwnerApproval")
     if not isinstance(evidence_packet, EvidencePacket):
         raise PromotionAuthorizationError("promotion requires a canonical EvidencePacket")
+    snapshots = snapshot_promotion_candidates(candidates)
     verified = consumed_approval.verified
-    candidate_sha = candidate_batch_sha256(candidates)
+    candidate_sha = _candidate_batch_sha256_from_snapshots(snapshots)
     packet_sha = evidence_packet.digest
     live_revision = _revision(live_target_revision, "live_target_revision")
     ref = _identifier(target_ref, "target_ref")
@@ -135,7 +303,7 @@ def authorize_promotion(
     if evidence_packet.candidate_artifact_locator != f"artifact-locator:sha256:{candidate_sha}":
         mismatches.append("candidate_locator")
     base_revisions = {
-        str(candidate.result.artifact.base_revision) for candidate in candidates
+        snapshot.result.artifact.base_revision for snapshot in snapshots
     }
     if base_revisions != {verified.base_revision}:
         mismatches.append("candidate_base_revision")
@@ -221,8 +389,10 @@ def authorize_persisted_promotion(
 __all__ = [
     "PromotionAuthorization",
     "PromotionAuthorizationError",
+    "PromotionCandidateSnapshot",
     "authorize_persisted_promotion",
     "authorize_promotion",
     "candidate_batch_sha256",
     "resolve_live_target_revision",
+    "snapshot_promotion_candidates",
 ]
