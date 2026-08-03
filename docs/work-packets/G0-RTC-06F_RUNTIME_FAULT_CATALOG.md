@@ -9,6 +9,10 @@ This packet is stacked on `G0-RTC-06E`. It does not run a live provider, create
 a trusted observation, close the full fault matrix, migrate a provider, or close
 Gate 0.
 
+The canonical implementation lives in `daedalus.runtimes.fault_matrix`.
+`daedalus.runtimes.faults` remains a compatibility import while the repository
+is migrated strangler-style along explicit runtime responsibilities.
+
 ## Catalog boundary
 
 `RUNTIME_FAULT_CATALOG` contains 24 required Gate-0 scenarios:
@@ -33,8 +37,15 @@ A `RuntimeFaultObservation` binds:
 - one exact source revision;
 - the scenario's required authority class;
 - passed, failed or blocked status;
+- the actual observed terminal outcome when an outcome was observed;
 - content-addressed raw evidence; and
 - provenance over the scenario and evidence digests.
+
+A passing observation must contain an `observed_outcome`. The verifier compares
+it with the scenario's `expected_outcome`. This prevents a trusted harness from
+reducing both "the test runner exited zero" and "the system reached the required
+terminal state" to one undifferentiated pass bit. A blocked observation may not
+invent an observed outcome.
 
 Observations are immutable records, not self-authenticating proof. A candidate
 can construct a structurally valid record and can claim `status="passed"`; that
@@ -52,8 +63,8 @@ Consequently:
 - an empty trust set fails closed;
 - trusting a raw JUnit payload but not the complete observation record is
   insufficient;
-- changing scenario, authority, revision, status, timestamp or provenance
-  changes the observation digest and invalidates prior trust;
+- changing scenario, authority, revision, status, observed outcome, timestamp
+  or provenance changes the observation digest and invalidates prior trust;
 - a candidate-local catalog shrink produces a catalog mismatch and missing
   canonical scenarios; and
 - model opinion cannot be inserted as an execution authority.
@@ -71,13 +82,14 @@ The verifier derives blockers for:
 - missing or foreign scenarios;
 - scenario-digest drift;
 - authority mismatch;
-- untrusted observation records; and
+- untrusted observation records;
+- passed observations with a terminal-outcome mismatch; and
 - failed or externally blocked observations.
 
 There is no writable `closed` field on the matrix. The verification projection
 reports `closed=true` only when every canonical required scenario has one exact,
-trusted, passing observation. That projection is runtime-fault completeness
-only; it is not the Gate-0 release decision.
+trusted, passing observation with the required terminal outcome. That projection
+is runtime-fault completeness only; it is not the Gate-0 release decision.
 
 ## Adversarial review findings fixed
 
@@ -85,14 +97,20 @@ only; it is not the Gate-0 release decision.
    `status="passed"` observations without requiring external trust. Verification
    now requires the complete observation digest in an externally supplied trust
    set.
-2. **Requirement shrink.** Matrix provenance may bind a candidate-local catalog,
+2. **Outcome erasure.** A trusted pass record originally had no structured field
+   for what actually happened. Observations now bind `observed_outcome`, and a
+   passing outcome must equal the catalog requirement.
+3. **Requirement shrink.** Matrix provenance may bind a candidate-local catalog,
    but verification always compares it with the externally selected canonical
    catalog and names the mismatch plus missing scenarios.
-3. **Record repackaging.** Trust applies to the full observation digest rather
+4. **Record repackaging.** Trust applies to the full observation digest rather
    than only the raw evidence digest, so metadata and binding changes invalidate
    trust.
-4. **String-as-array input.** Strict loaders reject strings for scenario arrays,
+5. **String-as-array input.** Strict loaders reject strings for scenario arrays,
    observation arrays and trust sets.
+6. **JUnit output path.** The first workflow draft wrote JUnit XML below
+   `reports/` before creating the directory. The workflow now creates it before
+   pytest starts.
 
 ## Verification contract
 
@@ -104,7 +122,8 @@ The dedicated workflow requests:
 - catalog contract tests plus every currently mapped deterministic broker/fence
   test;
 - JUnit XML; and
-- an isolated wheel import/digest smoke.
+- an isolated wheel smoke that imports both the canonical module and the legacy
+  compatibility path.
 
 The workflow emits the deterministic required-scenario catalog with
 `security_boundary_claimed=false` and `execution_evidence_claimed=false`.
