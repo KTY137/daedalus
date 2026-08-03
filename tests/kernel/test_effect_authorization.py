@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from daedalus.kernel.authorization import LeasedEffectAuthorization
+from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
@@ -123,7 +123,7 @@ def lease(*, runtime: bool = False):
 
 def authorization(tmp_path, *, runtime: bool = False, generation: int = 7):
     value, req, policy = lease(runtime=runtime)
-    return LeasedEffectAuthorization(
+    return NonRuntimeEffectAuthorization(
         lease=value,
         request=req,
         policy_decision=policy,
@@ -177,7 +177,7 @@ def test_grant_start_terminal_and_exact_replay(tmp_path) -> None:
     assert replay.receipt == first.receipt
 
 
-def test_generic_boundary_refuses_runtime_bypass(tmp_path) -> None:
+def test_non_runtime_boundary_refuses_runtime_bypass(tmp_path) -> None:
     with pytest.raises(EffectLeaseBindingMismatch, match="RuntimeBound"):
         authorization(tmp_path, runtime=True)
 
@@ -188,7 +188,7 @@ def test_request_policy_and_signature_mismatches_fail_closed(tmp_path) -> None:
 
     wrong_request = dataclasses.replace(req, attempt_id="attempt-2")
     with pytest.raises(EffectLeaseBindingMismatch, match="request"):
-        LeasedEffectAuthorization(
+        NonRuntimeEffectAuthorization(
             lease=value,
             request=wrong_request,
             policy_decision=policy,
@@ -202,7 +202,7 @@ def test_request_policy_and_signature_mismatches_fail_closed(tmp_path) -> None:
         )
 
     tampered = dataclasses.replace(value, signature_sha256="9" * 64)
-    auth = LeasedEffectAuthorization(
+    auth = NonRuntimeEffectAuthorization(
         lease=tampered,
         request=req,
         policy_decision=policy,
@@ -225,7 +225,7 @@ def test_stale_generation_and_missing_guards_are_refused(tmp_path) -> None:
 
     value, req, policy = lease()
     with pytest.raises(EffectLeaseBindingMismatch, match="guard"):
-        LeasedEffectAuthorization(
+        NonRuntimeEffectAuthorization(
             lease=value,
             request=req,
             policy_decision=policy,
