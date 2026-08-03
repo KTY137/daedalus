@@ -22,7 +22,6 @@ from daedalus.schemas import (
     _freeze_json,
     _identifier,
     _json_value,
-    _require_provenance_inputs,
     _revision,
     _sha256,
     _sorted_strings,
@@ -136,16 +135,20 @@ class Gate0ReleaseReport(CanonicalContract):
             raise ValueError("release generated_at contradicts provenance.created_at")
         if self.provenance.trace_id != self.release_id:
             raise ValueError("release provenance trace_id must equal release_id")
-        _require_provenance_inputs(
-            self.provenance,
-            (
-                self.mechanical_report_sha256,
-                _report_sha256(report),
-                self.evidence_index_sha256,
-                self.evidence_trust_bundle_sha256,
-            ),
-            "Gate-0 release report",
+        expected_inputs = tuple(
+            sorted(
+                {
+                    self.mechanical_report_sha256,
+                    _report_sha256(report),
+                    self.evidence_index_sha256,
+                    self.evidence_trust_bundle_sha256,
+                }
+            )
         )
+        if self.provenance.input_digests != expected_inputs:
+            raise ValueError(
+                "release provenance inputs must exactly match retained identities"
+            )
 
     @property
     def parsed_gate_report(self) -> GateReport:
