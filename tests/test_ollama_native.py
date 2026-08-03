@@ -309,6 +309,7 @@ class RewriteWindowTests(unittest.TestCase):
                 report = _provider(srv.url)._run_rewrite(
                     objective, d, ["docs/x.md"], None, 60, None,
                     rewrite_windows={"docs/x.md": [{"line": 2, "radius": 0}]},
+                    allowed_write_paths=["docs/x.md"],
                 )
             after = (root / "docs" / "x.md").read_bytes()
 
@@ -344,6 +345,7 @@ class RewriteWindowTests(unittest.TestCase):
                 report = _provider(srv.url)._run_rewrite(
                     objective, d, ["docs/x.md"], None, 60, None,
                     rewrite_windows={"docs/x.md": [{"line": 2, "radius": 0}]},
+                    allowed_write_paths=["docs/x.md"],
                 )
             after = target.read_bytes()
 
@@ -363,7 +365,8 @@ class RewriteWindowTests(unittest.TestCase):
                 (Path(d) / "src" / "big.py").write_text(big, encoding="utf-8")
                 with FakeOllama([]) as srv:  # nothing scripted; must not be called
                     report = _provider(srv.url)._run_rewrite(
-                        "Refactor", d, ["src/big.py"], None, 60, None)
+                        "Refactor", d, ["src/big.py"], None, 60, None,
+                        allowed_write_paths=["src/big.py"])
                     self.assertEqual(len(srv.requests), 0)  # NO model call for the file
         self.assertEqual(report["files_changed"], [])
         self.assertIn("context window", report["handoff"]["skipped"]["src/big.py"])
@@ -378,7 +381,9 @@ class RewriteWindowTests(unittest.TestCase):
             (Path(d) / "src" / "calc.py").write_text(original, encoding="utf-8")
             with FakeOllama([(200, _resp(json.dumps({"content": edited})))]) as srv:
                 report = _provider(srv.url)._run_rewrite(
-                    obj, d, ["src/calc.py"], None, 60, None, {"src/calc.py": slice_ctx})
+                    obj, d, ["src/calc.py"], None, 60, None,
+                    {"src/calc.py": slice_ctx},
+                    allowed_write_paths=["src/calc.py"])
             user = srv.requests[0]["messages"][1]["content"]
         self.assertEqual(report["files_changed"], ["src/calc.py"])
         expected = (f"Change request:\n{obj}\n\n"
@@ -402,7 +407,9 @@ class RewriteWindowTests(unittest.TestCase):
             (Path(d) / "src").mkdir()
             (Path(d) / "src" / "calc.py").write_text(original, encoding="utf-8")
             with FakeOllama([(200, _resp(json.dumps({"content": edited})))]) as srv:
-                _provider(srv.url)._run_rewrite(obj, d, ["src/calc.py"], None, 60, None)
+                _provider(srv.url)._run_rewrite(
+                    obj, d, ["src/calc.py"], None, 60, None,
+                    allowed_write_paths=["src/calc.py"])
             user = srv.requests[0]["messages"][1]["content"]
         # Same relaxation as above: byte-identical up through the file body, then
         # the structural brief. The historic invariant this test pins -- that
@@ -422,7 +429,8 @@ class RewriteWindowTests(unittest.TestCase):
                 (Path(d) / "m.py").write_text(original, encoding="utf-8")
                 with FakeOllama([(200, _resp(json.dumps({"content": original.replace("1", "2")})))]) as srv:
                     report = _provider(srv.url)._run_rewrite(
-                        "change", d, ["m.py"], None, 60, None, {"m.py": slice_big})
+                        "change", d, ["m.py"], None, 60, None,
+                        {"m.py": slice_big}, allowed_write_paths=["m.py"])
                     self.assertEqual(len(srv.requests), 1)      # one call, made WITHOUT the slice
                     user = srv.requests[0]["messages"][1]["content"]
         self.assertEqual(report["files_changed"], ["m.py"])     # file still processed

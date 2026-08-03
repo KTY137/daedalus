@@ -4,10 +4,11 @@ import dataclasses
 import json
 import os
 import re
+import stat
 import subprocess
 from collections import namedtuple
 from collections.abc import Mapping
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from ..lanes import BASELINE_POLICY, WriteAttempt, render_brief, run_checks
@@ -350,6 +351,121 @@ def warm_model_async(host: str | None = None, model: str | None = None,
     ).start()
 
 
+class _WritePathRefused(ValueError):
+    """A proposed provider write did not match its frozen filesystem scope."""
+
+
+def _relative_path_components(value: Any) -> tuple[str, ...]:
+    """Return one canonical repo-relative path as explicit components.
+
+    Both slash spellings are treated as separators on every host.  This keeps a
+    scope frozen on Linux from gaining a different meaning when replayed on
+    Windows.  Aliases (``.``/empty components), traversal, drives, UNC paths and
+    absolute paths are rejected instead of normalized into an allowed target.
+    """
+    if not isinstance(value, (str, os.PathLike)):
+        raise _WritePathRefused("path is not a string")
+    raw = os.fspath(value)
+    if not isinstance(raw, str) or not raw or "\x00" in raw:
+        raise _WritePathRefused("path is empty or contains NUL")
+    portable = raw.replace("\\", "/")
+    windows = PureWindowsPath(raw)
+    if portable.startswith("/") or windows.drive or windows.root:
+        raise _WritePathRefused("absolute, drive-relative, and UNC paths are forbidden")
+    parts = tuple(portable.split("/"))
+    if ".." in parts:
+        raise _WritePathRefused("path traversal ('..') is forbidden")
+    if any(part in {"", "."} for part in parts):
+        raise _WritePathRefused("path must use canonical non-empty components")
+    for part in parts:
+        # Freeze one portable identity.  Windows otherwise aliases trailing
+        # dots/spaces, device names (CON/NUL/COM1/...), and ``name:stream`` ADS
+        # syntax to something other than the declared repository file.
+        if (
+            part.endswith((".", " "))
+            or any(char in part for char in '<>:"|?*')
+            or PureWindowsPath(part).is_reserved()
+        ):
+            raise _WritePathRefused(
+                f"path component {part!r} is not a portable exact filename"
+            )
+    return parts
+
+
+def _component_key(parts: tuple[str, ...]) -> tuple[str, ...]:
+    """Filesystem-aware exact key; only Windows folds component case."""
+    return tuple(os.path.normcase(part) for part in parts)
+
+
+def _is_symlink_or_reparse(path: Path) -> bool:
+    """Detect POSIX links and Windows junction/reparse components via lstat."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    if path.is_symlink():
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(getattr(info, "st_file_attributes", 0) & reparse_flag)
+
+
+class _WritePathAllowlist:
+    """Exact component allowlist for one provider invocation.
+
+    This object conveys scope only; it is deliberately not an authority or a
+    capability token.  Invalid declarations add no permission.  Authorization
+    is repeated at the physical write site so a link/reparse swap while the
+    model is running fails closed before the provider mutates the target.
+    """
+
+    def __init__(self, repo_root: str, declared_paths: Any) -> None:
+        self.root = Path(repo_root).resolve()
+        if declared_paths is None:
+            items: tuple[Any, ...] = ()
+        elif isinstance(declared_paths, (str, os.PathLike)):
+            items = (declared_paths,)
+        else:
+            try:
+                items = tuple(declared_paths)
+            except TypeError:
+                items = ()
+        keys: set[tuple[str, ...]] = set()
+        canonical_paths: set[str] = set()
+        for item in items:
+            try:
+                parts = _relative_path_components(item)
+                keys.add(_component_key(parts))
+                canonical_paths.add("/".join(parts))
+            except _WritePathRefused:
+                continue
+        self._keys = frozenset(keys)
+        self.paths = tuple(sorted(canonical_paths))
+
+    def authorize(self, raw_rel: Any) -> tuple[Path, str]:
+        parts = _relative_path_components(raw_rel)
+        rel = "/".join(parts)
+        if _component_key(parts) not in self._keys:
+            raise _WritePathRefused(
+                f"'{rel}' is not exactly declared in allowed_write_paths")
+
+        target = self.root.joinpath(*parts)
+        current = self.root
+        try:
+            for part in parts:
+                current = current / part
+                if _is_symlink_or_reparse(current):
+                    raise _WritePathRefused(
+                        f"'{rel}' crosses a symlink or reparse component")
+            resolved = target.resolve(strict=False)
+        except OSError as exc:
+            raise _WritePathRefused(
+                f"cannot validate filesystem components for '{rel}': {exc}") from exc
+        if self.root != resolved and self.root not in resolved.parents:
+            raise _WritePathRefused(
+                f"'{rel}' resolves outside repo_root through a link/reparse escape")
+        return target, rel
+
+
 class OllamaProvider(Provider):
     caps = ProviderCapabilities(
         name="ollama",
@@ -488,7 +604,8 @@ class OllamaProvider(Provider):
             raise ValueError("path escapes repo root")
         return target, target.relative_to(root).as_posix()
 
-    def _dispatch(self, name, args, repo_root, policy, changed, writable) -> str:
+    def _dispatch(self, name, args, repo_root, policy, changed, writable,
+                  allowed_write_paths=None) -> str:
         if name == "git_status":
             try:
                 completed = subprocess.run(
@@ -528,23 +645,15 @@ class OllamaProvider(Provider):
             except (OSError, subprocess.SubprocessError) as exc:
                 return f"ERROR: cannot run git diff: {exc}"
         raw_rel = str(args.get("path", ""))
-        try:
-            target, rel = self._resolve(repo_root, raw_rel)  # rel = RESOLVED path
-        except ValueError:
-            return f"ERROR: '{raw_rel}' is outside the repository."
-        if name == "list_dir":
-            if not target.is_dir():
-                return f"ERROR: '{rel}' is not a directory."
-            return "\n".join(sorted(p.name for p in target.iterdir()))
-        if name == "read_file":
-            try:
-                return target.read_text(encoding="utf-8", errors="replace")[:MAX_READ_CHARS]
-            except OSError as exc:
-                return f"ERROR: cannot read '{rel}': {exc}"
         if name == "write_file":
             if not writable:
                 return "REFUSED: this task is advisory (read-only). Propose the change in your report; do not write."
-            if path_write_blocked(rel, policy):  # guard the RESOLVED path
+            try:
+                target, rel = _WritePathAllowlist(
+                    repo_root, allowed_write_paths).authorize(raw_rel)
+            except _WritePathRefused as exc:
+                return f"REFUSED: {exc}."
+            if path_write_blocked(rel, policy):
                 return (f"REFUSED: '{rel}' is a protected path (device/vendor/secret/high-risk). "
                         "Ollama may not write here -- leave it for Claude.")
             try:
@@ -562,6 +671,19 @@ class OllamaProvider(Provider):
                 return f"OK: wrote {rel}."
             except OSError as exc:
                 return f"ERROR: cannot write '{rel}': {exc}"
+        try:
+            target, rel = self._resolve(repo_root, raw_rel)  # rel = RESOLVED path
+        except ValueError:
+            return f"ERROR: '{raw_rel}' is outside the repository."
+        if name == "list_dir":
+            if not target.is_dir():
+                return f"ERROR: '{rel}' is not a directory."
+            return "\n".join(sorted(p.name for p in target.iterdir()))
+        if name == "read_file":
+            try:
+                return target.read_text(encoding="utf-8", errors="replace")[:MAX_READ_CHARS]
+            except OSError as exc:
+                return f"ERROR: cannot read '{rel}': {exc}"
         return f"ERROR: unknown tool '{name}'."
 
     # -- agentic loop -----------------------------------------------------
@@ -641,7 +763,7 @@ class OllamaProvider(Provider):
             RESCUE_CALLS, action)
 
     def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy,
-                     writable, slice_texts=None):
+                     writable, slice_texts=None, allowed_write_paths=None):
         changed: list[str] = []
         tools = _READ_TOOLS + ([_WRITE_TOOL] if writable else [])
         action = ("APPLY every change by calling the write_file tool with the FULL new file "
@@ -738,7 +860,9 @@ class OllamaProvider(Provider):
                     args = json.loads(fn.get("arguments") or "{}")
                 except json.JSONDecodeError:
                     args = {}
-                result = self._dispatch(fn.get("name", ""), args, repo_root, policy, changed, writable)
+                result = self._dispatch(
+                    fn.get("name", ""), args, repo_root, policy, changed, writable,
+                    allowed_write_paths)
                 messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
                                  "name": fn.get("name", ""), "content": result})
         if report is None:  # exhausted the step budget -- force a final report
@@ -1054,7 +1178,8 @@ class OllamaProvider(Provider):
     # -- full-file-rewrite write path --------------------------------------
 
     def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy,
-                     slice_texts=None, rewrite_windows=None):
+                     slice_texts=None, rewrite_windows=None,
+                     allowed_write_paths=None):
         """Apply a scoped write WITHOUT the tool loop. The live benchmark showed
         7B-class models narrate edits but never emit write_file calls -- yet the
         same model reliably returns the COMPLETE edited file as json. So: model
@@ -1067,11 +1192,12 @@ class OllamaProvider(Provider):
         slice_texts = slice_texts or {}
         rewrite_windows = rewrite_windows or {}
         windowed: list[str] = []           # rels edited through a line window
+        write_scope = _WritePathAllowlist(repo_root, allowed_write_paths)
         for raw_rel in paths[:MAX_REWRITE_FILES]:
             try:
-                target, rel = self._resolve(repo_root, raw_rel)
-            except ValueError:
-                skipped[raw_rel] = "outside repo"
+                target, rel = write_scope.authorize(raw_rel)
+            except _WritePathRefused as exc:
+                skipped[str(raw_rel)] = str(exc)
                 continue
             # Greenfield CREATE: a path that doesn't exist yet is a creation
             # request, not an error -- the same guard gates it, the backup is
@@ -1137,6 +1263,15 @@ class OllamaProvider(Provider):
             if refusal:
                 skipped[rel] = refusal
                 continue
+            # The model call creates a swap window.  Re-authorize immediately
+            # before backup/directory creation/write so a symlink or Windows
+            # reparse component introduced during inference cannot redirect
+            # the mutation.
+            try:
+                target, rel = write_scope.authorize(raw_rel)
+            except _WritePathRefused as exc:
+                skipped[rel] = str(exc)
+                continue
             # Backup None = created file (rollback deletes it). Track any parent
             # dirs we create so rollback can prune them too (mirrors the tool loop).
             self._backups.setdefault(str(target), target.read_bytes() if target.exists() else None)
@@ -1196,6 +1331,10 @@ class OllamaProvider(Provider):
         timeout_s: int = 300,
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
+        # Exact repo-relative files granted by the already-authorized plan.
+        # This is scope metadata, not an authority token.  Write mode without a
+        # non-empty declaration is refused before any model request.
+        allowed_write_paths: list[str] | tuple[str, ...] | None = None,
         slice_texts: dict[str, str] | None = None,  # rel -> caller-gated distilled context
         # rel -> line windows to correct instead of reprinting the file. See
         # _normalize_rewrite_windows for the accepted item shapes. Absent (the
@@ -1229,15 +1368,32 @@ class OllamaProvider(Provider):
         # "did_work" live only on this outer dict, as siblings of "report".
         self._written = []
         persona = persona_for(self.caps.name, agent.get("name"))
+        frozen_write_paths: tuple[str, ...] = ()
+        if writable:
+            write_scope = _WritePathAllowlist(repo_root, allowed_write_paths)
+            frozen_write_paths = write_scope.paths
+        if writable and not frozen_write_paths:
+            return {
+                "provider": self.caps.name,
+                "persona": persona,
+                "agent": agent.get("name"),
+                "report": blocked_report(
+                    "write mode requires a non-empty allowed_write_paths declaration",
+                    "Bind the exact planned repository-relative files before invoking Ollama."),
+                "wrote": [],
+                "did_work": False,
+            }
         try:
             if writable and paths and len(paths) <= MAX_REWRITE_FILES:
                 # Scoped write -> full-file rewrite (deterministic apply; the
                 # benchmark proved the tool loop never actually writes at 7B).
                 report = self._run_rewrite(objective, repo_root, paths, model, timeout_s,
-                                           policy, slice_texts, rewrite_windows)
+                                           policy, slice_texts, rewrite_windows,
+                                           frozen_write_paths)
             else:
                 report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s,
-                                           policy, writable, slice_texts)
+                                           policy, writable, slice_texts,
+                                           frozen_write_paths)
         except (ProviderHTTPError, ValueError) as exc:
             # Fall back to a single-shot advisory read if the tool loop can't run.
             try:

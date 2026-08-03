@@ -189,7 +189,8 @@ class RewriteCreateTests(unittest.TestCase):
                             return_value={"role": "assistant",
                                           "content": '{"content": "# Watering Tips\\n\\nWater at dawn.\\n"}'}):
                 report = p._run_rewrite("Create a watering tips doc", tmp,
-                                        ["docs/tips.md"], None, 60, None)
+                                        ["docs/tips.md"], None, 60, None,
+                                        allowed_write_paths=["docs/tips.md"])
             target = Path(tmp) / "docs" / "tips.md"
             self.assertEqual(report["files_changed"], ["docs/tips.md"])
             self.assertTrue(target.exists())
@@ -204,7 +205,9 @@ class RewriteCreateTests(unittest.TestCase):
             p = self._provider()
             with mock.patch("daedalus.providers.ollama.native_chat",
                             return_value={"role": "assistant", "content": '{"content": ""}'}):
-                report = p._run_rewrite("Create a doc", tmp, ["docs/x.md"], None, 60, None)
+                report = p._run_rewrite(
+                    "Create a doc", tmp, ["docs/x.md"], None, 60, None,
+                    allowed_write_paths=["docs/x.md"])
             self.assertEqual(report["files_changed"], [])
             self.assertFalse((Path(tmp) / "docs" / "x.md").exists())
 
