@@ -8,6 +8,7 @@ on:
       - "daedalus/twin/delta.py"
       - "daedalus/twin/__init__.py"
       - "tests/twin/test_graph_delta.py"
+      - "tests/twin/test_graph_delta_exact_noop.py"
       - "tests/twin/test_graph_delta_review.py"
       - "scripts/run_graph_delta_mutations.py"
       - "docs/work-packets/G2-PREP-GD01_GRAPH_DELTA.md"
@@ -53,6 +54,7 @@ jobs:
           tests/twin/test_fourfold_contracts.py
           tests/twin/test_projection_verifier.py
           tests/twin/test_graph_delta.py
+          tests/twin/test_graph_delta_exact_noop.py
           tests/twin/test_graph_delta_review.py
       - name: Bounded graph-delta mutation campaign
         run: python scripts/run_graph_delta_mutations.py
