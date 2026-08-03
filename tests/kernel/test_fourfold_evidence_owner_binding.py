@@ -13,13 +13,15 @@ from daedalus.kernel.approvals import (
     issue_owner_approval,
     verify_owner_approval,
 )
-from daedalus.schemas import (
-    ContractProvenance,
-    EvidenceItem,
-    EvidencePacket,
-    NominationReceipt,
-    ResourceUsage,
+from daedalus.kernel.fourfold_evidence import (
+    FourfoldEvidenceExpectation,
+    FourfoldEvidenceMismatch,
+    assemble_fourfold_evidence_packet,
+    assemble_fourfold_nomination_receipt,
+    verify_fourfold_evidence_packet,
+    verify_fourfold_nomination_receipt,
 )
+from daedalus.schemas import ContractProvenance, ResourceUsage
 from daedalus.twin import compile_reference_project
 
 
@@ -33,14 +35,6 @@ FIXTURE = Path(__file__).resolve().parents[2] / "examples" / "fourfold_wiki_app"
 def _sha(value: str | bytes) -> str:
     raw = value if isinstance(value, bytes) else value.encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
-
-
-def _locator(label: str) -> str:
-    return f"artifact-locator:sha256:{_sha(label)}"
-
-
-def _locator_digest(locator: str) -> str:
-    return locator.rsplit(":", 1)[1]
 
 
 def _tree_digest(root: Path) -> str:
@@ -67,97 +61,43 @@ def _compile(root: Path, revision: str = REVISION):
     )
 
 
-def _evidence(root: Path, revision: str = REVISION):
+def _artifacts(root: Path, revision: str = REVISION):
     compiled = _compile(root, revision)
     snapshot = compiled.snapshot
     candidate_sha = _tree_digest(root)
-    attempt_sha = _sha("fixture-attempt-contract")
-    policy_sha = _sha("fixture-policy-decision")
-    snapshot_locator = _locator("fourfold-snapshot-evidence")
-    candidate_locator = _locator("candidate-source-tree")
-
-    item = EvidenceItem(
-        evidence_id="fourfold-snapshot",
-        evaluator="fourfold-reference-compiler",
-        assurance="deterministic",
-        verdict="passed",
-        output_sha256=snapshot.digest,
-        evidence_locator=snapshot_locator,
-        collected_at=NOW.isoformat(),
-        provenance=ContractProvenance(
-            origin="tests.fourfold-evidence-item",
-            source_revision=revision,
-            created_at=NOW.isoformat(),
-            input_digests=(snapshot.digest, _locator_digest(snapshot_locator)),
-            trace_id="g0-fourfold-evidence-binding",
-        ),
-        details={
-            "planes": [plane.plane for plane in snapshot.planes],
-            "bindings": len(snapshot.bindings),
-            "all_planes_complete": all(
-                plane.status == "complete" for plane in snapshot.planes
-            ),
-        },
+    candidate_locator = f"artifact-locator:sha256:{candidate_sha}"
+    expectation = FourfoldEvidenceExpectation(
+        candidate_artifact_sha256=candidate_sha,
+        candidate_artifact_locator=candidate_locator,
+        snapshot_sha256=snapshot.digest,
+        source_revision=revision,
     )
-    packet_inputs = {
-        attempt_sha,
-        snapshot.digest,
-        policy_sha,
-        candidate_sha,
-        _locator_digest(candidate_locator),
-    }
-    packet = EvidencePacket(
+    packet = assemble_fourfold_evidence_packet(
+        snapshot=snapshot,
+        candidate_artifact_sha256=candidate_sha,
+        candidate_artifact_locator=candidate_locator,
         packet_id="fourfold-evidence-packet",
         mission_id="g0-fourfold-binding",
         attempt_id="g0-fourfold-binding-attempt",
-        source_revision=revision,
-        attempt_contract_sha256=attempt_sha,
-        subject_sha256=snapshot.digest,
-        evaluation_status="passed",
-        items=(item,),
-        policy_decision_sha256=policy_sha,
+        attempt_contract_sha256=_sha("fixture-attempt-contract"),
+        policy_decision_sha256=_sha("fixture-policy-decision"),
+        collected_at=NOW.isoformat(),
         usage=ResourceUsage(wall_time_ms=1),
-        candidate_artifact_sha256=candidate_sha,
-        candidate_artifact_locator=candidate_locator,
-        provenance=ContractProvenance(
-            origin="tests.fourfold-evidence-packet",
-            source_revision=revision,
-            created_at=NOW.isoformat(),
-            input_digests=tuple(packet_inputs),
-            trace_id="g0-fourfold-evidence-binding",
-        ),
+        trace_id="g0-fourfold-evidence-binding",
     )
-    nomination_inputs = (
-        candidate_sha,
-        _locator_digest(candidate_locator),
-        packet.digest,
-        _locator_digest(snapshot_locator),
-        policy_sha,
-    )
-    nomination = NominationReceipt(
+    nomination = assemble_fourfold_nomination_receipt(
+        snapshot=snapshot,
+        packet=packet,
+        expectation=expectation,
         nomination_id="fourfold-nomination",
-        mission_id=packet.mission_id,
-        attempt_id=packet.attempt_id,
-        source_revision=revision,
-        candidate_artifact_sha256=candidate_sha,
-        candidate_artifact_locator=candidate_locator,
-        evidence_packet_sha256=packet.digest,
-        evidence_locator=snapshot_locator,
-        policy_decision_sha256=policy_sha,
-        nomination_status="nominated",
         reasons=("deterministic Fourfold snapshot and candidate tree are retained",),
-        provenance=ContractProvenance(
-            origin="tests.fourfold-nomination",
-            source_revision=revision,
-            created_at=NOW.isoformat(),
-            input_digests=nomination_inputs,
-            trace_id="g0-fourfold-evidence-binding",
-        ),
+        created_at=NOW.isoformat(),
+        trace_id="g0-fourfold-evidence-binding",
     )
-    return compiled, candidate_sha, packet, nomination
+    return compiled, candidate_sha, expectation, packet, nomination
 
 
-def _approval(candidate_sha: str, packet: EvidencePacket, nomination: NominationReceipt):
+def _approval(candidate_sha, packet, nomination):
     return issue_owner_approval(
         approval_id="test-fourfold-approval",
         owner_id="fixture-owner",
@@ -183,7 +123,7 @@ def _approval(candidate_sha: str, packet: EvidencePacket, nomination: Nomination
     )
 
 
-def _expectation(candidate_sha: str, packet: EvidencePacket, nomination: NominationReceipt):
+def _approval_expectation(candidate_sha, packet, nomination):
     return ApprovalExpectation(
         operation="promote-candidate",
         nomination_receipt_sha256=nomination.digest,
@@ -196,21 +136,33 @@ def _expectation(candidate_sha: str, packet: EvidencePacket, nomination: Nominat
 
 
 def test_real_fourfold_snapshot_binds_evidence_nomination_and_owner_approval() -> None:
-    compiled, candidate_sha, packet, nomination = _evidence(FIXTURE)
+    compiled, candidate_sha, expectation, packet, nomination = _artifacts(FIXTURE)
     snapshot = compiled.snapshot
 
     assert all(plane.status == "complete" for plane in snapshot.planes)
     assert tuple(snapshot.plane_map) == ("code", "type", "data", "knowledge")
     assert len(snapshot.bindings) == 31
-    assert packet.subject_sha256 == snapshot.digest
-    assert packet.candidate_artifact_sha256 == candidate_sha
+    assert packet.subject_sha256 == candidate_sha
+    assert packet.items[0].output_sha256 == snapshot.digest
     assert nomination.evidence_packet_sha256 == packet.digest
+
+    verify_fourfold_evidence_packet(
+        packet,
+        snapshot=snapshot,
+        expectation=expectation,
+    )
+    verify_fourfold_nomination_receipt(
+        nomination,
+        packet=packet,
+        snapshot=snapshot,
+        expectation=expectation,
+    )
 
     approval = _approval(candidate_sha, packet, nomination)
     verified = verify_owner_approval(
         approval,
         keyring={("fixture-owner", "fixture-owner-key"): OWNER_SECRET},
-        expectation=_expectation(candidate_sha, packet, nomination),
+        expectation=_approval_expectation(candidate_sha, packet, nomination),
         now=NOW + timedelta(seconds=1),
     )
 
@@ -222,7 +174,7 @@ def test_real_fourfold_snapshot_binds_evidence_nomination_and_owner_approval() -
 def test_source_mutation_invalidates_snapshot_evidence_and_old_approval(tmp_path: Path) -> None:
     root = tmp_path / "candidate"
     shutil.copytree(FIXTURE, root)
-    before, candidate_before, packet_before, nomination_before = _evidence(root)
+    before, candidate_before, _, packet_before, nomination_before = _artifacts(root)
     approval = _approval(candidate_before, packet_before, nomination_before)
 
     source = root / "src" / "knowledge_hub" / "search.py"
@@ -230,26 +182,36 @@ def test_source_mutation_invalidates_snapshot_evidence_and_old_approval(tmp_path
         source.read_text(encoding="utf-8") + "\n# evidence-bearing source mutation\n",
         encoding="utf-8",
     )
-    after, candidate_after, packet_after, nomination_after = _evidence(root)
+    after, candidate_after, expectation_after, packet_after, nomination_after = _artifacts(root)
 
     assert after.snapshot.digest != before.snapshot.digest
     assert candidate_after != candidate_before
     assert packet_after.digest != packet_before.digest
     assert nomination_after.digest != nomination_before.digest
+    verify_fourfold_nomination_receipt(
+        nomination_after,
+        packet=packet_after,
+        snapshot=after.snapshot,
+        expectation=expectation_after,
+    )
 
     with pytest.raises(ApprovalBindingMismatch, match="binding mismatch"):
         verify_owner_approval(
             approval,
             keyring={("fixture-owner", "fixture-owner-key"): OWNER_SECRET},
-            expectation=_expectation(candidate_after, packet_after, nomination_after),
+            expectation=_approval_expectation(
+                candidate_after,
+                packet_after,
+                nomination_after,
+            ),
             now=NOW + timedelta(seconds=1),
         )
 
 
 def test_revision_substitution_cannot_reuse_snapshot_bound_approval() -> None:
-    _, candidate_sha, packet, nomination = _evidence(FIXTURE, REVISION)
+    _, candidate_sha, _, packet, nomination = _artifacts(FIXTURE, REVISION)
     approval = _approval(candidate_sha, packet, nomination)
-    _, other_candidate, other_packet, other_nomination = _evidence(
+    _, other_candidate, _, other_packet, other_nomination = _artifacts(
         FIXTURE,
         "c" * 40,
     )
@@ -260,13 +222,63 @@ def test_revision_substitution_cannot_reuse_snapshot_bound_approval() -> None:
         verify_owner_approval(
             approval,
             keyring={("fixture-owner", "fixture-owner-key"): OWNER_SECRET},
-            expectation=_expectation(other_candidate, other_packet, other_nomination),
+            expectation=_approval_expectation(
+                other_candidate,
+                other_packet,
+                other_nomination,
+            ),
             now=NOW + timedelta(seconds=1),
         )
 
 
-def test_test_fixture_approval_is_inert_and_never_consumed_or_promoted() -> None:
-    _, candidate_sha, packet, nomination = _evidence(FIXTURE)
+def test_foreign_candidate_locator_is_refused_before_evidence_assembly() -> None:
+    compiled = _compile(FIXTURE)
+    candidate_sha = _tree_digest(FIXTURE)
+
+    with pytest.raises(FourfoldEvidenceMismatch, match="does not resolve"):
+        assemble_fourfold_evidence_packet(
+            snapshot=compiled.snapshot,
+            candidate_artifact_sha256=candidate_sha,
+            candidate_artifact_locator=(
+                "artifact-locator:sha256:" + _sha("foreign-candidate")
+            ),
+            packet_id="foreign-locator-packet",
+            mission_id="g0-fourfold-binding",
+            attempt_id="g0-fourfold-binding-attempt",
+            attempt_contract_sha256=_sha("fixture-attempt-contract"),
+            policy_decision_sha256=_sha("fixture-policy-decision"),
+            collected_at=NOW.isoformat(),
+        )
+
+
+def test_foreign_nomination_cannot_be_paired_with_valid_packet(tmp_path: Path) -> None:
+    base, _, expectation, packet, nomination = _artifacts(FIXTURE)
+    root = tmp_path / "foreign"
+    shutil.copytree(FIXTURE, root)
+    source = root / "src" / "knowledge_hub" / "models.py"
+    source.write_text(
+        source.read_text(encoding="utf-8") + "\n# foreign candidate\n",
+        encoding="utf-8",
+    )
+    _, _, _, _, foreign_nomination = _artifacts(root)
+
+    verify_fourfold_nomination_receipt(
+        nomination,
+        packet=packet,
+        snapshot=base.snapshot,
+        expectation=expectation,
+    )
+    with pytest.raises(FourfoldEvidenceMismatch, match="nomination binding mismatch"):
+        verify_fourfold_nomination_receipt(
+            foreign_nomination,
+            packet=packet,
+            snapshot=base.snapshot,
+            expectation=expectation,
+        )
+
+
+def test_fixture_approval_is_inert_and_never_consumed_or_promoted() -> None:
+    _, candidate_sha, _, packet, nomination = _artifacts(FIXTURE)
     approval = _approval(candidate_sha, packet, nomination)
 
     assert approval.owner_id == "fixture-owner"
