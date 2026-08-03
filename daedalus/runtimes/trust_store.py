@@ -4,11 +4,15 @@ The external trusted-envelope set remains the root of authority. This module
 never upgrades a locally constructed conformance envelope into trusted evidence.
 It verifies one exact live envelope and then persists only its exact runtime,
 manifest, probe, receipt, revision, observation time and expiry bindings.
-Rotation and expiry are monotonic: older evidence cannot replace newer evidence,
-and a quarantined record cannot be silently reactivated.
+Every stored row is authenticated with an external ledger-integrity key; a
+canonical digest alone is not treated as authentication. Rotation and expiry
+are monotonic: older evidence cannot replace newer evidence, and a quarantined
+record cannot be silently reactivated.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -68,6 +72,17 @@ def _timestamp(value: datetime) -> str:
     return _as_utc(value, "timestamp").isoformat(timespec="microseconds")
 
 
+def _secret_bytes(secret: bytes | str) -> bytes:
+    value = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
+    if len(value) < 32:
+        raise ValueError("runtime trust ledger integrity key must contain at least 32 bytes")
+    return value
+
+
+def _record_hmac(record_sha256: str, key: bytes) -> str:
+    return hmac.new(key, record_sha256.encode("ascii"), hashlib.sha256).hexdigest()
+
+
 def _record_payload(
     *,
     runtime_id: str,
@@ -114,6 +129,7 @@ class RuntimeTrustRecord:
     state_changed_at: str
     reason: str
     record_sha256: str
+    record_hmac_sha256: str
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "runtime_id", _identifier(self.runtime_id, "runtime_id"))
@@ -123,6 +139,7 @@ class RuntimeTrustRecord:
             "conformance_receipt_sha256",
             "runtime_manifest_sha256",
             "record_sha256",
+            "record_hmac_sha256",
         ):
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
         object.__setattr__(
@@ -171,11 +188,16 @@ class RuntimeTrustRecord:
         )
 
     def to_dict(self) -> dict[str, str]:
-        return {**self.payload(), "record_sha256": self.record_sha256}
+        return {
+            **self.payload(),
+            "record_sha256": self.record_sha256,
+            "record_hmac_sha256": self.record_hmac_sha256,
+        }
 
 
 def _make_record(
     *,
+    integrity_key: bytes,
     runtime_id: str,
     envelope_sha256: str,
     probe_identity_sha256: str,
@@ -203,14 +225,20 @@ def _make_record(
         state_changed_at=state_changed_at,
         reason=reason,
     )
-    return RuntimeTrustRecord(**payload, record_sha256=canonical_sha(payload))
+    digest = canonical_sha(payload)
+    return RuntimeTrustRecord(
+        **payload,
+        record_sha256=digest,
+        record_hmac_sha256=_record_hmac(digest, integrity_key),
+    )
 
 
 class RuntimeTrustLedger:
     """SQLite-backed exact-envelope admission and monotonic quarantine ledger."""
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, integrity_key: bytes | str):
         self.path = Path(path)
+        self._integrity_key = _secret_bytes(integrity_key)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -240,7 +268,8 @@ class RuntimeTrustLedger:
                     state TEXT NOT NULL,
                     state_changed_at TEXT NOT NULL,
                     reason TEXT NOT NULL,
-                    record_sha256 TEXT NOT NULL UNIQUE
+                    record_sha256 TEXT NOT NULL UNIQUE,
+                    record_hmac_sha256 TEXT NOT NULL
                 )
                 """
             )
@@ -249,12 +278,15 @@ class RuntimeTrustLedger:
                 "ON runtime_trust_records(runtime_id, state)"
             )
 
-    @staticmethod
-    def _from_row(row: sqlite3.Row) -> RuntimeTrustRecord:
+    def _from_row(self, row: sqlite3.Row) -> RuntimeTrustRecord:
         try:
-            return RuntimeTrustRecord(**dict(row))
+            record = RuntimeTrustRecord(**dict(row))
         except (TypeError, ValueError, RuntimeTrustStoreError) as exc:
             raise RuntimeTrustCorrupt("persisted runtime trust row is invalid") from exc
+        expected_hmac = _record_hmac(record.record_sha256, self._integrity_key)
+        if not hmac.compare_digest(record.record_hmac_sha256, expected_hmac):
+            raise RuntimeTrustCorrupt("persisted runtime trust authentication failed")
+        return record
 
     @staticmethod
     def _insert(connection: sqlite3.Connection, record: RuntimeTrustRecord) -> None:
@@ -264,8 +296,8 @@ class RuntimeTrustLedger:
                 envelope_sha256, runtime_id, probe_identity_sha256,
                 conformance_receipt_sha256, runtime_manifest_sha256,
                 source_revision, observed_at, admitted_at, expires_at, state,
-                state_changed_at, reason, record_sha256
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                state_changed_at, reason, record_sha256, record_hmac_sha256
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.envelope_sha256,
@@ -281,6 +313,7 @@ class RuntimeTrustLedger:
                 record.state_changed_at,
                 record.reason,
                 record.record_sha256,
+                record.record_hmac_sha256,
             ),
         )
 
@@ -292,7 +325,7 @@ class RuntimeTrustLedger:
                 runtime_id=?, probe_identity_sha256=?,
                 conformance_receipt_sha256=?, runtime_manifest_sha256=?,
                 source_revision=?, observed_at=?, admitted_at=?, expires_at=?, state=?,
-                state_changed_at=?, reason=?, record_sha256=?
+                state_changed_at=?, reason=?, record_sha256=?, record_hmac_sha256=?
             WHERE envelope_sha256=?
             """,
             (
@@ -308,17 +341,18 @@ class RuntimeTrustLedger:
                 record.state_changed_at,
                 record.reason,
                 record.record_sha256,
+                record.record_hmac_sha256,
                 record.envelope_sha256,
             ),
         )
         if result.rowcount != 1:
             raise RuntimeTrustCorrupt("runtime trust state transition lost its row")
 
-    @staticmethod
     def _quarantined(
-        record: RuntimeTrustRecord, *, changed_at: str, reason: str
+        self, record: RuntimeTrustRecord, *, changed_at: str, reason: str
     ) -> RuntimeTrustRecord:
         return _make_record(
+            integrity_key=self._integrity_key,
             runtime_id=record.runtime_id,
             envelope_sha256=record.envelope_sha256,
             probe_identity_sha256=record.probe_identity_sha256,
@@ -391,6 +425,7 @@ class RuntimeTrustLedger:
         admitted_text = _timestamp(admitted)
         observed_text = _timestamp(observed)
         record = _make_record(
+            integrity_key=self._integrity_key,
             runtime_id=manifest.runtime_id,
             envelope_sha256=envelope.digest,
             probe_identity_sha256=identity.digest,
@@ -450,7 +485,7 @@ class RuntimeTrustLedger:
         source_revision: str,
         now: datetime,
     ) -> RuntimeTrustRecord:
-        """Return only the exact current, unexpired and non-quarantined record."""
+        """Return only the exact current, authenticated and unexpired record."""
 
         runtime = _identifier(runtime_id, "runtime_id")
         envelope_digest = _sha256(envelope_sha256, "envelope_sha256")
@@ -556,7 +591,7 @@ class RuntimeTrustLedger:
             return updated
 
     def records(self, runtime_id: str | None = None) -> tuple[RuntimeTrustRecord, ...]:
-        """Return a deterministic, digest-verified audit projection."""
+        """Return a deterministic, authenticated audit projection."""
 
         with self._connect() as connection:
             if runtime_id is None:
