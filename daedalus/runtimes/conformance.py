@@ -34,6 +34,15 @@ from daedalus.spine.envelope import canonical_json
 
 EvidenceWriter = Callable[[bytes], str]
 Clock = Callable[[], datetime]
+_EXPECTED_NORMAL_EVENT_SHAPE = (
+    "started",
+    "stream.delta",
+    "tool.started",
+    "tool.finished",
+    "structured-output",
+    "usage",
+    "finished",
+)
 
 
 class RuntimeConformanceError(RuntimeError):
@@ -45,7 +54,7 @@ class RuntimeBindingError(RuntimeConformanceError):
 
 
 class RuntimeEvidenceError(RuntimeConformanceError):
-    """The evidence writer did not retain the exact canonical evidence bytes."""
+    """The evidence writer did not return the exact content address."""
 
 
 class RuntimeProbeTimeout(RuntimeConformanceError):
@@ -288,6 +297,8 @@ def run_runtime_conformance(
 
         normal_events: tuple[RuntimeProbeEvent, ...] = ()
         normal_exit: int | None = None
+        normal_dead_before_cleanup = False
+        normal_observed_exit: int | None = None
         normal_errors: tuple[str, ...] = ()
         normal_exception = ""
         normal_session: RuntimeProbeSession | None = None
@@ -302,6 +313,13 @@ def run_runtime_conformance(
                 )
             )
             normal_exit = normal_session.wait(normal_timeout_s)
+            normal_dead_before_cleanup = not normal_session.running
+            normal_observed_exit = normal_session.exit_code
+            _force_stop(
+                normal_session,
+                label="normal runtime session",
+                grace_s=cancellation_grace_s,
+            )
             normal_events = normal_session.events()
             normal_errors = normal_session.parse_errors
         except Exception as exc:
@@ -324,16 +342,24 @@ def run_runtime_conformance(
             and len(finished_events) == 1
             and normal_events[-1].kind == "finished"
             and finished_events[0].payload.get("status") == "passed"
+            and shapes == _EXPECTED_NORMAL_EVENT_SHAPE
         )
         retain(
             "start",
-            lifecycle_ok and normal_exit == 0 and event_order_ok and not normal_errors,
-            "runtime starts once, emits a contiguous parseable lifecycle, and exits successfully",
+            lifecycle_ok
+            and normal_exit == 0
+            and normal_dead_before_cleanup
+            and normal_observed_exit == normal_exit
+            and event_order_ok
+            and not normal_errors,
+            "runtime starts once, emits the exact contiguous lifecycle, and exits successfully",
             {
                 "lifecycle_ok": lifecycle_ok,
                 "started_count": len(started_events),
                 "finished_count": len(finished_events),
                 "exit_code": normal_exit,
+                "observed_exit_code": normal_observed_exit,
+                "process_dead_before_cleanup": normal_dead_before_cleanup,
                 "event_order_ok": event_order_ok,
                 "parse_error_count": len(normal_errors),
                 "exception": normal_exception,
@@ -484,7 +510,9 @@ def run_runtime_conformance(
                 )
             )
             cancellation_started = _wait_for_kind(
-                cancellation_session, "started", timeout_s=1.0
+                cancellation_session,
+                "started",
+                timeout_s=normal_timeout_s,
             )
             cancellation_session.cancel(cancellation_grace_s)
             cancellation_dead_before_cleanup = not cancellation_session.running
