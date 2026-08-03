@@ -51,7 +51,8 @@ def test_root_file_extractor_inventories_tree_fields_without_reading_payloads(
         source_bundle_sha256=BUNDLE,
     )
 
-    assert report.result.status == "complete"
+    assert report.result.status == "partial"
+    assert [item.code for item in report.result.diagnostics] == ["metadata-only"]
     event = next(record for record in report.objects if record.object_path == "Events")
     assert event.kind == "tree"
     assert {field.name for field in event.fields} == {"voltage", "channel"}
