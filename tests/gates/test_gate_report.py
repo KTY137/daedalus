@@ -17,6 +17,19 @@ from daedalus.gates.report import (
 )
 
 
+def _resign(payload: dict[str, object]) -> None:
+    body = dict(payload)
+    body.pop("report_sha256", None)
+    payload["report_sha256"] = hashlib.sha256(
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
+    ).hexdigest()
+
+
 def test_gate_report_is_deterministic_and_fail_closed() -> None:
     root = Path(__file__).resolve().parents[2]
     first = build_gate0_report(root, source_revision="a" * 40)
@@ -44,6 +57,49 @@ def test_round_trip_rejects_tampering() -> None:
     payload["unguarded_entrypoints"] = []
     with pytest.raises(ValueError, match="digest mismatch"):
         GateReport.from_dict(payload)
+
+
+def test_gate_report_refuses_type_coercion_and_alternate_signed_wires() -> None:
+    with pytest.raises(ValueError, match="security_boundary_claimed must be boolean"):
+        GateReport(
+            gate=0,
+            source_revision="a" * 40,
+            registry_sha256="0" * 64,
+            security_boundary_claimed="false",  # type: ignore[arg-type]
+        )
+
+    report = GateReport(
+        gate=0,
+        source_revision="a" * 40,
+        registry_sha256="0" * 64,
+        security_boundary_claimed=False,
+        owner_approval_enforced=True,
+        unguarded_entrypoints=("a", "z"),
+    )
+
+    coerced = report.to_dict()
+    coerced["security_boundary_claimed"] = "false"
+    _resign(coerced)
+    with pytest.raises(ValueError, match="security_boundary_claimed must be boolean"):
+        GateReport.from_dict(coerced)
+
+    forged_closed = report.to_dict()
+    forged_closed["closed"] = True
+    _resign(forged_closed)
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        GateReport.from_dict(forged_closed)
+
+    reordered = report.to_dict()
+    reordered["unguarded_entrypoints"] = ["z", "a"]
+    _resign(reordered)
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        GateReport.from_dict(reordered)
+
+    unknown = report.to_dict()
+    unknown["trusted"] = True
+    _resign(unknown)
+    with pytest.raises(ValueError, match="fields must match"):
+        GateReport.from_dict(unknown)
 
 
 def test_monotonic_comparison_refuses_new_blockers() -> None:
