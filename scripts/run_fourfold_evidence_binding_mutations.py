@@ -23,6 +23,11 @@ MUTATIONS = (
         "        if False:\n",
     ),
     Mutation(
+        "allow-snapshot-candidate-repackaging",
+        "    if candidate_sha not in snapshot.provenance.input_digests:\n",
+        "    if False:\n",
+    ),
+    Mutation(
         "allow-partial-snapshot-as-gate-evidence",
         "    if incomplete:\n",
         "    if False:\n",
