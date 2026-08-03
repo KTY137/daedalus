@@ -176,7 +176,19 @@ def inspect_root_artifact(
     total_fields = 0
     relation_digests: list[str] = []
     try:
-        classnames = root_file.classnames(recursive=True, cycle=False)
+        try:
+            classnames = root_file.classnames(recursive=True, cycle=False)
+        except Exception as exc:
+            return _failed_report(
+                artifact,
+                version=version,
+                source_bundle_sha256=source_bundle_sha256,
+                code="root-metadata-enumeration-failed",
+                message=(
+                    "Uproot could not enumerate ROOT object metadata: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
         if len(classnames) > limits.max_objects:
             return _failed_report(
                 artifact,
