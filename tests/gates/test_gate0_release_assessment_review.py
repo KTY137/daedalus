@@ -136,9 +136,13 @@ def test_release_receipt_provenance_is_exact_and_status_cannot_be_forged() -> No
     assert "issubset" not in receipt
 
 
-def test_untrusted_receipt_loader_rejects_recursive_duplicate_keys() -> None:
+def test_untrusted_receipt_loader_rejects_duplicates_and_noncanonical_wire() -> None:
     loader = _text(_function("load_gate0_release_receipt"))
     assert "object_pairs_hook=_reject_duplicate_keys" in loader
     parser = _text(_function("parse_gate0_release_receipt"))
     assert "Gate-0 release receipt must be an object" in parser
     assert "provenance must be an object" in parser
+    assert "wire = dict(payload)" in parser
+    assert "receipt = Gate0ReleaseReceipt.from_dict(wire)" in parser
+    assert "wire != receipt.to_dict()" in parser
+    assert "exact canonical wire form" in parser
