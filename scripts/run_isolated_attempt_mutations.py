@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {
+    "clock": ROOT / "daedalus" / "kernel" / "attempt_clock.py",
     "contracts": ROOT / "daedalus" / "kernel" / "attempt_contracts.py",
     "ledger": ROOT / "daedalus" / "kernel" / "attempt_ledger.py",
     "reader": ROOT / "daedalus" / "kernel" / "attempt_spine_reader.py",
@@ -19,6 +20,8 @@ TESTS = (
     "tests/kernel/test_isolated_attempt_cas_review.py",
     "tests/kernel/test_isolated_attempt_schema_review.py",
     "tests/kernel/test_isolated_attempt_spine_wire_review.py",
+    "tests/kernel/test_isolated_attempt_time_and_preflight.py",
+    "tests/kernel/test_isolated_attempt_effect_inventory.py",
     "tests/kernel/test_source_tree_store.py",
     "tests/kernel/test_source_tree_store_adversarial.py",
 )
@@ -122,6 +125,66 @@ def main() -> int:
             "accept-read-only-spine-as-writer",
             "        if getattr(self.spine, \"read_only\", False):\n",
             "        if False:\n",
+        ),
+        (
+            "ledger",
+            "forge-start-time-instead-of-trusted-clock",
+            "        trusted_started_at = self._clock.now()\n",
+            '        trusted_started_at = "2099-01-01T00:00:00+00:00"\n',
+        ),
+        (
+            "ledger",
+            "allow-terminal-time-equal-to-start",
+            "        trusted_completed_at = self._clock.now(minimum=start.started_at)\n",
+            "        trusted_completed_at = start.started_at\n",
+        ),
+        (
+            "ledger",
+            "drop-start-event-causal-time-binding",
+            '        if _timestamp_value(start.started_at, "started_at") > _timestamp_value(\n',
+            '        if False and _timestamp_value(start.started_at, "started_at") > _timestamp_value(\n',
+        ),
+        (
+            "ledger",
+            "drop-terminal-event-causal-time-binding",
+            '        if _timestamp_value(receipt.completed_at, "completed_at") > _timestamp_value(\n',
+            '        if False and _timestamp_value(receipt.completed_at, "completed_at") > _timestamp_value(\n',
+        ),
+        (
+            "contracts",
+            "detach-start-provenance-time",
+            "        if self.provenance.created_at != started_at:\n",
+            "        if False:\n",
+        ),
+        (
+            "contracts",
+            "detach-terminal-provenance-time",
+            "        if self.provenance.created_at != completed_at:\n",
+            "        if False:\n",
+        ),
+        (
+            "workspace",
+            "create-primary-nested-workspace-before-refusal",
+            "    _assert_disjoint(\n        prospective,\n        primary,\n        \"workspace parent and primary checkout\",\n    )\n",
+            "",
+        ),
+        (
+            "workspace",
+            "create-cas-nested-workspace-before-refusal",
+            "    _assert_disjoint(\n        prospective,\n        cas_root,\n        \"workspace parent and source-tree store\",\n    )\n",
+            "",
+        ),
+        (
+            "workspace",
+            "accept-broken-workspace-leaf-symlink",
+            "        if raw_parent.is_symlink():\n            raise AttemptWorkspaceError(\"workspace parent must not be a symlink\")\n        if raw_parent.exists() and not raw_parent.is_dir():\n",
+            "        if raw_parent.exists() and not raw_parent.is_dir():\n",
+        ),
+        (
+            "clock",
+            "remove-monotonic-clock-floor",
+            "            if current <= self._last:\n",
+            "            if False:\n",
         ),
     )
 
