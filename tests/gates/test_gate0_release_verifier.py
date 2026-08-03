@@ -49,6 +49,31 @@ def test_retained_closed_release_requires_independent_reconstruction(tmp_path: P
     )
 
 
+def test_valid_but_open_release_retains_current_blockers(tmp_path: Path) -> None:
+    root = _SUPPORT.repo_root(tmp_path)
+    report = _SUPPORT.local_report()
+    index = _SUPPORT.evidence_index(report, owner_present=False)
+    bundle = _SUPPORT.trust_bundle(index, root)
+    release = _SUPPORT.assemble(report, index, bundle, root)
+
+    blockers = gate0_release_verification_blockers(
+        release,
+        report,
+        index,
+        bundle,
+        **verification(root),
+    )
+    assert blockers == ("owner-decision:missing",)
+    with pytest.raises(ValueError, match="owner-decision:missing"):
+        assert_gate0_release_report(
+            release,
+            report,
+            index,
+            bundle,
+            **verification(root),
+        )
+
+
 def test_directly_repacked_release_contract_is_not_authoritative(tmp_path: Path) -> None:
     root = _SUPPORT.repo_root(tmp_path)
     report = _SUPPORT.local_report()
