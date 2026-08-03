@@ -78,12 +78,12 @@ def test_allocation_program_observes_kernel_cgroup_state_and_cannot_self_signal(
         "bytearray",
         "oom-started",
         "oom-observed.json",
+        "unsupported()",
     )
     for expression in required:
         assert expression in text
-    # Exit 70 is only a transport outcome. The host pass additionally requires
-    # strict kernel-counter and child-signal facts from the retained marker.
     assert "SystemExit(70 if observed else 71)" in text
+    assert "SystemExit(72)" in text
 
 
 def test_pass_requires_explicit_oom_counters_sigkill_and_exact_policy() -> None:
@@ -96,6 +96,7 @@ def test_pass_requires_explicit_oom_counters_sigkill_and_exact_policy() -> None:
         "receipt.error_code is None",
         "started_marker_exists",
         'marker_status == "valid"',
+        'marker["supported"] is True',
         'marker["observed"] is True',
         'marker["after_oom"] > marker["before_oom"]',
         'marker["after_oom_kill"] > marker["before_oom_kill"]',
@@ -111,6 +112,31 @@ def test_pass_requires_explicit_oom_counters_sigkill_and_exact_policy() -> None:
     assert "@sha256:" in SOURCE
 
 
+def test_cgroup_unavailable_is_one_exact_block_not_a_broad_escape() -> None:
+    function = _function("_execute_container_oom")
+    text = ast.get_source_segment(SOURCE, function) or ""
+    block_start = text.index("receipt.returncode == _CGROUP_UNAVAILABLE_RETURNCODE")
+    payload_start = text.index("payload = {", block_start)
+    block = text[block_start:payload_start]
+    required = (
+        "receipt.timed_out is False",
+        "receipt.error_code is None",
+        "started_marker_exists is False",
+        'marker_status == "valid"',
+        'marker["supported"] is False',
+        'marker["observed"] is False',
+        'marker["before_oom"] == 0',
+        'marker["after_oom"] == 0',
+        'marker["before_oom_kill"] == 0',
+        'marker["after_oom_kill"] == 0',
+        'marker["child_exitcode"] is None',
+        'detail_code="cgroup-v2-memory-events-unavailable"',
+    )
+    for expression in required:
+        assert expression in block
+    assert "_CGROUP_UNAVAILABLE_RETURNCODE = 72" in SOURCE
+
+
 def test_marker_wire_is_bounded_duplicate_rejecting_and_exact() -> None:
     function = _function("_read_oom_marker")
     text = ast.get_source_segment(SOURCE, function) or ""
@@ -118,6 +144,7 @@ def test_marker_wire_is_bounded_duplicate_rejecting_and_exact() -> None:
     assert "object_pairs_hook=_strict_object" in text
     assert "parse_constant=" in text
     assert "set(payload) != expected" in text
+    assert '"supported"' in text
     assert "isinstance(value, bool)" in text
     assert "value < 0" in text
     strict = ast.get_source_segment(SOURCE, _function("_strict_object")) or ""
