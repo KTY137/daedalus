@@ -20,7 +20,12 @@ from .evidence_verifier import (
     strict_mechanical_blockers,
 )
 from .release import Gate0ReleaseReport, assemble_gate0_release_report
-from .release_io import load_gate0_release_report, parse_gate0_release_report
+from .release_io import (
+    load_gate0_release_report,
+    load_mechanical_gate_report,
+    parse_gate0_release_report,
+    parse_mechanical_gate_report,
+)
 from .release_verifier import (
     assert_gate0_release_report,
     gate0_release_verification_blockers,
@@ -67,9 +72,11 @@ __all__ = [
     "load_gate0_release_report",
     "load_gate_evidence_index",
     "load_gate_report",
+    "load_mechanical_gate_report",
     "parse_evidence_trust_bundle",
     "parse_gate0_release_report",
     "parse_gate_evidence_index",
+    "parse_mechanical_gate_report",
     "strict_mechanical_blockers",
     "verify_evidence_trust_bundle",
     "workflow_definition_sha256",
