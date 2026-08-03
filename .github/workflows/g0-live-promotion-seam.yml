@@ -7,10 +7,13 @@ on:
     paths:
       - "daedalus/kairos/gated_writes.py"
       - "daedalus/kairos/_gated_writes_legacy.py.src"
+      - "daedalus/kernel/promotion.py"
       - "pyproject.toml"
       - "tests/kernel/test_live_promotion_seam.py"
       - "tests/kernel/test_live_promotion_seam_review.py"
       - "tests/kernel/test_live_promotion_legacy_retirement.py"
+      - "tests/kernel/test_persisted_promotion_authorization.py"
+      - "tests/kernel/test_persisted_promotion_authorization_review.py"
       - "tests/kernel/test_sealed_promotion.py"
       - "scripts/run_live_promotion_seam_mutations.py"
       - "docs/work-packets/G0-PRM-12B_LIVE_PROMOTION_SEAM.md"
@@ -85,8 +88,10 @@ jobs:
           "import importlib, inspect;
           from importlib.resources import files;
           import daedalus.kairos.gated_writes as g;
+          from daedalus.kernel.promotion import snapshot_promotion_candidates;
           s=inspect.signature(g.promote_candidates);
           assert 'approval_ledger' in s.parameters and 'owner_keyring' in s.parameters;
+          assert callable(snapshot_promotion_candidates);
           r=files('daedalus.kairos').joinpath('_gated_writes_legacy.py.src');
           assert r.is_file();
           assert g._git_blob_sha1(r.read_bytes()) == g._RETAINED_SOURCE_GIT_BLOB_SHA1;
