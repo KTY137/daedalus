@@ -56,11 +56,16 @@ def test_cli_accepts_only_secret_variable_name_not_secret_value_option() -> None
     assert "collector_secret=" not in source
 
 
-def test_loader_rejects_duplicate_keys_and_noncanonical_wire() -> None:
-    source = IO_PATH.read_text(encoding="utf-8")
-    assert "object_pairs_hook=_reject_duplicate_keys" in source
-    assert "wire != value.to_dict()" in source
-    assert "Gate0ReleaseReport.from_dict" in source
+def test_all_human_supplied_report_files_use_strict_loaders() -> None:
+    cli_source = CLI_PATH.read_text(encoding="utf-8")
+    io_source = IO_PATH.read_text(encoding="utf-8")
+    assert "load_gate0_release_report(Path(args.release))" in cli_source
+    assert "load_mechanical_gate_report(Path(args.mechanical_report))" in cli_source
+    assert "load_gate_report(Path(args.mechanical_report))" not in cli_source
+    assert "object_pairs_hook=_reject_duplicate_keys" in io_source
+    assert io_source.count("wire != value.to_dict()") == 2
+    assert "Gate0ReleaseReport.from_dict" in io_source
+    assert "GateReport.from_dict" in io_source
 
 
 def test_cli_returns_distinct_success_blocker_and_malformed_statuses() -> None:
