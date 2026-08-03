@@ -1,0 +1,58 @@
+name: Gate 1 prep renovation work items
+
+on:
+  pull_request:
+    paths:
+      - "daedalus/orchestration/**"
+      - "tests/orchestration/test_renovation_work_items.py"
+      - "docs/work-packets/G1-PREP-01_RENOVATION_WORK_ITEMS.md"
+      - ".github/workflows/g1-prep-renovation-work-items.yml"
+  push:
+    branches:
+      - g1/renovation-work-items-prep-linear
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests
+      - run: python -m pytest -q tests/orchestration/test_renovation_work_items.py tests/twin/test_fourfold_contracts.py
+      - run: python tools/iron_plan_guard.py verify
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build --wheel
+      - run: python -m pip install --target /tmp/g1-wheel dist/*.whl
+      - run: cd /tmp && PYTHONPATH=/tmp/g1-wheel python -c "from daedalus.orchestration import RenovationPlan, WorkItemContract"
