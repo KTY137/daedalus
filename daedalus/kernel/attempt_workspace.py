@@ -19,6 +19,75 @@ from .attempt_contracts import (
 from .attempt_ledger import AttemptLedger
 
 
+def _assert_disjoint(candidate: Path, protected: Path, label: str) -> None:
+    if _is_same_or_within(candidate, protected) or _is_same_or_within(
+        protected, candidate
+    ):
+        raise AttemptWorkspaceError(f"{label} must be disjoint")
+
+
+def _prepare_workspace_parent(
+    raw_parent: Path,
+    *,
+    primary: Path,
+    cas_root: Path,
+) -> Path:
+    """Refuse protected topology before making any directory.
+
+    The prospective resolved path is checked first, then the directory is
+    created, and the resolved result is checked again to catch parent-symlink or
+    concurrent topology changes.  The leaf itself may never be a symlink,
+    including a broken symlink.
+    """
+    try:
+        if raw_parent.is_symlink():
+            raise AttemptWorkspaceError("workspace parent must not be a symlink")
+        if raw_parent.exists() and not raw_parent.is_dir():
+            raise AttemptWorkspaceError("workspace parent must be a directory")
+        prospective = raw_parent.resolve(strict=False)
+    except AttemptWorkspaceError:
+        raise
+    except OSError as exc:
+        raise AttemptWorkspaceError(
+            "workspace parent topology cannot be inspected"
+        ) from exc
+
+    _assert_disjoint(
+        prospective,
+        primary,
+        "workspace parent and primary checkout",
+    )
+    _assert_disjoint(
+        prospective,
+        cas_root,
+        "workspace parent and source-tree store",
+    )
+
+    try:
+        raw_parent.mkdir(parents=True, exist_ok=True)
+        if raw_parent.is_symlink():
+            raise AttemptWorkspaceError("workspace parent must not be a symlink")
+        parent = raw_parent.resolve(strict=True)
+        if not parent.is_dir():
+            raise AttemptWorkspaceError("workspace parent must be a directory")
+    except AttemptWorkspaceError:
+        raise
+    except OSError as exc:
+        raise AttemptWorkspaceError("workspace parent cannot be created") from exc
+
+    _assert_disjoint(
+        parent,
+        primary,
+        "workspace parent and primary checkout",
+    )
+    _assert_disjoint(
+        parent,
+        cas_root,
+        "workspace parent and source-tree store",
+    )
+    return parent
+
+
 class IsolatedAttemptCoordinator:
     """Materialize exact inputs under one checkout-external workspace parent."""
 
@@ -38,25 +107,36 @@ class IsolatedAttemptCoordinator:
             raise AttemptWorkspaceError(
                 "coordinator and ledger must share the exact SourceTreeStore"
             )
-        primary = Path(primary_checkout)
-        if primary.is_symlink():
-            raise AttemptWorkspaceError("primary checkout must not be a symlink")
-        primary = primary.resolve(strict=True)
+        primary_path = Path(primary_checkout)
+        try:
+            if primary_path.is_symlink():
+                raise AttemptWorkspaceError("primary checkout must not be a symlink")
+            primary = primary_path.resolve(strict=True)
+        except AttemptWorkspaceError:
+            raise
+        except OSError as exc:
+            raise AttemptWorkspaceError(
+                "primary checkout cannot be resolved"
+            ) from exc
         if not primary.is_dir():
             raise AttemptWorkspaceError("primary checkout must be a directory")
 
-        raw_parent = Path(workspace_parent)
-        raw_parent.mkdir(parents=True, exist_ok=True)
-        if raw_parent.is_symlink():
-            raise AttemptWorkspaceError("workspace parent must not be a symlink")
-        parent = raw_parent.resolve()
-        cas_root = source_store.root.resolve()
-        for left, right, label in (
-            (parent, primary, "workspace parent and primary checkout"),
-            (parent, cas_root, "workspace parent and source-tree store"),
-        ):
-            if _is_same_or_within(left, right) or _is_same_or_within(right, left):
-                raise AttemptWorkspaceError(f"{label} must be disjoint")
+        try:
+            cas_root = source_store.root.resolve(strict=True)
+        except OSError as exc:
+            raise AttemptWorkspaceError(
+                "source-tree store root cannot be resolved"
+            ) from exc
+        if not cas_root.is_dir():
+            raise AttemptWorkspaceError(
+                "source-tree store root must be a directory"
+            )
+
+        parent = _prepare_workspace_parent(
+            Path(workspace_parent),
+            primary=primary,
+            cas_root=cas_root,
+        )
 
         self.primary_checkout = primary
         self.workspace_parent = parent
@@ -70,8 +150,14 @@ class IsolatedAttemptCoordinator:
         input_tree: StoredSourceTree,
         *,
         start_id: str,
-        started_at: str,
+        started_at: str | None = None,
     ) -> PreparedAttempt:
+        """Persist and materialize one fresh attempt.
+
+        ``started_at`` remains a compatibility-only predecessor argument.  The
+        coordinator does not forward it; the trusted lifecycle clock owns time.
+        """
+        del started_at
         if not isinstance(attempt, AttemptContract):
             raise AttemptBindingMismatch("attempt must be AttemptContract")
         if not isinstance(input_tree, StoredSourceTree):
@@ -92,7 +178,6 @@ class IsolatedAttemptCoordinator:
             start_id=start_id,
             workspace_parent_sha256=self.workspace_parent_sha256,
             workspace_relative_path=relative,
-            started_at=started_at,
         )
         if not begin.execute:
             return PreparedAttempt(begin=begin, workspace=None)
@@ -122,7 +207,6 @@ class IsolatedAttemptCoordinator:
                 outcome="faulted",
                 report=report,
                 candidate_tree=None,
-                completed_at=started_at,
             )
             raise AttemptWorkspaceError(
                 "attempt input materialization failed and was terminalized"
