@@ -136,7 +136,7 @@ def test_review_reconstruction_has_no_dynamic_eval_or_exec_call() -> None:
     assert forbidden_calls == []
 
 
-def test_host_canary_is_locked_inherited_restored_and_never_argument_material() -> None:
+def test_host_canary_is_locked_inherited_removed_only_if_unchanged() -> None:
     function = _function("_execute_undeclared_secret")
     text = ast.get_source_segment(SOURCE, function) or ""
     required = (
@@ -146,13 +146,17 @@ def test_host_canary_is_locked_inherited_restored_and_never_argument_material() 
         "os.environ[_SECRET_NAME] = canary",
         "receipt = run_in_docker_sandbox(policy, _secret_probe_command())",
         "finally:",
-        "retained = os.environ.pop(_SECRET_NAME, None)",
-        "host_environment_restored = retained == canary",
+        "retained = os.environ.get(_SECRET_NAME)",
+        "if retained == canary",
+        "del os.environ[_SECRET_NAME]",
+        "host_environment_restored = True",
+        "host_environment_restored = False",
         'detail_code="host-secret-probe-name-collision"',
         'detail_code="host-secret-probe-mutated"',
     )
     for expression in required:
         assert expression in text
+    assert "os.environ.pop(_SECRET_NAME" not in text
     call = _calls("run_in_docker_sandbox")[0]
     call_text = ast.get_source_segment(SOURCE, call) or ""
     assert "canary" not in call_text
@@ -280,7 +284,7 @@ def test_candidate_output_cannot_claim_trust_attestation_or_gate_closure() -> No
     assert '"gate_closure_claimed": False' in SOURCE
 
 
-def test_host_execution_boundary_has_restoration_finally_but_no_exception_laundering() -> None:
+def test_host_execution_boundary_has_cleanup_finally_but_no_exception_laundering() -> None:
     function = _function("_execute_undeclared_secret")
     handlers = [
         node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler)
