@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/runtime-bound-effect-lease-v1.schema.json",
+  "title": "Daedalus RuntimeBoundEffectLease v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sha256"},
+          "uniqueItems": true
+        },
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "lease",
+    "runtime_id",
+    "runtime_envelope_sha256",
+    "runtime_trust_record_sha256",
+    "runtime_manifest_sha256",
+    "runtime_conformance_sha256",
+    "source_revision",
+    "issued_at",
+    "expires_at",
+    "issuer_key_id",
+    "signature_sha256",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.runtime-bound-effect-lease"},
+    "contract_version": {"const": "1.0.0"},
+    "lease": {"$ref": "effect-lease-v1.schema.json"},
+    "runtime_id": {"$ref": "#/$defs/identifier"},
+    "runtime_envelope_sha256": {"$ref": "#/$defs/sha256"},
+    "runtime_trust_record_sha256": {"$ref": "#/$defs/sha256"},
+    "runtime_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "runtime_conformance_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "issuer_key_id": {"$ref": "#/$defs/identifier"},
+    "signature_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}
