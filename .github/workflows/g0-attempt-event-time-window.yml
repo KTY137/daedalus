@@ -1,0 +1,83 @@
+name: Gate 0 Attempt Event Time Window
+
+on:
+  pull_request:
+    branches:
+      - g0/attempt-authority-consolidation-linear
+    paths:
+      - "daedalus/kernel/attempt_spine_reader.py"
+      - "tests/kernel/test_isolated_attempt_time_tampering.py"
+      - "scripts/run_attempt_event_time_window_mutations.py"
+      - "docs/work-packets/G0-ATT-13B3_EVENT_TIME_WINDOW.md"
+      - ".github/workflows/g0-attempt-event-time-window.yml"
+  push:
+    branches:
+      - g0/attempt-event-time-after-root-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-attempt-event-time-window-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts/run_attempt_event_time_window_mutations.py
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_isolated_attempt_time_tampering.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
+          tests/kernel/test_isolated_attempt_lifecycle_review.py
+          tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_time_review.py
+          tests/kernel/test_isolated_attempt_workspace_root_authority.py
+          tests/kernel/test_isolated_attempt_workspace_identity_review.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
+          tests/kernel/test_isolated_attempt_effect_inventory_registration.py
+          tests/test_spine_ledger.py
+          tests/test_kernel_contracts.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_attempt_event_time_window_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-attempt-event-time-wheel
+      - run: /tmp/daedalus-attempt-event-time-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-attempt-event-time-wheel/bin/python - <<'PY'
+          from daedalus.kernel.attempts import AttemptLedger
+          from daedalus.kernel.attempt_spine_reader import read_attempt_intents
+          assert AttemptLedger.__module__ == "daedalus.kernel.attempt_ledger"
+          assert callable(read_attempt_intents)
+          PY
