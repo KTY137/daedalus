@@ -62,6 +62,19 @@ def test_gate_policy_has_no_partial_snapshot_bypass_switch() -> None:
     assert "if incomplete:" in verifier
 
 
+def test_candidate_must_be_bound_by_snapshot_compiler_provenance() -> None:
+    helper = inspect.getsource(target._require_snapshot_candidate_binding)
+    assembler = inspect.getsource(target.assemble_fourfold_evidence_packet)
+    verifier = inspect.getsource(target.verify_fourfold_evidence_packet)
+
+    assert "candidate_sha not in snapshot.provenance.input_digests" in helper
+    assert "_require_snapshot_candidate_binding(" in assembler
+    assert "_require_snapshot_candidate_binding(" in verifier
+    assert "snapshot.provenance.input_digests" not in assembler.replace(
+        "_require_snapshot_candidate_binding(", ""
+    )
+
+
 def test_nomination_verifier_pins_candidate_evidence_and_policy() -> None:
     verifier = inspect.getsource(target.verify_fourfold_nomination_receipt)
 
