@@ -24,18 +24,20 @@ capable effect boundary; a side inventory is not authority.
 
 ## Registration
 
-Each method is represented exactly once as a discoverable Python entrypoint:
+Each method is represented exactly once as a discoverable Python entrypoint,
+using the IDs and guard sets already pinned by the parent blocker artifact:
 
-| ID | Target | Effects | Current wiring |
-|---|---|---|---|
-| `python.attempt_lifecycle_begin` | `AttemptLedger.begin` | filesystem write | `local_guards` |
-| `python.attempt_lifecycle_complete` | `AttemptLedger.complete` | filesystem write | `local_guards` |
-| `python.attempt_workspace_prepare` | `IsolatedAttemptCoordinator.prepare` | filesystem write | `local_guards` |
+| ID | Target | Effects | Guards | Current wiring |
+|---|---|---|---|---|
+| `kernel.attempt.begin` | `AttemptLedger.begin` | filesystem write | `spine.intent_ledger` | `local_guards` |
+| `kernel.attempt.complete` | `AttemptLedger.complete` | filesystem write | `spine.intent_ledger` | `local_guards` |
+| `kernel.attempt.prepare` | `IsolatedAttemptCoordinator.prepare` | filesystem write | `spine.intent_ledger`, `containment.attempt` | `local_guards` |
 
-The retained guards are the canonical Event-Store intent ledger and Attempt
-containment contracts. Anchors require the start path to call `record_intent`,
-the terminal path to call `mark_completed`, and workspace preparation to call
-both `begin` and `materialize_tree`.
+Anchors require the start path to call `record_intent`, the terminal path to
+call `mark_completed`, and workspace preparation to call both `begin` and
+`materialize_tree`. The lifecycle writes do not claim a separate containment
+decision that their implementations do not mechanically invoke; containment is
+owned by the workspace-preparation boundary.
 
 `local_guards` is intentional and blocking for Gate closure. These rows may be
 upgraded to `central` only after one dependent execution packet mechanically
@@ -56,7 +58,8 @@ repository-mutation effect is inferred for this non-executing lifecycle packet.
 Focused tests require:
 
 - one and only one canonical owner per target;
-- exact effects, guards, anchors and honest non-central wiring;
+- the parent-pinned IDs, effects, guards and anchors;
+- honest non-central wiring;
 - actual static rediscovery of all three methods;
 - no target, anchor, duplicate-owner or unregistered blocker for the methods;
 - explicit source-level classifier ownership rather than a hidden exemption.
