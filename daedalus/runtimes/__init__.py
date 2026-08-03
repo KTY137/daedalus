@@ -13,6 +13,16 @@ from .profiles import (
     verify_runtime_envelope,
 )
 from .trust import verify_production_runtime_envelope
+from .trust_store import (
+    RuntimeTrustBindingMismatch,
+    RuntimeTrustCorrupt,
+    RuntimeTrustExpired,
+    RuntimeTrustLedger,
+    RuntimeTrustNotFound,
+    RuntimeTrustQuarantined,
+    RuntimeTrustRecord,
+    RuntimeTrustStoreError,
+)
 
 __all__ = [
     "REQUIRED_GATE0_RUNTIME_IDS",
@@ -20,6 +30,14 @@ __all__ = [
     "RuntimeConformanceEnvelope",
     "RuntimeProbeIdentity",
     "RuntimeProfile",
+    "RuntimeTrustBindingMismatch",
+    "RuntimeTrustCorrupt",
+    "RuntimeTrustExpired",
+    "RuntimeTrustLedger",
+    "RuntimeTrustNotFound",
+    "RuntimeTrustQuarantined",
+    "RuntimeTrustRecord",
+    "RuntimeTrustStoreError",
     "bind_conformance_envelope",
     "build_probe_identity",
     "load_runtime_profiles",
