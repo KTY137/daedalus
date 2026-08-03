@@ -10,6 +10,7 @@ TARGET = ROOT / "daedalus" / "kernel" / "source_trees.py"
 TESTS = (
     "tests/kernel/test_source_tree_store.py",
     "tests/kernel/test_source_tree_store_adversarial.py",
+    "tests/kernel/test_source_tree_store_constructor_adversarial.py",
     "tests/kernel/test_source_tree_store_review.py",
 )
 
