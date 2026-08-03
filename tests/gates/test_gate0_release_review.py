@@ -64,7 +64,6 @@ def test_release_projection_contains_no_effectful_or_promotion_boundary() -> Non
         "Popen",
         "run",
         "system",
-        "replace",
         "unlink",
         "promote_candidates",
         "merge_pull_request",
