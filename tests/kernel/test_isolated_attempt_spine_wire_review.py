@@ -64,6 +64,21 @@ def test_attempt_ledger_refuses_a_read_only_spine_as_write_authority(tmp_path) -
         read_only._conn.close()
 
 
+def test_intent_row_and_start_event_time_must_be_identical(tmp_path) -> None:
+    spine, intent = _spine(tmp_path)
+    path = spine.path
+    spine._conn.close()
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE intent_events SET ts = ? "
+            "WHERE intent_id = ? AND state = 'INTENDED'",
+            ("2099-01-01T00:00:00+00:00", intent.id),
+        )
+
+    with pytest.raises(AttemptStateError, match="row time differs"):
+        read_attempt_intents(path, effect_key=EFFECT_KEY)
+
+
 def test_duplicate_keys_in_terminal_event_detail_fail_closed(tmp_path) -> None:
     spine, intent = _spine(tmp_path)
     path = spine.path
