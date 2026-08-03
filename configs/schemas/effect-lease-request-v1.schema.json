@@ -51,6 +51,7 @@
     "kill_switch_generation": {"type": "integer", "minimum": 0},
     "runtime_manifest_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
     "runtime_conformance_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "execution_plan_sha256": {"$ref": "#/$defs/sha256"},
     "provenance": {"$ref": "#/$defs/provenance"}
   }
 }

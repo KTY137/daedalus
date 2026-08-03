@@ -140,6 +140,7 @@
     "plan_id",
     "spine_intent_id",
     "intent_sha256",
+    "attempt_contract_sha256",
     "task_id",
     "task_sha256",
     "source_revision",
@@ -152,8 +153,9 @@
     "provider_endpoint",
     "write_mode",
     "target_paths",
-    "policy_decision_sha256",
+    "attempt_policy_decision_sha256",
     "availability_sha256",
+    "routing_index_sha256",
     "routing_decision_sha256",
     "runtime_manifest_sha256",
     "runtime_conformance_sha256",
@@ -185,6 +187,9 @@
       "minimum": 1
     },
     "intent_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "attempt_contract_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "task_id": {
@@ -230,10 +235,13 @@
         "$ref": "#/$defs/repoPath"
       }
     },
-    "policy_decision_sha256": {
+    "attempt_policy_decision_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "availability_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "routing_index_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "routing_decision_sha256": {

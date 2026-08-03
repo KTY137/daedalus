@@ -200,6 +200,35 @@ def test_contract_round_trip_signature_and_exact_bindings() -> None:
     )
 
 
+def test_execution_plan_binding_is_explicit_and_legacy_wire_stays_stable() -> None:
+    plan_sha = "f" * 64
+    legacy = request()
+    legacy_execution = execution()
+    assert "execution_plan_sha256" not in legacy.to_dict()
+    assert "execution_plan_sha256" not in legacy_execution.to_dict()
+
+    with pytest.raises(ValueError, match="provenance"):
+        dataclasses.replace(legacy, execution_plan_sha256=plan_sha)
+
+    planned = dataclasses.replace(
+        legacy,
+        execution_plan_sha256=plan_sha,
+        provenance=dataclasses.replace(
+            legacy.provenance,
+            input_digests=(*legacy.provenance.input_digests, plan_sha),
+        ),
+    )
+    planned_execution = dataclasses.replace(
+        legacy_execution, execution_plan_sha256=plan_sha
+    )
+
+    assert planned.to_dict()["execution_plan_sha256"] == plan_sha
+    assert planned_execution.to_dict()["execution_plan_sha256"] == plan_sha
+    assert planned.digest != legacy.digest
+    assert planned_execution.digest != legacy_execution.digest
+    assert EffectLeaseRequest.from_dict(planned.to_dict()) == planned
+
+
 def test_lease_refuses_noncentral_and_undeclared_entrypoints() -> None:
     req = request()
     policy = decision(req)
@@ -740,4 +769,7 @@ def test_effect_lease_json_schemas_are_closed_and_complete() -> None:
         "const": "daedalus.effect-lease"
     }
     assert set(request().to_dict()) == set(request_schema["required"])
+    assert request_schema["properties"]["execution_plan_sha256"] == {
+        "$ref": "#/$defs/sha256"
+    }
     assert set(lease().to_dict()) == set(lease_schema["required"])

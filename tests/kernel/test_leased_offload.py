@@ -21,6 +21,8 @@ from daedalus.spine.effect_boundary import REGISTRY_BY_ID, GuardDecision
 REVISION = "a" * 40
 SECRET = b"leased-offload-test-secret-material-32-bytes"
 POLICY_SHA = "b" * 64
+RUNTIME_MANIFEST_SHA = "c" * 64
+RUNTIME_CONFORMANCE_SHA = "d" * 64
 
 
 def authorization(tmp_path, *, suffix: str = "1"):
@@ -46,12 +48,13 @@ def authorization(tmp_path, *, suffix: str = "1"):
         effect_scope=scope,
         idempotency_namespace=f"mission-1-attempt-{suffix}",
         kill_switch_generation=3,
-        runtime_manifest_sha256=None,
-        runtime_conformance_sha256=None,
+        runtime_manifest_sha256=RUNTIME_MANIFEST_SHA,
+        runtime_conformance_sha256=RUNTIME_CONFORMANCE_SHA,
         provenance=ContractProvenance(
             origin="tests.leased-offload",
             source_revision=REVISION,
             created_at=now.isoformat(),
+            input_digests=(RUNTIME_MANIFEST_SHA, RUNTIME_CONFORMANCE_SHA),
             trace_id="mission-1",
         ),
     )

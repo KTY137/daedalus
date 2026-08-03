@@ -118,6 +118,7 @@ class EffectExecutionRequest:
     max_cost_microusd: int = 0
     kill_switch_ref: str = ""
     kill_switch_generation: int = 0
+    execution_plan_sha256: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
@@ -169,6 +170,12 @@ class EffectExecutionRequest:
             self.kill_switch_generation, int
         ) or self.kill_switch_generation < 0:
             raise ValueError("kill_switch_generation must be a non-negative integer")
+        if self.execution_plan_sha256 is not None:
+            object.__setattr__(
+                self,
+                "execution_plan_sha256",
+                _sha256(self.execution_plan_sha256, "execution_plan_sha256"),
+            )
         # Validate names against the canonical Effect enum without changing
         # their deterministic sorted representation.
         for value in self.requested_effects:
@@ -178,7 +185,10 @@ class EffectExecutionRequest:
                 raise ValueError(f"unknown requested effect {value!r}") from exc
 
     def to_dict(self) -> dict[str, object]:
-        return dataclasses.asdict(self)
+        body = dataclasses.asdict(self)
+        if self.execution_plan_sha256 is None:
+            body.pop("execution_plan_sha256")
+        return body
 
     @property
     def digest(self) -> str:

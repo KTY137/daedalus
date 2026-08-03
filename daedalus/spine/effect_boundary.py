@@ -266,11 +266,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "containment.attempt",
         ),
         wiring=Wiring.CENTRAL,
+        runtime_id="ollama_http",
         anchors=(
             GuardAnchor("daedalus.offload:offload", "begin_effect"),
         ),
         notes=(
-            "every live call consumes a persisted Effect Lease; write mode also "
+            "the bounded Gate-0 live slice is Ollama-only and every live call "
+            "consumes a persisted runtime-bound Effect Lease; write mode also "
             "requires the private TaskAttempt workspace grant and cannot mutate "
             "the primary checkout directly"
         ),

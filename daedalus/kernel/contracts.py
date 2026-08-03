@@ -182,6 +182,9 @@ class EffectLeaseRequest(CanonicalContract):
     runtime_manifest_sha256: str | None
     runtime_conformance_sha256: str | None
     provenance: ContractProvenance
+    # Optional for legacy/non-plan entrypoints.  Canonical plan executors must
+    # set it and the policy then subjects this request's resulting digest.
+    execution_plan_sha256: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -213,6 +216,12 @@ class EffectLeaseRequest(CanonicalContract):
             raise ValueError(
                 "runtime manifest and conformance digests must be supplied together"
             )
+        if self.execution_plan_sha256 is not None:
+            object.__setattr__(
+                self,
+                "execution_plan_sha256",
+                _sha256(self.execution_plan_sha256, "execution_plan_sha256"),
+            )
         if not self.effect_scope.has_effects:
             raise ValueError("effect lease request must carry a bounded effect scope")
         if not self.effect_scope.kill_switch_ref:
@@ -222,11 +231,22 @@ class EffectLeaseRequest(CanonicalContract):
             required.extend(
                 [self.runtime_manifest_sha256, self.runtime_conformance_sha256]
             )
+        if self.execution_plan_sha256 is not None:
+            required.append(self.execution_plan_sha256)
         _require_provenance_inputs(
             self.provenance,
             tuple(value for value in required if value is not None),
             "effect lease request",
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        body = super().to_dict()
+        # Preserve the existing v1 digest for non-plan entrypoints and old
+        # persisted grants.  The field becomes explicit on the wire precisely
+        # when a plan is actually bound.
+        if self.execution_plan_sha256 is None:
+            body.pop("execution_plan_sha256")
+        return body
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "EffectLeaseRequest":
@@ -346,7 +366,11 @@ class OffloadExecutionPlan(CanonicalContract):
     issues an Effect Lease nor performs a provider call.  The first supported
     slice is deliberately narrow: one pinned Ollama model at a numeric
     loopback origin, one model call, exact workspace targets, deterministic
-    tool/verifier argv, and zero monetary spend.
+    tool/verifier argv, and zero monetary spend.  The attempt-policy digest is
+    an upstream input already bound by ``AttemptContract``; the later effect
+    policy instead subjects the lease request containing this plan's digest.
+    Keeping those decisions distinct avoids a Plan -> Policy -> Request -> Plan
+    hash cycle.
     """
 
     CONTRACT_TYPE: ClassVar[str] = "daedalus.offload-execution-plan"
@@ -354,6 +378,7 @@ class OffloadExecutionPlan(CanonicalContract):
     plan_id: str
     spine_intent_id: int
     intent_sha256: str
+    attempt_contract_sha256: str
     task_id: str
     task_sha256: str
     source_revision: str
@@ -366,8 +391,9 @@ class OffloadExecutionPlan(CanonicalContract):
     provider_endpoint: str
     write_mode: str
     target_paths: tuple[str, ...]
-    policy_decision_sha256: str
+    attempt_policy_decision_sha256: str
     availability_sha256: str
+    routing_index_sha256: str
     routing_decision_sha256: str
     runtime_manifest_sha256: str
     runtime_conformance_sha256: str
@@ -396,12 +422,14 @@ class OffloadExecutionPlan(CanonicalContract):
 
         for name in (
             "intent_sha256",
+            "attempt_contract_sha256",
             "task_sha256",
             "source_artifact_sha256",
             "worktree_fingerprint_sha256",
             "model_sha256",
-            "policy_decision_sha256",
+            "attempt_policy_decision_sha256",
             "availability_sha256",
+            "routing_index_sha256",
             "routing_decision_sha256",
             "runtime_manifest_sha256",
             "runtime_conformance_sha256",
@@ -519,12 +547,14 @@ class OffloadExecutionPlan(CanonicalContract):
             self.provenance,
             (
                 self.intent_sha256,
+                self.attempt_contract_sha256,
                 self.task_sha256,
                 self.source_artifact_sha256,
                 self.worktree_fingerprint_sha256,
                 self.model_sha256,
-                self.policy_decision_sha256,
+                self.attempt_policy_decision_sha256,
                 self.availability_sha256,
+                self.routing_index_sha256,
                 self.routing_decision_sha256,
                 self.runtime_manifest_sha256,
                 self.runtime_conformance_sha256,
