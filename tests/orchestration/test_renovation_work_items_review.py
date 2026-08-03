@@ -15,8 +15,16 @@ def _tree() -> ast.Module:
     return ast.parse(SOURCE.read_text(encoding="utf-8"))
 
 
-def _function(name: str) -> ast.FunctionDef:
-    for node in ast.walk(_tree()):
+def _function(name: str, *, class_name: str | None = None) -> ast.FunctionDef:
+    tree = _tree()
+    if class_name is not None:
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef) and node.name == class_name:
+                for child in node.body:
+                    if isinstance(child, ast.FunctionDef) and child.name == name:
+                        return child
+        raise AssertionError(f"missing function {class_name}.{name}")
+    for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
     raise AssertionError(f"missing function {name}")
@@ -57,7 +65,7 @@ def test_review_contract_layer_has_no_effect_or_promotion_dependencies() -> None
 
 
 def test_review_plan_constructor_retains_cardinality_dependency_and_path_fences() -> None:
-    source = ast.unparse(_function("__post_init__"))
+    source = ast.unparse(_function("__post_init__", class_name="RenovationPlan"))
     assert "len(items) != 2" in source
     assert "set(by_kind) != set(_WORK_KINDS)" in source
     assert "sync_item.depends_on != (rename_item.work_item_id,)" in source
