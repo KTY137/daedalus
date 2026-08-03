@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus" / "kernel" / "attempt_workspace.py"
 TESTS = (
     "tests/kernel/test_isolated_attempt_workspace_root_authority.py",
+    "tests/kernel/test_isolated_attempt_workspace_identity_review.py",
     "tests/kernel/test_isolated_attempt_lifecycle.py",
     "tests/kernel/test_isolated_attempt_lifecycle_adversarial.py",
     "tests/kernel/test_isolated_attempt_time_and_preflight.py",
@@ -67,7 +68,7 @@ def main() -> int:
             "retain-replaced-root-identity",
             """        if (
             current != parent
-            or _path_identity(current) != self.workspace_parent_sha256
+            or _workspace_root_identity(current) != self.workspace_parent_sha256
         ):
             raise AttemptWorkspaceError(
                 "workspace parent identity changed after admission"
