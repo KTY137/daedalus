@@ -1,11 +1,12 @@
 """Claude CLI provider behind the persisted runtime-provider broker.
 
-The public provider method cannot invoke Claude from ambient authority.  It
+The public provider method cannot invoke Claude from ambient authority. It
 requires one exact :class:`RuntimeBoundEffectAuthorization`, one narrowed
 :class:`EffectExecutionRequest`, and an isolated-workspace grant tied to the
-same attempt.  The generic broker persists grant/start state, suppresses exact
-replay, rechecks runtime trust, retains output identities, and commits terminal
-state before a provider value is released.
+same request, execution, attempt, and source revision. The generic broker
+persists grant/start state, suppresses exact replay, rechecks runtime trust,
+retains output identities, and commits terminal state before a provider value
+is released.
 
 The subprocess implementation remains private in :mod:`daedalus.claude_bridge`.
 Calling that helper directly is not a supported production entrypoint.
@@ -14,7 +15,7 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 from ..claude_bridge import _invoke_claude_cli
@@ -22,12 +23,21 @@ from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
+from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
 from .base import Provider, ProviderCapabilities
 
 
 ENTRYPOINT_ID = "provider.claude"
 RUNTIME_ID = "claude_code_cli"
+_REQUIRED_EFFECTS = frozenset(
+    {
+        Effect.FILESYSTEM_WRITE.value,
+        Effect.PROCESS_SPAWN.value,
+        Effect.NETWORK_EGRESS.value,
+        Effect.SPEND.value,
+    }
+)
 
 
 class ClaudeProviderAuthorizationRequired(RuntimeError):
@@ -38,19 +48,24 @@ class ClaudeProviderWorkspaceMismatch(RuntimeError):
     """The runtime capability was not bound to the supplied isolated worktree."""
 
 
+class ClaudeProviderScopeMismatch(RuntimeError):
+    """The narrowed execution scope understates what the agentic CLI can do."""
+
+
 @dataclass(frozen=True)
 class ClaudeWorkspaceGrant:
     """Narrow caller-to-provider binding for one already-created worktree.
 
     This is not a substitute for the persisted runtime and Effect-Lease
-    authorities.  It closes the accidental path-substitution seam between the
-    attempt that requested the lease and the directory handed to Claude.  The
-    exact attempt and source revision still come from the authenticated
-    authorization.
+    authorities. It closes the accidental path-substitution seam between the
+    attempt that requested the lease and the directory handed to Claude. The
+    request/execution identities make stale or recombined grants fail closed.
     """
 
     attempt_id: str
     source_revision: str
+    request_sha256: str
+    execution_sha256: str
     worktree: str
 
     def __post_init__(self) -> None:
@@ -58,14 +73,66 @@ class ClaudeWorkspaceGrant:
             raise ValueError("Claude workspace grant requires an attempt_id")
         if not isinstance(self.source_revision, str) or not self.source_revision.strip():
             raise ValueError("Claude workspace grant requires a source_revision")
+        for name in ("request_sha256", "execution_sha256"):
+            value = getattr(self, name)
+            if (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(char not in "0123456789abcdef" for char in value)
+            ):
+                raise ValueError(f"Claude workspace grant {name} must be lowercase SHA-256")
         if not isinstance(self.worktree, str) or not self.worktree.strip():
             raise ValueError("Claude workspace grant requires a worktree path")
+
+
+def _validate_execution_shape(
+    execution: EffectExecutionRequest,
+    paths: list[str],
+) -> list[str]:
+    effects = set(execution.requested_effects)
+    missing = sorted(_REQUIRED_EFFECTS - effects)
+    if missing:
+        raise ClaudeProviderScopeMismatch(
+            "Claude execution understates provider effects: " + ", ".join(missing)
+        )
+    # The current Claude CLI permission mode is agentic and can inspect or edit
+    # any file in its isolated worktree, regardless of path hints. Claiming a
+    # narrower write set would be false evidence. The safe broad scope is the
+    # worktree root, while the primary checkout is excluded separately.
+    if "." not in execution.writable_paths:
+        raise ClaudeProviderScopeMismatch(
+            "agentic Claude execution must lease the isolated worktree root '.'"
+        )
+    if "claude" not in execution.tools:
+        raise ClaudeProviderScopeMismatch(
+            "Claude execution must name the exact 'claude' process tool"
+        )
+    if execution.max_cost_microusd <= 0:
+        raise ClaudeProviderScopeMismatch(
+            "Claude execution requires a positive explicit spend ceiling"
+        )
+
+    normalized: list[str] = []
+    for index, raw in enumerate(paths):
+        if not isinstance(raw, str) or not raw.strip():
+            raise ClaudeProviderScopeMismatch(f"Claude path hint {index} is empty")
+        candidate = PurePosixPath(raw.replace("\\", "/"))
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise ClaudeProviderScopeMismatch(
+                f"Claude path hint {raw!r} escapes the isolated worktree"
+            )
+        text = candidate.as_posix()
+        if text == ".":
+            continue
+        normalized.append(text)
+    return list(dict.fromkeys(normalized))
 
 
 def _resolve_workspace(
     repo_root: str,
     *,
     authorization: RuntimeBoundEffectAuthorization,
+    execution: EffectExecutionRequest,
     grant: ClaudeWorkspaceGrant,
 ) -> Path:
     if grant.attempt_id != authorization.request.attempt_id:
@@ -76,6 +143,14 @@ def _resolve_workspace(
     if grant.source_revision != expected_revision:
         raise ClaudeProviderWorkspaceMismatch(
             "Claude workspace grant belongs to a different source revision"
+        )
+    if grant.request_sha256 != authorization.request.digest:
+        raise ClaudeProviderWorkspaceMismatch(
+            "Claude workspace grant belongs to a different lease request"
+        )
+    if grant.execution_sha256 != execution.digest:
+        raise ClaudeProviderWorkspaceMismatch(
+            "Claude workspace grant belongs to a different execution request"
         )
     try:
         supplied = Path(repo_root).expanduser().resolve(strict=True)
@@ -91,10 +166,7 @@ def _resolve_workspace(
     # For Daedalus self-work this is the structural no-primary-checkout fence.
     # For another repository the attempt-owned exact-path grant above remains
     # the relevant identity binding.
-    assert_write_allowed(
-        supplied,
-        what="Claude runtime workspace",
-    )
+    assert_write_allowed(supplied, what="Claude runtime workspace")
     return supplied
 
 
@@ -153,9 +225,11 @@ class ClaudeCLIProvider(Provider):
             raise ClaudeProviderAuthorizationRequired(
                 "Claude live execution requires an exact isolated-workspace grant"
             )
+        normalized_paths = _validate_execution_shape(effect_execution, paths)
         workspace = _resolve_workspace(
             repo_root,
             authorization=runtime_authorization,
+            execution=effect_execution,
             grant=workspace_grant,
         )
 
@@ -166,7 +240,7 @@ class ClaudeCLIProvider(Provider):
             invoke=lambda: _invoke_claude_cli(
                 objective=objective,
                 repo_root=str(workspace),
-                paths=paths,
+                paths=normalized_paths,
                 agent=agent,
                 model=model or agent.get("model_tier", "sonnet"),
                 timeout_s=timeout_s,
@@ -204,6 +278,7 @@ class ClaudeCLIProvider(Provider):
 __all__ = [
     "ClaudeCLIProvider",
     "ClaudeProviderAuthorizationRequired",
+    "ClaudeProviderScopeMismatch",
     "ClaudeProviderWorkspaceMismatch",
     "ClaudeWorkspaceGrant",
     "ENTRYPOINT_ID",
