@@ -28,6 +28,13 @@ The owner record is not an OwnerApproval verifier. Both referenced digests must
 come from the existing authenticated owner boundary before this index can be
 used by a later release-report integration.
 
+## Strict wire boundary
+
+Untrusted JSON must enter through `load_gate_evidence_index()` or
+`parse_gate_evidence_index()`. The strict boundary rejects duplicate keys,
+strings repackaged as arrays, malformed nested records and non-object roots
+before dataclass construction.
+
 ## Derived blockers
 
 `GateEvidenceIndex.mechanical_blockers()` derives required-membership blockers.
@@ -35,14 +42,18 @@ It is intentionally structural only and is not release authority.
 
 `strict_mechanical_blockers()` adds both adversarial coherence checks and
 external trust anchors. Every retained record, including optional evidence,
-must be coherent, and every hard evidence class must appear in an independently
-obtained exact digest set:
+must be coherent. The externally adopted requirements digest prevents a
+candidate from shrinking the required workflow, artifact, runtime, fault or
+review set. Protected Iron-Plan and registry digests are also external inputs.
 
-- workflow evidence digest from the authenticated CI read;
-- artifact content digest from CAS/artifact storage;
-- runtime envelope digest from the trusted live-runtime index;
+Every hard evidence class must appear in an independently obtained exact digest
+set:
+
+- complete workflow-evidence record from the authenticated CI read;
+- complete artifact-evidence record from verified CAS/artifact metadata;
+- runtime-envelope digest from the trusted live-runtime index;
 - fault-matrix digest from retained deterministic execution evidence;
-- review transcript digest from the review system;
+- complete review-evidence record from the review system;
 - owner-verifier receipt digest from the authenticated owner boundary.
 
 Empty trust sets fail closed. A caller cannot turn a locally constructed
@@ -50,18 +61,20 @@ canonical object into hard evidence merely by serializing it.
 
 The strict verifier rejects:
 
+- untrusted adopted requirements, Iron Plan or registry;
 - current commit or tree mismatch;
 - expired or future-dated index evidence;
 - untrusted, missing, failed, expired or foreign workflows;
-- untrusted, missing or foreign artifacts;
+- untrusted, missing or foreign artifact records;
 - artifact locators that do not address the claimed content;
 - untrusted, offline, failed, expired or foreign runtime evidence;
 - untrusted, missing, failed or foreign fault matrices;
-- untrusted review transcripts;
+- untrusted review records;
 - model-only reviews used as hard review evidence;
 - unresolved or changes-requested reviews;
 - missing, foreign or untrusted owner-verifier receipts;
 - ambiguous duplicate identities;
+- malformed wire shapes and duplicate JSON keys;
 - naive verification timestamps.
 
 ## Assurance boundary
@@ -82,8 +95,7 @@ This packet does not complete issue `G0-RPT-08`. Later packets must still:
 
 - populate the index and trust sets from authenticated GitHub/API and
   artifact-store reads;
-- bind the exact workflow-definition digest and required workflow set adopted
-  for release;
+- bind the exact workflow-definition digest in each workflow record;
 - verify the owner capability rather than merely reference its verifier receipt;
 - connect trusted live runtime envelopes from `G0-RTC-06`;
 - retain the index itself in CAS;
