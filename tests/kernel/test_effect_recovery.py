@@ -129,7 +129,7 @@ def test_issue_requires_exact_start_scope_and_post_start_acknowledgement(tmp_pat
         start,
         execution_request_sha256="8" * 64,
     )
-    with pytest.raises(EffectRecoveryBindingError, match="execution_request_sha256"):
+    with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
         _observation(execution, foreign_scope)
 
 
@@ -201,7 +201,7 @@ def test_source_revision_and_start_receipt_bindings_refuse(tmp_path: Path) -> No
             expected_source_revision="b" * 40,
         )
     changed_execution = dataclasses.replace(start, execution_id="execution-foreign")
-    with pytest.raises(EffectRecoveryBindingError, match="execution_id"):
+    with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
         _verify(observation, execution, changed_execution)
     changed_digest = dataclasses.replace(start, receipt_sha256="4" * 64)
     with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
