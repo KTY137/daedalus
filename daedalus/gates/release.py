@@ -30,7 +30,7 @@ from daedalus.schemas import (
 
 from .evidence import GateEvidenceIndex
 from .evidence_verifier import strict_mechanical_blockers
-from .report import GateReport
+from .report import GateReport, gate_report_artifact_sha256
 from .trust_bundle import EvidenceTrustBundle, verify_evidence_trust_bundle
 
 _RELEASE_SCHEMA = "daedalus-gate0-release-report/1"
@@ -249,7 +249,10 @@ def assemble_gate0_release_report(
         current_tree_revision=current_tree,
         now=now,
     )
+    if local_report.source_revision != current:
+        raise ValueError("Gate report source revision is not the current exact head")
     mechanical_sha = _report_sha256(local_report)
+    mechanical_artifact_sha = gate_report_artifact_sha256(local_report)
     evidence_blockers = set(
         strict_mechanical_blockers(
             evidence_index,
@@ -260,8 +263,6 @@ def assemble_gate0_release_report(
         )
     )
 
-    if local_report.source_revision != current:
-        evidence_blockers.add("assembly:gate-report-foreign-source-revision")
     if local_report.registry_sha256 != evidence_index.registry_sha256:
         evidence_blockers.add("assembly:gate-report-registry-mismatch")
     if "gate-report" not in evidence_index.required_artifact_kinds:
@@ -270,7 +271,7 @@ def assemble_gate0_release_report(
     retained_report = artifact_by_kind.get("gate-report")
     if retained_report is None:
         evidence_blockers.add("assembly:gate-report-artifact-missing")
-    elif retained_report.content_sha256 != mechanical_sha:
+    elif retained_report.content_sha256 != mechanical_artifact_sha:
         evidence_blockers.add("assembly:gate-report-artifact-mismatch")
 
     local_boundary_blockers = set(local_report.blockers)
