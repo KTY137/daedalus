@@ -37,6 +37,11 @@ MUTATIONS = (
         "        verify_effect_lease(\n",
         "        if False:\n            verify_effect_lease(\n",
     ),
+    Mutation(
+        "allow-cross-lease-terminal-receipt",
+        "        if start_receipt.lease_sha256 != self.lease.digest:\n",
+        "        if False:\n",
+    ),
 )
 
 FOCUSED_TESTS = ("tests/kernel/test_effect_authorization.py",)
