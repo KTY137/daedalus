@@ -71,3 +71,33 @@ __all__ += [
     "issue_effect_lease",
     "verify_effect_lease",
 ]
+
+from .promotion import (
+    AuthorizedPromotion,
+    PreparedPromotion,
+    PromotionBindingMismatch,
+    PromotionBoundaryError,
+    PromotionCapabilityError,
+    PromotionEvidenceError,
+    PromotionTargetMoved,
+    assert_authorized_promotion_start,
+    authorize_promotion,
+    build_approved_promotion_receipt,
+    consume_prepared_promotion,
+    prepare_promotion,
+)
+
+__all__ += [
+    "AuthorizedPromotion",
+    "PreparedPromotion",
+    "PromotionBindingMismatch",
+    "PromotionBoundaryError",
+    "PromotionCapabilityError",
+    "PromotionEvidenceError",
+    "PromotionTargetMoved",
+    "assert_authorized_promotion_start",
+    "authorize_promotion",
+    "build_approved_promotion_receipt",
+    "consume_prepared_promotion",
+    "prepare_promotion",
+]
