@@ -56,8 +56,8 @@ def main() -> int:
         ),
         (
             "accept-start-replay-with-changed-subject",
-            "                    if not persisted.same_subject(start):\n",
-            "                    if False:\n",
+            "        if not persisted.same_subject(start):\n",
+            "        if False:\n",
         ),
         (
             "allow-success-without-candidate-tree",
@@ -78,6 +78,16 @@ def main() -> int:
             "skip-input-tree-cas-check-in-ledger",
             "        loaded = self.source_store.load_tree(input_tree.ref)\n        if loaded != input_tree.manifest:\n            raise AttemptBindingMismatch(\n                \"input tree manifest differs from the ledger CAS object\"\n            )\n",
             "        loaded = input_tree.manifest\n",
+        ),
+        (
+            "remove-canonical-event-spine",
+            "        self.spine = path if isinstance(path, SpineLedger) else SpineLedger(path)\n",
+            "        self.spine = None\n",
+        ),
+        (
+            "drop-terminal-effect-id-binding",
+            "        if intent.effect_id != receipt.digest:\n",
+            "        if False:\n",
         ),
     )
 
