@@ -1,23 +1,21 @@
 """Execute one runtime provider call behind persisted runtime and effect authority.
 
-This module is deliberately provider-neutral. It composes the existing
-``RuntimeBoundEffectAuthorization`` with one exact ``EffectExecutionRequest``
-and a zero-argument provider callable. The broker persists the lease grant and
-start receipt before invoking external code, makes exact replay inert, and
-persists a terminal receipt for success, failure, cancellation, or runtime-trust
-loss.
+The broker composes one exact ``RuntimeBoundEffectAuthorization`` with one
+``EffectExecutionRequest`` and a zero-argument provider callback. Lease grant
+and effect start are durable before external code runs. Exact replay is inert,
+and success, failure, cancellation, and runtime-trust loss receive terminal
+receipts.
 
-A successful terminal receipt is written while the exact runtime-trust row is
-held under the trust ledger's SQLite writer transaction. Quarantine, expiry
-persistence, or runtime rotation therefore cannot interleave between the last
-trust observation and the durable ``COMPLETED`` receipt. This is a narrow
-cross-ledger serialization fence, not a distributed transaction: the trust row
-is read-only during the fence and the effect ledger remains the terminal-state
-authority.
+Successful completion is serialized against runtime quarantine, expiry-state
+persistence, and evidence rotation. The exact authenticated runtime-trust row is
+held under the trust ledger's SQLite writer transaction while the separate
+effect ledger persists ``COMPLETED``. The trust transaction is read-only and is
+explicitly rolled back after the effect receipt is durable; no cross-database
+atomicity is claimed.
 
-It does not make an existing provider safe merely by existing. A production
-provider row may move to ``CENTRAL`` only after its public call path requires
-this broker, produces content-addressed output evidence, and has no direct
+This module does not make an existing provider safe merely by existing. A
+production provider row may move to ``CENTRAL`` only after its public call path
+requires this broker, emits content-addressed output evidence, and has no direct
 effectful bypass.
 """
 from __future__ import annotations
@@ -135,6 +133,7 @@ def _validate_binding(
             "runtime provider authority targets a different entrypoint: "
             + ", ".join(mismatches)
         )
+
     spec = _registry_map(authorization.registry).get(expected)
     if spec is None:
         raise RuntimeProviderBindingMismatch(
@@ -157,7 +156,7 @@ def _validate_binding(
 
 
 def _exception_detail(phase: str, exc: BaseException) -> str:
-    """Return a non-secret deterministic exception-class digest."""
+    """Return a deterministic exception-class digest without retaining text."""
 
     return canonical_sha(
         {
@@ -233,17 +232,16 @@ def _parse_record_expiry(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _runtime_fence_components(authorization: RuntimeBoundEffectAuthorization):
-    """Return the concrete trust-ledger seam, or ``None`` for narrow test doubles.
-
-    Production ``RuntimeBoundEffectAuthorization`` objects always carry the
-    persisted trust ledger and the exact runtime capability. The fallback keeps
-    the broker's provider-neutral unit doubles small; the dedicated SQLite fence
-    tests exercise the concrete path.
-    """
+def _runtime_fence_components(
+    authorization: RuntimeBoundEffectAuthorization,
+):
+    """Return the concrete persisted trust seam, or ``None`` for narrow doubles."""
 
     ledger = getattr(authorization, "runtime_trust_ledger", None)
     capability = getattr(authorization, "capability", None)
+    if ledger is None:
+        return None
+
     connect = getattr(ledger, "_connect", None)
     from_row = getattr(ledger, "_from_row", None)
     required = (
@@ -255,13 +253,14 @@ def _runtime_fence_components(authorization: RuntimeBoundEffectAuthorization):
         "source_revision",
     )
     if (
-        ledger is None
-        or capability is None
+        capability is None
         or not callable(connect)
         or not callable(from_row)
         or any(not hasattr(capability, name) for name in required)
     ):
-        return None
+        raise RuntimeProviderBindingMismatch(
+            "runtime authorization lacks the persisted terminal-fence seam"
+        )
     return ledger, capability
 
 
@@ -271,14 +270,7 @@ def _finish_completed_under_runtime_fence(
     *,
     output_digests: tuple[str, ...],
 ) -> EffectTerminalReceipt:
-    """Persist ``COMPLETED`` while quarantine/rotation is serialized out.
-
-    Both runtime admission/quarantine and this fence use ``BEGIN IMMEDIATE`` on
-    the same trust database. Whichever boundary acquires the writer transaction
-    first establishes the order: a prior quarantine is observed and completion
-    is refused; a completion that already owns the fence becomes durable before
-    a later quarantine can commit.
-    """
+    """Persist ``COMPLETED`` while quarantine and rotation are serialized out."""
 
     components = _runtime_fence_components(authorization)
     if components is None:
@@ -290,7 +282,7 @@ def _finish_completed_under_runtime_fence(
         )
 
     ledger, capability = components
-    connection = ledger._connect()  # noqa: SLF001 - same persisted authority seam
+    connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
@@ -303,11 +295,12 @@ def _finish_completed_under_runtime_fence(
                 "runtime trust record disappeared before terminal completion"
             )
         try:
-            record = ledger._from_row(row)  # noqa: SLF001 - authenticates persisted row
+            record = ledger._from_row(row)  # noqa: SLF001 - authenticates row
         except BaseException as exc:
             raise RuntimeProviderTrustFenceError(
                 "runtime trust record failed authentication at terminal completion"
             ) from exc
+
         if record.state != "ACTIVE":
             raise RuntimeProviderTrustFenceError(
                 "runtime trust was quarantined before terminal completion"
@@ -316,6 +309,7 @@ def _finish_completed_under_runtime_fence(
             raise RuntimeProviderTrustFenceError(
                 "runtime trust expired before terminal completion"
             )
+
         comparisons = {
             "runtime_id": (record.runtime_id, capability.runtime_id),
             "envelope_sha256": (
@@ -356,12 +350,17 @@ def _finish_completed_under_runtime_fence(
             outcome="completed",
             output_digests=output_digests,
         )
+
+        # This transaction changed no trust state. Releasing it with ROLLBACK is
+        # intentional: if an unnecessary read-only COMMIT failed after the
+        # separate effect ledger had already committed, raising would lose an
+        # otherwise valid provider value and exact replay could not recover it.
         try:
-            connection.execute("COMMIT")
-        except BaseException as exc:
-            raise RuntimeProviderStateError(
-                "runtime trust terminal fence could not be committed"
-            ) from exc
+            connection.execute("ROLLBACK")
+        except BaseException:
+            # Closing the connection below still releases the SQLite writer
+            # lock. The completed effect receipt is already the durable state.
+            pass
         return terminal
     except BaseException:
         if connection.in_transaction:
@@ -382,14 +381,7 @@ def run_runtime_provider(
     invoke: Callable[[], T],
     output_digests: Callable[[T], Iterable[str]],
 ) -> RuntimeInvocationResult[T]:
-    """Run one exact provider effect after durable grant/start authorization.
-
-    ``invoke`` receives no authority object and is called only after the exact
-    lease grant and start receipt exist. Reusing the same execution identity
-    returns ``executed=False`` and never calls the provider a second time. Every
-    successful execution must produce at least one content-addressed output
-    digest before its value can be released.
-    """
+    """Run one exact provider effect after durable grant/start authorization."""
 
     if not callable(invoke):
         raise TypeError("invoke must be callable")
@@ -397,8 +389,6 @@ def run_runtime_provider(
         raise TypeError("output_digests must be callable")
     spec = _validate_binding(entrypoint_id, authorization)
 
-    # Grant is exact-replay idempotent. Keeping it inside the broker prevents a
-    # provider adapter from accidentally starting against an unpersisted lease.
     authorization.grant()
     start = authorization.begin_effect(execution)
     if not start.execute:
@@ -423,9 +413,6 @@ def run_runtime_provider(
         )
         raise
 
-    # Runtime evidence may expire or be quarantined while a long provider call
-    # is running. The effect cannot be undone, but its output is withheld and
-    # the durable execution is not represented as successfully completed.
     try:
         authorization.verify(now=_utc_now())
     except BaseException as exc:
@@ -448,9 +435,6 @@ def run_runtime_provider(
         )
         raise
 
-    # Evidence extraction can be non-trivial. Recheck once more before entering
-    # the terminal fence. The fence then authenticates the exact row again while
-    # holding the trust ledger's writer transaction through effect completion.
     try:
         authorization.verify(now=_utc_now())
     except BaseException as exc:
