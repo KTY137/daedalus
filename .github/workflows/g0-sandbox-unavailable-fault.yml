@@ -12,6 +12,7 @@ on:
       - "tests/kernel/test_docker_sandbox_launch_states_review.py"
       - "tests/fixtures/sandbox_unavailable_fault_executor.py"
       - "tests/runtimes/test_sandbox_unavailable_fault_executor.py"
+      - "tests/runtimes/test_sandbox_unavailable_fault_executor_review.py"
       - ".github/workflows/g0-sandbox-unavailable-fault.yml"
       - "docs/work-packets/G0-RTC-06J_SANDBOX_UNAVAILABLE_FAULT.md"
   push:
@@ -56,6 +57,7 @@ jobs:
           tests/kernel/test_docker_sandbox_launch_states.py
           tests/kernel/test_docker_sandbox_launch_states_review.py
           tests/runtimes/test_sandbox_unavailable_fault_executor.py
+          tests/runtimes/test_sandbox_unavailable_fault_executor_review.py
           tests/runtimes/test_linux_host_fault_runner.py
           tests/runtimes/test_linux_host_fault_runner_review.py
           tests/runtimes/test_runtime_fault_catalog.py
