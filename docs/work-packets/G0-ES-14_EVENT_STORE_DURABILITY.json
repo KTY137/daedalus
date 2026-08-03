@@ -1,0 +1,81 @@
+{
+  "schema": "daedalus-gate0-event-store-durability-review/1",
+  "work_packet": "G0-ES-14",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "profile": {
+    "journal_mode": "wal",
+    "synchronous": "full",
+    "minimum_busy_timeout_ms": 30000,
+    "foreign_keys": true,
+    "authority": "existing_spine_ledger_connection"
+  },
+  "fault_matrix": [
+    {
+      "fault": "writer_process_exit_after_committed_intent",
+      "expected": "intent remains visible as unresolved after reopen",
+      "test": "tests/test_spine_gate0_durability.py::test_full_profile_intent_survives_unclean_process_exit",
+      "state": "implemented_unexecuted"
+    },
+    {
+      "fault": "read_only_connection_used_as_writer",
+      "expected": "fail_closed_without_database_mutation",
+      "test": "tests/test_spine_gate0_durability.py::test_read_only_connection_can_be_inspected_but_never_hardened_as_writer",
+      "state": "implemented_unexecuted"
+    },
+    {
+      "fault": "non_wal_event_store",
+      "expected": "fail_closed_without_silent_journal_rewrite",
+      "test": "tests/test_spine_gate0_durability.py::test_non_ledger_and_weaker_readback_are_refused",
+      "state": "implemented_unexecuted"
+    },
+    {
+      "fault": "sqlite_readback_weaker_than_requested",
+      "expected": "fail_closed_and_no_durability_claim",
+      "test": "tests/test_spine_gate0_durability.py::test_profile_raises_when_sqlite_readback_does_not_confirm_full",
+      "state": "implemented_unexecuted"
+    },
+    {
+      "fault": "new_writer_connection_forgets_profile",
+      "expected": "machine_readback_reports_satisfied_false",
+      "test": "tests/test_spine_gate0_durability.py::test_each_new_writer_connection_must_explicitly_apply_profile",
+      "state": "implemented_unexecuted"
+    },
+    {
+      "fault": "host_power_loss_or_storage_cache_loss",
+      "expected": "committed_intent survives within SQLite and storage durability guarantees",
+      "test": null,
+      "state": "open_external_fault_harness",
+      "reason": "SQLite FULL readback is configuration evidence, not a direct host power-cut experiment."
+    }
+  ],
+  "migration_blockers": [
+    {
+      "code": "writer.profile_not_centralized",
+      "severity": "blocker",
+      "reason": "The profile is connection-local and no canonical writer factory enforces it for every production Event-Store writer."
+    },
+    {
+      "code": "legacy.default_is_normal",
+      "severity": "blocker",
+      "reason": "Bare SpineLedger connections remain synchronous=NORMAL and must not be counted as Gate-0 durable writers."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents tests, mutation runs, packaging and platform matrix execution."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Only builder and context-separated adversarial review have been performed."
+    }
+  ],
+  "verification_state": {
+    "builder_static_review": "performed",
+    "independent_review": "open",
+    "exact_head_ci": "blocked_by_github_actions_issue_67",
+    "power_cut_fault_harness": "open",
+    "all_production_writers_migrated": false
+  }
+}
