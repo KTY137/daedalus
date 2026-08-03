@@ -66,12 +66,12 @@ def test_material_snapshot_and_stale_fences_precede_retained_mutation() -> None:
     source = inspect.getsource(gated_writes.promote_candidates)
     assert "submitted_candidates = tuple(candidates)" in source
     assert "len(submitted_candidates) != 1" in source
-    assert "snapshot_promotion_candidates(submitted_candidates)" in source
+    assert "_snapshot_promotion_candidates(submitted_candidates)" in source
     assert "artifact.base_revision" in source
     assert "authorization.live_target_revision" in source
     assert "stale regeneration requires new evidence and OwnerApproval" in source
     assert source.index("len(submitted_candidates) != 1") < source.index(
-        "snapshot_promotion_candidates(submitted_candidates)"
+        "_snapshot_promotion_candidates(submitted_candidates)"
     ) < source.index("GitWorktreeManager")
     assert source.index("authorization.live_target_revision") < source.index(
         "_promote_locked"
@@ -111,7 +111,7 @@ def test_compatibility_module_has_no_second_legacy_promotion_authority() -> None
     assert "_retired_legacy_promotion" in source
     assert "persisted ApprovalLedger and owner keyring are mandatory" in source
     assert "authorize_promotion = authorize_persisted_promotion" in source
-    assert "snapshot_promotion_candidates" in source
+    assert "snapshot_promotion_candidates as _snapshot_promotion_candidates" in source
     assert 'name.startswith("_")' in source
     assert "merge_pull_request" not in source
     assert "git push" not in source
