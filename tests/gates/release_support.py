@@ -15,6 +15,7 @@ from daedalus.gates import (
     assemble_gate0_release_report,
     issue_evidence_trust_bundle,
 )
+from daedalus.gates.report import gate_report_artifact_sha256
 from daedalus.schemas import ContractProvenance
 
 REVISION = "a" * 40
@@ -154,8 +155,7 @@ def evidence_index(
     workflows: tuple[WorkflowRunEvidence, ...] | None = None,
     architecture_assurance: str = "human",
 ) -> GateEvidenceIndex:
-    mechanical_sha = str(report.to_dict()["report_sha256"])
-    report_sha = report_artifact_sha256 or mechanical_sha
+    report_sha = report_artifact_sha256 or gate_report_artifact_sha256(report)
     retained_workflows = workflows or (workflow(),)
     retained_artifacts = (
         artifact("gate-report", report_sha),
