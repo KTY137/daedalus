@@ -118,11 +118,14 @@ jobs:
           "from daedalus.gates import EvidenceTrustBundle,
           Gate0ReleaseReport, assemble_gate0_release_report,
           assert_gate0_release_report,
-          gate0_release_verification_blockers;
+          gate0_release_verification_blockers,
+          gate_report_artifact_sha256, render_gate_report;
           assert EvidenceTrustBundle.CONTRACT_TYPE ==
           'daedalus-gate-evidence-trust-bundle/1';
           assert Gate0ReleaseReport.CONTRACT_TYPE ==
           'daedalus-gate0-release-report/1';
           assert assemble_gate0_release_report;
           assert assert_gate0_release_report;
-          assert gate0_release_verification_blockers"
+          assert gate0_release_verification_blockers;
+          assert gate_report_artifact_sha256;
+          assert render_gate_report"
