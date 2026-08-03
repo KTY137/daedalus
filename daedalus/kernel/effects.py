@@ -13,6 +13,7 @@ import dataclasses
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sqlite3
 import threading
@@ -63,8 +64,28 @@ _TERMINAL_AUTHORIZATION_HMAC_DOMAIN = (
 _CLAIM_TERMINAL_AUTHORIZATION_HMAC_DOMAIN = (
     b"daedalus.effect-claim-terminal-authorization.v1\x00"
 )
+_PUBLICATION_COMMIT_HMAC_DOMAIN = b"daedalus.effect-publication-commit.v1\x00"
+_PUBLICATION_CAPABILITY_DOMAIN = (
+    b"daedalus.effect-publication-commit-capability.v1\x00"
+)
+_PUBLICATION_OUTCOME_AUDIT_KEY_DOMAIN = (
+    b"daedalus.effect-publication-outcome-audit-key.v1\x00"
+)
+_PUBLICATION_OUTCOME_HMAC_DOMAIN = (
+    b"daedalus.effect-publication-outcome.v1\x00"
+)
+_FINALIZATION_CAPABILITY_DOMAIN = (
+    b"daedalus.effect-publication-finalization-capability.v1\x00"
+)
+_FINALIZATION_AUTHORIZATION_HMAC_DOMAIN = (
+    b"daedalus.effect-publication-finalization-authorization.v1\x00"
+)
 _COMPLETION_CAPABILITY_MINT_TOKEN = object()
 _CLAIM_COMPLETION_CAPABILITY_MINT_TOKEN = object()
+_CLAIM_PROMOTION_TOKEN = object()
+_PUBLICATION_CAPABILITY_MINT_TOKEN = object()
+_PUBLICATION_SESSION_MINT_TOKEN = object()
+_FINALIZATION_CAPABILITY_MINT_TOKEN = object()
 
 
 class EffectLeaseError(RuntimeError):
@@ -98,10 +119,10 @@ class EffectLeaseStateError(EffectLeaseError):
 class EffectReconciliationRequired(EffectLeaseStateError):
     """A started external effect could not publish its terminal receipt.
 
-    The durable ``STARTED`` or exclusively claimed ``EXECUTING`` row is
-    intentionally retained as an indeterminate state.  Re-entering the same
-    execution remains inert, so an operator can reconcile the external outcome
-    without risking a duplicate effect.
+    The durable row is intentionally retained as indeterminate.  Generic
+    operator reconciliation may close only an unclaimed ``STARTED`` row;
+    ``EXECUTING`` and ``COMMITTING`` require a future orphan fence plus stopped
+    kill-switch proof before any terminal decision is safe.
     """
 
     def __init__(
@@ -343,6 +364,118 @@ class EffectExecutionClaimReceipt:
 
 
 @dataclass(frozen=True)
+class EffectPublicationCommitReceipt:
+    """Issuer-authenticated durable ``EXECUTING -> COMMITTING`` receipt."""
+
+    lease_sha256: str
+    issuer_key_id: str
+    execution_id: str
+    execution_request_sha256: str
+    start_receipt_sha256: str
+    claim_receipt_sha256: str
+    effect_commitment_sha256: str
+    publication_capability_sha256: str
+    committed_at: str
+    signature_sha256: str
+    receipt_sha256: str
+
+    def __post_init__(self) -> None:
+        for name in ("issuer_key_id", "execution_id"):
+            object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        for name in (
+            "lease_sha256",
+            "execution_request_sha256",
+            "start_receipt_sha256",
+            "claim_receipt_sha256",
+            "effect_commitment_sha256",
+            "publication_capability_sha256",
+            "signature_sha256",
+            "receipt_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        canonical_committed = _timestamp(
+            _parse_utc(self.committed_at, "committed_at")
+        )
+        if canonical_committed != self.committed_at:
+            raise EffectLeaseBindingMismatch(
+                "publication commit timestamp is not canonical UTC"
+            )
+        if canonical_sha(self.authenticated_dict()) != self.receipt_sha256:
+            raise EffectLeaseBindingMismatch("publication commit digest mismatch")
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+    def signing_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        body.pop("signature_sha256")
+        return body
+
+    def authenticated_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        return body
+
+
+@dataclass(frozen=True)
+class EffectPublicationOutcomeReceipt:
+    """Live-capability evidence of one explicitly successful publication."""
+
+    lease_sha256: str
+    execution_id: str
+    execution_request_sha256: str
+    start_receipt_sha256: str
+    claim_receipt_sha256: str
+    publication_commit_receipt_sha256: str
+    effect_commitment_sha256: str
+    finalization_capability_sha256: str
+    published_at: str
+    signature_sha256: str
+    receipt_sha256: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "execution_id", _identifier(self.execution_id, "execution_id")
+        )
+        for name in (
+            "lease_sha256",
+            "execution_request_sha256",
+            "start_receipt_sha256",
+            "claim_receipt_sha256",
+            "publication_commit_receipt_sha256",
+            "effect_commitment_sha256",
+            "finalization_capability_sha256",
+            "signature_sha256",
+            "receipt_sha256",
+        ):
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        canonical_published = _timestamp(
+            _parse_utc(self.published_at, "published_at")
+        )
+        if canonical_published != self.published_at:
+            raise EffectLeaseBindingMismatch(
+                "publication outcome timestamp is not canonical UTC"
+            )
+        if canonical_sha(self.authenticated_dict()) != self.receipt_sha256:
+            raise EffectLeaseBindingMismatch("publication outcome digest mismatch")
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+    def signing_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        body.pop("signature_sha256")
+        return body
+
+    def authenticated_dict(self) -> dict[str, str]:
+        body = self.to_dict()
+        body.pop("receipt_sha256")
+        return body
+
+
+@dataclass(frozen=True)
 class EffectTerminalReceipt:
     lease_sha256: str
     execution_id: str
@@ -498,6 +631,80 @@ class ClaimTerminalAuthorization:
         return "ClaimTerminalAuthorization(<redacted>)"
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class PublicationFinalizationAuthorization:
+    """Opaque terminal authority minted only after clean publication exit."""
+
+    _lease_sha256: str
+    _execution_id: str
+    _start_receipt_sha256: str
+    _claim_receipt_sha256: str
+    _publication_commit_receipt_sha256: str
+    _publication_outcome_receipt_sha256: str
+    _terminal_receipt_sha256: str
+    _pid: int
+    _thread_id: int
+    _signature_sha256: str
+    _secret: bytes = field(repr=False, compare=False)
+    _publication_secret: bytes = field(repr=False, compare=False)
+    _outcome_audit_key: bytes = field(repr=False, compare=False)
+
+    @classmethod
+    def _issue(
+        cls,
+        *,
+        lease_sha256: str,
+        execution_id: str,
+        start_receipt_sha256: str,
+        claim_receipt_sha256: str,
+        publication_commit_receipt_sha256: str,
+        publication_outcome_receipt_sha256: str,
+        terminal_receipt_sha256: str,
+        secret: bytes,
+        publication_secret: bytes,
+        outcome_audit_key: bytes,
+    ) -> "PublicationFinalizationAuthorization":
+        payload = {
+            "lease_sha256": lease_sha256,
+            "execution_id": execution_id,
+            "start_receipt_sha256": start_receipt_sha256,
+            "claim_receipt_sha256": claim_receipt_sha256,
+            "publication_commit_receipt_sha256": (
+                publication_commit_receipt_sha256
+            ),
+            "publication_outcome_receipt_sha256": (
+                publication_outcome_receipt_sha256
+            ),
+            "terminal_receipt_sha256": terminal_receipt_sha256,
+            "pid": os.getpid(),
+            "thread_id": threading.get_ident(),
+        }
+        return cls(
+            _lease_sha256=lease_sha256,
+            _execution_id=execution_id,
+            _start_receipt_sha256=start_receipt_sha256,
+            _claim_receipt_sha256=claim_receipt_sha256,
+            _publication_commit_receipt_sha256=(
+                publication_commit_receipt_sha256
+            ),
+            _publication_outcome_receipt_sha256=(
+                publication_outcome_receipt_sha256
+            ),
+            _terminal_receipt_sha256=terminal_receipt_sha256,
+            _pid=os.getpid(),
+            _thread_id=threading.get_ident(),
+            _signature_sha256=_publication_finalization_authorization_signature(
+                payload, secret
+            ),
+            _secret=bytes(secret),
+            _publication_secret=bytes(publication_secret),
+            _outcome_audit_key=bytes(outcome_audit_key),
+        )
+
+    def __repr__(self) -> str:
+        return "PublicationFinalizationAuthorization(<redacted>)"
+
+
 class CompletionCapability:
     """Live-only one-shot capability committed by a signed start receipt.
 
@@ -640,6 +847,9 @@ class ClaimCompletionCapability:
         "_commitment_sha256",
         "_secret",
         "_bound_terminal_sha256",
+        "_lifecycle_state",
+        "_promoted_commit_sha256",
+        "_mint_pid",
         "_lock",
     )
 
@@ -700,6 +910,9 @@ class ClaimCompletionCapability:
         object.__setattr__(self, "_commitment_sha256", commitment)
         object.__setattr__(self, "_secret", secret_value)
         object.__setattr__(self, "_bound_terminal_sha256", None)
+        object.__setattr__(self, "_lifecycle_state", "LIVE")
+        object.__setattr__(self, "_promoted_commit_sha256", None)
+        object.__setattr__(self, "_mint_pid", os.getpid())
         object.__setattr__(self, "_lock", threading.Lock())
 
     def __setattr__(self, _name: str, _value: object) -> None:
@@ -755,6 +968,16 @@ class ClaimCompletionCapability:
             raise EffectLeaseSignatureError(
                 "claim completion capability secret does not match its commitment"
             )
+        with self._lock:
+            if os.getpid() != self._mint_pid:
+                raise EffectLeaseStateError(
+                    "claim completion capability cannot cross a process fork"
+                )
+            if self._lifecycle_state != "LIVE":
+                raise EffectLeaseStateError(
+                    "claim completion capability is being promoted or was "
+                    "irreversibly promoted"
+                )
 
     def authorize(
         self, receipt: EffectTerminalReceipt
@@ -780,6 +1003,15 @@ class ClaimCompletionCapability:
                 + ", ".join(mismatches)
             )
         with self._lock:
+            if os.getpid() != self._mint_pid:
+                raise EffectLeaseStateError(
+                    "claim completion capability cannot cross a process fork"
+                )
+            if self._lifecycle_state != "LIVE":
+                raise EffectLeaseStateError(
+                    "claim completion capability cannot terminalize after "
+                    "publication promotion"
+                )
             if self._bound_terminal_sha256 is None:
                 object.__setattr__(
                     self, "_bound_terminal_sha256", receipt.receipt_sha256
@@ -798,6 +1030,753 @@ class ClaimCompletionCapability:
             claim_receipt_sha256=self._claim_receipt_sha256,
             terminal_receipt_sha256=receipt.receipt_sha256,
             secret=self._secret,
+        )
+
+    def _begin_publication_promotion(self, *, _token: object) -> None:
+        if _token is not _CLAIM_PROMOTION_TOKEN:
+            raise EffectLeaseStateError(
+                "claim promotion is reserved for the canonical ledger"
+            )
+        with self._lock:
+            if os.getpid() != self._mint_pid:
+                raise EffectLeaseStateError(
+                    "claim completion capability cannot cross a process fork"
+                )
+            if self._lifecycle_state != "LIVE":
+                raise EffectLeaseStateError(
+                    "claim completion capability is not promotable"
+                )
+            if self._bound_terminal_sha256 is not None:
+                raise EffectLeaseStateError(
+                    "claim completion capability is already terminal-bound"
+                )
+            object.__setattr__(self, "_lifecycle_state", "PROMOTING")
+
+    def _cancel_publication_promotion(self, *, _token: object) -> None:
+        if _token is not _CLAIM_PROMOTION_TOKEN:
+            raise EffectLeaseStateError(
+                "claim promotion is reserved for the canonical ledger"
+            )
+        with self._lock:
+            if self._lifecycle_state == "PROMOTING":
+                object.__setattr__(self, "_lifecycle_state", "LIVE")
+
+    def _complete_publication_promotion(
+        self,
+        *,
+        start_receipt: LeasedEffectStartReceipt,
+        claim_receipt: EffectExecutionClaimReceipt,
+        commit_receipt: EffectPublicationCommitReceipt,
+        secret: bytes,
+        outcome_audit_key: bytes,
+        _token: object,
+    ) -> "PublicationCommitCapability":
+        if _token is not _CLAIM_PROMOTION_TOKEN:
+            raise EffectLeaseStateError(
+                "claim promotion is reserved for the canonical ledger"
+            )
+        with self._lock:
+            if os.getpid() != self._mint_pid:
+                raise EffectLeaseStateError(
+                    "claim completion capability cannot cross a process fork"
+                )
+            if self._lifecycle_state != "PROMOTING":
+                raise EffectLeaseStateError(
+                    "claim completion capability has no pending promotion"
+                )
+            capability = PublicationCommitCapability(
+                start_receipt=start_receipt,
+                claim_receipt=claim_receipt,
+                commit_receipt=commit_receipt,
+                secret=secret,
+                outcome_audit_key=outcome_audit_key,
+                _mint_token=_PUBLICATION_CAPABILITY_MINT_TOKEN,
+            )
+            object.__setattr__(self, "_lifecycle_state", "PROMOTED")
+            object.__setattr__(
+                self,
+                "_promoted_commit_sha256",
+                commit_receipt.receipt_sha256,
+            )
+            return capability
+
+
+class PublicationCommitCapability:
+    """PID-bound, one-use authority for the target publication consumer.
+
+    This capability has deliberately no terminal authorization method.  It can
+    only open one target-publication session.  The session must cross the
+    declared effect boundary, explicitly attest success, and exit cleanly
+    before its separate finalization capability becomes usable.
+    """
+
+    __slots__ = (
+        "_lease_sha256",
+        "_execution_id",
+        "_execution_request_sha256",
+        "_start_receipt_sha256",
+        "_claim_receipt_sha256",
+        "_commit_receipt_sha256",
+        "_effect_commitment_sha256",
+        "_commitment_sha256",
+        "_secret",
+        "_outcome_audit_key",
+        "_start_receipt",
+        "_claim_receipt",
+        "_commit_receipt",
+        "_mint_pid",
+        "_state",
+        "_owner_thread_id",
+        "_session_nonce",
+        "_boundary_crossed",
+        "_outcome_receipt_sha256",
+        "_lock",
+    )
+
+    def __init__(
+        self,
+        *,
+        start_receipt: LeasedEffectStartReceipt,
+        claim_receipt: EffectExecutionClaimReceipt,
+        commit_receipt: EffectPublicationCommitReceipt,
+        secret: bytes,
+        outcome_audit_key: bytes,
+        _mint_token: object | None = None,
+    ) -> None:
+        if _mint_token is not _PUBLICATION_CAPABILITY_MINT_TOKEN:
+            raise EffectLeaseStateError(
+                "publication capabilities may only be minted by a persisted "
+                "COMMITTING transition"
+            )
+        secret_value = bytes(secret)
+        commitment = _publication_capability_sha256(secret_value)
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                (
+                    "lease_sha256",
+                    commit_receipt.lease_sha256,
+                    start_receipt.lease_sha256,
+                ),
+                (
+                    "execution_id",
+                    commit_receipt.execution_id,
+                    start_receipt.execution_id,
+                ),
+                (
+                    "start_receipt_sha256",
+                    commit_receipt.start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_start_receipt_sha256",
+                    claim_receipt.start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_receipt_sha256",
+                    commit_receipt.claim_receipt_sha256,
+                    claim_receipt.receipt_sha256,
+                ),
+                (
+                    "execution_request_sha256",
+                    commit_receipt.execution_request_sha256,
+                    claim_receipt.execution_request_sha256,
+                ),
+                (
+                    "publication_capability_sha256",
+                    commit_receipt.publication_capability_sha256,
+                    commitment,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "publication capability binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        object.__setattr__(self, "_lease_sha256", commit_receipt.lease_sha256)
+        object.__setattr__(self, "_execution_id", commit_receipt.execution_id)
+        object.__setattr__(
+            self,
+            "_execution_request_sha256",
+            commit_receipt.execution_request_sha256,
+        )
+        object.__setattr__(
+            self, "_start_receipt_sha256", start_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self, "_claim_receipt_sha256", claim_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self, "_commit_receipt_sha256", commit_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self,
+            "_effect_commitment_sha256",
+            commit_receipt.effect_commitment_sha256,
+        )
+        object.__setattr__(self, "_commitment_sha256", commitment)
+        object.__setattr__(self, "_secret", secret_value)
+        object.__setattr__(self, "_outcome_audit_key", bytes(outcome_audit_key))
+        object.__setattr__(self, "_start_receipt", start_receipt)
+        object.__setattr__(self, "_claim_receipt", claim_receipt)
+        object.__setattr__(self, "_commit_receipt", commit_receipt)
+        object.__setattr__(self, "_mint_pid", os.getpid())
+        object.__setattr__(self, "_state", "FRESH")
+        object.__setattr__(self, "_owner_thread_id", None)
+        object.__setattr__(self, "_session_nonce", None)
+        object.__setattr__(self, "_boundary_crossed", False)
+        object.__setattr__(self, "_outcome_receipt_sha256", None)
+        object.__setattr__(self, "_lock", threading.Lock())
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("PublicationCommitCapability is immutable")
+
+    def __repr__(self) -> str:
+        return "PublicationCommitCapability(<redacted>)"
+
+    def verify_commit_receipt(
+        self,
+        start_receipt: LeasedEffectStartReceipt,
+        claim_receipt: EffectExecutionClaimReceipt,
+        commit_receipt: EffectPublicationCommitReceipt,
+    ) -> None:
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", self._lease_sha256, commit_receipt.lease_sha256),
+                ("execution_id", self._execution_id, commit_receipt.execution_id),
+                (
+                    "execution_request_sha256",
+                    self._execution_request_sha256,
+                    commit_receipt.execution_request_sha256,
+                ),
+                (
+                    "start_receipt_sha256",
+                    self._start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "claim_receipt_sha256",
+                    self._claim_receipt_sha256,
+                    claim_receipt.receipt_sha256,
+                ),
+                (
+                    "commit_claim_receipt_sha256",
+                    commit_receipt.claim_receipt_sha256,
+                    claim_receipt.receipt_sha256,
+                ),
+                (
+                    "publication_commit_receipt_sha256",
+                    self._commit_receipt_sha256,
+                    commit_receipt.receipt_sha256,
+                ),
+                (
+                    "effect_commitment_sha256",
+                    self._effect_commitment_sha256,
+                    commit_receipt.effect_commitment_sha256,
+                ),
+                (
+                    "publication_capability_sha256",
+                    self._commitment_sha256,
+                    commit_receipt.publication_capability_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "publication capability receipt mismatch: "
+                + ", ".join(mismatches)
+            )
+        expected = _publication_capability_sha256(self._secret)
+        if not hmac.compare_digest(expected, self._commitment_sha256):
+            raise EffectLeaseSignatureError(
+                "publication capability secret does not match its commitment"
+            )
+        with self._lock:
+            self._require_pid_locked()
+            if self._state != "FRESH":
+                raise EffectLeaseStateError(
+                    "publication capability is no longer fresh"
+                )
+
+    def open_target_publication(self) -> "_TargetPublicationSession":
+        """Exclusively open the one target-consumer publication attempt."""
+
+        with self._lock:
+            self._require_pid_locked()
+            if self._state != "FRESH":
+                raise EffectLeaseStateError(
+                    "publication capability is already opened or poisoned"
+                )
+            session_nonce = secrets.token_hex(32)
+            object.__setattr__(self, "_state", "ACTIVE")
+            object.__setattr__(
+                self, "_owner_thread_id", threading.get_ident()
+            )
+            object.__setattr__(self, "_session_nonce", session_nonce)
+            return _TargetPublicationSession(
+                capability=self,
+                session_nonce=session_nonce,
+                _mint_token=_PUBLICATION_SESSION_MINT_TOKEN,
+            )
+
+    def _require_pid_locked(self) -> None:
+        if os.getpid() != self._mint_pid:
+            raise EffectLeaseStateError(
+                "publication capability cannot cross a process fork"
+            )
+
+    def _require_active_owner_locked(self, session_nonce: str) -> None:
+        self._require_pid_locked()
+        if self._state not in {"ACTIVE", "SUCCESS_DECLARED"}:
+            raise EffectLeaseStateError("publication session is not active")
+        if self._session_nonce != session_nonce:
+            raise EffectLeaseBindingMismatch(
+                "publication session nonce does not match its capability"
+            )
+        if self._owner_thread_id != threading.get_ident():
+            raise EffectLeaseStateError(
+                "publication session is bound to its opening thread"
+            )
+
+    def _enter_session(self, session_nonce: str) -> None:
+        with self._lock:
+            self._require_active_owner_locked(session_nonce)
+            if self._state != "ACTIVE":
+                raise EffectLeaseStateError(
+                    "publication session cannot be re-entered after success"
+                )
+
+    def _mark_boundary_crossed(self, session_nonce: str) -> None:
+        with self._lock:
+            self._require_active_owner_locked(session_nonce)
+            if self._state != "ACTIVE":
+                raise EffectLeaseStateError(
+                    "publication success was already declared"
+                )
+            if self._boundary_crossed:
+                raise EffectLeaseStateError(
+                    "publication effect boundary was already crossed"
+                )
+            object.__setattr__(self, "_boundary_crossed", True)
+
+    def _declare_success(
+        self,
+        session_nonce: str,
+        *,
+        commit_receipt: EffectPublicationCommitReceipt,
+        published_at: datetime | None,
+    ) -> "EffectPublicationFinalization":
+        with self._lock:
+            self._require_active_owner_locked(session_nonce)
+            if self._state != "ACTIVE" or not self._boundary_crossed:
+                raise EffectLeaseStateError(
+                    "publication success requires one crossed effect boundary"
+                )
+            if commit_receipt.receipt_sha256 != self._commit_receipt_sha256:
+                raise EffectLeaseBindingMismatch(
+                    "publication success uses a different commit receipt"
+                )
+            published = (
+                _as_utc(published_at, "published_at")
+                if published_at is not None
+                else _utc_now()
+            )
+            committed = _parse_utc(
+                commit_receipt.committed_at, "commit.committed_at"
+            )
+            if published < committed:
+                raise EffectLeaseStateError(
+                    "publication success predates its durable commit"
+                )
+            finalization_secret = secrets.token_bytes(32)
+            payload = {
+                "lease_sha256": self._lease_sha256,
+                "execution_id": self._execution_id,
+                "execution_request_sha256": self._execution_request_sha256,
+                "start_receipt_sha256": self._start_receipt_sha256,
+                "claim_receipt_sha256": self._claim_receipt_sha256,
+                "publication_commit_receipt_sha256": (
+                    self._commit_receipt_sha256
+                ),
+                "effect_commitment_sha256": self._effect_commitment_sha256,
+                "finalization_capability_sha256": (
+                    _finalization_capability_sha256(finalization_secret)
+                ),
+                "published_at": _timestamp(published),
+            }
+            signature = _publication_outcome_signature(
+                payload, self._outcome_audit_key
+            )
+            authenticated = {**payload, "signature_sha256": signature}
+            outcome = EffectPublicationOutcomeReceipt(
+                **authenticated,
+                receipt_sha256=canonical_sha(authenticated),
+            )
+            finalization_capability = PublicationFinalizationCapability(
+                commit_receipt=commit_receipt,
+                outcome_receipt=outcome,
+                publication_secret=self._secret,
+                outcome_audit_key=self._outcome_audit_key,
+                finalization_secret=finalization_secret,
+                publication_capability=self,
+                session_nonce=session_nonce,
+                _mint_token=_FINALIZATION_CAPABILITY_MINT_TOKEN,
+            )
+            object.__setattr__(self, "_state", "SUCCESS_DECLARED")
+            object.__setattr__(
+                self, "_outcome_receipt_sha256", outcome.receipt_sha256
+            )
+            return EffectPublicationFinalization(
+                start_receipt=self._start_receipt,
+                claim_receipt=self._claim_receipt,
+                commit_receipt=commit_receipt,
+                outcome_receipt=outcome,
+                completion_capability=finalization_capability,
+            )
+
+    def _exit_session(
+        self, session_nonce: str, *, exception_raised: bool
+    ) -> None:
+        with self._lock:
+            self._require_active_owner_locked(session_nonce)
+            if exception_raised or self._state != "SUCCESS_DECLARED":
+                object.__setattr__(self, "_state", "POISONED")
+                return
+            object.__setattr__(self, "_state", "FINALIZABLE")
+
+    def _require_finalizable(
+        self, *, session_nonce: str, outcome_receipt_sha256: str
+    ) -> None:
+        with self._lock:
+            self._require_pid_locked()
+            if self._state != "FINALIZABLE":
+                raise EffectLeaseStateError(
+                    "publication finalization requires a clean session exit"
+                )
+            if self._session_nonce != session_nonce:
+                raise EffectLeaseBindingMismatch(
+                    "finalization session differs from publication authority"
+                )
+            if self._outcome_receipt_sha256 != outcome_receipt_sha256:
+                raise EffectLeaseBindingMismatch(
+                    "finalization outcome differs from publication success"
+                )
+
+
+class _TargetPublicationSession:
+    """One same-thread context around the effectful target consumer."""
+
+    __slots__ = (
+        "_capability",
+        "_session_nonce",
+        "_entered",
+        "_exited",
+        "_commit_receipt",
+    )
+
+    def __init__(
+        self,
+        *,
+        capability: PublicationCommitCapability,
+        session_nonce: str,
+        _mint_token: object | None = None,
+    ) -> None:
+        if _mint_token is not _PUBLICATION_SESSION_MINT_TOKEN:
+            raise EffectLeaseStateError(
+                "target publication sessions may only be opened by a live "
+                "publication capability"
+            )
+        object.__setattr__(self, "_capability", capability)
+        object.__setattr__(self, "_session_nonce", session_nonce)
+        object.__setattr__(self, "_entered", False)
+        object.__setattr__(self, "_exited", False)
+        object.__setattr__(self, "_commit_receipt", None)
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("target publication session is immutable")
+
+    def __enter__(self) -> "_TargetPublicationSession":
+        if self._entered or self._exited:
+            raise EffectLeaseStateError(
+                "target publication session is one-use"
+            )
+        self._capability._enter_session(self._session_nonce)
+        object.__setattr__(self, "_entered", True)
+        return self
+
+    def __exit__(self, exc_type, _exc, _traceback) -> bool:
+        if not self._entered or self._exited:
+            raise EffectLeaseStateError(
+                "target publication session exit is invalid"
+            )
+        self._capability._exit_session(
+            self._session_nonce,
+            exception_raised=exc_type is not None,
+        )
+        object.__setattr__(self, "_exited", True)
+        return False
+
+    def mark_effect_boundary_crossed(self) -> None:
+        self._require_active_context()
+        self._capability._mark_boundary_crossed(self._session_nonce)
+
+    def publication_succeeded(
+        self,
+        *,
+        commit_receipt: EffectPublicationCommitReceipt,
+        published_at: datetime | None = None,
+    ) -> "EffectPublicationFinalization":
+        self._require_active_context()
+        object.__setattr__(self, "_commit_receipt", commit_receipt)
+        return self._capability._declare_success(
+            self._session_nonce,
+            commit_receipt=commit_receipt,
+            published_at=published_at,
+        )
+
+    def _require_active_context(self) -> None:
+        if not self._entered or self._exited:
+            raise EffectLeaseStateError(
+                "publication operation requires its active context"
+            )
+
+
+class PublicationFinalizationCapability:
+    """Live-only terminal authority released after clean publication exit."""
+
+    __slots__ = (
+        "_lease_sha256",
+        "_execution_id",
+        "_start_receipt_sha256",
+        "_claim_receipt_sha256",
+        "_commit_receipt_sha256",
+        "_outcome_receipt_sha256",
+        "_publication_secret",
+        "_outcome_audit_key",
+        "_finalization_secret",
+        "_finalization_commitment_sha256",
+        "_publication_capability",
+        "_session_nonce",
+        "_mint_pid",
+        "_mint_thread_id",
+        "_bound_terminal_sha256",
+        "_lock",
+    )
+
+    def __init__(
+        self,
+        *,
+        commit_receipt: EffectPublicationCommitReceipt,
+        outcome_receipt: EffectPublicationOutcomeReceipt,
+        publication_secret: bytes,
+        outcome_audit_key: bytes,
+        finalization_secret: bytes,
+        publication_capability: PublicationCommitCapability,
+        session_nonce: str,
+        _mint_token: object | None = None,
+    ) -> None:
+        if _mint_token is not _FINALIZATION_CAPABILITY_MINT_TOKEN:
+            raise EffectLeaseStateError(
+                "finalization capabilities may only be minted by an explicit "
+                "publication success"
+            )
+        object.__setattr__(self, "_lease_sha256", commit_receipt.lease_sha256)
+        object.__setattr__(self, "_execution_id", commit_receipt.execution_id)
+        object.__setattr__(
+            self, "_start_receipt_sha256", commit_receipt.start_receipt_sha256
+        )
+        object.__setattr__(
+            self, "_claim_receipt_sha256", commit_receipt.claim_receipt_sha256
+        )
+        object.__setattr__(
+            self, "_commit_receipt_sha256", commit_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self, "_outcome_receipt_sha256", outcome_receipt.receipt_sha256
+        )
+        object.__setattr__(self, "_publication_secret", bytes(publication_secret))
+        object.__setattr__(self, "_outcome_audit_key", bytes(outcome_audit_key))
+        object.__setattr__(
+            self, "_finalization_secret", bytes(finalization_secret)
+        )
+        object.__setattr__(
+            self,
+            "_finalization_commitment_sha256",
+            _finalization_capability_sha256(finalization_secret),
+        )
+        object.__setattr__(
+            self, "_publication_capability", publication_capability
+        )
+        object.__setattr__(self, "_session_nonce", session_nonce)
+        object.__setattr__(self, "_mint_pid", os.getpid())
+        object.__setattr__(self, "_mint_thread_id", threading.get_ident())
+        object.__setattr__(self, "_bound_terminal_sha256", None)
+        object.__setattr__(self, "_lock", threading.Lock())
+        self.verify_publication(
+            commit_receipt,
+            outcome_receipt,
+            require_finalizable=False,
+        )
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("PublicationFinalizationCapability is immutable")
+
+    def __repr__(self) -> str:
+        return "PublicationFinalizationCapability(<redacted>)"
+
+    def verify_publication(
+        self,
+        commit_receipt: EffectPublicationCommitReceipt,
+        outcome_receipt: EffectPublicationOutcomeReceipt,
+        *,
+        require_finalizable: bool = True,
+    ) -> None:
+        if os.getpid() != self._mint_pid:
+            raise EffectLeaseStateError(
+                "publication finalization capability cannot cross a process fork"
+            )
+        if threading.get_ident() != self._mint_thread_id:
+            raise EffectLeaseStateError(
+                "publication finalization capability is bound to its "
+                "publication thread"
+            )
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", self._lease_sha256, commit_receipt.lease_sha256),
+                ("execution_id", self._execution_id, commit_receipt.execution_id),
+                (
+                    "start_receipt_sha256",
+                    self._start_receipt_sha256,
+                    commit_receipt.start_receipt_sha256,
+                ),
+                (
+                    "claim_receipt_sha256",
+                    self._claim_receipt_sha256,
+                    commit_receipt.claim_receipt_sha256,
+                ),
+                (
+                    "publication_commit_receipt_sha256",
+                    self._commit_receipt_sha256,
+                    commit_receipt.receipt_sha256,
+                ),
+                (
+                    "outcome_commit_receipt_sha256",
+                    outcome_receipt.publication_commit_receipt_sha256,
+                    commit_receipt.receipt_sha256,
+                ),
+                (
+                    "publication_outcome_receipt_sha256",
+                    self._outcome_receipt_sha256,
+                    outcome_receipt.receipt_sha256,
+                ),
+                (
+                    "effect_commitment_sha256",
+                    outcome_receipt.effect_commitment_sha256,
+                    commit_receipt.effect_commitment_sha256,
+                ),
+                (
+                    "finalization_capability_sha256",
+                    self._finalization_commitment_sha256,
+                    outcome_receipt.finalization_capability_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "publication finalization binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        publication_commitment = _publication_capability_sha256(
+            self._publication_secret
+        )
+        if not hmac.compare_digest(
+            publication_commitment,
+            commit_receipt.publication_capability_sha256,
+        ):
+            raise EffectLeaseSignatureError(
+                "publication outcome secret does not match durable commit"
+            )
+        expected_outcome_signature = _publication_outcome_signature(
+            outcome_receipt.signing_dict(), self._outcome_audit_key
+        )
+        if not hmac.compare_digest(
+            expected_outcome_signature, outcome_receipt.signature_sha256
+        ):
+            raise EffectLeaseSignatureError(
+                "publication outcome signature mismatch"
+            )
+        if require_finalizable:
+            self._publication_capability._require_finalizable(
+                session_nonce=self._session_nonce,
+                outcome_receipt_sha256=outcome_receipt.receipt_sha256,
+            )
+
+    def authorize(
+        self,
+        receipt: EffectTerminalReceipt,
+        *,
+        commit_receipt: EffectPublicationCommitReceipt,
+        outcome_receipt: EffectPublicationOutcomeReceipt,
+    ) -> PublicationFinalizationAuthorization:
+        self.verify_publication(commit_receipt, outcome_receipt)
+        if receipt.outcome != "COMPLETED":
+            raise EffectLeaseStateError(
+                "a successful publication terminal receipt must be COMPLETED"
+            )
+        published = _parse_utc(outcome_receipt.published_at, "outcome.published_at")
+        finished = _parse_utc(receipt.finished_at, "receipt.finished_at")
+        if finished < published:
+            raise EffectLeaseStateError(
+                "publication terminal receipt predates publication outcome"
+            )
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", receipt.lease_sha256, self._lease_sha256),
+                ("execution_id", receipt.execution_id, self._execution_id),
+                (
+                    "start_receipt_sha256",
+                    receipt.start_receipt_sha256,
+                    self._start_receipt_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "publication finalization terminal binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        with self._lock:
+            if self._bound_terminal_sha256 is None:
+                object.__setattr__(
+                    self, "_bound_terminal_sha256", receipt.receipt_sha256
+                )
+            elif not hmac.compare_digest(
+                self._bound_terminal_sha256, receipt.receipt_sha256
+            ):
+                raise EffectLeaseStateError(
+                    "publication finalization capability is already bound to "
+                    "another terminal receipt"
+                )
+        return PublicationFinalizationAuthorization._issue(
+            lease_sha256=self._lease_sha256,
+            execution_id=self._execution_id,
+            start_receipt_sha256=self._start_receipt_sha256,
+            claim_receipt_sha256=self._claim_receipt_sha256,
+            publication_commit_receipt_sha256=self._commit_receipt_sha256,
+            publication_outcome_receipt_sha256=self._outcome_receipt_sha256,
+            terminal_receipt_sha256=receipt.receipt_sha256,
+            secret=self._finalization_secret,
+            publication_secret=self._publication_secret,
+            outcome_audit_key=self._outcome_audit_key,
         )
 
 
@@ -824,6 +1803,77 @@ class EffectExecutionClaim:
             )
         self.completion_capability.verify_claim_receipt(
             self.start_receipt, self.claim_receipt
+        )
+
+
+@dataclass(frozen=True)
+class EffectPublicationCommit:
+    """Live result returned only after ``COMMITTING`` is durable."""
+
+    start_receipt: LeasedEffectStartReceipt
+    claim_receipt: EffectExecutionClaimReceipt
+    commit_receipt: EffectPublicationCommitReceipt
+    publication_capability: PublicationCommitCapability = field(
+        repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if type(self.start_receipt) is not LeasedEffectStartReceipt:
+            raise TypeError("start_receipt must be exact")
+        if type(self.claim_receipt) is not EffectExecutionClaimReceipt:
+            raise TypeError("claim_receipt must be exact")
+        if type(self.commit_receipt) is not EffectPublicationCommitReceipt:
+            raise TypeError("commit_receipt must be exact")
+        if type(self.publication_capability) is not PublicationCommitCapability:
+            raise TypeError("publication_capability must be exact")
+        self.publication_capability.verify_commit_receipt(
+            self.start_receipt,
+            self.claim_receipt,
+            self.commit_receipt,
+        )
+
+
+@dataclass(frozen=True)
+class EffectPublicationFinalization:
+    """Outcome evidence plus hidden authority released by publication."""
+
+    start_receipt: LeasedEffectStartReceipt
+    claim_receipt: EffectExecutionClaimReceipt
+    commit_receipt: EffectPublicationCommitReceipt
+    outcome_receipt: EffectPublicationOutcomeReceipt
+    completion_capability: PublicationFinalizationCapability = field(
+        repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        if type(self.start_receipt) is not LeasedEffectStartReceipt:
+            raise TypeError("start_receipt must be exact")
+        if type(self.claim_receipt) is not EffectExecutionClaimReceipt:
+            raise TypeError("claim_receipt must be exact")
+        if type(self.commit_receipt) is not EffectPublicationCommitReceipt:
+            raise TypeError("commit_receipt must be exact")
+        if type(self.outcome_receipt) is not EffectPublicationOutcomeReceipt:
+            raise TypeError("outcome_receipt must be exact")
+        if (
+            type(self.completion_capability)
+            is not PublicationFinalizationCapability
+        ):
+            raise TypeError("completion_capability must be exact")
+        if (
+            self.claim_receipt.start_receipt_sha256
+            != self.start_receipt.receipt_sha256
+            or self.commit_receipt.start_receipt_sha256
+            != self.start_receipt.receipt_sha256
+            or self.commit_receipt.claim_receipt_sha256
+            != self.claim_receipt.receipt_sha256
+        ):
+            raise EffectLeaseBindingMismatch(
+                "publication finalization receipt chain mismatch"
+            )
+        self.completion_capability.verify_publication(
+            self.commit_receipt,
+            self.outcome_receipt,
+            require_finalizable=False,
         )
 
 
@@ -918,6 +1968,8 @@ class PersistedEffectExecution:
     start_receipt: LeasedEffectStartReceipt
     state: str
     claim_receipt: EffectExecutionClaimReceipt | None = None
+    publication_commit_receipt: EffectPublicationCommitReceipt | None = None
+    publication_outcome_receipt: EffectPublicationOutcomeReceipt | None = None
     terminal_receipt: EffectTerminalReceipt | None = None
 
 
@@ -988,6 +2040,102 @@ def _claim_completion_capability_sha256(secret: bytes) -> str:
     ).hexdigest()
 
 
+def _publication_commit_signature(
+    signing_payload: Mapping[str, object], secret: bytes | str
+) -> str:
+    message = _PUBLICATION_COMMIT_HMAC_DOMAIN + canonical_json(
+        signing_payload
+    ).encode("utf-8")
+    return hmac.new(_secret_bytes(secret), message, hashlib.sha256).hexdigest()
+
+
+def _publication_capability_sha256(secret: bytes) -> str:
+    return hashlib.sha256(
+        _PUBLICATION_CAPABILITY_DOMAIN + bytes(secret)
+    ).hexdigest()
+
+
+def _publication_capability_preimage(
+    *,
+    lease_sha256: str,
+    issuer_key_id: str,
+    execution_id: str,
+    execution_request_sha256: str,
+    start_receipt_sha256: str,
+    claim_receipt_sha256: str,
+    effect_commitment_sha256: str,
+    committed_at: str,
+) -> dict[str, str]:
+    """Return the authenticated, non-circular per-commit KDF input."""
+
+    return {
+        "lease_sha256": lease_sha256,
+        "issuer_key_id": issuer_key_id,
+        "execution_id": execution_id,
+        "execution_request_sha256": execution_request_sha256,
+        "start_receipt_sha256": start_receipt_sha256,
+        "claim_receipt_sha256": claim_receipt_sha256,
+        "effect_commitment_sha256": effect_commitment_sha256,
+        "committed_at": committed_at,
+    }
+
+
+def _derive_publication_outcome_audit_key(
+    preimage: Mapping[str, object], issuer_secret: bytes | str
+) -> bytes:
+    """Derive a restart-audit key that is never publication authority."""
+
+    message = _PUBLICATION_OUTCOME_AUDIT_KEY_DOMAIN + canonical_json(
+        preimage
+    ).encode("utf-8")
+    return hmac.new(_secret_bytes(issuer_secret), message, hashlib.sha256).digest()
+
+
+def _publication_outcome_audit_key_for_commit(
+    receipt: EffectPublicationCommitReceipt,
+    *,
+    lease: EffectLease,
+    keyring: Mapping[str, bytes | str],
+) -> bytes:
+    if receipt.issuer_key_id != lease.issuer_key_id:
+        raise EffectLeaseSignatureError(
+            "publication outcome audit issuer does not match historical lease"
+        )
+    issuer_secret = keyring.get(receipt.issuer_key_id)
+    if issuer_secret is None:
+        raise EffectLeaseSignatureError(
+            "publication outcome audit issuer key is unknown"
+        )
+    return _derive_publication_outcome_audit_key(
+        _publication_capability_preimage(
+            lease_sha256=receipt.lease_sha256,
+            issuer_key_id=receipt.issuer_key_id,
+            execution_id=receipt.execution_id,
+            execution_request_sha256=receipt.execution_request_sha256,
+            start_receipt_sha256=receipt.start_receipt_sha256,
+            claim_receipt_sha256=receipt.claim_receipt_sha256,
+            effect_commitment_sha256=receipt.effect_commitment_sha256,
+            committed_at=receipt.committed_at,
+        ),
+        issuer_secret,
+    )
+
+
+def _publication_outcome_signature(
+    signing_payload: Mapping[str, object], secret: bytes
+) -> str:
+    message = _PUBLICATION_OUTCOME_HMAC_DOMAIN + canonical_json(
+        signing_payload
+    ).encode("utf-8")
+    return hmac.new(bytes(secret), message, hashlib.sha256).hexdigest()
+
+
+def _finalization_capability_sha256(secret: bytes) -> str:
+    return hashlib.sha256(
+        _FINALIZATION_CAPABILITY_DOMAIN + bytes(secret)
+    ).hexdigest()
+
+
 def _terminal_authorization_signature(
     payload: Mapping[str, object], secret: bytes
 ) -> str:
@@ -1003,6 +2151,16 @@ def _claim_terminal_authorization_signature(
 ) -> str:
     message = (
         _CLAIM_TERMINAL_AUTHORIZATION_HMAC_DOMAIN
+        + canonical_json(payload).encode("utf-8")
+    )
+    return hmac.new(bytes(secret), message, hashlib.sha256).hexdigest()
+
+
+def _publication_finalization_authorization_signature(
+    payload: Mapping[str, object], secret: bytes
+) -> str:
+    message = (
+        _FINALIZATION_AUTHORIZATION_HMAC_DOMAIN
         + canonical_json(payload).encode("utf-8")
     )
     return hmac.new(bytes(secret), message, hashlib.sha256).hexdigest()
@@ -1042,6 +2200,26 @@ def _authenticate_execution_claim_receipt(
     expected = _execution_claim_signature(receipt.signing_dict(), secret)
     if not hmac.compare_digest(receipt.signature_sha256, expected):
         raise EffectLeaseSignatureError("execution claim signature mismatch")
+
+
+def _authenticate_publication_commit_receipt(
+    receipt: EffectPublicationCommitReceipt,
+    *,
+    lease: EffectLease,
+    keyring: Mapping[str, bytes | str],
+) -> None:
+    if receipt.issuer_key_id != lease.issuer_key_id:
+        raise EffectLeaseSignatureError(
+            "publication commit issuer does not match historical lease"
+        )
+    secret = keyring.get(receipt.issuer_key_id)
+    if secret is None:
+        raise EffectLeaseSignatureError(
+            "publication commit issuer key is unknown"
+        )
+    expected = _publication_commit_signature(receipt.signing_dict(), secret)
+    if not hmac.compare_digest(receipt.signature_sha256, expected):
+        raise EffectLeaseSignatureError("publication commit signature mismatch")
 
 
 def _authenticate_terminal_authorization(
@@ -1164,6 +2342,133 @@ def _authenticate_claim_terminal_authorization(
         raise EffectLeaseSignatureError(
             "claim terminal authorization does not match signed claim capability"
         )
+
+
+def _authenticate_publication_finalization_authorization(
+    authorization: PublicationFinalizationAuthorization,
+    *,
+    receipt: EffectTerminalReceipt,
+    start_receipt: LeasedEffectStartReceipt,
+    claim_receipt: EffectExecutionClaimReceipt,
+    commit_receipt: EffectPublicationCommitReceipt,
+    outcome_receipt: EffectPublicationOutcomeReceipt,
+) -> None:
+    if not isinstance(authorization, PublicationFinalizationAuthorization):
+        raise TypeError(
+            "authorization must be a PublicationFinalizationAuthorization"
+        )
+    if authorization._pid != os.getpid():
+        raise EffectLeaseStateError(
+            "publication finalization authorization cannot cross a process fork"
+        )
+    if authorization._thread_id != threading.get_ident():
+        raise EffectLeaseStateError(
+            "publication finalization authorization is bound to its issuing thread"
+        )
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            ("lease_sha256", authorization._lease_sha256, receipt.lease_sha256),
+            ("execution_id", authorization._execution_id, receipt.execution_id),
+            (
+                "start_receipt_sha256",
+                authorization._start_receipt_sha256,
+                start_receipt.receipt_sha256,
+            ),
+            (
+                "claim_receipt_sha256",
+                authorization._claim_receipt_sha256,
+                claim_receipt.receipt_sha256,
+            ),
+            (
+                "publication_commit_receipt_sha256",
+                authorization._publication_commit_receipt_sha256,
+                commit_receipt.receipt_sha256,
+            ),
+            (
+                "publication_outcome_receipt_sha256",
+                authorization._publication_outcome_receipt_sha256,
+                outcome_receipt.receipt_sha256,
+            ),
+            (
+                "terminal_receipt_sha256",
+                authorization._terminal_receipt_sha256,
+                receipt.receipt_sha256,
+            ),
+            (
+                "outcome_commit_receipt_sha256",
+                outcome_receipt.publication_commit_receipt_sha256,
+                commit_receipt.receipt_sha256,
+            ),
+            (
+                "effect_commitment_sha256",
+                outcome_receipt.effect_commitment_sha256,
+                commit_receipt.effect_commitment_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if receipt.start_receipt_sha256 != start_receipt.receipt_sha256:
+        mismatches.append("terminal_start_receipt_sha256")
+    if mismatches:
+        raise EffectLeaseBindingMismatch(
+            "publication finalization authorization binding mismatch: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+    authorization_payload = {
+        "lease_sha256": authorization._lease_sha256,
+        "execution_id": authorization._execution_id,
+        "start_receipt_sha256": authorization._start_receipt_sha256,
+        "claim_receipt_sha256": authorization._claim_receipt_sha256,
+        "publication_commit_receipt_sha256": (
+            authorization._publication_commit_receipt_sha256
+        ),
+        "publication_outcome_receipt_sha256": (
+            authorization._publication_outcome_receipt_sha256
+        ),
+        "terminal_receipt_sha256": authorization._terminal_receipt_sha256,
+        "pid": authorization._pid,
+        "thread_id": authorization._thread_id,
+    }
+    expected_authorization_signature = (
+        _publication_finalization_authorization_signature(
+            authorization_payload, authorization._secret
+        )
+    )
+    if not hmac.compare_digest(
+        authorization._signature_sha256,
+        expected_authorization_signature,
+    ):
+        raise EffectLeaseSignatureError(
+            "publication finalization authorization signature mismatch"
+        )
+    expected_finalization_commitment = _finalization_capability_sha256(
+        authorization._secret
+    )
+    if not hmac.compare_digest(
+        expected_finalization_commitment,
+        outcome_receipt.finalization_capability_sha256,
+    ):
+        raise EffectLeaseSignatureError(
+            "finalization authorization does not match publication outcome"
+        )
+    expected_publication_commitment = _publication_capability_sha256(
+        authorization._publication_secret
+    )
+    if not hmac.compare_digest(
+        expected_publication_commitment,
+        commit_receipt.publication_capability_sha256,
+    ):
+        raise EffectLeaseSignatureError(
+            "publication outcome authority does not match durable commit"
+        )
+    expected_outcome_signature = _publication_outcome_signature(
+        outcome_receipt.signing_dict(), authorization._outcome_audit_key
+    )
+    if not hmac.compare_digest(
+        expected_outcome_signature, outcome_receipt.signature_sha256
+    ):
+        raise EffectLeaseSignatureError("publication outcome signature mismatch")
 
 
 def _registry_map(
@@ -1703,6 +3008,229 @@ def _load_persisted_execution_claim(
     return claim
 
 
+def _load_persisted_publication_commit(
+    row: sqlite3.Row,
+    *,
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+    claim_receipt: EffectExecutionClaimReceipt | None,
+    lease: EffectLease | None = None,
+    historical_keyring: Mapping[str, bytes | str] | None = None,
+) -> EffectPublicationCommitReceipt | None:
+    fields = (
+        "committed_at",
+        "publication_commit_receipt_sha256",
+        "publication_commit_receipt_json",
+    )
+    present = tuple(row[name] is not None for name in fields)
+    if not any(present):
+        return None
+    if not all(present):
+        raise EffectLeaseStateError(
+            "persisted execution contains a partial publication commit"
+        )
+    if claim_receipt is None:
+        raise EffectLeaseStateError(
+            "publication commit is missing its execution claim"
+        )
+    try:
+        payload = json.loads(row["publication_commit_receipt_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("publication commit JSON must contain an object")
+        commit = EffectPublicationCommitReceipt(**payload)
+    except (
+        TypeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        EffectLeaseBindingMismatch,
+    ) as exc:
+        raise EffectLeaseStateError(
+            "persisted execution contains invalid publication commit bytes"
+        ) from exc
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            (
+                "publication_commit_receipt_json",
+                row["publication_commit_receipt_json"],
+                canonical_json(commit.to_dict()),
+            ),
+            (
+                "publication_commit_receipt_sha256",
+                row["publication_commit_receipt_sha256"],
+                commit.receipt_sha256,
+            ),
+            ("committed_at", row["committed_at"], commit.committed_at),
+            ("lease_sha256", commit.lease_sha256, start_receipt.lease_sha256),
+            ("issuer_key_id", commit.issuer_key_id, start_receipt.issuer_key_id),
+            ("execution_id", commit.execution_id, execution.execution_id),
+            (
+                "execution_request_sha256",
+                commit.execution_request_sha256,
+                execution.digest,
+            ),
+            (
+                "start_receipt_sha256",
+                commit.start_receipt_sha256,
+                start_receipt.receipt_sha256,
+            ),
+            (
+                "claim_receipt_sha256",
+                commit.claim_receipt_sha256,
+                claim_receipt.receipt_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if lease is not None:
+        if commit.lease_sha256 != lease.digest:
+            mismatches.append("historical_lease_sha256")
+        if commit.issuer_key_id != lease.issuer_key_id:
+            mismatches.append("issuer_key_id")
+    if mismatches:
+        raise EffectLeaseStateError(
+            "persisted execution failed publication commit identity checks: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+    started = _parse_utc(start_receipt.started_at, "start.started_at")
+    claimed = _parse_utc(claim_receipt.claimed_at, "claim.claimed_at")
+    committed = _parse_utc(commit.committed_at, "commit.committed_at")
+    if not started <= claimed <= committed:
+        raise EffectLeaseStateError(
+            "publication commit violates start <= claim <= commit ordering"
+        )
+    if (lease is None) != (historical_keyring is None):
+        raise TypeError(
+            "lease and historical_keyring must be supplied together for "
+            "publication commit authentication"
+        )
+    if lease is not None and historical_keyring is not None:
+        _authenticate_publication_commit_receipt(
+            commit, lease=lease, keyring=historical_keyring
+        )
+    return commit
+
+
+def _load_persisted_publication_outcome(
+    row: sqlite3.Row,
+    *,
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+    claim_receipt: EffectExecutionClaimReceipt | None,
+    commit_receipt: EffectPublicationCommitReceipt | None,
+    lease: EffectLease | None = None,
+    historical_keyring: Mapping[str, bytes | str] | None = None,
+) -> EffectPublicationOutcomeReceipt | None:
+    fields = (
+        "published_at",
+        "publication_outcome_receipt_sha256",
+        "publication_outcome_receipt_json",
+    )
+    present = tuple(row[name] is not None for name in fields)
+    if not any(present):
+        return None
+    if not all(present):
+        raise EffectLeaseStateError(
+            "persisted execution contains a partial publication outcome"
+        )
+    if claim_receipt is None or commit_receipt is None:
+        raise EffectLeaseStateError(
+            "publication outcome is missing its claim or commit"
+        )
+    try:
+        payload = json.loads(row["publication_outcome_receipt_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("publication outcome JSON must contain an object")
+        outcome = EffectPublicationOutcomeReceipt(**payload)
+    except (
+        TypeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        EffectLeaseBindingMismatch,
+    ) as exc:
+        raise EffectLeaseStateError(
+            "persisted execution contains invalid publication outcome bytes"
+        ) from exc
+    mismatches = sorted(
+        name
+        for name, actual, expected in (
+            (
+                "publication_outcome_receipt_json",
+                row["publication_outcome_receipt_json"],
+                canonical_json(outcome.to_dict()),
+            ),
+            (
+                "publication_outcome_receipt_sha256",
+                row["publication_outcome_receipt_sha256"],
+                outcome.receipt_sha256,
+            ),
+            ("published_at", row["published_at"], outcome.published_at),
+            ("lease_sha256", outcome.lease_sha256, start_receipt.lease_sha256),
+            ("execution_id", outcome.execution_id, execution.execution_id),
+            (
+                "execution_request_sha256",
+                outcome.execution_request_sha256,
+                execution.digest,
+            ),
+            (
+                "start_receipt_sha256",
+                outcome.start_receipt_sha256,
+                start_receipt.receipt_sha256,
+            ),
+            (
+                "claim_receipt_sha256",
+                outcome.claim_receipt_sha256,
+                claim_receipt.receipt_sha256,
+            ),
+            (
+                "publication_commit_receipt_sha256",
+                outcome.publication_commit_receipt_sha256,
+                commit_receipt.receipt_sha256,
+            ),
+            (
+                "effect_commitment_sha256",
+                outcome.effect_commitment_sha256,
+                commit_receipt.effect_commitment_sha256,
+            ),
+        )
+        if actual != expected
+    )
+    if mismatches:
+        raise EffectLeaseStateError(
+            "persisted execution failed publication outcome identity checks: "
+            + ", ".join(sorted(set(mismatches)))
+        )
+    committed = _parse_utc(commit_receipt.committed_at, "commit.committed_at")
+    published = _parse_utc(outcome.published_at, "outcome.published_at")
+    if published < committed:
+        raise EffectLeaseStateError(
+            "publication outcome predates its durable commit"
+        )
+    if (lease is None) != (historical_keyring is None):
+        raise TypeError(
+            "lease and historical_keyring must be supplied together for "
+            "publication outcome authentication"
+        )
+    if lease is not None and historical_keyring is not None:
+        outcome_audit_key = _publication_outcome_audit_key_for_commit(
+            commit_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        expected_signature = _publication_outcome_signature(
+            outcome.signing_dict(), outcome_audit_key
+        )
+        if not hmac.compare_digest(
+            expected_signature, outcome.signature_sha256
+        ):
+            raise EffectLeaseSignatureError(
+                "publication outcome signature mismatch"
+            )
+    return outcome
+
+
 class EffectLeaseLedger:
     """SQLite authority for grants, starts, replay, revocation and terminals."""
 
@@ -1770,6 +3298,12 @@ class EffectLeaseLedger:
                     claimed_at TEXT,
                     claim_receipt_sha256 TEXT,
                     claim_receipt_json TEXT,
+                    committed_at TEXT,
+                    publication_commit_receipt_sha256 TEXT,
+                    publication_commit_receipt_json TEXT,
+                    published_at TEXT,
+                    publication_outcome_receipt_sha256 TEXT,
+                    publication_outcome_receipt_json TEXT,
                     finished_at TEXT,
                     terminal_receipt_sha256 TEXT UNIQUE,
                     terminal_receipt_json TEXT,
@@ -1785,6 +3319,12 @@ class EffectLeaseLedger:
                 "claimed_at",
                 "claim_receipt_sha256",
                 "claim_receipt_json",
+                "committed_at",
+                "publication_commit_receipt_sha256",
+                "publication_commit_receipt_json",
+                "published_at",
+                "publication_outcome_receipt_sha256",
+                "publication_outcome_receipt_json",
             ):
                 if column not in execution_columns:
                     conn.execute(
@@ -1797,12 +3337,25 @@ class EffectLeaseLedger:
                 "WHERE claim_receipt_sha256 IS NOT NULL"
             )
             conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "idx_effect_executions_publication_commit_receipt "
+                "ON effect_executions(publication_commit_receipt_sha256) "
+                "WHERE publication_commit_receipt_sha256 IS NOT NULL"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "idx_effect_executions_publication_outcome_receipt "
+                "ON effect_executions(publication_outcome_receipt_sha256) "
+                "WHERE publication_outcome_receipt_sha256 IS NOT NULL"
+            )
+            conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_effect_executions_active "
                 "ON effect_executions(lease_sha256, state)"
             )
             # Reconciliation is not a second ledger.  The signed operator
             # decision and nonce are consumed in the same SQLite authority and
-            # transaction that closes the existing indeterminate execution.
+            # transaction that closes one STARTED execution.  Claimed or
+            # committing effects require a future fenced-orphan protocol.
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS effect_reconciliations (
@@ -2138,7 +3691,8 @@ class EffectLeaseLedger:
                 raise EffectLeaseExpired("persisted effect lease expired before start")
             active = conn.execute(
                 "SELECT COUNT(*) FROM effect_executions "
-                "WHERE lease_sha256=? AND state IN ('STARTED', 'EXECUTING')",
+                "WHERE lease_sha256=? "
+                "AND state IN ('STARTED', 'EXECUTING', 'COMMITTING')",
                 (lease.digest,),
             ).fetchone()[0]
             if active >= lease.effect_scope.max_concurrency:
@@ -2275,7 +3829,11 @@ class EffectLeaseLedger:
                 SELECT execution_id, lease_sha256, idempotency_key,
                        request_sha256, request_json, start_receipt_sha256,
                        start_receipt_json, state, started_at, claimed_at,
-                       claim_receipt_sha256, claim_receipt_json, finished_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
                        terminal_receipt_sha256, terminal_receipt_json
                 FROM effect_executions WHERE execution_id=? AND lease_sha256=?
                 """,
@@ -2400,6 +3958,12 @@ class EffectLeaseLedger:
                   AND request_sha256=? AND start_receipt_sha256=?
                   AND claimed_at IS NULL AND claim_receipt_sha256 IS NULL
                   AND claim_receipt_json IS NULL AND finished_at IS NULL
+                  AND committed_at IS NULL
+                  AND publication_commit_receipt_sha256 IS NULL
+                  AND publication_commit_receipt_json IS NULL
+                  AND published_at IS NULL
+                  AND publication_outcome_receipt_sha256 IS NULL
+                  AND publication_outcome_receipt_json IS NULL
                   AND terminal_receipt_sha256 IS NULL
                   AND terminal_receipt_json IS NULL
                 """,
@@ -2419,18 +3983,20 @@ class EffectLeaseLedger:
                 )
             conn.execute("COMMIT")
         except sqlite3.IntegrityError as exc:
-            try:
-                conn.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            if conn is not None:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
             raise EffectLeaseReplay(
                 "execution claim conflicts with persisted identity"
             ) from exc
         except Exception:
-            try:
-                conn.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
+            if conn is not None:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
             raise
         finally:
             conn.close()
@@ -2445,6 +4011,284 @@ class EffectLeaseLedger:
             start_receipt=persisted_start,
             claim_receipt=claim_receipt,
             completion_capability=claim_capability,
+        )
+
+    def commit_publication(
+        self,
+        claim: EffectExecutionClaim,
+        execution: EffectExecutionRequest,
+        *,
+        effect_commitment_sha256: str,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        committed_at: datetime | None = None,
+    ) -> EffectPublicationCommit:
+        """Durably promote one exact ``EXECUTING`` claim to ``COMMITTING``.
+
+        Callers must complete every deterministic, fallible publication
+        preflight before this transition.  Such a preflight failure can still
+        terminalize ``EXECUTING`` as ``FAILED``.  After this commit, any target
+        session exception is indeterminate and intentionally leaves
+        ``COMMITTING`` for a future fenced-orphan protocol.
+        """
+
+        if type(claim) is not EffectExecutionClaim:
+            raise TypeError("claim must be an exact EffectExecutionClaim")
+        if type(execution) is not EffectExecutionRequest:
+            raise TypeError("execution must be an exact EffectExecutionRequest")
+        effect_commitment = _sha256(
+            effect_commitment_sha256, "effect_commitment_sha256"
+        )
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        _validate_narrowed_scope(execution, lease)
+        claim.completion_capability.verify_claim_receipt(
+            claim.start_receipt, claim.claim_receipt
+        )
+        _authenticate_start_receipt(
+            claim.start_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        _authenticate_execution_claim_receipt(
+            claim.claim_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        supplied_commit_instant = (
+            _as_utc(committed_at, "committed_at")
+            if committed_at is not None
+            else None
+        )
+        claim.completion_capability._begin_publication_promotion(
+            _token=_CLAIM_PROMOTION_TOKEN
+        )
+        transition_committed = False
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = self._connect()
+            conn.execute("BEGIN IMMEDIATE")
+            commit_instant = supplied_commit_instant or _utc_now()
+            row = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                """,
+                (execution.execution_id, lease.digest),
+            ).fetchone()
+            if row is None:
+                raise EffectLeaseStateError("unknown effect execution")
+            grant_row = conn.execute(
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (lease.digest,),
+            ).fetchone()
+            if grant_row is None:
+                raise EffectLeaseStateError(
+                    "effect execution is missing its historical grant"
+                )
+            _authenticate_persisted_grant(
+                grant_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            persisted_start = _authenticated_replay_start(
+                row,
+                lease=lease,
+                execution=execution,
+                request_json=canonical_json(execution.to_dict()),
+                keyring=historical_keyring,
+            ).receipt
+            persisted_claim = _load_persisted_execution_claim(
+                row,
+                execution=execution,
+                start_receipt=persisted_start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            if persisted_start != claim.start_receipt:
+                raise EffectLeaseStateError(
+                    "publication commit start differs from persisted authority"
+                )
+            if persisted_claim != claim.claim_receipt:
+                raise EffectLeaseStateError(
+                    "publication commit claim differs from persisted authority"
+                )
+            if str(row["state"]) != "EXECUTING":
+                raise EffectLeaseStateError(
+                    "publication commit requires EXECUTING, got "
+                    f"{str(row['state'])!r}"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "committed_at",
+                    "publication_commit_receipt_sha256",
+                    "publication_commit_receipt_json",
+                    "published_at",
+                    "publication_outcome_receipt_sha256",
+                    "publication_outcome_receipt_json",
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "EXECUTING publication commit row carries later-phase fields"
+                )
+            if grant_row["revoked_at"] is not None:
+                raise EffectLeaseStateError(
+                    "effect lease was revoked before publication commit"
+                )
+            if commit_instant >= _parse_utc(
+                grant_row["expires_at"], "persisted lease expiry"
+            ):
+                raise EffectLeaseExpired(
+                    "persisted effect lease expired before publication commit"
+                )
+            if commit_instant < _parse_utc(
+                persisted_claim.claimed_at, "claim.claimed_at"
+            ):
+                raise EffectLeaseStateError(
+                    "publication commit predates its execution claim"
+                )
+            capability_preimage = _publication_capability_preimage(
+                lease_sha256=lease.digest,
+                issuer_key_id=lease.issuer_key_id,
+                execution_id=execution.execution_id,
+                execution_request_sha256=execution.digest,
+                start_receipt_sha256=persisted_start.receipt_sha256,
+                claim_receipt_sha256=persisted_claim.receipt_sha256,
+                effect_commitment_sha256=effect_commitment,
+                committed_at=_timestamp(commit_instant),
+            )
+            issuer_secret = historical_keyring.get(lease.issuer_key_id)
+            if issuer_secret is None:
+                raise EffectLeaseSignatureError(
+                    "effect lease issuer key disappeared before commit persistence"
+                )
+            # The live publication authority remains random and deliberately
+            # non-reconstructable after a crash.  A separate derived key signs
+            # inert outcome evidence so historical reads can authenticate it.
+            publication_secret = secrets.token_bytes(32)
+            outcome_audit_key = _derive_publication_outcome_audit_key(
+                capability_preimage, issuer_secret
+            )
+            payload = {
+                "lease_sha256": lease.digest,
+                "issuer_key_id": lease.issuer_key_id,
+                "execution_id": execution.execution_id,
+                "execution_request_sha256": execution.digest,
+                "start_receipt_sha256": persisted_start.receipt_sha256,
+                "claim_receipt_sha256": persisted_claim.receipt_sha256,
+                "effect_commitment_sha256": effect_commitment,
+                "publication_capability_sha256": (
+                    _publication_capability_sha256(publication_secret)
+                ),
+                "committed_at": _timestamp(commit_instant),
+            }
+            signature = _publication_commit_signature(payload, issuer_secret)
+            authenticated = {**payload, "signature_sha256": signature}
+            commit_receipt = EffectPublicationCommitReceipt(
+                **authenticated,
+                receipt_sha256=canonical_sha(authenticated),
+            )
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state='COMMITTING', committed_at=?,
+                    publication_commit_receipt_sha256=?,
+                    publication_commit_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='EXECUTING'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at=? AND claim_receipt_sha256=?
+                  AND claim_receipt_json=? AND committed_at IS NULL
+                  AND publication_commit_receipt_sha256 IS NULL
+                  AND publication_commit_receipt_json IS NULL
+                  AND published_at IS NULL
+                  AND publication_outcome_receipt_sha256 IS NULL
+                  AND publication_outcome_receipt_json IS NULL
+                  AND finished_at IS NULL AND terminal_receipt_sha256 IS NULL
+                  AND terminal_receipt_json IS NULL
+                """,
+                (
+                    commit_receipt.committed_at,
+                    commit_receipt.receipt_sha256,
+                    canonical_json(commit_receipt.to_dict()),
+                    execution.execution_id,
+                    lease.digest,
+                    execution.digest,
+                    persisted_start.receipt_sha256,
+                    persisted_claim.claimed_at,
+                    persisted_claim.receipt_sha256,
+                    canonical_json(persisted_claim.to_dict()),
+                ),
+            )
+            if updated.rowcount != 1:
+                raise EffectLeaseStateError(
+                    "execution changed while publication commit held the ledger lock"
+                )
+            conn.execute("COMMIT")
+            transition_committed = True
+        except sqlite3.IntegrityError as exc:
+            if conn is not None:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+            raise EffectLeaseReplay(
+                "publication commit conflicts with persisted identity"
+            ) from exc
+        except Exception:
+            if conn is not None:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
+            if not transition_committed:
+                claim.completion_capability._cancel_publication_promotion(
+                    _token=_CLAIM_PROMOTION_TOKEN
+                )
+
+        publication_capability = (
+            claim.completion_capability._complete_publication_promotion(
+                start_receipt=persisted_start,
+                claim_receipt=persisted_claim,
+                commit_receipt=commit_receipt,
+                secret=publication_secret,
+                outcome_audit_key=outcome_audit_key,
+                _token=_CLAIM_PROMOTION_TOKEN,
+            )
+        )
+        return EffectPublicationCommit(
+            start_receipt=persisted_start,
+            claim_receipt=persisted_claim,
+            commit_receipt=commit_receipt,
+            publication_capability=publication_capability,
         )
 
     def finish(
@@ -2665,6 +4509,12 @@ class EffectLeaseLedger:
                   AND request_sha256=? AND start_receipt_sha256=?
                   AND claimed_at IS NULL AND claim_receipt_sha256 IS NULL
                   AND claim_receipt_json IS NULL
+                  AND committed_at IS NULL
+                  AND publication_commit_receipt_sha256 IS NULL
+                  AND publication_commit_receipt_json IS NULL
+                  AND published_at IS NULL
+                  AND publication_outcome_receipt_sha256 IS NULL
+                  AND publication_outcome_receipt_json IS NULL
                 """,
                 (
                     receipt.outcome,
@@ -2765,7 +4615,11 @@ class EffectLeaseLedger:
                 SELECT execution_id, lease_sha256, idempotency_key,
                        request_sha256, request_json, start_receipt_sha256,
                        start_receipt_json, state, started_at, claimed_at,
-                       claim_receipt_sha256, claim_receipt_json, finished_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
                        terminal_receipt_sha256, terminal_receipt_json
                 FROM effect_executions WHERE execution_id=? AND lease_sha256=?
                 """,
@@ -2836,6 +4690,19 @@ class EffectLeaseLedger:
             if persisted_claim != claim_receipt:
                 raise EffectLeaseBindingMismatch(
                     "claim terminal receipt differs from persisted claim authority"
+                )
+            persisted_commit = _load_persisted_publication_commit(
+                row,
+                execution=execution,
+                start_receipt=start,
+                claim_receipt=persisted_claim,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            if persisted_commit is not None:
+                raise EffectLeaseStateError(
+                    "claim completion capability is disabled after publication "
+                    "commit"
                 )
             terminal_mismatches = sorted(
                 name
@@ -2921,6 +4788,12 @@ class EffectLeaseLedger:
                   AND request_sha256=? AND start_receipt_sha256=?
                   AND claimed_at=? AND claim_receipt_sha256=?
                   AND claim_receipt_json=?
+                  AND committed_at IS NULL
+                  AND publication_commit_receipt_sha256 IS NULL
+                  AND publication_commit_receipt_json IS NULL
+                  AND published_at IS NULL
+                  AND publication_outcome_receipt_sha256 IS NULL
+                  AND publication_outcome_receipt_json IS NULL
                 """,
                 (
                     receipt.outcome,
@@ -2952,6 +4825,343 @@ class EffectLeaseLedger:
         finally:
             conn.close()
 
+    def finish_committed(
+        self,
+        finalization: EffectPublicationFinalization,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        outcome: str,
+        output_digests: Iterable[str] = (),
+        detail_sha256: str | None = None,
+        finished_at: datetime | None = None,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Terminalize ``COMMITTING`` using clean publication finalization."""
+
+        if type(finalization) is not EffectPublicationFinalization:
+            raise TypeError(
+                "finalization must be an exact EffectPublicationFinalization"
+            )
+        if str(outcome).upper() != "COMPLETED":
+            raise EffectLeaseStateError(
+                "a successful publication may terminalize only as COMPLETED"
+            )
+        finalization.completion_capability.verify_publication(
+            finalization.commit_receipt,
+            finalization.outcome_receipt,
+        )
+        receipt = freeze_effect_terminal_receipt(
+            finalization.start_receipt,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+            finished_at=finished_at,
+        )
+        authorization = finalization.completion_capability.authorize(
+            receipt,
+            commit_receipt=finalization.commit_receipt,
+            outcome_receipt=finalization.outcome_receipt,
+        )
+        return self.finish_committed_receipt(
+            receipt,
+            claim_receipt=finalization.claim_receipt,
+            commit_receipt=finalization.commit_receipt,
+            outcome_receipt=finalization.outcome_receipt,
+            authorization=authorization,
+            lease=lease,
+            request=request,
+            policy_decision=policy_decision,
+            historical_keyring=historical_keyring,
+            persisted_at=persisted_at,
+        )
+
+    def finish_committed_receipt(
+        self,
+        receipt: EffectTerminalReceipt,
+        *,
+        claim_receipt: EffectExecutionClaimReceipt,
+        commit_receipt: EffectPublicationCommitReceipt,
+        outcome_receipt: EffectPublicationOutcomeReceipt,
+        authorization: PublicationFinalizationAuthorization,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Persist an exact terminal under publication finalization authority."""
+
+        if not isinstance(receipt, EffectTerminalReceipt):
+            raise TypeError("receipt must be an EffectTerminalReceipt")
+        if not isinstance(claim_receipt, EffectExecutionClaimReceipt):
+            raise TypeError("claim_receipt must be an EffectExecutionClaimReceipt")
+        if not isinstance(commit_receipt, EffectPublicationCommitReceipt):
+            raise TypeError(
+                "commit_receipt must be an EffectPublicationCommitReceipt"
+            )
+        if not isinstance(outcome_receipt, EffectPublicationOutcomeReceipt):
+            raise TypeError(
+                "outcome_receipt must be an EffectPublicationOutcomeReceipt"
+            )
+        if not isinstance(
+            authorization, PublicationFinalizationAuthorization
+        ):
+            raise TypeError(
+                "authorization must be a PublicationFinalizationAuthorization"
+            )
+        if receipt.outcome != "COMPLETED":
+            raise EffectLeaseStateError(
+                "a successful publication terminal receipt must be COMPLETED"
+            )
+        supplied_persistence_instant = (
+            _as_utc(persisted_at, "persisted_at")
+            if persisted_at is not None
+            else None
+        )
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            persistence_instant = supplied_persistence_instant or _utc_now()
+            row = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                """,
+                (receipt.execution_id, receipt.lease_sha256),
+            ).fetchone()
+            if row is None:
+                raise EffectLeaseStateError("unknown effect execution")
+            grant_row = conn.execute(
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (receipt.lease_sha256,),
+            ).fetchone()
+            if grant_row is None:
+                raise EffectLeaseStateError(
+                    "effect execution is missing its historical grant"
+                )
+            _authenticate_effect_lease_contracts(
+                lease,
+                request=request,
+                policy_decision=policy_decision,
+                keyring=historical_keyring,
+            )
+            _authenticate_persisted_grant(
+                grant_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            try:
+                execution_payload = json.loads(row["request_json"])
+                if not isinstance(execution_payload, dict):
+                    raise ValueError("execution request JSON must contain an object")
+                execution = EffectExecutionRequest(**execution_payload)
+            except (
+                TypeError,
+                ValueError,
+                KeyError,
+                json.JSONDecodeError,
+                EffectLeaseBindingMismatch,
+            ) as exc:
+                raise EffectLeaseStateError(
+                    "persisted effect execution contains invalid request bytes"
+                ) from exc
+            _validate_narrowed_scope(execution, lease)
+            start = _authenticated_replay_start(
+                row,
+                lease=lease,
+                execution=execution,
+                request_json=canonical_json(execution.to_dict()),
+                keyring=historical_keyring,
+            ).receipt
+            persisted_claim = _load_persisted_execution_claim(
+                row,
+                execution=execution,
+                start_receipt=start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            persisted_commit = _load_persisted_publication_commit(
+                row,
+                execution=execution,
+                start_receipt=start,
+                claim_receipt=persisted_claim,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            if persisted_claim != claim_receipt:
+                raise EffectLeaseBindingMismatch(
+                    "finalization claim differs from persisted authority"
+                )
+            if persisted_commit != commit_receipt:
+                raise EffectLeaseBindingMismatch(
+                    "finalization commit differs from persisted authority"
+                )
+            derived_audit_key = _publication_outcome_audit_key_for_commit(
+                persisted_commit,
+                lease=lease,
+                keyring=historical_keyring,
+            )
+            if not hmac.compare_digest(
+                derived_audit_key, authorization._outcome_audit_key
+            ):
+                raise EffectLeaseSignatureError(
+                    "publication outcome audit key differs from historical issuer"
+                )
+            expected_outcome_signature = _publication_outcome_signature(
+                outcome_receipt.signing_dict(), derived_audit_key
+            )
+            if not hmac.compare_digest(
+                expected_outcome_signature, outcome_receipt.signature_sha256
+            ):
+                raise EffectLeaseSignatureError(
+                    "publication outcome signature mismatch"
+                )
+            _authenticate_publication_finalization_authorization(
+                authorization,
+                receipt=receipt,
+                start_receipt=start,
+                claim_receipt=claim_receipt,
+                commit_receipt=commit_receipt,
+                outcome_receipt=outcome_receipt,
+            )
+            started = _parse_utc(start.started_at, "start.started_at")
+            claimed = _parse_utc(claim_receipt.claimed_at, "claim.claimed_at")
+            committed = _parse_utc(
+                commit_receipt.committed_at, "commit.committed_at"
+            )
+            published = _parse_utc(
+                outcome_receipt.published_at, "outcome.published_at"
+            )
+            finished = _parse_utc(receipt.finished_at, "receipt.finished_at")
+            if not (
+                started
+                <= claimed
+                <= committed
+                <= published
+                <= finished
+                <= persistence_instant
+            ):
+                raise EffectLeaseStateError(
+                    "publication finalization violates start <= claim <= commit "
+                    "<= publication <= terminal <= persistence ordering"
+                )
+            state = str(row["state"])
+            if state in _TERMINAL_STATES:
+                persisted_outcome = _load_persisted_publication_outcome(
+                    row,
+                    execution=execution,
+                    start_receipt=start,
+                    claim_receipt=persisted_claim,
+                    commit_receipt=persisted_commit,
+                    lease=lease,
+                    historical_keyring=historical_keyring,
+                )
+                if persisted_outcome != outcome_receipt:
+                    raise EffectLeaseStateError(
+                        "terminal execution has a different publication outcome"
+                    )
+                if (
+                    row["terminal_receipt_sha256"] != receipt.receipt_sha256
+                    or row["terminal_receipt_json"]
+                    != canonical_json(receipt.to_dict())
+                    or row["finished_at"] != receipt.finished_at
+                    or state != receipt.outcome
+                ):
+                    raise EffectLeaseStateError(
+                        "effect execution already has a different terminal receipt"
+                    )
+                conn.execute("COMMIT")
+                return receipt
+            if state != "COMMITTING":
+                raise EffectLeaseStateError(
+                    f"publication finalization requires COMMITTING, got {state!r}"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "published_at",
+                    "publication_outcome_receipt_sha256",
+                    "publication_outcome_receipt_json",
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "COMMITTING execution unexpectedly carries outcome fields"
+                )
+            updated = conn.execute(
+                """
+                UPDATE effect_executions
+                SET state=?, published_at=?,
+                    publication_outcome_receipt_sha256=?,
+                    publication_outcome_receipt_json=?, finished_at=?,
+                    terminal_receipt_sha256=?, terminal_receipt_json=?
+                WHERE execution_id=? AND lease_sha256=? AND state='COMMITTING'
+                  AND request_sha256=? AND start_receipt_sha256=?
+                  AND claimed_at=? AND claim_receipt_sha256=?
+                  AND claim_receipt_json=? AND committed_at=?
+                  AND publication_commit_receipt_sha256=?
+                  AND publication_commit_receipt_json=?
+                  AND published_at IS NULL
+                  AND publication_outcome_receipt_sha256 IS NULL
+                  AND publication_outcome_receipt_json IS NULL
+                  AND finished_at IS NULL AND terminal_receipt_sha256 IS NULL
+                  AND terminal_receipt_json IS NULL
+                """,
+                (
+                    receipt.outcome,
+                    outcome_receipt.published_at,
+                    outcome_receipt.receipt_sha256,
+                    canonical_json(outcome_receipt.to_dict()),
+                    receipt.finished_at,
+                    receipt.receipt_sha256,
+                    canonical_json(receipt.to_dict()),
+                    receipt.execution_id,
+                    receipt.lease_sha256,
+                    execution.digest,
+                    start.receipt_sha256,
+                    claim_receipt.claimed_at,
+                    claim_receipt.receipt_sha256,
+                    canonical_json(claim_receipt.to_dict()),
+                    commit_receipt.committed_at,
+                    commit_receipt.receipt_sha256,
+                    canonical_json(commit_receipt.to_dict()),
+                ),
+            )
+            if updated.rowcount != 1:
+                raise EffectLeaseStateError(
+                    "execution changed while finalization held the ledger lock"
+                )
+            conn.execute("COMMIT")
+            return receipt
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            conn.close()
+
     def reconcile(
         self,
         pending_terminal_receipt: EffectTerminalReceipt,
@@ -2961,7 +5171,7 @@ class EffectLeaseLedger:
         operator_keyring: Mapping[tuple[str, str], bytes | str],
         now: datetime | None = None,
     ) -> "EffectReconciliationResult":
-        """Close an indeterminate execution through canonical reconciliation."""
+        """Close one unclaimed STARTED execution through reconciliation."""
 
         # Runtime import keeps the contract module free to reuse the canonical
         # receipt and ledger types without creating an import cycle.
@@ -2991,8 +5201,8 @@ class EffectLeaseLedger:
 
         Unlike :meth:`load_grant`, this historical/reconciliation read does not
         require a currently valid lease.  It performs no effect and never turns
-        a ``STARTED`` or ``EXECUTING`` row into permission to call the provider
-        again.
+        a ``STARTED``, ``EXECUTING`` or ``COMMITTING`` row into permission to
+        call a provider or target consumer again.
         """
 
         value = _identifier(execution_id, "execution_id")
@@ -3002,7 +5212,11 @@ class EffectLeaseLedger:
                 SELECT lease_sha256, idempotency_key, request_sha256,
                        request_json, start_receipt_sha256,
                        start_receipt_json, state, started_at, claimed_at,
-                       claim_receipt_sha256, claim_receipt_json, finished_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
                        terminal_receipt_sha256, terminal_receipt_json
                 FROM effect_executions WHERE execution_id=?
                 """,
@@ -3067,12 +5281,29 @@ class EffectLeaseLedger:
             execution=request,
             start_receipt=start,
         )
+        commit = _load_persisted_publication_commit(
+            row,
+            execution=request,
+            start_receipt=start,
+            claim_receipt=claim,
+        )
+        publication_outcome = _load_persisted_publication_outcome(
+            row,
+            execution=request,
+            start_receipt=start,
+            claim_receipt=claim,
+            commit_receipt=commit,
+        )
         state = str(row["state"])
         terminal: EffectTerminalReceipt | None = None
         if state == "STARTED":
             if claim is not None:
                 raise EffectLeaseStateError(
                     "STARTED execution unexpectedly carries claim fields"
+                )
+            if commit is not None or publication_outcome is not None:
+                raise EffectLeaseStateError(
+                    "STARTED execution unexpectedly carries publication fields"
                 )
             if any(
                 row[name] is not None
@@ -3090,6 +5321,10 @@ class EffectLeaseLedger:
                 raise EffectLeaseStateError(
                     "EXECUTING execution is missing its authenticated claim"
                 )
+            if commit is not None or publication_outcome is not None:
+                raise EffectLeaseStateError(
+                    "EXECUTING execution unexpectedly carries publication fields"
+                )
             if any(
                 row[name] is not None
                 for name in (
@@ -3100,6 +5335,26 @@ class EffectLeaseLedger:
             ):
                 raise EffectLeaseStateError(
                     "EXECUTING execution unexpectedly carries terminal fields"
+                )
+        elif state == "COMMITTING":
+            if claim is None or commit is None:
+                raise EffectLeaseStateError(
+                    "COMMITTING execution is missing its claim or commit receipt"
+                )
+            if publication_outcome is not None:
+                raise EffectLeaseStateError(
+                    "COMMITTING execution unexpectedly carries an outcome"
+                )
+            if any(
+                row[name] is not None
+                for name in (
+                    "finished_at",
+                    "terminal_receipt_sha256",
+                    "terminal_receipt_json",
+                )
+            ):
+                raise EffectLeaseStateError(
+                    "COMMITTING execution unexpectedly carries terminal fields"
                 )
         elif state in _TERMINAL_STATES:
             if any(
@@ -3155,6 +5410,26 @@ class EffectLeaseLedger:
                     "persisted effect execution failed terminal identity checks: "
                     + ", ".join(sorted(set(terminal_mismatches)))
                 )
+            if commit is None and publication_outcome is not None:
+                raise EffectLeaseStateError(
+                    "terminal execution has an outcome without a commit"
+                )
+            if commit is not None and publication_outcome is None:
+                raise EffectLeaseStateError(
+                    "committed terminal execution is missing publication outcome"
+                )
+            if publication_outcome is not None and state != "COMPLETED":
+                raise EffectLeaseStateError(
+                    "a successful publication terminal must be COMPLETED"
+                )
+            if publication_outcome is not None and _parse_utc(
+                terminal.finished_at, "terminal.finished_at"
+            ) < _parse_utc(
+                publication_outcome.published_at, "outcome.published_at"
+            ):
+                raise EffectLeaseStateError(
+                    "terminal execution predates publication outcome"
+                )
         else:
             raise EffectLeaseStateError(
                 f"persisted effect execution has unknown state {state!r}"
@@ -3165,8 +5440,125 @@ class EffectLeaseLedger:
             start_receipt=start,
             state=state,
             claim_receipt=claim,
+            publication_commit_receipt=commit,
+            publication_outcome_receipt=publication_outcome,
             terminal_receipt=terminal,
         )
+
+    def authenticated_execution_record(
+        self,
+        execution_id: str,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+    ) -> PersistedEffectExecution | None:
+        """Read one historical row with its issuer-authenticated phase chain.
+
+        ``execution_record`` is a structural database view.  This seam also
+        authenticates the persisted grant plus start, claim, publication
+        commit and publication outcome with the supplied historical issuer
+        key.  Terminal receipts predate this addition and remain structurally,
+        not independently cryptographically, authenticated.
+        """
+
+        value = _identifier(execution_id, "execution_id")
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        record = self.execution_record(value)
+        if record is None:
+            return None
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                """
+                SELECT execution_id, lease_sha256, idempotency_key,
+                       request_sha256, request_json, start_receipt_sha256,
+                       start_receipt_json, state, started_at, claimed_at,
+                       claim_receipt_sha256, claim_receipt_json, committed_at,
+                       publication_commit_receipt_sha256,
+                       publication_commit_receipt_json, published_at,
+                       publication_outcome_receipt_sha256,
+                       publication_outcome_receipt_json, finished_at,
+                       terminal_receipt_sha256, terminal_receipt_json
+                FROM effect_executions WHERE execution_id=? AND lease_sha256=?
+                """,
+                (value, lease.digest),
+            ).fetchone()
+            if row is None:
+                raise EffectLeaseStateError(
+                    "historical execution differs from the requested lease"
+                )
+            grant_row = conn.execute(
+                """
+                SELECT lease_sha256, lease_id, request_sha256, request_json,
+                       policy_decision_sha256, policy_decision_json,
+                       registry_sha256, entrypoint_id, lease_json,
+                       issued_at, expires_at, revoked_at, revocation_reason
+                FROM effect_leases WHERE lease_sha256=?
+                """,
+                (lease.digest,),
+            ).fetchone()
+            if grant_row is None:
+                raise EffectLeaseStateError(
+                    "historical execution is missing its persisted grant"
+                )
+            _authenticate_persisted_grant(
+                grant_row,
+                lease=lease,
+                request=request,
+                policy_decision=policy_decision,
+            )
+            start = _authenticated_replay_start(
+                row,
+                lease=lease,
+                execution=record.request,
+                request_json=canonical_json(record.request.to_dict()),
+                keyring=historical_keyring,
+            ).receipt
+            claim = _load_persisted_execution_claim(
+                row,
+                execution=record.request,
+                start_receipt=start,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            commit = _load_persisted_publication_commit(
+                row,
+                execution=record.request,
+                start_receipt=start,
+                claim_receipt=claim,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+            outcome = _load_persisted_publication_outcome(
+                row,
+                execution=record.request,
+                start_receipt=start,
+                claim_receipt=claim,
+                commit_receipt=commit,
+                lease=lease,
+                historical_keyring=historical_keyring,
+            )
+        finally:
+            conn.close()
+        authenticated = (start, claim, commit, outcome)
+        observed = (
+            record.start_receipt,
+            record.claim_receipt,
+            record.publication_commit_receipt,
+            record.publication_outcome_receipt,
+        )
+        if authenticated != observed:
+            raise EffectLeaseStateError(
+                "authenticated execution phases differ from structural record"
+            )
+        return record
 
     def require_live_start(
         self,
@@ -3292,6 +5684,86 @@ class EffectLeaseLedger:
             )
         return record
 
+    def require_live_commit(
+        self,
+        commit: EffectPublicationCommit,
+        execution: EffectExecutionRequest,
+        *,
+        lease: EffectLease,
+        request: EffectLeaseRequest,
+        policy_decision: PolicyDecision,
+        historical_keyring: Mapping[str, bytes | str],
+    ) -> PersistedEffectExecution:
+        """Authenticate fresh target authority against durable ``COMMITTING``."""
+
+        if type(commit) is not EffectPublicationCommit:
+            raise TypeError("commit must be an exact EffectPublicationCommit")
+        if type(execution) is not EffectExecutionRequest:
+            raise TypeError("execution must be an exact EffectExecutionRequest")
+        _authenticate_effect_lease_contracts(
+            lease,
+            request=request,
+            policy_decision=policy_decision,
+            keyring=historical_keyring,
+        )
+        commit.publication_capability.verify_commit_receipt(
+            commit.start_receipt,
+            commit.claim_receipt,
+            commit.commit_receipt,
+        )
+        _authenticate_start_receipt(
+            commit.start_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        _authenticate_execution_claim_receipt(
+            commit.claim_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        _authenticate_publication_commit_receipt(
+            commit.commit_receipt,
+            lease=lease,
+            keyring=historical_keyring,
+        )
+        record = self.execution_record(execution.execution_id)
+        if record is None:
+            raise EffectLeaseStateError(
+                "live publication commit is absent from the canonical ledger"
+            )
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("state", record.state, "COMMITTING"),
+                ("terminal_receipt", record.terminal_receipt, None),
+                (
+                    "publication_outcome_receipt",
+                    record.publication_outcome_receipt,
+                    None,
+                ),
+                ("execution_request", record.request, execution),
+                ("start_receipt", record.start_receipt, commit.start_receipt),
+                ("claim_receipt", record.claim_receipt, commit.claim_receipt),
+                (
+                    "publication_commit_receipt",
+                    record.publication_commit_receipt,
+                    commit.commit_receipt,
+                ),
+                (
+                    "lease_sha256",
+                    record.start_receipt.lease_sha256,
+                    lease.digest,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseStateError(
+                "live publication commit differs from persisted authority: "
+                + ", ".join(mismatches)
+            )
+        return record
+
 
 @dataclass(frozen=True)
 class LeasedEffectAuthorization:
@@ -3366,6 +5838,27 @@ class LeasedEffectAuthorization:
             claimed_at=claimed_at,
         )
 
+    def commit_publication(
+        self,
+        claim: EffectExecutionClaim,
+        execution: EffectExecutionRequest,
+        *,
+        effect_commitment_sha256: str,
+        committed_at: datetime | None = None,
+    ) -> EffectPublicationCommit:
+        """Persist the exclusive publication commitment."""
+
+        return self.ledger.commit_publication(
+            claim,
+            execution,
+            effect_commitment_sha256=effect_commitment_sha256,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            committed_at=committed_at,
+        )
+
     def finish_effect(
         self,
         start: EffectStartResult,
@@ -3423,6 +5916,31 @@ class LeasedEffectAuthorization:
             persisted_at=persisted_at,
         )
 
+    def finish_committed_effect(
+        self,
+        finalization: EffectPublicationFinalization,
+        *,
+        outcome: str,
+        output_digests: Iterable[str] = (),
+        detail_sha256: str | None = None,
+        finished_at: datetime | None = None,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Terminalize after explicit publication success and clean exit."""
+
+        return self.ledger.finish_committed(
+            finalization,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+            finished_at=finished_at,
+            persisted_at=persisted_at,
+        )
+
     def require_live_start(
         self,
         start: EffectStartResult,
@@ -3449,6 +5967,35 @@ class LeasedEffectAuthorization:
         return self.ledger.require_live_claim(
             claim,
             execution,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+        )
+
+    def require_live_commit(
+        self,
+        commit: EffectPublicationCommit,
+        execution: EffectExecutionRequest,
+    ) -> PersistedEffectExecution:
+        """Verify fresh target authority against durable ``COMMITTING``."""
+
+        return self.ledger.require_live_commit(
+            commit,
+            execution,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+        )
+
+    def authenticated_execution_record(
+        self, execution_id: str
+    ) -> PersistedEffectExecution | None:
+        """Authenticate one persisted execution with this authority's keyring."""
+
+        return self.ledger.authenticated_execution_record(
+            execution_id,
             lease=self.lease,
             request=self.request,
             policy_decision=self.policy_decision,
@@ -3487,6 +6034,31 @@ class LeasedEffectAuthorization:
         return self.ledger.finish_claim_receipt(
             receipt,
             claim_receipt=claim_receipt,
+            authorization=authorization,
+            lease=self.lease,
+            request=self.request,
+            policy_decision=self.policy_decision,
+            historical_keyring=self.keyring,
+            persisted_at=persisted_at,
+        )
+
+    def finish_committed_terminal(
+        self,
+        receipt: EffectTerminalReceipt,
+        *,
+        claim_receipt: EffectExecutionClaimReceipt,
+        commit_receipt: EffectPublicationCommitReceipt,
+        outcome_receipt: EffectPublicationOutcomeReceipt,
+        authorization: PublicationFinalizationAuthorization,
+        persisted_at: datetime | None = None,
+    ) -> EffectTerminalReceipt:
+        """Persist one exact terminal under finalization authority."""
+
+        return self.ledger.finish_committed_receipt(
+            receipt,
+            claim_receipt=claim_receipt,
+            commit_receipt=commit_receipt,
+            outcome_receipt=outcome_receipt,
             authorization=authorization,
             lease=self.lease,
             request=self.request,

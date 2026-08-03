@@ -20,8 +20,12 @@ from daedalus.kernel.effects import (
     EffectLeaseScopeError,
     EffectLeaseSignatureError,
     EffectLeaseStateError,
+    EffectPublicationCommitReceipt,
+    EffectPublicationOutcomeReceipt,
     LeasedEffectAuthorization,
     LeasedEffectStartReceipt,
+    PublicationCommitCapability,
+    PublicationFinalizationCapability,
     TerminalAuthorization,
     freeze_effect_terminal_receipt,
     issue_effect_lease,
@@ -272,6 +276,39 @@ def finish_claim_live(
         detail_sha256=detail_sha256,
         finished_at=finished_at,
     )
+
+
+def commit_live(
+    ledger: EffectLeaseLedger,
+    lease_value: EffectLease,
+    req: EffectLeaseRequest,
+    policy: PolicyDecision,
+    claimed,
+    execution_value=None,
+    *,
+    effect_commitment_sha256="9" * 64,
+    committed_at=None,
+):
+    return ledger.commit_publication(
+        claimed,
+        execution_value or execution(),
+        effect_commitment_sha256=effect_commitment_sha256,
+        lease=lease_value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        committed_at=committed_at or (NOW + timedelta(milliseconds=1750)),
+    )
+
+
+def publish_live(committed, *, published_at=None):
+    with committed.publication_capability.open_target_publication() as publication:
+        publication.mark_effect_boundary_crossed()
+        finalization = publication.publication_succeeded(
+            commit_receipt=committed.commit_receipt,
+            published_at=published_at or (NOW + timedelta(seconds=2)),
+        )
+    return finalization
 
 
 def authorization(
@@ -1941,7 +1978,7 @@ def test_execution_claim_chain_is_exclusive_and_only_claim_terminal_wins(
     assert terminal_record.terminal_receipt == claim_result
 
 
-def test_crashed_execution_claim_restarts_inert_and_reconciles_exactly_once(
+def test_crashed_execution_claim_restarts_inert_and_refuses_generic_reconcile(
     tmp_path,
 ) -> None:
     req = request()
@@ -2000,36 +2037,25 @@ def test_crashed_execution_claim_restarts_inert_and_reconciles_exactly_once(
         started,
         pending,
     )
-    reconciled = restarted.reconcile(
-        pending,
-        operator_decision,
-        historical_keyring={"kernel-key-1": SECRET},
-        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
-        now=NOW + timedelta(seconds=4),
-    )
-    assert reconciled.applied is True
-    assert reconciled.nonce_consumed is True
-    assert restarted.reconcile(
-        pending,
-        operator_decision,
-        historical_keyring={"kernel-key-1": SECRET},
-        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
-        now=NOW + timedelta(seconds=4),
-    ).applied is False
-
-    terminal = restarted.execution_record(execution_value.execution_id)
-    assert terminal is not None
-    assert terminal.state == "COMPLETED"
-    assert terminal.claim_receipt == claimed.claim_receipt
-    assert terminal.terminal_receipt == pending
-    with pytest.raises(EffectLeaseStateError, match="state"):
-        authorization(restarted, value, req, policy).require_live_claim(
-            claimed, execution_value
+    with pytest.raises(EffectLeaseStateError, match="orphan fencing"):
+        restarted.reconcile(
+            pending,
+            operator_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=4),
         )
+    indeterminate = restarted.execution_record(execution_value.execution_id)
+    assert indeterminate is not None
+    assert indeterminate.state == "EXECUTING"
+    assert indeterminate.claim_receipt == claimed.claim_receipt
+    assert indeterminate.terminal_receipt is None
     with sqlite3.connect(path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM effect_reconciliations"
-        ).fetchone()[0] == 1
+        ).fetchone()[0] == 0
 
 
 def test_persisted_execution_claim_tamper_blocks_all_completion_paths(
@@ -2103,7 +2129,7 @@ def test_persisted_execution_claim_tamper_blocks_all_completion_paths(
         started,
         pending,
     )
-    with pytest.raises(EffectLeaseSignatureError, match="execution claim signature"):
+    with pytest.raises(EffectLeaseStateError, match="orphan fencing"):
         ledger.reconcile(
             pending,
             operator_decision,
@@ -2118,3 +2144,537 @@ def test_persisted_execution_claim_tamper_blocks_all_completion_paths(
         assert connection.execute(
             "SELECT COUNT(*) FROM effect_reconciliations"
         ).fetchone()[0] == 0
+
+
+def test_publication_commit_race_promotes_once_and_finalizes_only_after_clean_exit(
+    tmp_path,
+) -> None:
+    import concurrent.futures
+    import threading
+
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "publication-commit.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(ledger, value, req, policy, execution_value)
+    claimed = claim_live(
+        ledger,
+        value,
+        req,
+        policy,
+        started,
+        execution_value,
+    )
+    auth = authorization(ledger, value, req, policy)
+
+    contenders = [EffectLeaseLedger(path) for _ in range(8)]
+    barrier = threading.Barrier(len(contenders))
+
+    def promote(index):
+        barrier.wait()
+        try:
+            return commit_live(
+                contenders[index],
+                value,
+                req,
+                policy,
+                claimed,
+                execution_value,
+            )
+        except EffectLeaseStateError as exc:
+            return exc
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(promote, range(8)))
+    commits = [
+        result for result in results if not isinstance(result, EffectLeaseStateError)
+    ]
+    refusals = [
+        result for result in results if isinstance(result, EffectLeaseStateError)
+    ]
+    assert len(commits) == 1
+    assert len(refusals) == 7
+    committed = commits[0]
+    assert committed.commit_receipt.effect_commitment_sha256 == "9" * 64
+    assert repr(committed.publication_capability) == (
+        "PublicationCommitCapability(<redacted>)"
+    )
+    assert not hasattr(committed.publication_capability, "authorize")
+
+    durable = auth.require_live_commit(committed, execution_value)
+    assert durable.state == "COMMITTING"
+    assert durable.claim_receipt == claimed.claim_receipt
+    assert durable.publication_commit_receipt == committed.commit_receipt
+    assert durable.publication_outcome_receipt is None
+    assert durable.terminal_receipt is None
+    with pytest.raises(EffectLeaseStateError, match="promoted"):
+        auth.finish_claimed_effect(
+            claimed,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    with pytest.raises(
+        EffectLeaseStateError, match="normal completion capability is disabled"
+    ):
+        auth.finish_effect(
+            started,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    with pytest.raises(EffectLeaseConcurrencyError):
+        begin(
+            ledger,
+            value,
+            req,
+            policy,
+            execution(execution_id="execution-2", idempotency_key="idem-2"),
+            started_at=NOW + timedelta(milliseconds=1900),
+        )
+    with pytest.raises(EffectLeaseStateError, match="only be minted"):
+        PublicationCommitCapability(
+            start_receipt=committed.start_receipt,
+            claim_receipt=committed.claim_receipt,
+            commit_receipt=committed.commit_receipt,
+            secret=b"not-ledger-minted" * 2,
+            outcome_audit_key=b"not-audit-key" * 3,
+        )
+
+    with committed.publication_capability.open_target_publication() as publication:
+        with pytest.raises(EffectLeaseStateError, match="promoted"):
+            auth.finish_claimed_effect(
+                claimed,
+                outcome="failed",
+                detail_sha256="7" * 64,
+                finished_at=NOW + timedelta(seconds=2),
+            )
+        publication.mark_effect_boundary_crossed()
+        finalization = publication.publication_succeeded(
+            commit_receipt=committed.commit_receipt,
+            published_at=NOW + timedelta(seconds=2),
+        )
+        with pytest.raises(EffectLeaseStateError, match="clean session exit"):
+            auth.finish_committed_effect(
+                finalization,
+                outcome="completed",
+                output_digests=("f" * 64,),
+                finished_at=NOW + timedelta(milliseconds=2500),
+            )
+
+        def concurrent_terminalization():
+            try:
+                return auth.finish_committed_effect(
+                    finalization,
+                    outcome="completed",
+                    output_digests=("f" * 64,),
+                    finished_at=NOW + timedelta(milliseconds=2500),
+                )
+            except EffectLeaseStateError as exc:
+                return exc
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            concurrent_refusal = pool.submit(concurrent_terminalization).result()
+        assert isinstance(concurrent_refusal, EffectLeaseStateError)
+        assert "publication thread" in str(concurrent_refusal)
+
+    assert finalization.outcome_receipt.published_at == (
+        NOW + timedelta(seconds=2)
+    ).isoformat(timespec="microseconds")
+    assert finalization.outcome_receipt.effect_commitment_sha256 == "9" * 64
+    assert repr(finalization.completion_capability) == (
+        "PublicationFinalizationCapability(<redacted>)"
+    )
+    with pytest.raises(EffectLeaseStateError, match="only be minted"):
+        PublicationFinalizationCapability(
+            commit_receipt=committed.commit_receipt,
+            outcome_receipt=finalization.outcome_receipt,
+            publication_secret=b"not-publication-secret" * 2,
+            outcome_audit_key=b"not-audit-key" * 3,
+            finalization_secret=b"not-finalization-secret" * 2,
+            publication_capability=committed.publication_capability,
+            session_nonce="not-a-live-session",
+        )
+    with pytest.raises(EffectLeaseStateError, match="already opened"):
+        committed.publication_capability.open_target_publication()
+    with pytest.raises(EffectLeaseStateError, match="no longer fresh"):
+        auth.require_live_commit(committed, execution_value)
+
+    with pytest.raises(EffectLeaseStateError, match="only as COMPLETED"):
+        auth.finish_committed_effect(
+            finalization,
+            outcome="failed",
+            detail_sha256="6" * 64,
+            finished_at=NOW + timedelta(milliseconds=2400),
+        )
+    failed_terminal = freeze_effect_terminal_receipt(
+        finalization.start_receipt,
+        outcome="failed",
+        detail_sha256="6" * 64,
+        finished_at=NOW + timedelta(milliseconds=2400),
+    )
+    with pytest.raises(EffectLeaseStateError, match="must be COMPLETED"):
+        finalization.completion_capability.authorize(
+            failed_terminal,
+            commit_receipt=finalization.commit_receipt,
+            outcome_receipt=finalization.outcome_receipt,
+        )
+    premature_terminal = freeze_effect_terminal_receipt(
+        finalization.start_receipt,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(milliseconds=1900),
+    )
+    with pytest.raises(EffectLeaseStateError, match="predates publication"):
+        finalization.completion_capability.authorize(
+            premature_terminal,
+            commit_receipt=finalization.commit_receipt,
+            outcome_receipt=finalization.outcome_receipt,
+        )
+    terminal = auth.finish_committed_effect(
+        finalization,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(milliseconds=2500),
+    )
+    assert auth.finish_committed_effect(
+        finalization,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(milliseconds=2500),
+    ) == terminal
+    with pytest.raises(EffectLeaseStateError, match="only as COMPLETED"):
+        auth.finish_committed_effect(
+            finalization,
+            outcome="failed",
+            detail_sha256="6" * 64,
+            finished_at=NOW + timedelta(seconds=3),
+        )
+
+    record = ledger.execution_record(execution_value.execution_id)
+    assert record is not None
+    assert record.state == "COMPLETED"
+    assert record.claim_receipt == claimed.claim_receipt
+    assert record.publication_commit_receipt == committed.commit_receipt
+    assert record.publication_outcome_receipt == finalization.outcome_receipt
+    assert record.terminal_receipt == terminal
+    with sqlite3.connect(path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT * FROM effect_executions WHERE execution_id=?",
+            (execution_value.execution_id,),
+        ).fetchone()
+    assert row["publication_commit_receipt_sha256"] == (
+        committed.commit_receipt.receipt_sha256
+    )
+    assert row["publication_outcome_receipt_sha256"] == (
+        finalization.outcome_receipt.receipt_sha256
+    )
+    assert "secret" not in row["publication_commit_receipt_json"].lower()
+    assert "secret" not in row["publication_outcome_receipt_json"].lower()
+
+    restarted = EffectLeaseLedger(path)
+    authenticated = authorization(
+        restarted, value, req, policy
+    ).authenticated_execution_record(execution_value.execution_id)
+    assert authenticated is not None
+    assert authenticated.publication_outcome_receipt == (
+        finalization.outcome_receipt
+    )
+
+    forged_payload = json.loads(row["publication_outcome_receipt_json"])
+    forged_payload["signature_sha256"] = "0" * 64
+    forged_payload.pop("receipt_sha256")
+    forged_outcome = EffectPublicationOutcomeReceipt(
+        **forged_payload,
+        receipt_sha256=canonical_sha(forged_payload),
+    )
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET publication_outcome_receipt_sha256=?,
+                publication_outcome_receipt_json=?
+            WHERE execution_id=?
+            """,
+            (
+                forged_outcome.receipt_sha256,
+                canonical_json(forged_outcome.to_dict()),
+                execution_value.execution_id,
+            ),
+        )
+    assert restarted.execution_record(execution_value.execution_id) is not None
+    with pytest.raises(
+        EffectLeaseSignatureError, match="publication outcome signature"
+    ):
+        authorization(
+            restarted, value, req, policy
+        ).authenticated_execution_record(execution_value.execution_id)
+
+
+def test_precommit_failure_is_terminal_but_crossed_publication_is_indeterminate(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+
+    pre_path = tmp_path / "pre-publication-failure.sqlite3"
+    pre_ledger = EffectLeaseLedger(pre_path)
+    grant(pre_ledger, value, req, policy)
+    pre_execution = execution()
+    pre_start = begin(pre_ledger, value, req, policy, pre_execution)
+    pre_claim = claim_live(
+        pre_ledger,
+        value,
+        req,
+        policy,
+        pre_start,
+        pre_execution,
+    )
+    pre_terminal = authorization(
+        pre_ledger, value, req, policy
+    ).finish_claimed_effect(
+        pre_claim,
+        outcome="failed",
+        detail_sha256="1" * 64,
+        finished_at=NOW + timedelta(milliseconds=1700),
+    )
+    assert pre_terminal.outcome == "FAILED"
+    assert pre_ledger.execution_state(pre_execution.execution_id) == "FAILED"
+
+    crossed_path = tmp_path / "crossed-publication.sqlite3"
+    crossed_ledger = EffectLeaseLedger(crossed_path)
+    grant(crossed_ledger, value, req, policy)
+    crossed_execution = execution()
+    crossed_start = begin(
+        crossed_ledger, value, req, policy, crossed_execution
+    )
+    crossed_claim = claim_live(
+        crossed_ledger,
+        value,
+        req,
+        policy,
+        crossed_start,
+        crossed_execution,
+    )
+    crossed_commit = commit_live(
+        crossed_ledger,
+        value,
+        req,
+        policy,
+        crossed_claim,
+        crossed_execution,
+    )
+    crossed_auth = authorization(crossed_ledger, value, req, policy)
+
+    with pytest.raises(RuntimeError, match="target swap became uncertain"):
+        with (
+            crossed_commit.publication_capability.open_target_publication()
+            as publication
+        ):
+            publication.mark_effect_boundary_crossed()
+            raise RuntimeError("target swap became uncertain")
+
+    assert crossed_ledger.execution_state(crossed_execution.execution_id) == (
+        "COMMITTING"
+    )
+    with pytest.raises(EffectLeaseStateError, match="opened or poisoned"):
+        crossed_commit.publication_capability.open_target_publication()
+    with pytest.raises(EffectLeaseStateError, match="promoted"):
+        crossed_auth.finish_claimed_effect(
+            crossed_claim,
+            outcome="failed",
+            detail_sha256="2" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+    with pytest.raises(EffectLeaseStateError, match="no longer fresh"):
+        crossed_auth.require_live_commit(crossed_commit, crossed_execution)
+
+    restarted = EffectLeaseLedger(crossed_path)
+    record = restarted.execution_record(crossed_execution.execution_id)
+    assert record is not None
+    assert record.state == "COMMITTING"
+    assert record.claim_receipt == crossed_claim.claim_receipt
+    assert record.publication_commit_receipt == crossed_commit.commit_receipt
+    assert record.publication_outcome_receipt is None
+    assert record.terminal_receipt is None
+    replay = begin(
+        restarted,
+        value,
+        req,
+        policy,
+        crossed_execution,
+        started_at=NOW + timedelta(seconds=3),
+    )
+    assert replay.execute is False
+    assert replay.completion_capability is None
+
+    pending = freeze_effect_terminal_receipt(
+        crossed_start.receipt,
+        outcome="failed",
+        detail_sha256="3" * 64,
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    operator_decision = _operator_decision(
+        value,
+        crossed_execution,
+        crossed_start,
+        pending,
+        issued_at=NOW + timedelta(seconds=3),
+    )
+    with pytest.raises(EffectLeaseStateError, match="orphan fencing"):
+        restarted.reconcile(
+            pending,
+            operator_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=4),
+        )
+    assert restarted.execution_state(crossed_execution.execution_id) == (
+        "COMMITTING"
+    )
+    with sqlite3.connect(crossed_path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 0
+
+
+def test_publication_commit_tamper_and_partial_migration_fail_closed(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+
+    tampered_path = tmp_path / "tampered-publication-commit.sqlite3"
+    ledger = EffectLeaseLedger(tampered_path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(ledger, value, req, policy, execution_value)
+    claimed = claim_live(
+        ledger,
+        value,
+        req,
+        policy,
+        started,
+        execution_value,
+    )
+    committed = commit_live(
+        ledger,
+        value,
+        req,
+        policy,
+        claimed,
+        execution_value,
+    )
+
+    persisted = committed.commit_receipt.to_dict()
+    assert set(persisted) == {
+        "lease_sha256",
+        "issuer_key_id",
+        "execution_id",
+        "execution_request_sha256",
+        "start_receipt_sha256",
+        "claim_receipt_sha256",
+        "effect_commitment_sha256",
+        "publication_capability_sha256",
+        "committed_at",
+        "signature_sha256",
+        "receipt_sha256",
+    }
+    assert committed.commit_receipt.receipt_sha256 == canonical_sha(
+        committed.commit_receipt.authenticated_dict()
+    )
+    forged_payload = committed.commit_receipt.to_dict()
+    forged_payload["effect_commitment_sha256"] = "0" * 64
+    forged_payload.pop("receipt_sha256")
+    forged = EffectPublicationCommitReceipt(
+        **forged_payload,
+        receipt_sha256=canonical_sha(forged_payload),
+    )
+    with sqlite3.connect(tampered_path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET publication_commit_receipt_sha256=?,
+                publication_commit_receipt_json=?
+            WHERE execution_id=?
+            """,
+            (
+                forged.receipt_sha256,
+                canonical_json(forged.to_dict()),
+                execution_value.execution_id,
+            ),
+        )
+
+    canonical_but_unauthenticated = ledger.execution_record(
+        execution_value.execution_id
+    )
+    assert canonical_but_unauthenticated is not None
+    assert canonical_but_unauthenticated.state == "COMMITTING"
+    assert canonical_but_unauthenticated.publication_commit_receipt == forged
+    auth = authorization(ledger, value, req, policy)
+    with pytest.raises(
+        EffectLeaseStateError, match="publication_commit_receipt"
+    ):
+        auth.require_live_commit(committed, execution_value)
+
+    finalization = publish_live(committed)
+    with pytest.raises(
+        EffectLeaseSignatureError, match="publication commit signature"
+    ):
+        auth.finish_committed_effect(
+            finalization,
+            outcome="completed",
+            output_digests=("f" * 64,),
+            finished_at=NOW + timedelta(milliseconds=2500),
+        )
+    assert ledger.execution_state(execution_value.execution_id) == "COMMITTING"
+
+    partial_path = tmp_path / "partial-publication-commit.sqlite3"
+    partial_ledger = EffectLeaseLedger(partial_path)
+    grant(partial_ledger, value, req, policy)
+    partial_execution = execution()
+    partial_start = begin(
+        partial_ledger, value, req, policy, partial_execution
+    )
+    partial_claim = claim_live(
+        partial_ledger,
+        value,
+        req,
+        policy,
+        partial_start,
+        partial_execution,
+    )
+    partial_commit = commit_live(
+        partial_ledger,
+        value,
+        req,
+        policy,
+        partial_claim,
+        partial_execution,
+    )
+    with sqlite3.connect(partial_path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET publication_commit_receipt_json=NULL
+            WHERE execution_id=?
+            """,
+            (partial_execution.execution_id,),
+        )
+    with pytest.raises(EffectLeaseStateError, match="partial publication commit"):
+        partial_ledger.execution_record(partial_execution.execution_id)
+    with pytest.raises(EffectLeaseStateError, match="partial publication commit"):
+        authorization(
+            partial_ledger, value, req, policy
+        ).require_live_commit(partial_commit, partial_execution)
+    assert partial_ledger.execution_state(partial_execution.execution_id) == (
+        "COMMITTING"
+    )
