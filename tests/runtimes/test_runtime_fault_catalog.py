@@ -19,6 +19,7 @@ from daedalus.schemas import ContractProvenance
 REVISION = "a" * 40
 OTHER_REVISION = "b" * 40
 NOW = "2026-08-03T04:00:00+00:00"
+_DEFAULT_OUTCOME = object()
 
 
 def _evidence(scenario_id: str) -> str:
@@ -32,9 +33,14 @@ def _observation(
     revision: str = REVISION,
     authority: str | None = None,
     scenario_sha256: str | None = None,
+    observed_outcome: str | None | object = _DEFAULT_OUTCOME,
 ) -> RuntimeFaultObservation:
     evidence = _evidence(scenario.scenario_id)
     scenario_digest = scenario_sha256 or scenario.digest
+    if observed_outcome is _DEFAULT_OUTCOME:
+        outcome = None if status == "blocked" else scenario.expected_outcome
+    else:
+        outcome = observed_outcome
     return RuntimeFaultObservation(
         observation_id=f"obs.{scenario.scenario_id}",
         scenario_id=scenario.scenario_id,
@@ -42,6 +48,7 @@ def _observation(
         source_revision=revision,
         authority=authority or scenario.authority,
         status=status,
+        observed_outcome=outcome,  # type: ignore[arg-type]
         observed_at=NOW,
         evidence_sha256=evidence,
         detail_code=None if status == "passed" else f"observed.{status}",
@@ -141,7 +148,10 @@ def test_deterministic_success_cannot_hide_missing_host_or_live_authority() -> N
         row.startswith("fault.missing:runtime.broker")
         for row in verification.blockers
     )
-    assert not any(row.startswith("fault.untrusted-observation") for row in verification.blockers)
+    assert not any(
+        row.startswith("fault.untrusted-observation")
+        for row in verification.blockers
+    )
 
 
 def test_exact_complete_catalog_closes_only_with_trusted_passed_observations() -> None:
@@ -162,6 +172,19 @@ def test_exact_complete_catalog_closes_only_with_trusted_passed_observations() -
     ).digest
 
 
+def test_trusted_pass_record_with_wrong_terminal_outcome_is_a_blocker() -> None:
+    target = RUNTIME_FAULT_CATALOG.scenarios[0]
+    wrong = next(value for value in ("failed", "cancelled") if value != target.expected_outcome)
+    observations = [
+        _observation(row, observed_outcome=wrong if row == target else row.expected_outcome)
+        for row in RUNTIME_FAULT_CATALOG.scenarios
+    ]
+    verification = _verify(_matrix(observations), trusted=_trusted(observations))
+
+    assert f"fault.outcome-mismatch:{target.scenario_id}" in verification.blockers
+    assert verification.closed is False
+
+
 @pytest.mark.parametrize("status", ["failed", "blocked"])
 def test_nonpassing_observation_is_named_even_when_record_is_trusted(status: str) -> None:
     scenario = RUNTIME_FAULT_CATALOG.scenarios[0]
@@ -172,6 +195,14 @@ def test_nonpassing_observation_is_named_even_when_record_is_trusted(status: str
     verification = _verify(_matrix(observations), trusted=_trusted(observations))
     assert f"fault.{status}:{scenario.scenario_id}" in verification.blockers
     assert verification.closed is False
+
+
+def test_passed_requires_observed_outcome_and_blocked_cannot_invent_one() -> None:
+    scenario = RUNTIME_FAULT_CATALOG.scenarios[0]
+    with pytest.raises(ValueError, match="require observed_outcome"):
+        _observation(scenario, observed_outcome=None)
+    with pytest.raises(ValueError, match="must not invent"):
+        _observation(scenario, status="blocked", observed_outcome="failed")
 
 
 def test_catalog_shrink_foreign_scenario_drift_and_authority_substitution_refuse() -> None:
