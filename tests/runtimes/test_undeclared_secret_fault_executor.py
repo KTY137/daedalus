@@ -144,7 +144,11 @@ def _simulate(
 
     monkeypatch.setattr(executor, "run_in_docker_sandbox", invoke)
     run = executor.run_undeclared_secret(source_revision=REVISION)
-    assert executor._SECRET_NAME not in os.environ
+    if mutate_host_secret:
+        assert os.environ[executor._SECRET_NAME] == "mutated"
+        monkeypatch.delenv(executor._SECRET_NAME, raising=False)
+    else:
+        assert executor._SECRET_NAME not in os.environ
     return run
 
 
@@ -354,7 +358,7 @@ def test_host_secret_name_collision_blocks_without_overwrite(
     assert invoked is False
 
 
-def test_host_environment_mutation_is_explicit_failure(
+def test_host_environment_mutation_is_explicit_failure_without_deleting_foreign_value(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
