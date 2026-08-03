@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
 
 from daedalus.spine import effect_boundary as boundary
@@ -8,6 +9,7 @@ from daedalus.spine.effect_boundary import Effect, Surface, Wiring
 
 
 ROOT = Path(__file__).resolve().parents[2]
+REVIEW = ROOT / "docs" / "work-packets" / "G0-ATT-13B_EFFECT_INVENTORY.json"
 TARGETS = {
     "daedalus.kernel.attempt_ledger:AttemptLedger.begin": (
         "kernel.attempt.begin",
@@ -64,13 +66,36 @@ def test_static_inventory_discovers_all_attempt_lifecycle_boundaries() -> None:
 
 def test_conformance_has_no_registration_or_anchor_blocker_for_attempt_lifecycle() -> None:
     report = boundary.check_conformance(ROOT)
+    ids = {value[0] for value in TARGETS.values()}
     relevant = [
         finding
         for finding in report.findings
-        if finding.subject in TARGETS
-        or finding.subject in {value[0] for value in TARGETS.values()}
+        if finding.subject in TARGETS or finding.subject in ids
     ]
     assert not [finding for finding in relevant if finding.severity == "blocker"]
+    gaps = {
+        finding.subject
+        for finding in relevant
+        if finding.code == "gate0.not_central" and finding.severity == "gap"
+    }
+    assert gaps == ids
+    assert report.gate0_closed is False
+
+
+def test_parent_blocker_is_resolved_only_as_local_guards() -> None:
+    review = json.loads(REVIEW.read_text(encoding="utf-8"))
+    assert review["status"] == "resolved_at_local_guards"
+    assert review["security_boundary_claimed"] is False
+    assert review["findings"] == []
+    resolved = {row["target"]: row for row in review["resolved_findings"]}
+    assert set(resolved) == set(TARGETS)
+    for target, (row_id, guards, anchors) in TARGETS.items():
+        row = resolved[target]
+        assert row["registry_id"] == row_id
+        assert row["required_guards"] == list(guards)
+        assert row["anchors"] == list(anchors)
+        assert row["current_wiring"] == "local_guards"
+        assert row["gate0_target_wiring"] == "central"
 
 
 def test_source_classifier_names_attempt_authorities_explicitly() -> None:
