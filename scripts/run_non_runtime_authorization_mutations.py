@@ -42,6 +42,26 @@ MUTATIONS = (
         "        if start_receipt.lease_sha256 != self.lease.digest:\n",
         "        if False:\n",
     ),
+    Mutation(
+        "allow-caller-verification-clock",
+        "    def verify(self) -> None:\n",
+        "    def verify(self, *, now: datetime | None = None) -> None:\n",
+    ),
+    Mutation(
+        "allow-caller-grant-clock",
+        "    def grant(self) -> None:\n",
+        "    def grant(self, *, granted_at: datetime | None = None) -> None:\n",
+    ),
+    Mutation(
+        "allow-caller-start-clock",
+        "    def begin_effect(\n        self,\n        execution: EffectExecutionRequest,\n    ) -> EffectStartResult:\n",
+        "    def begin_effect(\n        self,\n        execution: EffectExecutionRequest,\n        *,\n        started_at: datetime | None = None,\n    ) -> EffectStartResult:\n",
+    ),
+    Mutation(
+        "allow-caller-terminal-clock",
+        "        detail_sha256: str | None = None,\n    ) -> EffectTerminalReceipt:\n",
+        "        detail_sha256: str | None = None,\n        finished_at: datetime | None = None,\n    ) -> EffectTerminalReceipt:\n",
+    ),
 )
 
 FOCUSED_TESTS = ("tests/kernel/test_effect_authorization.py",)
