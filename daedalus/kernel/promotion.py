@@ -1,19 +1,20 @@
 """Sealed promotion authorization for Gate 0.
 
 The existing Kairos integration-worktree machinery is retained, but it may not
-start until this module proves that one consumed OwnerApproval, one passed
-EvidencePacket, the exact ordered candidate batch, and the live target HEAD all
-name the same immutable promotion subject.
+start until this module proves that one persisted and re-authenticated
+OwnerApproval consumption, one passed EvidencePacket, the exact ordered
+candidate batch, and the live target HEAD all name the same immutable promotion
+subject.
 """
 from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
-from daedalus.kernel.approvals import ConsumedOwnerApproval
-from daedalus.schemas import EvidencePacket, _identifier, _revision, _sha256
+from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
+from daedalus.schemas import EvidencePacket, _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
 
@@ -99,7 +100,14 @@ def authorize_promotion(
     target_ref: str,
     live_target_revision: str,
 ) -> PromotionAuthorization:
-    """Bind approval, evidence, candidates and the re-read target HEAD exactly."""
+    """Bind approval, evidence, candidates and the re-read target HEAD exactly.
+
+    This is the pure binding primitive. Effectful callers must use
+    :func:`authorize_persisted_promotion`, which first proves that the supplied
+    consumption receipt is the exact record held by the authenticated approval
+    ledger. Keeping this primitive separate allows deterministic contract tests
+    without weakening the live mutation boundary.
+    """
     if not isinstance(consumed_approval, ConsumedOwnerApproval):
         raise PromotionAuthorizationError("promotion requires a consumed OwnerApproval")
     if not isinstance(evidence_packet, EvidencePacket):
@@ -151,9 +159,69 @@ def authorize_promotion(
     )
 
 
+def authorize_persisted_promotion(
+    *,
+    approval_ledger: ApprovalLedger,
+    owner_keyring: Mapping[tuple[str, str], bytes | str],
+    consumed_approval: ConsumedOwnerApproval,
+    evidence_packet: EvidencePacket,
+    candidates: Sequence[Any],
+    target_ref: str,
+    live_target_revision: str,
+) -> PromotionAuthorization:
+    """Require persisted authenticated approval authority before authorization.
+
+    A self-consistent :class:`ConsumedOwnerApproval` is not authority. The
+    exact receipt must be present in the supplied approval ledger, its retained
+    signed OwnerApproval must authenticate under the independently supplied
+    owner keyring, and every persisted canonical byte/column binding must match
+    before the pure candidate/evidence/HEAD binding is evaluated.
+
+    This function performs no Git, worktree, provider or repository mutation.
+    A dependent Work Packet must make it mandatory inside the live promotion
+    lock immediately before the integration worktree is created.
+    """
+    if not isinstance(approval_ledger, ApprovalLedger):
+        raise PromotionAuthorizationError(
+            "persisted promotion authorization requires an ApprovalLedger"
+        )
+    if not isinstance(owner_keyring, Mapping) or not owner_keyring:
+        raise PromotionAuthorizationError(
+            "persisted promotion authorization requires a non-empty owner keyring"
+        )
+    if not isinstance(consumed_approval, ConsumedOwnerApproval):
+        raise PromotionAuthorizationError(
+            "persisted promotion authorization requires a ConsumedOwnerApproval"
+        )
+
+    trusted_keyring = dict(owner_keyring)
+    try:
+        persisted = approval_ledger.verify_consumption(
+            consumed_approval,
+            keyring=trusted_keyring,
+        )
+    except Exception as exc:
+        raise PromotionAuthorizationError(
+            "approval consumption is not authenticated persisted authority"
+        ) from exc
+    if persisted != consumed_approval:
+        raise PromotionAuthorizationError(
+            "approval ledger returned a different consumption capability"
+        )
+
+    return authorize_promotion(
+        consumed_approval=persisted,
+        evidence_packet=evidence_packet,
+        candidates=candidates,
+        target_ref=target_ref,
+        live_target_revision=live_target_revision,
+    )
+
+
 __all__ = [
     "PromotionAuthorization",
     "PromotionAuthorizationError",
+    "authorize_persisted_promotion",
     "authorize_promotion",
     "candidate_batch_sha256",
     "resolve_live_target_revision",
