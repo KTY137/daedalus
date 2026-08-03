@@ -8,6 +8,7 @@ on:
       - "daedalus/kernel/approvals.py"
       - "daedalus/kernel/__init__.py"
       - "tests/kernel/test_owner_approval.py"
+      - "tests/kernel/test_approval_consumption_review.py"
       - "tests/kernel/test_sealed_promotion.py"
       - "scripts/run_approval_consumption_mutations.py"
       - "docs/work-packets/G0-APR-11_AUTHENTICATED_APPROVAL_CONSUMPTION.md"
@@ -46,6 +47,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/kernel/test_owner_approval.py
+          tests/kernel/test_approval_consumption_review.py
           tests/kernel/test_fourfold_approval_integration.py
           tests/kernel/test_fourfold_evidence_owner_binding.py
           tests/kernel/test_sealed_promotion.py
