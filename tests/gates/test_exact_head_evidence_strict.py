@@ -62,9 +62,7 @@ def build_index(*, add_inconsistent_extras: bool = False) -> GateEvidenceIndex:
             content_sha256=artifact_sha,
             locator=f"artifact-locator:sha256:{artifact_sha}",
             built_at=NOW.isoformat(),
-            provenance=prov(
-                "tests.strict-artifact", REV, NOW, artifact_sha
-            ),
+            provenance=prov("tests.strict-artifact", REV, NOW, artifact_sha),
         )
     ]
     envelope_sha = "4" * 64
@@ -213,20 +211,63 @@ def build_index(*, add_inconsistent_extras: bool = False) -> GateEvidenceIndex:
     )
 
 
-def test_strict_verifier_accepts_only_coherent_exact_head() -> None:
+def trust_sets(value: GateEvidenceIndex) -> dict[str, tuple[str, ...]]:
+    assert value.owner_decision is not None
+    return {
+        "trusted_workflow_evidence_sha256s": tuple(
+            item.digest for item in value.workflows
+        ),
+        "trusted_artifact_sha256s": tuple(
+            item.content_sha256 for item in value.artifacts
+        ),
+        "trusted_runtime_envelope_sha256s": tuple(
+            item.envelope_sha256 for item in value.runtimes
+        ),
+        "trusted_fault_matrix_sha256s": tuple(
+            item.matrix_sha256 for item in value.fault_matrices
+        ),
+        "trusted_review_transcript_sha256s": tuple(
+            item.transcript_sha256 for item in value.reviews
+        ),
+        "trusted_owner_verifier_sha256s": (
+            value.owner_decision.verifier_receipt_sha256,
+        ),
+    }
+
+
+def test_strict_verifier_accepts_only_trusted_coherent_exact_head() -> None:
     value = build_index()
+    trusted = trust_sets(value)
     assert strict_mechanical_blockers(
         value,
         current_revision=REV,
         current_tree_revision=TREE,
         now=NOW + timedelta(minutes=1),
+        **trusted,
     ) == ()
     assert_strict_exact_head(
         value,
         current_revision=REV,
         current_tree_revision=TREE,
         now=NOW + timedelta(minutes=1),
+        **trusted,
     )
+
+
+def test_empty_external_trust_sets_fail_closed() -> None:
+    value = build_index()
+    blockers = strict_mechanical_blockers(
+        value,
+        current_revision=REV,
+        current_tree_revision=TREE,
+        now=NOW + timedelta(minutes=1),
+    )
+    assert "workflow:iron-plan:untrusted-evidence" in blockers
+    assert "artifact:wheel:untrusted-content" in blockers
+    assert "runtime:claude-code-cli:untrusted-envelope" in blockers
+    assert "fault-matrix:gate0-faults:untrusted-matrix" in blockers
+    assert "review:architecture:untrusted-transcript" in blockers
+    assert "owner-decision:untrusted-verifier-receipt" in blockers
 
 
 def test_inconsistent_extra_evidence_cannot_be_silently_ignored() -> None:
@@ -236,6 +277,7 @@ def test_inconsistent_extra_evidence_cannot_be_silently_ignored() -> None:
         current_revision=REV,
         current_tree_revision=TREE,
         now=NOW + timedelta(minutes=1),
+        **trust_sets(value),
     )
     assert "workflow:optional-nightly:foreign-source-revision" in blockers
     assert "workflow:optional-nightly:conclusion-failure" in blockers
@@ -248,6 +290,7 @@ def test_inconsistent_extra_evidence_cannot_be_silently_ignored() -> None:
             current_revision=REV,
             current_tree_revision=TREE,
             now=NOW + timedelta(minutes=1),
+            **trust_sets(value),
         )
 
 
