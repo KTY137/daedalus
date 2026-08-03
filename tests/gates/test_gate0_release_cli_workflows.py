@@ -19,7 +19,10 @@ _SECRET_ENV = "DAEDALUS_TEST_RELEASE_WORKFLOW_SECRET"
 
 
 def _write(path: Path, value) -> str:
-    path.write_text(value.to_json() + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value.to_dict(), sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     return str(path)
 
 
