@@ -1,0 +1,82 @@
+name: Gate 0 Attempt Workspace Root Authority
+
+on:
+  pull_request:
+    branches:
+      - g0/attempt-effect-inventory-linear
+    paths:
+      - "daedalus/kernel/attempt_workspace.py"
+      - "tests/kernel/conftest.py"
+      - "tests/kernel/test_isolated_attempt_workspace_root_authority.py"
+      - "tests/kernel/test_isolated_attempt_workspace_identity_review.py"
+      - "scripts/run_attempt_workspace_root_authority_mutations.py"
+      - "docs/work-packets/G0-ATT-13B4_WORKSPACE_ROOT_AUTHORITY.md"
+      - ".github/workflows/g0-attempt-workspace-root-authority.yml"
+  push:
+    branches:
+      - g0/attempt-authority-consolidation-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-attempt-workspace-root-authority-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts/run_attempt_workspace_root_authority_mutations.py
+      - run: python tools/iron_plan_guard.py verify
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_isolated_attempt_workspace_root_authority.py
+          tests/kernel/test_isolated_attempt_workspace_identity_review.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
+          tests/kernel/test_isolated_attempt_lifecycle_review.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+          tests/kernel/test_isolated_attempt_time_tampering.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
+          tests/kernel/test_isolated_attempt_effect_inventory_registration.py
+          tests/kernel/test_source_tree_store.py
+          tests/kernel/test_source_tree_store_adversarial.py
+          tests/test_kernel_contracts.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_attempt_workspace_root_authority_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-attempt-root-wheel
+      - run: /tmp/daedalus-attempt-root-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-attempt-root-wheel/bin/python - <<'PY'
+          from daedalus.kernel.attempts import IsolatedAttemptCoordinator
+          assert IsolatedAttemptCoordinator.__module__ == "daedalus.kernel.attempt_workspace"
+          PY
