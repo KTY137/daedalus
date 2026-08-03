@@ -2,28 +2,43 @@
 
 ## Purpose
 
-This packet adds the single Gate-0 start/terminal authority for isolated
-Attempts. It consumes the bounded source-tree CAS from G0-ATT-13A and prepares a
-checkout-external workspace, but deliberately invokes no provider, runtime,
-Docker process, Effect Lease, evaluator or promotion path.
+This packet extends the repository's **single canonical Event Store** with the
+start/terminal lifecycle for checkout-external Attempts. It consumes the bounded
+source-tree CAS from G0-ATT-13A and prepares an external workspace, but invokes
+no provider, runtime, Docker process, Effect Lease, evaluator or promotion path.
 
-## Authority and ordering
+## Canonical authority
 
-`AttemptLedger` is bound at construction to one exact `SourceTreeStore` object.
-It re-reads every input tree, report and candidate tree from that store. Typed or
-digest-shaped objects are not sufficient evidence that an artifact exists.
+The pre-review implementation introduced an independent `attempt_starts` /
+`attempt_terminals` SQLite database. Independent counter-review rejected that
+shape because Gate 0 requires one event spine and forbids a new state store
+outside the canonical kernel.
+
+The corrected implementation is a facade over `SpineLedger`:
+
+- one canonical `attempt.lifecycle` intent stores `AttemptStartRecord`;
+- one terminal spine event stores `AttemptTerminalReceipt`;
+- a partial unique index on the existing `intents` table serializes the one
+  start winner for each namespaced Attempt effect key;
+- no Attempt-specific table or second SQLite authority exists;
+- callers may pass an existing `SpineLedger` instance, and the facade retains
+  that exact object;
+- source trees, reports and candidate trees remain authoritative only when they
+  are re-read from the selected `SourceTreeStore`.
+
+## Ordering
 
 For one canonical `AttemptContract`, the coordinator performs this order:
 
 1. verify the input manifest from the selected CAS;
 2. verify exact base-revision equality;
-3. commit `AttemptStartRecord` with `BEGIN IMMEDIATE`;
+3. commit the canonical start intent to the Event Store;
 4. return without effects on terminal or pending replay;
 5. materialize the exact input tree into a new external workspace only for the
    single fresh winner.
 
-The lifecycle never writes into the primary checkout. Workspace parent, primary
-checkout and CAS root must be pairwise disjoint where relevant.
+The lifecycle never writes candidate bytes into the primary checkout. Workspace
+parent, primary checkout and CAS root must be pairwise disjoint where relevant.
 
 ## Restart and replay semantics
 
@@ -41,56 +56,51 @@ checkout and CAS root must be pairwise disjoint where relevant.
 
 ## Terminal evidence
 
-`AttemptTerminalReceipt` binds:
-
-- the exact start digest;
-- canonical Attempt and input-tree identities;
-- outcome;
-- a report artifact present in the selected CAS;
-- an optional candidate source-tree manifest present in the same CAS;
-- exact source revision and provenance.
-
-A successful outcome requires a candidate source tree. Candidate and persisted
-terminal artifacts are re-read on every replay, so later CAS corruption fails
-closed rather than becoming trusted historical evidence.
+`AttemptTerminalReceipt` binds the exact start digest, Attempt identity, input
+tree, outcome, CAS-backed report, optional candidate source tree, source
+revision and provenance. A successful outcome requires a candidate tree.
+Terminal replay re-reads report and candidate objects from the selected CAS and
+checks that the spine event's `effect_id` equals the receipt digest.
 
 ## Materialization failure
 
-A normal materialization exception is recorded as a deterministic, CAS-backed
+A normal materialization exception becomes a deterministic, CAS-backed
 `faulted` terminal receipt before the coordinator raises
 `AttemptWorkspaceError`. A process-level abort remains pending because the
 system cannot prove whether effects occurred.
 
 ## Adversarial review
 
-The behavioral and context-separated review suites cover:
+Behavioral and context-separated review cover:
 
 - start-before-materialization order;
 - pending and terminal replay without rematerialization;
 - timestamp-independent idempotency;
 - concurrent start serialization;
 - stale input and candidate revisions;
-- primary-checkout immutability;
-- pairwise root disjointness;
+- primary-checkout immutability and root disjointness;
 - foreign CAS input, report and candidate refusal;
-- selected-store substitution;
-- strict persisted-wire reparsing and SQLite tampering;
+- selected-store and event-spine substitution;
+- duplicate-key and payload-digest tampering;
+- terminal `effect_id` substitution;
 - terminal artifact corruption on replay;
 - constructor-shaped authority bypasses;
-- normal materialization faults versus process aborts.
+- normal materialization faults versus process aborts;
+- static refusal of a second Attempt-specific state store.
 
-The mutation campaign attacks pending re-execution, store substitution, changed
-start replay, success without a candidate, process-abort terminalization,
-terminal report verification and input-tree CAS verification.
+The bounded mutation campaign attacks pending re-execution, store substitution,
+changed replay material, success without a candidate, process-abort
+terminalization, skipped CAS checks, event-spine removal and terminal digest
+binding.
 
 ## Deliberate remaining Gate-0 boundary
 
 This packet does not execute the Attempt. The next dependent packet must bind a
 persisted Effect Lease, Runtime Manifest and current Conformance Receipt to the
 fresh `AttemptStartRecord`, run only inside the prepared workspace through the
-selected sandbox boundary, capture the resulting candidate tree and complete
-this ledger. Pending reconciliation remains an explicit operator/recovery
-packet, not an automatic retry.
+selected sandbox boundary, capture the candidate tree and complete the same
+Event Store record. Pending reconciliation remains an explicit recovery path,
+not an automatic retry.
 
 GitHub Actions issue #67 remains an external exact-head execution blocker while
 hosted jobs terminate before Step 1 without logs or artifacts. Such runs are not
