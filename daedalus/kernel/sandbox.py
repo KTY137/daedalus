@@ -17,7 +17,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from daedalus.spine.envelope import canonical_sha
 
@@ -136,45 +136,57 @@ class SandboxExecutionReceipt:
             isinstance(self.returncode, bool) or not isinstance(self.returncode, int)
         ):
             raise ValueError("returncode must be an integer or null")
+
         state = self.launch_state
+        error_code = self.error_code
         if not state:
-            state = "timed-out" if self.timed_out else "completed"
+            if self.timed_out:
+                state = "timed-out"
+            elif self.returncode == 125:
+                state = "refused-before-start"
+                error_code = error_code or "docker-cli-refused"
+            else:
+                state = "completed"
             object.__setattr__(self, "launch_state", state)
+            object.__setattr__(self, "error_code", error_code)
         if state not in _LAUNCH_STATES:
             raise ValueError(f"launch_state must be one of {sorted(_LAUNCH_STATES)}")
         if state == "timed-out":
             if not self.timed_out or self.returncode is not None:
                 raise ValueError("timed-out receipt must have timed_out=true and null returncode")
-            if self.error_code not in {None, "timeout"}:
+            if error_code not in {None, "timeout"}:
                 raise ValueError("timed-out receipt has an invalid error_code")
         elif state == "refused-before-start":
             if self.timed_out or self.returncode not in {None, 125}:
                 raise ValueError("refused receipt must not represent an attempt result")
-            if not isinstance(self.error_code, str) or not self.error_code:
+            if not isinstance(error_code, str) or not error_code:
                 raise ValueError("refused receipt requires an error_code")
         else:
             if self.timed_out or self.returncode is None:
                 raise ValueError("completed receipt requires a terminal returncode")
-            if self.error_code is not None:
+            if self.returncode == 125:
+                raise ValueError("Docker returncode 125 cannot be a completed attempt")
+            if error_code is not None:
                 raise ValueError("completed receipt must not carry an error_code")
 
     @property
     def refused_before_start(self) -> bool:
         return self.launch_state == "refused-before-start"
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "argv_sha256": self.argv_sha256,
+            "returncode": self.returncode,
+            "timed_out": self.timed_out,
+            "stdout_sha256": self.stdout_sha256,
+            "stderr_sha256": self.stderr_sha256,
+            "launch_state": self.launch_state,
+            "error_code": self.error_code,
+        }
+
     @property
     def digest(self) -> str:
-        return canonical_sha(
-            {
-                "argv_sha256": self.argv_sha256,
-                "returncode": self.returncode,
-                "timed_out": self.timed_out,
-                "stdout_sha256": self.stdout_sha256,
-                "stderr_sha256": self.stderr_sha256,
-                "launch_state": self.launch_state,
-                "error_code": self.error_code,
-            }
-        )
+        return canonical_sha(self.to_dict())
 
 
 def _receipt(
