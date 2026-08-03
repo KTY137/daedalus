@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
@@ -131,6 +131,21 @@ def _raw_evidence(value: Any) -> bytes:
     return value
 
 
+def _facts(values: Sequence["HostFaultFact"], name: str) -> tuple["HostFaultFact", ...]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise ValueError(f"{name} must be an array")
+    rows = tuple(values)
+    if any(not isinstance(row, HostFaultFact) for row in rows):
+        raise ValueError(f"{name} must contain HostFaultFact records")
+    rows = tuple(sorted(rows, key=lambda row: row.name))
+    if len(rows) > _MAX_FACTS:
+        raise ValueError(f"{name} exceeds {_MAX_FACTS} facts")
+    names = tuple(row.name for row in rows)
+    if len(names) != len(set(names)):
+        raise ValueError(f"{name} contains duplicate fact names")
+    return rows
+
+
 @dataclass(frozen=True)
 class HostFaultFact:
     name: str
@@ -179,13 +194,9 @@ class HostFaultResult:
                 self, "detail_code", _identifier(self.detail_code, "detail_code")
             )
         object.__setattr__(self, "raw_evidence", _raw_evidence(self.raw_evidence))
-        rows = tuple(sorted(self.facts, key=lambda row: row.name))
-        if len(rows) > _MAX_FACTS:
-            raise ValueError(f"host fault result exceeds {_MAX_FACTS} facts")
-        names = tuple(row.name for row in rows)
-        if len(names) != len(set(names)):
-            raise ValueError("host fault result contains duplicate fact names")
-        object.__setattr__(self, "facts", rows)
+        object.__setattr__(
+            self, "facts", _facts(self.facts, "host fault result facts")
+        )
 
 
 @dataclass(frozen=True)
@@ -242,13 +253,9 @@ class LinuxHostFaultEvidence:
             "raw_evidence_sha256",
             _sha256(self.raw_evidence_sha256, "raw_evidence_sha256"),
         )
-        rows = tuple(sorted(self.facts, key=lambda row: row.name))
-        if len(rows) > _MAX_FACTS:
-            raise ValueError(f"host fault evidence exceeds {_MAX_FACTS} facts")
-        names = tuple(row.name for row in rows)
-        if len(names) != len(set(names)):
-            raise ValueError("host fault evidence contains duplicate fact names")
-        object.__setattr__(self, "facts", rows)
+        object.__setattr__(
+            self, "facts", _facts(self.facts, "host fault evidence facts")
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -281,12 +288,19 @@ class LinuxHostFaultEvidence:
 
 @dataclass(frozen=True)
 class LinuxHostFaultRun:
-    """One evidence artifact and its exact canonical fault observation."""
+    """One evidence artifact, retained raw bytes, and exact observation."""
 
     evidence: LinuxHostFaultEvidence
     observation: RuntimeFaultObservation
+    raw_evidence: bytes = field(repr=False)
 
     def __post_init__(self) -> None:
+        retained = _raw_evidence(self.raw_evidence)
+        if hashlib.sha256(retained).hexdigest() != self.evidence.raw_evidence_sha256:
+            raise LinuxHostFaultBindingMismatch(
+                "retained raw evidence does not match the collector artifact"
+            )
+        object.__setattr__(self, "raw_evidence", retained)
         expected = {
             "scenario_id": (self.observation.scenario_id, self.evidence.scenario_id),
             "scenario_sha256": (
@@ -390,10 +404,10 @@ def _normalize_executor_result(
             fact_value=type(result).__name__,
         )
     if result.status == "passed" and result.observed_outcome != scenario.expected_outcome:
-        facts = tuple(result.facts) + (
-            HostFaultFact("expected-outcome", scenario.expected_outcome),
-            HostFaultFact("reported-outcome", str(result.observed_outcome)),
-        )
+        merged = {row.name: row.value for row in result.facts}
+        merged["collector-expected-outcome"] = scenario.expected_outcome
+        merged["collector-reported-outcome"] = str(result.observed_outcome)
+        facts = tuple(HostFaultFact(name, value) for name, value in merged.items())
         return HostFaultResult(
             status="failed",
             observed_outcome=result.observed_outcome,
@@ -458,7 +472,11 @@ def run_linux_host_fault(
         detail_code=evidence.detail_code,
         provenance=provenance,
     )
-    return LinuxHostFaultRun(evidence=evidence, observation=observation)
+    return LinuxHostFaultRun(
+        evidence=evidence,
+        observation=observation,
+        raw_evidence=result.raw_evidence,
+    )
 
 
 def run_linux_host_fault_catalog(
@@ -473,8 +491,17 @@ def run_linux_host_fault_catalog(
     if not isinstance(executors, Mapping):
         raise ValueError("executors must be a mapping")
     scenarios = tuple(row for row in catalog.scenarios if row.authority == "linux-host")
+    if not scenarios:
+        raise LinuxHostFaultBindingMismatch(
+            "runtime fault catalog contains no linux-host scenarios"
+        )
+    registered: list[str] = []
+    for locator in executors:
+        if not isinstance(locator, str):
+            raise ValueError("executor registry locators must be strings")
+        registered.append(locator)
     expected_locators = frozenset(row.executor for row in scenarios)
-    foreign = sorted(set(executors) - expected_locators)
+    foreign = sorted(set(registered) - expected_locators)
     if foreign:
         raise LinuxHostFaultBindingMismatch(
             "executor registry contains foreign locators: " + ", ".join(foreign)
