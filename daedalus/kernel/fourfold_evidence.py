@@ -99,6 +99,27 @@ def _canonical_nomination(nomination: NominationReceipt) -> NominationReceipt:
     return rebuilt
 
 
+def _require_snapshot_candidate_binding(
+    snapshot: FourfoldSnapshot,
+    candidate_artifact_sha256: str,
+) -> None:
+    """Require compiler evidence that the snapshot came from this candidate.
+
+    Co-locating two digests in a packet is not a semantic binding: snapshot A
+    could otherwise be repackaged beside candidate B. The snapshot compiler
+    must retain the exact candidate source-bundle/CAS identity in provenance
+    before this promotion-facing adapter may emit conclusive evidence.
+    """
+
+    candidate_sha = _sha256(
+        candidate_artifact_sha256, "candidate_artifact_sha256"
+    )
+    if candidate_sha not in snapshot.provenance.input_digests:
+        raise FourfoldEvidenceMismatch(
+            "FourfoldSnapshot provenance does not bind candidate artifact digest"
+        )
+
+
 def assemble_fourfold_evidence_packet(
     *,
     snapshot: FourfoldSnapshot,
@@ -122,6 +143,10 @@ def assemble_fourfold_evidence_packet(
         candidate_artifact_locator=candidate_artifact_locator,
         snapshot_sha256=snapshot.digest,
         source_revision=snapshot.source_revision,
+    )
+    _require_snapshot_candidate_binding(
+        snapshot,
+        expectation.candidate_artifact_sha256,
     )
     attempt_sha = _sha256(attempt_contract_sha256, "attempt_contract_sha256")
     policy_sha = _sha256(policy_decision_sha256, "policy_decision_sha256")
@@ -271,6 +296,10 @@ def verify_fourfold_evidence_packet(
 
     packet = _canonical_packet(packet)
     snapshot = _canonical_snapshot(snapshot)
+    _require_snapshot_candidate_binding(
+        snapshot,
+        expectation.candidate_artifact_sha256,
+    )
 
     mismatches: list[str] = []
     if packet.source_revision != snapshot.source_revision:
