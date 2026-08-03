@@ -88,6 +88,28 @@ def _require_promotion_complete(snapshot: FourfoldSnapshot) -> None:
         )
 
 
+def _require_snapshot_candidate_binding(
+    snapshot: FourfoldSnapshot,
+    candidate_artifact_sha256: str,
+) -> None:
+    """Require compiler evidence that the snapshot came from this candidate.
+
+    Merely placing a candidate digest and a snapshot digest in the same packet
+    is not a semantic binding: an attacker could repackage snapshot A beside
+    candidate B. The compiler must have retained the exact candidate source
+    bundle as an input to the snapshot provenance before this adapter may emit
+    conclusive evidence.
+    """
+
+    candidate_sha = _sha256(
+        candidate_artifact_sha256, "candidate_artifact_sha256"
+    )
+    if candidate_sha not in snapshot.provenance.input_digests:
+        raise FourfoldEvidenceMismatch(
+            "Fourfold snapshot provenance does not bind the candidate artifact digest"
+        )
+
+
 def assemble_fourfold_evidence_packet(
     *,
     snapshot: FourfoldSnapshot,
@@ -118,6 +140,10 @@ def assemble_fourfold_evidence_packet(
         candidate_artifact_locator=candidate_artifact_locator,
         snapshot_sha256=snapshot.digest,
         source_revision=snapshot.source_revision,
+    )
+    _require_snapshot_candidate_binding(
+        snapshot,
+        expectation.candidate_artifact_sha256,
     )
     attempt_sha = _sha256(attempt_contract_sha256, "attempt_contract_sha256")
     policy_sha = _sha256(policy_decision_sha256, "policy_decision_sha256")
@@ -205,6 +231,10 @@ def verify_fourfold_evidence_packet(
     if not isinstance(snapshot, FourfoldSnapshot):
         raise TypeError("snapshot must be a FourfoldSnapshot")
     _require_promotion_complete(snapshot)
+    _require_snapshot_candidate_binding(
+        snapshot,
+        expectation.candidate_artifact_sha256,
+    )
 
     mismatches: list[str] = []
     if packet.source_revision != snapshot.source_revision:
