@@ -6,6 +6,10 @@ on:
       - g0/source-tree-cas-port-v2-linear
     paths:
       - "daedalus/kernel/attempts.py"
+      - "daedalus/kernel/attempt_contracts.py"
+      - "daedalus/kernel/attempt_ledger.py"
+      - "daedalus/kernel/attempt_spine_reader.py"
+      - "daedalus/kernel/attempt_workspace.py"
       - "daedalus/kernel/__init__.py"
       - "configs/schemas/attempt-start-v1.schema.json"
       - "configs/schemas/attempt-terminal-v1.schema.json"
@@ -14,6 +18,7 @@ on:
       - "tests/kernel/test_isolated_attempt_lifecycle_review.py"
       - "tests/kernel/test_isolated_attempt_cas_review.py"
       - "tests/kernel/test_isolated_attempt_schema_review.py"
+      - "tests/kernel/test_isolated_attempt_spine_wire_review.py"
       - "scripts/run_isolated_attempt_mutations.py"
       - "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md"
       - ".github/workflows/g0-isolated-attempt-lifecycle.yml"
@@ -58,6 +63,7 @@ jobs:
           tests/kernel/test_isolated_attempt_lifecycle_review.py
           tests/kernel/test_isolated_attempt_cas_review.py
           tests/kernel/test_isolated_attempt_schema_review.py
+          tests/kernel/test_isolated_attempt_spine_wire_review.py
           tests/kernel/test_source_tree_store.py
           tests/kernel/test_source_tree_store_adversarial.py
           tests/kernel/test_source_tree_store_constructor_adversarial.py
@@ -91,10 +97,17 @@ jobs:
           /tmp/daedalus-isolated-attempt-wheel/bin/python - <<'PY'
           import inspect
           from daedalus.kernel import AttemptLedger, IsolatedAttemptCoordinator
-          from daedalus.kernel.attempts import AttemptStartRecord, AttemptTerminalReceipt
+          from daedalus.kernel.attempts import (
+              AttemptLedger as CompatibilityAttemptLedger,
+              AttemptStartRecord,
+              AttemptTerminalReceipt,
+              IsolatedAttemptCoordinator as CompatibilityCoordinator,
+          )
 
-          assert AttemptLedger.__module__ == "daedalus.kernel.attempts"
-          assert IsolatedAttemptCoordinator.__module__ == "daedalus.kernel.attempts"
+          assert AttemptLedger is CompatibilityAttemptLedger
+          assert IsolatedAttemptCoordinator is CompatibilityCoordinator
+          assert AttemptLedger.__module__ == "daedalus.kernel.attempt_ledger"
+          assert IsolatedAttemptCoordinator.__module__ == "daedalus.kernel.attempt_workspace"
           assert AttemptStartRecord.CONTRACT_TYPE == "daedalus.attempt-start"
           assert AttemptTerminalReceipt.CONTRACT_TYPE == "daedalus.attempt-terminal"
           assert "source_store" in inspect.signature(AttemptLedger).parameters
