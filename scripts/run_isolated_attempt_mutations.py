@@ -123,6 +123,12 @@ def main() -> int:
             "            if False:\n",
         ),
         (
+            "reader",
+            "detach-intent-row-time-from-start-event",
+            "            if start_event_ts != created_ts:\n",
+            "            if False:\n",
+        ),
+        (
             "ledger",
             "accept-read-only-spine-as-writer",
             "        if getattr(self.spine, \"read_only\", False):\n",
