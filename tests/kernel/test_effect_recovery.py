@@ -48,7 +48,7 @@ def _started(tmp_path: Path):
         source_revision=REVISION,
         now=NOW,
     )
-    start = authorization.begin_effect(execution)
+    start = authorization.begin_effect(execution, started_at=NOW)
     assert start.execute is True
     return ledger, authorization, execution, start.receipt
 
@@ -98,10 +98,57 @@ def test_observation_round_trip_signature_and_exact_evidence_binding(tmp_path: P
     observation = _observation(execution, start)
     assert ExternalEffectObservation.from_dict(observation.to_dict()) == observation
     assert observation.signature_sha256 != "0" * 64
-    assert start.receipt_sha256 in observation.provenance.input_digests
-    assert ACK in observation.provenance.input_digests
-    assert OUTPUT in observation.provenance.input_digests
+    assert observation.provenance.input_digests == tuple(
+        sorted((start.receipt_sha256, ACK, OUTPUT))
+    )
     _verify(observation, execution, start)
+
+
+def test_provenance_cannot_add_unrelated_signed_inputs(tmp_path: Path) -> None:
+    _, _, execution, start = _started(tmp_path)
+    observation = _observation(execution, start)
+    expanded = dataclasses.replace(
+        observation.provenance,
+        input_digests=tuple(
+            sorted((*observation.provenance.input_digests, "f" * 64))
+        ),
+    )
+    with pytest.raises(ValueError, match="exactly"):
+        dataclasses.replace(observation, provenance=expanded)
+
+
+def test_issue_requires_exact_start_scope_and_post_start_acknowledgement(tmp_path: Path) -> None:
+    _, _, execution, start = _started(tmp_path)
+    with pytest.raises(EffectRecoveryBindingError, match="predates"):
+        _observation(
+            execution,
+            start,
+            observed_at=NOW - timedelta(microseconds=1),
+        )
+    foreign_scope = dataclasses.replace(
+        start,
+        execution_request_sha256="8" * 64,
+    )
+    with pytest.raises(EffectRecoveryBindingError, match="execution_request_sha256"):
+        _observation(execution, foreign_scope)
+
+
+def test_signed_predating_observation_is_refused_at_verification(tmp_path: Path) -> None:
+    _, _, execution, start = _started(tmp_path)
+    observation = _observation(execution, start)
+    predating = (NOW - timedelta(microseconds=1)).isoformat(timespec="microseconds")
+    provenance = dataclasses.replace(
+        observation.provenance,
+        created_at=predating,
+    )
+    changed = dataclasses.replace(
+        observation,
+        observed_at=predating,
+        signature_sha256="0" * 64,
+        provenance=provenance,
+    )
+    with pytest.raises(EffectRecoveryBindingError, match="predates"):
+        _verify(_resign(changed), execution, start)
 
 
 def test_signature_unknown_key_future_and_stale_refuse(tmp_path: Path) -> None:
@@ -117,10 +164,10 @@ def test_signature_unknown_key_future_and_stale_refuse(tmp_path: Path) -> None:
     stale = _observation(
         execution,
         start,
-        observed_at=NOW - timedelta(hours=25),
+        observed_at=NOW + timedelta(seconds=1),
     )
     with pytest.raises(EffectRecoveryBindingError, match="stale"):
-        _verify(stale, execution, start, now=NOW + timedelta(seconds=2))
+        _verify(stale, execution, start, now=NOW + timedelta(hours=25, seconds=2))
 
 
 @pytest.mark.parametrize(
@@ -154,7 +201,7 @@ def test_source_revision_and_start_receipt_bindings_refuse(tmp_path: Path) -> No
             expected_source_revision="b" * 40,
         )
     changed_execution = dataclasses.replace(start, execution_id="execution-foreign")
-    with pytest.raises(EffectRecoveryBindingError, match="start_execution_id"):
+    with pytest.raises(EffectRecoveryBindingError, match="execution_id"):
         _verify(observation, execution, changed_execution)
     changed_digest = dataclasses.replace(start, receipt_sha256="4" * 64)
     with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
@@ -184,7 +231,10 @@ def test_reconcile_is_terminal_exact_and_idempotent(tmp_path: Path) -> None:
         expected_source_revision=REVISION,
         reconciled_at=NOW + timedelta(seconds=3),
     )
-    replay = authorization.begin_effect(execution)
+    replay = authorization.begin_effect(
+        execution,
+        started_at=NOW + timedelta(seconds=3),
+    )
 
     assert first.reconciled is True
     assert second.reconciled is False
