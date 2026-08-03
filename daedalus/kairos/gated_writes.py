@@ -53,7 +53,10 @@ exec(
 # replacement defined below.
 del promote_candidates
 
-from daedalus.kernel.promotion import PromotionAuthorizationError
+from daedalus.kernel.promotion import (
+    PromotionAuthorizationError,
+    snapshot_promotion_candidates,
+)
 
 
 __doc__ = """Compatibility strangler for the sealed Kairos promotion seam.
@@ -187,15 +190,21 @@ def promote_candidates(
     source-tree candidate, this sealed compatibility seam accepts exactly one
     clean candidate and requires its base revision to equal the authorized live
     target revision. Every refusal happens before worktree creation.
+
+    Candidate material is snapshotted before the lock manager is constructed.
+    The immutable local snapshot is used for authorization and for the retained
+    apply path, so a caller cannot swap a mutable ``GatedCandidate.result``
+    between those two operations.
     """
     root = Path(repo_root).resolve()
+    submitted_candidates = tuple(candidates)
 
     # Compatibility is fail-closed: old callers still receive a structured
     # diagnostic, but no path without persisted authority may acquire the lock.
     if approval_ledger is None or not owner_keyring:
         return _legacy_unpersisted_refusal(
             root,
-            candidates,
+            list(submitted_candidates),
             consumed_approval=consumed_approval,
             evidence_packet=evidence_packet,
             target_ref=target_ref,
@@ -203,27 +212,23 @@ def promote_candidates(
 
     # Exact candidate identity is an authorization input. Do not silently
     # discard an ungated member and then authorize only a subset of the batch.
-    if len(candidates) != 1:
+    if len(submitted_candidates) != 1:
         return _promotion_refusal(
-            candidates,
+            list(submitted_candidates),
             PromotionAuthorizationError(
                 "sealed legacy promotion requires exactly one candidate"
             ),
         )
-    candidate = candidates[0]
-    result = getattr(candidate, "result", None)
-    artifact = getattr(result, "artifact", None)
-    if (
-        not bool(getattr(result, "ok", False))
-        or artifact is None
-        or bool(getattr(artifact, "is_empty", True))
-    ):
-        return _promotion_refusal(
-            candidates,
-            PromotionAuthorizationError(
-                "sealed legacy promotion requires one clean non-empty candidate"
-            ),
+    try:
+        sealed_candidates = list(
+            snapshot_promotion_candidates(submitted_candidates)
         )
+    except Exception as exc:  # noqa: BLE001 - public boundary fails closed
+        return _promotion_refusal(list(submitted_candidates), exc)
+
+    candidate = sealed_candidates[0]
+    result = candidate.result
+    artifact = result.artifact
 
     manager = GitWorktreeManager(root)
     if ledger_path is None:
@@ -268,11 +273,11 @@ def promote_candidates(
                 owner_keyring=owner_keyring,
                 consumed_approval=consumed_approval,
                 evidence_packet=evidence_packet,
-                candidates=candidates,
+                candidates=sealed_candidates,
                 target_ref=target_ref,
                 live_target_revision=live_target_revision,
             )
-            if str(artifact.base_revision) != authorization.live_target_revision:
+            if artifact.base_revision != authorization.live_target_revision:
                 raise PromotionAuthorizationError(
                     "candidate base is not the authorized live target revision; "
                     "stale regeneration requires new evidence and OwnerApproval"
@@ -281,7 +286,7 @@ def promote_candidates(
             report = _promote_locked(
                 root,
                 manager,
-                candidates,
+                sealed_candidates,
                 project=project,
                 availability=availability,
                 ledger_path=ledger_path,
@@ -303,7 +308,7 @@ def promote_candidates(
             ],
         }
     except Exception as exc:  # noqa: BLE001 - public effect boundary fails closed
-        return _promotion_refusal(candidates, exc)
+        return _promotion_refusal(sealed_candidates, exc)
 
     report["not_gated"] = []
     report["authorization"] = authorization.to_dict()
