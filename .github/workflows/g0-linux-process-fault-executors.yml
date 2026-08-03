@@ -9,6 +9,7 @@ on:
       - "tests/fixtures/linux_process_tree_fixture.py"
       - "tests/fixtures/linux_process_fault_executor.py"
       - "tests/runtimes/test_linux_process_fault_executors.py"
+      - "tests/runtimes/test_linux_process_fault_executors_review.py"
       - "tests/runtimes/test_linux_host_fault_runner.py"
       - "tests/runtimes/test_linux_host_fault_runner_review.py"
       - ".github/workflows/g0-linux-process-fault-executors.yml"
@@ -54,6 +55,7 @@ jobs:
           tests/runtimes/test_linux_host_fault_runner.py
           tests/runtimes/test_linux_host_fault_runner_review.py
           tests/runtimes/test_linux_process_fault_executors.py
+          tests/runtimes/test_linux_process_fault_executors_review.py
           tests/runtimes/test_runtime_fault_catalog.py
           tests/runtimes/test_runtime_fault_attestations.py
           tests/runtimes/test_runtime_fault_attestation_hardening.py
