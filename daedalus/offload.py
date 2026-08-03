@@ -790,7 +790,11 @@ def offload(
             "effect_start_receipt": start.receipt.to_dict(),
         }
 
-    from .kernel.effects import EffectReconciliationRequired
+    from .kernel.effects import (
+        EffectLeaseStateError,
+        EffectReconciliationRequired,
+        freeze_effect_terminal_receipt,
+    )
     from .spine.envelope import canonical_sha
 
     def finish_or_require_reconciliation(
@@ -809,18 +813,36 @@ def offload(
         reconciles it.
         """
 
+        pending_terminal = freeze_effect_terminal_receipt(
+            start.receipt,
+            outcome=outcome,
+            output_digests=output_digests,
+            detail_sha256=detail_sha256,
+        )
+        completion_capability = start.completion_capability
+        if completion_capability is None:
+            raise EffectLeaseStateError(
+                "live start returned without completion capability"
+            )
+        terminal_authorization = completion_capability.authorize(
+            pending_terminal
+        )
         try:
-            return effect_authorization.finish_effect(
-                start.receipt,
-                outcome=outcome,
-                output_digests=output_digests,
-                detail_sha256=detail_sha256,
+            return effect_authorization.finish_terminal(
+                pending_terminal,
+                authorization=terminal_authorization,
             )
         except Exception as exc:
+            persistence_error_sha256 = hashlib.sha256(
+                f"{type(exc).__name__}: {exc}".encode("utf-8", "replace")
+            ).hexdigest()
             raise EffectReconciliationRequired(
-                execution_id=start.receipt.execution_id,
-                start_receipt_sha256=start.receipt.receipt_sha256,
+                pending_terminal_receipt=pending_terminal,
+                execution_request_sha256=(
+                    start.receipt.execution_request_sha256
+                ),
                 phase=phase,
+                persistence_error_sha256=persistence_error_sha256,
             ) from exc
 
     try:

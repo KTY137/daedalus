@@ -42,6 +42,7 @@ from .contracts import (
     OffloadExecutionPlan,
 )
 from .effects import (
+    CompletionCapability,
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
     EffectLeaseConcurrencyError,
@@ -57,8 +58,23 @@ from .effects import (
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
     LeasedEffectAuthorization,
+    TerminalAuthorization,
+    freeze_effect_terminal_receipt,
     issue_effect_lease,
     verify_effect_lease,
+)
+from .reconciliation import (
+    EffectReconciliationBindingError,
+    EffectReconciliationConflict,
+    EffectReconciliationDecision,
+    EffectReconciliationError,
+    EffectReconciliationExpired,
+    EffectReconciliationReplay,
+    EffectReconciliationResult,
+    EffectReconciliationSignatureError,
+    issue_effect_reconciliation_decision,
+    reconcile_effect_terminal,
+    verify_effect_reconciliation_decision,
 )
 from .offload_authority import (
     AuthorizedOffloadExecution,
@@ -68,6 +84,7 @@ from .offload_authority import (
 )
 
 __all__ += [
+    "CompletionCapability",
     "EffectExecutionRequest",
     "EffectLease",
     "EffectLeaseBindingMismatch",
@@ -85,6 +102,8 @@ __all__ += [
     "EffectTerminalReceipt",
     "LeasedEffectStartReceipt",
     "LeasedEffectAuthorization",
+    "TerminalAuthorization",
+    "freeze_effect_terminal_receipt",
     "OFFLOAD_EXECUTION_EFFECTS",
     "OffloadExecutionPlan",
     "issue_effect_lease",
@@ -93,6 +112,17 @@ __all__ += [
     "OffloadAuthorityBindingError",
     "authorize_offload_execution",
     "derive_offload_execution_ids",
+    "EffectReconciliationBindingError",
+    "EffectReconciliationConflict",
+    "EffectReconciliationDecision",
+    "EffectReconciliationError",
+    "EffectReconciliationExpired",
+    "EffectReconciliationReplay",
+    "EffectReconciliationResult",
+    "EffectReconciliationSignatureError",
+    "issue_effect_reconciliation_decision",
+    "reconcile_effect_terminal",
+    "verify_effect_reconciliation_decision",
 ]
 
 from .fourfold_evidence import (

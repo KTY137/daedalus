@@ -14,12 +14,15 @@ from daedalus.kernel.effects import (
     LeasedEffectAuthorization,
     issue_effect_lease,
 )
+from daedalus.kernel.reconciliation import issue_effect_reconciliation_decision
 from daedalus.offload import offload
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, GuardDecision
+from daedalus.spine.envelope import canonical_sha
 
 REVISION = "a" * 40
 SECRET = b"leased-offload-test-secret-material-32-bytes"
+OPERATOR_SECRET = b"leased-offload-operator-secret-material-32-bytes"
 POLICY_SHA = "b" * 64
 RUNTIME_MANIFEST_SHA = "c" * 64
 RUNTIME_CONFORMANCE_SHA = "d" * 64
@@ -305,7 +308,7 @@ def test_terminal_write_failure_requires_reconciliation_and_replay_is_inert(
     with mock.patch(
         "daedalus.offload._offload_impl", side_effect=completed_external_effect
     ) as impl, mock.patch.object(
-        ledger, "finish", side_effect=OSError("terminal store unavailable")
+        ledger, "finish_receipt", side_effect=OSError("terminal store unavailable")
     ):
         with pytest.raises(EffectReconciliationRequired) as caught:
             offload(
@@ -318,7 +321,54 @@ def test_terminal_write_failure_requires_reconciliation_and_replay_is_inert(
 
     assert caught.value.execution_id == execution.execution_id
     assert caught.value.phase == "completed-terminal-write"
+    pending = caught.value.pending_terminal_receipt
+    assert pending.execution_id == execution.execution_id
+    assert pending.outcome == "COMPLETED"
+    assert pending.output_digests
+    assert caught.value.execution_request_sha256 == execution.digest
+    assert caught.value.to_dict()["pending_terminal_receipt"] == pending.to_dict()
+    assert "capability" not in str(caught.value.to_dict()).lower()
     assert ledger.execution_state(execution.execution_id) == "STARTED"
+    with pytest.raises(TypeError, match="authorization"):
+        ledger.finish_receipt(pending)
+
+    decision_at = datetime.now(timezone.utc)
+    evidence_sha256 = canonical_sha(caught.value.to_dict())
+    operator_decision = issue_effect_reconciliation_decision(
+        pending,
+        execution_request_sha256=caught.value.execution_request_sha256,
+        evidence_sha256=evidence_sha256,
+        decision_id="offload-terminal-reconciliation",
+        operator_id="operator-1",
+        key_id="operator-key-1",
+        nonce="offload-terminal-nonce",
+        issued_at=decision_at.isoformat(),
+        expires_at=(decision_at + timedelta(minutes=5)).isoformat(),
+        provenance=ContractProvenance(
+            origin="tests.leased-offload-reconciliation",
+            source_revision=auth.lease.provenance.source_revision,
+            created_at=decision_at.isoformat(),
+            input_digests=(
+                auth.lease.digest,
+                execution.digest,
+                pending.start_receipt_sha256,
+                pending.receipt_sha256,
+                evidence_sha256,
+            ),
+            trace_id=auth.request.mission_id,
+        ),
+        secret=OPERATOR_SECRET,
+    )
+    reconciled = EffectLeaseLedger(ledger.path).reconcile(
+        pending,
+        operator_decision,
+        historical_keyring=auth.keyring,
+        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+        now=decision_at + timedelta(seconds=1),
+    )
+    assert reconciled.applied is True
+    assert reconciled.terminal_receipt == pending
+    assert ledger.execution_state(execution.execution_id) == "COMPLETED"
 
     with mock.patch("daedalus.offload._offload_impl") as replay_impl:
         replay = offload(

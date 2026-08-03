@@ -727,7 +727,7 @@ class AttemptResult:
     artifact_locator: dict[str, Any] | None = None
     persist_error: str | None = None
     runner_detail: Any = None
-    reconciliation: Mapping[str, str] | None = None
+    reconciliation: Mapping[str, Any] | None = None
     reaped: tuple = ()
     reap_error: str | None = None
 
@@ -1341,7 +1341,7 @@ class TaskAttempt:
         artifact_path: str | None = None
         artifact_locator: dict[str, Any] | None = None
         persist_error: str | None = None
-        reconciliation: dict[str, str] | None = None
+        reconciliation: dict[str, Any] | None = None
 
         try:
             if self._is_cancelled():
@@ -1353,11 +1353,7 @@ class TaskAttempt:
                 except EffectReconciliationRequired as exc:
                     state = STATE_RECONCILIATION_REQUIRED
                     error = str(exc)
-                    reconciliation = {
-                        "execution_id": exc.execution_id,
-                        "start_receipt_sha256": exc.start_receipt_sha256,
-                        "phase": exc.phase,
-                    }
+                    reconciliation = exc.to_dict()
                 except Exception as e:
                     state = STATE_RUNNER_FAILED
                     error = f"{type(e).__name__}: {e}"

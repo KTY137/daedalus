@@ -32,7 +32,11 @@ from daedalus.spine.attempt import (
     command_gate,
     pytest_gate_argv,
 )
-from daedalus.kernel.effects import EffectReconciliationRequired
+from daedalus.kernel.effects import (
+    EffectReconciliationRequired,
+    EffectTerminalReceipt,
+)
+from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.ledger import (
     STATE_COMPLETED,
     STATE_FAILED,
@@ -386,15 +390,35 @@ def test_indeterminate_effect_keeps_attempt_intent_branch_and_worktree_open(
     head = head_of(repo)
     gate = passing_gate()
     receipt_sha = "a" * 64
+    terminal_body = {
+        "lease_sha256": "b" * 64,
+        "execution_id": "exec-terminal-write-1",
+        "start_receipt_sha256": receipt_sha,
+        "outcome": "COMPLETED",
+        "output_digests": ["c" * 64],
+        "detail_sha256": None,
+        "finished_at": "2026-08-03T12:00:00.000000+00:00",
+    }
+    pending_terminal = EffectTerminalReceipt(
+        lease_sha256="b" * 64,
+        execution_id="exec-terminal-write-1",
+        start_receipt_sha256=receipt_sha,
+        outcome="COMPLETED",
+        output_digests=("c" * 64,),
+        detail_sha256=None,
+        finished_at="2026-08-03T12:00:00.000000+00:00",
+        receipt_sha256=canonical_sha(terminal_body),
+    )
 
     def indeterminate_runner(ctx):
         # Model a provider that may already have changed the isolated checkout
         # before terminal receipt persistence failed.
         (ctx.worktree / "maybe_changed.txt").write_text("unknown outcome\n")
         raise EffectReconciliationRequired(
-            execution_id="exec-terminal-write-1",
-            start_receipt_sha256=receipt_sha,
+            pending_terminal_receipt=pending_terminal,
+            execution_request_sha256="d" * 64,
             phase="completed-terminal-write",
+            persistence_error_sha256="e" * 64,
         )
 
     result = TaskAttempt(
@@ -412,8 +436,11 @@ def test_indeterminate_effect_keeps_attempt_intent_branch_and_worktree_open(
     assert gate.calls == []
     assert result.reconciliation == {
         "execution_id": "exec-terminal-write-1",
+        "execution_request_sha256": "d" * 64,
         "start_receipt_sha256": receipt_sha,
+        "pending_terminal_receipt": pending_terminal.to_dict(),
         "phase": "completed-terminal-write",
+        "persistence_error_sha256": "e" * 64,
     }
     assert result.to_dict()["reconciliation"] == result.reconciliation
 

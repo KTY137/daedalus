@@ -18,8 +18,20 @@ from daedalus.kernel.effects import (
     EffectLeaseScopeError,
     EffectLeaseSignatureError,
     EffectLeaseStateError,
+    LeasedEffectStartReceipt,
+    TerminalAuthorization,
+    freeze_effect_terminal_receipt,
     issue_effect_lease,
     verify_effect_lease,
+)
+from daedalus.kernel.reconciliation import (
+    EffectReconciliationBindingError,
+    EffectReconciliationConflict,
+    EffectReconciliationDecision,
+    EffectReconciliationExpired,
+    EffectReconciliationReplay,
+    EffectReconciliationSignatureError,
+    issue_effect_reconciliation_decision,
 )
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
@@ -36,6 +48,7 @@ from daedalus.spine.envelope import canonical_json, canonical_sha
 REVISION = "a" * 40
 POLICY_SHA = "b" * 64
 SECRET = b"effect-lease-kernel-secret-material-32-bytes-minimum"
+OPERATOR_SECRET = b"effect-reconciliation-operator-secret-32-bytes-minimum"
 NOW = datetime(2026, 8, 1, 21, 0, tzinfo=timezone.utc)
 
 
@@ -181,6 +194,34 @@ def begin(ledger: EffectLeaseLedger, lease_value: EffectLease, req: EffectLeaseR
         current_kill_switch_generation=7,
         started_at=started_at or (NOW + timedelta(seconds=1)),
         registry=registry() if reg is None else reg,
+    )
+
+
+def finish_live(
+    ledger: EffectLeaseLedger,
+    lease_value: EffectLease,
+    req: EffectLeaseRequest,
+    policy: PolicyDecision,
+    started,
+    *,
+    outcome: str,
+    output_digests=(),
+    detail_sha256=None,
+    finished_at=None,
+):
+    assert started.execute is True
+    assert started.completion_capability is not None
+    return ledger.finish(
+        started.receipt,
+        completion_capability=started.completion_capability,
+        lease=lease_value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        outcome=outcome,
+        output_digests=output_digests,
+        detail_sha256=detail_sha256,
+        finished_at=finished_at,
     )
 
 
@@ -399,8 +440,12 @@ def test_restart_distinguishes_started_and_terminal_execution_receipts(
     assert open_record.state == "STARTED"
     assert open_record.terminal_receipt is None
 
-    terminal = restarted.finish(
-        open_record.start_receipt,
+    terminal = finish_live(
+        restarted,
+        value,
+        req,
+        policy,
+        started,
         outcome="completed",
         output_digests=("e" * 64,),
         finished_at=NOW + timedelta(seconds=2),
@@ -798,7 +843,16 @@ def test_concurrency_ceiling_is_enforced_and_terminal_releases_slot(tmp_path) ->
     second_request = execution(execution_id="execution-2", idempotency_key="idem-2")
     with pytest.raises(EffectLeaseConcurrencyError):
         begin(ledger, value, req, policy, second_request)
-    ledger.finish(first.receipt, outcome="completed", output_digests=("f" * 64,), finished_at=NOW + timedelta(seconds=2))
+    finish_live(
+        ledger,
+        value,
+        req,
+        policy,
+        first,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
     second = begin(ledger, value, req, policy, second_request)
     assert second.execute is True
 
@@ -821,8 +875,12 @@ def test_terminal_receipt_is_bound_and_duplicate_terminal_is_refused(tmp_path) -
     ledger = EffectLeaseLedger(tmp_path / "leases.sqlite3")
     grant(ledger, value, req, policy)
     started = begin(ledger, value, req, policy)
-    terminal = ledger.finish(
-        started.receipt,
+    terminal = finish_live(
+        ledger,
+        value,
+        req,
+        policy,
+        started,
         outcome="failed",
         detail_sha256="1" * 64,
         finished_at=NOW + timedelta(seconds=2),
@@ -830,7 +888,195 @@ def test_terminal_receipt_is_bound_and_duplicate_terminal_is_refused(tmp_path) -
     assert terminal.start_receipt_sha256 == started.receipt.receipt_sha256
     assert ledger.execution_state("execution-1") == "FAILED"
     with pytest.raises(EffectLeaseStateError, match="terminal"):
-        ledger.finish(started.receipt, outcome="failed")
+        finish_live(
+            ledger,
+            value,
+            req,
+            policy,
+            started,
+            outcome="failed",
+        )
+
+
+def test_live_completion_capability_is_secret_one_shot_and_exact_retryable(
+    tmp_path,
+) -> None:
+    req = request()
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "leases.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    started = begin(ledger, value, req, policy)
+    assert started.completion_capability is not None
+    assert "redacted" in repr(started.completion_capability)
+    assert started.receipt.signature_sha256 != "0" * 64
+    assert started.receipt.completion_capability_sha256 != "0" * 64
+    assert started.completion_capability._secret not in path.read_bytes()
+
+    replay = begin(ledger, value, req, policy)
+    assert replay.execute is False
+    assert replay.receipt == started.receipt
+    assert replay.completion_capability is None
+
+    pending = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="completed",
+        output_digests=("9" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    with pytest.raises(TypeError, match="authorization"):
+        ledger.finish_receipt(pending)
+    forged_authorization = TerminalAuthorization._issue(
+        lease_sha256=pending.lease_sha256,
+        execution_id=pending.execution_id,
+        start_receipt_sha256=pending.start_receipt_sha256,
+        terminal_receipt_sha256=pending.receipt_sha256,
+        secret=b"not-the-live-capability-secret-32-bytes",
+    )
+    with pytest.raises(EffectLeaseSignatureError, match="capability"):
+        ledger.finish_receipt(
+            pending,
+            authorization=forged_authorization,
+            lease=value,
+            request=req,
+            policy_decision=policy,
+            historical_keyring={"kernel-key-1": SECRET},
+            persisted_at=NOW + timedelta(seconds=3),
+        )
+
+    terminal_authorization = started.completion_capability.authorize(pending)
+    first = ledger.finish_receipt(
+        pending,
+        authorization=terminal_authorization,
+        lease=value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        persisted_at=NOW + timedelta(seconds=3),
+    )
+    retried = ledger.finish_receipt(
+        pending,
+        authorization=started.completion_capability.authorize(pending),
+        lease=value,
+        request=req,
+        policy_decision=policy,
+        historical_keyring={"kernel-key-1": SECRET},
+        persisted_at=NOW + timedelta(seconds=4),
+    )
+    assert first == retried == pending
+
+    different = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="failed",
+        detail_sha256="8" * 64,
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        terminal_authorization._terminal_receipt_sha256 = (
+            different.receipt_sha256
+        )
+    forged_rebinding = dataclasses.replace(
+        terminal_authorization,
+        _terminal_receipt_sha256=different.receipt_sha256,
+    )
+    with pytest.raises(EffectLeaseSignatureError, match="signature"):
+        ledger.finish_receipt(
+            different,
+            authorization=forged_rebinding,
+            lease=value,
+            request=req,
+            policy_decision=policy,
+            historical_keyring={"kernel-key-1": SECRET},
+            persisted_at=NOW + timedelta(seconds=4),
+        )
+    with pytest.raises(EffectLeaseStateError, match="already bound"):
+        started.completion_capability.authorize(different)
+
+
+def test_terminal_causal_ordering_fails_closed_before_normal_or_operator_cas(
+    tmp_path,
+) -> None:
+    (
+        _path,
+        ledger,
+        value,
+        req,
+        policy,
+        execution_value,
+        started,
+        _pending,
+    ) = _reconciliation_chain(tmp_path / "before-start")
+    before_start = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="completed",
+        finished_at=NOW,
+    )
+    assert started.completion_capability is not None
+    with pytest.raises(EffectLeaseStateError, match="start <= terminal"):
+        ledger.finish_receipt(
+            before_start,
+            authorization=started.completion_capability.authorize(before_start),
+            lease=value,
+            request=req,
+            policy_decision=policy,
+            historical_keyring={"kernel-key-1": SECRET},
+            persisted_at=NOW + timedelta(seconds=4),
+        )
+    before_decision = _operator_decision(
+        value,
+        execution_value,
+        started,
+        before_start,
+    )
+    with pytest.raises(EffectReconciliationBindingError, match="ordering"):
+        ledger.reconcile(
+            before_start,
+            before_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=4),
+        )
+
+    (
+        future_path,
+        future_ledger,
+        future_value,
+        _future_req,
+        _future_policy,
+        future_execution,
+        future_started,
+        _future_pending,
+    ) = _reconciliation_chain(tmp_path / "after-decision")
+    after_decision = freeze_effect_terminal_receipt(
+        future_started.receipt,
+        outcome="completed",
+        finished_at=NOW + timedelta(seconds=4),
+    )
+    signed_too_early = _operator_decision(
+        future_value,
+        future_execution,
+        future_started,
+        after_decision,
+        issued_at=NOW + timedelta(seconds=3),
+    )
+    with pytest.raises(EffectReconciliationBindingError, match="ordering"):
+        future_ledger.reconcile(
+            after_decision,
+            signed_too_early,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=5),
+        )
+    for path in (ledger.path, future_path):
+        with sqlite3.connect(path) as connection:
+            assert connection.execute(
+                "SELECT COUNT(*) FROM effect_reconciliations"
+            ).fetchone()[0] == 0
 
 
 def test_expiry_is_rechecked_after_verification_before_start(tmp_path, monkeypatch) -> None:
@@ -1031,3 +1277,418 @@ def test_effect_lease_json_schemas_are_closed_and_complete() -> None:
         "$ref": "#/$defs/sha256"
     }
     assert set(lease().to_dict()) == set(lease_schema["required"])
+
+
+def _reconciliation_chain(tmp_path, *, max_concurrency: int = 1):
+    req = request(effect_scope=scope(max_concurrency=max_concurrency))
+    policy = decision(req)
+    value = lease(req=req, policy=policy)
+    path = tmp_path / "reconciliation.sqlite3"
+    ledger = EffectLeaseLedger(path)
+    grant(ledger, value, req, policy)
+    execution_value = execution()
+    started = begin(
+        ledger,
+        value,
+        req,
+        policy,
+        execution_value,
+        started_at=NOW + timedelta(seconds=1),
+    )
+    pending = freeze_effect_terminal_receipt(
+        started.receipt,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    return path, ledger, value, req, policy, execution_value, started, pending
+
+
+def _operator_decision(
+    value,
+    execution_value,
+    started,
+    pending,
+    *,
+    issued_at=NOW + timedelta(seconds=3),
+    decision_id="reconciliation-decision-1",
+    nonce="reconciliation-nonce-1",
+    evidence_sha256=None,
+):
+    evidence_sha256 = evidence_sha256 or canonical_sha(
+        {
+            "historical_start": started.receipt.to_dict(),
+            "observed_terminal": pending.to_dict(),
+        }
+    )
+    provenance = ContractProvenance(
+        origin="tests.effect-reconciliation",
+        source_revision=value.provenance.source_revision,
+        created_at=issued_at.isoformat(),
+        input_digests=(
+            value.digest,
+            execution_value.digest,
+            started.receipt.receipt_sha256,
+            pending.receipt_sha256,
+            evidence_sha256,
+        ),
+        trace_id="mission-1",
+    )
+    return issue_effect_reconciliation_decision(
+        pending,
+        execution_request_sha256=execution_value.digest,
+        evidence_sha256=evidence_sha256,
+        decision_id=decision_id,
+        operator_id="operator-1",
+        key_id="operator-key-1",
+        nonce=nonce,
+        issued_at=issued_at.isoformat(),
+        expires_at=(issued_at + timedelta(minutes=5)).isoformat(),
+        provenance=provenance,
+        secret=OPERATOR_SECRET,
+    )
+
+
+def test_reconciliation_restart_chain_authenticates_history_and_ignores_current_start_vetoes(
+    tmp_path, monkeypatch
+) -> None:
+    from pathlib import Path
+
+    import jsonschema
+
+    (
+        path,
+        ledger,
+        value,
+        req,
+        policy,
+        execution_value,
+        started,
+        pending,
+    ) = _reconciliation_chain(tmp_path)
+    ledger.revoke(
+        value.digest,
+        reason="provider already ran; freeze new starts",
+        revoked_at=NOW + timedelta(seconds=3),
+    )
+    issued = NOW + timedelta(minutes=20)  # historical lease is expired
+    operator_decision = _operator_decision(
+        value,
+        execution_value,
+        started,
+        pending,
+        issued_at=issued,
+    )
+
+    # Reconciliation is a terminal-only ledger mutation.  It must never invoke
+    # the effect boundary, regardless of current registry/generation/guard state.
+    monkeypatch.setattr(
+        "daedalus.kernel.effects.begin_effect",
+        lambda *_args, **_kwargs: pytest.fail(
+            "reconciliation attempted to start an effect"
+        ),
+    )
+    monkeypatch.setattr(
+        "daedalus.kernel.effects.verify_effect_lease",
+        lambda *_args, **_kwargs: pytest.fail(
+            "reconciliation consulted current-world start authorization"
+        ),
+    )
+    restarted = EffectLeaseLedger(path)
+    result = restarted.reconcile(
+        pending,
+        operator_decision,
+        historical_keyring={"kernel-key-1": SECRET},
+        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+        now=issued + timedelta(seconds=1),
+    )
+    assert result.applied is True
+    assert result.nonce_consumed is True
+    assert result.terminal_receipt == pending
+    assert restarted.execution_record(execution_value.execution_id).terminal_receipt == pending
+
+    # Restart and exact retry return the already-consumed result; neither path
+    # can turn the historical STARTED row back into provider authority.
+    replayed = EffectLeaseLedger(path).reconcile(
+        pending,
+        operator_decision,
+        historical_keyring={"kernel-key-1": SECRET},
+        operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+        now=issued + timedelta(minutes=6),
+    )
+    assert replayed.applied is False
+    assert replayed.nonce_consumed is True
+    inert = EffectLeaseLedger(path).begin(
+        value,
+        execution_value,
+        request=req,
+        policy_decision=policy,
+        keyring={"kernel-key-1": SECRET},
+        guard_decisions=(
+            GuardDecision("budget.process_guard", False, "current guard denied"),
+        ),
+        current_kill_switch_generation=999,
+        started_at=issued + timedelta(seconds=3),
+        registry={},
+    )
+    assert inert.execute is False
+    assert inert.receipt == started.receipt
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 1
+
+    schema_path = (
+        Path(__file__).resolve().parents[2]
+        / "configs/schemas/effect-reconciliation-decision-v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.validate(operator_decision.to_dict(), schema)
+    assert (
+        EffectReconciliationDecision.from_dict(operator_decision.to_dict())
+        == operator_decision
+    )
+    assert schema["additionalProperties"] is False
+    assert set(operator_decision.to_dict()) == set(schema["required"])
+
+
+def test_reconciliation_rejects_self_consistent_start_without_issuer_mac(
+    tmp_path,
+) -> None:
+    (
+        _path,
+        ledger,
+        value,
+        _req,
+        _policy,
+        execution_value,
+        started,
+        _pending,
+    ) = _reconciliation_chain(tmp_path)
+    forged_payload = started.receipt.to_dict()
+    forged_payload["boundary_receipt_sha256"] = "0" * 64
+    forged_payload.pop("receipt_sha256")
+    forged = LeasedEffectStartReceipt(
+        **forged_payload,
+        receipt_sha256=canonical_sha(forged_payload),
+    )
+    with sqlite3.connect(ledger.path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET start_receipt_sha256=?, start_receipt_json=?
+            WHERE execution_id=?
+            """,
+            (
+                forged.receipt_sha256,
+                canonical_json(forged.to_dict()),
+                execution_value.execution_id,
+            ),
+        )
+    forged_started = dataclasses.replace(started, receipt=forged)
+    forged_terminal = freeze_effect_terminal_receipt(
+        forged,
+        outcome="completed",
+        output_digests=("f" * 64,),
+        finished_at=NOW + timedelta(seconds=2),
+    )
+    operator_decision = _operator_decision(
+        value,
+        execution_value,
+        forged_started,
+        forged_terminal,
+    )
+
+    with pytest.raises(EffectLeaseSignatureError, match="start receipt signature"):
+        ledger.reconcile(
+            forged_terminal,
+            operator_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={
+                ("operator-1", "operator-key-1"): OPERATOR_SECRET
+            },
+            now=NOW + timedelta(seconds=4),
+        )
+    assert ledger.execution_state(execution_value.execution_id) == "STARTED"
+    with sqlite3.connect(ledger.path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    (
+        ("missing-historical-key", EffectLeaseSignatureError),
+        ("missing-operator-key", EffectReconciliationSignatureError),
+        ("tampered-operator-signature", EffectReconciliationSignatureError),
+        ("expired-operator-decision", EffectReconciliationExpired),
+        ("resigned-terminal-binding", EffectReconciliationBindingError),
+        ("tampered-grant-bytes", EffectLeaseStateError),
+        ("tampered-start-bytes", EffectLeaseStateError),
+        ("conflicting-terminal", EffectReconciliationConflict),
+    ),
+)
+def test_reconciliation_tamper_matrix_fails_closed(tmp_path, case, error) -> None:
+    (
+        _path,
+        ledger,
+        value,
+        req,
+        policy,
+        execution_value,
+        started,
+        pending,
+    ) = _reconciliation_chain(tmp_path)
+    operator_decision = _operator_decision(
+        value, execution_value, started, pending
+    )
+    historical_keys = {"kernel-key-1": SECRET}
+    operator_keys = {("operator-1", "operator-key-1"): OPERATOR_SECRET}
+
+    if case == "missing-historical-key":
+        historical_keys = {}
+    elif case == "missing-operator-key":
+        operator_keys = {}
+    elif case == "tampered-operator-signature":
+        operator_decision = dataclasses.replace(
+            operator_decision, signature_sha256="0" * 64
+        )
+    elif case == "expired-operator-decision":
+        operator_decision = _operator_decision(
+            value,
+            execution_value,
+            started,
+            pending,
+            issued_at=NOW - timedelta(minutes=10),
+        )
+    elif case == "resigned-terminal-binding":
+        other_pending = freeze_effect_terminal_receipt(
+            started.receipt,
+            outcome="failed",
+            detail_sha256="8" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+        operator_decision = _operator_decision(
+            value, execution_value, started, other_pending
+        )
+    elif case == "tampered-grant-bytes":
+        with sqlite3.connect(ledger.path) as connection:
+            connection.execute(
+                "UPDATE effect_leases SET lease_json='{}' WHERE lease_sha256=?",
+                (value.digest,),
+            )
+    elif case == "tampered-start-bytes":
+        with sqlite3.connect(ledger.path) as connection:
+            connection.execute(
+                "UPDATE effect_executions SET start_receipt_json='{}' WHERE execution_id=?",
+                (execution_value.execution_id,),
+            )
+    elif case == "conflicting-terminal":
+        conflicting = freeze_effect_terminal_receipt(
+            started.receipt,
+            outcome="failed",
+            detail_sha256="7" * 64,
+            finished_at=NOW + timedelta(seconds=2),
+        )
+        assert started.completion_capability is not None
+        ledger.finish_receipt(
+            conflicting,
+            authorization=started.completion_capability.authorize(conflicting),
+            lease=value,
+            request=req,
+            policy_decision=policy,
+            historical_keyring=historical_keys,
+        )
+
+    with pytest.raises(error):
+        ledger.reconcile(
+            pending,
+            operator_decision,
+            historical_keyring=historical_keys,
+            operator_keyring=operator_keys,
+            now=NOW + timedelta(seconds=4),
+        )
+    if case != "conflicting-terminal":
+        assert ledger.execution_state(execution_value.execution_id) == "STARTED"
+    with sqlite3.connect(ledger.path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 0
+
+
+def test_reconciliation_concurrency_chain_consumes_once_and_refuses_nonce_rebinding(
+    tmp_path,
+) -> None:
+    import concurrent.futures
+
+    (
+        path,
+        ledger,
+        value,
+        req,
+        policy,
+        execution_value,
+        started,
+        pending,
+    ) = _reconciliation_chain(tmp_path)
+    operator_decision = _operator_decision(
+        value, execution_value, started, pending
+    )
+    restarted_ledgers = [EffectLeaseLedger(path) for _ in range(8)]
+
+    def reconcile(index):
+        return restarted_ledgers[index].reconcile(
+            pending,
+            operator_decision,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+            now=NOW + timedelta(seconds=4),
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(reconcile, range(8)))
+    assert sum(result.applied for result in results) == 1
+    assert all(result.nonce_consumed for result in results)
+    assert all(result.terminal_receipt == pending for result in results)
+
+    second_execution = execution(
+        execution_id="execution-2", idempotency_key="idem-2"
+    )
+    second_start = begin(
+        ledger,
+        value,
+        req,
+        policy,
+        second_execution,
+        started_at=NOW + timedelta(seconds=5),
+    )
+    second_pending = freeze_effect_terminal_receipt(
+        second_start.receipt,
+        outcome="completed",
+        output_digests=("6" * 64,),
+        finished_at=NOW + timedelta(seconds=6),
+    )
+    rebound = _operator_decision(
+        value,
+        second_execution,
+        second_start,
+        second_pending,
+        issued_at=NOW + timedelta(seconds=7),
+        decision_id="reconciliation-decision-2",
+        nonce=operator_decision.nonce,
+    )
+    with pytest.raises(EffectReconciliationReplay):
+        ledger.reconcile(
+            second_pending,
+            rebound,
+            historical_keyring={"kernel-key-1": SECRET},
+            operator_keyring={("operator-1", "operator-key-1"): OPERATOR_SECRET},
+            now=NOW + timedelta(seconds=8),
+        )
+    assert ledger.execution_state(second_execution.execution_id) == "STARTED"
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM effect_reconciliations"
+        ).fetchone()[0] == 1
