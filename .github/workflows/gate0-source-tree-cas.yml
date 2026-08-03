@@ -8,7 +8,7 @@ on:
       - "daedalus/kernel/artifacts.py"
       - "daedalus/kernel/__init__.py"
       - "configs/schemas/source-tree-manifest-v1.schema.json"
-      - "tests/kernel/test_artifact_store.py"
+      - "tests/kernel/test_artifact_store*.py"
       - "docs/work-packets/G0-WP-04_SOURCE_TREE_CAS.md"
       - ".github/workflows/gate0-source-tree-cas.yml"
   push:
@@ -42,7 +42,10 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install . pytest
-      - run: python -m pytest -q tests/kernel/test_artifact_store.py
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_artifact_store.py
+          tests/kernel/test_artifact_store_adversarial_bounds.py
       - run: >-
           python -c "from daedalus.kernel import ArtifactStore, SourceTreeManifest;
           print(ArtifactStore.__name__, SourceTreeManifest.CONTRACT_TYPE)"
