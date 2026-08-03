@@ -21,10 +21,39 @@ The corrected implementation is a facade over `SpineLedger`:
 - a partial unique index on the existing `intents` table serializes the one
   start winner for each namespaced Attempt effect key;
 - no Attempt-specific table or second SQLite authority exists;
-- callers may pass an existing `SpineLedger` instance, and the facade retains
-  that exact object;
+- callers may pass an existing writable `SpineLedger` instance, and the facade
+  retains that exact object;
+- a read-only `SpineLedger` is refused rather than silently bypassed for schema
+  installation or lifecycle writes;
 - source trees, reports and candidate trees remain authoritative only when they
   are re-read from the selected `SourceTreeStore`.
+
+The implementation is split strangler-style along real responsibilities:
+
+- `attempt_contracts.py` owns canonical records and shared invariants;
+- `attempt_spine_reader.py` owns the strict raw Event-Store projection;
+- `attempt_ledger.py` owns lifecycle transitions through `SpineLedger`;
+- `attempt_workspace.py` owns checkout-external materialization;
+- `attempts.py` remains a thin compatible import surface.
+
+## Raw Event-Store integrity
+
+A second counter-review found that reading terminal state only through the
+ordinary `SpineLedger` projection would parse event detail before this packet
+could reject duplicate JSON keys or noncanonical bytes. The lifecycle now reads
+the same canonical spine tables through a query-only strict projection while
+`SpineLedger` remains the sole writer and transition authority.
+
+The projection rejects:
+
+- malformed or duplicate-key intent payloads and event detail;
+- noncanonical JSON bytes;
+- payload-digest substitution;
+- missing start events;
+- more than one terminal event;
+- unknown terminal states;
+- wrong terminal detail shapes;
+- terminal `effect_id` values that do not bind the receipt digest.
 
 ## Ordering
 
@@ -81,17 +110,20 @@ Behavioral and context-separated review cover:
 - primary-checkout immutability and root disjointness;
 - foreign CAS input, report and candidate refusal;
 - selected-store and event-spine substitution;
-- duplicate-key and payload-digest tampering;
+- read-only spine refusal;
+- duplicate-key, noncanonical and payload-digest tampering;
+- multiple or unknown terminal events;
 - terminal `effect_id` substitution;
 - terminal artifact corruption on replay;
 - constructor-shaped authority bypasses;
 - normal materialization faults versus process aborts;
+- stable compatibility imports after the responsibility split;
 - static refusal of a second Attempt-specific state store.
 
 The bounded mutation campaign attacks pending re-execution, store substitution,
 changed replay material, success without a candidate, process-abort
-terminalization, skipped CAS checks, event-spine removal and terminal digest
-binding.
+terminalization, skipped CAS checks, event-spine removal, extra terminal events,
+read-only spine misuse and terminal digest binding.
 
 ## Deliberate remaining Gate-0 boundary
 
