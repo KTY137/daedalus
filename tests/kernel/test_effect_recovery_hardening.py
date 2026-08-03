@@ -13,6 +13,7 @@ from daedalus.kernel.effect_recovery import (
     issue_external_effect_observation,
     verify_external_effect_observation,
 )
+from daedalus.spine.envelope import canonical_sha
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = (
@@ -77,6 +78,26 @@ def _resign(observation):
     )
 
 
+def _canonical_start(start, **changes):
+    candidate = dataclasses.replace(
+        start,
+        **changes,
+        receipt_sha256="0" * 64,
+    )
+    payload = {
+        "lease_sha256": candidate.lease_sha256,
+        "execution_id": candidate.execution_id,
+        "idempotency_key": candidate.idempotency_key,
+        "execution_request_sha256": candidate.execution_request_sha256,
+        "boundary_receipt_sha256": candidate.boundary_receipt_sha256,
+        "started_at": candidate.started_at,
+    }
+    return dataclasses.replace(
+        candidate,
+        receipt_sha256=canonical_sha(payload),
+    )
+
+
 def _verify(observation, execution, start):
     return verify_external_effect_observation(
         observation,
@@ -89,35 +110,60 @@ def _verify(observation, execution, start):
     )
 
 
-def test_start_idempotency_key_is_bound_to_execution_request(tmp_path: Path) -> None:
+def test_canonically_repacked_start_idempotency_is_rejected(tmp_path: Path) -> None:
     execution, start = _started(tmp_path)
     observation = _observation(execution, start)
-    foreign_start = dataclasses.replace(
+    foreign_start = _canonical_start(
         start,
         idempotency_key="foreign-idempotency",
     )
-    with pytest.raises(EffectRecoveryBindingError, match="idempotency_key"):
+    with pytest.raises(EffectRecoveryBindingError, match="start_idempotency_key"):
         _verify(observation, execution, foreign_start)
 
 
-def test_start_execution_request_digest_is_bound(tmp_path: Path) -> None:
+def test_canonically_repacked_execution_request_digest_is_rejected(
+    tmp_path: Path,
+) -> None:
     execution, start = _started(tmp_path)
     observation = _observation(execution, start)
-    foreign_start = dataclasses.replace(
+    foreign_start = _canonical_start(
         start,
         execution_request_sha256="3" * 64,
     )
     with pytest.raises(
         EffectRecoveryBindingError,
-        match="execution_request_sha256",
+        match="start_execution_request_sha256",
     ):
         _verify(observation, execution, foreign_start)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("lease_sha256", "3" * 64),
+        ("boundary_receipt_sha256", "4" * 64),
+        (
+            "started_at",
+            (NOW + timedelta(microseconds=1)).isoformat(timespec="microseconds"),
+        ),
+    ],
+)
+def test_raw_start_receipt_tampering_fails_digest_validation(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    execution, start = _started(tmp_path)
+    observation = _observation(execution, start)
+    tampered = dataclasses.replace(start, **{field: value})
+    with pytest.raises(EffectRecoveryBindingError, match="start_receipt_sha256"):
+        _verify(observation, execution, tampered)
 
 
 def test_signed_foreign_start_receipt_digest_is_rejected(tmp_path: Path) -> None:
     execution, start = _started(tmp_path)
     observation = _observation(execution, start)
-    foreign_digest = "4" * 64
+    foreign_digest = "5" * 64
     foreign_provenance = dataclasses.replace(
         observation.provenance,
         input_digests=tuple(sorted((foreign_digest, ACK, OUTPUT))),
