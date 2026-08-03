@@ -207,9 +207,7 @@ def test_derived_wire_fields_nested_report_and_provenance_are_tamper_evident(
             provenance=dataclasses.replace(release.provenance, input_digests=()),
         )
 
-    expanded_inputs = tuple(
-        sorted((*release.provenance.input_digests, "0" * 64))
-    )
+    expanded_inputs = tuple(sorted((*release.provenance.input_digests, "0" * 64)))
     with pytest.raises(ValueError, match="exactly match"):
         dataclasses.replace(
             release,
@@ -218,3 +216,8 @@ def test_derived_wire_fields_nested_report_and_provenance_are_tamper_evident(
                 input_digests=expanded_inputs,
             ),
         )
+
+    reordered_payload = release.to_dict()
+    reordered_payload["provenance"]["input_digests"].reverse()
+    with pytest.raises(ValueError, match="exact canonical wire"):
+        Gate0ReleaseReport.from_dict(reordered_payload)
