@@ -53,8 +53,9 @@ jobs:
           tests/kernel/test_effect_leases.py
           tests/kernel/test_runtime_effect_admission.py
           tests/kernel/test_runtime_terminal_capability.py
-          tests/runtimes/test_provider_broker.py
-          tests/runtimes/test_provider_terminal_fence.py
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_runtime_trust_contention_fault_executor.py
+          tests/runtimes/test_runtime_trust_contention_fault_executor_review.py
       - name: Exact terminal-ownership mutation
         run: python scripts/run_runtime_terminal_binding_mutations.py
 
