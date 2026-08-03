@@ -37,21 +37,6 @@ def _sha(value: str | bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _tree_digest(root: Path) -> str:
-    """Deterministic candidate-tree identity independent of filesystem metadata."""
-
-    digest = hashlib.sha256()
-    files = sorted(path for path in root.rglob("*") if path.is_file())
-    for path in files:
-        relative = path.relative_to(root).as_posix().encode("utf-8")
-        payload = path.read_bytes()
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
-
-
 def _compile(root: Path, revision: str = REVISION):
     return compile_reference_project(
         root,
@@ -64,7 +49,7 @@ def _compile(root: Path, revision: str = REVISION):
 def _artifacts(root: Path, revision: str = REVISION):
     compiled = _compile(root, revision)
     snapshot = compiled.snapshot
-    candidate_sha = _tree_digest(root)
+    candidate_sha = compiled.source_bundle_sha256
     candidate_locator = f"artifact-locator:sha256:{candidate_sha}"
     expectation = FourfoldEvidenceExpectation(
         candidate_artifact_sha256=candidate_sha,
@@ -90,7 +75,7 @@ def _artifacts(root: Path, revision: str = REVISION):
         packet=packet,
         expectation=expectation,
         nomination_id="fourfold-nomination",
-        reasons=("deterministic Fourfold snapshot and candidate tree are retained",),
+        reasons=("deterministic Fourfold snapshot and candidate bundle are retained",),
         created_at=NOW.isoformat(),
         trace_id="g0-fourfold-evidence-binding",
     )
@@ -142,6 +127,7 @@ def test_real_fourfold_snapshot_binds_evidence_nomination_and_owner_approval() -
     assert all(plane.status == "complete" for plane in snapshot.planes)
     assert tuple(snapshot.plane_map) == ("code", "type", "data", "knowledge")
     assert len(snapshot.bindings) == 31
+    assert candidate_sha in snapshot.provenance.input_digests
     assert packet.subject_sha256 == candidate_sha
     assert packet.items[0].output_sha256 == snapshot.digest
     assert nomination.evidence_packet_sha256 == packet.digest
@@ -208,6 +194,38 @@ def test_source_mutation_invalidates_snapshot_evidence_and_old_approval(tmp_path
         )
 
 
+def test_snapshot_cannot_be_repackaged_with_foreign_candidate_bundle(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "candidate"
+    shutil.copytree(FIXTURE, root)
+    before = _compile(root)
+
+    source = root / "src" / "knowledge_hub" / "search.py"
+    source.write_text(
+        source.read_text(encoding="utf-8") + "\n# foreign candidate bundle\n",
+        encoding="utf-8",
+    )
+    after = _compile(root)
+    assert after.source_bundle_sha256 != before.source_bundle_sha256
+    assert after.source_bundle_sha256 not in before.snapshot.provenance.input_digests
+
+    with pytest.raises(FourfoldEvidenceMismatch, match="provenance.*candidate"):
+        assemble_fourfold_evidence_packet(
+            snapshot=before.snapshot,
+            candidate_artifact_sha256=after.source_bundle_sha256,
+            candidate_artifact_locator=(
+                f"artifact-locator:sha256:{after.source_bundle_sha256}"
+            ),
+            packet_id="foreign-candidate-packet",
+            mission_id="g0-fourfold-binding",
+            attempt_id="g0-fourfold-binding-attempt",
+            attempt_contract_sha256=_sha("fixture-attempt-contract"),
+            policy_decision_sha256=_sha("fixture-policy-decision"),
+            collected_at=NOW.isoformat(),
+        )
+
+
 def test_revision_substitution_cannot_reuse_snapshot_bound_approval() -> None:
     _, candidate_sha, _, packet, nomination = _artifacts(FIXTURE, REVISION)
     approval = _approval(candidate_sha, packet, nomination)
@@ -233,7 +251,7 @@ def test_revision_substitution_cannot_reuse_snapshot_bound_approval() -> None:
 
 def test_foreign_candidate_locator_is_refused_before_evidence_assembly() -> None:
     compiled = _compile(FIXTURE)
-    candidate_sha = _tree_digest(FIXTURE)
+    candidate_sha = compiled.source_bundle_sha256
 
     with pytest.raises(FourfoldEvidenceMismatch, match="does not resolve"):
         assemble_fourfold_evidence_packet(
