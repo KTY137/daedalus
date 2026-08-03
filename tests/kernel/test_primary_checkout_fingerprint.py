@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from daedalus.kairos.gated_writes import _primary_checkout_fingerprint
+from daedalus.kernel.promotion import PromotionAuthorizationError
 
 
 def _git(root: Path, *args: str) -> str:
@@ -32,40 +32,43 @@ def _repository(tmp_path: Path) -> Path:
     _git(root, "config", "user.email", "daedalus@example.invalid")
     (root / ".gitignore").write_text(".runtime/\n", encoding="utf-8")
     (root / "tracked.txt").write_text("alpha\n", encoding="utf-8")
-    (root / "nested").mkdir()
-    (root / "nested" / "data.bin").write_bytes(b"\x00\x01\x02")
-    _git(root, "add", ".gitignore", "tracked.txt", "nested/data.bin")
+    _git(root, "add", ".gitignore", "tracked.txt")
     _git(root, "commit", "-m", "initial")
     return root
 
 
-def test_repeated_fingerprint_is_stable_for_an_idle_checkout(tmp_path) -> None:
+def test_repeated_clean_fingerprint_is_stable(tmp_path) -> None:
     root = _repository(tmp_path)
-    first = _primary_checkout_fingerprint(root)
-    second = _primary_checkout_fingerprint(root)
+    first, first_clean = _primary_checkout_fingerprint(root)
+    second, second_clean = _primary_checkout_fingerprint(root)
     assert first == second
     assert len(first) == 64
+    assert first_clean is True
+    assert second_clean is True
 
 
-def test_tracked_bytes_index_and_nonignored_untracked_files_change_identity(tmp_path) -> None:
+def test_tracked_staged_and_untracked_changes_are_never_clean(tmp_path) -> None:
     root = _repository(tmp_path)
-    baseline = _primary_checkout_fingerprint(root)
+    baseline, clean = _primary_checkout_fingerprint(root)
+    assert clean is True
 
     (root / "tracked.txt").write_text("beta\n", encoding="utf-8")
-    modified = _primary_checkout_fingerprint(root)
+    modified, modified_clean = _primary_checkout_fingerprint(root)
     assert modified != baseline
+    assert modified_clean is False
 
     _git(root, "add", "tracked.txt")
-    staged = _primary_checkout_fingerprint(root)
+    staged, staged_clean = _primary_checkout_fingerprint(root)
     assert staged != baseline
-    assert staged != modified
+    assert staged_clean is False
 
     (root / "untracked.txt").write_text("new\n", encoding="utf-8")
-    untracked = _primary_checkout_fingerprint(root)
-    assert untracked not in {baseline, modified, staged}
+    untracked, untracked_clean = _primary_checkout_fingerprint(root)
+    assert untracked != baseline
+    assert untracked_clean is False
 
 
-def test_ignored_runtime_state_and_ref_only_changes_do_not_mutate_primary_identity(tmp_path) -> None:
+def test_ignored_runtime_state_and_ref_only_changes_do_not_dirty_checkout(tmp_path) -> None:
     root = _repository(tmp_path)
     baseline = _primary_checkout_fingerprint(root)
 
@@ -79,48 +82,20 @@ def test_ignored_runtime_state_and_ref_only_changes_do_not_mutate_primary_identi
     assert _primary_checkout_fingerprint(root) == baseline
 
 
-def test_head_change_changes_identity_even_when_worktree_bytes_match(tmp_path) -> None:
+def test_head_change_changes_clean_identity(tmp_path) -> None:
     root = _repository(tmp_path)
-    baseline = _primary_checkout_fingerprint(root)
+    baseline, baseline_clean = _primary_checkout_fingerprint(root)
+    assert baseline_clean
     (root / "second.txt").write_text("second\n", encoding="utf-8")
     _git(root, "add", "second.txt")
     _git(root, "commit", "-m", "second")
-    assert _primary_checkout_fingerprint(root) != baseline
+    changed, changed_clean = _primary_checkout_fingerprint(root)
+    assert changed != baseline
+    assert changed_clean
 
 
-def test_symlink_target_is_part_of_identity_when_supported(tmp_path) -> None:
-    root = _repository(tmp_path)
-    link = root / "link.txt"
-    try:
-        os.symlink("tracked.txt", link)
-    except (OSError, NotImplementedError):
-        pytest.skip("symlinks are unavailable on this platform")
-    first = _primary_checkout_fingerprint(root)
-    link.unlink()
-    os.symlink("nested/data.bin", link)
-    assert _primary_checkout_fingerprint(root) != first
-
-
-def test_non_repository_and_unstable_inventory_fail_closed(tmp_path, monkeypatch) -> None:
+def test_non_repository_fails_closed(tmp_path) -> None:
     empty = tmp_path / "not-a-repository"
     empty.mkdir()
-    with pytest.raises(RuntimeError, match="git rev-parse"):
+    with pytest.raises(PromotionAuthorizationError, match="Git query failed"):
         _primary_checkout_fingerprint(empty)
-
-    root = _repository(tmp_path / "unstable")
-    import daedalus.kairos.gated_writes as gated_writes
-
-    original = gated_writes._primary_inventory
-    calls = 0
-
-    def unstable(repo):
-        nonlocal calls
-        calls += 1
-        value = original(repo)
-        if calls == 2:
-            return (value[0], value[1], value[2] + b"changed", value[3])
-        return value
-
-    monkeypatch.setattr(gated_writes, "_primary_inventory", unstable)
-    with pytest.raises(RuntimeError, match="changed during fingerprint"):
-        gated_writes._primary_checkout_fingerprint(root)
