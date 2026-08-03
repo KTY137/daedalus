@@ -13,6 +13,14 @@ from .contracts import (
     PlaneSnapshot,
     parse_fourfold_snapshot,
 )
+from .delta import (
+    BindingDelta,
+    GraphDelta,
+    PlaneDelta,
+    compute_graph_delta,
+    parse_graph_delta,
+    require_graph_delta,
+)
 from .legacy_forest import fourfold_from_knowledge_forest
 from .projection_verifier import (
     ProjectionFinding,
@@ -30,11 +38,14 @@ from .reference_compiler import (
 )
 
 __all__ = [
+    "BindingDelta",
     "DEFAULT_REFERENCE_LIMITS",
     "FOURFOLD_PLANES",
     "REFERENCE_SCHEMA",
     "CrossPlaneBinding",
     "FourfoldSnapshot",
+    "GraphDelta",
+    "PlaneDelta",
     "PlaneSnapshot",
     "ProjectionFinding",
     "ProjectionVerificationReport",
@@ -42,8 +53,11 @@ __all__ = [
     "ReferenceCompileResult",
     "ReferenceLimits",
     "compile_reference_project",
+    "compute_graph_delta",
     "fourfold_from_knowledge_forest",
     "parse_fourfold_snapshot",
+    "parse_graph_delta",
     "require_forest_projection",
+    "require_graph_delta",
     "verify_forest_projection",
 ]
