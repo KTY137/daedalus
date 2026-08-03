@@ -63,6 +63,12 @@ def test_probe_uses_numeric_egress_and_observes_namespace() -> None:
         assert fragment in source
 
 
+def test_default_route_detection_uses_the_active_route_flag() -> None:
+    source = _source()
+    assert "int(fields[3], 16) & 0x1" in source
+    assert "int(fields[3], 16) & 2" not in source
+
+
 def test_marker_parser_refuses_ambiguity_and_endpoint_substitution() -> None:
     source = _source()
     for fragment in (
@@ -94,6 +100,7 @@ def test_mutation_targets_remain_in_review_surface() -> None:
         "returncode": "receipt.returncode == _DENIED_RETURNCODE",
         "start": "started_marker_exists",
         "route": 'marker["default_route"] is False',
+        "route-active-flag": "int(fields[3], 16) & 0x1",
         "interface": 'marker["interfaces"] == ["lo"]',
         "errno": 'marker["errno"] == _CONNECT_ERRNO',
         "sandbox-identity": '"sandbox_sha256": _file_sha256(_sandbox_source_path())',
