@@ -15,6 +15,7 @@ than disappearing or being upgraded to a pass.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
@@ -44,6 +45,7 @@ _OUTCOMES = frozenset(
 )
 _MAX_RAW_EVIDENCE_BYTES = 1024 * 1024
 _MAX_FACTS = 64
+_MAX_WIRE_BYTES = 2 * 1024 * 1024
 
 
 class LinuxHostFaultRunnerError(RuntimeError):
@@ -113,6 +115,19 @@ def _strict_payload(payload: Mapping[str, Any], cls: type, name: str) -> dict[st
     if missing or extra:
         raise ValueError(f"{name} fields mismatch; missing={missing}, extra={extra}")
     return dict(payload)
+
+
+def _object_pairs_no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant is not allowed: {value}")
 
 
 def _sequence(value: Any, name: str) -> tuple[Any, ...]:
@@ -199,6 +214,30 @@ class HostFaultResult:
         )
 
 
+LinuxHostExecutor = Callable[[RuntimeFaultScenario], HostFaultResult]
+
+
+@dataclass(frozen=True)
+class LinuxHostExecutorBinding:
+    """Exact logical locator and implementation identity for one executor."""
+
+    locator: str
+    implementation_sha256: str
+    execute: LinuxHostExecutor = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "locator", _non_empty(self.locator, "executor.locator", maximum=1000)
+        )
+        object.__setattr__(
+            self,
+            "implementation_sha256",
+            _sha256(self.implementation_sha256, "executor.implementation_sha256"),
+        )
+        if not callable(self.execute):
+            raise ValueError("executor.execute must be callable")
+
+
 @dataclass(frozen=True)
 class LinuxHostFaultEvidence:
     """Canonical collector artifact for one exact Linux-host scenario."""
@@ -208,6 +247,7 @@ class LinuxHostFaultEvidence:
     scenario_sha256: str
     source_revision: str
     executor: str
+    executor_sha256: str
     started_at: str
     finished_at: str
     status: str
@@ -225,6 +265,9 @@ class LinuxHostFaultEvidence:
         )
         object.__setattr__(self, "source_revision", _revision(self.source_revision))
         object.__setattr__(self, "executor", _non_empty(self.executor, "executor", maximum=1000))
+        object.__setattr__(
+            self, "executor_sha256", _sha256(self.executor_sha256, "executor_sha256")
+        )
         object.__setattr__(self, "started_at", _timestamp(self.started_at, "started_at"))
         object.__setattr__(self, "finished_at", _timestamp(self.finished_at, "finished_at"))
         if datetime.fromisoformat(self.finished_at) < datetime.fromisoformat(self.started_at):
@@ -264,6 +307,7 @@ class LinuxHostFaultEvidence:
             "scenario_sha256": self.scenario_sha256,
             "source_revision": self.source_revision,
             "executor": self.executor,
+            "executor_sha256": self.executor_sha256,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "status": self.status,
@@ -284,6 +328,26 @@ class LinuxHostFaultEvidence:
             HostFaultFact.from_dict(row) for row in _sequence(body["facts"], "facts")
         )
         return cls(**body)
+
+
+def load_linux_host_fault_evidence_json(text: str) -> LinuxHostFaultEvidence:
+    """Parse one untrusted evidence document without JSON ambiguity."""
+
+    if not isinstance(text, str):
+        raise ValueError("linux host fault evidence JSON must be text")
+    if len(text.encode("utf-8")) > _MAX_WIRE_BYTES:
+        raise ValueError("linux host fault evidence JSON exceeds two MiB")
+    try:
+        payload = json.loads(
+            text,
+            object_pairs_hook=_object_pairs_no_duplicates,
+            parse_constant=_reject_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError("linux host fault evidence JSON is malformed") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("linux host fault evidence JSON root must be an object")
+    return LinuxHostFaultEvidence.from_dict(payload)
 
 
 @dataclass(frozen=True)
@@ -340,9 +404,6 @@ class LinuxHostFaultRun:
         return canonical_sha(self.to_dict())
 
 
-LinuxHostExecutor = Callable[[RuntimeFaultScenario], HostFaultResult]
-
-
 def _internal_result(
     scenario: RuntimeFaultScenario,
     *,
@@ -372,7 +433,7 @@ def _internal_result(
 
 def _normalize_executor_result(
     scenario: RuntimeFaultScenario,
-    executor: LinuxHostExecutor | None,
+    executor: LinuxHostExecutorBinding | None,
 ) -> HostFaultResult:
     if executor is None:
         return _internal_result(
@@ -383,8 +444,12 @@ def _normalize_executor_result(
             fact_name="executor-state",
             fact_value="missing",
         )
+    if executor.locator != scenario.executor:
+        raise LinuxHostFaultBindingMismatch(
+            "executor binding locator does not match the catalog scenario"
+        )
     try:
-        result = executor(scenario)
+        result = executor.execute(scenario)
     except Exception as exc:
         return _internal_result(
             scenario,
@@ -422,7 +487,7 @@ def run_linux_host_fault(
     scenario: RuntimeFaultScenario,
     *,
     source_revision: str,
-    executor: LinuxHostExecutor | None,
+    executor: LinuxHostExecutorBinding | None,
     clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
 ) -> LinuxHostFaultRun:
     """Execute or explicitly block one exact Linux-host catalog scenario."""
@@ -444,6 +509,13 @@ def run_linux_host_fault(
         scenario_sha256=scenario.digest,
         source_revision=revision,
         executor=scenario.executor,
+        executor_sha256=(
+            executor.implementation_sha256
+            if executor is not None
+            else hashlib.sha256(
+                ("missing-executor\0" + scenario.executor).encode("utf-8")
+            ).hexdigest()
+        ),
         started_at=started.isoformat(timespec="microseconds"),
         finished_at=finished.isoformat(timespec="microseconds"),
         status=result.status,
@@ -483,7 +555,7 @@ def run_linux_host_fault_catalog(
     *,
     catalog: RuntimeFaultCatalog,
     source_revision: str,
-    executors: Mapping[str, LinuxHostExecutor],
+    executors: Mapping[str, LinuxHostExecutorBinding],
     clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
 ) -> tuple[LinuxHostFaultRun, ...]:
     """Run every Linux-host row while making unsupported rows explicit blockers."""
@@ -496,9 +568,17 @@ def run_linux_host_fault_catalog(
             "runtime fault catalog contains no linux-host scenarios"
         )
     registered: list[str] = []
-    for locator in executors:
+    for locator, binding in executors.items():
         if not isinstance(locator, str):
             raise ValueError("executor registry locators must be strings")
+        if not isinstance(binding, LinuxHostExecutorBinding):
+            raise ValueError(
+                "executor registry values must be LinuxHostExecutorBinding records"
+            )
+        if binding.locator != locator:
+            raise LinuxHostFaultBindingMismatch(
+                "executor registry key does not match its binding locator"
+            )
         registered.append(locator)
     expected_locators = frozenset(row.executor for row in scenarios)
     foreign = sorted(set(registered) - expected_locators)
@@ -521,11 +601,13 @@ __all__ = [
     "HostFaultFact",
     "HostFaultResult",
     "LinuxHostExecutor",
+    "LinuxHostExecutorBinding",
     "LinuxHostFaultBindingMismatch",
     "LinuxHostFaultClockError",
     "LinuxHostFaultEvidence",
     "LinuxHostFaultRun",
     "LinuxHostFaultRunnerError",
+    "load_linux_host_fault_evidence_json",
     "run_linux_host_fault",
     "run_linux_host_fault_catalog",
 ]
