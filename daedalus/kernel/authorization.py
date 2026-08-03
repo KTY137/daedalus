@@ -147,8 +147,12 @@ class NonRuntimeEffectAuthorization:
         detail_sha256: str | None = None,
         finished_at: datetime | None = None,
     ) -> EffectTerminalReceipt:
-        """Persist one immutable terminal receipt for a started execution."""
+        """Persist one terminal receipt bound to this exact authorization."""
 
+        if start_receipt.lease_sha256 != self.lease.digest:
+            raise EffectLeaseBindingMismatch(
+                "start receipt belongs to a different effect lease"
+            )
         return self.effect_ledger.finish(
             start_receipt,
             outcome=outcome,
