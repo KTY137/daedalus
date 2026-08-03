@@ -5,6 +5,11 @@ second evidence schema, consume approvals, or promote candidates. It projects
 one already compiled :class:`FourfoldSnapshot` into the existing
 :class:`EvidencePacket` contract and verifies that the packet still names the
 same candidate tree, source revision, Forest and snapshot.
+
+A Fourfold snapshot may honestly be ``partial`` or ``absent``. Such snapshots
+remain useful for discovery, but this promotion-facing adapter must not turn
+incomplete semantics into conclusive ``passed`` evidence. Therefore all four
+planes are rechecked as ``complete`` both during assembly and verification.
 """
 from __future__ import annotations
 
@@ -21,7 +26,7 @@ from daedalus.schemas import (
     _revision,
     _sha256,
 )
-from daedalus.twin.contracts import FourfoldSnapshot
+from daedalus.twin.contracts import FOURFOLD_PLANES, FourfoldSnapshot
 
 FOURFOLD_EVIDENCE_SCHEMA: Final[str] = "daedalus-fourfold-evidence/1"
 FOURFOLD_EVALUATOR: Final[str] = "fourfold.snapshot-binding"
@@ -63,6 +68,26 @@ def _snapshot_locator(snapshot: FourfoldSnapshot) -> str:
     return f"artifact-locator:sha256:{snapshot.digest}"
 
 
+def _plane_statuses(snapshot: FourfoldSnapshot) -> dict[str, str]:
+    return {plane.plane: plane.status for plane in snapshot.planes}
+
+
+def _require_promotion_complete(snapshot: FourfoldSnapshot) -> None:
+    """Refuse conclusive promotion evidence for incomplete semantic planes."""
+
+    statuses = _plane_statuses(snapshot)
+    incomplete = [
+        f"{plane}:{statuses.get(plane, 'missing')}"
+        for plane in FOURFOLD_PLANES
+        if statuses.get(plane) != "complete"
+    ]
+    if incomplete:
+        raise FourfoldEvidenceMismatch(
+            "promotion evidence requires all Fourfold planes to be complete; "
+            + ", ".join(incomplete)
+        )
+
+
 def assemble_fourfold_evidence_packet(
     *,
     snapshot: FourfoldSnapshot,
@@ -77,7 +102,7 @@ def assemble_fourfold_evidence_packet(
     usage: ResourceUsage | None = None,
     trace_id: str | None = None,
 ) -> EvidencePacket:
-    """Create a minimal passed packet for one real Fourfold snapshot.
+    """Create a minimal passed packet for one complete Fourfold snapshot.
 
     The packet's subject and durable candidate locator identify the candidate
     source bundle. The deterministic evidence item carries the exact snapshot
@@ -87,6 +112,7 @@ def assemble_fourfold_evidence_packet(
 
     if not isinstance(snapshot, FourfoldSnapshot):
         raise TypeError("snapshot must be a FourfoldSnapshot")
+    _require_promotion_complete(snapshot)
     expectation = FourfoldEvidenceExpectation(
         candidate_artifact_sha256=candidate_artifact_sha256,
         candidate_artifact_locator=candidate_artifact_locator,
@@ -103,6 +129,8 @@ def assemble_fourfold_evidence_packet(
         "candidate_artifact_sha256": expectation.candidate_artifact_sha256,
         "source_forest_sha256": snapshot.source_forest_sha256,
         "fourfold_snapshot_sha256": snapshot.digest,
+        "plane_statuses": _plane_statuses(snapshot),
+        "verified_binding_count": len(snapshot.bindings),
     }
     item = EvidenceItem(
         evidence_id=f"{attempt_id}:fourfold",
@@ -176,6 +204,7 @@ def verify_fourfold_evidence_packet(
         raise TypeError("packet must be an EvidencePacket")
     if not isinstance(snapshot, FourfoldSnapshot):
         raise TypeError("snapshot must be a FourfoldSnapshot")
+    _require_promotion_complete(snapshot)
 
     mismatches: list[str] = []
     if packet.source_revision != snapshot.source_revision:
@@ -205,6 +234,8 @@ def verify_fourfold_evidence_packet(
             "candidate_artifact_sha256": expectation.candidate_artifact_sha256,
             "source_forest_sha256": snapshot.source_forest_sha256,
             "fourfold_snapshot_sha256": snapshot.digest,
+            "plane_statuses": _plane_statuses(snapshot),
+            "verified_binding_count": len(snapshot.bindings),
         }
         if item.assurance != "deterministic" or item.verdict != "passed":
             mismatches.append("fourfold_verdict")
