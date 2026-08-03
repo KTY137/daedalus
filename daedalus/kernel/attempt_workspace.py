@@ -19,6 +19,22 @@ from .attempt_contracts import (
 from .attempt_ledger import AttemptLedger
 
 
+def _require_disjoint_workspace_parent(
+    parent: Path,
+    *,
+    primary_checkout: Path,
+    cas_root: Path,
+) -> None:
+    """Refuse a workspace root that overlaps either protected authority root."""
+
+    for left, right, label in (
+        (parent, primary_checkout, "workspace parent and primary checkout"),
+        (parent, cas_root, "workspace parent and source-tree store"),
+    ):
+        if _is_same_or_within(left, right) or _is_same_or_within(right, left):
+            raise AttemptWorkspaceError(f"{label} must be disjoint")
+
+
 class IsolatedAttemptCoordinator:
     """Materialize exact inputs under one checkout-external workspace parent."""
 
@@ -46,17 +62,46 @@ class IsolatedAttemptCoordinator:
             raise AttemptWorkspaceError("primary checkout must be a directory")
 
         raw_parent = Path(workspace_parent)
-        raw_parent.mkdir(parents=True, exist_ok=True)
         if raw_parent.is_symlink():
             raise AttemptWorkspaceError("workspace parent must not be a symlink")
-        parent = raw_parent.resolve()
-        cas_root = source_store.root.resolve()
-        for left, right, label in (
-            (parent, primary, "workspace parent and primary checkout"),
-            (parent, cas_root, "workspace parent and source-tree store"),
-        ):
-            if _is_same_or_within(left, right) or _is_same_or_within(right, left):
-                raise AttemptWorkspaceError(f"{label} must be disjoint")
+
+        # Resolve existing parent components without creating the requested
+        # path. The disjointness refusal must occur before mkdir: otherwise a
+        # rejected path such as <primary>/new-workspaces would already have
+        # mutated the primary checkout merely by constructing this coordinator.
+        prospective_parent = raw_parent.resolve(strict=False)
+        cas_root = source_store.root.resolve(strict=True)
+        _require_disjoint_workspace_parent(
+            prospective_parent,
+            primary_checkout=primary,
+            cas_root=cas_root,
+        )
+
+        try:
+            raw_parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise AttemptWorkspaceError(
+                "workspace parent could not be created"
+            ) from exc
+        if raw_parent.is_symlink():
+            raise AttemptWorkspaceError("workspace parent must not be a symlink")
+        try:
+            parent = raw_parent.resolve(strict=True)
+        except OSError as exc:
+            raise AttemptWorkspaceError(
+                "workspace parent disappeared during creation"
+            ) from exc
+        if not parent.is_dir():
+            raise AttemptWorkspaceError("workspace parent must be a directory")
+
+        # A hostile filesystem may replace an ancestor between preflight and
+        # creation. Re-resolve and re-run the complete topology check before
+        # retaining any authority to materialize candidate bytes.
+        _require_disjoint_workspace_parent(
+            parent,
+            primary_checkout=primary,
+            cas_root=cas_root,
+        )
 
         self.primary_checkout = primary
         self.workspace_parent = parent
