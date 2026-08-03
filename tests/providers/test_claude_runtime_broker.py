@@ -17,6 +17,7 @@ from daedalus.kernel.effects import (
 from daedalus.providers.claude_cli import (
     ClaudeCLIProvider,
     ClaudeProviderAuthorizationRequired,
+    ClaudeProviderScopeMismatch,
     ClaudeProviderWorkspaceMismatch,
     ClaudeWorkspaceGrant,
 )
@@ -27,6 +28,7 @@ from daedalus.spine.envelope import canonical_sha
 ENTRYPOINT = "provider.claude"
 RUNTIME = "claude_code_cli"
 REVISION = "a" * 40
+REQUEST_SHA = "d" * 64
 OUTPUT = {
     "agent": "reviewer",
     "prompt_sha256": "b" * 64,
@@ -64,8 +66,8 @@ def _spec(*, wiring: Wiring = Wiring.CENTRAL) -> EntrypointSpec:
     )
 
 
-def _execution() -> EffectExecutionRequest:
-    return EffectExecutionRequest(
+def _execution(**changes) -> EffectExecutionRequest:
+    values = dict(
         execution_id="claude-execution-1",
         idempotency_key="claude-idempotency-1",
         requested_effects=(
@@ -74,13 +76,15 @@ def _execution() -> EffectExecutionRequest:
             Effect.PROCESS_SPAWN.value,
             Effect.SPEND.value,
         ),
-        writable_paths=("workspace",),
+        writable_paths=(".",),
         egress_endpoints=("https://api.anthropic.com",),
         tools=("claude",),
         max_cost_microusd=1000,
         kill_switch_ref="mission-kill",
         kill_switch_generation=3,
     )
+    values.update(changes)
+    return EffectExecutionRequest(**values)
 
 
 def _start_receipt() -> LeasedEffectStartReceipt:
@@ -100,6 +104,7 @@ class FakeAuthorization:
         self.request = SimpleNamespace(
             entrypoint_id=ENTRYPOINT,
             attempt_id="attempt-claude-1",
+            digest=REQUEST_SHA,
             provenance=SimpleNamespace(source_revision=REVISION),
         )
         self.capability = SimpleNamespace(
@@ -168,10 +173,19 @@ class FakeAuthorization:
         )
 
 
-def _grant(worktree: Path, *, attempt_id: str = "attempt-claude-1") -> ClaudeWorkspaceGrant:
+def _grant(
+    worktree: Path,
+    *,
+    attempt_id: str = "attempt-claude-1",
+    request_sha256: str = REQUEST_SHA,
+    execution: EffectExecutionRequest | None = None,
+) -> ClaudeWorkspaceGrant:
+    selected = execution or _execution()
     return ClaudeWorkspaceGrant(
         attempt_id=attempt_id,
         source_revision=REVISION,
+        request_sha256=request_sha256,
+        execution_sha256=selected.digest,
         worktree=str(worktree),
     )
 
@@ -207,16 +221,12 @@ def test_public_provider_refuses_missing_authority_before_private_invocation(
     assert called == []
 
 
-def test_exact_workspace_attempt_and_revision_are_required_before_grant(
+def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     auth = FakeAuthorization()
-    monkeypatch.setattr(
-        claude_provider,
-        "_invoke_claude_cli",
-        lambda **kwargs: OUTPUT,
-    )
+    monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
     other = tmp_path / "other"
     other.mkdir()
 
@@ -244,6 +254,77 @@ def test_exact_workspace_attempt_and_revision_are_required_before_grant(
         )
     assert auth.grant_calls == 0
 
+    with pytest.raises(ClaudeProviderWorkspaceMismatch, match="lease request"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=_execution(),
+            workspace_grant=_grant(tmp_path, request_sha256="e" * 64),
+        )
+    assert auth.grant_calls == 0
+
+
+def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    auth = FakeAuthorization()
+    monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
+
+    narrowed = _execution(writable_paths=("src",))
+    with pytest.raises(ClaudeProviderScopeMismatch, match="worktree root"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=["src/a.py"],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=narrowed,
+            workspace_grant=_grant(tmp_path, execution=narrowed),
+        )
+
+    no_spend = _execution(max_cost_microusd=0)
+    with pytest.raises(ClaudeProviderScopeMismatch, match="spend ceiling"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=no_spend,
+            workspace_grant=_grant(tmp_path, execution=no_spend),
+        )
+    assert auth.grant_calls == 0
+
+
+def test_path_traversal_refuses_before_broker_or_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    auth = FakeAuthorization()
+    called: list[str] = []
+    monkeypatch.setattr(
+        claude_provider,
+        "_invoke_claude_cli",
+        lambda **kwargs: called.append("invoked") or OUTPUT,
+    )
+
+    with pytest.raises(ClaudeProviderScopeMismatch, match="escapes"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=["../primary/secret.py"],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=_execution(),
+            workspace_grant=_grant(tmp_path),
+        )
+    assert called == []
+    assert auth.grant_calls == 0
+
 
 def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     monkeypatch: pytest.MonkeyPatch,
@@ -260,7 +341,7 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     result = ClaudeCLIProvider().run(
         objective="review exact diff",
         repo_root=str(tmp_path),
-        paths=["src/a.py"],
+        paths=["src/a.py", "src/a.py"],
         agent=_agent(),
         runtime_authorization=auth,  # type: ignore[arg-type]
         effect_execution=_execution(),
@@ -268,6 +349,7 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     )
 
     assert len(calls) == 1
+    assert calls[0]["paths"] == ["src/a.py"]
     assert auth.grant_calls == 1
     assert auth.begin_calls == 1
     assert auth.verify_calls == 2
