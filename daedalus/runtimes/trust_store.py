@@ -1,11 +1,11 @@
 """Persisted quarantine state for externally trusted runtime evidence.
 
-The external trusted-envelope set remains the root of authority.  This module
+The external trusted-envelope set remains the root of authority. This module
 never upgrades a locally constructed conformance envelope into trusted evidence.
-It verifies an exact live envelope through :func:`verify_production_runtime_envelope`
-and then persists only its exact runtime, manifest, probe, receipt, revision and
-expiry bindings.  Rotation and expiry are monotonic: an old record can be
-quarantined but never silently reactivated.
+It verifies one exact live envelope and then persists only its exact runtime,
+manifest, probe, receipt, revision, observation time and expiry bindings.
+Rotation and expiry are monotonic: older evidence cannot replace newer evidence,
+and a quarantined record cannot be silently reactivated.
 """
 from __future__ import annotations
 
@@ -15,14 +15,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from daedalus.kernel.runtime_conformance import RuntimeConformanceError
 from daedalus.schemas import _identifier, _non_empty, _revision, _sha256, _utc_timestamp
 from daedalus.spine.envelope import canonical_sha
 
 from .profiles import RuntimeConformanceEnvelope, RuntimeProbeIdentity
 from .trust import verify_production_runtime_envelope
 
-_MAX_TRUST_TTL = timedelta(days=7)
+_MAX_RECEIPT_AGE = timedelta(days=7)
 _ACTIVE = "ACTIVE"
 _QUARANTINED = "QUARANTINED"
 
@@ -57,6 +56,14 @@ def _as_utc(value: datetime, label: str) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _parse_timestamp(value: str, label: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as exc:
+        raise RuntimeTrustBindingMismatch(f"{label} must be ISO-8601") from exc
+    return _as_utc(parsed, label)
+
+
 def _timestamp(value: datetime) -> str:
     return _as_utc(value, "timestamp").isoformat(timespec="microseconds")
 
@@ -69,6 +76,7 @@ def _record_payload(
     conformance_receipt_sha256: str,
     runtime_manifest_sha256: str,
     source_revision: str,
+    observed_at: str,
     admitted_at: str,
     expires_at: str,
     state: str,
@@ -82,6 +90,7 @@ def _record_payload(
         "conformance_receipt_sha256": conformance_receipt_sha256,
         "runtime_manifest_sha256": runtime_manifest_sha256,
         "source_revision": source_revision,
+        "observed_at": observed_at,
         "admitted_at": admitted_at,
         "expires_at": expires_at,
         "state": state,
@@ -98,6 +107,7 @@ class RuntimeTrustRecord:
     conformance_receipt_sha256: str
     runtime_manifest_sha256: str
     source_revision: str
+    observed_at: str
     admitted_at: str
     expires_at: str
     state: str
@@ -118,16 +128,19 @@ class RuntimeTrustRecord:
         object.__setattr__(
             self, "source_revision", _revision(self.source_revision, "source_revision")
         )
-        object.__setattr__(self, "admitted_at", _utc_timestamp(self.admitted_at, "admitted_at"))
-        object.__setattr__(self, "expires_at", _utc_timestamp(self.expires_at, "expires_at"))
-        object.__setattr__(
-            self,
-            "state_changed_at",
-            _utc_timestamp(self.state_changed_at, "state_changed_at"),
-        )
-        if self.expires_at <= self.admitted_at:
+        for name in ("observed_at", "admitted_at", "expires_at", "state_changed_at"):
+            object.__setattr__(self, name, _utc_timestamp(getattr(self, name), name))
+        observed = _parse_timestamp(self.observed_at, "observed_at")
+        admitted = _parse_timestamp(self.admitted_at, "admitted_at")
+        expires = _parse_timestamp(self.expires_at, "expires_at")
+        changed = _parse_timestamp(self.state_changed_at, "state_changed_at")
+        if observed > admitted:
+            raise RuntimeTrustCorrupt("runtime trust observation follows admission")
+        if expires <= admitted:
             raise RuntimeTrustCorrupt("runtime trust expiry must follow admission")
-        if self.state_changed_at < self.admitted_at:
+        if expires > observed + _MAX_RECEIPT_AGE:
+            raise RuntimeTrustCorrupt("runtime trust outlives its conformance receipt")
+        if changed < admitted:
             raise RuntimeTrustCorrupt("runtime trust state change predates admission")
         if self.state not in {_ACTIVE, _QUARANTINED}:
             raise RuntimeTrustCorrupt("runtime trust state is unknown")
@@ -149,6 +162,7 @@ class RuntimeTrustRecord:
             conformance_receipt_sha256=self.conformance_receipt_sha256,
             runtime_manifest_sha256=self.runtime_manifest_sha256,
             source_revision=self.source_revision,
+            observed_at=self.observed_at,
             admitted_at=self.admitted_at,
             expires_at=self.expires_at,
             state=self.state,
@@ -168,6 +182,7 @@ def _make_record(
     conformance_receipt_sha256: str,
     runtime_manifest_sha256: str,
     source_revision: str,
+    observed_at: str,
     admitted_at: str,
     expires_at: str,
     state: str,
@@ -181,6 +196,7 @@ def _make_record(
         conformance_receipt_sha256=conformance_receipt_sha256,
         runtime_manifest_sha256=runtime_manifest_sha256,
         source_revision=source_revision,
+        observed_at=observed_at,
         admitted_at=admitted_at,
         expires_at=expires_at,
         state=state,
@@ -218,6 +234,7 @@ class RuntimeTrustLedger:
                     conformance_receipt_sha256 TEXT NOT NULL,
                     runtime_manifest_sha256 TEXT NOT NULL,
                     source_revision TEXT NOT NULL,
+                    observed_at TEXT NOT NULL,
                     admitted_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
                     state TEXT NOT NULL,
@@ -246,9 +263,9 @@ class RuntimeTrustLedger:
             INSERT INTO runtime_trust_records (
                 envelope_sha256, runtime_id, probe_identity_sha256,
                 conformance_receipt_sha256, runtime_manifest_sha256,
-                source_revision, admitted_at, expires_at, state,
+                source_revision, observed_at, admitted_at, expires_at, state,
                 state_changed_at, reason, record_sha256
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record.envelope_sha256,
@@ -257,6 +274,7 @@ class RuntimeTrustLedger:
                 record.conformance_receipt_sha256,
                 record.runtime_manifest_sha256,
                 record.source_revision,
+                record.observed_at,
                 record.admitted_at,
                 record.expires_at,
                 record.state,
@@ -273,7 +291,7 @@ class RuntimeTrustLedger:
             UPDATE runtime_trust_records SET
                 runtime_id=?, probe_identity_sha256=?,
                 conformance_receipt_sha256=?, runtime_manifest_sha256=?,
-                source_revision=?, admitted_at=?, expires_at=?, state=?,
+                source_revision=?, observed_at=?, admitted_at=?, expires_at=?, state=?,
                 state_changed_at=?, reason=?, record_sha256=?
             WHERE envelope_sha256=?
             """,
@@ -283,6 +301,7 @@ class RuntimeTrustLedger:
                 record.conformance_receipt_sha256,
                 record.runtime_manifest_sha256,
                 record.source_revision,
+                record.observed_at,
                 record.admitted_at,
                 record.expires_at,
                 record.state,
@@ -306,6 +325,7 @@ class RuntimeTrustLedger:
             conformance_receipt_sha256=record.conformance_receipt_sha256,
             runtime_manifest_sha256=record.runtime_manifest_sha256,
             source_revision=record.source_revision,
+            observed_at=record.observed_at,
             admitted_at=record.admitted_at,
             expires_at=record.expires_at,
             state=_QUARANTINED,
@@ -328,10 +348,15 @@ class RuntimeTrustLedger:
 
         admitted = _as_utc(admitted_at, "admitted_at")
         expires = _as_utc(expires_at, "expires_at")
+        observed = _parse_timestamp(receipt.finished_at, "receipt.finished_at")
+        if observed > admitted:
+            raise RuntimeTrustBindingMismatch(
+                "runtime conformance receipt finishes after trust admission"
+            )
         if expires <= admitted:
             raise ValueError("runtime trust expires_at must follow admitted_at")
-        if expires - admitted > _MAX_TRUST_TTL:
-            raise ValueError("runtime trust TTL exceeds seven days")
+        if expires > observed + _MAX_RECEIPT_AGE:
+            raise ValueError("runtime trust expiry exceeds receipt freshness window")
         verify_production_runtime_envelope(
             envelope,
             identity,
@@ -364,6 +389,7 @@ class RuntimeTrustLedger:
                 "runtime trust admission binding mismatch: " + ", ".join(mismatches)
             )
         admitted_text = _timestamp(admitted)
+        observed_text = _timestamp(observed)
         record = _make_record(
             runtime_id=manifest.runtime_id,
             envelope_sha256=envelope.digest,
@@ -371,6 +397,7 @@ class RuntimeTrustLedger:
             conformance_receipt_sha256=receipt.digest,
             runtime_manifest_sha256=manifest.digest,
             source_revision=manifest.source_revision,
+            observed_at=observed_text,
             admitted_at=admitted_text,
             expires_at=_timestamp(expires),
             state=_ACTIVE,
@@ -398,6 +425,11 @@ class RuntimeTrustLedger:
             ).fetchall()
             for active_row in active_rows:
                 active = self._from_row(active_row)
+                if observed <= _parse_timestamp(active.observed_at, "active.observed_at"):
+                    connection.execute("ROLLBACK")
+                    raise RuntimeTrustBindingMismatch(
+                        "runtime trust evidence is not newer than the active observation"
+                    )
                 rotated = self._quarantined(
                     active,
                     changed_at=admitted_text,
@@ -446,7 +478,7 @@ class RuntimeTrustLedger:
                 raise RuntimeTrustQuarantined(
                     f"runtime envelope is quarantined: {record.reason}"
                 )
-            expires = datetime.fromisoformat(record.expires_at).astimezone(timezone.utc)
+            expires = _parse_timestamp(record.expires_at, "expires_at")
             if instant >= expires:
                 expired = self._quarantined(
                     record,
@@ -513,7 +545,9 @@ class RuntimeTrustLedger:
                     )
                 connection.execute("COMMIT")
                 return record
-            if changed < record.admitted_at:
+            if _parse_timestamp(changed, "quarantined_at") < _parse_timestamp(
+                record.admitted_at, "admitted_at"
+            ):
                 connection.execute("ROLLBACK")
                 raise ValueError("quarantine time predates runtime trust admission")
             updated = self._quarantined(record, changed_at=changed, reason=why)
@@ -528,13 +562,13 @@ class RuntimeTrustLedger:
             if runtime_id is None:
                 rows = connection.execute(
                     "SELECT * FROM runtime_trust_records "
-                    "ORDER BY runtime_id, admitted_at, envelope_sha256"
+                    "ORDER BY runtime_id, observed_at, envelope_sha256"
                 ).fetchall()
             else:
                 runtime = _identifier(runtime_id, "runtime_id")
                 rows = connection.execute(
                     "SELECT * FROM runtime_trust_records WHERE runtime_id=? "
-                    "ORDER BY admitted_at, envelope_sha256",
+                    "ORDER BY observed_at, envelope_sha256",
                     (runtime,),
                 ).fetchall()
         return tuple(self._from_row(row) for row in rows)
