@@ -25,14 +25,19 @@ FOREST = "4" * 64
 NOW = "2026-08-03T13:00:00+00:00"
 
 
-def snapshot(revision: str = REVISION) -> FourfoldSnapshot:
+def snapshot(
+    revision: str = REVISION,
+    *,
+    partial_plane: str | None = None,
+) -> FourfoldSnapshot:
     planes = tuple(
         PlaneSnapshot(
             plane=plane,
             source_revision=revision,
-            status="complete",
+            status="partial" if plane == partial_plane else "complete",
             node_ids=(f"{plane}:node",),
             evidence_sha256s=(str(index + 5) * 64,),
+            reason="extractor coverage incomplete" if plane == partial_plane else "",
         )
         for index, plane in enumerate(FOURFOLD_PLANES)
     )
@@ -209,6 +214,13 @@ def test_stale_mission_snapshot_and_item_identity_are_refused() -> None:
     )
     with pytest.raises(RenovationPlanBindingError, match="work_item_ids"):
         verify_renovation_plan(value, mission=changed_ids, base_snapshot=base)
+
+
+def test_partial_base_snapshot_is_not_accepted_for_ignition() -> None:
+    base = snapshot(partial_plane="knowledge")
+    value, mission_value, _ = plan(base)
+    with pytest.raises(RenovationPlanBindingError, match="incomplete_planes:knowledge"):
+        verify_renovation_plan(value, mission=mission_value, base_snapshot=base)
 
 
 def test_noncanonical_and_duplicate_key_wires_are_refused() -> None:
