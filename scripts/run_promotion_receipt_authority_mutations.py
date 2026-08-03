@@ -38,13 +38,13 @@ def main() -> int:
 
     try:
         source = originals[contracts].decode("utf-8")
-        marker = "@dataclass(frozen=True)\nclass OwnerApproval"
-        if source.count(marker) != 1:
+        owner_marker = "@dataclass(frozen=True)\nclass OwnerApproval"
+        if source.count(owner_marker) != 1:
             raise SystemExit("duplicate-authority mutation marker is not unique")
         contracts.write_text(
             source.replace(
-                marker,
-                "class PromotionReceipt:\n    pass\n\n\n" + marker,
+                owner_marker,
+                "class PromotionReceipt:\n    pass\n\n\n" + owner_marker,
                 1,
             ),
             encoding="utf-8",
@@ -52,13 +52,41 @@ def main() -> int:
         _require_killed("duplicate-promotion-receipt-class")
         contracts.write_bytes(originals[contracts])
 
+        contracts.write_text(
+            source.replace(
+                owner_marker,
+                "from daedalus.schemas import PromotionReceipt as CanonicalPromotionReceipt\n\n"
+                "class AlternatePromotionReceipt(CanonicalPromotionReceipt):\n"
+                "    pass\n\n\n"
+                + owner_marker,
+                1,
+            ),
+            encoding="utf-8",
+        )
+        _require_killed("hidden-promotion-receipt-subclass")
+        contracts.write_bytes(originals[contracts])
+
+        owner_contract = 'CONTRACT_TYPE: ClassVar[str] = "daedalus.owner-approval"'
+        if source.count(owner_contract) != 1:
+            raise SystemExit("owner contract-type mutation marker is not unique")
+        contracts.write_text(
+            source.replace(
+                owner_contract,
+                'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        _require_killed("duplicate-canonical-promotion-contract-owner")
+        contracts.write_bytes(originals[contracts])
+
         source = originals[schemas].decode("utf-8")
-        marker = 'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"'
-        if source.count(marker) != 1:
+        contract_marker = 'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion"'
+        if source.count(contract_marker) != 1:
             raise SystemExit("contract-type mutation marker is not unique")
         schemas.write_text(
             source.replace(
-                marker,
+                contract_marker,
                 'CONTRACT_TYPE: ClassVar[str] = "daedalus.promotion-receipt"',
                 1,
             ),
@@ -75,10 +103,17 @@ def main() -> int:
         competing_module.unlink()
 
         source = originals[kernel_init].decode("utf-8")
-        marker = "not a second contract authority"
-        if source.count(marker) != 1:
+        authority_marker = "not a second contract authority"
+        if source.count(authority_marker) != 1:
             raise SystemExit("kernel-authority mutation marker is not unique")
-        kernel_init.write_text(source.replace(marker, "an alternate contract authority", 1), encoding="utf-8")
+        kernel_init.write_text(
+            source.replace(
+                authority_marker,
+                "an alternate contract authority",
+                1,
+            ),
+            encoding="utf-8",
+        )
         _require_killed("kernel-contract-authority-drift")
         kernel_init.write_bytes(originals[kernel_init])
     finally:
@@ -93,7 +128,7 @@ def main() -> int:
     if competing_module.exists():
         raise SystemExit("temporary competing module was not removed")
 
-    print("promotion receipt authority mutations: 4 killed")
+    print("promotion receipt authority mutations: 6 killed")
     return 0
 
 
