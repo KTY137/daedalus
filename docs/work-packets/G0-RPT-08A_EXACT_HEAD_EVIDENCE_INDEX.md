@@ -31,22 +31,36 @@ used by a later release-report integration.
 ## Derived blockers
 
 `GateEvidenceIndex.mechanical_blockers()` derives required-membership blockers.
-`strict_mechanical_blockers()` adds the adversarial invariant that every
-retained item, including optional evidence, must be coherent. Extra failed,
-stale, foreign, future-dated, or mismatched evidence is not silently ignored.
+It is intentionally structural only and is not release authority.
+
+`strict_mechanical_blockers()` adds both adversarial coherence checks and
+external trust anchors. Every retained record, including optional evidence,
+must be coherent, and every hard evidence class must appear in an independently
+obtained exact digest set:
+
+- workflow evidence digest from the authenticated CI read;
+- artifact content digest from CAS/artifact storage;
+- runtime envelope digest from the trusted live-runtime index;
+- fault-matrix digest from retained deterministic execution evidence;
+- review transcript digest from the review system;
+- owner-verifier receipt digest from the authenticated owner boundary.
+
+Empty trust sets fail closed. A caller cannot turn a locally constructed
+canonical object into hard evidence merely by serializing it.
 
 The strict verifier rejects:
 
 - current commit or tree mismatch;
 - expired or future-dated index evidence;
-- missing, failed, expired or foreign workflows;
-- missing or foreign artifacts;
+- untrusted, missing, failed, expired or foreign workflows;
+- untrusted, missing or foreign artifacts;
 - artifact locators that do not address the claimed content;
-- offline, failed, expired or foreign runtime evidence;
-- missing, failed or foreign fault matrices;
+- untrusted, offline, failed, expired or foreign runtime evidence;
+- untrusted, missing, failed or foreign fault matrices;
+- untrusted review transcripts;
 - model-only reviews used as hard review evidence;
 - unresolved or changes-requested reviews;
-- missing or foreign owner-decision references;
+- missing, foreign or untrusted owner-verifier receipts;
 - ambiguous duplicate identities;
 - naive verification timestamps.
 
@@ -57,11 +71,17 @@ required hard review perspective. This packet currently requires a clean human
 review to satisfy architecture or security review requirements. Deterministic
 tools remain separate evidence and do not masquerade as architecture review.
 
+The trust-set arguments are an integration seam, not a substitute for
+verification. The later collector must derive them from authenticated APIs,
+verified CAS reads, signed/runtime evidence, and the real OwnerApproval verifier;
+it must never accept them from the candidate repository itself.
+
 ## Deliberate remaining blockers
 
 This packet does not complete issue `G0-RPT-08`. Later packets must still:
 
-- populate the index from authenticated GitHub/API and artifact-store reads;
+- populate the index and trust sets from authenticated GitHub/API and
+  artifact-store reads;
 - bind the exact workflow-definition digest and required workflow set adopted
   for release;
 - verify the owner capability rather than merely reference its verifier receipt;
