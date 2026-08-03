@@ -15,19 +15,23 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
+        shell: bash
         run: |
+          set -euo pipefail
           git status --short
           git rev-parse HEAD > CHECKOUT_HEAD
-          tar --exclude=.git -czf /tmp/daedalus-checkout.tar.gz .
+          tar --exclude=.git --exclude=daedalus-checkout.tar.gz -czf daedalus-checkout.tar.gz .
+          test -s daedalus-checkout.tar.gz
+          tar -tzf daedalus-checkout.tar.gz >/dev/null
       - uses: actions/upload-artifact@v4
         with:
-          name: daedalus-checkout
-          path: /tmp/daedalus-checkout.tar.gz
+          name: daedalus-checkout-${{ github.sha }}
+          path: daedalus-checkout.tar.gz
           if-no-files-found: error
           retention-days: 2
