@@ -30,10 +30,16 @@ MUTATIONS = (
         "object_pairs_hook=dict,",
     ),
     Mutation(
-        "accept-normalized-noncanonical-wire",
+        "accept-normalized-release-wire",
         "daedalus/gates/release_io.py",
-        "if wire != value.to_dict():",
-        "if False:",
+        "if wire != value.to_dict():\n        raise ValueError(\"Gate-0 release report must use its exact canonical wire form\")",
+        "if False:\n        raise ValueError(\"Gate-0 release report must use its exact canonical wire form\")",
+    ),
+    Mutation(
+        "accept-normalized-mechanical-wire",
+        "daedalus/gates/release_io.py",
+        "if wire != value.to_dict():\n        raise ValueError(\"mechanical Gate report must use its exact canonical wire form\")",
+        "if False:\n        raise ValueError(\"mechanical Gate report must use its exact canonical wire form\")",
     ),
     Mutation(
         "ignore-selected-secret-environment",
@@ -72,6 +78,7 @@ FOCUSED_TESTS = (
     "tests/gates/test_gate0_release_verifier.py",
     "tests/gates/test_gate0_release_review.py",
     "tests/gates/test_gate0_release_io.py",
+    "tests/gates/test_gate0_mechanical_report_io.py",
     "tests/gates/test_gate0_release_cli.py",
     "tests/gates/test_gate0_release_cli_workflows.py",
     "tests/gates/test_gate0_release_cli_review.py",
