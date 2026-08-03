@@ -25,6 +25,11 @@ The trust ledger and effect ledger remain separate authorities. The fence uses
 read through effect-terminal persistence. No trust row is modified by the
 fence, and this is not represented as a distributed transaction.
 
+After the separate effect ledger has made `COMPLETED` durable, the read-only
+trust transaction is released with `ROLLBACK` and connection close. It is not
+committed: a failed, unnecessary read-only commit must not turn a completed
+external effect into a lost provider result that exact replay cannot recover.
+
 ## Refusals
 
 The broker refuses or cancels completion when:
@@ -34,6 +39,7 @@ The broker refuses or cancels completion when:
   revision changes after the prior plain verification;
 - trust expires before the terminal boundary;
 - the persisted trust row fails its ledger authentication;
+- a supplied runtime authorization lacks the persisted fence seam; or
 - the runtime trust and effect ledgers point at the same SQLite file, which
   would self-deadlock when the effect terminal opens its own transaction.
 
@@ -51,7 +57,26 @@ The focused tests exercise both orderings of the race:
   `CANCELLED` rather than `COMPLETED`.
 
 A malformed shared-ledger configuration is refused before grant, start, or
-provider invocation.
+provider invocation. A connection proxy that rejects `COMMIT` kills a regression
+that would reintroduce the read-only commit ambiguity after the effect terminal
+is already durable.
+
+## Adversarial review findings fixed
+
+1. **Post-verification quarantine race.** Two ordinary trust checks still left a
+   scheduling window before terminal persistence. The final authenticated row
+   is now held under the trust-ledger writer transaction through `COMPLETED`.
+2. **Shared-ledger self-deadlock.** Holding the trust writer lock while opening
+   an effect transaction against the same SQLite file would block itself. Exact
+   path identity is refused before any grant or provider invocation.
+3. **Read-only commit output loss.** The first fence draft committed its
+   read-only trust transaction after the effect terminal. A commit failure at
+   that point could withhold a valid result despite durable `COMPLETED`, while
+   exact replay could not execute again. The fence now rolls back/closes its
+   read-only transaction and retains the successful result.
+4. **Partial terminal-fence doubles.** An authorization that supplies a trust
+   ledger but omits the concrete persisted fence seam now fails closed instead
+   of silently falling back to the unfenced test-double path.
 
 ## Verification contract
 
@@ -61,8 +86,8 @@ The dedicated workflow requests:
 - `PYTHONHASHSEED=0` and `123456`;
 - Iron Plan verification;
 - compile-all;
-- focused broker, runtime admission, Effect Lease, trust-store and effect
-  boundary tests; and
+- focused broker, terminal-race, release-path, runtime admission, Effect Lease,
+  trust-store and effect-boundary tests; and
 - an isolated wheel import smoke.
 
 Exact-head CI evidence must be recorded separately. A workflow that fails
