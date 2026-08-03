@@ -17,7 +17,8 @@ The fixture creates one valid central entrypoint, exact EffectScope,
 PolicyDecision, signed EffectLease and persisted lease grant. It then:
 
 1. opens a second SQLite connection to the same effect ledger;
-2. acquires `BEGIN IMMEDIATE` and retains the writer lock;
+2. acquires `BEGIN IMMEDIATE`, verifies that the connection is in a transaction,
+   and retains that writer lock;
 3. calls the inherited production `EffectLeaseLedger.begin()` logic through a
    test-only subclass whose only behavioral change is a bounded 125 ms SQLite
    busy timeout;
@@ -27,16 +28,20 @@ PolicyDecision, signed EffectLease and persisted lease grant. It then:
 The shortened timeout is a host-fixture control, not a new production authority.
 The test subclass may override only `__init__` and `_connect`; grant, begin,
 replay, scope, signature, registry, start-receipt and persistence behavior remain
-the production methods.
+the production methods. Its connection setup closes the descriptor if a SQLite
+PRAGMA fails before the inherited transaction begins.
 
 ## Pass criteria
 
 The observation is `passed/refused-before-start` only when all are true:
 
-- a real `sqlite3.OperationalError` is classified as SQLite BUSY/LOCKED by
-  numeric error code or the Python-3.10 compatibility fallback;
-- the elapsed interval reaches at least half the configured busy timeout and is
-  bounded below five seconds;
+- `blocker.in_transaction` proves the external writer lock was active before the
+  effect start was attempted;
+- a real `sqlite3.OperationalError` is classified as SQLite BUSY/LOCKED by base
+  numeric error code, including extended SQLite codes, or by the Python-3.10
+  compatibility fallback;
+- the elapsed interval reaches at least busy timeout minus a bounded 25 ms clock
+  tolerance and remains below five seconds;
 - the provider dispatch sentinel remains false;
 - no row exists for the attempted execution ID after the writer lock is
   released;
@@ -44,8 +49,9 @@ The observation is `passed/refused-before-start` only when all are true:
 - the executor implementation digest binds both fixture bytes and the exact
   production `daedalus/kernel/effects.py` bytes.
 
-An unrecognized OperationalError, successful begin, persisted execution row,
-provider-dispatch sentinel, premature return or excessive delay fails the fault.
+An unrecognized OperationalError, inactive writer transaction, successful begin,
+persisted execution row, provider-dispatch sentinel, premature return or
+excessive delay fails the fault.
 
 ## Evidence discipline
 
@@ -54,7 +60,7 @@ Raw evidence retains:
 - canonical scenario and executor digests;
 - effect-ledger source digest;
 - database-path digest, never the plaintext temporary path;
-- configured busy timeout and observed elapsed milliseconds;
+- active-writer-lock flag, configured busy timeout and elapsed milliseconds;
 - exception module/type and numeric SQLite error code when available;
 - provider-dispatch sentinel and durable execution-row count.
 
@@ -71,7 +77,7 @@ The independent counter-review requires:
 - no subprocess, shell or provider effect in the fixture;
 - the bounded subclass overrides only connection creation and timeout;
 - the real inherited `ledger.begin()` method is called;
-- the writer transaction is `BEGIN IMMEDIATE`;
+- the writer transaction is `BEGIN IMMEDIATE` and is proven active;
 - only `sqlite3.OperationalError` is treated as the expected injected fault;
 - no broad `Exception` or `BaseException` laundering;
 - no plaintext database path or SQLite exception text in evidence;
@@ -79,7 +85,7 @@ The independent counter-review requires:
 - candidate-controlled summaries cannot claim trust, attestation or gate closure.
 
 Targeted mutations include removing the writer lock, releasing it before begin,
-accepting any exception, accepting immediate return, setting the provider
+accepting any exception, reducing the elapsed threshold, setting the provider
 sentinel after a failed begin, ignoring a persisted execution row, removing the
 source digest, or publishing the database path/message.
 
