@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/ollama-chat-observation-v1.schema.json",
+  "title": "Daedalus OllamaChatObservation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"},
+    "artifactLocator": {"type": "string", "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$"},
+    "portableTargetPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "allOf": [
+        {"pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*[<>:\"|?*\\u0000-\\u001f])(?!.*[. ](?:/|$))[^/]+(?:/[^/]+)*$"},
+        {"not": {"pattern": "(?:^|/)(?:[Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9]|[Ll][Pp][Tt][1-9])(?:\\.[^/]*)?(?:/|$)"}},
+        {"not": {"pattern": "(?:^|/)[^/]*~[0-9]+(?:\\.[^/]*)?(?:/|$)"}}
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": [
+    "contract_type", "contract_version", "execution_request_sha256", "start_receipt_sha256",
+    "execution_plan_sha256", "source_revision", "ollama_model_observation_sha256",
+    "ollama_request_sha256", "raw_response_sha256", "raw_response_size",
+    "raw_response_artifact_locator", "target_before_observation_sha256", "target_path",
+    "target_before_sha256", "assistant_content_sha256", "candidate_sha256", "candidate_size",
+    "candidate_artifact_locator", "changes_target", "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.ollama-chat-observation"},
+    "contract_version": {"const": "1.0.0"},
+    "execution_request_sha256": {"$ref": "#/$defs/sha256"},
+    "start_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "execution_plan_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "ollama_model_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "ollama_request_sha256": {"$ref": "#/$defs/sha256"},
+    "raw_response_sha256": {"$ref": "#/$defs/sha256"},
+    "raw_response_size": {"type": "integer", "minimum": 1},
+    "raw_response_artifact_locator": {"$ref": "#/$defs/artifactLocator"},
+    "target_before_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "target_path": {"$ref": "#/$defs/portableTargetPath"},
+    "target_before_sha256": {"$ref": "#/$defs/sha256"},
+    "assistant_content_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_size": {"type": "integer", "minimum": 0},
+    "candidate_artifact_locator": {"$ref": "#/$defs/artifactLocator"},
+    "changes_target": {"type": "boolean"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}

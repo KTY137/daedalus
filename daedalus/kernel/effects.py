@@ -437,6 +437,40 @@ class CompletionCapability:
     def __repr__(self) -> str:
         return "CompletionCapability(<redacted>)"
 
+    def verify_start_receipt(self, receipt: LeasedEffectStartReceipt) -> None:
+        """Verify this live-only capability is bound to one exact start receipt."""
+
+        if not isinstance(receipt, LeasedEffectStartReceipt):
+            raise TypeError("receipt must be a LeasedEffectStartReceipt")
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                ("lease_sha256", self._lease_sha256, receipt.lease_sha256),
+                ("execution_id", self._execution_id, receipt.execution_id),
+                (
+                    "start_receipt_sha256",
+                    self._start_receipt_sha256,
+                    receipt.receipt_sha256,
+                ),
+                (
+                    "completion_capability_sha256",
+                    self._commitment_sha256,
+                    receipt.completion_capability_sha256,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise EffectLeaseBindingMismatch(
+                "completion capability start binding mismatch: "
+                + ", ".join(mismatches)
+            )
+        expected_commitment = _completion_capability_sha256(self._secret)
+        if not hmac.compare_digest(expected_commitment, self._commitment_sha256):
+            raise EffectLeaseSignatureError(
+                "completion capability secret does not match its commitment"
+            )
+
     def authorize(
         self, receipt: EffectTerminalReceipt
     ) -> TerminalAuthorization:

@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -28,13 +28,20 @@ from daedalus.kernel.effects import (
 )
 from daedalus.kernel.offload_observations import (
     BASE_SOURCE_ARTIFACT_KIND,
+    OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND,
+    OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND,
     OLLAMA_METADATA_ARTIFACT_KIND,
     SOURCE_FINGERPRINT_ARTIFACT_KIND,
     OffloadObservationError,
     OffloadWorkspaceObservation,
+    OllamaChatObservation,
     OllamaModelObservation,
     TargetBeforeObservation,
     TaskAttemptWorkspaceAttestation,
+)
+from daedalus.kernel.offload_protocol import (
+    ParsedOffloadCandidate,
+    parse_offload_chat_response,
 )
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import REGISTRY_BY_ID, GuardDecision
@@ -541,11 +548,15 @@ def _plan(observed: _ObservedWorkspace, workspace: OffloadWorkspaceObservation) 
 
 
 def _execution_and_start(
-    plan: OffloadExecutionPlan, ledger_path: Path
+    plan: OffloadExecutionPlan,
+    ledger_path: Path,
+    *,
+    execution_id: str = "offload-execution-1",
+    idempotency_key: str = "offload-idempotency-1",
 ) -> tuple[EffectExecutionRequest, EffectStartResult]:
     execution = EffectExecutionRequest(
-        execution_id="offload-execution-1",
-        idempotency_key="offload-idempotency-1",
+        execution_id=execution_id,
+        idempotency_key=idempotency_key,
         requested_effects=plan.requested_effects,
         writable_paths=plan.effect_scope.writable_paths,
         egress_endpoints=plan.effect_scope.egress_endpoints,
@@ -782,3 +793,369 @@ def test_post_begin_raw_ollama_cas_parsing_binds_one_exact_model_and_refuses_amb
             origin="tests.offload-observations",
             created_at=NOW,
         )
+
+
+@dataclass(frozen=True)
+class _ChatChain:
+    store: ArtifactStore
+    plan: OffloadExecutionPlan
+    execution: EffectExecutionRequest
+    start_result: EffectStartResult
+    model_observation: OllamaModelObservation
+    raw_response_bytes: bytes
+    parsed_candidate: ParsedOffloadCandidate
+    raw_response_locator: ArtifactLocator
+    candidate_locator: ArtifactLocator
+    observation: OllamaChatObservation
+
+
+def _chat_response(plan: OffloadExecutionPlan, candidate_text: str) -> bytes:
+    assistant_content = canonical_json(
+        {"content": candidate_text, "target_path": TARGET}
+    )
+    return canonical_json(
+        {
+            "done": True,
+            "done_reason": "stop",
+            "message": {"content": assistant_content, "role": "assistant"},
+            "model": plan.model_id,
+        }
+    ).encode("ascii")
+
+
+def _raw_chat_metadata(
+    *,
+    plan: OffloadExecutionPlan,
+    execution: EffectExecutionRequest,
+    start_result: EffectStartResult,
+    model_observation: OllamaModelObservation,
+    raw_sha256: str,
+) -> dict[str, object]:
+    return {
+        "execution_plan_sha256": plan.digest,
+        "execution_request_sha256": execution.digest,
+        "kind": OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND,
+        "model_observation_sha256": model_observation.digest,
+        "ollama_request_sha256": plan.ollama_request_sha256,
+        "raw_response_sha256": raw_sha256,
+        "start_receipt_sha256": start_result.receipt.receipt_sha256,
+    }
+
+
+def _candidate_metadata(
+    *,
+    observed: _ObservedWorkspace,
+    plan: OffloadExecutionPlan,
+    execution: EffectExecutionRequest,
+    start_result: EffectStartResult,
+    model_observation: OllamaModelObservation,
+    parsed: ParsedOffloadCandidate,
+    raw_locator: ArtifactLocator,
+) -> dict[str, object]:
+    return {
+        "assistant_content_sha256": parsed.assistant_content_sha256,
+        "candidate_sha256": parsed.content_sha256,
+        "candidate_size": len(parsed.content_bytes),
+        "changes_target": parsed.content_sha256 != observed.target.content_sha256,
+        "execution_plan_sha256": plan.digest,
+        "execution_request_sha256": execution.digest,
+        "kind": OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND,
+        "model_observation_sha256": model_observation.digest,
+        "ollama_request_sha256": plan.ollama_request_sha256,
+        "raw_response_artifact_locator": raw_locator.locator_uri,
+        "raw_response_sha256": parsed.raw_response_sha256,
+        "start_receipt_sha256": start_result.receipt.receipt_sha256,
+        "target_before_observation_sha256": observed.target.digest,
+        "target_before_sha256": observed.target.content_sha256,
+        "target_path": observed.target.target_path,
+    }
+
+
+def _capture_chat_chain(
+    observed: _ObservedWorkspace,
+    tmp_path: Path,
+    *,
+    candidate_text: str,
+) -> _ChatChain:
+    store = ArtifactStore(tmp_path / "chat-cas", min_free_gib=0)
+    workspace = _capture_workspace_observation(observed, store)
+    plan = _plan(observed, workspace)
+    execution, start_result = _execution_and_start(
+        plan, tmp_path / "chat-effects.sqlite3"
+    )
+    tags_request_sha = _sha("GET /api/tags chat-chain")
+    tags_raw = canonical_json(_model_response(plan)).encode("ascii")
+    tags_locator = _put_model_response(
+        store=store,
+        plan=plan,
+        execution=execution,
+        start=start_result.receipt,
+        metadata_request_sha256=tags_request_sha,
+        raw=tags_raw,
+    )
+    model_observation = OllamaModelObservation.capture_from_response_bytes(
+        execution_request=execution,
+        start_result=start_result,
+        execution_plan=plan,
+        metadata_request_sha256=tags_request_sha,
+        raw_response_bytes=tags_raw,
+        raw_response_locator=tags_locator,
+        artifact_store=store,
+        origin="tests.offload-chat-observation",
+        created_at=NOW,
+        trace_id="trace-1",
+    )
+
+    raw = _chat_response(plan, candidate_text)
+    parsed = parse_offload_chat_response(
+        raw_response_bytes=raw,
+        plan=plan,
+        target_before=observed.target,
+    )
+    raw_inputs = (
+        execution.digest,
+        start_result.receipt.receipt_sha256,
+        plan.digest,
+        model_observation.digest,
+        plan.ollama_request_sha256,
+    )
+    raw_locator = store.put_bytes(
+        raw,
+        expected_sha256=parsed.raw_response_sha256,
+        media_type="application/json",
+        metadata=_raw_chat_metadata(
+            plan=plan,
+            execution=execution,
+            start_result=start_result,
+            model_observation=model_observation,
+            raw_sha256=parsed.raw_response_sha256,
+        ),
+        provenance=ContractProvenance(
+            origin="tests.offload-chat-observation",
+            source_revision=plan.source_revision,
+            created_at=NOW,
+            input_digests=raw_inputs,
+            trace_id="trace-1",
+        ).to_dict(),
+    )
+    candidate_inputs = tuple(
+        sorted(
+            {
+                *raw_inputs,
+                parsed.raw_response_sha256,
+                raw_locator.locator_sha256,
+                observed.target.digest,
+                observed.target.content_sha256,
+                parsed.assistant_content_sha256,
+            }
+        )
+    )
+    candidate_locator = store.put_bytes(
+        parsed.content_bytes,
+        expected_sha256=parsed.content_sha256,
+        media_type="text/plain; charset=utf-8",
+        metadata=_candidate_metadata(
+            observed=observed,
+            plan=plan,
+            execution=execution,
+            start_result=start_result,
+            model_observation=model_observation,
+            parsed=parsed,
+            raw_locator=raw_locator,
+        ),
+        provenance=ContractProvenance(
+            origin="tests.offload-chat-observation",
+            source_revision=plan.source_revision,
+            created_at=NOW,
+            input_digests=candidate_inputs,
+            trace_id="trace-1",
+        ).to_dict(),
+    )
+    observation = OllamaChatObservation.capture_from_response_bytes(
+        execution_request=execution,
+        start_result=start_result,
+        execution_plan=plan,
+        model_observation=model_observation,
+        target_before=observed.target,
+        parsed_candidate=parsed,
+        raw_response_bytes=raw,
+        raw_response_locator=raw_locator,
+        candidate_locator=candidate_locator,
+        artifact_store=store,
+        origin="tests.offload-chat-observation",
+        created_at=NOW,
+        trace_id="trace-1",
+    )
+    return _ChatChain(
+        store=store,
+        plan=plan,
+        execution=execution,
+        start_result=start_result,
+        model_observation=model_observation,
+        raw_response_bytes=raw,
+        parsed_candidate=parsed,
+        raw_response_locator=raw_locator,
+        candidate_locator=candidate_locator,
+        observation=observation,
+    )
+
+
+def test_chat_observation_retains_a_real_no_change_candidate_as_negative_evidence(
+    observed_workspace: _ObservedWorkspace, tmp_path: Path
+) -> None:
+    before_text = (observed_workspace.workspace / TARGET).read_bytes().decode("utf-8")
+    chain = _capture_chat_chain(
+        observed_workspace,
+        tmp_path,
+        candidate_text=before_text,
+    )
+
+    assert chain.observation.changes_target is False
+    assert chain.observation.candidate_sha256 == observed_workspace.target.content_sha256
+    assert chain.store.get_bytes(chain.observation.candidate_sha256) == before_text.encode(
+        "utf-8"
+    )
+    schema = _schema("ollama-chat-observation-v1.schema.json")
+    jsonschema.Draft202012Validator.check_schema(schema)
+    jsonschema.validate(chain.observation.to_dict(), schema)
+    restored = OllamaChatObservation.from_dict(chain.observation.to_dict())
+    assert restored == chain.observation
+    assert restored.digest == chain.observation.digest
+    assert set(restored.to_dict()) == set(schema["properties"]) == set(schema["required"])
+
+
+def test_changed_chat_candidate_is_bound_and_tamper_matrix_fails_closed(
+    observed_workspace: _ObservedWorkspace, tmp_path: Path
+) -> None:
+    chain = _capture_chat_chain(
+        observed_workspace,
+        tmp_path,
+        candidate_text="def value():\n    return 8\n",
+    )
+    assert chain.observation.changes_target is True
+
+    raw_metadata = _raw_chat_metadata(
+        plan=chain.plan,
+        execution=chain.execution,
+        start_result=chain.start_result,
+        model_observation=chain.model_observation,
+        raw_sha256=chain.parsed_candidate.raw_response_sha256,
+    )
+    candidate_metadata = _candidate_metadata(
+        observed=observed_workspace,
+        plan=chain.plan,
+        execution=chain.execution,
+        start_result=chain.start_result,
+        model_observation=chain.model_observation,
+        parsed=chain.parsed_candidate,
+        raw_locator=chain.raw_response_locator,
+    )
+    raw_inputs = tuple(chain.raw_response_locator.provenance["input_digests"])
+    candidate_inputs = tuple(chain.candidate_locator.provenance["input_digests"])
+    wrong_raw_metadata = chain.store.put_bytes(
+        chain.raw_response_bytes,
+        media_type="application/json",
+        metadata={**raw_metadata, "kind": "daedalus.wrong-chat/1"},
+        provenance=chain.raw_response_locator.provenance,
+    )
+    wrong_candidate_metadata = chain.store.put_bytes(
+        chain.parsed_candidate.content_bytes,
+        media_type="text/plain; charset=utf-8",
+        metadata={**candidate_metadata, "changes_target": False},
+        provenance=chain.candidate_locator.provenance,
+    )
+    wrong_raw_bytes = b'{"complete":false}'
+    wrong_raw_bytes_locator = chain.store.put_bytes(
+        wrong_raw_bytes,
+        media_type="application/json",
+        metadata=raw_metadata,
+        provenance=ContractProvenance(
+            origin="tests.offload-chat-observation",
+            source_revision=chain.plan.source_revision,
+            created_at=NOW,
+            input_digests=raw_inputs,
+        ).to_dict(),
+    )
+    wrong_candidate_bytes_locator = chain.store.put_bytes(
+        b"different candidate bytes",
+        media_type="text/plain; charset=utf-8",
+        metadata=candidate_metadata,
+        provenance=ContractProvenance(
+            origin="tests.offload-chat-observation",
+            source_revision=chain.plan.source_revision,
+            created_at=NOW,
+            input_digests=candidate_inputs,
+        ).to_dict(),
+    )
+    wrong_model_sha = _sha("wrong-observed-model")
+    wrong_model = replace(
+        chain.model_observation,
+        model_sha256=wrong_model_sha,
+        provenance=replace(
+            chain.model_observation.provenance,
+            input_digests=tuple(
+                wrong_model_sha if value == chain.model_observation.model_sha256 else value
+                for value in chain.model_observation.provenance.input_digests
+            ),
+        ),
+    )
+    inert_start = EffectStartResult(
+        receipt=chain.start_result.receipt,
+        execute=False,
+        completion_capability=None,
+    )
+    _, wrong_live_start = _execution_and_start(
+        chain.plan,
+        tmp_path / "wrong-chat-effects.sqlite3",
+        execution_id="offload-execution-other",
+        idempotency_key="offload-idempotency-other",
+    )
+    forged_capability_start = EffectStartResult(
+        receipt=chain.start_result.receipt,
+        execute=True,
+        completion_capability=object(),  # type: ignore[arg-type]
+    )
+    cross_bound_start = EffectStartResult(
+        receipt=chain.start_result.receipt,
+        execute=True,
+        completion_capability=wrong_live_start.completion_capability,
+    )
+    wrong_target = replace(observed_workspace.target, target_path="src/other.py")
+    wrong_parsed = replace(
+        chain.parsed_candidate,
+        content_bytes=b"different candidate bytes",
+    )
+
+    common = {
+        "execution_request": chain.execution,
+        "start_result": chain.start_result,
+        "execution_plan": chain.plan,
+        "model_observation": chain.model_observation,
+        "target_before": observed_workspace.target,
+        "parsed_candidate": chain.parsed_candidate,
+        "raw_response_bytes": chain.raw_response_bytes,
+        "raw_response_locator": chain.raw_response_locator,
+        "candidate_locator": chain.candidate_locator,
+        "artifact_store": chain.store,
+        "origin": "tests.offload-chat-observation",
+        "created_at": NOW,
+    }
+    tamper_cases = (
+        {"raw_response_locator": wrong_raw_metadata},
+        {"candidate_locator": wrong_candidate_metadata},
+        {"raw_response_locator": wrong_raw_bytes_locator},
+        {"candidate_locator": wrong_candidate_bytes_locator},
+        {"model_observation": wrong_model},
+        {"start_result": inert_start},
+        {"start_result": forged_capability_start},
+        {"start_result": cross_bound_start},
+        {"start_result": wrong_live_start},
+        {"target_before": wrong_target},
+        {"parsed_candidate": wrong_parsed},
+        {"raw_response_bytes": chain.raw_response_bytes + b" "},
+    )
+    for overrides in tamper_cases:
+        with pytest.raises(OffloadObservationError):
+            OllamaChatObservation.capture_from_response_bytes(
+                **{**common, **overrides}
+            )

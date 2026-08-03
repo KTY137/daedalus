@@ -17,7 +17,10 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, ClassVar, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from daedalus.kernel.offload_protocol import ParsedOffloadCandidate
 
 from daedalus.kairos.worktree import GitWorktreeManager
 from daedalus.kernel.contracts import (
@@ -25,7 +28,13 @@ from daedalus.kernel.contracts import (
     _loopback_ollama_endpoint,
     _portable_target_path,
 )
-from daedalus.kernel.effects import EffectExecutionRequest, EffectStartResult
+from daedalus.kernel.effects import (
+    CompletionCapability,
+    EffectExecutionRequest,
+    EffectLeaseError,
+    EffectStartResult,
+    LeasedEffectStartReceipt,
+)
 from daedalus.schemas import (
     CanonicalContract,
     ContractProvenance,
@@ -46,10 +55,34 @@ from daedalus.storage import ArtifactLocator, ArtifactStore
 SOURCE_FINGERPRINT_ARTIFACT_KIND = "daedalus.source-fingerprint/1"
 BASE_SOURCE_ARTIFACT_KIND = "daedalus.pinned-source-archive/1"
 OLLAMA_METADATA_ARTIFACT_KIND = "daedalus.ollama-model-metadata-response/1"
+OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND = "daedalus.ollama-chat-response/1"
+OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND = "daedalus.offload-candidate-target/1"
 
 
 class OffloadObservationError(ValueError):
     """A claimed observation disagrees with the independently read state."""
+
+
+def _require_live_start(
+    start_result: EffectStartResult, *, role: str
+) -> LeasedEffectStartReceipt:
+    """Return one receipt only when its exact live completion secret is present."""
+
+    if not isinstance(start_result, EffectStartResult):
+        raise TypeError("start_result must be canonical")
+    capability = start_result.completion_capability
+    if not start_result.execute or type(capability) is not CompletionCapability:
+        raise OffloadObservationError(
+            f"{role} may be observed only for one new live effect start"
+        )
+    receipt = start_result.receipt
+    try:
+        capability.verify_start_receipt(receipt)
+    except EffectLeaseError as exc:
+        raise OffloadObservationError(
+            f"{role} start capability does not bind the exact start receipt"
+        ) from exc
+    return receipt
 
 
 def _is_link_or_reparse(metadata: os.stat_result) -> bool:
@@ -1105,13 +1138,7 @@ class OllamaModelObservation(CanonicalContract):
     ) -> "OllamaModelObservation":
         if not isinstance(execution_request, EffectExecutionRequest):
             raise TypeError("execution_request must be canonical")
-        if not isinstance(start_result, EffectStartResult):
-            raise TypeError("start_result must be canonical")
-        if not start_result.execute or start_result.completion_capability is None:
-            raise OffloadObservationError(
-                "model metadata may be captured only for one new live effect start"
-            )
-        start_receipt = start_result.receipt
+        start_receipt = _require_live_start(start_result, role="model metadata")
         if not isinstance(execution_plan, OffloadExecutionPlan):
             raise TypeError("execution_plan must be canonical")
         if not isinstance(raw_response_bytes, bytes):
@@ -1238,13 +1265,399 @@ class OllamaModelObservation(CanonicalContract):
         return cls(**body)
 
 
+@dataclass(frozen=True)
+class OllamaChatObservation(CanonicalContract):
+    """Bind one complete post-begin chat response and its inert candidate.
+
+    Both payloads must already exist in the canonical artifact store.  Capture
+    only re-reads and compares them; it performs no provider, process, network,
+    workspace-write, or artifact-write effect.  ``changes_target=False`` is a
+    retained negative observation, never rewritten into a success claim.
+    """
+
+    CONTRACT_TYPE: ClassVar[str] = "daedalus.ollama-chat-observation"
+
+    execution_request_sha256: str
+    start_receipt_sha256: str
+    execution_plan_sha256: str
+    source_revision: str
+    ollama_model_observation_sha256: str
+    ollama_request_sha256: str
+    raw_response_sha256: str
+    raw_response_size: int
+    raw_response_artifact_locator: str
+    target_before_observation_sha256: str
+    target_path: str
+    target_before_sha256: str
+    assistant_content_sha256: str
+    candidate_sha256: str
+    candidate_size: int
+    candidate_artifact_locator: str
+    changes_target: bool
+    provenance: ContractProvenance
+
+    def __post_init__(self) -> None:
+        digest_fields = (
+            "execution_request_sha256",
+            "start_receipt_sha256",
+            "execution_plan_sha256",
+            "ollama_model_observation_sha256",
+            "ollama_request_sha256",
+            "raw_response_sha256",
+            "target_before_observation_sha256",
+            "target_before_sha256",
+            "assistant_content_sha256",
+            "candidate_sha256",
+        )
+        for name in digest_fields:
+            object.__setattr__(self, name, _sha256(getattr(self, name), name))
+        object.__setattr__(
+            self, "source_revision", _revision(self.source_revision, "source_revision")
+        )
+        object.__setattr__(self, "target_path", _portable_target_path(self.target_path))
+        for name in (
+            "raw_response_artifact_locator",
+            "candidate_artifact_locator",
+        ):
+            object.__setattr__(
+                self, name, _artifact_locator(getattr(self, name), name)
+            )
+        if (
+            isinstance(self.raw_response_size, bool)
+            or not isinstance(self.raw_response_size, int)
+            or self.raw_response_size < 1
+        ):
+            raise ValueError("raw_response_size must be a positive integer")
+        if (
+            isinstance(self.candidate_size, bool)
+            or not isinstance(self.candidate_size, int)
+            or self.candidate_size < 0
+        ):
+            raise ValueError("candidate_size must be a non-negative integer")
+        if not isinstance(self.changes_target, bool):
+            raise ValueError("changes_target must be a boolean")
+        expected_change = self.candidate_sha256 != self.target_before_sha256
+        if self.changes_target != expected_change:
+            raise ValueError("changes_target disagrees with candidate/before identity")
+        if self.provenance.source_revision != self.source_revision:
+            raise ValueError("chat observation source_revision must match provenance")
+        _require_provenance_inputs(
+            self.provenance,
+            (
+                *(getattr(self, name) for name in digest_fields),
+                _locator_sha256(self.raw_response_artifact_locator),
+                _locator_sha256(self.candidate_artifact_locator),
+            ),
+            "Ollama chat observation",
+        )
+
+    @classmethod
+    def capture_from_response_bytes(
+        cls,
+        *,
+        execution_request: EffectExecutionRequest,
+        start_result: EffectStartResult,
+        execution_plan: OffloadExecutionPlan,
+        model_observation: OllamaModelObservation,
+        target_before: TargetBeforeObservation,
+        parsed_candidate: "ParsedOffloadCandidate",
+        raw_response_bytes: bytes,
+        raw_response_locator: ArtifactLocator,
+        candidate_locator: ArtifactLocator,
+        artifact_store: ArtifactStore,
+        origin: str,
+        created_at: str,
+        trace_id: str | None = None,
+    ) -> "OllamaChatObservation":
+        # Local import avoids a module cycle: the pure protocol imports the
+        # TargetBeforeObservation contract used to parse this candidate.
+        from daedalus.kernel.offload_protocol import (
+            ParsedOffloadCandidate,
+            parse_offload_chat_response,
+        )
+
+        if not isinstance(execution_request, EffectExecutionRequest):
+            raise TypeError("execution_request must be canonical")
+        start_receipt = _require_live_start(start_result, role="chat")
+        if not isinstance(execution_plan, OffloadExecutionPlan):
+            raise TypeError("execution_plan must be canonical")
+        if not isinstance(model_observation, OllamaModelObservation):
+            raise TypeError("model_observation must be canonical")
+        if not isinstance(target_before, TargetBeforeObservation):
+            raise TypeError("target_before must be canonical")
+        if not isinstance(parsed_candidate, ParsedOffloadCandidate):
+            raise TypeError("parsed_candidate must be canonical")
+        if not isinstance(raw_response_bytes, bytes):
+            raise TypeError("raw_response_bytes must be bytes")
+        if not isinstance(raw_response_locator, ArtifactLocator):
+            raise TypeError("raw_response_locator must be an ArtifactLocator")
+        if not isinstance(candidate_locator, ArtifactLocator):
+            raise TypeError("candidate_locator must be an ArtifactLocator")
+        if not isinstance(artifact_store, ArtifactStore):
+            raise TypeError("artifact_store must be an ArtifactStore")
+
+        mismatches = sorted(
+            name
+            for name, actual, expected in (
+                (
+                    "start_execution_request",
+                    start_receipt.execution_request_sha256,
+                    execution_request.digest,
+                ),
+                ("start_execution_id", start_receipt.execution_id, execution_request.execution_id),
+                (
+                    "start_idempotency_key",
+                    start_receipt.idempotency_key,
+                    execution_request.idempotency_key,
+                ),
+                (
+                    "request_plan",
+                    execution_request.execution_plan_sha256,
+                    execution_plan.digest,
+                ),
+                (
+                    "model_execution_request",
+                    model_observation.execution_request_sha256,
+                    execution_request.digest,
+                ),
+                (
+                    "model_start_receipt",
+                    model_observation.start_receipt_sha256,
+                    start_receipt.receipt_sha256,
+                ),
+                (
+                    "model_execution_plan",
+                    model_observation.execution_plan_sha256,
+                    execution_plan.digest,
+                ),
+                (
+                    "model_source_revision",
+                    model_observation.source_revision,
+                    execution_plan.source_revision,
+                ),
+                (
+                    "model_runtime_manifest",
+                    model_observation.runtime_manifest_sha256,
+                    execution_plan.runtime_manifest_sha256,
+                ),
+                (
+                    "model_provider",
+                    model_observation.provider_id,
+                    execution_plan.provider_id,
+                ),
+                (
+                    "model_runtime",
+                    model_observation.runtime_id,
+                    execution_plan.runtime_id,
+                ),
+                (
+                    "model_endpoint",
+                    model_observation.provider_endpoint,
+                    execution_plan.provider_endpoint,
+                ),
+                (
+                    "model_id",
+                    model_observation.model_id,
+                    execution_plan.model_id,
+                ),
+                (
+                    "model_identity",
+                    model_observation.model_sha256,
+                    execution_plan.expected_model_sha256,
+                ),
+                (
+                    "target_source_revision",
+                    target_before.source_revision,
+                    execution_plan.source_revision,
+                ),
+                (
+                    "target_workspace_attestation",
+                    target_before.workspace_attestation_sha256,
+                    execution_plan.workspace_attestation_sha256,
+                ),
+                ("target_path", target_before.target_path, execution_plan.target_path),
+                (
+                    "target_kind",
+                    target_before.target_kind,
+                    execution_plan.target_kind,
+                ),
+                (
+                    "target_before_sha256",
+                    target_before.content_sha256,
+                    execution_plan.target_before_sha256,
+                ),
+                (
+                    "target_before_size",
+                    target_before.byte_length,
+                    execution_plan.target_before_size,
+                ),
+                (
+                    "target_git_mode",
+                    target_before.git_mode,
+                    execution_plan.target_git_mode,
+                ),
+            )
+            if actual != expected
+        )
+        if mismatches:
+            raise OffloadObservationError(
+                "chat authority/input binding mismatch: " + ", ".join(mismatches)
+            )
+        if len(raw_response_bytes) > execution_plan.max_response_bytes:
+            raise OffloadObservationError("raw chat response exceeds the plan byte cap")
+
+        reparsed = parse_offload_chat_response(
+            raw_response_bytes=raw_response_bytes,
+            plan=execution_plan,
+            target_before=target_before,
+        )
+        if reparsed != parsed_candidate:
+            raise OffloadObservationError(
+                "supplied parsed candidate disagrees with complete raw response"
+            )
+        raw_sha = hashlib.sha256(raw_response_bytes).hexdigest()
+        candidate_sha = hashlib.sha256(parsed_candidate.content_bytes).hexdigest()
+        if parsed_candidate.raw_response_sha256 != raw_sha:
+            raise OffloadObservationError("parsed candidate raw response digest mismatch")
+        if parsed_candidate.content_sha256 != candidate_sha:
+            raise OffloadObservationError("parsed candidate content digest mismatch")
+        if parsed_candidate.target_path != target_before.target_path:
+            raise OffloadObservationError("parsed candidate targets another path")
+        try:
+            parsed_candidate.content_bytes.decode("utf-8", "strict")
+        except UnicodeError as exc:
+            raise OffloadObservationError("candidate target bytes must be strict UTF-8") from exc
+
+        raw_locator = artifact_store.verify(raw_response_locator)
+        candidate_ref = artifact_store.verify(candidate_locator)
+        if (
+            raw_locator.artifact_sha256 != raw_sha
+            or raw_locator.byte_length != len(raw_response_bytes)
+            or artifact_store.get_bytes(raw_sha) != raw_response_bytes
+        ):
+            raise OffloadObservationError("raw chat response CAS identity mismatch")
+        if (
+            candidate_ref.artifact_sha256 != candidate_sha
+            or candidate_ref.byte_length != len(parsed_candidate.content_bytes)
+            or artifact_store.get_bytes(candidate_sha) != parsed_candidate.content_bytes
+        ):
+            raise OffloadObservationError("candidate target CAS identity mismatch")
+
+        expected_raw_metadata = {
+            "execution_plan_sha256": execution_plan.digest,
+            "execution_request_sha256": execution_request.digest,
+            "kind": OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND,
+            "model_observation_sha256": model_observation.digest,
+            "ollama_request_sha256": execution_plan.ollama_request_sha256,
+            "raw_response_sha256": raw_sha,
+            "start_receipt_sha256": start_receipt.receipt_sha256,
+        }
+        changes_target = candidate_sha != target_before.content_sha256
+        expected_candidate_metadata = {
+            "assistant_content_sha256": parsed_candidate.assistant_content_sha256,
+            "candidate_sha256": candidate_sha,
+            "candidate_size": len(parsed_candidate.content_bytes),
+            "changes_target": changes_target,
+            "execution_plan_sha256": execution_plan.digest,
+            "execution_request_sha256": execution_request.digest,
+            "kind": OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND,
+            "model_observation_sha256": model_observation.digest,
+            "ollama_request_sha256": execution_plan.ollama_request_sha256,
+            "raw_response_artifact_locator": raw_locator.locator_uri,
+            "raw_response_sha256": raw_sha,
+            "start_receipt_sha256": start_receipt.receipt_sha256,
+            "target_before_observation_sha256": target_before.digest,
+            "target_before_sha256": target_before.content_sha256,
+            "target_path": target_before.target_path,
+        }
+        if (
+            raw_locator.metadata != expected_raw_metadata
+            or raw_locator.to_dict().get("media_type") != "application/json"
+        ):
+            raise OffloadObservationError("raw chat response CAS metadata mismatch")
+        if (
+            candidate_ref.metadata != expected_candidate_metadata
+            or candidate_ref.to_dict().get("media_type")
+            != "text/plain; charset=utf-8"
+        ):
+            raise OffloadObservationError("candidate target CAS metadata mismatch")
+        for locator, role in (
+            (raw_locator, "raw chat response"),
+            (candidate_ref, "candidate target"),
+        ):
+            if locator.provenance.get("source_revision") != execution_plan.source_revision:
+                raise OffloadObservationError(f"{role} CAS revision mismatch")
+        raw_inputs = (
+            execution_request.digest,
+            start_receipt.receipt_sha256,
+            execution_plan.digest,
+            model_observation.digest,
+            execution_plan.ollama_request_sha256,
+        )
+        candidate_inputs = (
+            *raw_inputs,
+            raw_sha,
+            raw_locator.locator_sha256,
+            target_before.digest,
+            target_before.content_sha256,
+            parsed_candidate.assistant_content_sha256,
+        )
+        _artifact_inputs_include(raw_locator, raw_inputs, role="raw chat response")
+        _artifact_inputs_include(candidate_ref, candidate_inputs, role="candidate target")
+
+        provenance_inputs = tuple(
+            sorted(
+                {
+                    *candidate_inputs,
+                    candidate_sha,
+                    candidate_ref.locator_sha256,
+                }
+            )
+        )
+        return cls(
+            execution_request_sha256=execution_request.digest,
+            start_receipt_sha256=start_receipt.receipt_sha256,
+            execution_plan_sha256=execution_plan.digest,
+            source_revision=execution_plan.source_revision,
+            ollama_model_observation_sha256=model_observation.digest,
+            ollama_request_sha256=execution_plan.ollama_request_sha256,
+            raw_response_sha256=raw_sha,
+            raw_response_size=len(raw_response_bytes),
+            raw_response_artifact_locator=raw_locator.locator_uri,
+            target_before_observation_sha256=target_before.digest,
+            target_path=target_before.target_path,
+            target_before_sha256=target_before.content_sha256,
+            assistant_content_sha256=parsed_candidate.assistant_content_sha256,
+            candidate_sha256=candidate_sha,
+            candidate_size=len(parsed_candidate.content_bytes),
+            candidate_artifact_locator=candidate_ref.locator_uri,
+            changes_target=changes_target,
+            provenance=ContractProvenance(
+                origin=origin,
+                source_revision=execution_plan.source_revision,
+                created_at=created_at,
+                input_digests=provenance_inputs,
+                trace_id=trace_id,
+            ),
+        )
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "OllamaChatObservation":
+        body = cls._contract_payload(payload)
+        body["provenance"] = ContractProvenance.from_dict(body["provenance"])
+        return cls(**body)
+
+
 __all__ = [
     "BASE_SOURCE_ARTIFACT_KIND",
+    "OFFLOAD_CANDIDATE_TARGET_ARTIFACT_KIND",
+    "OLLAMA_CHAT_RESPONSE_ARTIFACT_KIND",
     "OLLAMA_METADATA_ARTIFACT_KIND",
     "SOURCE_FINGERPRINT_ARTIFACT_KIND",
     "OffloadObservationError",
     "OffloadWorkspaceObservation",
     "OllamaModelObservation",
+    "OllamaChatObservation",
     "TargetBeforeObservation",
     "TaskAttemptWorkspaceAttestation",
 ]
