@@ -95,17 +95,20 @@ that is correct and is the point; for anything else, construct the switch with
 run the loop inside a long-lived multi-purpose process and expect the sweep to
 be discriminating -- it is not, and it is not trying to be.
 
-WHY THERE IS NO LOCK HERE
--------------------------
-``runs/council/room.py::_RoomLock`` is this repo's cross-process locking idiom
-and it is the right one for the room -- it degrades to a no-op when the lock
-cannot be taken, on the reasoning that losing serialisation beats losing a
-human's message. That trade is exactly inverted here: a kill switch that
-degrades is not a kill switch. So rather than reuse a fail-open lock or invent
-a third mechanism, this module needs no lock at all: writes go through
-``os.replace`` (atomic on both platforms), so a reader sees the old bytes or
-the new bytes and never a torn file, and a read that fails for ANY reason --
-including a Windows sharing violation -- is already STOP.
+OPERATOR WRITES ARE SERIALISED; READERS NEVER WAIT
+--------------------------------------------------
+Atomic replacement prevents a torn permit, but it does not prevent two
+operators from reading generation N and both publishing N+1. ``arm`` and
+``stop`` therefore take one stable sibling OS lock. POSIX uses ``flock`` and
+Windows opens the lock file with sharing disabled. Failure to acquire it is a
+refusal, never a no-op lock.
+
+The authoritative sibling ``.generation`` counter is committed and flushed
+before a RUN permit carrying the same value. A crash between those writes is
+STOP because counter and permit disagree. ``clear`` deliberately preserves the
+counter and lock, so delete/re-arm cannot make an old execution generation
+valid again. Pollers never take this lock: reads remain bounded and any missing,
+corrupt, or mismatched counter is already STOP.
 """
 from __future__ import annotations
 
@@ -117,12 +120,13 @@ import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ..atomic import write_text_atomic
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from daedalus.spine.cancel import cancel_all_managed
 
@@ -164,6 +168,8 @@ ENV_SWITCH_PATH = "DAEDALUS_KILLSWITCH"
 ROOT = Path(__file__).resolve().parents[2]
 
 _MARKER_SUFFIX = ".stopped"
+_GENERATION_SUFFIX = ".generation"
+_OPERATOR_LOCK_SUFFIX = ".lock"
 
 
 class LoopHalted(RuntimeError):
@@ -183,6 +189,7 @@ class SwitchState:
     reason: str
     path: str
     token: str | None = None
+    generation: int | None = None
 
     @property
     def stopped(self) -> bool:
@@ -194,6 +201,7 @@ class SwitchState:
             "reason": self.reason,
             "path": self.path,
             "token": self.token,
+            "generation": self.generation,
         }
 
 
@@ -257,6 +265,12 @@ class KillSwitch:
         self._path = Path(path) if path is not None else default_switch_path(repo_root)
         self._path = Path(os.path.abspath(str(self._path)))
         self._marker = self._path.with_name(self._path.name + _MARKER_SUFFIX)
+        self._generation_path = self._path.with_name(
+            self._path.name + _GENERATION_SUFFIX
+        )
+        self._operator_lock_path = self._path.with_name(
+            self._path.name + _OPERATOR_LOCK_SUFFIX
+        )
         self.poll_s = max(0.01, float(poll_s))
         self.kill_grace_s = max(0.0, float(kill_grace_s))
         self.cooperative_grace_s = max(0.0, float(cooperative_grace_s))
@@ -283,12 +297,230 @@ class KillSwitch:
         return self._marker
 
     @property
+    def generation_path(self) -> Path:
+        """Durable monotone counter paired with :attr:`path`."""
+
+        return self._generation_path
+
+    @property
+    def operator_lock_path(self) -> Path:
+        """Stable sibling used only to serialize explicit arm/stop writes."""
+
+        return self._operator_lock_path
+
+    @property
     def reason(self) -> str | None:
         """Why the switch latched, or ``None`` while it has not."""
         return self._reason
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return f"<KillSwitch path={self._path} tripped={self._tripped}>"
+
+    @staticmethod
+    def _strict_path_present(path: Path, role: str) -> tuple[bool, str | None]:
+        try:
+            os.stat(path)
+        except (FileNotFoundError, NotADirectoryError):
+            return False, None
+        except OSError as exc:
+            return False, f"{role} could not be examined ({exc})"
+        return True, None
+
+    def _read_generation_counter(self) -> tuple[int | None, str | None]:
+        """Read the authoritative counter; missing is distinct from corrupt."""
+
+        path = self._generation_path
+        try:
+            metadata = os.stat(path)
+        except (FileNotFoundError, NotADirectoryError):
+            return None, None
+        except OSError as exc:
+            return None, f"the generation counter could not be examined ({exc})"
+        if not stat.S_ISREG(metadata.st_mode):
+            return None, "the generation counter is not a regular file"
+        if metadata.st_size > 128:
+            return None, "the generation counter is implausibly large"
+        try:
+            raw = path.read_bytes()
+            text = raw.decode("ascii")
+        except (OSError, UnicodeError) as exc:
+            return None, f"the generation counter could not be read ({exc})"
+        if not text.endswith("\n") or text.count("\n") != 1:
+            return None, "the generation counter is not canonical"
+        digits = text[:-1]
+        if not digits or not digits.isascii() or not digits.isdigit():
+            return None, "the generation counter is not a non-negative integer"
+        value = int(digits)
+        if str(value) != digits:
+            return None, "the generation counter has a non-canonical integer"
+        return value, None
+
+    @staticmethod
+    def _embedded_generation(path: Path) -> tuple[int | None, bool, str | None]:
+        """Return ``(generation, exists, error)`` for legacy bootstrap only."""
+
+        try:
+            metadata = os.stat(path)
+        except (FileNotFoundError, NotADirectoryError):
+            return None, False, None
+        except OSError as exc:
+            return None, True, f"{path.name} could not be examined ({exc})"
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_PERMIT_BYTES:
+            return None, True, f"{path.name} is not a bounded regular state file"
+        try:
+            text = path.read_bytes().decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            return None, True, f"{path.name} could not be read ({exc})"
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines or lines[0] not in {RUN_TOKEN, STOP_TOKEN}:
+            return None, True, f"{path.name} has no canonical switch token"
+        generations = [
+            line.split("=", 1)[1].strip()
+            for line in lines[1:]
+            if line.startswith("generation=")
+        ]
+        if len(generations) > 1:
+            return None, True, f"{path.name} contains multiple generations"
+        if not generations:
+            return 0, True, None
+        digits = generations[0]
+        if not digits or not digits.isascii() or not digits.isdigit():
+            return None, True, f"{path.name} generation is invalid"
+        return int(digits), True, None
+
+    def _bootstrap_generation(self, *, lock_preexisted: bool) -> int:
+        counter, error = self._read_generation_counter()
+        if error is not None:
+            raise LoopHalted(f"refusing operator write: {error}")
+        if counter is not None:
+            return counter
+        if lock_preexisted:
+            raise LoopHalted(
+                "refusing operator write: the authoritative generation counter "
+                "is missing after this switch identity was initialized"
+            )
+        observed: list[int] = []
+        any_state = False
+        for path in (self._path, self._marker):
+            generation, exists, state_error = self._embedded_generation(path)
+            any_state = any_state or exists
+            if state_error is not None:
+                raise LoopHalted(
+                    "refusing first generation initialization: " + state_error
+                )
+            if generation is not None:
+                observed.append(generation)
+        if any_state and not observed:
+            raise LoopHalted(
+                "refusing first generation initialization from unreadable state"
+            )
+        return max(observed, default=0)
+
+    @contextmanager
+    def _operator_lock_scope(self, *, wait_forever: bool = False) -> Iterator[bool]:
+        """Exclusively serialize explicit operator writes, never pollers.
+
+        Ordinary arm/clear operations use a bounded refusal.  ``stop`` first
+        publishes its emergency marker and then waits without a false-success
+        timeout: it must overtake any in-flight force-arm and reassert STOP as
+        the final serialized writer before reporting completion.
+        """
+
+        lock_path = self._operator_lock_path
+        present, error = self._strict_path_present(lock_path, "operator lock")
+        if error is not None:
+            raise LoopHalted(error)
+        try:
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise LoopHalted(f"operator lock parent could not be created ({exc})") from exc
+
+        deadline = None if wait_forever else time.monotonic() + REPLACE_RETRY_S
+        if os.name == "nt":
+            import ctypes
+            import ctypes.wintypes
+
+            create_file = ctypes.WinDLL("kernel32", use_last_error=True).CreateFileW
+            create_file.argtypes = (
+                ctypes.wintypes.LPCWSTR,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.c_void_p,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.DWORD,
+                ctypes.wintypes.HANDLE,
+            )
+            create_file.restype = ctypes.wintypes.HANDLE
+            close_handle = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+            close_handle.argtypes = (ctypes.wintypes.HANDLE,)
+            close_handle.restype = ctypes.wintypes.BOOL
+            invalid = ctypes.wintypes.HANDLE(-1).value
+            handle = invalid
+            while handle == invalid:
+                handle = create_file(
+                    os.fspath(lock_path),
+                    0x80000000 | 0x40000000,  # GENERIC_READ | GENERIC_WRITE
+                    0,  # no sharing: this handle is the lock
+                    None,
+                    4,  # OPEN_ALWAYS
+                    0x80,  # FILE_ATTRIBUTE_NORMAL
+                    None,
+                )
+                if handle != invalid:
+                    break
+                winerror = ctypes.get_last_error()
+                if winerror not in {32, 33} or (
+                    deadline is not None and time.monotonic() >= deadline
+                ):
+                    raise LoopHalted(
+                        "operator lock could not be acquired "
+                        f"({ctypes.FormatError(winerror)})"
+                    )
+                time.sleep(0.02)
+            try:
+                yield present
+            finally:
+                close_handle(handle)
+            return
+
+        import fcntl
+
+        descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError as exc:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise LoopHalted("operator lock acquisition timed out") from exc
+                    time.sleep(0.02)
+            yield present
+        finally:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            finally:
+                os.close(descriptor)
+
+    def _write_generation_counter(self, generation: int) -> None:
+        self._atomic_write(
+            self._generation_path,
+            f"{generation}\n",
+            newline="",
+        )
+        # Flush the published name, then its directory where the platform
+        # exposes directory fsync. Counter-before-permit is the crash fence.
+        with self._generation_path.open("r+b") as handle:
+            os.fsync(handle.fileno())
+        if os.name != "nt":
+            descriptor = os.open(
+                self._generation_path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
 
     # -- reading ----------------------------------------------------------- #
 
@@ -318,8 +550,10 @@ class KillSwitch:
         """
         p = self._path
 
+        generation: int | None = None
+
         def halt(reason: str, token: str | None = None) -> SwitchState:
-            return SwitchState(False, reason, str(p), token)
+            return SwitchState(False, reason, str(p), token, generation)
 
         try:
             st = os.stat(p)
@@ -348,16 +582,60 @@ class KillSwitch:
             return halt("the permit is not valid UTF-8")
 
         token: str | None = None
+        generation_values: list[str] = []
         for line in text.splitlines():
             if line.strip():
-                token = line.strip()
-                break
+                if token is None:
+                    token = line.strip()
+                elif line.startswith("generation="):
+                    generation_values.append(line.split("=", 1)[1].strip())
         if token is None:
             return halt("the permit is empty")
+        if len(generation_values) > 1:
+            return halt("the permit contains multiple generations", token)
+        if generation_values:
+            raw_generation = generation_values[0]
+            if not raw_generation.isascii() or not raw_generation.isdigit():
+                return halt("the permit generation is not a non-negative integer", token)
+            generation = int(raw_generation)
+        else:
+            # Historical `RUN\n` permits remain readable as generation zero;
+            # only a never-initialized path may use this compatibility form.
+            generation = 0
         if token != RUN_TOKEN:
             if token == STOP_TOKEN:
                 return halt("stop was requested", token)
             return halt(f"the permit holds an unrecognised token {token!r}", token)
+
+        counter, counter_error = self._read_generation_counter()
+        if counter_error is not None:
+            return halt(counter_error, token)
+        lock_present, lock_error = self._strict_path_present(
+            self._operator_lock_path,
+            "the operator lock",
+        )
+        if lock_error is not None:
+            return halt(lock_error, token)
+        if counter is None and (lock_present or generation_values):
+            # The counter is authoritative once either our stable lock identity
+            # or a generation-bearing state file proves that this is not a
+            # pristine legacy ``RUN\n`` permit.  Requiring BOTH sidecars here
+            # made deleting counter+lock revive a stale permit (generation ABA).
+            return halt(
+                "the authoritative generation counter is missing after initialization",
+                token,
+            )
+        if counter is not None:
+            if not generation_values:
+                return halt(
+                    "the permit omits the initialized generation counter",
+                    token,
+                )
+            if generation != counter:
+                return halt(
+                    "the permit generation disagrees with the authoritative counter",
+                    token,
+                )
 
         present, unreadable = self._marker_present()
         if unreadable is not None:
@@ -365,7 +643,7 @@ class KillSwitch:
         if present:
             return halt("a stop marker is present beside the permit", token)
 
-        return SwitchState(True, "armed", str(p), token)
+        return SwitchState(True, "armed", str(p), token, generation)
 
     # -- latching ---------------------------------------------------------- #
 
@@ -534,8 +812,14 @@ class KillSwitch:
 
     # -- operator side ----------------------------------------------------- #
 
-    def _atomic_write(self, target: Path, text: str,
-                      retry_s: float = REPLACE_RETRY_S) -> None:
+    def _atomic_write(
+        self,
+        target: Path,
+        text: str,
+        retry_s: float = REPLACE_RETRY_S,
+        *,
+        newline: str | None = None,
+    ) -> None:
         """Replace ``target`` atomically, retrying a Windows sharing conflict.
 
         MEASURED, and the reason this retry exists: on win32 a poller reading
@@ -556,7 +840,32 @@ class KillSwitch:
         unchanged: same temp-sibling scheme, same bounded retry, same raise on
         an exhausted deadline.
         """
-        write_text_atomic(target, text, retry_s=retry_s)
+        write_text_atomic(target, text, retry_s=retry_s, newline=newline)
+
+    @staticmethod
+    def _unlink_durable(target: Path, *, missing_ok: bool = False) -> None:
+        """Remove one exact name and durably publish the directory change.
+
+        Callers decide the safety order.  In particular, this helper never
+        swallows a sharing violation: an operator command must not claim that a
+        permit or marker disappeared when Windows kept it alive.
+        """
+
+        try:
+            os.unlink(target)
+        except FileNotFoundError:
+            if missing_ok:
+                return
+            raise
+        if os.name != "nt":
+            descriptor = os.open(
+                target.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
 
     def arm(self, *, force: bool = False, note: str = "") -> SwitchState:
         """Write the permit so work may proceed.
@@ -567,23 +876,52 @@ class KillSwitch:
         path calls ``arm()``, and the 3am stop evaporates. Re-arming after a
         deliberate stop has to be a deliberate act.
         """
-        present, unreadable = self._marker_present()
-        if (present or unreadable is not None) and not force:
-            raise LoopHalted(
-                f"refusing to arm: a stop marker is present at {self._marker}. "
-                f"A human stopped this loop; clear it explicitly "
-                f"(arm(force=True), or `python -m daedalus.spine.killswitch "
-                f"clear`) rather than re-arming automatically.")
-        if force:
+        with self._operator_lock_scope() as lock_preexisted:
+            prior_generation = self._bootstrap_generation(
+                lock_preexisted=lock_preexisted
+            )
+            present, unreadable = self._marker_present()
+            if (present or unreadable is not None) and not force:
+                raise LoopHalted(
+                    f"refusing to arm: a stop marker is present at {self._marker}. "
+                    f"A human stopped this loop; clear it explicitly "
+                    f"(arm(force=True), or `python -m daedalus.spine.killswitch "
+                    f"clear`) rather than re-arming automatically.")
+            if unreadable is not None:
+                raise LoopHalted(f"refusing to arm: {unreadable}")
+            generation = prior_generation + 1
+            body = (
+                f"{RUN_TOKEN}\ngeneration={generation}\n"
+                f"armed_at={_now_iso()}\npid={os.getpid()}\n"
+            )
+            if note:
+                body += f"note={note.splitlines()[0][:200]}\n"
+            # Counter first makes the old permit stale.  The new permit is
+            # published while a pre-existing stop marker still vetoes it.  The
+            # marker is removed LAST, so every crash prefix remains STOPPED.
             try:
-                os.unlink(self._marker)
-            except OSError:
-                pass
-        body = f"{RUN_TOKEN}\narmed_at={_now_iso()}\npid={os.getpid()}\n"
-        if note:
-            body += f"note={note.splitlines()[0][:200]}\n"
-        self._atomic_write(self._path, body)
-        return self.read_state()
+                self._write_generation_counter(generation)
+                self._atomic_write(self._path, body)
+            except OSError as exc:
+                raise LoopHalted(
+                    "refusing to arm: the new generation could not be "
+                    f"published ({exc})"
+                ) from exc
+            if force and present:
+                try:
+                    self._unlink_durable(self._marker)
+                except OSError as exc:
+                    raise LoopHalted(
+                        "new generation remains stopped: stop marker could not "
+                        f"be removed ({exc})"
+                    ) from exc
+            state = self.read_state()
+            if not state.running or state.generation != generation:
+                raise LoopHalted(
+                    "arm did not publish one matching permit/counter generation: "
+                    + state.reason
+                )
+            return state
 
     def stop(self, reason: str = "operator request") -> SwitchState:
         """Revoke the permit and drop a sticky marker. The operator entry point.
@@ -604,13 +942,57 @@ class KillSwitch:
         when it did nothing and quiet when it worked.
         """
         first = reason.splitlines()[0][:200] if reason else "operator request"
-        body = f"{STOP_TOKEN}\nat={_now_iso()}\nreason={first}\n"
         errors: list[str] = []
-        for target in (self._marker, self._path):
-            try:
-                self._atomic_write(target, body)
-            except OSError as e:
-                errors.append(f"{target.name}: {e}")
+        emergency_body = f"{STOP_TOKEN}\nat={_now_iso()}\nreason={first}\n"
+        # Emergency revocation must not queue behind a wedged operator writer.
+        # Marker presence alone is the reader's fail-closed ground truth, so
+        # publish it before attempting the serialised bookkeeping path.
+        try:
+            self._atomic_write(self._marker, emergency_body)
+        except OSError as exc:
+            errors.append(f"{self._marker.name}: {exc}")
+
+        try:
+            with self._operator_lock_scope(wait_forever=True) as lock_preexisted:
+                generation_bootstrapped = True
+                try:
+                    generation = self._bootstrap_generation(
+                        lock_preexisted=lock_preexisted
+                    )
+                except LoopHalted as exc:
+                    # A stop must still take when generation evidence is damaged.
+                    # Marker presence is the fail-closed ground truth; generation
+                    # repair is deferred to an operator rather than reset here.
+                    generation = 0
+                    generation_bootstrapped = False
+                    errors.append(str(exc))
+                body = (
+                    f"{STOP_TOKEN}\ngeneration={generation}\n"
+                    f"at={_now_iso()}\nreason={first}\n"
+                )
+                # Reassert the marker after acquiring the lock.  If a force-arm
+                # was already in flight when the emergency marker landed, its
+                # critical section completes first and this write wins last.
+                for target in (self._marker, self._path):
+                    try:
+                        self._atomic_write(target, body)
+                    except OSError as exc:
+                        errors.append(f"{target.name}: {exc}")
+                counter, counter_error = self._read_generation_counter()
+                if (
+                    generation_bootstrapped
+                    and not lock_preexisted
+                    and counter is None
+                    and counter_error is None
+                ):
+                    try:
+                        self._write_generation_counter(generation)
+                    except OSError as exc:
+                        errors.append(f"{self._generation_path.name}: {exc}")
+        except LoopHalted as exc:
+            # The pre-lock marker may already have stopped every reader.  Keep
+            # that safety effect even when bookkeeping serialization times out.
+            errors.append(str(exc))
         # Latch THIS object too. The operator asked this switch to stop; that
         # must not depend on a subsequent read of a disk that just misbehaved.
         with self._lock:
@@ -627,12 +1009,45 @@ class KillSwitch:
         return state
 
     def clear(self) -> None:
-        """Remove permit and marker. Leaves the switch STOPPED (no permit)."""
-        for target in (self._marker, self._path):
+        """Fence the current generation, then remove permit and marker.
+
+        ``clear`` is deliberately not an emergency-stop substitute.  It first
+        advances the durable generation under the operator lock, which makes
+        any old RUN permit invalid.  It then removes the permit BEFORE the
+        marker.  If either publication cannot be proved, it raises and retains
+        the marker whenever possible; it never reports a partial clear as
+        success.
+        """
+
+        with self._operator_lock_scope() as lock_preexisted:
+            prior_generation = self._bootstrap_generation(
+                lock_preexisted=lock_preexisted
+            )
             try:
-                os.unlink(target)
-            except OSError:
-                pass
+                self._write_generation_counter(prior_generation + 1)
+            except OSError as exc:
+                raise LoopHalted(
+                    f"clear refused: generation fence could not be published ({exc})"
+                ) from exc
+            try:
+                self._unlink_durable(self._path, missing_ok=True)
+            except OSError as exc:
+                raise LoopHalted(
+                    "clear refused: permit could not be removed; the stop "
+                    f"marker was retained ({exc})"
+                ) from exc
+            try:
+                self._unlink_durable(self._marker, missing_ok=True)
+            except OSError as exc:
+                raise LoopHalted(
+                    f"clear incomplete: stop marker could not be removed ({exc})"
+                ) from exc
+            state = self.read_state()
+            if state.running:
+                raise LoopHalted(
+                    "THE CLEAR DID NOT TAKE: switch still reads as armed after "
+                    "generation fence and ordered removal"
+                )
 
 
 class _WatchScope:
@@ -679,7 +1094,11 @@ def _main(argv: Iterable[str]) -> int:
         print(f"{'ARMED' if state.running else 'NOT ARMED'} {switch.path}: {state.reason}")
         return 0 if state.running else 3
     if verb == "clear":
-        switch.clear()
+        try:
+            switch.clear()
+        except LoopHalted as exc:
+            print(str(exc))
+            return 4
         print(f"CLEARED {switch.path} (loop remains stopped: no permit)")
         return 0
     if verb == "status":

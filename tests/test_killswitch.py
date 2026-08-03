@@ -222,9 +222,9 @@ def test_stop_any_token_that_is_not_exactly_RUN(tmp_path, token):
     switch.arm()
     switch.path.write_text(f"{token}\n", encoding="utf-8")
     fresh = KillSwitch(switch.path)
-    # "RUN " strips to RUN and is legitimately armed; everything else halts.
-    expected_running = token.strip() == RUN_TOKEN
-    assert fresh.read_state().running is expected_running, token
+    # This path was initialized by arm(), so even a token that strips to RUN
+    # lacks the authoritative generation and must halt.
+    assert fresh.read_state().running is False, token
 
 
 def test_stop_permit_that_is_not_utf8(tmp_path):
@@ -436,7 +436,11 @@ def test_stop_latch_survives_the_permit_being_restored(tmp_path):
     assert switch.should_stop() is True
     switch.clear()
     switch.path.parent.mkdir(parents=True, exist_ok=True)
-    switch.path.write_text("RUN\n", encoding="utf-8")
+    generation = int(switch.generation_path.read_text(encoding="ascii"))
+    switch.path.write_text(
+        f"RUN\ngeneration={generation}\n",
+        encoding="utf-8",
+    )
     assert KillSwitch(switch.path).read_state().running is True, (
         "precondition: the file on disk now reads as armed again")
     assert switch.should_stop() is True, (
@@ -855,7 +859,11 @@ def test_uncontained_forgery_cannot_unlatch(tmp_path):
         assert switch.wait(timeout=10.0) is True
     # Now the "candidate", at our own integrity level, undoes everything.
     switch.clear()
-    switch.path.write_text("RUN\n", encoding="utf-8")
+    generation = int(switch.generation_path.read_text(encoding="ascii"))
+    switch.path.write_text(
+        f"RUN\ngeneration={generation}\n",
+        encoding="utf-8",
+    )
     assert KillSwitch(switch.path).read_state().running is True
     assert switch.should_stop() is True
     with pytest.raises(LoopHalted):
