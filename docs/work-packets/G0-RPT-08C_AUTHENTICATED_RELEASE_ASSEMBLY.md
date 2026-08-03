@@ -10,7 +10,7 @@ This packet is stacked after `G0-RPT-08B — Authenticated Evidence Trust Bundle
 
 The public assembler accepts the canonical local `GateReport`, the exact `GateEvidenceIndex`, one HMAC-authenticated `EvidenceTrustBundle`, the exact checkout root and adopted workflow paths, the external collector keyring and identity, and the live commit/tree/time.
 
-It accepts no raw `trusted_*` digest sets. Before deriving a report it authenticates the bundle and rechecks commit, tree, evidence index, workflow identities and bytes, retained evidence sets and lifetime.
+It accepts no raw `trusted_*` digest sets. Before deriving a report it authenticates the bundle and rechecks commit, tree, evidence index, workflow identities and bytes, retained evidence sets and lifetime. A local Gate report from any revision other than the live exact head is refused rather than being converted into a release blocker.
 
 `Gate0ReleaseReport` binds the exact commit and Git tree, original mechanical Gate-report identity, derived canonical Gate-report payload, evidence-index digest, trust-bundle digest, strict exact-head blockers and provenance. Provenance inputs must equal the exact retained identity set; both missing and extra digests are refused. Untrusted mappings must also use the exact canonical nested arrays and values rather than merely normalizing to the same object.
 
@@ -19,7 +19,7 @@ The Gate report has two intentionally distinct hashes:
 - `report_sha256` is the report contract's inner semantic identity;
 - `ArtifactEvidence.content_sha256` is the SHA-256 of the exact UTF-8 CLI artifact bytes (`indent=2`, sorted keys and one trailing newline).
 
-The release stores the inner identity but verifies the retained `gate-report` artifact against the exact serialized bytes. Confusing the two hashes makes an otherwise valid release fail closed.
+The release stores the inner identity but verifies the retained `gate-report` artifact against the exact serialized bytes. Confusing the two hashes makes an otherwise valid release fail closed. The CLI and artifact hashing helper share one renderer, and a subprocess regression requires byte-for-byte equality.
 
 ## Derived closure semantics
 
@@ -35,7 +35,7 @@ A serialized report is not authority merely because it parses or says `closed=tr
 
 ## Adversarial coverage
 
-Focused tests cover valid authenticated closure, absence of raw trust-set injection, invalid collectors and foreign revisions, caller-forced claims, missing owner closure, local runtime failure, failed optional workflows, model-only reviews, report artifact substitution, semantic-report-versus-artifact hash confusion, registry recombination, forged derived values, reduced or expanded provenance, non-canonical wire ordering, direct repackaging, bundle expiry, workflow drift, report/bundle substitution and timezone-naive verification.
+Focused tests cover valid authenticated closure, absence of raw trust-set injection, invalid collectors and foreign revisions, a foreign local Gate report, caller-forced claims, missing owner closure, local runtime failure, failed optional workflows, model-only reviews, report artifact substitution, semantic-report-versus-artifact hash confusion, registry recombination, forged derived values, reduced or expanded provenance, non-canonical wire ordering, direct repackaging, bundle expiry, workflow drift, report/bundle substitution and timezone-naive verification.
 
 A separate AST counter-review checks that authentication precedes mechanical projection and release construction, no effectful or promotion call appears, closure is derived only from the complete blocker union, and the verifier reconstructs before rechecking current state. This remains model-generated review support, not human or owner evidence.
 
@@ -43,11 +43,11 @@ A separate AST counter-review checks that authentication precedes mechanical pro
 
 The campaign first requires the unmodified parent trust-bundle, Gate-report and release suites to pass. It then applies one mutant at a time, compiles it, runs the focused suite in a fresh subprocess and restores exact source bytes.
 
-Mutants remove trust-bundle authentication, trust the caller security claim, confuse exact report artifact bytes with the inner report identity, remove owner blockers, accept claimed closure, accept expanded provenance, accept non-canonical release wire, skip retained-report reconstruction, skip current blockers/expiry, and accept trust-bundle substitution. A survivor, invalid seam or dirty checkout fails the job.
+Mutants remove trust-bundle authentication, accept a foreign local Gate report, trust the caller security claim, confuse exact report artifact bytes with the inner report identity, remove owner blockers, accept claimed closure, accept expanded provenance, accept non-canonical release wire, skip retained-report reconstruction, skip current blockers/expiry, and accept trust-bundle substitution. A survivor, invalid seam or dirty checkout fails the job.
 
 ## Verification request
 
-Dedicated CI requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan, JSON-schema parsing, compileall, parent trust-bundle tests, Gate-report artifact tests, release and counter-review tests, the ten-mutant campaign, the full suite and isolated-wheel import.
+Dedicated CI requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, Iron Plan, JSON-schema parsing, compileall, parent trust-bundle tests, Gate-report artifact tests, release and counter-review tests, the eleven-mutant campaign, the full suite and isolated-wheel import.
 
 Issue #67 currently terminates repository jobs before Step 1 without logs. Such runs are infrastructure observations only and cannot establish product, package, platform or mutation evidence.
 
