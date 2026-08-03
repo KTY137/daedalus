@@ -33,6 +33,23 @@ def test_public_seam_retains_old_call_shape_but_cannot_use_it_as_authority() -> 
     assert "_legacy_unpersisted_refusal" in source
 
 
+def test_legacy_refusal_contains_no_git_or_other_effect_primitive() -> None:
+    source = inspect.getsource(gated_writes._legacy_unpersisted_refusal)
+    tree = ast.parse(source)
+    calls = {
+        _call_name(node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+    }
+    assert "resolve_live_target_revision" not in source
+    assert "authorize_promotion" not in source
+    assert "subprocess.run" not in calls
+    assert "GitWorktreeManager" not in calls
+    assert "_PromotionLock" not in calls
+    assert "resolve_spine_db_path" not in calls
+    assert calls <= {"_promotion_refusal", "PromotionAuthorizationError"}
+
+
 def test_locked_source_order_is_target_read_then_persisted_auth_then_integration() -> None:
     tree = ast.parse(inspect.getsource(gated_writes.promote_candidates))
     function = tree.body[0]
