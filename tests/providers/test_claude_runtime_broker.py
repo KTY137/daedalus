@@ -265,7 +265,7 @@ def test_public_provider_refuses_missing_authority_before_private_invocation(
     assert called == []
 
 
-def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
+def test_exact_workspace_request_execution_attempt_and_revision_are_bound(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -275,7 +275,7 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
     other = tmp_path / "other"
     other.mkdir()
 
-    with pytest.raises(ClaudeProviderWorkspaceMismatch, match="exact granted"):
+    with pytest.raises(ClaudeProviderWorkspaceMismatch, match="exact bound"):
         ClaudeCLIProvider().run(
             objective="review",
             repo_root=str(tmp_path),
@@ -331,6 +331,19 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
         )
     assert auth.grant_calls == 0
 
+    repacked_execution = _execution(tmp_path, execution_id="claude-execution-other")
+    with pytest.raises(ClaudeProviderWorkspaceMismatch, match="execution request"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, repacked_execution),
+        )
+    assert auth.grant_calls == 0
+
 
 def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
     monkeypatch: pytest.MonkeyPatch,
@@ -365,9 +378,14 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
     assert auth.grant_calls == 0
 
 
-def test_path_traversal_refuses_before_broker_or_subprocess(
+@pytest.mark.parametrize(
+    "malformed_path",
+    ["../primary/secret.py", "/etc/passwd", "C:/repo/file.py", "bad\x00path"],
+)
+def test_malformed_path_refuses_before_broker_or_subprocess(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    malformed_path: str,
 ) -> None:
     auth = FakeAuthorization()
     called: list[str] = []
@@ -378,11 +396,11 @@ def test_path_traversal_refuses_before_broker_or_subprocess(
     )
     execution = _execution(tmp_path)
 
-    with pytest.raises(ClaudeProviderScopeMismatch, match="escapes"):
+    with pytest.raises(ClaudeProviderScopeMismatch):
         ClaudeCLIProvider().run(
             objective="review",
             repo_root=str(tmp_path),
-            paths=["../primary/secret.py"],
+            paths=[malformed_path],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
             effect_execution=execution,
@@ -441,6 +459,44 @@ def test_invocation_change_cannot_reuse_execution_idempotency(
             agent=_agent(),
             model=call["model"],
             timeout_s=call["timeout_s"],
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
+        )
+    assert called == []
+    assert auth.grant_calls == 0
+
+
+def test_invalid_invocation_metadata_refuses_before_broker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    auth = FakeAuthorization()
+    called: list[str] = []
+    execution = _execution(tmp_path)
+    monkeypatch.setattr(
+        claude_provider,
+        "_invoke_claude_cli",
+        lambda **kwargs: called.append("invoked") or OUTPUT,
+    )
+
+    with pytest.raises(ValueError, match="objective"):
+        ClaudeCLIProvider().run(
+            objective=" ",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
+        )
+    with pytest.raises(ValueError, match="timeout_s"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            timeout_s=0,
             runtime_authorization=auth,  # type: ignore[arg-type]
             effect_execution=execution,
             workspace_grant=_grant(tmp_path, execution),
