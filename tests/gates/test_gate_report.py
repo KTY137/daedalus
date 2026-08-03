@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from daedalus.gates.report import GateReport, assert_monotonic, build_gate0_report
+from daedalus.gates.report import (
+    GateReport,
+    assert_monotonic,
+    build_gate0_report,
+    gate_report_artifact_sha256,
+    render_gate_report,
+)
 
 
 def test_gate_report_is_deterministic_and_fail_closed() -> None:
@@ -68,6 +75,22 @@ def test_serialized_shape_matches_gate_contract() -> None:
     assert payload["closed"] is True
     assert payload["blockers"] == []
     json.dumps(payload)
+
+
+def test_artifact_digest_hashes_exact_cli_bytes_not_inner_report_identity() -> None:
+    report = GateReport(
+        gate=0,
+        source_revision="a" * 40,
+        registry_sha256="0" * 64,
+        security_boundary_claimed=False,
+        owner_approval_enforced=True,
+    )
+    rendered = render_gate_report(report)
+    assert rendered == json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n"
+    assert gate_report_artifact_sha256(report) == hashlib.sha256(
+        rendered.encode("utf-8")
+    ).hexdigest()
+    assert gate_report_artifact_sha256(report) != report.to_dict()["report_sha256"]
 
 
 def test_gate_report_accepts_bound_fault_results() -> None:
