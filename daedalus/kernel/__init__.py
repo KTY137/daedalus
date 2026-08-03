@@ -71,3 +71,27 @@ __all__ += [
     "issue_effect_lease",
     "verify_effect_lease",
 ]
+
+from .artifacts import (
+    ArtifactCorruptionError,
+    ArtifactStore,
+    ArtifactStoreError,
+    SourceTreeEntry,
+    SourceTreeError,
+    SourceTreeManifest,
+    StoredSourceTree,
+    artifact_locator,
+    locator_sha256,
+)
+
+__all__ += [
+    "ArtifactCorruptionError",
+    "ArtifactStore",
+    "ArtifactStoreError",
+    "SourceTreeEntry",
+    "SourceTreeError",
+    "SourceTreeManifest",
+    "StoredSourceTree",
+    "artifact_locator",
+    "locator_sha256",
+]
