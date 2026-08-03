@@ -5,7 +5,7 @@ import hashlib
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.ledger import (
@@ -20,8 +20,52 @@ from .attempt_contracts import (
     _ATTEMPT_EFFECT_PREFIX,
     _ATTEMPT_INTENT_KIND,
     _strict_json,
+    _timestamp_value,
     AttemptStateError,
 )
+
+_MAX_TRANSITION_SKEW_SECONDS = 60.0
+
+
+def _transition_time(
+    record_time: object,
+    event_time: str,
+    *,
+    label: str,
+) -> None:
+    """Bind one canonical record time to its nearby Event-Store transition."""
+    if not isinstance(record_time, str):
+        raise AttemptStateError(f"{label} record time must be a string")
+    try:
+        record = _timestamp_value(record_time, f"{label} record time")
+        event = _timestamp_value(event_time, f"{label} Event-Store time")
+    except (TypeError, ValueError) as exc:
+        raise AttemptStateError(f"{label} time is malformed") from exc
+    delta = (event - record).total_seconds()
+    if delta < 0:
+        raise AttemptStateError(
+            f"{label} record time follows its Event-Store transition"
+        )
+    if delta > _MAX_TRANSITION_SKEW_SECONDS:
+        raise AttemptStateError(
+            f"{label} record time is not bound to its Event-Store transition"
+        )
+
+
+def _start_time(payload: Mapping[str, Any]) -> object:
+    start = payload.get("start")
+    if not isinstance(start, Mapping):
+        raise AttemptStateError("persisted attempt start is not an object")
+    return start.get("started_at")
+
+
+def _terminal_time(result: object) -> object:
+    if not isinstance(result, Mapping):
+        raise AttemptStateError("persisted attempt terminal result is not an object")
+    receipt = result.get("receipt")
+    if not isinstance(receipt, Mapping):
+        raise AttemptStateError("persisted attempt terminal receipt is not an object")
+    return receipt.get("completed_at")
 
 
 def read_attempt_intents(
@@ -34,9 +78,10 @@ def read_attempt_intents(
     ``SpineLedger`` remains the only writer and state-transition authority.
     This reader deliberately retains the raw JSON long enough to reject
     duplicate keys, noncanonical bytes, digest substitution, unknown event
-    sequences, and malformed terminal detail before constructing ``Intent``.
-    The SQLite handle is opened with ``mode=ro`` so inspection cannot create or
-    modify the Event Store, even when a caller supplies a missing path.
+    sequences, malformed terminal detail, and lifecycle record times detached
+    from the Event-Store transitions that retained them. The SQLite handle is
+    opened with ``mode=ro`` so inspection cannot create or modify the Event
+    Store, even when a caller supplies a missing path.
     """
     connection: sqlite3.Connection | None = None
     try:
@@ -96,6 +141,17 @@ def read_attempt_intents(
                 raise AttemptStateError(
                     "attempt lifecycle event sequence is invalid"
                 )
+            created_ts = str(row["created_ts"])
+            start_event_ts = str(events[0]["ts"])
+            if start_event_ts != created_ts:
+                raise AttemptStateError(
+                    "attempt intent row time differs from its start event time"
+                )
+            _transition_time(
+                _start_time(payload),
+                start_event_ts,
+                label="attempt start",
+            )
             start_detail_raw = str(events[0]["detail"])
             start_detail = _strict_json(
                 start_detail_raw, "persisted attempt start event detail"
@@ -143,6 +199,12 @@ def read_attempt_intents(
                         f"unknown attempt lifecycle event state: {state}"
                     )
                 resolved_ts = str(terminal["ts"])
+                if state == STATE_COMPLETED:
+                    _transition_time(
+                        _terminal_time(terminal_result),
+                        resolved_ts,
+                        label="attempt completion",
+                    )
 
             result.append(
                 Intent(
@@ -156,7 +218,7 @@ def read_attempt_intents(
                     payload=dict(payload),
                     payload_json=raw_payload,
                     payload_sha=expected_payload_sha,
-                    created_ts=str(row["created_ts"]),
+                    created_ts=created_ts,
                     state=state,
                     resolved_ts=resolved_ts,
                     effect_id=effect_id,
