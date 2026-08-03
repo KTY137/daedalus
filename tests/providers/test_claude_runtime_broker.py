@@ -16,10 +16,13 @@ from daedalus.kernel.effects import (
 )
 from daedalus.providers.claude_cli import (
     ClaudeCLIProvider,
+    ClaudeInvocationBindingMismatch,
     ClaudeProviderAuthorizationRequired,
     ClaudeProviderScopeMismatch,
     ClaudeProviderWorkspaceMismatch,
     ClaudeWorkspaceGrant,
+    claude_idempotency_key,
+    claude_invocation_sha256,
 )
 from daedalus.spine.effect_boundary import Effect, EntrypointSpec, Surface, Wiring
 from daedalus.spine.envelope import canonical_sha
@@ -29,19 +32,20 @@ ENTRYPOINT = "provider.claude"
 RUNTIME = "claude_code_cli"
 REVISION = "a" * 40
 REQUEST_SHA = "d" * 64
+REPORT = {
+    "status": "needs_review",
+    "summary": "bounded review",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {},
+}
 OUTPUT = {
     "agent": "reviewer",
     "prompt_sha256": "b" * 64,
-    "report_sha256": "c" * 64,
-    "report": {
-        "status": "needs_review",
-        "summary": "bounded review",
-        "files_changed": [],
-        "tests_run": [],
-        "risks": [],
-        "todos": [],
-        "handoff": {},
-    },
+    "report_sha256": canonical_sha(REPORT),
+    "report": REPORT,
 }
 
 
@@ -66,10 +70,58 @@ def _spec(*, wiring: Wiring = Wiring.CENTRAL) -> EntrypointSpec:
     )
 
 
-def _execution(**changes) -> EffectExecutionRequest:
+def _agent() -> dict[str, object]:
+    return {
+        "name": "reviewer",
+        "call_name": "Mary",
+        "model_tier": "sonnet",
+        "must_read": [],
+    }
+
+
+def _invocation_sha(
+    worktree: Path,
+    *,
+    objective: str = "review",
+    paths: list[str] | None = None,
+    agent: dict[str, object] | None = None,
+    model: str = "sonnet",
+    timeout_s: int = 300,
+) -> str:
+    return claude_invocation_sha256(
+        objective=objective,
+        worktree=str(worktree),
+        paths=list(paths or []),
+        agent=agent or _agent(),
+        model=model,
+        timeout_s=timeout_s,
+        attempt_id="attempt-claude-1",
+        source_revision=REVISION,
+        request_sha256=REQUEST_SHA,
+    )
+
+
+def _execution(
+    worktree: Path,
+    *,
+    objective: str = "review",
+    paths: list[str] | None = None,
+    agent: dict[str, object] | None = None,
+    model: str = "sonnet",
+    timeout_s: int = 300,
+    **changes,
+) -> EffectExecutionRequest:
+    invocation_sha = _invocation_sha(
+        worktree,
+        objective=objective,
+        paths=paths,
+        agent=agent,
+        model=model,
+        timeout_s=timeout_s,
+    )
     values = dict(
         execution_id="claude-execution-1",
-        idempotency_key="claude-idempotency-1",
+        idempotency_key=claude_idempotency_key(invocation_sha),
         requested_effects=(
             Effect.FILESYSTEM_WRITE.value,
             Effect.NETWORK_EGRESS.value,
@@ -87,12 +139,12 @@ def _execution(**changes) -> EffectExecutionRequest:
     return EffectExecutionRequest(**values)
 
 
-def _start_receipt() -> LeasedEffectStartReceipt:
+def _start_receipt(execution: EffectExecutionRequest) -> LeasedEffectStartReceipt:
     body = {
         "lease_sha256": "1" * 64,
-        "execution_id": "claude-execution-1",
-        "idempotency_key": "claude-idempotency-1",
-        "execution_request_sha256": "2" * 64,
+        "execution_id": execution.execution_id,
+        "idempotency_key": execution.idempotency_key,
+        "execution_request_sha256": execution.digest,
         "boundary_receipt_sha256": "3" * 64,
         "started_at": "2026-08-03T04:00:00+00:00",
     }
@@ -117,6 +169,7 @@ class FakeAuthorization:
         self.grant_calls = 0
         self.begin_calls = 0
         self.verify_calls = 0
+        self.received_executions: list[EffectExecutionRequest] = []
         self.finish_calls: list[dict[str, object]] = []
 
     def grant(self) -> None:
@@ -124,9 +177,9 @@ class FakeAuthorization:
 
     def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
         self.begin_calls += 1
-        assert execution == _execution()
+        self.received_executions.append(execution)
         return EffectStartResult(
-            receipt=_start_receipt(),
+            receipt=_start_receipt(execution),
             execute=not self.replay,
         )
 
@@ -175,28 +228,19 @@ class FakeAuthorization:
 
 def _grant(
     worktree: Path,
+    execution: EffectExecutionRequest,
     *,
     attempt_id: str = "attempt-claude-1",
     request_sha256: str = REQUEST_SHA,
-    execution: EffectExecutionRequest | None = None,
+    source_revision: str = REVISION,
 ) -> ClaudeWorkspaceGrant:
-    selected = execution or _execution()
     return ClaudeWorkspaceGrant(
         attempt_id=attempt_id,
-        source_revision=REVISION,
+        source_revision=source_revision,
         request_sha256=request_sha256,
-        execution_sha256=selected.digest,
+        execution_sha256=execution.digest,
         worktree=str(worktree),
     )
-
-
-def _agent() -> dict[str, object]:
-    return {
-        "name": "reviewer",
-        "call_name": "Mary",
-        "model_tier": "sonnet",
-        "must_read": [],
-    }
 
 
 def test_public_provider_refuses_missing_authority_before_private_invocation(
@@ -227,6 +271,7 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
 ) -> None:
     auth = FakeAuthorization()
     monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
+    execution = _execution(tmp_path)
     other = tmp_path / "other"
     other.mkdir()
 
@@ -237,8 +282,8 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
             paths=[],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
-            effect_execution=_execution(),
-            workspace_grant=_grant(other),
+            effect_execution=execution,
+            workspace_grant=_grant(other, execution),
         )
     assert auth.grant_calls == 0
 
@@ -249,8 +294,24 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
             paths=[],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
-            effect_execution=_execution(),
-            workspace_grant=_grant(tmp_path, attempt_id="attempt-other"),
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution, attempt_id="attempt-other"),
+        )
+    assert auth.grant_calls == 0
+
+    with pytest.raises(ClaudeProviderWorkspaceMismatch, match="source revision"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(
+                tmp_path,
+                execution,
+                source_revision="f" * 40,
+            ),
         )
     assert auth.grant_calls == 0
 
@@ -261,8 +322,12 @@ def test_exact_workspace_request_attempt_and_revision_are_required_before_grant(
             paths=[],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
-            effect_execution=_execution(),
-            workspace_grant=_grant(tmp_path, request_sha256="e" * 64),
+            effect_execution=execution,
+            workspace_grant=_grant(
+                tmp_path,
+                execution,
+                request_sha256="e" * 64,
+            ),
         )
     assert auth.grant_calls == 0
 
@@ -274,7 +339,7 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
     auth = FakeAuthorization()
     monkeypatch.setattr(claude_provider, "_invoke_claude_cli", lambda **kwargs: OUTPUT)
 
-    narrowed = _execution(writable_paths=("src",))
+    narrowed = _execution(tmp_path, paths=["src/a.py"], writable_paths=("src",))
     with pytest.raises(ClaudeProviderScopeMismatch, match="worktree root"):
         ClaudeCLIProvider().run(
             objective="review",
@@ -283,10 +348,10 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
             effect_execution=narrowed,
-            workspace_grant=_grant(tmp_path, execution=narrowed),
+            workspace_grant=_grant(tmp_path, narrowed),
         )
 
-    no_spend = _execution(max_cost_microusd=0)
+    no_spend = _execution(tmp_path, max_cost_microusd=0)
     with pytest.raises(ClaudeProviderScopeMismatch, match="spend ceiling"):
         ClaudeCLIProvider().run(
             objective="review",
@@ -295,7 +360,7 @@ def test_execution_scope_must_honestly_cover_agentic_workspace_and_spend(
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
             effect_execution=no_spend,
-            workspace_grant=_grant(tmp_path, execution=no_spend),
+            workspace_grant=_grant(tmp_path, no_spend),
         )
     assert auth.grant_calls == 0
 
@@ -311,6 +376,7 @@ def test_path_traversal_refuses_before_broker_or_subprocess(
         "_invoke_claude_cli",
         lambda **kwargs: called.append("invoked") or OUTPUT,
     )
+    execution = _execution(tmp_path)
 
     with pytest.raises(ClaudeProviderScopeMismatch, match="escapes"):
         ClaudeCLIProvider().run(
@@ -319,8 +385,65 @@ def test_path_traversal_refuses_before_broker_or_subprocess(
             paths=["../primary/secret.py"],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
-            effect_execution=_execution(),
-            workspace_grant=_grant(tmp_path),
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
+        )
+    assert called == []
+    assert auth.grant_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("changed_field", "value"),
+    [
+        ("objective", "different objective"),
+        ("paths", ["different.py"]),
+        ("model", "opus"),
+        ("timeout_s", 301),
+    ],
+)
+def test_invocation_change_cannot_reuse_execution_idempotency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    changed_field: str,
+    value,
+) -> None:
+    auth = FakeAuthorization()
+    called: list[str] = []
+    monkeypatch.setattr(
+        claude_provider,
+        "_invoke_claude_cli",
+        lambda **kwargs: called.append("invoked") or OUTPUT,
+    )
+    objective = "review"
+    paths: list[str] = []
+    model = "sonnet"
+    timeout_s = 300
+    execution = _execution(
+        tmp_path,
+        objective=objective,
+        paths=paths,
+        model=model,
+        timeout_s=timeout_s,
+    )
+    call = {
+        "objective": objective,
+        "paths": paths,
+        "model": model,
+        "timeout_s": timeout_s,
+    }
+    call[changed_field] = value
+
+    with pytest.raises(ClaudeInvocationBindingMismatch, match="exact invocation"):
+        ClaudeCLIProvider().run(
+            objective=call["objective"],
+            repo_root=str(tmp_path),
+            paths=call["paths"],
+            agent=_agent(),
+            model=call["model"],
+            timeout_s=call["timeout_s"],
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
         )
     assert called == []
     assert auth.grant_calls == 0
@@ -332,6 +455,15 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
 ) -> None:
     auth = FakeAuthorization()
     calls: list[dict[str, object]] = []
+    objective = "review exact diff"
+    paths = ["src/a.py", "src/a.py"]
+    normalized_paths = ["src/a.py"]
+    execution = _execution(tmp_path, objective=objective, paths=normalized_paths)
+    invocation_sha = _invocation_sha(
+        tmp_path,
+        objective=objective,
+        paths=normalized_paths,
+    )
 
     def invoke(**kwargs):
         calls.append(kwargs)
@@ -339,17 +471,18 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
 
     monkeypatch.setattr(claude_provider, "_invoke_claude_cli", invoke)
     result = ClaudeCLIProvider().run(
-        objective="review exact diff",
+        objective=objective,
         repo_root=str(tmp_path),
-        paths=["src/a.py", "src/a.py"],
+        paths=paths,
         agent=_agent(),
         runtime_authorization=auth,  # type: ignore[arg-type]
-        effect_execution=_execution(),
-        workspace_grant=_grant(tmp_path),
+        effect_execution=execution,
+        workspace_grant=_grant(tmp_path, execution),
     )
 
     assert len(calls) == 1
-    assert calls[0]["paths"] == ["src/a.py"]
+    assert calls[0]["paths"] == normalized_paths
+    assert auth.received_executions == [execution]
     assert auth.grant_calls == 1
     assert auth.begin_calls == 1
     assert auth.verify_calls == 2
@@ -359,6 +492,9 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
         {
             "provider": "claude_cli",
             "agent": "reviewer",
+            "invocation_sha256": invocation_sha,
+            "prompt_sha256": OUTPUT["prompt_sha256"],
+            "report_sha256": OUTPUT["report_sha256"],
             "report": OUTPUT["report"],
         }
     )
@@ -366,7 +502,34 @@ def test_brokered_provider_invokes_once_and_releases_only_after_terminal(
     assert result["provider"] == "claude_cli"
     assert result["report"] == OUTPUT["report"]
     assert result["runtime_receipt"]["executed"] is True
+    assert result["runtime_receipt"]["invocation_sha256"] == invocation_sha
     assert result["runtime_receipt"]["terminal_receipt_sha256"] is not None
+
+
+def test_report_digest_mismatch_fails_terminal_and_withholds_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    auth = FakeAuthorization()
+    execution = _execution(tmp_path)
+    malformed = {**OUTPUT, "report_sha256": "f" * 64}
+    monkeypatch.setattr(
+        claude_provider,
+        "_invoke_claude_cli",
+        lambda **kwargs: malformed,
+    )
+
+    with pytest.raises(ValueError, match="report digest"):
+        ClaudeCLIProvider().run(
+            objective="review",
+            repo_root=str(tmp_path),
+            paths=[],
+            agent=_agent(),
+            runtime_authorization=auth,  # type: ignore[arg-type]
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
+        )
+    assert auth.finish_calls[0]["outcome"] == "failed"
 
 
 def test_exact_replay_is_inert_and_does_not_extract_output_again(
@@ -375,6 +538,7 @@ def test_exact_replay_is_inert_and_does_not_extract_output_again(
 ) -> None:
     auth = FakeAuthorization(replay=True)
     calls: list[str] = []
+    execution = _execution(tmp_path)
     monkeypatch.setattr(
         claude_provider,
         "_invoke_claude_cli",
@@ -387,8 +551,8 @@ def test_exact_replay_is_inert_and_does_not_extract_output_again(
         paths=[],
         agent=_agent(),
         runtime_authorization=auth,  # type: ignore[arg-type]
-        effect_execution=_execution(),
-        workspace_grant=_grant(tmp_path),
+        effect_execution=execution,
+        workspace_grant=_grant(tmp_path, execution),
     )
 
     assert calls == []
@@ -452,6 +616,7 @@ def test_noncentral_registry_still_refuses_provider_before_subprocess(
 ) -> None:
     auth = FakeAuthorization(wiring=Wiring.INVENTORY_ONLY)
     called: list[str] = []
+    execution = _execution(tmp_path)
     monkeypatch.setattr(
         claude_provider,
         "_invoke_claude_cli",
@@ -465,8 +630,8 @@ def test_noncentral_registry_still_refuses_provider_before_subprocess(
             paths=[],
             agent=_agent(),
             runtime_authorization=auth,  # type: ignore[arg-type]
-            effect_execution=_execution(),
-            workspace_grant=_grant(tmp_path),
+            effect_execution=execution,
+            workspace_grant=_grant(tmp_path, execution),
         )
     assert called == []
     assert auth.grant_calls == 0
