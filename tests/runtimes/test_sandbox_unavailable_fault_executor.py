@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib.util
 import json
@@ -12,7 +13,9 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.sandbox import SandboxExecutionReceipt
+from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
 from daedalus.runtimes.host_fault_runner import LinuxHostFaultEvidence
+from daedalus.spine.envelope import canonical_sha
 
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTOR_PATH = ROOT / "tests" / "fixtures" / "sandbox_unavailable_fault_executor.py"
@@ -87,6 +90,39 @@ def test_real_missing_docker_endpoint_is_exact_pass_or_explicit_block() -> None:
     assert payload["workspace_marker_exists"] is False
     assert payload["host_fallback_observed"] is False
     assert hashlib.sha256(run.raw_evidence).hexdigest() == run.evidence.raw_evidence_sha256
+
+
+def test_binding_is_catalog_exact_and_covers_production_boundary_bytes() -> None:
+    scenario = RUNTIME_FAULT_CATALOG.scenario_map[
+        "runtime.sandbox.daemon-unavailable"
+    ]
+    binding = executor.sandbox_unavailable_binding()
+    sandbox_source = executor._sandbox_source_path()
+    expected = canonical_sha(
+        {
+            "schema": executor._REPORT_SCHEMA,
+            "executor_sha256": hashlib.sha256(EXECUTOR_PATH.read_bytes()).hexdigest(),
+            "sandbox_sha256": hashlib.sha256(sandbox_source.read_bytes()).hexdigest(),
+        }
+    )
+    assert binding.locator == scenario.executor
+    assert binding.implementation_sha256 == expected
+    assert executor.implementation_sha256() == expected
+
+
+def test_recombined_or_mutated_scenario_refuses_before_execution() -> None:
+    scenario = RUNTIME_FAULT_CATALOG.scenario_map[
+        "runtime.sandbox.daemon-unavailable"
+    ]
+    mutated = dataclasses.replace(
+        scenario,
+        invariant="candidate-controlled replacement invariant",
+    )
+    with pytest.raises(
+        executor.SandboxUnavailableFaultError,
+        match="scenario_sha256",
+    ):
+        executor.sandbox_unavailable_binding().execute(mutated)
 
 
 def test_missing_docker_cli_is_blocked_not_passed(monkeypatch) -> None:
@@ -184,6 +220,30 @@ def test_exact_125_refusal_passes_and_restores_docker_environment(
     assert {name: os.environ.get(name) for name in original} == original
 
 
+def test_environment_restores_when_sandbox_boundary_raises(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    fake = _fake_docker(tmp_path)
+    monkeypatch.setattr(executor.shutil, "which", lambda name: str(fake))
+    original = {
+        "DOCKER_HOST": "tcp://127.0.0.1:2375",
+        "DOCKER_CONTEXT": "operator-context",
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": "/operator/certs",
+    }
+    for name, value in original.items():
+        monkeypatch.setenv(name, value)
+
+    def explode(policy, command):
+        raise RuntimeError("collector-local injected failure")
+
+    monkeypatch.setattr(executor, "run_in_docker_sandbox", explode)
+    with pytest.raises(RuntimeError, match="collector-local"):
+        executor.run_sandbox_unavailable(source_revision=REVISION)
+    assert {name: os.environ.get(name) for name in original} == original
+
+
 def test_published_files_remain_explicitly_untrusted(
     tmp_path: Path,
     monkeypatch,
@@ -238,7 +298,7 @@ def test_output_directory_symlink_refuses_without_writing(tmp_path: Path) -> Non
     assert list(real.iterdir()) == []
 
 
-def test_executor_implementation_binds_sandbox_boundary_bytes() -> None:
+def test_executor_implementation_changes_with_sandbox_boundary_bytes() -> None:
     first = executor.implementation_sha256()
     original = executor._sandbox_source_path
     try:
