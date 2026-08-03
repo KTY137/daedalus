@@ -1,0 +1,122 @@
+name: Gate 0 — Linux process fault executors
+
+on:
+  pull_request:
+    branches:
+      - g0/linux-host-fault-runner
+    paths:
+      - "daedalus/runtimes/host_fault_runner.py"
+      - "tests/fixtures/linux_process_tree_fixture.py"
+      - "tests/fixtures/linux_process_fault_executor.py"
+      - "tests/runtimes/test_linux_process_fault_executors.py"
+      - "tests/runtimes/test_linux_host_fault_runner.py"
+      - "tests/runtimes/test_linux_host_fault_runner_review.py"
+      - ".github/workflows/g0-linux-process-fault-executors.yml"
+      - "docs/work-packets/G0-RTC-06I_LINUX_PROCESS_FAULTS.md"
+  push:
+    branches:
+      - g0/linux-process-fault-executors
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-linux-process-fault-executors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contracts / ${{ matrix.os }} / py${{ matrix.python }} / seed-${{ matrix.seed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests
+      - name: Verify collector and process fault executors
+        run: >-
+          python -m pytest -q
+          tests/runtimes/test_linux_host_fault_runner.py
+          tests/runtimes/test_linux_host_fault_runner_review.py
+          tests/runtimes/test_linux_process_fault_executors.py
+          tests/runtimes/test_runtime_fault_catalog.py
+          tests/runtimes/test_runtime_fault_attestations.py
+          tests/runtimes/test_runtime_fault_attestation_hardening.py
+          tests/runtimes/test_runtime_fault_attestation_receipt.py
+
+  retained-host-evidence:
+    name: retained untrusted Linux process evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - name: Execute exact-head process faults
+        run: >-
+          python tests/fixtures/linux_process_fault_executor.py
+          --source-revision "${GITHUB_SHA}"
+          --output-dir reports/linux-process-faults
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: untrusted-linux-process-faults-${{ github.sha }}
+          path: reports/linux-process-faults/*
+          if-no-files-found: error
+
+  full-suite:
+    name: repository full suite / ubuntu / py3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    name: isolated host collector wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-linux-process-fault-wheel
+      - run: /tmp/daedalus-linux-process-fault-wheel/bin/pip install dist/*.whl
+      - name: Import packaged collector outside the checkout
+        run: >-
+          cd /tmp && PYTHONPATH=
+          /tmp/daedalus-linux-process-fault-wheel/bin/python -c
+          "from daedalus.runtimes.host_fault_runner import LinuxHostExecutorBinding, LinuxHostFaultEvidence, run_linux_host_fault;
+          assert LinuxHostExecutorBinding and LinuxHostFaultEvidence and run_linux_host_fault"
