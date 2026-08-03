@@ -26,10 +26,20 @@ from daedalus.schemas import (
     _sorted_strings,
     _utc_timestamp,
 )
-from daedalus.spine.envelope import canonical_json, canonical_sha
+from daedalus.spine.envelope import canonical_sha
 
 _MAX_OBSERVATION_AGE = timedelta(hours=24)
 _ACKNOWLEDGED = "acknowledged"
+_TERMINAL_FIELDS = {
+    "lease_sha256",
+    "execution_id",
+    "start_receipt_sha256",
+    "outcome",
+    "output_digests",
+    "detail_sha256",
+    "finished_at",
+    "receipt_sha256",
+}
 
 
 class EffectRecoveryError(RuntimeError):
@@ -64,26 +74,10 @@ class ExternalEffectObservation:
     provenance: ContractProvenance
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "observation_id",
-            _identifier(self.observation_id, "observation_id"),
-        )
-        object.__setattr__(
-            self,
-            "provider_id",
-            _identifier(self.provider_id, "provider_id"),
-        )
-        object.__setattr__(
-            self,
-            "execution_id",
-            _identifier(self.execution_id, "execution_id"),
-        )
-        object.__setattr__(
-            self,
-            "idempotency_key",
-            _identifier(self.idempotency_key, "idempotency_key"),
-        )
+        object.__setattr__(self, "observation_id", _identifier(self.observation_id, "observation_id"))
+        object.__setattr__(self, "provider_id", _identifier(self.provider_id, "provider_id"))
+        object.__setattr__(self, "execution_id", _identifier(self.execution_id, "execution_id"))
+        object.__setattr__(self, "idempotency_key", _identifier(self.idempotency_key, "idempotency_key"))
         object.__setattr__(
             self,
             "start_receipt_sha256",
@@ -101,22 +95,10 @@ class ExternalEffectObservation:
         object.__setattr__(
             self,
             "output_digests",
-            _sorted_strings(
-                self.output_digests,
-                "output_digests",
-                digests=True,
-            ),
+            _sorted_strings(self.output_digests, "output_digests", digests=True),
         )
-        object.__setattr__(
-            self,
-            "issuer_key_id",
-            _identifier(self.issuer_key_id, "issuer_key_id"),
-        )
-        object.__setattr__(
-            self,
-            "observed_at",
-            _utc_timestamp(self.observed_at, "observed_at"),
-        )
+        object.__setattr__(self, "issuer_key_id", _identifier(self.issuer_key_id, "issuer_key_id"))
+        object.__setattr__(self, "observed_at", _utc_timestamp(self.observed_at, "observed_at"))
         object.__setattr__(
             self,
             "signature_sha256",
@@ -194,11 +176,7 @@ def _secret_bytes(secret: bytes | str) -> bytes:
 
 
 def _signature(digest: str, secret: bytes | str) -> str:
-    return hmac.new(
-        _secret_bytes(secret),
-        digest.encode("ascii"),
-        hashlib.sha256,
-    ).hexdigest()
+    return hmac.new(_secret_bytes(secret), digest.encode("ascii"), hashlib.sha256).hexdigest()
 
 
 def _as_utc(value: datetime, label: str) -> datetime:
@@ -233,21 +211,13 @@ def issue_external_effect_observation(
     revision = _revision(source_revision, "source_revision")
     instant = _as_utc(observed_at, "observed_at")
     outputs = tuple(output_digests)
+    acknowledgement = _sha256(acknowledgement_sha256, "acknowledgement_sha256")
     provenance = ContractProvenance(
         origin="kernel.external-effect-observation",
         source_revision=revision,
         created_at=instant.isoformat(timespec="microseconds"),
         input_digests=tuple(
-            sorted(
-                {
-                    start_receipt.receipt_sha256,
-                    _sha256(
-                        acknowledgement_sha256,
-                        "acknowledgement_sha256",
-                    ),
-                    *outputs,
-                }
-            )
+            sorted({start_receipt.receipt_sha256, acknowledgement, *outputs})
         ),
         trace_id=execution.execution_id,
     )
@@ -258,7 +228,7 @@ def issue_external_effect_observation(
         idempotency_key=execution.idempotency_key,
         start_receipt_sha256=start_receipt.receipt_sha256,
         status=_ACKNOWLEDGED,
-        acknowledgement_sha256=acknowledgement_sha256,
+        acknowledgement_sha256=acknowledgement,
         output_digests=outputs,
         issuer_key_id=issuer_key_id,
         observed_at=instant.isoformat(timespec="microseconds"),
@@ -299,44 +269,84 @@ def verify_external_effect_observation(
             _identifier(expected_provider_id, "expected_provider_id"),
         ),
         "execution_id": (observation.execution_id, execution.execution_id),
-        "idempotency_key": (
-            observation.idempotency_key,
-            execution.idempotency_key,
-        ),
+        "idempotency_key": (observation.idempotency_key, execution.idempotency_key),
         "start_receipt_sha256": (
             observation.start_receipt_sha256,
             start_receipt.receipt_sha256,
         ),
-        "start_execution_id": (
-            start_receipt.execution_id,
-            execution.execution_id,
-        ),
+        "start_execution_id": (start_receipt.execution_id, execution.execution_id),
         "source_revision": (
             observation.provenance.source_revision,
             _revision(expected_source_revision, "expected_source_revision"),
         ),
     }
-    mismatches = sorted(
-        name for name, pair in comparisons.items() if pair[0] != pair[1]
-    )
+    mismatches = sorted(name for name, pair in comparisons.items() if pair[0] != pair[1])
     if mismatches:
         raise EffectRecoveryBindingError(
             "recovery observation binding mismatch: " + ", ".join(mismatches)
         )
 
 
+def _strict_object(pairs):
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate terminal receipt key")
+        result[key] = value
+    return result
+
+
 def _terminal_from_row(row: sqlite3.Row) -> EffectTerminalReceipt:
-    payload = json.loads(str(row["terminal_receipt_json"]))
-    if not isinstance(payload, dict):
-        raise EffectRecoveryStateError("terminal receipt is malformed")
-    outputs = payload.get("output_digests")
+    try:
+        payload = json.loads(
+            str(row["terminal_receipt_json"]),
+            object_pairs_hook=_strict_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError("non-finite terminal value")
+            ),
+        )
+    except ValueError as exc:
+        raise EffectRecoveryStateError("terminal receipt is malformed") from exc
+    if not isinstance(payload, dict) or set(payload) != _TERMINAL_FIELDS:
+        raise EffectRecoveryStateError("terminal receipt fields are not exact")
+    outputs = payload["output_digests"]
     if isinstance(outputs, (str, bytes)) or not isinstance(outputs, list):
         raise EffectRecoveryStateError("terminal output digests are malformed")
-    values = dict(payload)
-    values["output_digests"] = tuple(outputs)
     try:
+        normalized_outputs = _sorted_strings(
+            tuple(outputs),
+            "terminal.output_digests",
+            digests=True,
+        )
+        if list(normalized_outputs) != outputs:
+            raise EffectRecoveryStateError("terminal output digests are not canonical")
+        values = dict(payload)
+        values["lease_sha256"] = _sha256(values["lease_sha256"], "terminal.lease_sha256")
+        values["execution_id"] = _identifier(values["execution_id"], "terminal.execution_id")
+        values["start_receipt_sha256"] = _sha256(
+            values["start_receipt_sha256"],
+            "terminal.start_receipt_sha256",
+        )
+        if values["outcome"] not in {"COMPLETED", "FAILED", "CANCELLED"}:
+            raise EffectRecoveryStateError("terminal outcome is invalid")
+        values["output_digests"] = normalized_outputs
+        if values["detail_sha256"] is not None:
+            values["detail_sha256"] = _sha256(
+                values["detail_sha256"],
+                "terminal.detail_sha256",
+            )
+        values["finished_at"] = _utc_timestamp(
+            values["finished_at"],
+            "terminal.finished_at",
+        )
+        values["receipt_sha256"] = _sha256(
+            values["receipt_sha256"],
+            "terminal.receipt_sha256",
+        )
         receipt = EffectTerminalReceipt(**values)
     except (TypeError, ValueError) as exc:
+        if isinstance(exc, EffectRecoveryStateError):
+            raise
         raise EffectRecoveryStateError("terminal receipt is malformed") from exc
     body = receipt.to_dict()
     claimed = body.pop("receipt_sha256")
@@ -420,7 +430,6 @@ def reconcile_unknown_effect(
                 reconciled=True,
             )
         except EffectLeaseStateError:
-            # A concurrent reconciler may have committed the same terminal.
             pass
     receipt = _persisted_terminal(ledger, execution.execution_id)
     if receipt is not None and _matches(
