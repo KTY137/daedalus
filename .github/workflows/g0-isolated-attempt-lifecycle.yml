@@ -19,8 +19,10 @@ on:
       - "tests/kernel/test_isolated_attempt_cas_review.py"
       - "tests/kernel/test_isolated_attempt_schema_review.py"
       - "tests/kernel/test_isolated_attempt_spine_wire_review.py"
+      - "tests/kernel/test_isolated_attempt_effect_inventory.py"
       - "scripts/run_isolated_attempt_mutations.py"
       - "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md"
+      - "docs/work-packets/G0-ATT-13B_EFFECT_INVENTORY.json"
       - ".github/workflows/g0-isolated-attempt-lifecycle.yml"
   push:
     branches:
@@ -56,6 +58,7 @@ jobs:
       - run: python tools/iron_plan_guard.py verify
       - run: python -m json.tool configs/schemas/attempt-start-v1.schema.json
       - run: python -m json.tool configs/schemas/attempt-terminal-v1.schema.json
+      - run: python -m json.tool docs/work-packets/G0-ATT-13B_EFFECT_INVENTORY.json
       - run: >-
           python -m pytest -q
           tests/kernel/test_isolated_attempt_lifecycle.py
@@ -64,6 +67,7 @@ jobs:
           tests/kernel/test_isolated_attempt_cas_review.py
           tests/kernel/test_isolated_attempt_schema_review.py
           tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
           tests/kernel/test_source_tree_store.py
           tests/kernel/test_source_tree_store_adversarial.py
           tests/kernel/test_source_tree_store_constructor_adversarial.py
