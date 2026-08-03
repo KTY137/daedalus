@@ -8,9 +8,7 @@ on:
       - g0/gate-reporting
       - core/fourfold-v2
     paths:
-      - "daedalus/kernel/promotion.py"
-      - "daedalus/kernel/approvals.py"
-      - "daedalus/kernel/contracts.py"
+      - "daedalus/kernel/**"
       - "daedalus/schemas.py"
       - "daedalus/twin/**"
       - "examples/fourfold_wiki_app/**"
@@ -84,5 +82,6 @@ jobs:
       - working-directory: /tmp
         run: >-
           /tmp/daedalus-wheel/bin/python -c
-          "from daedalus.kernel.promotion import prepare_promotion,
-          consume_prepared_promotion, assert_authorized_promotion_start"
+          "from daedalus.kernel import AuthorizedPromotion, PreparedPromotion,
+          authorize_promotion, assert_authorized_promotion_start,
+          build_approved_promotion_receipt"
