@@ -34,12 +34,23 @@ receipt.
   the candidate tree as the packet subject;
 - records the source Forest digest, snapshot digest and every plane status in
   the evidence item;
-- defaults to requiring all Code, Type, Data and Knowledge planes to be
-  `complete` for Gate evidence;
+- unconditionally requires Code, Type, Data and Knowledge to be `complete` in
+  this conclusive Gate-0 path; there is no caller switch that can promote a
+  partial snapshot to passed evidence;
 - creates and re-verifies a nomination that binds candidate, packet, snapshot
   locator, policy, mission, attempt and revision;
 - performs no file writes, provider calls, approval issuance, approval
   consumption, git operation or promotion.
+
+## Counter-review finding
+
+The first draft exposed `require_complete=False` while the assembler still
+emitted `evaluation_status="passed"`. A caller could therefore have dressed a
+partial snapshot as conclusive Gate evidence. The switch was removed entirely,
+the verifier now refuses every non-complete plane unconditionally, the source
+counter-review forbids a partial-evidence parameter, and the mutation campaign
+attacks the unconditional refusal seam. Partial Polyglot semantics remain a
+later Gate-2 concern and must be represented as partial/inconclusive there.
 
 ## Adversarial coverage
 
@@ -52,11 +63,11 @@ The focused suites cover:
 - a foreign candidate locator;
 - a valid but foreign EvidencePacket subject;
 - a frozen-dataclass constructor bypass attempt;
-- a partial plane entering the default Gate evidence path;
+- a partial plane entering the Gate evidence path;
 - a foreign nomination packet digest;
 - pairing a valid packet with another candidate's nomination;
 - an AST counter-review proving the bridge has no approval-consumption,
-  promotion or external-effect authority.
+  promotion or external-effect authority and no partial-evidence switch.
 
 The bounded mutation runner attacks five load-bearing seams: candidate locator
 identity, complete-plane enforcement, packet subject binding, nomination packet
