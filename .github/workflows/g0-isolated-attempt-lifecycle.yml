@@ -6,6 +6,7 @@ on:
       - g0/source-tree-cas-port-v2-linear
     paths:
       - "daedalus/kernel/attempts.py"
+      - "daedalus/kernel/attempt_clock.py"
       - "daedalus/kernel/attempt_contracts.py"
       - "daedalus/kernel/attempt_ledger.py"
       - "daedalus/kernel/attempt_spine_reader.py"
@@ -19,6 +20,9 @@ on:
       - "tests/kernel/test_isolated_attempt_cas_review.py"
       - "tests/kernel/test_isolated_attempt_schema_review.py"
       - "tests/kernel/test_isolated_attempt_spine_wire_review.py"
+      - "tests/kernel/test_isolated_attempt_time_and_preflight.py"
+      - "tests/kernel/test_isolated_attempt_time_review.py"
+      - "tests/kernel/test_isolated_attempt_time_tampering.py"
       - "tests/kernel/test_isolated_attempt_effect_inventory.py"
       - "scripts/run_isolated_attempt_mutations.py"
       - "docs/work-packets/G0-ATT-13B_ISOLATED_ATTEMPT_LIFECYCLE.md"
@@ -67,6 +71,9 @@ jobs:
           tests/kernel/test_isolated_attempt_cas_review.py
           tests/kernel/test_isolated_attempt_schema_review.py
           tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+          tests/kernel/test_isolated_attempt_time_review.py
+          tests/kernel/test_isolated_attempt_time_tampering.py
           tests/kernel/test_isolated_attempt_effect_inventory.py
           tests/kernel/test_source_tree_store.py
           tests/kernel/test_source_tree_store_adversarial.py
