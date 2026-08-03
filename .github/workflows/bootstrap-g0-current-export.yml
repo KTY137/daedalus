@@ -1,9 +1,9 @@
 name: Bootstrap current Gate 0 checkout export
 
 on:
-  push:
+  pull_request:
     branches:
-      - bootstrap/g0-current-export
+      - g0/effect-leases
   workflow_dispatch:
 
 permissions:
@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Create source archive
         shell: bash
         run: |
