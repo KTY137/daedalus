@@ -6,6 +6,12 @@ and effect start are durable before external code runs. Exact replay is inert,
 and success, failure, cancellation, and runtime-trust loss receive terminal
 receipts.
 
+Once a provider returns, failure to create canonical output evidence is an
+unknown external outcome. The execution remains durably ``STARTED`` and must be
+reconciled from independently authenticated provider evidence. The broker never
+invents a ``FAILED`` receipt merely because local evidence materialization
+failed after the external call.
+
 Successful completion is serialized against runtime quarantine, expiry-state
 persistence, and evidence rotation. The exact authenticated runtime-trust row is
 held under the trust ledger's SQLite writer transaction while the separate
@@ -56,6 +62,39 @@ class RuntimeProviderStateError(RuntimeProviderBrokerError):
 
 class RuntimeProviderTrustFenceError(RuntimeProviderBrokerError):
     """Runtime trust changed or could not be fenced before terminal completion."""
+
+
+class RuntimeProviderReconciliationRequired(RuntimeProviderBrokerError):
+    """A returned provider effect lacks terminal evidence and stays STARTED."""
+
+    def __init__(
+        self,
+        *,
+        entrypoint_id: str,
+        runtime_id: str,
+        start_receipt: LeasedEffectStartReceipt,
+        phase: str,
+        cause_sha256: str,
+    ) -> None:
+        if not isinstance(entrypoint_id, str) or not entrypoint_id:
+            raise ValueError("entrypoint_id must be non-empty")
+        if not isinstance(runtime_id, str) or not runtime_id:
+            raise ValueError("runtime_id must be non-empty")
+        if not isinstance(start_receipt, LeasedEffectStartReceipt):
+            raise ValueError("start_receipt must be LeasedEffectStartReceipt")
+        if phase != "output-evidence":
+            raise ValueError("reconciliation phase is unsupported")
+        if not isinstance(cause_sha256, str) or _SHA256_RE.fullmatch(cause_sha256) is None:
+            raise ValueError("cause_sha256 must be lowercase SHA-256")
+        super().__init__(
+            "runtime provider returned but terminal output evidence is unavailable; "
+            "authenticated reconciliation is required"
+        )
+        self.entrypoint_id = entrypoint_id
+        self.runtime_id = runtime_id
+        self.start_receipt = start_receipt
+        self.phase = phase
+        self.cause_sha256 = cause_sha256
 
 
 @dataclass(frozen=True)
@@ -441,13 +480,13 @@ def run_runtime_provider(
     try:
         digests = _normalize_output_digests(output_digests(value))
     except BaseException as exc:
-        _finish_or_raise_state(
-            authorization,
-            start.receipt,
-            outcome="failed",
-            detail_sha256=_exception_detail("output-evidence", exc),
-        )
-        raise
+        raise RuntimeProviderReconciliationRequired(
+            entrypoint_id=spec.id,
+            runtime_id=spec.runtime_id,
+            start_receipt=start.receipt,
+            phase="output-evidence",
+            cause_sha256=_exception_detail("output-evidence", exc),
+        ) from exc
 
     try:
         authorization.verify()
@@ -489,6 +528,7 @@ __all__ = [
     "RuntimeInvocationResult",
     "RuntimeProviderBindingMismatch",
     "RuntimeProviderBrokerError",
+    "RuntimeProviderReconciliationRequired",
     "RuntimeProviderStateError",
     "RuntimeProviderTrustFenceError",
     "run_runtime_provider",
