@@ -52,23 +52,53 @@
             "pattern": "(^/|\\\\|(^|/)\\.\\.?(/|$)|//)"
           }
         },
-        "line": {"type": "integer", "minimum": 1},
-        "column": {"type": "integer", "minimum": 0},
-        "origin": {"enum": ["base_v1", "stdlib_delta_v1"]},
-        "kind": {"type": "string", "minLength": 1, "pattern": "^\\S+$"},
-        "callee": {"type": "string", "minLength": 1, "pattern": "^\\S+$"},
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "origin": {
+          "enum": [
+            "base_v1",
+            "stdlib_delta_v1"
+          ]
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "callee": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
         "operation": {
           "type": "string",
           "minLength": 1,
-          "not": {"pattern": "[\\r\\n]"}
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
         },
-        "blocking": {"type": "boolean"}
+        "blocking": {
+          "type": "boolean"
+        }
       }
     },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "source_revision", "sha256", "locator"],
+      "required": [
+        "kind",
+        "source_revision",
+        "surface_sha256",
+        "sha256",
+        "locator",
+        "guard_contract"
+      ],
       "properties": {
         "kind": {
           "enum": [
@@ -80,14 +110,55 @@
             "retirement_receipt"
           ]
         },
-        "source_revision": {"$ref": "#/$defs/revision"},
-        "sha256": {"$ref": "#/$defs/sha256"},
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
         "locator": {
           "type": "string",
           "minLength": 1,
-          "not": {"pattern": "[\\r\\n]"}
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
+        },
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "guard_contract": {
+          "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "guard_contract"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "guard_contract": {
+                "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+                "minLength": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "guard_contract": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
     },
     "classification": {
       "type": "object",
@@ -104,8 +175,12 @@
         "candidate_blockers"
       ],
       "properties": {
-        "source_revision": {"$ref": "#/$defs/revision"},
-        "surface": {"$ref": "#/$defs/surface"},
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "surface": {
+          "$ref": "#/$defs/surface"
+        },
         "target": {
           "enum": [
             "primary_checkout",
@@ -123,7 +198,9 @@
             "retired"
           ]
         },
-        "production_reachable": {"type": "boolean"},
+        "production_reachable": {
+          "type": "boolean"
+        },
         "guard_contracts": {
           "type": "array",
           "uniqueItems": true,
@@ -135,11 +212,15 @@
         "evidence": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/evidence"}
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
         },
         "notes": {
           "type": "string",
-          "not": {"pattern": "[\\r\\n]"}
+          "not": {
+            "pattern": "[\\r\\n]"
+          }
         },
         "candidate_blockers": {
           "type": "array",
@@ -159,26 +240,56 @@
     }
   },
   "properties": {
-    "schema": {"const": "daedalus-gate0-repository-write-classification/1"},
-    "source_revision": {"$ref": "#/$defs/revision"},
-    "inventory_digest": {"$ref": "#/$defs/sha256"},
-    "scan_input_sha256": {"$ref": "#/$defs/sha256"},
-    "inventory_surface_count": {"type": "integer", "minimum": 0},
-    "classification_count": {"type": "integer", "minimum": 0},
+    "schema": {
+      "const": "daedalus-gate0-repository-write-classification/1"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "inventory_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scan_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "inventory_surface_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "classification_count": {
+      "type": "integer",
+      "minimum": 0
+    },
     "classifications": {
       "type": "array",
-      "items": {"$ref": "#/$defs/classification"}
+      "items": {
+        "$ref": "#/$defs/classification"
+      }
     },
     "missing_surfaces": {
       "type": "array",
-      "items": {"$ref": "#/$defs/surface"}
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
     },
-    "classification_ready": {"type": "boolean"},
-    "evidence_authenticated": {"const": false},
-    "primary_checkout_target_proven": {"const": false},
-    "gate_report_bound": {"const": false},
-    "closed": {"const": false},
-    "scope": {"const": "repository-write-classification-preparation"},
+    "classification_ready": {
+      "type": "boolean"
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "primary_checkout_target_proven": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-classification-preparation"
+    },
     "blockers": {
       "type": "array",
       "uniqueItems": true,
@@ -197,10 +308,20 @@
         ]
       },
       "allOf": [
-        {"contains": {"const": "authenticated-evidence-verification-missing"}},
-        {"contains": {"const": "gate-report-binding-missing"}}
+        {
+          "contains": {
+            "const": "authenticated-evidence-verification-missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "gate-report-binding-missing"
+          }
+        }
       ]
     },
-    "digest": {"$ref": "#/$defs/sha256"}
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
   }
 }
