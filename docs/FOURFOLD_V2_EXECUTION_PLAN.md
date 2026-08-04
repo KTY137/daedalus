@@ -9,13 +9,13 @@ Rule: this document records execution status and evidence; it cannot override th
 
 ## Operating model
 
-Daedalus is developed through one active Work Packet per dependency line. Within
-one dependency line, packets remain sequential: one major architectural axis,
-one acceptance matrix, one builder, one independent review pass, and one explicit
-owner decision. Independent lines may prepare read-only inventories, tests,
-fixtures, schemas, or documentation while another line is externally blocked,
-but they may not establish a second implementation truth or begin dependent
-production work from an unverified parent.
+Daedalus production delivery proceeds through one dependent Work Packet at a
+time. Each packet has one major architectural axis, one acceptance matrix, one
+builder, one independent review pass, and one explicit owner decision. While an
+external blocker freezes a dependency line, separate short-lived packets may
+prepare genuinely independent read-only inventories, tests, fixtures, schemas,
+or documentation. Those preparatory packets may not establish a second
+implementation truth or begin production work that depends on the blocked parent.
 
 A packet may be split into smaller commits, but its PR must not mix unrelated
 feature work, broad cleanup, dependency migration, evaluator changes, or policy
@@ -37,9 +37,9 @@ Every packet follows:
 8. publish evidence, residual risk, rollback, and next prerequisites;
 9. merge only after owner approval.
 
-No dependent packet enters build while its parent is red or unreviewed unless the
-parent is explicitly frozen as a documented external blocker and the new packet
-is genuinely independent. Read-only research and preparation may continue, but
+No dependent packet enters build while its parent is red or unreviewed. An
+explicitly frozen external blocker permits only packets with no implementation
+dependency on that parent. Read-only research and preparation may continue, but
 cannot establish another implementation truth or be represented as executable
 verification.
 
