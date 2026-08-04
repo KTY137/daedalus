@@ -1,0 +1,174 @@
+name: Gate 0 Promotion Boundary Installation
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-effect-inventory-linear
+    paths:
+      - "daedalus/kairos/gated_writes.py"
+      - "daedalus/kairos/promotion_manager_boundary.py"
+      - "daedalus/kairos/promotion_manager_replay.py"
+      - "daedalus/kernel/promotion_effect_inventory.py"
+      - "daedalus/kernel/promotion_execution.py"
+      - "daedalus/spine/__init__.py"
+      - "daedalus/spine/effect_boundary.py"
+      - "daedalus/spine/promotion_effect_rows.py"
+      - "tests/kernel/test_promotion_boundary_installation*.py"
+      - "tests/kernel/test_promotion_effect_inventory*.py"
+      - "tests/kernel/test_promotion_manager*.py"
+      - "scripts/run_promotion_boundary_installation_mutations.py"
+      - "scripts/run_promotion_effect_inventory_mutations.py"
+      - "scripts/run_promotion_manager_audit_mutations.py"
+      - "scripts/run_promotion_manager_replay_mutations.py"
+      - "docs/work-packets/G0-PRM-24_PROMOTION_BOUNDARY_INSTALLATION.*"
+      - ".github/workflows/g0-promotion-boundary-installation.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g0/promotion-boundary-installation-v2-linear
+    paths:
+      - "daedalus/kairos/gated_writes.py"
+      - "daedalus/kairos/promotion_manager_boundary.py"
+      - "daedalus/kairos/promotion_manager_replay.py"
+      - "daedalus/kernel/promotion_effect_inventory.py"
+      - "daedalus/kernel/promotion_execution.py"
+      - "daedalus/spine/__init__.py"
+      - "daedalus/spine/effect_boundary.py"
+      - "daedalus/spine/promotion_effect_rows.py"
+      - "tests/kernel/test_promotion_boundary_installation*.py"
+      - "tests/kernel/test_promotion_effect_inventory*.py"
+      - "tests/kernel/test_promotion_manager*.py"
+      - "scripts/run_promotion_boundary_installation_mutations.py"
+      - "scripts/run_promotion_effect_inventory_mutations.py"
+      - "scripts/run_promotion_manager_audit_mutations.py"
+      - "scripts/run_promotion_manager_replay_mutations.py"
+      - "docs/work-packets/G0-PRM-24_PROMOTION_BOUNDARY_INSTALLATION.*"
+      - ".github/workflows/g0-promotion-boundary-installation.yml"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: promotion-boundary-installation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_boundary_installation.py
+          tests/kernel/test_promotion_boundary_installation_review.py
+          tests/kernel/test_promotion_effect_inventory.py
+          tests/kernel/test_promotion_effect_inventory_review.py
+          tests/kernel/test_promotion_manager_boundary.py
+          tests/kernel/test_promotion_manager_boundary_review.py
+          tests/kernel/test_promotion_manager_installation.py
+          tests/kernel/test_promotion_manager_replay_review.py
+      - name: Assert installed inventory remains honestly open
+        shell: bash
+        if: runner.os != 'Windows'
+        run: |
+          set +e
+          python -m daedalus.kernel.promotion_effect_inventory . \
+            --source-revision "${GITHUB_SHA}" \
+            --require-closed > promotion-effect-inventory.json
+          status=$?
+          set -e
+          test "$status" -eq 2
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("promotion-effect-inventory.json").read_text())
+          assert payload["closed"] is False
+          expected = {
+              "python.promote_candidates",
+              "kernel.promotion_execution.open",
+              "kernel.promotion_execution.begin",
+              "kernel.promotion_execution.complete",
+          }
+          assert {row["entrypoint_id"] for row in payload["findings"]} == expected
+          assert all(
+              row["blockers"] == ["registry.not_central:local_guards"]
+              for row in payload["findings"]
+          )
+          PY
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_promotion_boundary_installation_mutations.py
+      - run: python scripts/run_promotion_effect_inventory_mutations.py
+
+  manager-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_manager_boundary.py
+          tests/kernel/test_promotion_manager_boundary_review.py
+          tests/kernel/test_promotion_manager_installation.py
+          tests/kernel/test_promotion_manager_replay_review.py
+      - run: python scripts/run_promotion_manager_audit_mutations.py
+      - run: python scripts/run_promotion_manager_replay_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv wheel-venv
+      - run: wheel-venv/bin/python -m pip install dist/*.whl
+      - run: >-
+          wheel-venv/bin/python -c
+          "from daedalus.kairos import gated_writes; from daedalus.spine import effect_boundary; assert gated_writes.__dict__.get('_promotion_manager_replay_wrapper') is not None; expected={'kernel.promotion_execution.open','kernel.promotion_execution.begin','kernel.promotion_execution.complete'}; assert expected <= set(effect_boundary.REGISTRY_BY_ID)"
