@@ -1,0 +1,57 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20B",
+  "title": "Canonical Repository Write Inventory Generation 2",
+  "gate": 0,
+  "parent_revision": "f78e4c53fb5ac21d90a34a2fe6cd8f6da679ab14",
+  "parent_branch": "g0/repository-write-stdlib-delta-linear",
+  "branch": "g0/repository-write-canonical-v2-linear",
+  "change_class": "additive-strangler",
+  "authority": "inventory-only",
+  "compatibility": {
+    "generation_1_import_retained": true,
+    "generation_1_api_modified": false,
+    "monkey_patch_used": false
+  },
+  "composition": {
+    "base_scans": 2,
+    "stdlib_delta_scans": 1,
+    "requires_equal_source_revision": true,
+    "requires_equal_base_digest": true,
+    "requires_equal_scan_input_sha256": true,
+    "requires_equal_files_scanned": true,
+    "rejects_cross_component_position_overlap": true
+  },
+  "claims": {
+    "canonical_scanner_integrated": true,
+    "inventory_generation": 2,
+    "primary_checkout_target_proven": false,
+    "guard_classification_proven": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_byte_tests_prepared": true,
+    "bypass_and_overlap_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "inventory findings are not target-classified",
+    "inventory findings are not guard-classified",
+    "generation-2 digest is not yet bound into GateReport-v2",
+    "exact-head executable evidence is unavailable while Actions issue 67 persists"
+  ]
+}
