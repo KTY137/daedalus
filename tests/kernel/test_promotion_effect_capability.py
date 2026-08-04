@@ -353,3 +353,51 @@ def test_hidden_egress_and_missing_git_are_refused(tmp_path) -> None:
     )
     with pytest.raises(PromotionEffectBindingMismatch, match="git_tool"):
         build_capability(tmp_path / "no-git", scope_value=no_git_scope)
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        promotion(promotion_id="promotion with spaces"),
+        promotion(candidate_artifact_sha256="B" * 64),
+        promotion(source_revision="z" * 40),
+        promotion(target_ref="refs heads main"),
+        promotion(approval_consumption_sha256="not-a-digest"),
+        dataclasses.replace(promotion(), authorization_sha256="not-a-digest"),
+    ],
+)
+def test_digest_valid_but_noncanonical_promotion_fields_are_refused(
+    tmp_path, malformed
+) -> None:
+    capability = build_capability(tmp_path)
+    with pytest.raises(PromotionEffectBindingMismatch, match="noncanonical"):
+        PromotionEffectCapability(
+            promotion=malformed,
+            authorization=capability.authorization,
+            execution=capability.execution,
+        )
+
+
+def test_widened_signed_lease_scope_is_refused_before_delegation(tmp_path) -> None:
+    capability = build_capability(tmp_path)
+    widened_scope = EffectScope(
+        read_only=False,
+        writable_paths=(".",),
+        tools=("git", "python"),
+        timeout_s=300,
+        kill_switch_ref="promotion-kill",
+    )
+    widened_lease = dataclasses.replace(
+        capability.authorization.lease,
+        effect_scope=widened_scope,
+    )
+    widened_authorization = dataclasses.replace(
+        capability.authorization,
+        lease=widened_lease,
+    )
+    with pytest.raises(PromotionEffectBindingMismatch, match="lease_scope"):
+        PromotionEffectCapability(
+            promotion=capability.promotion,
+            authorization=widened_authorization,
+            execution=capability.execution,
+        )
