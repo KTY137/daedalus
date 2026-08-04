@@ -7,6 +7,7 @@ on:
     paths:
       - "daedalus/kernel/attempt_ledger.py"
       - "tests/kernel/test_attempt_durability_admission.py"
+      - "tests/kernel/test_attempt_durability_admission_review.py"
       - "scripts/run_attempt_durability_admission_mutations.py"
       - "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.md"
       - "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.json"
@@ -47,6 +48,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/kernel/test_attempt_durability_admission.py
+          tests/kernel/test_attempt_durability_admission_review.py
           tests/test_spine_gate0_durability.py
           tests/test_spine_gate0_durability_review.py
           tests/test_spine_ledger.py
