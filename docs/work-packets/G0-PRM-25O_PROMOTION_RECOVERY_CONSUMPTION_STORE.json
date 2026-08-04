@@ -17,10 +17,11 @@
     "compatibility-subclass-preserving-existing-consume-and-verification-methods",
     "normal-writer-open-uses-sqlite-mode-rw-and-cannot-create-a-missing-store",
     "store-identity-and-schema-rechecked-before-and-after-every-open",
+    "preopen-store-errors-normalized-to-ledger-state-errors",
     "postpublication-cleanup-unlinks-only-the-exact-published-file-identity",
-    "malformed-missing-redirected-substituted-and-racing-replacement-refusal-tests",
+    "malformed-missing-redirected-substituted-racing-and-concurrent-publication-tests",
     "separate-ast-authority-schema-and-publication-order-review",
-    "bounded-nine-mutant-store-campaign"
+    "bounded-ten-mutant-store-campaign"
   ],
   "verification_commands": [
     "python -m compileall -q daedalus tests scripts",
