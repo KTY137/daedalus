@@ -1,0 +1,103 @@
+{
+  "schema": "daedalus-gate0-event-store-writer-factory/1",
+  "work_packet": "G0-ES-16",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "selected_parent": "g0/attempt-durability-admission-linear",
+  "factory": {
+    "public_api": "daedalus.spine.open_gate0_spine_writer",
+    "returned_authority": "SpineLedger",
+    "opening_profile_class": "private_unexported_subclass",
+    "schema_authority": "daedalus.spine.ledger.SpineLedger",
+    "transaction_authority": "daedalus.spine.ledger.SpineLedger",
+    "journal_mode": "wal",
+    "synchronous_before_migration": "full",
+    "minimum_busy_timeout_ms": 30000,
+    "foreign_keys": true,
+    "final_readback_required": true
+  },
+  "invariants": [
+    {
+      "code": "event_store.full_before_generic_migration",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_gate0_writer_factory.py::test_factory_enters_full_before_generic_schema_migration"
+    },
+    {
+      "code": "event_store.legacy_default_unchanged",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_gate0_writer_factory.py::test_factory_does_not_change_legacy_default"
+    },
+    {
+      "code": "event_store.final_readback_fail_closed",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_gate0_writer_factory.py::test_factory_closes_writer_when_final_readback_is_weak"
+    },
+    {
+      "code": "event_store.no_second_schema_authority",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_gate0_writer_factory_review.py::test_review_opening_profile_changes_only_synchronous_mode"
+    },
+    {
+      "code": "attempt.path_uses_pre_migration_factory",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_gate0_writer_factory.py::test_attempt_path_uses_pre_migration_factory"
+    }
+  ],
+  "mutation_campaign": {
+    "runner": "scripts/run_spine_writer_factory_mutations.py",
+    "state": "implemented_unexecuted",
+    "mutants": [
+      "opening-profile-downgrade-to-normal",
+      "factory-bypasses-opening-profile",
+      "factory-skips-final-readback-refusal",
+      "factory-removes-minimum-timeout",
+      "factory-leaks-writer-on-weak-readback"
+    ]
+  },
+  "resolved_parent_blockers": [
+    {
+      "code": "event_store.initial_generic_migration_uses_legacy_default",
+      "scope": "path-created Attempt lifecycle writer",
+      "resolution": "AttemptLedger now obtains its owned canonical Event Store through a factory whose connection is FULL before SpineLedger._migrate executes."
+    }
+  ],
+  "remaining_blockers": [
+    {
+      "code": "event_store.other_production_writers_not_migrated",
+      "severity": "blocker",
+      "reason": "The factory exists and the selected Attempt path uses it, but every remaining production SpineLedger construction site still requires inventory and migration."
+    },
+    {
+      "code": "event_store.private_opening_seam_requires_review",
+      "severity": "blocker",
+      "reason": "The factory uses a private unexported subclass only to specialize SpineLedger._apply_pragmas. Independent architecture review must confirm this does not create a second ledger authority before promotion."
+    },
+    {
+      "code": "host_power_loss_fault_harness_missing",
+      "severity": "blocker",
+      "reason": "FULL configuration and process-exit evidence do not replace an external host/storage power-cut harness."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents test, mutation, full-suite, packaging and supported-platform execution."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Builder and context-separated counter-review tests are prepared; an independent reviewer decision is absent."
+    }
+  ],
+  "verification_state": {
+    "builder_implementation": "complete",
+    "builder_static_review": "performed",
+    "separate_counter_review": "implemented_unexecuted",
+    "mutation_tests": "implemented_unexecuted",
+    "full_suite": "blocked_by_github_actions_issue_67",
+    "platform_matrix": "blocked_by_github_actions_issue_67",
+    "isolated_wheel": "blocked_by_github_actions_issue_67",
+    "independent_review": "open",
+    "all_production_writers_migrated": false,
+    "gate0_closed": false
+  }
+}
