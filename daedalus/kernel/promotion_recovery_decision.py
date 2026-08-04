@@ -29,10 +29,12 @@ from .promotion_effects import (
     PromotionEffectCapability,
     _promotion_authorization_digest,
 )
+from .promotion_execution import PromotionExecutionLedger
 from .promotion_reconciliation import PromotionReconciliationDisposition
 from .promotion_recovery import (
     PromotionRecoveryAction,
     PromotionRecoveryPlan,
+    plan_promotion_recovery,
 )
 
 
@@ -59,7 +61,7 @@ class PromotionRecoveryDecisionBindingMismatch(PromotionRecoveryDecisionError):
 
 @dataclass(frozen=True)
 class PromotionRecoveryExpectation:
-    """Exact effect-only recovery subject that a signed decision must bind."""
+    """Exact current effect-only recovery subject a signed decision must bind."""
 
     promotion_authorization_sha256: str
     recovery_plan_sha256: str
@@ -300,15 +302,21 @@ def _verify_plan_digest(plan: PromotionRecoveryPlan) -> None:
 
 
 def recovery_expectation(
-    plan: PromotionRecoveryPlan,
     capability: PromotionEffectCapability,
+    promotion_ledger: PromotionExecutionLedger,
 ) -> PromotionRecoveryExpectation:
-    """Derive the sole owner-decision subject from a strict effect-only plan."""
+    """Derive the sole owner-decision subject from current strict ledger state."""
 
-    if not isinstance(plan, PromotionRecoveryPlan):
-        raise TypeError("recovery expectation requires PromotionRecoveryPlan")
     if not isinstance(capability, PromotionEffectCapability):
         raise TypeError("recovery expectation requires PromotionEffectCapability")
+    if not isinstance(promotion_ledger, PromotionExecutionLedger):
+        raise TypeError("recovery expectation requires PromotionExecutionLedger")
+
+    plan = plan_promotion_recovery(capability, promotion_ledger)
+    if not isinstance(plan, PromotionRecoveryPlan):
+        raise PromotionRecoveryDecisionBindingMismatch(
+            "promotion recovery projection returned a malformed plan"
+        )
     _verify_plan_digest(plan)
 
     if (
@@ -356,17 +364,21 @@ def verify_promotion_recovery_decision(
     decision: PromotionRecoveryDecision,
     *,
     keyring: Mapping[tuple[str, str], bytes | str],
-    expectation: PromotionRecoveryExpectation,
+    capability: PromotionEffectCapability,
+    promotion_ledger: PromotionExecutionLedger,
     now: datetime | None = None,
 ) -> VerifiedPromotionRecoveryDecision:
-    """Authenticate one exact owner decision without persisting or consuming it."""
+    """Authenticate owner intent against current state without consuming it."""
 
     if not isinstance(decision, PromotionRecoveryDecision):
         raise TypeError("verification requires PromotionRecoveryDecision")
-    if not isinstance(expectation, PromotionRecoveryExpectation):
-        raise TypeError("verification requires PromotionRecoveryExpectation")
     if not isinstance(keyring, Mapping):
         raise TypeError("verification requires an owner keyring mapping")
+    if not isinstance(capability, PromotionEffectCapability):
+        raise TypeError("verification requires PromotionEffectCapability")
+    if not isinstance(promotion_ledger, PromotionExecutionLedger):
+        raise TypeError("verification requires PromotionExecutionLedger")
+
     secret = keyring.get((decision.owner_id, decision.key_id))
     if secret is None:
         raise PromotionRecoveryDecisionSignatureError(
@@ -394,6 +406,7 @@ def verify_promotion_recovery_decision(
             "owner recovery decision has expired"
         )
 
+    expectation = recovery_expectation(capability, promotion_ledger)
     comparisons = {
         "operation": (decision.operation, _RECOVERY_OPERATION),
         "promotion_authorization_sha256": (
