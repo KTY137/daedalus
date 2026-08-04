@@ -470,6 +470,10 @@ def initialize_provider_observation_binding_store(
             raise ProviderObservationStoreError(
                 "published provider-observation store identity does not match"
             )
+        # Drop the temporary hard-link name before inspection so the published
+        # store has exactly one link and cannot be aliased through the staging
+        # path.
+        temporary.unlink()
         _fsync_file(path)
         _fsync_directory(path.parent)
         status = inspect_provider_observation_binding_store(target)
