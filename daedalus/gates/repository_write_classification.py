@@ -1,10 +1,10 @@
 """Revision-bound classification contract for repository write surfaces.
 
-This module is deliberately preparatory.  It can bind reviewed declarations to
-one generation-2 inventory, but it cannot authenticate external receipts, alter
+This module is deliberately preparatory. It binds reviewed declarations to one
+generation-2 inventory, but it does not authenticate external receipts, alter
 the canonical effect registry, prove Primary-Checkout disjointness, or close
-Gate 0.  Later packets may consume the report only after independently
-verifying the referenced evidence and binding it into the release GateReport.
+Gate 0. Later packets may consume the report only after independently verifying
+the referenced evidence and binding it into the release GateReport.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Iterable, Mapping
 
 from daedalus.gates.repository_write_inventory_v2 import (
     RepositoryWriteInventoryV2,
@@ -165,6 +165,16 @@ class SurfaceClassification:
             raise ValueError(
                 "disjoint target classification requires a disjointness receipt"
             )
+
+        # A reviewer must not be able to suppress every production blocker by
+        # merely toggling production_reachable=false. Non-reachability is itself
+        # an authority claim and is admitted only through the explicit retired
+        # state with revision-bound retirement evidence.
+        if not self.production_reachable and self.guard is not GuardDisposition.RETIRED:
+            raise ValueError(
+                "non-reachable classification requires retired disposition"
+            )
+
         if self.guard is GuardDisposition.CENTRAL:
             required = {
                 EvidenceKind.GUARD_CONTRACT,
@@ -381,7 +391,12 @@ def project_repository_write_classifications(
 ) -> RepositoryWriteClassificationReport:
     if not isinstance(inventory, RepositoryWriteInventoryV2):
         raise RepositoryWriteClassificationError("inventory type is invalid")
-    rows_unsorted = tuple(classifications)
+    try:
+        rows_unsorted = tuple(classifications)
+    except TypeError as exc:
+        raise RepositoryWriteClassificationError(
+            "classifications must be iterable"
+        ) from exc
     if any(not isinstance(row, SurfaceClassification) for row in rows_unsorted):
         raise RepositoryWriteClassificationError("classification type is invalid")
     rows = tuple(sorted(rows_unsorted, key=SurfaceClassification.sort_key))
