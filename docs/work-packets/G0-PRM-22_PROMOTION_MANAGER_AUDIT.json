@@ -7,6 +7,7 @@
   "branch": "g0/promotion-manager-audit-linear",
   "authority": {
     "live_boundary": "daedalus.kairos.gated_writes.promote_candidates",
+    "existing_retained_resource": "daedalus.kairos._gated_writes_legacy.py.src",
     "manager_adapter": "daedalus.kairos.promotion_manager_audit.AuditedWorktreeManager",
     "typed_ledger_proxy": "daedalus.kairos.promotion_manager_boundary._AuditedExecutionLedger",
     "typed_replay_proxy": "daedalus.kairos.promotion_manager_replay._ReplayAuditedExecutionLedger",
@@ -27,8 +28,8 @@
     "semantic-restart-replay-validation"
   ],
   "adversarial_findings_fixed": [
-    "stale-review-claimed-a-nonexistent-retained-source-loader",
-    "stale-review-claimed-production-installation-that-was-not-present",
+    "stale-review-claimed-absent-second-retained-resource-gated-writes-execution-accounting",
+    "stale-review-claimed-production-installer-calls-that-were-not-present",
     "installer-replaced-ledger-class-with-factory-breaking-isinstance",
     "mutation-runner-referenced-nonexistent-tests",
     "mutation-runner-used-non-unique-failure-seams",
@@ -48,8 +49,8 @@
   "owner_approval_issued": false,
   "automatic_promotion": false,
   "remaining_blockers": [
-    "install-manager-and-replay-boundaries-in-live-promotion-module",
-    "register-promotion-execution-effect-ownership",
+    "install-manager-and-replay-boundaries-after-sealed-callable-definition",
+    "register-promotion-execution-open-begin-complete-effect-ownership",
     "compose-effect-lease-runtime-conformance-and-docker-sandbox",
     "execute-focused-and-mutation-checks-on-exact-head",
     "execute-full-suite-platform-and-packaging-checks-on-exact-head",
