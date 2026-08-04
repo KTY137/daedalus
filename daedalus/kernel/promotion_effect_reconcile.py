@@ -89,6 +89,21 @@ def _replayed_result(
     )
 
 
+def _inspect_after_terminal_attempt(
+    capability: PromotionEffectCapability,
+    promotion_ledger: PromotionExecutionLedger,
+    *,
+    context: str,
+) -> PromotionEffectReplayDecision:
+    try:
+        decision = inspect_promotion_effect_replay(capability, promotion_ledger)
+    except PromotionEffectReplayMismatch as exc:
+        raise PromotionEffectReconciliationMismatch(context) from exc
+    if decision.action != "replay_promotion_report":
+        raise PromotionEffectReconciliationMismatch(context)
+    return decision
+
+
 def reconcile_promotion_effect_terminal(
     capability: PromotionEffectCapability,
     promotion_ledger: PromotionExecutionLedger,
@@ -150,18 +165,18 @@ def reconcile_promotion_effect_terminal(
             finished_at=finished_at,
         )
     except EffectLeaseStateError as exc:
-        raced = inspect_promotion_effect_replay(capability, promotion_ledger)
-        if raced.action != "replay_promotion_report":
-            raise PromotionEffectReconciliationMismatch(
-                "effect terminal changed concurrently to a non-replayable state"
-            ) from exc
+        raced = _inspect_after_terminal_attempt(
+            capability,
+            promotion_ledger,
+            context="effect terminal changed concurrently to a non-replayable state",
+        )
         return _replayed_result(raced, changed=False)
 
-    replayed = inspect_promotion_effect_replay(capability, promotion_ledger)
-    if replayed.action != "replay_promotion_report":
-        raise PromotionEffectReconciliationMismatch(
-            "reconciled terminal did not become an exact report replay"
-        )
+    replayed = _inspect_after_terminal_attempt(
+        capability,
+        promotion_ledger,
+        context="reconciled terminal did not become an exact report replay",
+    )
     result = _replayed_result(replayed, changed=True)
     if result.terminal_receipt != written:
         raise PromotionEffectReconciliationMismatch(
