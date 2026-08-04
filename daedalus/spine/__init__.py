@@ -5,6 +5,13 @@ COMMITTED before the external effect, so a crash can never leave an effect the
 system has no record of intending. See :mod:`daedalus.spine.ledger` for the
 crash-window contract (closed by effect identification, not by the key alone).
 """
+from .durability import (
+    Gate0DurabilityError,
+    Gate0DurabilityStatus,
+    enforce_gate0_durability,
+    inspect_gate0_durability,
+    open_gate0_spine_writer,
+)
 from .ledger import (
     DEFAULT_BUSY_TIMEOUT_MS,
     DEFAULT_DB_PATH,
@@ -27,6 +34,8 @@ from .ledger import (
 __all__ = [
     "DEFAULT_BUSY_TIMEOUT_MS",
     "DEFAULT_DB_PATH",
+    "Gate0DurabilityError",
+    "Gate0DurabilityStatus",
     "SCHEMA_VERSION",
     "STATE_COMPLETED",
     "STATE_FAILED",
@@ -41,4 +50,7 @@ __all__ = [
     "canonical_json",
     "canonical_sha",
     "default_db_path",
+    "enforce_gate0_durability",
+    "inspect_gate0_durability",
+    "open_gate0_spine_writer",
 ]
