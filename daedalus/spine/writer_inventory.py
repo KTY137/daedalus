@@ -1,11 +1,10 @@
 """Deterministic inventory of canonical Event-Store construction sites.
 
 The inventory is deliberately syntax-based and fail-closed. It does not claim
-that every dynamic Python call can be resolved; instead, direct, shadowed or
-otherwise ambiguous ``SpineLedger`` construction remains a blocker until it is
-migrated or explicitly classified by a stronger verifier. The report is bound
-to one repository revision and to the exact bytes of every scanned production
-Python file.
+that every dynamic Python call can be resolved. Direct, shadowed or otherwise
+ambiguous ``SpineLedger`` construction remains a blocker until it is migrated
+or classified by a stronger verifier. The report is bound to one repository
+revision and to the exact bytes of every scanned production Python file.
 """
 from __future__ import annotations
 
@@ -36,6 +35,15 @@ _TRACKED_TERMINALS = frozenset({"SpineLedger", "open_gate0_spine_writer"})
 _BLOCKING_KINDS = frozenset(
     {"legacy_direct", "ambiguous_direct", "ambiguous_binding"}
 )
+_ALLOWED_KINDS = frozenset(
+    {
+        "gate0_factory",
+        "read_only",
+        "legacy_direct",
+        "ambiguous_direct",
+        "ambiguous_binding",
+    }
+)
 
 
 class WriterInventoryError(RuntimeError):
@@ -51,23 +59,11 @@ class WriterCallsite:
     callee: str
 
     def __post_init__(self) -> None:
-        if (
-            not self.path
-            or self.path.startswith("/")
-            or "\\" in self.path
-            or self.path in {".", ".."}
-            or self.path.startswith("../")
-        ):
+        if not _safe_relative_posix(self.path):
             raise ValueError("writer callsite path must be repository-relative POSIX")
         if self.line < 1 or self.column < 0:
             raise ValueError("writer callsite position is invalid")
-        if self.kind not in {
-            "gate0_factory",
-            "read_only",
-            "legacy_direct",
-            "ambiguous_direct",
-            "ambiguous_binding",
-        }:
+        if self.kind not in _ALLOWED_KINDS:
             raise ValueError("unknown writer callsite kind")
         if not self.callee or any(ch.isspace() for ch in self.callee):
             raise ValueError("writer callsite callee is invalid")
@@ -98,13 +94,7 @@ class WriterInventory:
     def __post_init__(self) -> None:
         if not _SOURCE_REVISION.fullmatch(self.source_revision):
             raise ValueError("source_revision must be a lowercase 40-hex commit")
-        if (
-            not self.package_root
-            or self.package_root.startswith("/")
-            or "\\" in self.package_root
-            or self.package_root in {".", ".."}
-            or self.package_root.startswith("../")
-        ):
+        if not _safe_relative_posix(self.package_root):
             raise ValueError("package_root must be repository-relative POSIX")
         if not re.fullmatch(r"[0-9a-f]{64}", self.scan_input_sha256):
             raise ValueError("scan_input_sha256 must be lowercase sha256")
@@ -145,6 +135,20 @@ class WriterInventory:
         return {**self._payload(), "digest": self.digest}
 
 
+def _safe_relative_posix(value: str) -> bool:
+    return bool(
+        value
+        and not value.startswith("/")
+        and "\\" not in value
+        and value not in {".", ".."}
+        and not value.startswith("../")
+    )
+
+
+def _inside_daedalus(module: str) -> bool:
+    return module == "daedalus" or module.startswith("daedalus.")
+
+
 def _module_name(package_root: Path, path: Path) -> tuple[str, bool]:
     relative = path.relative_to(package_root).with_suffix("")
     parts = [package_root.name, *relative.parts]
@@ -174,7 +178,7 @@ def _relative_module(
     if module:
         package_parts.extend(module.split("."))
     resolved = ".".join(package_parts)
-    if not resolved.startswith("daedalus"):
+    if not _inside_daedalus(resolved):
         raise WriterInventoryError("relative import escapes production package")
     return resolved
 
@@ -224,12 +228,24 @@ def _syntactic_name(node: ast.expr) -> str | None:
     return None
 
 
-def _bound_names(tree: ast.AST) -> frozenset[str]:
-    """Return names rebound outside import statements, conservatively global.
+def _add_arguments(names: set[str], arguments: ast.arguments) -> None:
+    for argument in (
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+    ):
+        names.add(argument.arg)
+    if arguments.vararg is not None:
+        names.add(arguments.vararg.arg)
+    if arguments.kwarg is not None:
+        names.add(arguments.kwarg.arg)
 
-    Treating a local assignment as file-wide taint can create a false blocker,
-    but it cannot create a false trusted writer. That is the correct direction
-    for a Gate-0 inventory.
+
+def _bound_names(tree: ast.AST) -> frozenset[str]:
+    """Return names rebound outside imports, conservatively file-wide.
+
+    A local rebinding can therefore create an extra blocker, but it cannot make
+    an unsafe writer look admitted. That is the required direction for Gate 0.
     """
     names: set[str] = set()
     for node in ast.walk(tree):
@@ -237,30 +253,13 @@ def _bound_names(tree: ast.AST) -> frozenset[str]:
             node.ctx, (ast.Store, ast.Del)
         ):
             names.add(node.id)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             names.add(node.name)
-            for argument in (
-                *node.args.posonlyargs,
-                *node.args.args,
-                *node.args.kwonlyargs,
-            ) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) else ():
-                names.add(argument.arg)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                if node.args.vararg is not None:
-                    names.add(node.args.vararg.arg)
-                if node.args.kwarg is not None:
-                    names.add(node.args.kwarg.arg)
+            _add_arguments(names, node.args)
+        elif isinstance(node, ast.ClassDef):
+            names.add(node.name)
         elif isinstance(node, ast.Lambda):
-            for argument in (
-                *node.args.posonlyargs,
-                *node.args.args,
-                *node.args.kwonlyargs,
-            ):
-                names.add(argument.arg)
-            if node.args.vararg is not None:
-                names.add(node.args.vararg.arg)
-            if node.args.kwarg is not None:
-                names.add(node.args.kwarg.arg)
+            _add_arguments(names, node.args)
         elif isinstance(node, ast.ExceptHandler) and isinstance(node.name, str):
             names.add(node.name)
         elif isinstance(node, ast.Attribute) and isinstance(
@@ -290,19 +289,17 @@ def _resolve_name(
     return f"{resolved_root}.{suffix}" if dot else resolved_root, False
 
 
+def _targets_writer(values: Iterable[str]) -> bool:
+    return any(value.rsplit(".", 1)[-1] in _TRACKED_TERMINALS for value in values)
+
+
 def _assignment_aliases(
     tree: ast.AST,
     *,
     aliases: Mapping[str, frozenset[str]],
     rebound: frozenset[str],
 ) -> frozenset[str]:
-    """Identify simple indirect aliases and force their calls to block.
-
-    The scanner does not attempt to prove that ``Alias = SpineLedger`` remains
-    stable through every Python scope. Detecting the alias is nevertheless
-    valuable: a later ``Alias(...)`` call becomes ``ambiguous_binding`` rather
-    than disappearing from the report.
-    """
+    """Find simple indirect aliases so their calls cannot disappear."""
     indirect: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
@@ -314,8 +311,7 @@ def _assignment_aliases(
         if raw is None:
             continue
         resolved, _ = _resolve_name(raw, aliases=aliases, rebound=rebound)
-        terminal = (resolved or raw).rsplit(".", 1)[-1]
-        if terminal not in _TRACKED_TERMINALS:
+        if (resolved or raw).rsplit(".", 1)[-1] not in _TRACKED_TERMINALS:
             continue
         targets: tuple[ast.expr, ...]
         if isinstance(node, ast.Assign):
@@ -347,9 +343,7 @@ def _direct_kind(call: ast.Call) -> str:
                 ambiguous = True
     if ambiguous:
         return "ambiguous_direct"
-    if read_only is True:
-        return "read_only"
-    return "legacy_direct"
+    return "read_only" if read_only is True else "legacy_direct"
 
 
 def _callsites_for_file(
@@ -358,8 +352,7 @@ def _callsites_for_file(
     path: Path,
 ) -> tuple[WriterCallsite, ...]:
     try:
-        raw_bytes = path.read_bytes()
-        source = raw_bytes.decode("utf-8")
+        source = path.read_bytes().decode("utf-8")
         tree = ast.parse(source, filename=str(path), type_comments=True)
     except (OSError, UnicodeDecodeError, SyntaxError) as exc:
         relative = path.relative_to(repository_root).as_posix()
@@ -382,6 +375,7 @@ def _callsites_for_file(
         raw = _syntactic_name(node.func)
         if raw is None:
             continue
+        root = raw.partition(".")[0]
         resolved, ambiguous = _resolve_name(
             raw,
             aliases=aliases,
@@ -389,10 +383,13 @@ def _callsites_for_file(
         )
         raw_terminal = raw.rsplit(".", 1)[-1]
         resolved_terminal = (resolved or "").rsplit(".", 1)[-1]
+        tracked_alias = _targets_writer(aliases.get(root, ()))
         if raw in indirect or raw_terminal in indirect:
             kind = "ambiguous_binding"
             callee = raw
-        elif ambiguous and raw_terminal in _TRACKED_TERMINALS:
+        elif ambiguous and (
+            raw_terminal in _TRACKED_TERMINALS or tracked_alias
+        ):
             kind = "ambiguous_binding"
             callee = raw
         elif resolved in _FACTORY_CALLEES:
@@ -421,7 +418,7 @@ def _callsites_for_file(
     return tuple(sorted(sites))
 
 
-def _production_files(repository_root: Path, package_root: Path) -> tuple[Path, ...]:
+def _production_files(package_root: Path) -> tuple[Path, ...]:
     files: list[Path] = []
     resolved_package = package_root.resolve(strict=True)
     try:
@@ -481,7 +478,7 @@ def scan_event_store_writers(
         raise WriterInventoryError(
             "repository must contain an in-root daedalus package"
         ) from exc
-    files = _production_files(root, resolved_package)
+    files = _production_files(resolved_package)
     sites = tuple(
         sorted(
             site
