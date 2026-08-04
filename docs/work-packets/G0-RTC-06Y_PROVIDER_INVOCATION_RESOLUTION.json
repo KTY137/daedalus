@@ -19,6 +19,7 @@
     "binds_selected_implementation_identity": true,
     "binds_observation_authority_invocation_contract_and_effect_subject": true,
     "reverification_derives_descriptor_from_manifest": true,
+    "reverification_reauthenticates_all_authority_subjects": true,
     "contains_callable_or_dynamic_loader": false,
     "executes_provider": false,
     "persists_receipt": false,
@@ -33,6 +34,7 @@
     "signed_registry_subject_resolves_to_one_descriptor": true,
     "resolution_receipt_is_content_authenticated": true,
     "receipt_reverification_accepts_caller_descriptor": false,
+    "receipt_reverification_trusts_preverified_authority": false,
     "arbitrary_callback_gap_closed": false,
     "executable_registry_implemented": false,
     "broker_migrated": false,
@@ -51,6 +53,7 @@
     "malformed_time_tests_prepared": true,
     "receipt_digest_and_shape_tests_prepared": true,
     "descriptor_derivation_review_prepared": true,
+    "receipt_reauthentication_test_prepared": true,
     "independent_ast_review_prepared": true,
     "bounded_mutation_campaign_prepared": true,
     "bounded_mutants": 8,
@@ -70,7 +73,8 @@
     "exact_head_execution": "pending-external-ci"
   },
   "adversarial_corrections": [
-    "the first receipt-verification draft accepted a descriptor argument from the caller; the public verifier now derives the exact descriptor from the retained manifest and signed invocation subject"
+    "the first receipt-verification draft accepted a descriptor argument from the caller; the public verifier now derives the exact descriptor from the retained manifest and signed invocation subject",
+    "the second receipt-verification draft compared against subjects described as already authenticated; the public verifier now reruns the complete authority, registry, execution, lease, revision and time resolution before comparing the receipt"
   ],
   "remaining_blockers": [
     "a guarded executable registry must consume the exact resolution receipt and mechanically bind the loaded implementation artifact",
