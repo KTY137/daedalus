@@ -57,9 +57,9 @@ MUTATIONS = (
         "",
     ),
     (
-        "coerce-malformed-consumption-timestamps",
-        '            consumed_at=payload["consumed_at"],\n',
-        '            consumed_at=str(payload["consumed_at"]),  # mutant\n',
+        "accept-extra-consumption-fields",
+        "        if actual != expected:\n",
+        "        if False:  # mutant accepts unbound fields\n",
     ),
 )
 
