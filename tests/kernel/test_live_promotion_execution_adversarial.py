@@ -212,16 +212,17 @@ def test_primary_checkout_mutation_is_persisted_as_fault_not_success(
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / "source.py").write_text("original\n", encoding="utf-8")
+    original_fingerprint = fingerprint_primary_checkout(repo)
     ledger = PromotionExecutionLedger(tmp_path / "promotion.sqlite3")
-    _install(monkeypatch, tmp_path, ledger, mutate=True)
+    auth, _ = _install(monkeypatch, tmp_path, ledger, mutate=True)
 
     report = _call(repo, ledger)
     assert report["fault"]
     assert not ledger.pending()
     replay = ledger.begin(
-        _authorization(),
-        start_id=f"promotion-start-{_authorization().authorization_sha256[:24]}",
-        primary_checkout_before_sha256=fingerprint_primary_checkout(repo),
+        auth,
+        start_id=f"promotion-start-{auth.authorization_sha256[:24]}",
+        primary_checkout_before_sha256=original_fingerprint,
     )
     assert replay.execute is False
     assert replay.completion is not None
