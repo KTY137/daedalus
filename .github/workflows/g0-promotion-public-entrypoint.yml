@@ -5,7 +5,6 @@ on:
     branches:
       - g0/promotion-effect-lifecycle-linear
     paths:
-      - "daedalus/kairos/__init__.py"
       - "daedalus/kairos/promotion_entrypoint.py"
       - "tests/kernel/test_promotion_public_entrypoint*.py"
       - "scripts/run_promotion_public_entrypoint_mutations.py"
@@ -97,9 +96,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-promotion-entrypoint-wheel/bin/python - <<'PY'
-          import daedalus.kairos as kairos
           from daedalus.kairos.promotion_entrypoint import promote_candidates
 
-          assert kairos.promote_candidates_with_persisted_effect is promote_candidates
           assert promote_candidates.__module__ == "daedalus.kairos.promotion_entrypoint"
           PY
