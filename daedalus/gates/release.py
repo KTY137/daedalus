@@ -25,6 +25,10 @@ from daedalus.schemas import (
     _utc_timestamp,
 )
 from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.writer_inventory import (
+    WriterInventoryError,
+    scan_event_store_writers,
+)
 
 from .evidence import ArtifactEvidence, GateEvidenceIndex
 from .evidence_verifier import evidence_requirements_sha256
@@ -37,7 +41,7 @@ from .trust_bundle import (
 
 _RELEASE_RECEIPT_SCHEMA = "daedalus-gate0-release-receipt/1"
 _RELEASE_RECEIPT_ORIGIN = "gates.gate0-release-verifier"
-_REPORT_SCHEMA = "daedalus-gate-report/1"
+_REPORT_SCHEMA = "daedalus-gate-report/2"
 _REPORT_FIELDS = {
     "schema",
     "gate",
@@ -52,6 +56,8 @@ _REPORT_FIELDS = {
     "runtime_conformance_failures",
     "fault_injection_failures",
     "primary_checkout_mutations",
+    "event_store_writer_inventory_sha256",
+    "event_store_writer_failures",
     "owner_approval_enforced",
     "diagnostics",
     "blockers",
@@ -65,6 +71,7 @@ _REPORT_ARRAY_FIELDS = (
     "runtime_conformance_failures",
     "fault_injection_failures",
     "primary_checkout_mutations",
+    "event_store_writer_failures",
     "diagnostics",
     "blockers",
 )
@@ -250,7 +257,7 @@ def _signature(digest: str, secret: bytes | str) -> str:
 def validate_strict_gate_report_payload(
     payload: Mapping[str, Any],
 ) -> GateReport:
-    """Validate the exact canonical GateReport wire form without coercion."""
+    """Validate the exact canonical GateReport-v2 wire form without coercion."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("gate report must be an object")
@@ -262,6 +269,12 @@ def validate_strict_gate_report_payload(
         raise ValueError("gate report gate must be integer zero")
     _revision(payload["source_revision"], "source_revision")
     _sha256(payload["registry_sha256"], "registry_sha256")
+    writer_inventory_sha256 = payload["event_store_writer_inventory_sha256"]
+    if writer_inventory_sha256 is not None:
+        _sha256(
+            writer_inventory_sha256,
+            "event_store_writer_inventory_sha256",
+        )
     for field_name in (
         "closed",
         "security_boundary_claimed",
@@ -297,6 +310,10 @@ def validate_strict_gate_report_payload(
         ),
         fault_injection_failures=tuple(payload["fault_injection_failures"]),
         primary_checkout_mutations=tuple(payload["primary_checkout_mutations"]),
+        event_store_writer_inventory_sha256=writer_inventory_sha256,
+        event_store_writer_failures=tuple(
+            payload["event_store_writer_failures"]
+        ),
         owner_approval_enforced=payload["owner_approval_enforced"],
         diagnostics=tuple(payload["diagnostics"]),
     )
@@ -376,6 +393,27 @@ def _required_release_artifacts(
     return by_kind["gate-report"], by_kind["effect-inventory"]
 
 
+def _live_writer_inventory(
+    repo_root: Path,
+    *,
+    current_revision: str,
+) -> tuple[str, tuple[str, ...]]:
+    try:
+        inventory = scan_event_store_writers(
+            repo_root,
+            source_revision=current_revision,
+        )
+    except WriterInventoryError as exc:
+        raise Gate0ReleaseBindingError(
+            f"live Event-Store writer inventory refused: {exc}"
+        ) from exc
+    failures = tuple(
+        f"{site.path}:{site.line}:{site.column}:{site.kind}:{site.callee}"
+        for site in inventory.blockers
+    )
+    return inventory.digest, failures
+
+
 def _assert_gate0_release(
     report: GateReport,
     index: GateEvidenceIndex,
@@ -448,6 +486,26 @@ def _assert_gate0_release(
         raise Gate0ReleaseBindingError(
             "release artifact binding mismatch: "
             + ", ".join(artifact_mismatches)
+        )
+
+    live_writer_digest, live_writer_failures = _live_writer_inventory(
+        repo_root,
+        current_revision=current,
+    )
+    writer_mismatches = []
+    if report.event_store_writer_inventory_sha256 != live_writer_digest:
+        writer_mismatches.append("event_store_writer_inventory_sha256")
+    if report.event_store_writer_failures != live_writer_failures:
+        writer_mismatches.append("event_store_writer_failures")
+    if writer_mismatches:
+        raise Gate0ReleaseBindingError(
+            "live Event-Store writer inventory mismatch: "
+            + ", ".join(writer_mismatches)
+        )
+    if live_writer_failures:
+        raise Gate0ReleaseBlocked(
+            "live Event-Store writer blockers remain: "
+            + ", ".join(live_writer_failures)
         )
 
     if not report.closed:
