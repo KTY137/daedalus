@@ -28,7 +28,10 @@ REVISION = "a" * 40
 SCAN = "b" * 64
 
 
-def _surface(path: str = "daedalus/example.py", line: int = 7) -> RepositoryWriteSurface:
+def _surface(
+    path: str = "daedalus/example.py",
+    line: int = 7,
+) -> RepositoryWriteSurface:
     return RepositoryWriteSurface(
         path=path,
         line=line,
@@ -89,7 +92,10 @@ def _central(surface: RepositoryWriteSurface) -> SurfaceClassification:
     )
 
 
-def _input(inventory: RepositoryWriteInventoryV2, rows: list[dict[str, object]]) -> dict[str, object]:
+def _input(
+    inventory: RepositoryWriteInventoryV2,
+    rows: list[dict[str, object]],
+) -> dict[str, object]:
     return {
         "schema": "daedalus-gate0-repository-write-classification-input/1",
         "source_revision": inventory.source_revision,
@@ -163,8 +169,14 @@ def test_central_requires_exact_evidence_families() -> None:
     surface = _surface()
     row = _central(surface)
     for missing in row.evidence:
-        with pytest.raises(ValueError, match="disjointness receipt|required evidence kinds"):
-            replace(row, evidence=tuple(item for item in row.evidence if item != missing))
+        with pytest.raises(
+            ValueError,
+            match="disjointness receipt|required evidence kinds",
+        ):
+            replace(
+                row,
+                evidence=tuple(item for item in row.evidence if item != missing),
+            )
 
 
 def test_disjoint_target_requires_disjointness_receipt() -> None:
@@ -179,6 +191,52 @@ def test_disjoint_target_requires_disjointness_receipt() -> None:
             guard_contracts=(),
             evidence=(),
         )
+
+
+def test_unreachable_flag_cannot_launder_noncentral_production_surface() -> None:
+    surface = _surface()
+    disjoint = (
+        _evidence(
+            EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT,
+            "4",
+        ),
+    )
+    for guard in (
+        GuardDisposition.CENTRAL,
+        GuardDisposition.LOCAL_GUARDS,
+        GuardDisposition.INVENTORY_ONLY,
+        GuardDisposition.UNGUARDED,
+    ):
+        contracts = ("containment.attempt",) if guard in {
+            GuardDisposition.CENTRAL,
+            GuardDisposition.LOCAL_GUARDS,
+        } else ()
+        evidence = disjoint
+        if guard is GuardDisposition.LOCAL_GUARDS:
+            evidence = tuple(
+                sorted(
+                    (
+                        *disjoint,
+                        _evidence(EvidenceKind.GUARD_CONTRACT, "1"),
+                    ),
+                    key=EvidenceBinding.sort_key,
+                )
+            )
+        elif guard is GuardDisposition.CENTRAL:
+            evidence = _central(surface).evidence
+        with pytest.raises(
+            ValueError,
+            match="non-reachable classification requires retired",
+        ):
+            SurfaceClassification(
+                source_revision=REVISION,
+                surface=surface,
+                target=TargetDisposition.CHECKOUT_EXTERNAL,
+                guard=guard,
+                production_reachable=False,
+                guard_contracts=contracts,
+                evidence=evidence,
+            )
 
 
 def test_retired_requires_nonreachable_and_retirement_receipt() -> None:
@@ -235,7 +293,9 @@ def test_stale_revision_and_inventory_digest_refuse() -> None:
 def test_classification_evidence_revision_is_bound() -> None:
     row = _central(_surface())
     stale = replace(row.evidence[0], source_revision="e" * 40)
-    evidence = tuple(sorted((stale, *row.evidence[1:]), key=EvidenceBinding.sort_key))
+    evidence = tuple(
+        sorted((stale, *row.evidence[1:]), key=EvidenceBinding.sort_key)
+    )
     with pytest.raises(ValueError, match="evidence revision differs"):
         replace(row, evidence=evidence)
 
@@ -301,24 +361,51 @@ def test_cli_emits_report_and_scoped_ready_exit(
         encoding="utf-8",
     )
 
-    assert main([str(inventory_path), str(input_path), "--require-classification-ready"]) == 0
+    assert main(
+        [
+            str(inventory_path),
+            str(input_path),
+            "--require-classification-ready",
+        ]
+    ) == 0
     emitted = json.loads(capsys.readouterr().out)
     assert emitted["classification_ready"] is True
     assert emitted["closed"] is False
 
     input_path.write_text(json.dumps(_input(inventory, [])), encoding="utf-8")
-    assert main([str(inventory_path), str(input_path), "--require-classification-ready"]) == 3
+    assert main(
+        [
+            str(inventory_path),
+            str(input_path),
+            "--require-classification-ready",
+        ]
+    ) == 3
 
 
 def test_untyped_classification_refuses_without_attribute_error() -> None:
     inventory = _inventory(_surface())
     with pytest.raises(RepositoryWriteClassificationError, match="type is invalid"):
-        project_repository_write_classifications(inventory, (object(),))  # type: ignore[arg-type]
+        project_repository_write_classifications(
+            inventory,
+            (object(),),  # type: ignore[arg-type]
+        )
+
+
+def test_noniterable_classification_input_is_normalized() -> None:
+    inventory = _inventory(_surface())
+    with pytest.raises(RepositoryWriteClassificationError, match="must be iterable"):
+        project_repository_write_classifications(
+            inventory,
+            None,  # type: ignore[arg-type]
+        )
 
 
 def test_report_projection_count_and_partition_are_invariant() -> None:
     surface = _surface()
-    report = project_repository_write_classifications(_inventory(surface), (_central(surface),))
+    report = project_repository_write_classifications(
+        _inventory(surface),
+        (_central(surface),),
+    )
     with pytest.raises(ValueError, match="surface count"):
         replace(report, inventory_surface_count=2)
     with pytest.raises(ValueError, match="disjoint"):
