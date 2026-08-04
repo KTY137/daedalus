@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sqlite3
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
@@ -81,11 +82,49 @@ def _effect_key(promotion_id: str) -> str:
     return f"promotion.execution:{_identifier(promotion_id, 'promotion_id')}"
 
 
+def _freeze_json(value: Any, label: str = "value") -> Any:
+    """Validate and freeze one bounded JSON value without coercion."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise PromotionExecutionStateError(
+                f"{label} contains a non-finite float"
+            )
+        return value
+    if isinstance(value, Mapping):
+        frozen: dict[str, Any] = {}
+        for key, nested in value.items():
+            if not isinstance(key, str):
+                raise PromotionExecutionStateError(
+                    f"{label} contains a non-string object key"
+                )
+            frozen[key] = _freeze_json(nested, f"{label}.{key}")
+        return MappingProxyType(frozen)
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_json(item, f"{label}[]") for item in value)
+    raise PromotionExecutionStateError(
+        f"{label} contains non-JSON value {type(value).__name__}"
+    )
+
+
+def _thaw_json(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json(item) for item in value]
+    return value
+
+
 def _canonical_object(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise PromotionExecutionStateError(f"{label} must be an object")
+    frozen = _freeze_json(value, label)
+    decoded = _thaw_json(frozen)
+    if not isinstance(decoded, dict):
+        raise PromotionExecutionStateError(f"{label} must canonicalize to an object")
     try:
-        encoded = canonical_json(value)
+        encoded = canonical_json(decoded)
     except (TypeError, ValueError) as exc:
         raise PromotionExecutionStateError(f"{label} is not canonical JSON") from exc
     if len(encoded.encode("ascii")) > _MAX_REPORT_BYTES:
@@ -93,28 +132,19 @@ def _canonical_object(value: Any, label: str) -> dict[str, Any]:
             f"{label} exceeds {_MAX_REPORT_BYTES} bytes"
         )
     try:
-        decoded = json.loads(encoded)
-    except json.JSONDecodeError as exc:  # defensive: canonical_json produced it
+        parsed = json.loads(
+            encoded,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"non-finite JSON constant: {value}")
+            ),
+        )
+    except (json.JSONDecodeError, ValueError) as exc:
         raise PromotionExecutionStateError(f"{label} is not canonical JSON") from exc
-    if not isinstance(decoded, dict):
-        raise PromotionExecutionStateError(f"{label} must canonicalize to an object")
+    if parsed != decoded:
+        raise PromotionExecutionStateError(
+            f"{label} changed during canonical JSON round trip"
+        )
     return decoded
-
-
-def _freeze_json(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return MappingProxyType({str(key): _freeze_json(item) for key, item in value.items()})
-    if isinstance(value, list):
-        return tuple(_freeze_json(item) for item in value)
-    return value
-
-
-def _thaw_json(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {str(key): _thaw_json(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw_json(item) for item in value]
-    return value
 
 
 def _authorization_payload(authorization: PromotionAuthorization) -> dict[str, str]:
@@ -394,13 +424,17 @@ class PromotionExecutionCompletion:
                 "promotion execution completion requires a terminal receipt"
             )
         canonical = _canonical_object(self.report, "promotion execution report")
-        object.__setattr__(self, "report", _freeze_json(canonical))
+        object.__setattr__(
+            self,
+            "report",
+            _freeze_json(canonical, "promotion execution report"),
+        )
         if canonical_sha(canonical) != self.receipt.report_sha256:
             raise ValueError("promotion execution report digest mismatch")
 
     def report_dict(self) -> dict[str, Any]:
         value = _thaw_json(self.report)
-        if not isinstance(value, dict):  # structural assertion after construction
+        if not isinstance(value, dict):
             raise ValueError("promotion execution report must be an object")
         return value
 
