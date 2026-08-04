@@ -10,9 +10,13 @@
   "implemented": [
     "canonical-signed-promotion-recovery-decision-contract",
     "no-production-owner-decision-issuer",
-    "effect-only-plan-expectation-derivation",
+    "current-cross-ledger-recovery-expectation-derivation",
+    "no-caller-supplied-plan-or-expectation-authority",
+    "fresh-state-reprojection-during-verification",
     "independent-revalidation-of-plan-digest-and-promotion-authorization",
     "exact-plan-authorization-effect-start-and-source-revision-binding",
+    "signature-and-time-refusal-before-ledger-read",
+    "stale-effect-start-refusal",
     "owner-keyring-hmac-authentication",
     "strict-24-hour-maximum-ttl",
     "future-and-expired-decision-refusal",
@@ -20,7 +24,7 @@
     "verified-inert-recovery-decision-projection",
     "no-persistence-consumption-terminalization-git-or-promotion-authority",
     "independent-source-authority-and-order-review",
-    "bounded-seven-mutant-decision-campaign"
+    "bounded-eight-mutant-decision-campaign"
   ],
   "verification_commands": [
     "python -m compileall -q daedalus tests scripts",
@@ -40,7 +44,7 @@
   "automatic_promotion": false,
   "remaining_blockers": [
     "define-one-use-durable-recovery-decision-consumption-ledger",
-    "bind-effect-only-cancellation-writer-to-authenticated-consumed-decision",
+    "bind-effect-only-cancellation-writer-to-authenticated-consumed-decision-and-fresh-state-reprojection",
     "prove-cancellation-terminal-matches-the-retained-effect-start-without-promotion-start",
     "implement-forensic-promotion-pending-reconciliation-without-reexecution",
     "migrate-production-callers-to-capability-bearing-public-entrypoint",
