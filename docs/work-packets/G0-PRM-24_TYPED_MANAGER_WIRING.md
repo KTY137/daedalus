@@ -16,15 +16,26 @@ The public module continues to:
 4. delete the historical unpersisted promotion callable;
 5. define the sealed persisted-authority `promote_candidates` replacement.
 
-The two manager adapters are installed only after that sealed replacement exists and after `__all__` is frozen. No second retained source file or parallel promotion implementation is introduced.
+The parent public module remains a byte-identical prefix through its frozen `__all__`. The appended wiring consists only of a private `functools.wraps` import, the two private adapter imports, the ordered installer calls, a small function-facade factory, one public-callable assignment and deletion of all temporary private aliases. No second retained source file or parallel promotion implementation is introduced.
 
 ## Typed installation
 
-`install_promotion_manager_boundary` keeps the public `PromotionExecutionLedger` global bound to the canonical class. The public callable is replaced by a scoped wrapper that wraps only a caller-supplied ledger that already passes the canonical type boundary. An arbitrary object remains arbitrary and is refused by the sealed parent rather than being laundered through a proxy subclass.
+`install_promotion_manager_boundary` keeps the public `PromotionExecutionLedger` global bound to the canonical class. It wraps only a caller-supplied ledger that already passes the canonical type boundary. An arbitrary object remains arbitrary and is refused by the sealed parent rather than being laundered through a proxy subclass.
 
 `install_promotion_manager_replay_boundary` then selects `_ReplayAuditedExecutionLedger` as the per-call wrapper. The replay proxy subclasses the audit proxy, which subclasses the canonical ledger class. The exact already-open Event Store delegate remains authoritative; the wrapper does not open a second database.
 
-Both installer aliases are deleted after installation and were never included in `__all__`.
+## Function-compatible public facade
+
+Directly exposing the bound `_BoundaryState.promote_candidates` method would preserve call behavior but change the historic public API from a function into a bound method. That changes introspection, signature discovery, monkeypatch expectations and any code that depends on `inspect.isfunction` or the original `__wrapped__` chain.
+
+The live module therefore creates a small `functools.wraps` facade after both adapters are installed. The facade delegates to the scoped manager wrapper but copies the sealed parent function's name, qualified name, module, annotations and docstring, and exposes the sealed parent through `__wrapped__`. Consequently:
+
+- `promote_candidates` remains a normal function;
+- `inspect.signature(promote_candidates)` remains the sealed parent signature;
+- `inspect.unwrap(promote_candidates)` resolves to the sealed persisted-authority function;
+- the scoped manager wrapper remains the actual call target;
+- the factory, `wraps` alias and both installer aliases are deleted after construction;
+- none of those private helpers enter the frozen export set.
 
 ## Effect ordering
 
@@ -39,12 +50,13 @@ Live-wiring tests prove:
 - the existing retained-resource strangler remains active;
 - the public ledger global is still the canonical class;
 - the live manager state selects the typed replay proxy;
-- the public callable is the scoped wrapper over the sealed parent;
+- the public callable remains a function-compatible facade over the sealed parent;
+- exact name, module, qualified name, signature and unwrap behavior are retained;
 - an untyped ledger is refused without mutation;
 - manager state resets after every call;
-- installer aliases are not exported or retained.
+- installer, factory and `wraps` aliases are not exported or retained.
 
-Source counter-reviews require the exact order: sealed callable, export freeze, manager installation, replay installation. The mutation campaign removes either installer, reverses installation order and retains either private installer alias. Existing manager-audit, replay and promotion-effect inventory campaigns remain part of the dependent verification batch.
+The independent source counter-review verifies the parent file's exact Git-blob prefix and restricts the append to the private imports, ordered calls, function facade and alias deletions. The mutation campaign removes either installer, reverses installation order, removes the public facade and retains private aliases. Existing manager-audit, replay and promotion-effect inventory campaigns remain part of the dependent verification batch.
 
 ## Honest remaining boundary
 
