@@ -33,8 +33,20 @@ MUTATIONS = {
         "if False and raw_sha256 != binding.sha256:",
     ),
     "ignore-canonical-bytes": (
-        'if raw != canonical_json(document).encode("ascii"):',
-        'if False and raw != canonical_json(document).encode("ascii"):',
+        "if raw != canonical:",
+        "if False and raw != canonical:",
+    ),
+    "ignore-size-bound": (
+        "if len(raw) > _MAX_EVIDENCE_BYTES:",
+        "if False and len(raw) > _MAX_EVIDENCE_BYTES:",
+    ),
+    "forge-partial-canonical-verification": (
+        '"canonical_bytes_verified": self.materialization_complete',
+        '"canonical_bytes_verified": True',
+    ),
+    "forge-partial-binding-verification": (
+        '"binding_verified": self.materialization_complete',
+        '"binding_verified": True',
     ),
     "allow-unexpected-blobs": (
         "if set(blobs) - expected_locators:",
