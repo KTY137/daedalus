@@ -1,0 +1,52 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25B",
+  "title": "Promotion Registry Installation",
+  "gate": 0,
+  "base_branch": "g0/promotion-ledger-inventory-linear",
+  "base_revision": "ed2d07933326aea57e74c0aebd9a0cd070d0e4d6",
+  "source_parent_pr": 143,
+  "branch": "g0/promotion-registry-install-linear",
+  "implemented": [
+    "materialize-inert-promotion-descriptors-with-canonical-types",
+    "append-exact-three-local-guard-rows",
+    "bind-exact-source-anchors",
+    "refresh-captured-registry-defaults",
+    "partial-conflicting-and-duplicate-installation-refusal",
+    "inventory-missing-to-local-guard-blocker-transition",
+    "bounded-registry-installation-mutation-campaign"
+  ],
+  "current_expected_blockers": [
+    "python.promote_candidates:registry.not_central:local_guards",
+    "kernel.promotion_execution.open:registry.not_central:local_guards",
+    "kernel.promotion_execution.begin:registry.not_central:local_guards",
+    "kernel.promotion_execution.complete:registry.not_central:local_guards"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m pytest -q tests/kernel/test_promotion_effect_rows.py tests/kernel/test_promotion_effect_rows_review.py tests/kernel/test_promotion_effect_registry.py tests/kernel/test_promotion_effect_registry_review.py tests/kernel/test_promotion_effect_inventory.py tests/kernel/test_promotion_effect_inventory_review.py tests/kernel/test_promotion_manager_live_wiring.py tests/kernel/test_promotion_manager_live_wiring_review.py",
+    "python scripts/run_promotion_effect_rows_mutations.py",
+    "python scripts/run_promotion_effect_registry_mutations.py",
+    "python scripts/run_promotion_effect_inventory_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "compose-persisted-effect-lease",
+    "bind-exact-runtime-manifest",
+    "bind-current-runtime-conformance-receipt",
+    "bind-current-kill-switch-generation",
+    "compose-selected-docker-sandbox",
+    "upgrade-promotion-rows-to-central-only-after-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly yields jobs with no executable steps or logs; such runs are infrastructure observations and not product evidence."
+}
