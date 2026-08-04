@@ -1,10 +1,10 @@
 """Revision-bound classification contract for repository write surfaces.
 
-This module is deliberately preparatory. It binds reviewed declarations to one
-generation-2 inventory, but it does not authenticate external receipts, alter
+This module is deliberately preparatory.  It can bind reviewed declarations to
+one generation-2 inventory, but it cannot authenticate external receipts, alter
 the canonical effect registry, prove Primary-Checkout disjointness, or close
-Gate 0. Later packets may consume the report only after independently verifying
-the referenced evidence and binding it into the release GateReport.
+Gate 0.  Later packets may consume the report only after independently
+verifying the referenced evidence and binding it into the release GateReport.
 """
 from __future__ import annotations
 
@@ -56,18 +56,38 @@ class EvidenceKind(str, Enum):
     RETIREMENT_RECEIPT = "retirement_receipt"
 
 
+def surface_binding_sha256(
+    source_revision: str, surface: RepositoryWriteSurface
+) -> str:
+    """Bind evidence to one exact revision and inventory surface identity."""
+
+    if not isinstance(source_revision, str) or not _REVISION.fullmatch(source_revision):
+        raise ValueError("surface binding revision must be lowercase 40-hex")
+    if not isinstance(surface, RepositoryWriteSurface):
+        raise ValueError("surface binding surface must be typed")
+    payload = {
+        "source_revision": source_revision,
+        "surface": surface.to_dict(),
+    }
+    return hashlib.sha256(canonical_json(payload).encode("ascii")).hexdigest()
+
+
 @dataclass(frozen=True)
 class EvidenceBinding:
     kind: EvidenceKind
     source_revision: str
+    surface_sha256: str
     sha256: str
     locator: str
+    guard_contract: str = ""
 
     def __post_init__(self) -> None:
         if not isinstance(self.kind, EvidenceKind):
             raise ValueError("evidence kind must be typed")
         if not _REVISION.fullmatch(self.source_revision):
             raise ValueError("evidence source_revision must be lowercase 40-hex")
+        if not _SHA256.fullmatch(self.surface_sha256):
+            raise ValueError("evidence surface_sha256 must be lowercase 64-hex")
         if not _SHA256.fullmatch(self.sha256):
             raise ValueError("evidence sha256 must be lowercase 64-hex")
         if (
@@ -76,23 +96,44 @@ class EvidenceBinding:
             or any(ch in self.locator for ch in "\r\n")
         ):
             raise ValueError("evidence locator must be a non-empty single line")
+        if self.kind is EvidenceKind.GUARD_CONTRACT:
+            if not _CONTRACT.fullmatch(self.guard_contract):
+                raise ValueError("guard-contract evidence requires a contract name")
+        elif self.guard_contract:
+            raise ValueError("non-guard evidence cannot name a guard contract")
 
-    def sort_key(self) -> tuple[str, str, str, str]:
-        return (self.kind.value, self.source_revision, self.sha256, self.locator)
+    def sort_key(self) -> tuple[str, str, str, str, str, str]:
+        return (
+            self.kind.value,
+            self.guard_contract,
+            self.source_revision,
+            self.surface_sha256,
+            self.sha256,
+            self.locator,
+        )
 
     def to_dict(self) -> dict[str, str]:
         return {
             "kind": self.kind.value,
             "source_revision": self.source_revision,
+            "surface_sha256": self.surface_sha256,
             "sha256": self.sha256,
             "locator": self.locator,
+            "guard_contract": self.guard_contract,
         }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> "EvidenceBinding":
         _require_exact_keys(
             value,
-            {"kind", "source_revision", "sha256", "locator"},
+            {
+                "kind",
+                "source_revision",
+                "surface_sha256",
+                "sha256",
+                "locator",
+                "guard_contract",
+            },
             "evidence binding",
         )
         try:
@@ -107,8 +148,14 @@ class EvidenceBinding:
                 source_revision=_strict_str(
                     value["source_revision"], "evidence source_revision"
                 ),
+                surface_sha256=_strict_str(
+                    value["surface_sha256"], "evidence surface_sha256"
+                ),
                 sha256=_strict_str(value["sha256"], "evidence sha256"),
                 locator=_strict_str(value["locator"], "evidence locator"),
+                guard_contract=_strict_str(
+                    value["guard_contract"], "evidence guard_contract"
+                ),
             )
         except ValueError as exc:
             raise RepositoryWriteClassificationError(
@@ -154,10 +201,22 @@ class SurfaceClassification:
             raise ValueError("evidence must be unique")
         if any(item.source_revision != self.source_revision for item in self.evidence):
             raise ValueError("evidence revision differs from classification revision")
+        expected_surface_sha256 = surface_binding_sha256(
+            self.source_revision, self.surface
+        )
+        if any(
+            item.surface_sha256 != expected_surface_sha256 for item in self.evidence
+        ):
+            raise ValueError("evidence surface binding differs from classification")
         if not isinstance(self.notes, str) or any(ch in self.notes for ch in "\r\n"):
             raise ValueError("notes must be a single line")
 
         kinds = {item.kind for item in self.evidence}
+        evidenced_contracts = {
+            item.guard_contract
+            for item in self.evidence
+            if item.kind is EvidenceKind.GUARD_CONTRACT
+        }
         if self.target in {
             TargetDisposition.CHECKOUT_EXTERNAL,
             TargetDisposition.NON_REPOSITORY,
@@ -165,16 +224,13 @@ class SurfaceClassification:
             raise ValueError(
                 "disjoint target classification requires a disjointness receipt"
             )
-
-        # A reviewer must not be able to suppress every production blocker by
-        # merely toggling production_reachable=false. Non-reachability is itself
-        # an authority claim and is admitted only through the explicit retired
-        # state with revision-bound retirement evidence.
-        if not self.production_reachable and self.guard is not GuardDisposition.RETIRED:
+        if (
+            not self.production_reachable
+            and self.guard is not GuardDisposition.RETIRED
+        ):
             raise ValueError(
                 "non-reachable classification requires retired disposition"
             )
-
         if self.guard is GuardDisposition.CENTRAL:
             required = {
                 EvidenceKind.GUARD_CONTRACT,
@@ -189,13 +245,15 @@ class SurfaceClassification:
                 raise ValueError("central classification requires a disjoint target")
             if not self.guard_contracts:
                 raise ValueError("central classification requires guard contracts")
+            if evidenced_contracts != set(self.guard_contracts):
+                raise ValueError("central guard evidence does not match guard contracts")
             if not required.issubset(kinds):
                 raise ValueError("central classification lacks required evidence kinds")
         elif self.guard is GuardDisposition.LOCAL_GUARDS:
             if not self.guard_contracts:
                 raise ValueError("local_guards requires guard contracts")
-            if EvidenceKind.GUARD_CONTRACT not in kinds:
-                raise ValueError("local_guards requires guard-contract evidence")
+            if evidenced_contracts != set(self.guard_contracts):
+                raise ValueError("local_guards evidence does not match guard contracts")
         elif self.guard is GuardDisposition.RETIRED:
             if self.production_reachable:
                 raise ValueError("retired classification cannot remain production reachable")
