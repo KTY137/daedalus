@@ -1,0 +1,103 @@
+name: Gate 0 Live Promotion Execution Accounting
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-execution-event-spine-linear
+    paths:
+      - "daedalus/kairos/gated_writes.py"
+      - "daedalus/kernel/promotion_fingerprint.py"
+      - "tests/kernel/test_live_promotion_seam.py"
+      - "tests/kernel/test_live_promotion_seam_review.py"
+      - "tests/kernel/test_live_promotion_execution_adversarial.py"
+      - "tests/kernel/test_promotion_fingerprint.py"
+      - "scripts/run_live_promotion_execution_mutations.py"
+      - "docs/work-packets/G0-PRM-20_LIVE_PROMOTION_EXECUTION_ACCOUNTING.md"
+      - "docs/work-packets/G0-PRM-20_LIVE_PROMOTION_EXECUTION_ACCOUNTING.json"
+      - ".github/workflows/g0-live-promotion-execution-accounting.yml"
+  push:
+    branches:
+      - g0/live-promotion-execution-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-live-promotion-execution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts tools
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-20_LIVE_PROMOTION_EXECUTION_ACCOUNTING.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_live_promotion_seam.py
+          tests/kernel/test_live_promotion_seam_review.py
+          tests/kernel/test_live_promotion_execution_adversarial.py
+          tests/kernel/test_promotion_fingerprint.py
+          tests/kernel/test_promotion_execution.py
+          tests/kernel/test_promotion_execution_adversarial.py
+          tests/kernel/test_promotion_execution_review.py
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_persisted_promotion_authorization_review.py
+          tests/kernel/test_promotion_material_review.py
+          tests/kernel/test_sealed_promotion.py
+          tests/test_spine_gate0_writer_factory.py
+          tests/test_spine_gate0_durability.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_live_promotion_execution_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-live-promotion-wheel
+      - run: /tmp/daedalus-live-promotion-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-live-promotion-wheel/bin/python - <<'PY'
+          from daedalus.kairos.gated_writes import promote_candidates
+          from daedalus.kernel.promotion_execution import PromotionExecutionLedger
+          from daedalus.kernel.promotion_fingerprint import fingerprint_primary_checkout
+
+          assert callable(promote_candidates)
+          assert PromotionExecutionLedger.__module__ == "daedalus.kernel.promotion_execution"
+          assert callable(fingerprint_primary_checkout)
+          PY
