@@ -20,9 +20,19 @@ def test_delta_has_no_registry_patch_or_effect_authority() -> None:
     assert "OwnerApproval" not in source
     assert "PromotionReceipt" not in source
     assert "EffectLease" not in source
-    assert "subprocess." not in source
     assert "sqlite3" not in source
     assert "git " not in source.lower()
+
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(
+                item.name.split(".", 1)[0] for item in node.names
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".", 1)[0])
+    assert "subprocess" not in imported_roots
+    assert "sqlite3" not in imported_roots
 
     forbidden_calls = {
         "write_text",
