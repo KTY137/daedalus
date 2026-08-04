@@ -22,12 +22,20 @@ The decision layer recognizes these safe outcomes:
 | absent | absent | `fresh` |
 | absent | pending or terminal | refuse contradiction |
 | `STARTED` | absent or pending | `pending_reconciliation` |
-| `STARTED` | terminal | `reconcile_effect_terminal` |
-| `COMPLETED` | exact terminal | `replay_promotion_report` |
+| `STARTED` | terminal | `reconcile_effect_terminal` with exact expected outcome |
+| `COMPLETED` | succeeded or refused terminal | `replay_promotion_report` |
+| `FAILED` | faulted terminal | `replay_promotion_report` |
 | `FAILED` or `CANCELLED` | absent | `replay_effect_terminal_without_report` |
 | terminal | pending | refuse contradiction |
 | `COMPLETED` | absent | refuse missing report |
-| `FAILED` or `CANCELLED` | terminal | refuse contradiction |
+| terminal outcome not matching promotion outcome | terminal | refuse contradiction |
+
+Promotion outcomes map to top-level Effect-Lease outcomes as follows:
+
+- `succeeded` → `COMPLETED`;
+- `refused` → `COMPLETED`, because the bounded call completed and returned a
+  verified refusal report without repository promotion;
+- `faulted` → `FAILED`.
 
 Only `fresh` exposes `permits_fresh_execution=true`, and that state requires
 both durable starts to be absent. No pending state permits automatic
@@ -39,15 +47,18 @@ When both starts exist, the promotion start must not precede the top-level
 Effect-Lease start. A retained promotion terminal under a still-started Effect
 Lease yields only a deterministic reconciliation decision containing:
 
+- the exact expected top-level outcome derived from the verified promotion
+  outcome;
 - exactly one expected output digest: the canonical promotion report digest;
 - exactly one expected detail digest: the canonical promotion execution receipt
   digest.
 
-A completed top-level Effect Lease may replay the promotion report only when its
-terminal receipt binds both values exactly and finishes no earlier than the
-promotion execution terminal. The promotion projection already binds that
-report to candidate, EvidencePacket, approval consumption, source revision,
-target ref, target HEAD, primary-checkout invariance and terminal outcome.
+A terminal top-level Effect Lease may replay the promotion report only when its
+state, output and detail bindings match those values exactly and it finishes no
+earlier than the promotion execution terminal. The promotion projection already
+binds that report to candidate, EvidencePacket, approval consumption, source
+revision, target ref, target HEAD, primary-checkout invariance and terminal
+outcome.
 
 ## Authority separation
 
@@ -68,7 +79,9 @@ Builder and counter-review tests cover:
 - promotion without a top-level effect start;
 - effect-only and dual-pending states;
 - terminal promotion awaiting deterministic effect terminalization;
-- exact completed report replay;
+- exact succeeded, refused and faulted outcome mapping;
+- exact terminal report replay for `COMPLETED` and `FAILED` states;
+- effect-outcome substitution;
 - failed effect without a promotion report;
 - completed effect without a report;
 - terminal effect hiding a pending promotion;
@@ -76,11 +89,10 @@ Builder and counter-review tests cover:
 - reversed start chronology;
 - source-level absence of writer/effect authority;
 - no second fresh-return site;
-- completed-state requirement before report replay.
+- exact outcome-state requirement before report replay.
 
 The bounded mutation runner attacks absent-effect contradiction, start order,
-pending re-execution, output binding, detail binding and completed-state
-binding.
+pending re-execution, output binding, detail binding and faulted-outcome mapping.
 
 ## Honest migration state
 
