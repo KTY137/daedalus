@@ -61,11 +61,13 @@ def test_only_both_absent_can_produce_fresh_authority_decision() -> None:
     assert 'return self.action == "fresh"' in source
 
 
-def test_report_replay_requires_exact_outputs_detail_and_chronology() -> None:
+def test_report_replay_requires_completed_effect_outputs_detail_and_chronology() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     required = (
         "completion.receipt.report_sha256",
         "completion.receipt.digest",
+        'if effect.state != "COMPLETED":',
+        "failed or cancelled Effect Lease contradicts terminal promotion report",
         "terminal.output_digests != outputs",
         "terminal.detail_sha256 != detail",
         "_enforce_terminal_order(effect, promotion)",
