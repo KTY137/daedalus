@@ -24,6 +24,8 @@ _SCHEMA = "daedalus-gate-report/2"
 _LEGACY_SCHEMA = "daedalus-gate-report/1"
 _SUPPORTED_SCHEMAS = frozenset({_SCHEMA, _LEGACY_SCHEMA})
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
+_MAX_REPORT_BYTES = 4 * 1024 * 1024
 _SEQUENCE_FIELDS = (
     "unregistered_effectful_entrypoints",
     "unguarded_entrypoints",
@@ -131,6 +133,21 @@ def _verify_serialized_digest(payload: Mapping[str, Any]) -> None:
         raise ValueError("gate report digest mismatch")
 
 
+def _object_without_duplicates(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"gate report contains duplicate key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"gate report contains non-finite JSON constant: {value}")
+
+
 @dataclass(frozen=True)
 class GateReport:
     gate: int
@@ -154,10 +171,11 @@ class GateReport:
             raise ValueError("this report implementation currently supports Gate 0 only")
         if (
             not isinstance(self.source_revision, str)
-            or not self.source_revision
-            or len(self.source_revision) > 200
+            or not _SOURCE_REVISION.fullmatch(self.source_revision)
         ):
-            raise ValueError("source_revision must be a non-empty bounded string")
+            raise ValueError(
+                "source_revision must be a lowercase 40-hex commit"
+            )
         object.__setattr__(
             self,
             "registry_sha256",
@@ -297,7 +315,7 @@ class GateReport:
         if not isinstance(payload, Mapping):
             raise ValueError("gate report root must be an object")
         schema = payload.get("schema")
-        if schema not in _SUPPORTED_SCHEMAS:
+        if not isinstance(schema, str) or schema not in _SUPPORTED_SCHEMAS:
             raise ValueError("unsupported gate report schema")
         expected_fields = _V2_FIELDS if schema == _SCHEMA else _V1_FIELDS
         if set(payload) != expected_fields:
@@ -496,7 +514,24 @@ def build_gate0_report(
 
 
 def load_gate_report(path: Path) -> GateReport:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ValueError("gate report could not be read") from exc
+    if len(raw) > _MAX_REPORT_BYTES:
+        raise ValueError("gate report exceeds maximum size")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("gate report must be UTF-8") from exc
+    try:
+        payload = json.loads(
+            text,
+            object_pairs_hook=_object_without_duplicates,
+            parse_constant=_reject_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError("gate report is malformed JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("gate report root must be an object")
     return GateReport.from_dict(payload)
