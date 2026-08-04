@@ -1,0 +1,83 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20O",
+  "title": "Guard Behavior Attestation Controlled Integration",
+  "gate": 0,
+  "parent_revision": "bbb0aef26b5fb6c6abc746f5f322cc0235f39e21",
+  "parent_branch": "g0/repository-write-effect-lease-replay-linear",
+  "branch": "g0/guard-behavior-attestation-integration-linear",
+  "change_class": "controlled-port-additive-authentication-contract",
+  "authority": "repository-write-guard-behavior-attestation-authentication-only",
+  "source_packet": {
+    "pull_request": 179,
+    "branch": "g0/repository-write-guard-behavior-attestation-linear",
+    "revision": "05376b15b76d49b7c032adcb60ddd0d30c13e5a6",
+    "module_blob": "737a45995fa908b5b961c999b5a4648a9f566909",
+    "schema_blob": "828e814dbdaf0119746ba14ea2acafe28f0fe5a1",
+    "mutation_blob": "cf8ed23018805329e289390dc5cc21687f201890",
+    "behavior_test_blob": "1fde92ad4dba6536c6f2e79b652bb54faa874984",
+    "review_test_blob": "0737bbc044fc055e6d0b9222b50bffe6f946b8ae"
+  },
+  "scope": {
+    "ports_exact_reviewed_source_blobs": true,
+    "preserves_selected_effect_lease_stack": true,
+    "authenticates_external_guard_behavior_results": true,
+    "requires_allow_and_refuse_vectors_per_contract": true,
+    "binds_structure_harness_runtime_manifest_and_revision": true,
+    "executes_guard_implementations": false,
+    "establishes_guard_semantics": false,
+    "establishes_runtime_conformance": false,
+    "modifies_existing_production_callers": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "guard_behavior_attestation_contract_available": true,
+    "positive_and_negative_vector_authentication_available": true,
+    "guard_behavior_execution_replayed": false,
+    "guard_contract_semantics_verified": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_tests_prepared": true,
+    "signature_and_key_substitution_tests_prepared": true,
+    "missing_negative_vector_tests_prepared": true,
+    "failed_observation_tests_prepared": true,
+    "structure_harness_and_runtime_subject_substitution_tests_prepared": true,
+    "authority_bypass_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 10,
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository write and review access but no executable private-repository checkout; source inspection and model assertions are not product or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the exact behavior harness has not been independently replayed under an authenticated current Runtime Manifest and RuntimeConformanceReceipt",
+    "guard behavior evidence is not yet composed with the selected repository-write Effect-Lease semantic report",
+    "Primary-Checkout disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic repository-write projection is not bound into GateReport-v2 or the release verifier",
+    "live classification, evidence population, canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 terminates hosted jobs before Step 1"
+  ]
+}
