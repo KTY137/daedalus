@@ -1,0 +1,101 @@
+name: Gate 0 Provider Invocation Observation Authority
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-invocation-subject-r2-linear
+  push:
+    branches:
+      - g0/provider-invocation-observation-authority-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-06W_PROVIDER_INVOCATION_OBSERVATION_AUTHORITY.json
+      - run: python -m pytest -q tests/runtimes/test_provider_invocation_authority.py tests/runtimes/test_provider_invocation_authority_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_invocation_authority_mutations.py
+
+  predecessor-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q tests/runtimes/test_provider_invocation_subject.py tests/runtimes/test_provider_invocation_subject_review.py tests/runtimes/test_provider_observation_authority.py tests/runtimes/test_provider_observation_authority_review.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-invocation-authority-wheel
+      - run: /tmp/daedalus-invocation-authority-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-invocation-authority-wheel/bin/python - <<'PY'
+          from daedalus.runtimes.provider_invocation_authority import (
+              ProviderInvocationObservationAuthority,
+              issue_provider_invocation_observation_authority,
+              verify_provider_invocation_observation_authority,
+          )
+          assert ProviderInvocationObservationAuthority is not None
+          assert callable(issue_provider_invocation_observation_authority)
+          assert callable(verify_provider_invocation_observation_authority)
+          PY
