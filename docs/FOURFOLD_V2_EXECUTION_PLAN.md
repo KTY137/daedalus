@@ -1,20 +1,29 @@
 # Fourfold v2 Execution Plan
 
 Status: active derived projection  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 2  
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 3  
 Active gate: Gate 0 — Canonical Kernel  
-Primary branch chain: `experimental` -> focused Work Packet branch -> draft PR  
+Projection base: `g0/repository-write-stdlib-delta-linear` at `f78e4c53fb5ac21d90a34a2fe6cd8f6da679ab14`  
+Branch rule: exact reviewed or explicitly frozen parent -> short-lived focused Work Packet branch -> draft PR; never mutate `main` or `experimental` directly  
 Rule: this document records execution status and evidence; it cannot override the Iron Plan.
 
 ## Operating model
 
-Daedalus is developed through one active Work Packet at a time. Each packet has
-one major architectural axis, one acceptance matrix, one builder, one independent
-review pass, and one explicit owner decision. A packet may be split into smaller
-commits, but its PR must not mix unrelated feature work, broad cleanup, dependency
-migration, evaluator changes, or policy amendments. The owner-requested revision-2
-amendment in WP-00 is a one-time foundational exception, retained as its own atomic
-commit and review unit because it defines the Work-Packet chain itself.
+Daedalus is developed through one active Work Packet per dependency line. Within
+one dependency line, packets remain sequential: one major architectural axis,
+one acceptance matrix, one builder, one independent review pass, and one explicit
+owner decision. Independent lines may prepare read-only inventories, tests,
+fixtures, schemas, or documentation while another line is externally blocked,
+but they may not establish a second implementation truth or begin dependent
+production work from an unverified parent.
+
+A packet may be split into smaller commits, but its PR must not mix unrelated
+feature work, broad cleanup, dependency migration, evaluator changes, or policy
+amendments. The owner-requested revision-2 amendment in WP-00 remains a retained
+foundational transaction. The adopted revision-3 amendment additionally permits
+one bounded, isolated, non-promoting Gate-1 rehearsal while Gate 0 remains active;
+it does not relax Gate-0 closure, review, runtime-evidence, or owner-decision
+requirements.
 
 Every packet follows:
 
@@ -28,8 +37,11 @@ Every packet follows:
 8. publish evidence, residual risk, rollback, and next prerequisites;
 9. merge only after owner approval.
 
-No dependent packet enters build while its parent is red or unreviewed. Read-only
-research may continue, but it cannot establish another implementation truth.
+No dependent packet enters build while its parent is red or unreviewed unless the
+parent is explicitly frozen as a documented external blocker and the new packet
+is genuinely independent. Read-only research and preparation may continue, but
+cannot establish another implementation truth or be represented as executable
+verification.
 
 ## Review roles
 
@@ -170,6 +182,11 @@ Required fault cases: dropped file, stale base, partial rename, wrong CSV header
 broken documentation link, worker false success, restart after first WorkItem,
 and denied promotion without owner approval.
 
+Revision 3 permits this slice only as an isolated deterministic rehearsal stacked
+on a green Gate-0 Work Packet. It may produce candidate and evidence artifacts,
+but it may not consume approval for production promotion, mutate the primary
+checkout, change the active gate, or close Gate 0.
+
 ## WP-06 — Corpus seed and motif contracts
 
 Prerequisite: WP-05 green; still experimental until Gate 2.
@@ -232,7 +249,41 @@ Do not add the complete research stack at once.
 Each dependency packet records license, version, platform support, serialization
 boundary, failure mode, replacement path, and measured benefit.
 
-## Current branch/PR evidence
+## Current Gate-0 execution boundary
+
+This projection is bound to source parent
+`f78e4c53fb5ac21d90a34a2fe6cd8f6da679ab14` and records status only. It is not
+release evidence and cannot alter `GateReport.closed`.
+
+The selected repository-write discovery line is PR #166 -> PR #167. Both are
+inventory/preparation packets: the canonical scanner integration, revision-bound
+target and guard classification, Primary-Checkout disjointness proof, Gate-report
+binding, production migration, and exact-head executable verification remain
+open. No finding on that line is `guarded`, `central`, or `trusted` merely because
+it was discovered.
+
+GitHub Actions issue #67 is the active external execution blocker. Hosted jobs
+continue to terminate before Step 1 with `steps=null`, no logs, and no artifacts.
+Those runs prove neither success nor product failure. Until a trivial checkout
+job and Iron Plan both record real executed steps, no packet may claim focused,
+mutation, full-suite, packaging, platform, runtime, fault-matrix, or release
+evidence from those runs.
+
+While issue #67 remains open, independent work is limited to work that does not
+depend on an unexecuted parent: static/adversarial review, contracts, schemas,
+tests, fixtures, documentation, conservative inventories, migration plans, and
+read-only evidence preparation. Dependent production wiring, `central`/`trusted`
+classification, Gate closure, merge, promotion, OwnerApproval, and owner closure
+decisions remain frozen.
+
+Gate 0 still requires, at minimum, all production effectful entrypoints to be
+registered and centrally guarded, live Runtime Manifests and current
+RuntimeConformanceReceipts, Docker-sandbox evidence, the complete fault matrix,
+Primary-Checkout mutation exclusion, independent architecture/security review,
+and an explicit owner closure decision. Gate 1 and Gate 2 cannot be represented
+as complete before those machine-readable prerequisites are satisfied.
+
+## Historical WP-00 evidence
 
 - Branch: `core/fourfold-v2`
 - Base: `experimental`
