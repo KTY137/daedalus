@@ -154,10 +154,10 @@
       "const": true
     },
     "canonical_bytes_verified": {
-      "const": true
+      "type": "boolean"
     },
     "binding_verified": {
-      "const": true
+      "type": "boolean"
     },
     "origin_authenticated": {
       "const": false
@@ -211,5 +211,39 @@
     "digest": {
       "$ref": "#/$defs/sha256"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "materialization_complete": {
+            "const": true
+          }
+        },
+        "required": [
+          "materialization_complete"
+        ]
+      },
+      "then": {
+        "properties": {
+          "canonical_bytes_verified": {
+            "const": true
+          },
+          "binding_verified": {
+            "const": true
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "canonical_bytes_verified": {
+            "const": false
+          },
+          "binding_verified": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
 }
