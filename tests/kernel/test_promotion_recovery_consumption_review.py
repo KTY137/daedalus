@@ -103,6 +103,29 @@ def test_receipt_parser_requires_exact_fields_without_coercion() -> None:
     assert "str(expectation_payload" not in source
 
 
+def test_consumption_inspection_uses_only_strict_read_only_connections() -> None:
+    connector = inspect.getsource(
+        consumption.PromotionRecoveryConsumptionLedger._connect_read_only
+    )
+    verifier = inspect.getsource(
+        consumption.PromotionRecoveryConsumptionLedger.verify_consumption
+    )
+    probe = inspect.getsource(
+        consumption.PromotionRecoveryConsumptionLedger.consumed
+    )
+
+    assert "?mode=ro" in connector
+    assert "uri=True" in connector
+    assert 'connection.execute("PRAGMA query_only=ON")' in connector
+    assert 'connection.execute("PRAGMA query_only").fetchone()' in connector
+    assert "resolve(strict=True)" in connector
+    assert "is_symlink()" in connector
+    assert "_connect_read_only()" in verifier
+    assert "_connect_writer()" not in verifier
+    assert "_connect_read_only()" in probe
+    assert "_connect_writer()" not in probe
+
+
 def test_consume_revalidates_before_and_inside_immediate_transaction() -> None:
     source = inspect.getsource(
         consumption.PromotionRecoveryConsumptionLedger.consume
