@@ -28,17 +28,24 @@ def test_counter_review_proves_parent_public_module_is_byte_identical_prefix() -
     assert suffix.startswith("\n# installers preserve the public PromotionExecutionLedger")
 
 
-def test_counter_review_limits_append_to_two_imports_calls_and_deletions() -> None:
+def test_counter_review_limits_append_to_typed_install_and_function_facade() -> None:
     source = PUBLIC.read_text(encoding="utf-8")
     suffix = source.split(MARKER, 1)[1]
     executable = ast.parse(suffix).body
-    assert len(executable) == 6
+    assert len(executable) == 11
+
     assert isinstance(executable[0], ast.ImportFrom)
-    assert executable[0].module == "promotion_manager_boundary"
+    assert executable[0].module == "functools"
+    assert executable[0].level == 0
     assert isinstance(executable[1], ast.ImportFrom)
-    assert executable[1].module == "promotion_manager_replay"
+    assert executable[1].module == "promotion_manager_boundary"
+    assert executable[1].level == 1
+    assert isinstance(executable[2], ast.ImportFrom)
+    assert executable[2].module == "promotion_manager_replay"
+    assert executable[2].level == 1
+
     for node, function_name in zip(
-        executable[2:4],
+        executable[3:5],
         (
             "_install_promotion_manager_boundary",
             "_install_promotion_manager_replay_boundary",
@@ -54,9 +61,39 @@ def test_counter_review_limits_append_to_two_imports_calls_and_deletions() -> No
         assert isinstance(argument, ast.Call)
         assert isinstance(argument.func, ast.Name)
         assert argument.func.id == "globals"
+
+    factory = executable[5]
+    assert isinstance(factory, ast.FunctionDef)
+    assert factory.name == "_make_public_promotion_wrapper"
+    assert [argument.arg for argument in factory.args.args] == [
+        "callable_",
+        "parent",
+    ]
+    assert len(factory.body) == 2
+    nested = factory.body[0]
+    assert isinstance(nested, ast.FunctionDef)
+    assert nested.name == "public"
+    assert len(nested.decorator_list) == 1
+    decorator = nested.decorator_list[0]
+    assert isinstance(decorator, ast.Call)
+    assert isinstance(decorator.func, ast.Name)
+    assert decorator.func.id == "_wraps"
+    assert isinstance(factory.body[1], ast.Return)
+
+    assignment = executable[6]
+    assert isinstance(assignment, ast.Assign)
+    assert len(assignment.targets) == 1
+    assert isinstance(assignment.targets[0], ast.Name)
+    assert assignment.targets[0].id == "promote_candidates"
+    assert isinstance(assignment.value, ast.Call)
+    assert isinstance(assignment.value.func, ast.Name)
+    assert assignment.value.func.id == "_make_public_promotion_wrapper"
+
     for node, name in zip(
-        executable[4:],
+        executable[7:],
         (
+            "_make_public_promotion_wrapper",
+            "_wraps",
             "_install_promotion_manager_boundary",
             "_install_promotion_manager_replay_boundary",
         ),
