@@ -1,0 +1,112 @@
+{
+  "schema": "daedalus-gate0-gate-report-writer-inventory-work-packet/1",
+  "work_packet": "G0-GR-18",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "selected_parent": "g0/event-store-writer-inventory-linear",
+  "gate_report": {
+    "current_schema": "daedalus-gate-report/2",
+    "legacy_read_schema": "daedalus-gate-report/1",
+    "json_schema": "configs/schemas/gate-report-v2.schema.json",
+    "writer_inventory_digest_field": "event_store_writer_inventory_sha256",
+    "writer_failure_field": "event_store_writer_failures",
+    "missing_inventory_is_blocker": true,
+    "legacy_v1_can_close_v2": false,
+    "strict_shape": true,
+    "strict_types": true,
+    "canonical_projection_check": true,
+    "digest_required": true
+  },
+  "invariants": [
+    {
+      "code": "gate_report.writer_inventory_digest_bound",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report.py::test_gate_report_binds_exact_writer_inventory_digest"
+    },
+    {
+      "code": "gate_report.writer_findings_are_blockers",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report.py::test_monotonic_comparison_includes_new_writer_findings"
+    },
+    {
+      "code": "gate_report.missing_inventory_blocks_closure",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report.py::test_missing_writer_inventory_digest_is_always_a_blocker"
+    },
+    {
+      "code": "gate_report.legacy_v1_read_only_compatibility",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report.py::test_legacy_v1_report_loads_but_cannot_claim_current_closure"
+    },
+    {
+      "code": "gate_report.serialized_projection_not_trusted",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report_writer_inventory_review.py::test_parser_does_not_trust_serialized_closed_or_blocker_projection"
+    },
+    {
+      "code": "gate_report.malformed_v2_refused",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report_writer_inventory_review.py"
+    }
+  ],
+  "mutation_campaign": {
+    "runner": "scripts/run_gate_report_writer_inventory_mutations.py",
+    "state": "implemented_unexecuted",
+    "mutants": [
+      "missing-writer-inventory-is-not-blocking",
+      "writer-failures-are-not-projected-as-blockers",
+      "gate-report-does-not-bind-inventory-digest",
+      "inventory-refusal-claims-a-digest",
+      "coerce-string-security-claim-to-boolean",
+      "skip-v2-canonical-payload-comparison",
+      "trust-serialized-closed-flag"
+    ]
+  },
+  "compatibility": {
+    "v1_digest_verification": "required",
+    "v1_shape_verification": "strict",
+    "v1_derived_projection_verification": "strict",
+    "v1_missing_writer_inventory_result": "v2 closure blocker",
+    "v2_output": "canonical_only"
+  },
+  "remaining_blockers": [
+    {
+      "code": "gate_report.exact_head_v2_unexecuted",
+      "severity": "blocker",
+      "reason": "No exact-head v2 release report or retained artifact exists until CI executes."
+    },
+    {
+      "code": "event_store.production_writer_migration_incomplete",
+      "severity": "blocker",
+      "reason": "The v2 report projects writer findings but does not resolve them."
+    },
+    {
+      "code": "gate_report.other_release_evidence_unbound",
+      "severity": "blocker",
+      "reason": "Runtime conformance, complete fault injection, primary-checkout mutation proof and the final security-boundary claim remain independently required."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents exact-head reports, tests, mutations, full-suite, packaging and supported-platform execution."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Builder and context-separated adversarial tests are prepared; an independent reviewer decision is absent."
+    }
+  ],
+  "verification_state": {
+    "builder_implementation": "complete",
+    "builder_static_review": "performed",
+    "separate_counter_review": "implemented_unexecuted",
+    "malformed_and_stale_revision_tests": "implemented_unexecuted",
+    "mutation_tests": "implemented_unexecuted",
+    "exact_head_report": "blocked_by_github_actions_issue_67",
+    "full_suite": "blocked_by_github_actions_issue_67",
+    "platform_matrix": "blocked_by_github_actions_issue_67",
+    "isolated_wheel": "blocked_by_github_actions_issue_67",
+    "independent_review": "open",
+    "gate0_closed": false
+  }
+}
