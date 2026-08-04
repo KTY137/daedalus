@@ -1,0 +1,36 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25",
+  "title": "Promotion Effect Rows",
+  "gate": 0,
+  "base_revision": "d8b09fd2281080d50e817b022191ad777d1eadb0",
+  "branch": "g0/promotion-effect-rows-linear",
+  "implemented": [
+    "promotion-execution-open-row",
+    "promotion-execution-begin-row",
+    "promotion-execution-complete-row",
+    "canonical-registry-default-refresh",
+    "partial-installation-refusal",
+    "bounded-row-mutation-campaign"
+  ],
+  "current_expected_blockers": [
+    "python.promote_candidates:not-central",
+    "kernel.promotion_execution.open:not-central",
+    "kernel.promotion_execution.begin:not-central",
+    "kernel.promotion_execution.complete:not-central"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "compose-persisted-effect-lease",
+    "bind-current-runtime-conformance",
+    "compose-docker-sandbox",
+    "upgrade-rows-to-central-only-after-composition",
+    "execute-ci-and-independent-human-review",
+    "complete-other-gate0-release-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly yields zero-step jobs; those runs are not product evidence."
+}
