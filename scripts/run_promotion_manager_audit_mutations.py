@@ -51,20 +51,20 @@ def main() -> int:
         (
             AUDIT,
             "drop-allocation-failure-status",
-            '                        status="failed",\n                        error=_error_record(exc),\n',
-            '                        status="succeeded",\n                        worktree_path="unknown",\n',
+            '                    WorktreeAllocationAudit(\n                        base_revision=base,\n                        branch=branch,\n                        status="failed",\n                        error=_error_record(exc),\n                    )\n',
+            '                    WorktreeAllocationAudit(\n                        base_revision=base,\n                        branch=branch,\n                        status="succeeded",\n                        worktree_path="unknown",\n                    )\n',
         ),
         (
             AUDIT,
             "drop-cleanup-failure-status",
-            '                        status="failed",\n                        error=_error_record(exc),\n',
-            '                        status="succeeded",\n',
+            '                    WorktreeCleanupAudit(\n                        worktree_path=target,\n                        status="failed",\n                        error=_error_record(exc),\n                    )\n',
+            '                    WorktreeCleanupAudit(\n                        worktree_path=target,\n                        status="succeeded",\n                    )\n',
         ),
         (
             AUDIT,
             "drop-reaper-failure-status",
-            '                        status="failed",\n                        error=_error_record(exc),\n',
-            '                        status="succeeded",\n                        result=(),\n',
+            '                    BranchReapAudit(\n                        status="failed",\n                        error=_error_record(exc),\n                    )\n',
+            '                    BranchReapAudit(\n                        status="succeeded",\n                        result=(),\n                    )\n',
         ),
         (
             AUDIT,
