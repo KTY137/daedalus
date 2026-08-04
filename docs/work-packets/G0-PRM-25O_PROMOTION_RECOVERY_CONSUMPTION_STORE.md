@@ -8,9 +8,9 @@ This Work Packet stacks directly on the exact head of PR #163 and separates reco
 
 `initialize_promotion_recovery_consumption_store(path)` is the only new publication authority. The parent directory must already exist, must resolve to the same lexical path, and may not be traversed through a symlink. The target must be absent.
 
-The initializer builds the exact schema in a same-directory temporary regular file, applies `synchronous=FULL`, verifies integrity and the complete schema contract, flushes the file, and publishes it with a hard link. Publication therefore refuses rather than replacing an existing target. The temporary name is removed after publication or failure.
+The initializer builds the exact schema in a same-directory temporary regular file, applies `synchronous=FULL`, verifies integrity and the complete schema contract, flushes the file, and publishes it with a hard link. It then flushes the published file and, on supported non-Windows hosts, the parent directory entry before returning. Publication therefore refuses rather than replacing an existing target. The temporary name is removed after publication or failure.
 
-Post-publication cleanup is bound to the exact published device/inode. If a later inspection fault occurs, the initializer unlinks only its own published file. A foreign regular file or symlink substituted at the target is preserved instead of being deleted.
+Post-publication cleanup is bound to the exact published device/inode. If a later file or directory durability check fails, the initializer unlinks only its own published file and best-effort flushes the cleanup directory entry. A foreign regular file or symlink substituted at the target is preserved instead of being deleted.
 
 The initializer is deliberately not represented as centrally leased production wiring in this packet. Its effect-entrypoint registration and Effect-Lease/runtime/sandbox composition require a later reviewable batch.
 
@@ -31,11 +31,11 @@ Every subsequent read or write open rechecks that identity and schema. Writer op
 
 ## Adversarial batch prepared
 
-Behavior tests cover malformed non-path inputs, pathless names, explicit initialization, deterministic inspection, normal open, missing-store noncreation, missing-parent noncreation, existing-target preservation, one-use and concurrent publication, malformed and nullable schema drift, post-admission deletion, concrete-file substitution, own-publication cleanup, preservation of a racing foreign replacement, read-only inspection, and parent/file symlink redirection.
+Behavior tests cover malformed non-path inputs, pathless names, explicit initialization, deterministic inspection, normal open, missing-store noncreation, missing-parent noncreation, existing-target preservation, one-use and concurrent publication, malformed and nullable schema drift, post-admission deletion, concrete-file substitution, parent-directory durability invocation and failure rollback, own-publication cleanup, preservation of a racing foreign replacement, read-only inspection, and parent/file symlink redirection.
 
-A separate AST/source review checks authority separation, constructor noninitialization, existing-store-only writer mode, query-only inspection, normalized SQL/nullability/default/index verification, publication ordering, no-clobber hard-link use, identity-guarded cleanup, additive compatibility, absence of canonical registry mutation, and signatures without callback or keyword authority smuggling.
+A separate AST/source review checks authority separation, constructor noninitialization, existing-store-only writer mode and error normalization, query-only inspection, normalized SQL/nullability/default/index verification, publication ordering, file-before-directory durability, no-clobber hard-link use, identity-guarded cleanup, additive compatibility, absence of canonical registry mutation, and signatures without callback or keyword authority smuggling.
 
-Ten bounded mutants attack normal-open creation, existing-target refusal, target replacement, identity substitution, table-SQL drift, nullability drift, unique-index drift, deletion of a foreign replacement, removal of explicit pre-open inspection, and leakage of store errors through the ledger boundary. The requested workflow covers Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, predecessor regressions, Iron Plan, mutation, the full suite, package build, and isolated-wheel import.
+Eleven bounded mutants attack normal-open creation, existing-target refusal, target replacement, identity substitution, table-SQL drift, nullability drift, unique-index drift, deletion of a foreign replacement, omitted parent-directory publication durability, removal of explicit pre-open inspection, and leakage of store errors through the ledger boundary. The requested workflow covers Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, predecessor regressions, Iron Plan, mutation, the full suite, package build, and isolated-wheel import.
 
 ## Honest remaining boundary
 
