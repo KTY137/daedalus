@@ -64,12 +64,26 @@ def _central_registry() -> tuple[EntrypointSpec, ...]:
 
 
 def _copy_sources(tmp_path: Path) -> Path:
+    copied: set[str] = set()
     for requirement in REQUIREMENTS:
+        if requirement.source_path in copied:
+            continue
+        copied.add(requirement.source_path)
         source = ROOT / requirement.source_path
         target = tmp_path / requirement.source_path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     return tmp_path
+
+
+def _wire_manager_boundaries(root: Path) -> None:
+    source = root / "daedalus" / "kairos" / "gated_writes.py"
+    source.write_text(
+        source.read_text(encoding="utf-8")
+        + "\ninstall_promotion_manager_boundary(globals())\n"
+        + "install_promotion_manager_replay_boundary(globals())\n",
+        encoding="utf-8",
+    )
 
 
 def test_current_promotion_inventory_is_honestly_open() -> None:
@@ -82,6 +96,8 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
     assert findings["python.promote_candidates"].status == "blocked"
     assert findings["python.promote_candidates"].blockers == (
         "registry.not_central:local_guards",
+        "source.missing_call:install_promotion_manager_boundary",
+        "source.missing_call:install_promotion_manager_replay_boundary",
     )
     assert findings["kernel.promotion_execution.begin"].status == "missing"
     assert findings["kernel.promotion_execution.begin"].blockers == (
@@ -94,9 +110,13 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
     assert len(report.report_sha256) == 64
 
 
-def test_exact_central_registry_closes_only_the_scoped_inventory() -> None:
+def test_exact_central_registry_and_wired_source_close_only_scoped_inventory(
+    tmp_path: Path,
+) -> None:
+    root = _copy_sources(tmp_path)
+    _wire_manager_boundaries(root)
     report = build_promotion_effect_inventory(
-        ROOT,
+        root,
         source_revision=REVISION,
         registry=_central_registry(),
     )
@@ -149,6 +169,7 @@ def test_duplicate_registry_identity_refuses_before_projection() -> None:
 
 def test_missing_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
+    _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
     source.write_text(
         source.read_text(encoding="utf-8").replace(
