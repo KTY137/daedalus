@@ -92,8 +92,8 @@ def test_cas_digest_canonical_json_and_duplicate_key_fences_are_present() -> Non
     assert '^cas:sha256:([0-9a-f]{64})$' in SOURCE
     raw_hash = SOURCE.index("raw_sha256 = hashlib.sha256(raw).hexdigest()")
     raw_check = SOURCE.index("if raw_sha256 != binding.sha256")
-    parse = SOURCE.index("json.loads(text, object_pairs_hook=_reject_duplicate_keys)")
-    canonical = SOURCE.index('if raw != canonical_json(document).encode("ascii")')
+    parse = SOURCE.index("document = json.loads(")
+    canonical = SOURCE.index('canonical = canonical_json(document).encode("ascii")')
     payload_hash = SOURCE.index("payload_sha256 = hashlib.sha256(")
     semantic = SOURCE.index("_validate_payload(binding, payload)")
     assert raw_hash < raw_check < parse < canonical < payload_hash < semantic
@@ -117,7 +117,7 @@ def test_every_evidence_kind_has_an_explicit_semantic_branch() -> None:
     assert "payload[\"production_reachable\"] is not False" in SOURCE
 
 
-def test_report_cannot_launder_empty_or_materialized_bytes_into_trust() -> None:
+def test_report_cannot_launder_empty_partial_or_materialized_bytes_into_trust() -> None:
     assert "return self.binding_count > 0 and not self.missing_locators" in SOURCE
     assert 'blockers.append("evidence-bindings-empty")' in SOURCE
     assert '"origin_authenticated": False' in SOURCE
@@ -126,8 +126,10 @@ def test_report_cannot_launder_empty_or_materialized_bytes_into_trust() -> None:
     assert '"gate_report_bound": False' in SOURCE
     assert '"closed": False' in SOURCE
     assert '"content_addressed": True' in SOURCE
-    assert '"canonical_bytes_verified": True' in SOURCE
-    assert '"binding_verified": True' in SOURCE
+    assert '"canonical_bytes_verified": self.materialization_complete' in SOURCE
+    assert '"binding_verified": self.materialization_complete' in SOURCE
+    assert "parse_constant=_reject_nonfinite" in SOURCE
+    assert "_MAX_EVIDENCE_BYTES = 1_048_576" in SOURCE
 
 
 def test_materializer_does_not_mutate_gate_registry_or_promotion_state() -> None:
