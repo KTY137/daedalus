@@ -13,8 +13,10 @@ TARGET = ROOT / "daedalus/gates/repository_write_artifact_cas.py"
 TESTS = (
     "tests/gates/test_repository_write_artifact_cas.py",
     "tests/gates/test_repository_write_artifact_cas_adversarial.py",
+    "tests/gates/test_repository_write_artifact_cas_receipt.py",
     "tests/gates/test_repository_write_artifact_cas_review.py",
     "tests/gates/test_repository_write_artifact_cas_schema.py",
+    "tests/gates/test_repository_write_artifact_cas_toctou.py",
 )
 
 MUTATIONS = {
