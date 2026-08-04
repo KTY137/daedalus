@@ -24,8 +24,8 @@ MUTATIONS = (
     ),
     (
         "accept-unresolved-subject",
-        "        descriptor = manifest.resolve(authority.invocation_subject)\n",
-        "        descriptor = manifest.descriptors[0]  # mutant\n",
+        "    try:\n        descriptor = manifest.resolve(authority.invocation_subject)\n    except ProviderInvocationRegistryError as exc:\n        raise ProviderInvocationResolutionBindingError(\n            \"signed provider invocation subject did not resolve\"\n        ) from exc\n",
+        "    try:\n        descriptor = manifest.descriptors[0]  # mutant\n    except ProviderInvocationRegistryError as exc:\n        raise ProviderInvocationResolutionBindingError(\n            \"signed provider invocation subject did not resolve\"\n        ) from exc\n",
     ),
     (
         "detach-implementation-from-receipt",
