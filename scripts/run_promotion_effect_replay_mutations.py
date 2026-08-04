@@ -10,6 +10,7 @@ TARGET = ROOT / "daedalus" / "kernel" / "promotion_effect_replay.py"
 TESTS = (
     "tests/kernel/test_promotion_effect_capability.py",
     "tests/kernel/test_promotion_effect_replay.py",
+    "tests/kernel/test_promotion_effect_replay_adversarial.py",
     "tests/kernel/test_promotion_effect_replay_review.py",
 )
 MUTATIONS = (
@@ -35,8 +36,13 @@ MUTATIONS = (
     ),
     (
         "accept-ambiguous-execution-identity",
-        '        if len(rows) != 1:\n',
-        '        if False:  # mutant accepts ambiguous execution identity\n',
+        "        if len(execution_rows) > 1:\n",
+        "        if False:  # mutant accepts ambiguous execution identity\n",
+    ),
+    (
+        "accept-orphan-execution",
+        "            if execution_rows:\n",
+        "            if False:  # mutant hides an orphan execution\n",
     ),
 )
 
