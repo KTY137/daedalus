@@ -59,8 +59,8 @@ jobs:
           tests/kernel/test_runtime_effect_replay_projection_review.py
           tests/runtimes/test_unknown_outcome_reconciliation_fault_executor.py
           tests/runtimes/test_unknown_outcome_reconciliation_fault_executor_review.py
-          tests/runtimes/test_runtime_provider_trust_fence.py
-          tests/runtimes/test_runtime_provider_trust_fence_review.py
+          tests/runtimes/test_runtime_trust_contention_fault_executor.py
+          tests/runtimes/test_runtime_trust_contention_fault_executor_review.py
           tests/test_runtime_profiles.py
           tests/test_runtime_trust_store.py
 
