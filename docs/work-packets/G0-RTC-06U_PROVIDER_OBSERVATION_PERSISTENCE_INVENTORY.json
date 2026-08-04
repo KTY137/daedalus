@@ -1,0 +1,80 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06U",
+  "title": "Provider Observation Persistence Inventory Delta",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "1449f1a0a802171b173bf0ab130b2713d515d22b",
+  "parent_branch": "g0/provider-observation-authority-linear",
+  "branch": "g0/provider-observation-persistence-inventory-linear",
+  "primary_finding": "issue-189",
+  "change_class": "narrow-read-only-revision-bound-inventory-delta",
+  "authority": "discovery-only",
+  "scope": {
+    "inventories_provider_observation_constructor_bootstrap": true,
+    "inventories_sqlite_default_create_connect": true,
+    "inventories_parent_directory_creation": true,
+    "inventories_schema_creation": true,
+    "inventories_binding_transaction_and_commit": true,
+    "inventories_nominal_read_file_creation": true,
+    "inventories_replay_and_recovery_transitive_read_creation": true,
+    "known_surface_count": 11,
+    "adds_or_executes_persistence": false,
+    "changes_provider_observation_runtime": false,
+    "integrates_canonical_inventory": false,
+    "binds_guard_contracts": false,
+    "proves_primary_checkout_disjointness": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "report_is_machine_readable": true,
+    "report_is_revision_and_source_byte_bound": true,
+    "known_surfaces_are_fail_closed": true,
+    "all_rows_are_inventory_only": true,
+    "closed": false,
+    "canonical_inventory_integrated": false,
+    "guard_contracts_complete": false,
+    "primary_checkout_mutation_excluded": false,
+    "issue_189_closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "real_source_structure_test_prepared": true,
+    "deterministic_digest_test_prepared": true,
+    "missing_duplicate_anchor_tests_prepared": true,
+    "malformed_revision_source_and_syntax_tests_prepared": true,
+    "source_symlink_test_prepared": true,
+    "source_byte_drift_test_prepared": true,
+    "machine_cli_exit_semantics_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 6,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the delta is not yet composed into the canonical Gate-0 effect inventory",
+    "constructor bootstrap, bind_start, load and require_bound still lack exact guard contracts",
+    "nominal reads still use SQLite default read-write-create mode",
+    "persistence targets are not proven isolated from the Primary Checkout",
+    "fault injection does not yet cover open, mkdir, schema, begin, select, insert, rollback, commit and close on the guarded implementation",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
