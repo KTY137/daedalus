@@ -6,13 +6,13 @@ and effect start are durable before external code runs. Exact replay is inert,
 and success, failure, cancellation, and runtime-trust loss receive terminal
 receipts.
 
-For exact production runtime authority, a signed provider-observation authority
-is supplied before the effect start and authenticated before external code runs.
-After the durable start, its provider
-and observation-key subject is persisted before external code runs.  Exact
-replay requires the same retained binding.  Narrow test doubles remain available
-through the compatibility seam while callers migrate; they cannot participate
-in runtime-bound unknown-outcome recovery.
+Every broker invocation requires the exact production runtime authorization
+type plus a signed provider-observation authority. The provider and observation
+key subject is authenticated before external code runs and, after the durable
+effect start, persisted before the provider callback. Exact replay requires the
+same retained binding. Duck-typed or subclassed authorization objects are not a
+compatibility seam because they could override grant, start, verification, or
+terminal persistence.
 
 Once a provider returns, failure to create canonical output evidence is an
 unknown external outcome. The execution remains durably ``STARTED`` and must be
@@ -307,13 +307,10 @@ def _parse_record_expiry(value: str) -> datetime:
 def _runtime_fence_components(
     authorization: RuntimeBoundEffectAuthorization,
 ):
-    """Return the concrete persisted trust seam, or ``None`` for narrow doubles."""
+    """Return the concrete persisted trust seam."""
 
-    ledger = getattr(authorization, "runtime_trust_ledger", None)
-    capability = getattr(authorization, "capability", None)
-    if ledger is None:
-        return None
-
+    ledger = authorization.runtime_trust_ledger
+    capability = authorization.capability
     connect = getattr(ledger, "_connect", None)
     from_row = getattr(ledger, "_from_row", None)
     required = (
@@ -325,8 +322,7 @@ def _runtime_fence_components(
         "source_revision",
     )
     if (
-        capability is None
-        or not callable(connect)
+        not callable(connect)
         or not callable(from_row)
         or any(not hasattr(capability, name) for name in required)
     ):
@@ -353,16 +349,7 @@ def _finish_completed_under_runtime_fence(
 ) -> EffectTerminalReceipt:
     """Persist ``COMPLETED`` while quarantine and rotation are serialized out."""
 
-    components = _runtime_fence_components(authorization)
-    if components is None:
-        return _finish_or_raise_state(
-            authorization,
-            start_receipt,
-            outcome="completed",
-            output_digests=output_digests,
-        )
-
-    ledger, capability = components
+    ledger, capability = _runtime_fence_components(authorization)
     try:
         connection = ledger._connect()
     except sqlite3.Error as exc:
@@ -455,25 +442,13 @@ def _production_observation_binding(
     authorization: RuntimeBoundEffectAuthorization,
     authority: ProviderObservationAuthority | None,
     ledger: ProviderObservationBindingLedger | None,
-) -> tuple[ProviderObservationAuthority, ProviderObservationBindingLedger] | None:
-    """Require the new contract for exact production authority.
+) -> tuple[ProviderObservationAuthority, ProviderObservationBindingLedger]:
+    """Require exact, non-overridable runtime and observation authority types."""
 
-    Non-exact authorization objects are the retained compatibility seam for
-    narrow unit doubles.  They cannot be accepted by runtime-bound recovery,
-    which requires an exact ``RuntimeBoundEffectAuthorization``.
-    """
-
-    if not isinstance(authorization, RuntimeBoundEffectAuthorization):
-        if authority is not None or ledger is not None:
-            if (
-                type(authority) is not ProviderObservationAuthority
-                or type(ledger) is not ProviderObservationBindingLedger
-            ):
-                raise RuntimeProviderBindingMismatch(
-                    "provider observation compatibility inputs are incomplete"
-                )
-            return authority, ledger
-        return None
+    if type(authorization) is not RuntimeBoundEffectAuthorization:
+        raise RuntimeProviderBindingMismatch(
+            "authorization must be an exact RuntimeBoundEffectAuthorization"
+        )
     if type(authority) is not ProviderObservationAuthority:
         raise RuntimeProviderBindingMismatch(
             "exact runtime providers require ProviderObservationAuthority"
@@ -557,27 +532,26 @@ def run_runtime_provider(
         raise RuntimeProviderBindingMismatch(
             "execution must be an exact EffectExecutionRequest"
         )
-    spec = _validate_binding(entrypoint_id, authorization)
     observation_binding = _production_observation_binding(
         authorization,
         observation_authority,
         observation_binding_ledger,
     )
+    spec = _validate_binding(entrypoint_id, authorization)
 
     authorization.grant()
     start = authorization.begin_effect(execution)
-    if observation_binding is not None:
-        authority, binding_ledger = observation_binding
-        _prepare_observation_authority_after_start(
-            spec=spec,
-            authorization=authorization,
-            execution=execution,
-            start_receipt=start.receipt,
-            authority=authority,
-            ledger=binding_ledger,
-            replay=not start.execute,
-            at=_utc_now(),
-        )
+    authority, binding_ledger = observation_binding
+    _prepare_observation_authority_after_start(
+        spec=spec,
+        authorization=authorization,
+        execution=execution,
+        start_receipt=start.receipt,
+        authority=authority,
+        ledger=binding_ledger,
+        replay=not start.execute,
+        at=_utc_now(),
+    )
     if not start.execute:
         return RuntimeInvocationResult(
             entrypoint_id=spec.id,
