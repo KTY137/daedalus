@@ -29,6 +29,10 @@ This path deliberately does not re-check current lease expiry or revocation.
 That exception grants no execution authority: the external repository effect
 has already terminalized in the canonical promotion Event Store, and the only
 permitted write is exact outer bookkeeping against its already-retained start.
+Before opening the writer, the reconciler also requires the current UTC instant
+to be no earlier than the retained promotion-completion instant. A regressed or
+future-skewed clock therefore cannot persist a terminal that strict replay would
+immediately reject on chronology.
 
 ## Idempotency and contradiction handling
 
@@ -42,11 +46,11 @@ still refuses.
 ## Adversarial batch
 
 Prepared evidence covers all three terminal outcomes, pending-state bypass,
-concurrent exact terminalization, contradictory post-write state, retained
-receipt substitution, malformed authority types, one-writer AST review, and
-six bounded source mutations. The requested matrix remains Ubuntu/Windows,
-Python 3.10/3.12 and deterministic hash seeds, followed by the full suite and
-isolated-wheel packaging.
+pre-write clock regression, concurrent exact terminalization, contradictory
+post-write state, retained receipt substitution, malformed authority types,
+one-writer and chronology-order AST review, and seven bounded source mutations.
+The requested matrix remains Ubuntu/Windows, Python 3.10/3.12 and deterministic
+hash seeds, followed by the full suite and isolated-wheel packaging.
 
 ## Remaining dependent boundary
 
