@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-runtime-conformance.schema.json",
+  "title": "Daedalus Gate-0 Repository Write Runtime Conformance Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "materialization_digest",
+    "guard_structure_report_digest",
+    "origin_attestation_digest",
+    "production_classification_count",
+    "runtime_subject_count",
+    "runtime_binding_count",
+    "runtime_set_sha256",
+    "records",
+    "origin_authenticated",
+    "source_anchor_semantics_verified",
+    "guard_contract_structure_verified",
+    "runtime_conformance_semantics_verified",
+    "guard_contract_semantics_verified",
+    "effect_lease_semantics_verified",
+    "primary_checkout_disjointness_verified",
+    "retirement_semantics_verified",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-runtime-conformance/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "materialization_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_structure_report_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "origin_attestation_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "production_classification_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runtime_subject_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runtime_binding_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runtime_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "origin_authenticated": {
+      "const": true
+    },
+    "source_anchor_semantics_verified": {
+      "const": true
+    },
+    "guard_contract_structure_verified": {
+      "const": true
+    },
+    "runtime_conformance_semantics_verified": {
+      "const": true
+    },
+    "guard_contract_semantics_verified": {
+      "const": false
+    },
+    "effect_lease_semantics_verified": {
+      "const": false
+    },
+    "primary_checkout_disjointness_verified": {
+      "const": false
+    },
+    "retirement_semantics_verified": {
+      "const": false
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-runtime-conformance"
+    },
+    "blockers": {
+      "const": [
+        "effect-lease-semantic-verification-missing",
+        "gate-report-binding-missing",
+        "guard-contract-behavioral-verification-missing",
+        "primary-checkout-disjointness-semantic-verification-missing",
+        "retirement-semantic-verification-missing"
+      ]
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_sha256",
+        "locator",
+        "runtime_id",
+        "envelope_sha256",
+        "trust_record_sha256",
+        "probe_identity_sha256",
+        "conformance_receipt_sha256",
+        "runtime_manifest_sha256",
+        "observed_at",
+        "expires_at",
+        "check_set_sha256",
+        "replay_sha256"
+      ],
+      "properties": {
+        "surface_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^cas:sha256:[0-9a-f]{64}$"
+        },
+        "runtime_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+        },
+        "envelope_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "trust_record_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "probe_identity_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "conformance_receipt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runtime_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "check_set_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "replay_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}
