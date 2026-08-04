@@ -107,7 +107,11 @@ def test_materialization_uses_only_injected_canonical_types() -> None:
     assert rows[0].surface is SURFACES["python"]
     assert rows[0].effects == (EFFECTS["filesystem_write"],)
     assert rows[0].wiring is WIRINGS["local_guards"]
-    assert all(isinstance(anchor, FakeAnchor) for row in rows for anchor in row.anchors)
+    assert all(
+        isinstance(anchor, FakeAnchor)
+        for row in rows
+        for anchor in row.anchors
+    )
     assert tuple(row.id for row in rows) == tuple(
         descriptor.entrypoint_id
         for descriptor in PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS
@@ -143,6 +147,16 @@ def test_materialization_is_deterministic_and_pure() -> None:
         ("effects", ("filesystem_write", "repository_mutation")),
         ("wiring", "central"),
         ("anchors", ()),
+        (
+            "anchors",
+            (
+                (
+                    "daedalus.kernel.promotion_recovery_consumption:"
+                    "PromotionRecoveryConsumptionLedger.__init__",
+                    "_connect_writer",
+                ),
+            ),
+        ),
     ],
 )
 def test_descriptor_refuses_identity_effect_wiring_and_anchor_widening(
@@ -162,6 +176,16 @@ def test_descriptor_refuses_guard_substitution() -> None:
         replace(
             original,
             guard_contracts=("promotion.owner_approval",),
+        )
+
+
+def test_descriptor_refuses_validly_shaped_anchor_substitution() -> None:
+    original = PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS[1]
+
+    with pytest.raises(ValueError):
+        replace(
+            original,
+            anchors=tuple(reversed(original.anchors)),
         )
 
 
