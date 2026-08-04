@@ -1,0 +1,47 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25I",
+  "title": "Capability-Bearing Public Promotion Entrypoint",
+  "gate": 0,
+  "base_branch": "g0/promotion-effect-lifecycle-linear",
+  "base_revision": "5f01a5cfe456cf7340c89d520a7577cc87cd524d",
+  "source_parent_pr": 156,
+  "branch": "g0/promotion-public-entrypoint-linear",
+  "implemented": [
+    "new-public-capability-bearing-promotion-surface",
+    "mandatory-promotion-effect-capability-parameter",
+    "mandatory-promotion-execution-ledger-parameter",
+    "exact-single-delegation-to-persisted-effect-lifecycle",
+    "no-caller-supplied-callback-or-provider",
+    "no-direct-git-worktree-sqlite-owner-approval-or-terminal-authority",
+    "compatibility-preserving-distinct-package-export",
+    "builder-delegation-and-exception-identity-tests",
+    "independent-ast-source-authority-review"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25I_PUBLIC_PROMOTION_ENTRYPOINT.json",
+    "python -m pytest -q tests/kernel/test_promotion_public_entrypoint.py tests/kernel/test_promotion_public_entrypoint_review.py tests/kernel/test_promotion_effect_lifecycle.py tests/kernel/test_promotion_effect_lifecycle_fault_windows.py tests/kernel/test_promotion_effect_lifecycle_adversarial.py tests/kernel/test_promotion_effect_lifecycle_review.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "new-safe-surface-exported-historical-public-callable-not-yet-replaced",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "migrate-each-production-caller-to-daedalus-kairos-promote-candidates-with-persisted-effect",
+    "replace-or-inventory-demote-historical-gated-writes-public-bypass",
+    "bind-canonical-registry-target-to-the-installed-capability-bearing-route",
+    "compose-current-runtime-manifest-conformance-receipt-kill-switch-and-docker-sandbox",
+    "define-explicit-operator-resolution-for-effect-only-pending-state",
+    "execute-cross-ledger-fault-matrix-on-exact-head",
+    "execute-focused-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
