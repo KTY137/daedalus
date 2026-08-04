@@ -54,6 +54,7 @@ jobs:
           tests/kernel/test_promotion_effect_replay.py
           tests/kernel/test_promotion_replay_projection.py
           tests/kernel/test_promotion_reconciliation.py
+          tests/kernel/test_promotion_reconciliation_outcomes.py
           tests/kernel/test_promotion_reconciliation_adversarial.py
           tests/kernel/test_promotion_reconciliation_review.py
 
