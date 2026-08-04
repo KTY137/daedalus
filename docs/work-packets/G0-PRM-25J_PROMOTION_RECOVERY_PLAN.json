@@ -1,0 +1,52 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25J",
+  "title": "Read-Only Promotion Operator Recovery Plan",
+  "gate": 0,
+  "base_branch": "g0/promotion-public-entrypoint-linear",
+  "base_revision": "f723018f50e9607a1b2893913de32213b7ad12ac",
+  "source_parent_pr": 157,
+  "branch": "g0/promotion-recovery-plan-linear",
+  "implemented": [
+    "read-only-cross-ledger-operator-plan",
+    "complete-five-state-reconciliation-action-table",
+    "effect-only-owner-decision-required-contract",
+    "promotion-pending-forensic-reconciliation-contract",
+    "evidence-terminalization-action-for-retained-promotion-terminal",
+    "complete-state-retained-report-replay-action",
+    "automatic-external-reexecution-always-false",
+    "exact-effect-and-promotion-receipt-digest-binding",
+    "canonical-machine-readable-plan-digest",
+    "malformed-authority-type-refusal-before-projection",
+    "independent-read-only-source-authority-review",
+    "bounded-five-mutant-recovery-campaign"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25J_PROMOTION_RECOVERY_PLAN.json",
+    "python -m pytest -q tests/kernel/test_promotion_recovery_plan.py tests/kernel/test_promotion_recovery_plan_review.py tests/kernel/test_promotion_reconciliation.py tests/kernel/test_promotion_terminalization.py tests/kernel/test_promotion_effect_lifecycle_fault_windows.py",
+    "python scripts/run_promotion_recovery_plan_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "read-only-plan-available-no-recovery-writer-or-automatic-action",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "define-and-persist-an-explicit-owner-recovery-decision-before-effect-only-cancellation",
+    "implement-separately-reviewed-effect-only-cancellation-writer-bound-to-that-decision",
+    "implement-forensic-promotion-pending-reconciliation-without-reexecution",
+    "migrate-production-callers-to-capability-bearing-public-entrypoint",
+    "replace-or-inventory-demote-historical-public-bypass",
+    "compose-runtime-conformance-kill-switch-and-docker-sandbox",
+    "execute-cross-ledger-fault-matrix-on-exact-head",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
