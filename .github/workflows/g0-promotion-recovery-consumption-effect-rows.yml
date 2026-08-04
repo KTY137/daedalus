@@ -1,0 +1,111 @@
+name: Gate 0 Promotion Recovery Consumption Effect Rows
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-recovery-consumption-linear
+    paths:
+      - "daedalus/spine/promotion_recovery_consumption_effect_rows.py"
+      - "tests/kernel/test_promotion_recovery_consumption_effect_rows*.py"
+      - "scripts/run_promotion_recovery_consumption_effect_rows_mutations.py"
+      - "docs/work-packets/G0-PRM-25M_PROMOTION_RECOVERY_CONSUMPTION_EFFECT_ROWS.*"
+      - ".github/workflows/g0-promotion-recovery-consumption-effect-rows.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g0/promotion-recovery-consumption-rows-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-recovery-consumption-effect-rows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-25M_PROMOTION_RECOVERY_CONSUMPTION_EFFECT_ROWS.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_recovery_consumption_effect_rows.py
+          tests/kernel/test_promotion_recovery_consumption_effect_rows_review.py
+          tests/kernel/test_promotion_recovery_consumption.py
+          tests/kernel/test_promotion_recovery_consumption_concurrency.py
+          tests/kernel/test_promotion_recovery_consumption_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_promotion_recovery_consumption_effect_rows_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-promotion-recovery-consumption-rows-wheel
+      - run: /tmp/daedalus-promotion-recovery-consumption-rows-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-promotion-recovery-consumption-rows-wheel/bin/python - <<'PY'
+          from daedalus.spine.promotion_recovery_consumption_effect_rows import (
+              PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS,
+              PromotionRecoveryConsumptionRowDescriptor,
+              materialize_promotion_recovery_consumption_rows,
+          )
+
+          assert len(PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS) == 2
+          assert PromotionRecoveryConsumptionRowDescriptor.__module__ == (
+              "daedalus.spine.promotion_recovery_consumption_effect_rows"
+          )
+          assert materialize_promotion_recovery_consumption_rows.__module__ == (
+              "daedalus.spine.promotion_recovery_consumption_effect_rows"
+          )
+          PY
