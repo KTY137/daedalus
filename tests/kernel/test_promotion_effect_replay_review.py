@@ -35,18 +35,23 @@ def test_projection_has_no_writer_or_effect_authority() -> None:
 
 def test_subject_binding_precedes_terminal_decode() -> None:
     text = SOURCE.read_text(encoding="utf-8")
+    assert text.index("_validate_lease(lease_rows[0], capability)") < text.index(
+        "start = _decode_start(row, capability)"
+    )
     assert text.index("start = _decode_start(row, capability)") < text.index(
         "_decode_terminal(row, start)"
     )
     assert "canonical_json(execution.to_dict())" in text
     assert '"lease_json": lease.to_json()' in text
-    assert "len(rows) != 1" in text
+    assert "len(execution_rows) > 1" in text
+    assert "effect execution exists without its persisted lease" in text
 
 
 def test_malformed_wire_is_checked_before_hydration() -> None:
     text = SOURCE.read_text(encoding="utf-8")
-    assert "object_pairs_hook=pairs" in text
+    assert "object_pairs_hook=object_pairs" in text
     assert "parse_constant=" in text
     assert "canonical_json(value) != raw" in text
     assert "unexpected field set" in text
     assert "canonical_sha(body) != declared" in text
+    assert "is not a canonical digest" in text
