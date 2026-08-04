@@ -7,16 +7,16 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+import daedalus.kernel.promotion_recovery_decision as recovery_decision
 from daedalus.kernel.promotion import PromotionAuthorization
 from daedalus.kernel.promotion_effects import PromotionEffectCapability
+from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 from daedalus.kernel.promotion_recovery import PromotionRecoveryPlan
 from daedalus.kernel.promotion_recovery_decision import (
     PromotionRecoveryDecision,
     PromotionRecoveryDecisionBindingMismatch,
     PromotionRecoveryDecisionExpired,
     PromotionRecoveryDecisionSignatureError,
-    recovery_expectation,
-    verify_promotion_recovery_decision,
 )
 from daedalus.schemas import ContractProvenance
 from daedalus.spine.envelope import canonical_sha
@@ -25,6 +25,7 @@ from daedalus.spine.envelope import canonical_sha
 REVISION = "a" * 40
 OTHER_REVISION = "b" * 40
 EFFECT_START_DIGEST = "d" * 64
+OTHER_EFFECT_START_DIGEST = "e" * 64
 SECRET = b"owner-recovery-secret-material-0001"
 NOW = datetime(2026, 8, 4, 8, 0, tzinfo=timezone.utc)
 ISSUED_AT = NOW.isoformat(timespec="microseconds")
@@ -57,6 +58,10 @@ def _capability(*, source_revision: str = REVISION) -> PromotionEffectCapability
     return capability
 
 
+def _ledger() -> PromotionExecutionLedger:
+    return object.__new__(PromotionExecutionLedger)
+
+
 def _plan_body(**changes):
     authorization = _authorization()
     body = {
@@ -84,19 +89,32 @@ def _plan(**changes) -> PromotionRecoveryPlan:
     )
 
 
+@pytest.fixture
+def current_projection(monkeypatch):
+    state = {"plan": _plan(), "calls": []}
+
+    def project(capability, promotion_ledger):
+        state["calls"].append((capability, promotion_ledger))
+        return state["plan"]
+
+    monkeypatch.setattr(recovery_decision, "plan_promotion_recovery", project)
+    return state
+
+
 def _decision(
     *,
-    plan: PromotionRecoveryPlan | None = None,
-    capability: PromotionEffectCapability | None = None,
+    capability: PromotionEffectCapability,
+    promotion_ledger: PromotionExecutionLedger,
     source_revision: str = REVISION,
     issued_at: str = ISSUED_AT,
     expires_at: str = EXPIRES_AT,
     secret: bytes = SECRET,
     **changes,
 ) -> PromotionRecoveryDecision:
-    selected_plan = plan or _plan()
-    selected_capability = capability or _capability()
-    expectation = recovery_expectation(selected_plan, selected_capability)
+    expectation = recovery_decision.recovery_expectation(
+        capability,
+        promotion_ledger,
+    )
     body = {
         "decision_id": "recovery-decision-1",
         "owner_id": "owner-1",
@@ -135,16 +153,32 @@ def _decision(
     return replace(placeholder, signature_sha256=signature)
 
 
-def test_expectation_accepts_only_exact_effect_only_plan() -> None:
-    plan = _plan()
+def _verify(decision, *, capability, promotion_ledger, now=NOW):
+    return recovery_decision.verify_promotion_recovery_decision(
+        decision,
+        keyring={("owner-1", "key-1"): SECRET},
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+        now=now,
+    )
+
+
+def test_expectation_is_derived_from_current_strict_projection(
+    current_projection,
+) -> None:
     capability = _capability()
+    promotion_ledger = _ledger()
 
-    expectation = recovery_expectation(plan, capability)
+    expectation = recovery_decision.recovery_expectation(
+        capability,
+        promotion_ledger,
+    )
 
+    assert current_projection["calls"] == [(capability, promotion_ledger)]
     assert expectation.promotion_authorization_sha256 == (
         capability.promotion.authorization_sha256
     )
-    assert expectation.recovery_plan_sha256 == plan.plan_sha256
+    assert expectation.recovery_plan_sha256 == current_projection["plan"].plan_sha256
     assert expectation.effect_start_receipt_sha256 == EFFECT_START_DIGEST
     assert expectation.source_revision == REVISION
 
@@ -159,65 +193,92 @@ def test_expectation_accepts_only_exact_effect_only_plan() -> None:
         {"manual_reconciliation_required": False},
         {"owner_decision_required": False},
         {"effect_start_receipt_sha256": None},
-        {"effect_terminal_receipt_sha256": "e" * 64},
-        {"promotion_start_sha256": "f" * 64},
+        {"effect_terminal_receipt_sha256": "f" * 64},
+        {"promotion_start_sha256": "9" * 64},
     ],
 )
-def test_expectation_refuses_coherently_rehashed_wrong_state(changes) -> None:
+def test_expectation_refuses_coherently_rehashed_wrong_current_state(
+    current_projection,
+    changes,
+) -> None:
+    current_projection["plan"] = _plan(**changes)
     with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
-        recovery_expectation(_plan(**changes), _capability())
+        recovery_decision.recovery_expectation(_capability(), _ledger())
 
 
-def test_expectation_refuses_stale_digest_and_other_capability() -> None:
-    plan = _plan()
-    stale = replace(plan, plan_sha256="0" * 64)
+def test_expectation_refuses_stale_digest_and_other_capability(
+    current_projection,
+) -> None:
+    current_projection["plan"] = replace(
+        _plan(),
+        plan_sha256="0" * 64,
+    )
     with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
-        recovery_expectation(stale, _capability())
+        recovery_decision.recovery_expectation(_capability(), _ledger())
 
-    other = _capability(source_revision=OTHER_REVISION)
+    current_projection["plan"] = _plan()
     with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
-        recovery_expectation(plan, other)
+        recovery_decision.recovery_expectation(
+            _capability(source_revision=OTHER_REVISION),
+            _ledger(),
+        )
 
 
-def test_signed_decision_verifies_and_round_trips() -> None:
-    plan = _plan()
+def test_signed_decision_verifies_against_fresh_projection_and_round_trips(
+    current_projection,
+) -> None:
     capability = _capability()
-    expectation = recovery_expectation(plan, capability)
-    decision = _decision(plan=plan, capability=capability)
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+    )
+    current_projection["calls"].clear()
 
-    verified = verify_promotion_recovery_decision(
+    verified = _verify(
         decision,
-        keyring={("owner-1", "key-1"): SECRET},
-        expectation=expectation,
+        capability=capability,
+        promotion_ledger=promotion_ledger,
         now=NOW + timedelta(minutes=1),
     )
     restored = PromotionRecoveryDecision.from_dict(decision.to_dict())
 
+    assert current_projection["calls"] == [(capability, promotion_ledger)]
     assert restored == decision
     assert verified.decision_sha256 == decision.digest
-    assert verified.recovery_plan_sha256 == plan.plan_sha256
+    assert verified.recovery_plan_sha256 == current_projection["plan"].plan_sha256
     assert verified.effect_start_receipt_sha256 == EFFECT_START_DIGEST
     assert verified.source_revision == REVISION
 
 
-def test_signature_unknown_key_and_substitution_refuse() -> None:
-    expectation = recovery_expectation(_plan(), _capability())
-    decision = _decision()
+def test_signature_refusal_occurs_before_ledger_projection(
+    current_projection,
+) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+    )
+    current_projection["calls"].clear()
 
     with pytest.raises(PromotionRecoveryDecisionSignatureError):
-        verify_promotion_recovery_decision(
+        recovery_decision.verify_promotion_recovery_decision(
             decision,
             keyring={},
-            expectation=expectation,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
             now=NOW,
         )
+    assert current_projection["calls"] == []
+
     with pytest.raises(PromotionRecoveryDecisionSignatureError):
-        verify_promotion_recovery_decision(
+        _verify(
             replace(decision, signature_sha256="9" * 64),
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
         )
+    assert current_projection["calls"] == []
 
 
 @pytest.mark.parametrize(
@@ -228,94 +289,144 @@ def test_signature_unknown_key_and_substitution_refuse() -> None:
         {"effect_start_receipt_sha256": "6" * 64},
     ],
 )
-def test_resigned_subject_substitution_refuses(changes) -> None:
-    expectation = recovery_expectation(_plan(), _capability())
-    decision = _decision(**changes)
+def test_resigned_subject_substitution_refuses_after_current_projection(
+    current_projection,
+    changes,
+) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+        **changes,
+    )
+    current_projection["calls"].clear()
 
     with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
-        verify_promotion_recovery_decision(
+        _verify(
             decision,
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
+        )
+    assert current_projection["calls"] == [(capability, promotion_ledger)]
+
+
+def test_resigned_source_revision_substitution_refuses(
+    current_projection,
+) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+        source_revision=OTHER_REVISION,
+    )
+    current_projection["calls"].clear()
+
+    with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
+        _verify(
+            decision,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
         )
 
 
-def test_resigned_source_revision_substitution_refuses() -> None:
-    expectation = recovery_expectation(_plan(), _capability())
-    decision = _decision(source_revision=OTHER_REVISION)
+def test_changed_current_effect_start_invalidates_previously_signed_decision(
+    current_projection,
+) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+    )
+    current_projection["plan"] = _plan(
+        effect_start_receipt_sha256=OTHER_EFFECT_START_DIGEST,
+    )
 
     with pytest.raises(PromotionRecoveryDecisionBindingMismatch):
-        verify_promotion_recovery_decision(
+        _verify(
             decision,
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
         )
 
 
-def test_future_expired_and_overlong_decisions_refuse() -> None:
-    expectation = recovery_expectation(_plan(), _capability())
+def test_future_expired_and_overlong_decisions_refuse_before_projection(
+    current_projection,
+) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
 
     future = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
         issued_at=(NOW + timedelta(hours=2)).isoformat(timespec="microseconds"),
         expires_at=(NOW + timedelta(hours=3)).isoformat(timespec="microseconds"),
     )
-    with pytest.raises(PromotionRecoveryDecisionExpired):
-        verify_promotion_recovery_decision(
-            future,
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
-        )
-
     expired = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
         issued_at=(NOW - timedelta(hours=2)).isoformat(timespec="microseconds"),
         expires_at=(NOW - timedelta(hours=1)).isoformat(timespec="microseconds"),
     )
-    with pytest.raises(PromotionRecoveryDecisionExpired):
-        verify_promotion_recovery_decision(
-            expired,
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
-        )
-
     overlong = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
         issued_at=ISSUED_AT,
         expires_at=(NOW + timedelta(hours=25)).isoformat(timespec="microseconds"),
     )
-    with pytest.raises(PromotionRecoveryDecisionExpired):
-        verify_promotion_recovery_decision(
-            overlong,
-            keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
-            now=NOW,
-        )
+    current_projection["calls"].clear()
+
+    for decision in (future, expired, overlong):
+        with pytest.raises(PromotionRecoveryDecisionExpired):
+            _verify(
+                decision,
+                capability=capability,
+                promotion_ledger=promotion_ledger,
+            )
+    assert current_projection["calls"] == []
 
 
-def test_malformed_types_refuse_without_verification() -> None:
-    expectation = recovery_expectation(_plan(), _capability())
-    decision = _decision()
+def test_malformed_types_refuse_without_projection(current_projection) -> None:
+    capability = _capability()
+    promotion_ledger = _ledger()
+    decision = _decision(
+        capability=capability,
+        promotion_ledger=promotion_ledger,
+    )
+    current_projection["calls"].clear()
 
     with pytest.raises(TypeError):
-        verify_promotion_recovery_decision(
+        recovery_decision.verify_promotion_recovery_decision(
             object(),
             keyring={("owner-1", "key-1"): SECRET},
-            expectation=expectation,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
             now=NOW,
         )
     with pytest.raises(TypeError):
-        verify_promotion_recovery_decision(
+        recovery_decision.verify_promotion_recovery_decision(
             decision,
             keyring=[],
-            expectation=expectation,
+            capability=capability,
+            promotion_ledger=promotion_ledger,
             now=NOW,
         )
     with pytest.raises(TypeError):
-        verify_promotion_recovery_decision(
+        recovery_decision.verify_promotion_recovery_decision(
             decision,
             keyring={("owner-1", "key-1"): SECRET},
-            expectation=object(),
+            capability=object(),
+            promotion_ledger=promotion_ledger,
             now=NOW,
         )
+    with pytest.raises(TypeError):
+        recovery_decision.verify_promotion_recovery_decision(
+            decision,
+            keyring={("owner-1", "key-1"): SECRET},
+            capability=capability,
+            promotion_ledger=object(),
+            now=NOW,
+        )
+    assert current_projection["calls"] == []
