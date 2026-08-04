@@ -60,17 +60,11 @@ def main() -> int:
         ),
         (
             "install-attempt-index-before-durability",
-            """        try:
-            self.durability_status: Gate0DurabilityStatus = (
-                enforce_gate0_durability(self.spine)
-            )
+            """            if getattr(self.spine, "read_only", False):
 """,
-            """        self.path = self.spine.path
-        self._install_single_start_invariant()
-        try:
-            self.durability_status: Gate0DurabilityStatus = (
-                enforce_gate0_durability(self.spine)
-            )
+            """            self.path = self.spine.path
+            self._install_single_start_invariant()
+            if getattr(self.spine, "read_only", False):
 """,
         ),
     )
