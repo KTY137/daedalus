@@ -25,10 +25,10 @@ FORBIDDEN_PARAMETERS = {
     "callback",
     "provider",
     "writer",
-    "ledger",
     "outcome",
     "terminal_receipt",
     "repo_root",
+    "expectation",
 }
 
 
@@ -67,7 +67,7 @@ def test_recovery_decision_module_has_no_issuer_or_effect_authority() -> None:
     assert "issue_owner_approval" not in vars(decision)
 
 
-def test_public_functions_accept_no_smuggled_writer_authority() -> None:
+def test_public_functions_accept_no_smuggled_writer_or_expectation_authority() -> None:
     for function in (
         decision.recovery_expectation,
         decision.verify_promotion_recovery_decision,
@@ -99,7 +99,7 @@ def test_decision_contracts_expose_no_execution_methods() -> None:
         assert forbidden.isdisjoint(vars(contract))
 
 
-def test_exact_plan_and_authorization_are_revalidated() -> None:
+def test_exact_current_plan_and_authorization_are_revalidated_once() -> None:
     source = inspect.getsource(decision.recovery_expectation)
     tree = ast.parse(source)
     calls = [
@@ -108,18 +108,24 @@ def test_exact_plan_and_authorization_are_revalidated() -> None:
         if isinstance(node, ast.Call)
     ]
 
+    assert calls.count("plan_promotion_recovery") == 1
     assert calls.count("_verify_plan_digest") == 1
     assert calls.count("_promotion_authorization_digest") == 1
+    assert all(
+        not name.startswith("promotion_ledger.")
+        for name in filter(None, calls)
+    )
     assert "EFFECT_ONLY_PENDING" in source
     assert "OWNER_DECISION_BEFORE_EFFECT_CANCELLATION" in source
     assert "automatic_external_reexecution is not False" in source
     assert "owner_decision_required is not True" in source
 
 
-def test_signature_check_precedes_time_and_subject_comparison() -> None:
+def test_signature_and_time_checks_precede_current_state_projection() -> None:
     source = inspect.getsource(decision.verify_promotion_recovery_decision)
     signature_offset = source.index("hmac.compare_digest")
     time_offset = source.index("instant =")
+    projection_offset = source.index("expectation = recovery_expectation")
     comparison_offset = source.index("comparisons =")
 
-    assert signature_offset < time_offset < comparison_offset
+    assert signature_offset < time_offset < projection_offset < comparison_offset
