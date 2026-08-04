@@ -107,13 +107,14 @@ def test_writer_open_uses_existing_store_and_does_not_create(tmp_path: Path) -> 
 
 def test_admitted_store_identity_cannot_be_substituted(tmp_path: Path) -> None:
     path = tmp_path / "store.sqlite3"
+    replacement_path = tmp_path / "replacement.sqlite3"
     initialize_promotion_recovery_consumption_store(path)
     ledger = PreprovisionedPromotionRecoveryConsumptionLedger(path)
     original_identity = ledger.store_status.identity
 
-    path.unlink()
-    replacement = initialize_promotion_recovery_consumption_store(path)
+    replacement = initialize_promotion_recovery_consumption_store(replacement_path)
     assert replacement.identity != original_identity
+    os.replace(replacement_path, path)
 
     with pytest.raises(PromotionRecoveryConsumptionStateError):
         _ = ledger.store_status
