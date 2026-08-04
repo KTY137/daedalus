@@ -30,15 +30,23 @@ GateReport-v3 adds mandatory fields for:
 
 Missing inventory identity, missing byte identity, a non-positive file count,
 any generation other than `2`, scanner refusal, or any repository-write finding
-is a derived report blocker. A legacy v2 payload cannot be parsed or laundered as
-v3.
+is a derived report blocker. Negative counters are malformed rather than merely
+blocking. A legacy v2 payload cannot be parsed or laundered as v3.
 
-## Builder and monotonicity
+## Builder, drift fence and monotonicity
 
-`build_gate0_report_v3(...)` first derives the existing v2 report, then invokes
+`build_gate0_report_v3(...)` invokes the existing v2 report builder and
 `scan_repository_write_surfaces_v2(...)` itself. Callers cannot provide an
 inventory digest or an empty failure list. Scanner refusal produces missing
 identity plus an explicit `inventory-refused` blocker and diagnostic.
+
+Before repeated derivation, runtime receipts, Primary-Checkout mutation rows and
+fault results are snapshotted. The builder derives the v2 base report twice and
+the repository-write evidence twice. A changed base report, changed inventory
+digest, changed production-byte digest, changed file count, changed generation,
+changed failure set or changed diagnostic refuses composition. This is a bounded
+TOCTOU drift detector; it is not a substitute for authenticated Git HEAD and
+source-tree binding in the release trust chain.
 
 `assert_monotonic_v3(...)` accepts only exact `GateReportV3` subjects and treats
 a newly discovered repository-write finding as a regression. It deliberately
@@ -49,8 +57,9 @@ not be interpreted as an empty inventory.
 
 The strict loader rejects extra or missing fields, duplicate keys, non-finite
 JSON constants, malformed UTF-8, oversized reports, invalid types, unsorted or
-duplicate rows, digest mismatches and noncanonical derived fields. The JSON
-Schema mirrors the exact runtime shape.
+duplicate rows, digest mismatches and noncanonical derived fields. Direct
+non-JSON values are normalized into the v3 error domain. The JSON Schema mirrors
+the exact runtime shape.
 
 The stdout-only CLI emits a discovery report with
 `security_boundary_claimed=false`. It has no argument capable of asserting a
@@ -58,10 +67,12 @@ security boundary and returns distinct blocked and malformed exit codes.
 
 Prepared verification includes builder and live-inventory behavior tests, schema
 parity, legacy-v2 refusal, malformed and stale-revision identity cases, strict
-loader tests, scanner refusal, repository-write monotonic regression, a separate
-AST/source counter-review and eight bounded mutants attacking closure,
-mandatory identities, generation, failure propagation, scanner refusal, wire
-binding and monotonicity.
+loader tests, negative/bool counter cases, scanner refusal, exact-base-type
+refusal, repeated-input snapshot behavior, base-report drift,
+repository-inventory drift, repository-write monotonic regression and a separate
+AST/source counter-review. Ten bounded mutants attack closure, mandatory
+identities, generation, failure propagation, scanner refusal, wire binding, both
+drift fences and monotonicity.
 
 ## Remaining release boundary
 
