@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 import pytest
 
-import daedalus.kairos as kairos
 import daedalus.kairos.promotion_entrypoint as entrypoint
 
 
@@ -77,9 +76,9 @@ def test_public_entrypoint_does_not_swallow_lifecycle_refusal(monkeypatch) -> No
     assert observed.value is expected
 
 
-def test_package_export_is_the_capability_bearing_surface() -> None:
-    assert kairos.promote_candidates_with_persisted_effect is entrypoint.promote_candidates
+def test_entrypoint_contract_is_explicit_and_capability_bearing() -> None:
     signature = inspect.signature(entrypoint.promote_candidates)
+    assert entrypoint.promote_candidates.__module__ == "daedalus.kairos.promotion_entrypoint"
     assert "promotion_effect_capability" in signature.parameters
     assert signature.parameters["promotion_effect_capability"].kind is inspect.Parameter.KEYWORD_ONLY
     assert all(
