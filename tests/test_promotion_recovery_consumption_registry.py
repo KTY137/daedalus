@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import MappingProxyType, SimpleNamespace
 
 import pytest
@@ -159,6 +160,49 @@ def test_machine_report_is_revision_bound_and_honest() -> None:
         "runtime-conformance-kill-switch-and-docker-sandbox-not-composed",
     )
     assert tuple(row["id"] for row in report.exact_rows) == EXPECTED_IDS
+
+
+def test_machine_report_detects_anchor_and_scanner_drift() -> None:
+    boundary = _fake_boundary()
+    install_promotion_recovery_consumption_inventory(boundary)
+    first = boundary.ENTRYPOINTS[-2]
+    substituted = replace(
+        first,
+        anchors=(
+            effect_boundary.GuardAnchor(
+                target=first.target,
+                call="_connect_writer",
+            ),
+        ),
+    )
+    boundary.ENTRYPOINTS = (
+        *boundary.ENTRYPOINTS[:-2],
+        substituted,
+        boundary.ENTRYPOINTS[-1],
+    )
+    boundary.REGISTRY_BY_ID = MappingProxyType(
+        {row.id: row for row in boundary.ENTRYPOINTS}
+    )
+
+    anchor_report = inspect_promotion_recovery_consumption_registry(
+        source_revision="3" * 40,
+        boundary=boundary,
+    )
+    assert anchor_report.canonical_registry_integrated is False
+    assert anchor_report.blockers[0] == (
+        "canonical-effect-boundary-entrypoint-rows-not-exact"
+    )
+
+    boundary = _fake_boundary()
+    install_promotion_recovery_consumption_inventory(boundary)
+    delattr(boundary._surface_for_function, "__daedalus_scanner_methods__")
+    scanner_report = inspect_promotion_recovery_consumption_registry(
+        source_revision="4" * 40,
+        boundary=boundary,
+    )
+    assert scanner_report.canonical_registry_integrated is False
+    assert scanner_report.scanner_integrated is False
+    assert "static-effect-scanner-hook-not-integrated" in scanner_report.blockers
 
 
 @pytest.mark.parametrize(
