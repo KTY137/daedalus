@@ -54,9 +54,9 @@ MUTATIONS = (
         False,
     ),
     (
-        "accept-duplicate-anchors",
-        '        raise ValueError("recovery-consumption descriptor anchors are duplicated")',
-        "        pass",
+        "accept-anchor-substitution",
+        "        if self.anchors != expected_anchors:\n",
+        "        if False:\n",
         1,
         False,
     ),
