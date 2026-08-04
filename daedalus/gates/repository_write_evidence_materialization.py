@@ -1,11 +1,9 @@
 """Content-addressed materialization for repository-write evidence.
 
-This module verifies that every supplied evidence blob is the exact canonical
-JSON object named by a revision-and-surface-bound ``EvidenceBinding``.  It does
-not authenticate the external issuer of a receipt and does not validate the
-receipt against a live Effect-Lease, Runtime Manifest, checkout, or retirement
-ledger.  Those semantic verifiers remain mandatory before Gate 0 may consume
-this report as authenticated evidence.
+This module verifies exact canonical JSON bytes named by revision-and-surface
+bound ``EvidenceBinding`` values. It deliberately does not authenticate an
+external issuer or semantically replay Effect-Lease, runtime, checkout, or
+retirement ledgers; those later verifiers remain mandatory for Gate 0.
 """
 from __future__ import annotations
 
@@ -67,14 +65,14 @@ class MaterializedEvidenceRecord:
             raise ValueError("materialized evidence kind must be typed")
         if not _REVISION.fullmatch(self.source_revision):
             raise ValueError("materialized evidence revision must be lowercase 40-hex")
-        if not _SHA256.fullmatch(self.surface_sha256):
-            raise ValueError("materialized surface digest must be lowercase sha256")
-        if not _SHA256.fullmatch(self.blob_sha256):
-            raise ValueError("materialized blob digest must be lowercase sha256")
-        if not _SHA256.fullmatch(self.payload_sha256):
-            raise ValueError("materialized payload digest must be lowercase sha256")
-        if not _SHA256.fullmatch(self.subject_sha256):
-            raise ValueError("materialized subject digest must be lowercase sha256")
+        for value, label in (
+            (self.surface_sha256, "surface"),
+            (self.blob_sha256, "blob"),
+            (self.payload_sha256, "payload"),
+            (self.subject_sha256, "subject"),
+        ):
+            if not _SHA256.fullmatch(value):
+                raise ValueError(f"materialized {label} digest must be lowercase sha256")
         match = _CAS_LOCATOR.fullmatch(self.locator)
         if match is None or match.group(1) != self.blob_sha256:
             raise ValueError("materialized locator must name the exact blob digest")
@@ -121,10 +119,10 @@ class RepositoryWriteEvidenceMaterializationReport:
             raise ValueError("classification digest must be lowercase sha256")
         if type(self.binding_count) is not int or self.binding_count < 0:
             raise ValueError("binding_count must be a non-negative integer")
-        if not isinstance(self.records, tuple):
-            raise ValueError("records must be an immutable tuple")
-        if any(not isinstance(row, MaterializedEvidenceRecord) for row in self.records):
-            raise ValueError("record type is invalid")
+        if not isinstance(self.records, tuple) or any(
+            not isinstance(row, MaterializedEvidenceRecord) for row in self.records
+        ):
+            raise ValueError("records must be an immutable typed tuple")
         if tuple(sorted(self.records, key=MaterializedEvidenceRecord.sort_key)) != self.records:
             raise ValueError("records must be canonically sorted")
         if len(set(self.records)) != len(self.records):
@@ -141,12 +139,12 @@ class RepositoryWriteEvidenceMaterializationReport:
             raise ValueError("missing locator is not content-addressed")
         if self.binding_count != len(self.records) + len(self.missing_locators):
             raise ValueError("binding count does not match materialization projection")
-        if set(row.locator for row in self.records).intersection(self.missing_locators):
+        if {row.locator for row in self.records}.intersection(self.missing_locators):
             raise ValueError("materialized and missing locators must be disjoint")
 
     @property
     def materialization_complete(self) -> bool:
-        return not self.missing_locators
+        return self.binding_count > 0 and not self.missing_locators
 
     def _payload(self) -> dict[str, object]:
         blockers = [
@@ -154,6 +152,8 @@ class RepositoryWriteEvidenceMaterializationReport:
             "external-evidence-semantic-verification-missing",
             "gate-report-binding-missing",
         ]
+        if self.binding_count == 0:
+            blockers.append("evidence-bindings-empty")
         if self.missing_locators:
             blockers.append("evidence-blobs-missing")
         return {
@@ -179,9 +179,7 @@ class RepositoryWriteEvidenceMaterializationReport:
 
     @property
     def digest(self) -> str:
-        return hashlib.sha256(
-            canonical_json(self._payload()).encode("ascii")
-        ).hexdigest()
+        return hashlib.sha256(canonical_json(self._payload()).encode("ascii")).hexdigest()
 
     def to_dict(self) -> dict[str, object]:
         return {**self._payload(), "digest": self.digest}
@@ -191,12 +189,7 @@ def materialize_repository_write_evidence(
     classification: RepositoryWriteClassificationReport,
     blobs: Mapping[str, bytes],
 ) -> RepositoryWriteEvidenceMaterializationReport:
-    """Verify exact CAS bytes for every evidence binding in a classification.
-
-    Missing blobs remain an explicit report blocker.  Unexpected blobs, reused
-    locators, digest substitution, non-canonical JSON, duplicate keys, and
-    kind-specific envelope mismatches fail closed.
-    """
+    """Verify exact CAS bytes for every evidence binding in a classification."""
 
     if not isinstance(classification, RepositoryWriteClassificationReport):
         raise RepositoryWriteEvidenceMaterializationError(
@@ -235,8 +228,7 @@ def materialize_repository_write_evidence(
         expected_locators.add(binding.locator)
         seen_blob_digests.add(binding.sha256)
 
-    unexpected = sorted(set(blobs) - expected_locators)
-    if unexpected:
+    if set(blobs) - expected_locators:
         raise RepositoryWriteEvidenceMaterializationError(
             "unexpected evidence blob locators are present"
         )
@@ -247,8 +239,8 @@ def materialize_repository_write_evidence(
         raw = blobs.get(binding.locator)
         if raw is None:
             missing.append(binding.locator)
-            continue
-        records.append(_materialize_one(binding, raw))
+        else:
+            records.append(_materialize_one(binding, raw))
 
     return RepositoryWriteEvidenceMaterializationReport(
         source_revision=classification.source_revision,
@@ -259,7 +251,9 @@ def materialize_repository_write_evidence(
     )
 
 
-def _materialize_one(binding: EvidenceBinding, raw: bytes) -> MaterializedEvidenceRecord:
+def _materialize_one(
+    binding: EvidenceBinding, raw: bytes
+) -> MaterializedEvidenceRecord:
     raw_sha256 = hashlib.sha256(raw).hexdigest()
     if raw_sha256 != binding.sha256:
         raise RepositoryWriteEvidenceMaterializationError(
@@ -271,15 +265,14 @@ def _materialize_one(binding: EvidenceBinding, raw: bytes) -> MaterializedEviden
         )
     try:
         text = raw.decode("utf-8", errors="strict")
-    except UnicodeDecodeError as exc:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence blob is not strict UTF-8"
-        ) from exc
-    try:
         document = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
-    except (json.JSONDecodeError, RepositoryWriteEvidenceMaterializationError) as exc:
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RepositoryWriteEvidenceMaterializationError,
+    ) as exc:
         raise RepositoryWriteEvidenceMaterializationError(
-            "evidence blob is not strict JSON"
+            "evidence blob is not strict canonical JSON"
         ) from exc
     if not isinstance(document, dict) or any(
         not isinstance(key, str) for key in document
@@ -287,54 +280,46 @@ def _materialize_one(binding: EvidenceBinding, raw: bytes) -> MaterializedEviden
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence document must be an object"
         )
-    canonical = canonical_json(document).encode("ascii")
-    if raw != canonical:
+    if raw != canonical_json(document).encode("ascii"):
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence blob bytes are not canonical JSON"
         )
 
-    required = {
-        "schema",
-        "kind",
-        "source_revision",
-        "surface_sha256",
-        "guard_contract",
-        "subject_sha256",
-        "payload_sha256",
-        "payload",
-    }
-    if set(document) != required:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence envelope keys are invalid"
-        )
+    _require_exact_keys(
+        document,
+        {
+            "schema",
+            "kind",
+            "source_revision",
+            "surface_sha256",
+            "guard_contract",
+            "subject_sha256",
+            "payload_sha256",
+            "payload",
+        },
+        "evidence envelope",
+    )
     if document["schema"] != "daedalus-gate0-repository-write-evidence-object/1":
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence envelope schema is unsupported"
         )
-    if document["kind"] != binding.kind.value:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence kind differs from its binding"
-        )
-    if document["source_revision"] != binding.source_revision:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence revision differs from its binding"
-        )
-    if document["surface_sha256"] != binding.surface_sha256:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence surface differs from its binding"
-        )
-    if document["guard_contract"] != binding.guard_contract:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence guard contract differs from its binding"
-        )
+    exact_fields = {
+        "kind": binding.kind.value,
+        "source_revision": binding.source_revision,
+        "surface_sha256": binding.surface_sha256,
+        "guard_contract": binding.guard_contract,
+        "subject_sha256": evidence_subject_sha256(binding),
+    }
+    for field, expected in exact_fields.items():
+        if document[field] != expected:
+            raise RepositoryWriteEvidenceMaterializationError(
+                f"evidence {field} differs from its binding"
+            )
 
-    subject_sha256 = evidence_subject_sha256(binding)
-    if document["subject_sha256"] != subject_sha256:
-        raise RepositoryWriteEvidenceMaterializationError(
-            "evidence subject digest differs from its binding"
-        )
     payload = document["payload"]
-    if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
+    if not isinstance(payload, dict) or any(
+        not isinstance(key, str) for key in payload
+    ):
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence payload must be an object"
         )
@@ -346,7 +331,6 @@ def _materialize_one(binding: EvidenceBinding, raw: bytes) -> MaterializedEviden
             "evidence payload digest is invalid"
         )
     _validate_payload(binding, payload)
-
     return MaterializedEvidenceRecord(
         kind=binding.kind,
         source_revision=binding.source_revision,
@@ -355,17 +339,20 @@ def _materialize_one(binding: EvidenceBinding, raw: bytes) -> MaterializedEviden
         locator=binding.locator,
         blob_sha256=raw_sha256,
         payload_sha256=payload_sha256,
-        subject_sha256=subject_sha256,
+        subject_sha256=exact_fields["subject_sha256"],
     )
 
 
-def _validate_payload(binding: EvidenceBinding, payload: Mapping[str, object]) -> None:
+def _validate_payload(
+    binding: EvidenceBinding, payload: Mapping[str, object]
+) -> None:
     if binding.kind is EvidenceKind.SOURCE_ANCHOR:
         _require_exact_keys(
             payload, {"path", "line", "column", "source_sha256"}, "source anchor"
         )
-        path = _strict_str(payload["path"], "source anchor path")
-        if _REPOSITORY_PATH.fullmatch(path) is None:
+        if _REPOSITORY_PATH.fullmatch(
+            _strict_str(payload["path"], "source anchor path")
+        ) is None:
             raise RepositoryWriteEvidenceMaterializationError(
                 "source anchor path is not normalized repository-relative"
             )
@@ -404,10 +391,11 @@ def _validate_payload(binding: EvidenceBinding, payload: Mapping[str, object]) -
             {"receipt_schema", "receipt_sha256", "entrypoint_id", "terminal_state"},
             "effect lease receipt",
         )
-        _strict_single_line(payload["receipt_schema"], "effect lease receipt schema")
-        _strict_sha(payload["receipt_sha256"], "effect lease receipt sha256")
-        entrypoint_id = _strict_str(payload["entrypoint_id"], "effect entrypoint id")
-        if _CONTRACT.fullmatch(entrypoint_id) is None:
+        _strict_single_line(payload["receipt_schema"], "effect receipt schema")
+        _strict_sha(payload["receipt_sha256"], "effect receipt sha256")
+        if _CONTRACT.fullmatch(
+            _strict_str(payload["entrypoint_id"], "effect entrypoint id")
+        ) is None:
             raise RepositoryWriteEvidenceMaterializationError(
                 "effect entrypoint id is invalid"
             )
@@ -423,10 +411,8 @@ def _validate_payload(binding: EvidenceBinding, payload: Mapping[str, object]) -
             {"receipt_schema", "receipt_sha256", "runtime_id", "conformant"},
             "runtime conformance receipt",
         )
-        _strict_single_line(
-            payload["receipt_schema"], "runtime conformance receipt schema"
-        )
-        _strict_sha(payload["receipt_sha256"], "runtime conformance receipt sha256")
+        _strict_single_line(payload["receipt_schema"], "runtime receipt schema")
+        _strict_sha(payload["receipt_sha256"], "runtime receipt sha256")
         _strict_single_line(payload["runtime_id"], "runtime id")
         if payload["conformant"] is not True:
             raise RepositoryWriteEvidenceMaterializationError(
@@ -446,10 +432,8 @@ def _validate_payload(binding: EvidenceBinding, payload: Mapping[str, object]) -
             },
             "checkout disjointness receipt",
         )
-        _strict_single_line(
-            payload["receipt_schema"], "checkout disjointness receipt schema"
-        )
-        _strict_sha(payload["receipt_sha256"], "checkout disjointness receipt sha256")
+        _strict_single_line(payload["receipt_schema"], "disjointness receipt schema")
+        _strict_sha(payload["receipt_sha256"], "disjointness receipt sha256")
         _strict_sha(
             payload["primary_checkout_sha256"], "primary checkout fingerprint"
         )
@@ -483,7 +467,9 @@ def _validate_payload(binding: EvidenceBinding, payload: Mapping[str, object]) -
     raise RepositoryWriteEvidenceMaterializationError("evidence kind is unsupported")
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+def _reject_duplicate_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
@@ -503,13 +489,17 @@ def _require_exact_keys(
 
 def _strict_str(value: object, label: str) -> str:
     if not isinstance(value, str):
-        raise RepositoryWriteEvidenceMaterializationError(f"{label} must be a string")
+        raise RepositoryWriteEvidenceMaterializationError(
+            f"{label} must be a string"
+        )
     return value
 
 
 def _strict_int(value: object, label: str) -> int:
     if type(value) is not int:
-        raise RepositoryWriteEvidenceMaterializationError(f"{label} must be an integer")
+        raise RepositoryWriteEvidenceMaterializationError(
+            f"{label} must be an integer"
+        )
     return value
 
 
