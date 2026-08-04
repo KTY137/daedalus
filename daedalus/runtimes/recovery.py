@@ -16,7 +16,11 @@ from daedalus.kernel.effect_recovery import (
     ExternalEffectObservation,
     reconcile_unknown_effect,
 )
-from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
+from daedalus.kernel.effects import (
+    EffectExecutionRequest,
+    EffectLeaseError,
+    LeasedEffectStartReceipt,
+)
 from daedalus.kernel.runtime_effects import (
     RuntimeBoundEffectAuthorization,
     RuntimeLeaseAdmissionError,
@@ -153,7 +157,7 @@ def _validate_runtime_binding(
             now=_parse_start(start_receipt.started_at),
             registry=authorization.registry,
         )
-    except (RuntimeLeaseAdmissionError, ValueError) as exc:
+    except (EffectLeaseError, RuntimeLeaseAdmissionError, ValueError) as exc:
         raise RuntimeProviderRecoveryBindingError(
             "runtime provider recovery capability failed authentication"
         ) from exc
