@@ -37,6 +37,21 @@ from .writer_inventory import (
     scan_event_store_writers,
 )
 
+# Controlled strangler installation: normal imports of
+# ``daedalus.spine.effect_boundary`` execute this package initializer first, so
+# the registry tuple, mapping and captured defaults are updated before a caller
+# can observe them. The rows remain LOCAL_GUARDS until a later packet composes
+# EffectLease, runtime-conformance and Docker-sandbox authority.
+from . import effect_boundary as _effect_boundary
+from .promotion_effect_rows import (
+    install_promotion_effect_rows as _install_promotion_effect_rows,
+)
+
+_install_promotion_effect_rows(_effect_boundary)
+del _install_promotion_effect_rows
+del _effect_boundary
+
+
 __all__ = [
     "DEFAULT_BUSY_TIMEOUT_MS",
     "DEFAULT_DB_PATH",
