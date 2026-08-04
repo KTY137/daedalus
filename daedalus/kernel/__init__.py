@@ -125,6 +125,12 @@ from .promotion_effect_replay import (
     PromotionEffectReplayMismatch,
     inspect_promotion_effect_replay,
 )
+from .promotion_effect_reconcile import (
+    PromotionEffectReconciliationMismatch,
+    PromotionEffectReconciliationRefused,
+    PromotionEffectReconciliationResult,
+    reconcile_promotion_effect_terminal,
+)
 from .promotion_execution import (
     PromotionExecutionBeginResult,
     PromotionExecutionBindingMismatch,
@@ -194,6 +200,10 @@ __all__ += [
     "PromotionEffectReplayDecision",
     "PromotionEffectReplayMismatch",
     "inspect_promotion_effect_replay",
+    "PromotionEffectReconciliationMismatch",
+    "PromotionEffectReconciliationRefused",
+    "PromotionEffectReconciliationResult",
+    "reconcile_promotion_effect_terminal",
     "PromotionExecutionBeginResult",
     "PromotionExecutionBindingMismatch",
     "PromotionExecutionCompletion",
