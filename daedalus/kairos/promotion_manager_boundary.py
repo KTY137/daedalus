@@ -89,7 +89,7 @@ def _resolve_branch(
 ) -> str | None:
     try:
         return resolve_live_target_revision(manager.repository_path, branch)
-    except BaseException:
+    except Exception:
         return None
 
 
