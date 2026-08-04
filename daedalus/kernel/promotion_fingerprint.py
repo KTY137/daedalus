@@ -1,9 +1,9 @@
 """Read-only primary-checkout identity for promotion execution accounting.
 
 The fingerprint deliberately excludes only repository-control roots that are
-not candidate source material (``.git`` and ``.daedalus``).  It follows no
+not candidate source material (``.git`` and ``.daedalus``). It follows no
 symlink, accepts only regular files, binds executable bits and raw bytes, and
-requires two identical observations before returning.  The helper performs no
+requires two identical observations before returning. The helper performs no
 repository mutation and owns no promotion policy.
 """
 from __future__ import annotations
@@ -76,7 +76,10 @@ def _read_regular_file(path: Path, expected: os.stat_result) -> bytes:
 def _observe(root: Path) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     try:
-        children = sorted(root.rglob("*"), key=lambda value: value.relative_to(root).as_posix())
+        children = sorted(
+            root.rglob("*"),
+            key=lambda value: value.relative_to(root).as_posix(),
+        )
     except OSError as exc:
         raise PrimaryCheckoutFingerprintError(
             "primary checkout traversal failed"
@@ -96,7 +99,8 @@ def _observe(root: Path) -> tuple[dict[str, object], ...]:
             continue
         if not stat.S_ISREG(metadata.st_mode):
             raise PrimaryCheckoutFingerprintError(
-                f"primary checkout contains a non-regular entry: {relative.as_posix()}"
+                "primary checkout contains a non-regular entry: "
+                f"{relative.as_posix()}"
             )
         raw = _read_regular_file(path, metadata)
         rows.append(
@@ -113,13 +117,21 @@ def _observe(root: Path) -> tuple[dict[str, object], ...]:
 def fingerprint_primary_checkout(root: str | Path) -> str:
     """Return a stable digest of one checkout's source-visible file tree."""
     try:
-        directory = Path(root).resolve(strict=True)
+        submitted = Path(root).absolute()
+        submitted_metadata = submitted.lstat()
+        if stat.S_ISLNK(submitted_metadata.st_mode):
+            raise PrimaryCheckoutFingerprintError(
+                "primary checkout root cannot be a symlink"
+            )
+        directory = submitted.resolve(strict=True)
         metadata = directory.lstat()
+    except PrimaryCheckoutFingerprintError:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise PrimaryCheckoutFingerprintError(
             "primary checkout root must be an existing directory"
         ) from exc
-    if directory.is_symlink() or not stat.S_ISDIR(metadata.st_mode):
+    if not stat.S_ISDIR(metadata.st_mode):
         raise PrimaryCheckoutFingerprintError(
             "primary checkout root must be a real directory"
         )
