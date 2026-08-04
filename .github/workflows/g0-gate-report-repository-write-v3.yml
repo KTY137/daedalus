@@ -54,6 +54,7 @@ jobs:
           python -m pytest -q
           tests/gates/test_gate_report_v3.py
           tests/gates/test_gate_report_v3_bounds.py
+          tests/gates/test_gate_report_v3_drift.py
           tests/gates/test_gate_report_v3_review.py
           tests/gates/test_gate_report_v3_schema.py
           tests/gates/test_gate_report_v3_cli.py
