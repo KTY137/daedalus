@@ -1,10 +1,11 @@
-"""Install audited manager and execution-ledger adapters around promotion.
+"""Install a typed manager-audit adapter around the live promotion seam.
 
-This module is intentionally a strangler adapter over the exact retained live
-promotion implementation. It does not perform Git effects itself. It records
-manager outcomes, requires an exact surviving branch identity after mutation,
-and binds the immutable audit snapshot into the existing promotion execution
-report before the canonical ledger terminalizes the attempt.
+This module is a strangler adapter over the retained promotion implementation.
+It performs no Git or filesystem effects itself.  The public promotion callable
+continues to receive a real :class:`PromotionExecutionLedger`; the adapter wraps
+that *instance* in a subclass-compatible proxy instead of replacing the public
+ledger class with a factory.  This preserves the live ``isinstance`` guard and
+prevents an untyped object from being smuggled through the audit layer.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping, MutableMapping
 
 from daedalus.kernel.promotion import resolve_live_target_revision
+from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 from daedalus.kairos.promotion_manager_audit import (
     AuditedWorktreeManager,
     PromotionManagerAuditSnapshot,
@@ -38,30 +40,51 @@ class PromotionManagerAuditFault(RuntimeError):
         self.integration_revision = integration_revision
 
 
+LedgerWrapper = Callable[
+    [object, "_BoundaryState"],
+    PromotionExecutionLedger,
+]
+
+
 @dataclass
 class _BoundaryState:
     manager_constructor: Callable[..., Any]
-    ledger_constructor: Callable[..., Any]
+    ledger_type: type[PromotionExecutionLedger]
     parent_promote_candidates: Callable[..., Any]
     active_manager: contextvars.ContextVar[AuditedWorktreeManager | None]
+    ledger_wrapper: LedgerWrapper | None = None
 
     def manager_factory(self, *args: Any, **kwargs: Any) -> AuditedWorktreeManager:
+        if self.active_manager.get() is not None:
+            raise PromotionManagerAuditPending(
+                "promotion attempted to allocate more than one manager"
+            )
         manager = AuditedWorktreeManager(
             self.manager_constructor(*args, **kwargs)
         )
         self.active_manager.set(manager)
         return manager
 
-    def ledger_factory(self, *args: Any, **kwargs: Any) -> "_AuditedExecutionLedger":
-        return _AuditedExecutionLedger(
-            self.ledger_constructor(*args, **kwargs),
-            state=self,
-        )
+    def wrap_ledger(self, delegate: object) -> object:
+        if isinstance(delegate, _AuditedExecutionLedger):
+            return delegate
+        if not isinstance(delegate, self.ledger_type):
+            # Preserve the parent boundary's exact type refusal.  Wrapping an
+            # arbitrary duck type in our subclass proxy would otherwise make a
+            # forged object pass ``isinstance`` inside the sealed callable.
+            return delegate
+        wrapper = self.ledger_wrapper or _AuditedExecutionLedger
+        return wrapper(delegate, self)
 
     def promote_candidates(self, *args: Any, **kwargs: Any) -> Any:
         token = self.active_manager.set(None)
         try:
-            return self.parent_promote_candidates(*args, **kwargs)
+            call_kwargs = dict(kwargs)
+            if "promotion_execution_ledger" in call_kwargs:
+                call_kwargs["promotion_execution_ledger"] = self.wrap_ledger(
+                    call_kwargs["promotion_execution_ledger"]
+                )
+            return self.parent_promote_candidates(*args, **call_kwargs)
         finally:
             self.active_manager.reset(token)
 
@@ -280,8 +303,12 @@ def _assess_completion(
     raise PromotionManagerAuditPending(f"unknown promotion outcome {outcome!r}")
 
 
-class _AuditedExecutionLedger:
-    def __init__(self, delegate: object, *, state: _BoundaryState) -> None:
+class _AuditedExecutionLedger(PromotionExecutionLedger):
+    """Typed proxy that preserves the sealed callable's ledger type guard."""
+
+    def __init__(self, delegate: object, state: _BoundaryState) -> None:
+        # Deliberately do not initialize a second Event Store.  Every operation
+        # delegates to the already-open canonical ledger supplied by the caller.
         self._delegate = delegate
         self._state = state
 
@@ -338,18 +365,24 @@ class _AuditedExecutionLedger:
 
 
 def install_promotion_manager_boundary(namespace: MutableMapping[str, Any]) -> None:
-    """Replace only constructor seams in one executed gated-writes namespace."""
+    """Replace only the manager and public-call seams in one live namespace."""
+    if namespace.get("_promotion_manager_boundary_state") is not None:
+        raise RuntimeError("promotion manager boundary is already installed")
+
     parent = namespace.get("promote_candidates")
     manager_constructor = namespace.get("GitWorktreeManager")
-    ledger_constructor = namespace.get("PromotionExecutionLedger")
-    if not callable(parent) or not callable(manager_constructor) or not callable(
-        ledger_constructor
+    ledger_type = namespace.get("PromotionExecutionLedger")
+    if (
+        not callable(parent)
+        or not callable(manager_constructor)
+        or not isinstance(ledger_type, type)
+        or not issubclass(ledger_type, PromotionExecutionLedger)
     ):
         raise RuntimeError("promotion manager boundary installation target is invalid")
 
     state = _BoundaryState(
         manager_constructor=manager_constructor,
-        ledger_constructor=ledger_constructor,
+        ledger_type=ledger_type,
         parent_promote_candidates=parent,
         active_manager=contextvars.ContextVar(
             "daedalus_active_promotion_manager_audit",
@@ -358,10 +391,12 @@ def install_promotion_manager_boundary(namespace: MutableMapping[str, Any]) -> N
     )
     namespace["_promotion_manager_boundary_state"] = state
     namespace["_REAL_GIT_WORKTREE_MANAGER"] = manager_constructor
-    namespace["_REAL_PROMOTION_EXECUTION_LEDGER"] = ledger_constructor
+    namespace["_REAL_PROMOTION_EXECUTION_LEDGER"] = ledger_type
     namespace["_ACCOUNTED_PROMOTE_CANDIDATES"] = parent
     namespace["GitWorktreeManager"] = state.manager_factory
-    namespace["PromotionExecutionLedger"] = state.ledger_factory
+    # Keep the canonical class in place.  The supplied instance is wrapped by
+    # ``state.promote_candidates`` only after it passes the exact type guard.
+    namespace["PromotionExecutionLedger"] = ledger_type
     namespace["promote_candidates"] = state.promote_candidates
 
 
