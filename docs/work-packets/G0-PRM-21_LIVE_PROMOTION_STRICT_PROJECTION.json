@@ -1,0 +1,50 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-21",
+  "title": "Live Promotion Execution on Strict Projection",
+  "gate": 0,
+  "base_revision": "72487d8572f4e6599f9144c4d2b3256d304d9dd5",
+  "branch": "g0/live-promotion-execution-strict-projection-linear",
+  "authority": {
+    "owner_capability": "daedalus.kernel.approvals.ApprovalLedger",
+    "promotion_authorization": "daedalus.kernel.promotion.PromotionAuthorization",
+    "execution_writer": "daedalus.kernel.promotion_execution.PromotionExecutionLedger",
+    "strict_projection": "daedalus.kernel.promotion_execution_reader.read_promotion_execution_intents",
+    "mutation_seam": "daedalus.kairos.gated_writes.promote_candidates"
+  },
+  "implemented": [
+    "mandatory-persisted-promotion-execution-authority",
+    "strict-raw-event-store-replay-and-reconciliation",
+    "stable-primary-checkout-before-after-fingerprint",
+    "persisted-start-before-promotion-lock-or-worktree-mutation",
+    "live-target-and-owner-capability-recheck-under-lock",
+    "preflight-and-live-authorization-digest-equality",
+    "terminal-success-refusal-and-fault-accounting",
+    "post-mutation-known-errors-classified-as-faults",
+    "malformed-untrusted-report-not-copied-into-terminal-event",
+    "created-integration-branch-retained-before-revision-lookup",
+    "terminal-replay-without-lock-or-mutation",
+    "pending-reconciliation-without-automatic-reexecution"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_live_promotion_seam.py tests/kernel/test_live_promotion_seam_review.py tests/kernel/test_live_promotion_execution_adversarial.py tests/kernel/test_live_promotion_fault_identity_review.py tests/kernel/test_promotion_fingerprint.py tests/kernel/test_promotion_execution.py tests/kernel/test_promotion_execution_reader.py tests/kernel/test_promotion_execution_reader_integrity.py tests/kernel/test_promotion_execution_index_contract.py",
+    "python scripts/run_promotion_execution_mutations.py",
+    "python scripts/run_promotion_execution_reader_mutations.py",
+    "python scripts/run_live_promotion_execution_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": true,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "register-promotion-execution-and-live-promotion-in-canonical-effect-inventory",
+    "compose-effect-lease-runtime-conformance-and-docker-sandbox-at-promotion-boundary",
+    "execute-exact-head-platform-mutation-full-suite-and-packaging-checks",
+    "independent-human-architecture-and-security-review",
+    "complete-remaining-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 currently yields zero-step runs; those runs are not accepted as verification evidence."
+}

@@ -9,6 +9,8 @@ import pytest
 
 import daedalus.kairos.gated_writes as gated_writes
 import daedalus.kernel.promotion as promotion
+from daedalus.kernel.promotion import PromotionAuthorization
+from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 from daedalus.spine.attempt import (
     AttemptResult,
     GateResult,
@@ -16,10 +18,12 @@ from daedalus.spine.attempt import (
     STATE_CLEAN,
     STATE_GATES_FAILED,
 )
+from daedalus.spine.envelope import canonical_sha
 
 
 REVISION = "a" * 40
 OTHER_REVISION = "b" * 40
+INTEGRATION_REVISION = "c" * 40
 NOW = datetime(2026, 8, 3, 20, 0, tzinfo=timezone.utc).isoformat()
 
 
@@ -59,15 +63,20 @@ def _candidate(
     )
 
 
-class _Authorization:
-    def __init__(self, live_target_revision: str = REVISION):
-        self.live_target_revision = live_target_revision
-
-    def to_dict(self) -> dict[str, str]:
-        return {
-            "authorization_sha256": "d" * 64,
-            "live_target_revision": self.live_target_revision,
-        }
+def _authorization(live_target_revision: str = REVISION) -> PromotionAuthorization:
+    body = {
+        "promotion_id": "promotion-1",
+        "candidate_artifact_sha256": "1" * 64,
+        "evidence_packet_sha256": "2" * 64,
+        "source_revision": REVISION,
+        "target_ref": "refs-heads-experimental",
+        "live_target_revision": live_target_revision,
+        "approval_consumption_sha256": "3" * 64,
+    }
+    return PromotionAuthorization(
+        **body,
+        authorization_sha256=canonical_sha(body),
+    )
 
 
 def _consumed(expected_target_revision: str = REVISION):
@@ -110,9 +119,12 @@ def _install_boundary_fakes(
             return False
 
     def resolve(root, target_ref):
+        if target_ref == "integration-test":
+            order.append("resolve-integration")
+            return INTEGRATION_REVISION
         order.append("resolve-target")
         calls["resolved"] = (root, target_ref)
-        return (authorization or _Authorization()).live_target_revision
+        return (authorization or _authorization()).live_target_revision
 
     def authorize(**kwargs):
         nonlocal authorization_count
@@ -124,7 +136,7 @@ def _install_boundary_fakes(
             on_authorize(kwargs)
         if failure is not None:
             raise failure
-        return authorization or _Authorization()
+        return authorization or _authorization()
 
     def promote_locked(root, manager, candidates, **kwargs):
         order.append("create-integration")
@@ -144,8 +156,11 @@ def _install_boundary_fakes(
 
 
 def _promote(tmp_path, candidate, **changes):
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    execution_ledger = PromotionExecutionLedger(tmp_path / "promotion.sqlite3")
     values = dict(
-        repo_root=str(tmp_path),
+        repo_root=str(repo),
         candidates=[candidate],
         project=None,
         availability={},
@@ -154,6 +169,7 @@ def _promote(tmp_path, candidate, **changes):
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
         owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_execution_ledger=execution_ledger,
         ledger_path=tmp_path / "events.sqlite3",
     )
     values.update(changes)
@@ -176,9 +192,11 @@ def test_capability_auth_precedes_effects_and_live_auth_precedes_integration(
         "resolve-target",
         "authorize-live",
         "create-integration",
+        "resolve-integration",
         "lock-exit",
     ]
     assert report["authorization"]["live_target_revision"] == REVISION
+    assert report["integration_revision"] == INTEGRATION_REVISION
     preflight, live = calls["authorization_kwargs"]
     for kwargs in (preflight, live):
         assert kwargs["approval_ledger"] is not None
@@ -208,11 +226,11 @@ def test_capability_auth_failure_creates_no_manager_lock_git_or_integration(
     assert "foreign persisted receipt" in report["refused"][0]["reason"]
 
 
-def test_stale_candidate_cannot_trigger_legacy_regeneration(monkeypatch, tmp_path) -> None:
+def test_stale_candidate_is_terminally_refused_after_persisted_start(monkeypatch, tmp_path) -> None:
     order, _ = _install_boundary_fakes(
         monkeypatch,
         tmp_path,
-        authorization=_Authorization(OTHER_REVISION),
+        authorization=_authorization(OTHER_REVISION),
     )
 
     report = _promote(tmp_path, _candidate(base_revision=REVISION))
@@ -220,6 +238,7 @@ def test_stale_candidate_cannot_trigger_legacy_regeneration(monkeypatch, tmp_pat
     assert "create-integration" not in order
     assert order[-1] == "lock-exit"
     assert report["promoted"] == []
+    assert report["authorization"] is not None
     assert "stale regeneration requires new evidence" in report["refused"][0]["reason"]
 
 
@@ -227,6 +246,7 @@ def test_multi_candidate_legacy_batch_refuses_before_auth_lock_or_manager(monkey
     def forbidden(*_args, **_kwargs):
         raise AssertionError("no authority or effect primitive may be reached")
 
+    execution_ledger = PromotionExecutionLedger(tmp_path / "promotion.sqlite3")
     monkeypatch.setattr(gated_writes, "GitWorktreeManager", forbidden)
     monkeypatch.setattr(promotion, "authorize_persisted_promotion", forbidden)
     report = gated_writes.promote_candidates(
@@ -239,6 +259,7 @@ def test_multi_candidate_legacy_batch_refuses_before_auth_lock_or_manager(monkey
         target_ref="refs/heads/experimental",
         approval_ledger=object(),
         owner_keyring={("owner", "key"): b"x" * 32},
+        promotion_execution_ledger=execution_ledger,
         ledger_path=tmp_path / "events.sqlite3",
     )
 
@@ -301,7 +322,7 @@ def test_result_swap_after_authorization_cannot_change_applied_bytes(monkeypatch
 
     report = _promote(tmp_path, candidate)
 
-    assert order[-2:] == ["create-integration", "lock-exit"]
+    assert order[-3:] == ["create-integration", "resolve-integration", "lock-exit"]
     assert report["promoted"]
     applied = calls["promote_locked"][2][0].result
     assert applied == approved_result
@@ -309,7 +330,7 @@ def test_result_swap_after_authorization_cannot_change_applied_bytes(monkeypatch
     assert candidate.result == replacement
 
 
-def test_lock_refusal_follows_successful_preflight_and_has_no_live_authorization(
+def test_lock_refusal_is_retained_as_terminal_execution_refusal(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -332,7 +353,7 @@ def test_lock_refusal_follows_successful_preflight_and_has_no_live_authorization
 
     assert order == ["authorize-preflight", "manager", "lock-refused"]
     assert report["promoted"] == []
-    assert report["authorization"] is None
+    assert report["authorization"] is not None
     assert "promotion lock unavailable" in report["refused"][0]["reason"]
 
 
