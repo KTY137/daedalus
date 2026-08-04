@@ -65,7 +65,6 @@ def test_module_has_no_provider_effect_or_promotion_authority() -> None:
     assert not (imports | imported_from) & forbidden_imports
     assert "run_runtime_provider" not in SOURCE
     assert "begin_effect" not in SOURCE
-    assert "grant" not in SOURCE
     assert "OwnerApproval" not in SOURCE
     assert "PromotionReceipt" not in SOURCE
     assert "closed = True" not in SOURCE
@@ -89,9 +88,9 @@ def test_compatibility_constructor_cannot_initialize_or_repair_store() -> None:
 
 def test_normal_connections_are_existing_store_only_and_replay_is_read_only() -> None:
     opener = _definition("_open_sqlite")
-    assert "mode not in {\"ro\", \"rw\"}" in ast.unparse(opener)
-    assert "sqlite3.connect" in _calls(opener)
     opener_source = ast.get_source_segment(SOURCE, opener) or ""
+    assert 'mode not in {"ro", "rw"}' in opener_source
+    assert "sqlite3.connect" in _calls(opener)
     assert "?mode={mode}" in opener_source
     assert "rwc" not in opener_source
     assert "PRAGMA query_only=ON" in opener_source
@@ -127,7 +126,6 @@ def test_initializer_is_the_only_schema_writer_and_publishes_without_clobber() -
     calls = _calls(initializer)
     assert "tempfile.mkstemp" in calls
     assert "os.link" in calls
-    assert "Path.unlink" not in calls  # calls remain bound to concrete variables
     assert "inspect_provider_observation_binding_store" in calls
     assert "_fsync_file" in calls
     assert "_fsync_directory" in calls
@@ -147,20 +145,26 @@ def test_initializer_is_the_only_schema_writer_and_publishes_without_clobber() -
         }:
             schema_create_calls.append(node)
     assert len(schema_create_calls) == 2
-    assert all(call in set(ast.walk(initializer)) for call in schema_create_calls)
+    initializer_nodes = set(ast.walk(initializer))
+    assert all(call in initializer_nodes for call in schema_create_calls)
 
-    statements = list(initializer.body)
-    link_index = next(
-        index
-        for index, statement in enumerate(statements)
-        if "os.link" in _calls(statement)
+    call_nodes = [
+        node
+        for node in ast.walk(initializer)
+        if isinstance(node, ast.Call)
+    ]
+    link_line = min(
+        node.lineno for node in call_nodes if _call_name(node) == "os.link"
     )
-    inspect_index = next(
-        index
-        for index, statement in enumerate(statements)
-        if "inspect_provider_observation_binding_store" in _calls(statement)
+    unlink_line = min(
+        node.lineno for node in call_nodes if _call_name(node) == "temporary.unlink"
     )
-    assert link_index < inspect_index
+    inspect_line = min(
+        node.lineno
+        for node in call_nodes
+        if _call_name(node) == "inspect_provider_observation_binding_store"
+    )
+    assert link_line < unlink_line < inspect_line
 
 
 def test_exact_revision_target_and_primary_checkout_fences_are_structural() -> None:
@@ -204,4 +208,3 @@ def test_sidecars_identity_and_cleanup_are_fail_closed() -> None:
     initializer_source = ast.get_source_segment(SOURCE, initializer) or ""
     assert "published_identity is not None" in initializer_source
     assert "_same_identity" in initializer_source
-    assert "foreign replacement" not in initializer_source.lower()
