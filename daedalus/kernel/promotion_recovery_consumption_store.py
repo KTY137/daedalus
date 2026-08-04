@@ -426,6 +426,26 @@ def _fsync_file(path: Path) -> None:
         os.close(descriptor)
 
 
+def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise PromotionRecoveryConsumptionStoreError(
+            "recovery consumption store directory could not be opened for fsync"
+        ) from exc
+    try:
+        os.fsync(descriptor)
+    except OSError as exc:
+        raise PromotionRecoveryConsumptionStoreError(
+            "recovery consumption store directory could not be fsynced"
+        ) from exc
+    finally:
+        os.close(descriptor)
+
+
 def _file_identity(path: Path) -> tuple[int, int]:
     metadata = os.lstat(path)
     if not stat.S_ISREG(metadata.st_mode):
@@ -450,6 +470,10 @@ def _remove_own_publication(
     try:
         target.unlink()
     except OSError:
+        return
+    try:
+        _fsync_directory(target.parent)
+    except PromotionRecoveryConsumptionStoreError:
         pass
 
 
@@ -521,6 +545,7 @@ def initialize_promotion_recovery_consumption_store(
                 "recovery consumption publication identity does not match"
             )
         _fsync_file(target)
+        _fsync_directory(parent)
         return inspect_promotion_recovery_consumption_store(target)
     except Exception:
         if connection is not None:
