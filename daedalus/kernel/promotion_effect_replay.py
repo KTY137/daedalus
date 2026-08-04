@@ -39,6 +39,11 @@ _ACTIONS = frozenset(
         "replay_effect_terminal_without_report",
     }
 )
+_REPORT_EFFECT_OUTCOMES = {
+    "succeeded": "COMPLETED",
+    "refused": "COMPLETED",
+    "faulted": "FAILED",
+}
 
 
 class PromotionEffectReplayMismatch(RuntimeError):
@@ -52,6 +57,7 @@ class PromotionEffectReplayDecision:
     action: str
     effect: EffectExecutionReplaySnapshot | None
     promotion: PromotionExecutionBeginResult | None
+    expected_effect_outcome: str | None = None
     expected_output_digests: tuple[str, ...] = ()
     expected_detail_sha256: str | None = None
 
@@ -66,11 +72,19 @@ class PromotionEffectReplayDecision:
             "reconcile_effect_terminal",
             "replay_promotion_report",
         }:
+            if self.expected_effect_outcome not in {"COMPLETED", "FAILED"}:
+                raise ValueError(
+                    "promotion report action requires an exact effect outcome"
+                )
             if len(self.expected_output_digests) != 1:
                 raise ValueError("promotion report action requires one output digest")
             if self.expected_detail_sha256 is None:
                 raise ValueError("promotion report action requires receipt detail")
-        elif self.expected_output_digests or self.expected_detail_sha256 is not None:
+        elif (
+            self.expected_effect_outcome is not None
+            or self.expected_output_digests
+            or self.expected_detail_sha256 is not None
+        ):
             raise ValueError("non-report replay action cannot carry report bindings")
 
     @property
@@ -97,15 +111,22 @@ def _parse_utc(value: str, label: str) -> datetime:
 
 def _promotion_report_bindings(
     promotion: PromotionExecutionBeginResult,
-) -> tuple[tuple[str, ...], str]:
+) -> tuple[str, tuple[str, ...], str]:
     completion = promotion.completion
     if completion is None:
         raise PromotionEffectReplayMismatch(
             "promotion report binding requires a terminal completion"
         )
+    promotion_outcome = completion.receipt.outcome
+    try:
+        effect_outcome = _REPORT_EFFECT_OUTCOMES[promotion_outcome]
+    except KeyError as exc:
+        raise PromotionEffectReplayMismatch(
+            f"unknown promotion terminal outcome {promotion_outcome!r}"
+        ) from exc
     report_sha256 = completion.receipt.report_sha256
     receipt_sha256 = completion.receipt.digest
-    return (report_sha256,), receipt_sha256
+    return effect_outcome, (report_sha256,), receipt_sha256
 
 
 def _enforce_start_order(
@@ -150,8 +171,8 @@ def inspect_promotion_effect_replay(
     The only action that permits a future caller to attempt a fresh Effect-Lease
     start is ``fresh``, which requires both projections to be absent.  Every
     pending state remains reconciliation-only.  A retained promotion report is
-    replayable only when a completed top-level receipt binds its report digest,
-    promotion-receipt digest and lifecycle chronology exactly.
+    replayable only when a top-level terminal of the correct outcome binds its
+    report digest, promotion-receipt digest and lifecycle chronology exactly.
     """
 
     if not isinstance(capability, PromotionEffectCapability):
@@ -193,11 +214,12 @@ def inspect_promotion_effect_replay(
                 effect=effect,
                 promotion=promotion,
             )
-        outputs, detail = _promotion_report_bindings(promotion)
+        expected_outcome, outputs, detail = _promotion_report_bindings(promotion)
         return PromotionEffectReplayDecision(
             action="reconcile_effect_terminal",
             effect=effect,
             promotion=promotion,
+            expected_effect_outcome=expected_outcome,
             expected_output_digests=outputs,
             expected_detail_sha256=detail,
         )
@@ -222,14 +244,12 @@ def inspect_promotion_effect_replay(
         raise PromotionEffectReplayMismatch(
             "terminal Effect-Lease contradicts pending promotion execution"
         )
-    if effect.state != "COMPLETED":
-        raise PromotionEffectReplayMismatch(
-            "failed or cancelled Effect Lease contradicts terminal promotion report"
-        )
 
-    outputs, detail = _promotion_report_bindings(promotion)
+    expected_outcome, outputs, detail = _promotion_report_bindings(promotion)
     terminal = effect.terminal_receipt
     mismatches = []
+    if effect.state != expected_outcome:
+        mismatches.append("outcome")
     if terminal.output_digests != outputs:
         mismatches.append("output_digests")
     if terminal.detail_sha256 != detail:
@@ -244,6 +264,7 @@ def inspect_promotion_effect_replay(
         action="replay_promotion_report",
         effect=effect,
         promotion=promotion,
+        expected_effect_outcome=expected_outcome,
         expected_output_digests=outputs,
         expected_detail_sha256=detail,
     )
