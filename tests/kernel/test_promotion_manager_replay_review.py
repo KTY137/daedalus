@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-LOADER = ROOT / "daedalus" / "kairos" / "gated_writes.py"
+PUBLIC = ROOT / "daedalus" / "kairos" / "gated_writes.py"
 REPLAY = ROOT / "daedalus" / "kairos" / "promotion_manager_replay.py"
 
 
@@ -39,13 +39,9 @@ def _segment(path: Path, node: ast.AST) -> str:
     return value
 
 
-def test_loader_installs_replay_validation_after_manager_audit() -> None:
-    source = _source(LOADER)
-    manager_call = "install_promotion_manager_boundary(globals())"
-    replay_call = "install_promotion_manager_replay_boundary(globals())"
-    assert manager_call in source
-    assert replay_call in source
-    assert source.index(manager_call) < source.index(replay_call)
+def test_public_boundary_does_not_claim_replay_wiring_early() -> None:
+    source = _source(PUBLIC)
+    assert "install_promotion_manager_replay_boundary(globals())" not in source
 
 
 def test_begin_refuses_to_trust_invalid_persisted_completion() -> None:
@@ -56,6 +52,23 @@ def test_begin_refuses_to_trust_invalid_persisted_completion() -> None:
     assert "validate_persisted_manager_completion(completion)" in begin
     assert "except PromotionManagerReplayError" in begin
     assert "replace(result, execute=False, completion=None)" in begin
+
+
+def test_replay_proxy_remains_a_typed_manager_proxy() -> None:
+    tree = _tree(REPLAY)
+    proxy = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+        and node.name == "_ReplayAuditedExecutionLedger"
+    )
+    assert any(
+        isinstance(base, ast.Attribute)
+        and isinstance(base.value, ast.Name)
+        and base.value.id == "manager_boundary"
+        and base.attr == "_AuditedExecutionLedger"
+        for base in proxy.bases
+    )
 
 
 def test_completion_fixes_report_identity_before_canonical_terminal_write() -> None:
@@ -108,14 +121,15 @@ def test_unknown_fault_revision_stays_pending() -> None:
     assert "except BaseException" not in complete
 
 
-def test_replay_layer_uses_original_canonical_ledger_constructor() -> None:
+def test_replay_installer_selects_wrapper_without_replacing_ledger_class() -> None:
     installer = _segment(
         REPLAY,
         _function(REPLAY, "install_promotion_manager_replay_boundary"),
     )
-    assert "state.ledger_constructor(*args, **kwargs)" in installer
-    assert 'namespace["PromotionExecutionLedger"] = factory' in installer
-    assert 'namespace["_MANAGER_AUDIT_V1_LEDGER_FACTORY"]' in installer
+    assert "state.ledger_wrapper = _ReplayAuditedExecutionLedger" in installer
+    assert 'namespace["_MANAGER_AUDIT_V1_LEDGER_TYPE"] = ledger_type' in installer
+    assert 'namespace["PromotionExecutionLedger"] =' not in installer
+    assert "state.ledger_constructor" not in installer
 
 
 def test_replay_layer_adds_no_mutating_or_owner_authority() -> None:
