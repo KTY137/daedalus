@@ -1,14 +1,14 @@
 """Read-only resolution of signed provider invocation authority.
 
 This module composes the immutable invocation-registry manifest with the signed
-provider invocation/observation authority.  It authenticates the complete
+provider invocation/observation authority. It authenticates the complete
 runtime/effect subject, requires the exact manifest digest named by that
 authority, resolves exactly one descriptor, and emits a deterministic receipt
 binding the selected implementation identity.
 
-Resolution is not execution.  The module has no callback, adapter loader,
+Resolution is not execution. The module has no callback, adapter loader,
 provider client, process/network API, effect writer, persistence, recovery,
-promotion, merge or Gate authority.  A later guarded executable registry may
+promotion, merge or Gate authority. A later guarded executable registry may
 consume the receipt only after exact-head verification of this preparatory
 contract.
 """
@@ -20,7 +20,6 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from daedalus.kernel.effects import EffectExecutionRequest
-from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
 from daedalus.runtimes.provider_invocation_authority import (
     ProviderInvocationAuthorityError,
     ProviderInvocationObservationAuthority,
@@ -215,9 +214,7 @@ def _receipt_for(
         "registry_sha256": manifest.digest,
         "source_revision": manifest.source_revision,
         "authority_sha256": authority.digest,
-        "observation_authority_sha256": (
-            authority.observation_authority.digest
-        ),
+        "observation_authority_sha256": authority.observation_authority.digest,
         "invocation_contract_id": authority.invocation_contract_id,
         "invocation_contract_sha256": authority.invocation_contract_sha256,
         "invocation_subject_sha256": subject.digest,
@@ -326,7 +323,6 @@ def verify_provider_invocation_resolution_receipt(
     *,
     authority: ProviderInvocationObservationAuthority,
     manifest: ProviderInvocationRegistryManifest,
-    descriptor: ProviderAdapterDescriptor,
     verified_at: datetime,
 ) -> None:
     """Compare a retained receipt with exact already-authenticated subjects."""
@@ -343,10 +339,16 @@ def verify_provider_invocation_resolution_receipt(
         raise ProviderInvocationResolutionBindingError(
             "manifest must be exact ProviderInvocationRegistryManifest"
         )
-    if type(descriptor) is not ProviderAdapterDescriptor:
+    if authority.invocation_registry_sha256 != manifest.digest:
         raise ProviderInvocationResolutionBindingError(
-            "descriptor must be exact ProviderAdapterDescriptor"
+            "retained authority and registry digest do not match"
         )
+    try:
+        descriptor = manifest.resolve(authority.invocation_subject)
+    except ProviderInvocationRegistryError as exc:
+        raise ProviderInvocationResolutionBindingError(
+            "retained invocation subject did not resolve"
+        ) from exc
     expected = _receipt_for(
         authority=authority,
         manifest=manifest,
