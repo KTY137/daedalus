@@ -106,7 +106,7 @@ stream.truncate(0)
     assert "csv.writer" in callees
     assert "stream.write" in callees
     assert "stream.writelines" in callees
-    assert "stream.truncate" in callees
+    assert "stream.truncate" not in callees
     assert all(finding.kind != "ambiguous_stdlib_binding" for finding in findings)
 
 
