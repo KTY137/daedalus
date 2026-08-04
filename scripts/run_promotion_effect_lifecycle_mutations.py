@@ -14,6 +14,7 @@ TESTS = (
     "tests/kernel/test_promotion_reconciliation.py",
     "tests/kernel/test_promotion_terminalization.py",
     "tests/kernel/test_promotion_effect_lifecycle.py",
+    "tests/kernel/test_promotion_effect_lifecycle_fault_windows.py",
     "tests/kernel/test_promotion_effect_lifecycle_adversarial.py",
     "tests/kernel/test_promotion_effect_lifecycle_review.py",
 )
