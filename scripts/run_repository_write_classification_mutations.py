@@ -36,6 +36,10 @@ MUTATIONS = {
         "if row.surface in by_surface:",
         "if False and row.surface in by_surface:",
     ),
+    "launder-unreachable-surface": (
+        "if not self.production_reachable and self.guard is not GuardDisposition.RETIRED:",
+        "if False and not self.production_reachable and self.guard is not GuardDisposition.RETIRED:",
+    ),
 }
 
 
