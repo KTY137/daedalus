@@ -66,7 +66,9 @@ def test_generation_two_merges_base_and_stdlib_delta(tmp_path: Path) -> None:
         "os.write",
     }
     os_write = next(
-        surface for surface in material["surfaces"] if surface["callee"] == "os.write"
+        surface
+        for surface in material["surfaces"]
+        if surface["callee"] == "os.write"
     )
     assert os_write["origin"] == "stdlib_delta_v1"
     assert os_write["blocking"] is True
@@ -124,15 +126,15 @@ def test_malformed_revision_refuses_before_component_scan(
     assert called is False
 
 
-def test_stale_byte_projection_between_component_scans_refuses(
+def test_stale_component_revision_refuses(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _repository(tmp_path, "VALUE = 1\n")
     base = scan_repository_write_surfaces(root, source_revision=REVISION)
     delta = scan_repository_write_stdlib_delta(root, source_revision=REVISION)
-    changed = dataclasses.replace(base, scan_input_sha256="f" * 64)
-    bases = iter((base, changed))
+    stale_delta = dataclasses.replace(delta, source_revision="b" * 40)
+    bases = iter((base, base))
 
     monkeypatch.setattr(
         inventory_v2,
@@ -142,12 +144,40 @@ def test_stale_byte_projection_between_component_scans_refuses(
     monkeypatch.setattr(
         inventory_v2,
         "scan_repository_write_stdlib_delta",
-        lambda *args, **kwargs: delta,
+        lambda *args, **kwargs: stale_delta,
     )
 
     with pytest.raises(
         RepositoryWriteInventoryV2Error,
-        match="base inventory changed|production bytes changed",
+        match="source revisions differ",
+    ):
+        scan_repository_write_surfaces_v2(root, source_revision=REVISION)
+
+
+def test_stale_byte_projection_between_component_scans_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repository(tmp_path, "VALUE = 1\n")
+    base = scan_repository_write_surfaces(root, source_revision=REVISION)
+    delta = scan_repository_write_stdlib_delta(root, source_revision=REVISION)
+    changed_delta = dataclasses.replace(delta, scan_input_sha256="f" * 64)
+    bases = iter((base, base))
+
+    monkeypatch.setattr(
+        inventory_v2,
+        "scan_repository_write_surfaces",
+        lambda *args, **kwargs: next(bases),
+    )
+    monkeypatch.setattr(
+        inventory_v2,
+        "scan_repository_write_stdlib_delta",
+        lambda *args, **kwargs: changed_delta,
+    )
+
+    with pytest.raises(
+        RepositoryWriteInventoryV2Error,
+        match="production bytes changed",
     ):
         scan_repository_write_surfaces_v2(root, source_revision=REVISION)
 
@@ -196,6 +226,29 @@ def test_cross_component_position_overlap_refuses(
         match="overlap",
     ):
         scan_repository_write_surfaces_v2(root, source_revision=REVISION)
+
+
+def test_schema_required_fields_match_report(tmp_path: Path) -> None:
+    root = _repository(tmp_path, "VALUE = 1\n")
+    material = scan_repository_write_surfaces_v2(
+        root,
+        source_revision=REVISION,
+    ).to_dict()
+    schema_path = (
+        Path(__file__).resolve().parents[2]
+        / "configs/schemas/repository-write-inventory-v2.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    assert set(schema["required"]) == set(material)
+    assert schema["properties"]["schema"]["const"] == material["schema"]
+    assert schema["properties"]["inventory_generation"]["const"] == 2
+    assert schema["properties"]["canonical_scanner_integrated"]["const"] is True
+    assert schema["properties"]["inventory_only"]["const"] is True
+    assert (
+        schema["properties"]["primary_checkout_target_proven"]["const"]
+        is False
+    )
 
 
 def test_cli_emits_schema_and_scoped_closed_assertion(
