@@ -77,3 +77,12 @@ def test_write_material_is_derived_only_from_strict_projection():
     assert "inspect_promotion_reconciliation(capability, promotion_ledger)" in source
     assert "current_kill_switch_generation" not in source
     assert "lease_keyring" not in source
+
+
+def test_chronology_refusal_precedes_the_only_writer():
+    source = MODULE.read_text(encoding="utf-8")
+    now_index = source.index("finished_at = _utc_now()")
+    completion_index = source.index("promotion_finished_at = _instant(")
+    refusal_index = source.index("if finished_at < promotion_finished_at:")
+    writer_index = source.index("capability.authorization.effect_ledger.finish(")
+    assert now_index < completion_index < refusal_index < writer_index
