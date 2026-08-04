@@ -1,0 +1,110 @@
+name: Gate 0 Promotion Manager Audit
+
+on:
+  pull_request:
+    branches:
+      - g0/live-promotion-execution-accounting-linear
+    paths:
+      - "daedalus/kairos/gated_writes.py"
+      - "daedalus/kairos/_gated_writes_execution_accounting.py.src"
+      - "daedalus/kairos/promotion_manager_audit.py"
+      - "daedalus/kairos/promotion_manager_boundary.py"
+      - "tests/kernel/test_promotion_manager_audit.py"
+      - "tests/kernel/test_promotion_manager_boundary.py"
+      - "tests/kernel/test_promotion_manager_boundary_review.py"
+      - "scripts/run_promotion_manager_audit_mutations.py"
+      - "docs/work-packets/G0-PRM-22_PROMOTION_MANAGER_AUDIT.md"
+      - "docs/work-packets/G0-PRM-22_PROMOTION_MANAGER_AUDIT.json"
+      - ".github/workflows/g0-promotion-manager-audit.yml"
+  push:
+    branches:
+      - g0/promotion-manager-audit-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-manager-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts tools
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-22_PROMOTION_MANAGER_AUDIT.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_manager_audit.py
+          tests/kernel/test_promotion_manager_boundary.py
+          tests/kernel/test_promotion_manager_boundary_review.py
+          tests/kernel/test_live_promotion_execution_adversarial.py
+          tests/kernel/test_live_promotion_execution_review.py
+          tests/kernel/test_promotion_execution.py
+          tests/kernel/test_promotion_execution_adversarial.py
+          tests/kernel/test_primary_checkout_fingerprint.py
+          tests/kernel/test_sealed_promotion.py
+          tests/kernel/test_promotion_material_review.py
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_persisted_promotion_authorization_review.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_manager_audit_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-manager-audit-wheel
+      - run: /tmp/daedalus-manager-audit-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-manager-audit-wheel/bin/python - <<'PY'
+          import daedalus.kairos.gated_writes as gated_writes
+          from daedalus.kairos.promotion_manager_audit import AuditedWorktreeManager
+          from daedalus.kairos.promotion_manager_boundary import (
+              install_promotion_manager_boundary,
+          )
+
+          assert callable(gated_writes.promote_candidates)
+          assert gated_writes.GitWorktreeManager == (
+              gated_writes._promotion_manager_boundary_state.manager_factory
+          )
+          assert AuditedWorktreeManager.__module__ == (
+              "daedalus.kairos.promotion_manager_audit"
+          )
+          assert callable(install_promotion_manager_boundary)
+          PY
