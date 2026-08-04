@@ -32,6 +32,11 @@ MUTATIONS = (
         "_install_promotion_manager_replay_boundary(globals())\n_install_promotion_manager_boundary(globals())\n",
     ),
     (
+        "remove-function-compatible-facade",
+        "promote_candidates = _make_public_promotion_wrapper(\n    promote_candidates,\n    _ACCOUNTED_PROMOTE_CANDIDATES,\n)\n",
+        "# function-compatible public facade removed\n",
+    ),
+    (
         "retain-manager-installer-alias",
         "del _install_promotion_manager_boundary\n",
         "# manager installer alias retained\n",
@@ -40,6 +45,11 @@ MUTATIONS = (
         "retain-replay-installer-alias",
         "del _install_promotion_manager_replay_boundary\n",
         "# replay installer alias retained\n",
+    ),
+    (
+        "retain-wrapper-factory-alias",
+        "del _make_public_promotion_wrapper\n",
+        "# wrapper factory alias retained\n",
     ),
 )
 
