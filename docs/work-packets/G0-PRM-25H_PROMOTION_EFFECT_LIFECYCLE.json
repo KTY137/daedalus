@@ -1,0 +1,90 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25H",
+  "title": "Promotion Effect-Lease Lifecycle Strangler",
+  "gate": 0,
+  "base_branch": "g0/promotion-terminalization-linear",
+  "base_revision": "a4dea67dcff70f46eeca69129a73f909d6274bf7",
+  "source_parent_pr": 153,
+  "branch": "g0/promotion-effect-lifecycle-linear",
+  "implemented": [
+    "exact-subject-preauthorization-before-effect-start",
+    "persisted-effect-lease-grant-before-promotion",
+    "persisted-effect-start-before-sealed-promotion-delegate",
+    "grant-only-crash-window-exact-continuation",
+    "effect-only-pending-reconciliation-without-reexecution",
+    "promotion-pending-reconciliation-without-reexecution",
+    "promotion-terminal-to-effect-terminal-composition",
+    "complete-restart-retained-report-replay",
+    "delegate-return-not-used-as-terminal-report-authority",
+    "concurrent-effect-start-execution-suppression",
+    "bounded-pending-error-reporting",
+    "no-automatic-execution-status-contract",
+    "independent-source-authority-review",
+    "bounded-nine-mutant-lifecycle-campaign"
+  ],
+  "fault_windows": [
+    {
+      "window": "after-subject-preauthorization-before-lease-grant",
+      "restart_state": "fresh",
+      "automatic_external_reexecution": false,
+      "prepared_test": "preauthorization-failure-before-start"
+    },
+    {
+      "window": "after-lease-grant-before-effect-start",
+      "restart_state": "fresh-with-exact-lease-replay",
+      "automatic_external_reexecution": false,
+      "prepared_test": "grant-only-crash-window"
+    },
+    {
+      "window": "after-effect-start-before-promotion-start",
+      "restart_state": "effect-only-pending-reconciliation",
+      "automatic_external_reexecution": false,
+      "prepared_test": "delegate-exception-effect-only"
+    },
+    {
+      "window": "after-promotion-start-before-promotion-terminal",
+      "restart_state": "promotion-pending-reconciliation",
+      "automatic_external_reexecution": false,
+      "prepared_test": "fresh-delegate-pending-and-retry"
+    },
+    {
+      "window": "after-promotion-terminal-before-effect-terminal",
+      "restart_state": "effect-terminalization-required",
+      "automatic_external_reexecution": false,
+      "prepared_test": "terminal-required-restart"
+    },
+    {
+      "window": "after-effect-terminal",
+      "restart_state": "complete",
+      "automatic_external_reexecution": false,
+      "prepared_test": "complete-retained-report-replay"
+    }
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25H_PROMOTION_EFFECT_LIFECYCLE.json",
+    "python -m pytest -q tests/kernel/test_promotion_effect_capability.py tests/kernel/test_promotion_effect_replay.py tests/kernel/test_promotion_replay_projection.py tests/kernel/test_promotion_reconciliation.py tests/kernel/test_promotion_terminalization.py tests/kernel/test_promotion_effect_lifecycle.py tests/kernel/test_promotion_effect_lifecycle_fault_windows.py tests/kernel/test_promotion_effect_lifecycle_adversarial.py tests/kernel/test_promotion_effect_lifecycle_review.py",
+    "python scripts/run_promotion_effect_lifecycle_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "named-strangler-not-installed-as-sole-entrypoint",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "install-lifecycle-adapter-as-the-only-production-promotion-entrypoint",
+    "remove-or-inventory-demote-direct-public-bypass-to-gated-writes-promote-candidates",
+    "define-explicit-operator-resolution-for-effect-only-pending-state",
+    "execute-cross-ledger-fault-matrix-on-exact-head",
+    "centralize-promotion-registry-row-only-after-live-installation",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
