@@ -13,6 +13,7 @@
     "bind-exact-source-anchors",
     "refresh-captured-registry-defaults",
     "partial-conflicting-and-duplicate-installation-refusal",
+    "reordered-exact-row-refusal",
     "inventory-missing-to-local-guard-blocker-transition",
     "bounded-registry-installation-mutation-campaign"
   ],
