@@ -18,9 +18,14 @@ MUTATIONS = (
         '        "automatic_external_reexecution": True,  # mutant\n',
     ),
     (
+        "skip-manual-reconciliation-for-pending",
+        "        \"manual_reconciliation_required\": projection.disposition\n        in {\n",
+        "        \"manual_reconciliation_required\": False and projection.disposition\n        in {\n",
+    ),
+    (
         "skip-owner-decision-for-effect-only",
-        "        \"owner_decision_required\": projection.disposition\n        in {\n",
-        "        \"owner_decision_required\": False and projection.disposition\n        in {\n",
+        "        \"owner_decision_required\": projection.disposition\n        is PromotionReconciliationDisposition.EFFECT_ONLY_PENDING,\n",
+        "        \"owner_decision_required\": False,  # mutant\n",
     ),
     (
         "map-effect-only-to-no-action",
