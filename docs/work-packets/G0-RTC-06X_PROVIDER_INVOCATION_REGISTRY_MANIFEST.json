@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06X",
+  "title": "Provider Invocation Registry Manifest",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "2eee927a49ee3c75efc2e1392691b81095ed72db",
+  "parent_branch": "g0/provider-invocation-observation-authority-linear",
+  "branch": "g0/provider-invocation-registry-manifest-linear",
+  "primary_finding": "issue-188",
+  "change_class": "additive-nonexecuting-revision-bound-registry-manifest",
+  "authority": "manifest-only",
+  "scope": {
+    "maps_each_provider_id_to_one_descriptor": true,
+    "binds_adapter_identity": true,
+    "binds_implementation_identity": true,
+    "binds_artifact_and_config_digests": true,
+    "binds_entrypoint_runtime_and_source_revision": true,
+    "resolves_only_exact_provider_invocation_subject": true,
+    "canonical_order_and_unique_provider_ids": true,
+    "integrates_signed_composite_authority_digest": true,
+    "contains_callable_or_dynamic_loader": false,
+    "changes_runtime_broker": false,
+    "executes_provider": false,
+    "persists_registry": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "registry_digest_is_deterministic": true,
+    "provider_adapter_pairing_is_manifest_bound": true,
+    "implementation_identity_is_registry_bound": true,
+    "subject_artifact_config_entrypoint_runtime_revision_are_checked": true,
+    "registry_digest_can_be_signed_by_composite_authority": true,
+    "executable_registry_implemented": false,
+    "arbitrary_callback_gap_closed": false,
+    "broker_migrated": false,
+    "issue_188_closed": false,
+    "closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "round_trip_and_determinism_tests_prepared": true,
+    "subject_substitution_tests_prepared": true,
+    "duplicate_provider_and_order_tests_prepared": true,
+    "stale_revision_test_prepared": true,
+    "implementation_digest_sensitivity_test_prepared": true,
+    "signed_composite_integration_test_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "a guarded executable registry must load or receive one adapter implementation whose artifact identity matches the signed descriptor",
+    "runtime manifest and RuntimeConformanceReceipt must bind the exact registry digest",
+    "the broker still accepts independently supplied invoke and output-digest callbacks",
+    "provider recovery still lacks retained registry-derived invocation authority",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
