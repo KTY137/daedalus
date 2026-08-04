@@ -1,0 +1,121 @@
+name: Gate 0 Repository Tree Reader
+
+on:
+  pull_request:
+    branches:
+      - g0/repository-write-guard-manifest-linear
+    paths:
+      - "daedalus/gates/repository_tree.py"
+      - "tests/gates/test_repository_tree*.py"
+      - "scripts/run_repository_tree_mutations.py"
+      - "docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.*"
+      - ".github/workflows/g0-repository-tree-reader.yml"
+  push:
+    branches:
+      - g0/repository-tree-reader-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-repository-tree-reader-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RWI-20H_REPOSITORY_TREE_READER.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_repository_tree.py
+          tests/gates/test_repository_tree_review.py
+          tests/gates/test_guard_implementation_manifest.py
+          tests/gates/test_guard_implementation_manifest_review.py
+          tests/gates/test_repository_write_source_anchor_semantics.py
+          tests/gates/test_repository_write_source_anchor_semantics_review.py
+          tests/gates/test_repository_write_evidence_origin.py
+          tests/gates/test_repository_write_evidence_origin_review.py
+          tests/gates/test_repository_write_evidence_materialization.py
+          tests/gates/test_repository_write_evidence_materialization_review.py
+          tests/gates/test_repository_write_classification.py
+          tests/gates/test_repository_write_classification_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_repository_tree_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-repository-tree-wheel
+      - run: /tmp/daedalus-repository-tree-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-repository-tree-wheel/bin/python - <<'PY'
+          from daedalus.gates.repository_tree import (
+              RepositorySourceSnapshot,
+              RepositoryTreePathError,
+              RepositoryTreeRaceError,
+              RepositoryTreeReadError,
+              normalize_repository_path,
+              read_repository_source,
+              resolve_repository_root,
+          )
+
+          assert issubclass(RepositoryTreePathError, RepositoryTreeReadError)
+          assert issubclass(RepositoryTreeRaceError, RepositoryTreeReadError)
+          assert RepositorySourceSnapshot.__dataclass_fields__
+          assert callable(normalize_repository_path)
+          assert callable(read_repository_source)
+          assert callable(resolve_repository_root)
+          PY
