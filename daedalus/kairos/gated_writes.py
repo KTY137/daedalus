@@ -57,6 +57,8 @@ from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
     snapshot_promotion_candidates as _snapshot_promotion_candidates,
 )
+from daedalus.kernel.promotion_execution import PromotionExecutionLedger
+from daedalus.kernel.promotion_fingerprint import fingerprint_primary_checkout
 
 
 __doc__ = """Compatibility strangler for the sealed Kairos promotion seam.
@@ -118,27 +120,101 @@ def _promotion_refusal(candidates: list[Any], exc: BaseException) -> dict[str, A
         ],
         "not_gated": [],
         "integration_branch": None,
+        "integration_revision": None,
         "authorization": None,
     }
 
 
 def _legacy_unpersisted_refusal(candidates: list[Any]) -> dict[str, Any]:
-    """Preserve the historical call shape without performing any effect.
-
-    A previous compatibility adapter executed ``git rev-parse`` to improve the
-    refusal message before a persisted ApprovalLedger and owner keyring were
-    present. That process spawn was still an effect and therefore belonged
-    behind the same authority boundary as the later promotion work. Legacy
-    callers now receive one deterministic refusal without Git, lock, worktree,
-    ledger discovery, provider access or repository mutation.
-    """
+    """Preserve the historical call shape without performing any effect."""
     return _promotion_refusal(
         candidates,
         PromotionAuthorizationError(
-            "persisted ApprovalLedger and owner keyring are mandatory before "
-            "any promotion effect"
+            "persisted ApprovalLedger, owner keyring and PromotionExecutionLedger "
+            "are mandatory before any promotion effect"
         ),
     )
+
+
+def _execution_pending_refusal(candidates, authorization, exc) -> dict[str, Any]:
+    report = _promotion_refusal(candidates, exc)
+    report["authorization"] = authorization.to_dict()
+    report["promotion_execution_pending_reconciliation"] = True
+    return report
+
+
+def _complete_refusal(
+    execution_ledger,
+    start,
+    candidates,
+    authorization,
+    root,
+    exc,
+):
+    report = _promotion_refusal(candidates, exc)
+    report["authorization"] = authorization.to_dict()
+    try:
+        primary_after = fingerprint_primary_checkout(root)
+        completion = execution_ledger.complete(
+            start,
+            receipt_id=f"promotion-receipt-{authorization.authorization_sha256[:24]}",
+            outcome="refused",
+            report=report,
+            primary_checkout_after_sha256=primary_after,
+        )
+    except Exception as terminal_error:  # noqa: BLE001 - retain pending truth
+        return _execution_pending_refusal(
+            candidates,
+            authorization,
+            PromotionAuthorizationError(
+                "promotion was refused after its persisted start, but terminal "
+                f"accounting requires reconciliation: {type(terminal_error).__name__}"
+            ),
+        )
+    return completion.report_dict()
+
+
+def _complete_fault(
+    execution_ledger,
+    start,
+    candidates,
+    authorization,
+    root,
+    exc,
+    *,
+    report=None,
+    integration_branch=None,
+    integration_revision=None,
+):
+    fault_report = dict(report or {})
+    fault_report.setdefault("promoted", [])
+    fault_report.setdefault("refused", [])
+    fault_report.setdefault("not_gated", [])
+    fault_report["integration_branch"] = integration_branch
+    fault_report["integration_revision"] = integration_revision
+    fault_report["authorization"] = authorization.to_dict()
+    fault_report["fault"] = f"{type(exc).__name__}"
+    try:
+        primary_after = fingerprint_primary_checkout(root)
+        completion = execution_ledger.complete(
+            start,
+            receipt_id=f"promotion-receipt-{authorization.authorization_sha256[:24]}",
+            outcome="faulted",
+            report=fault_report,
+            integration_branch=integration_branch,
+            integration_revision=integration_revision,
+            primary_checkout_after_sha256=primary_after,
+        )
+    except Exception as terminal_error:  # noqa: BLE001 - retain pending truth
+        return _execution_pending_refusal(
+            candidates,
+            authorization,
+            PromotionAuthorizationError(
+                "promotion fault occurred after its persisted start, but terminal "
+                f"accounting requires reconciliation: {type(terminal_error).__name__}"
+            ),
+        )
+    return completion.report_dict()
 
 
 def promote_candidates(
@@ -152,32 +228,18 @@ def promote_candidates(
     target_ref: str,
     approval_ledger=None,
     owner_keyring: Mapping[tuple[str, str], bytes | str] | None = None,
+    promotion_execution_ledger=None,
     ledger_path=None,
     lock_timeout_s: float = 120.0,
     gate_timeout_s: float = 900.0,
     cancel: Any = None,
 ) -> dict:
-    """Promote one exact, persisted-owner-authorized candidate into a branch.
+    """Promote one exact candidate into an unmerged integration branch.
 
-    This is still an explicit owner operation and never merges the integration
-    branch. Before any process, lock or worktree effect, the exact consumed
-    approval is authenticated from its persisted ledger and checked against the
-    static candidate/evidence subject using its owner-bound expected target.
-    The same capability is re-authenticated while the cross-process promotion
-    lock is held against the freshly read live target HEAD immediately before
-    the retained integration-worktree implementation is entered.
-
-    The historical multi-candidate retry path is intentionally frozen here.
-    It may regenerate a stale candidate after authorization, yielding bytes
-    that the owner never approved. Until promotion consumes one combined CAS
-    source-tree candidate, this sealed compatibility seam accepts exactly one
-    clean candidate and requires its base revision to equal the authorized live
-    target revision. Every refusal happens before worktree creation.
-
-    Candidate material is snapshotted before capability authentication. The
-    immutable local snapshot is used by both authorization passes and by the
-    retained apply path, so a caller cannot swap a mutable
-    ``GatedCandidate.result`` between those operations.
+    Persisted owner authority is authenticated before any repository effect.
+    The exact promotion execution start is then committed before lock-file or
+    worktree mutation. Restart replay returns the retained terminal report, and
+    an unresolved start never re-executes automatically.
     """
     try:
         root = Path(repo_root).resolve()
@@ -196,14 +258,13 @@ def promote_candidates(
             ),
         )
 
-    # Compatibility is fail-closed: old callers still receive a structured
-    # diagnostic, but no path without persisted authority may execute Git,
-    # acquire the lock, discover a ledger or construct a worktree manager.
-    if approval_ledger is None or not owner_keyring:
+    if (
+        approval_ledger is None
+        or not owner_keyring
+        or not isinstance(promotion_execution_ledger, PromotionExecutionLedger)
+    ):
         return _legacy_unpersisted_refusal(list(submitted_candidates))
 
-    # Exact candidate identity is an authorization input. Do not silently
-    # discard an ungated member and then authorize only a subset of the batch.
     if len(submitted_candidates) != 1:
         return _promotion_refusal(
             list(submitted_candidates),
@@ -219,18 +280,12 @@ def promote_candidates(
         return _promotion_refusal(list(submitted_candidates), exc)
 
     candidate = sealed_candidates[0]
-    result = candidate.result
-    artifact = result.artifact
+    artifact = candidate.result.artifact
 
-    # Authenticate persisted authority and all static subject bindings before
-    # any process spawn, lock-file operation, worktree-manager construction or
-    # ledger-path discovery. The owner-bound expected target revision is used
-    # only for this effect-free preauthorization; it is replaced by a fresh Git
-    # ref read under the lock and rechecked immediately before mutation.
     try:
         from daedalus.kernel.promotion import authorize_persisted_promotion
 
-        authorize_persisted_promotion(
+        authorization = authorize_persisted_promotion(
             approval_ledger=approval_ledger,
             owner_keyring=owner_keyring,
             consumed_approval=consumed_approval,
@@ -255,27 +310,36 @@ def promote_candidates(
                     f"ledger unavailable: {ledger_error}"
                 )
         lock_path = manager.worktree_root / "promotion.lock"
-    except Exception as exc:  # noqa: BLE001 - infrastructure refusal, no mutation
+        primary_before = fingerprint_primary_checkout(root)
+        begin = promotion_execution_ledger.begin(
+            authorization,
+            start_id=f"promotion-start-{authorization.authorization_sha256[:24]}",
+            primary_checkout_before_sha256=primary_before,
+        )
+    except Exception as exc:  # noqa: BLE001 - no promotion mutation occurred
         return _promotion_refusal(sealed_candidates, exc)
+
+    if not begin.execute:
+        if begin.completion is not None:
+            return begin.completion.report_dict()
+        return _execution_pending_refusal(
+            sealed_candidates,
+            authorization,
+            PromotionAuthorizationError(
+                "promotion has a persisted unresolved start; reconcile it before retry"
+            ),
+        )
 
     try:
         with _PromotionLock(lock_path, timeout_s=lock_timeout_s):
-            # The capability was authenticated before the first effect. It is
-            # authenticated again inside the lock with the freshly sampled live
-            # target so stale or replaced authority cannot cross the mutation
-            # boundary.
             from daedalus.kernel.promotion import (
                 authorize_persisted_promotion,
                 resolve_live_target_revision,
             )
 
-            # Temporary registry-anchor adapter: the effect inventory still
-            # names the historical call anchor ``authorize_promotion``. Bind
-            # that local name to the stronger persisted primitive until the
-            # registry row moves in its own small Work Packet.
             authorize_promotion = authorize_persisted_promotion
             live_target_revision = resolve_live_target_revision(root, target_ref)
-            authorization = authorize_promotion(
+            live_authorization = authorize_promotion(
                 approval_ledger=approval_ledger,
                 owner_keyring=owner_keyring,
                 consumed_approval=consumed_approval,
@@ -284,7 +348,11 @@ def promote_candidates(
                 target_ref=target_ref,
                 live_target_revision=live_target_revision,
             )
-            if artifact.base_revision != authorization.live_target_revision:
+            if live_authorization.authorization_sha256 != authorization.authorization_sha256:
+                raise PromotionAuthorizationError(
+                    "live promotion authorization differs from persisted start"
+                )
+            if artifact.base_revision != live_authorization.live_target_revision:
                 raise PromotionAuthorizationError(
                     "candidate base is not the authorized live target revision; "
                     "stale regeneration requires new evidence and OwnerApproval"
@@ -300,14 +368,89 @@ def promote_candidates(
                 gate_timeout_s=gate_timeout_s,
                 cancel=cancel,
             )
-    except PromotionUnavailable as exc:
-        return _promotion_refusal(sealed_candidates, exc)
-    except Exception as exc:  # noqa: BLE001 - public effect boundary fails closed
-        return _promotion_refusal(sealed_candidates, exc)
+            report["not_gated"] = []
+            report["authorization"] = authorization.to_dict()
 
-    report["not_gated"] = []
-    report["authorization"] = authorization.to_dict()
-    return report
+            promoted = report.get("promoted")
+            refused = report.get("refused")
+            if not isinstance(promoted, list) or not isinstance(refused, list):
+                raise PromotionAuthorizationError(
+                    "promotion implementation returned a malformed report"
+                )
+            if len(promoted) == 1 and not refused:
+                integration_branch = report.get("integration_branch")
+                if not isinstance(integration_branch, str) or not integration_branch:
+                    raise PromotionAuthorizationError(
+                        "successful promotion omitted its integration branch"
+                    )
+                integration_revision = resolve_live_target_revision(
+                    root,
+                    integration_branch,
+                )
+                report["integration_revision"] = integration_revision
+                outcome = "faulted" if report.get("cleanup_error") else "succeeded"
+            elif not promoted and refused:
+                integration_branch = None
+                integration_revision = None
+                report["integration_branch"] = None
+                report["integration_revision"] = None
+                outcome = "faulted" if report.get("cleanup_error") else "refused"
+            else:
+                raise PromotionAuthorizationError(
+                    "promotion result is neither one success nor one refusal"
+                )
+    except PromotionUnavailable as exc:
+        return _complete_refusal(
+            promotion_execution_ledger,
+            begin.start,
+            sealed_candidates,
+            authorization,
+            root,
+            exc,
+        )
+    except PromotionAuthorizationError as exc:
+        return _complete_refusal(
+            promotion_execution_ledger,
+            begin.start,
+            sealed_candidates,
+            authorization,
+            root,
+            exc,
+        )
+    except Exception as exc:  # noqa: BLE001 - retain explicit terminal fault
+        return _complete_fault(
+            promotion_execution_ledger,
+            begin.start,
+            sealed_candidates,
+            authorization,
+            root,
+            exc,
+        )
+
+    try:
+        primary_after = fingerprint_primary_checkout(root)
+        completion = promotion_execution_ledger.complete(
+            begin.start,
+            receipt_id=f"promotion-receipt-{authorization.authorization_sha256[:24]}",
+            outcome=outcome,
+            report=report,
+            integration_branch=integration_branch,
+            integration_revision=integration_revision,
+            primary_checkout_after_sha256=primary_after,
+        )
+    except Exception as exc:  # noqa: BLE001 - successful output is not released
+        return _complete_fault(
+            promotion_execution_ledger,
+            begin.start,
+            sealed_candidates,
+            authorization,
+            root,
+            exc,
+            report=report,
+            integration_branch=integration_branch,
+            integration_revision=integration_revision,
+        )
+    return completion.report_dict()
 
 
 __all__ = tuple(sorted(name for name in globals() if not name.startswith("_")))
