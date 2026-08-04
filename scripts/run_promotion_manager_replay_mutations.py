@@ -10,6 +10,7 @@ TARGET = ROOT / "daedalus" / "kairos" / "promotion_manager_replay.py"
 TESTS = (
     "tests/kernel/test_promotion_manager_replay.py",
     "tests/kernel/test_promotion_manager_replay_review.py",
+    "tests/kernel/test_promotion_manager_installation.py",
 )
 
 
@@ -96,9 +97,14 @@ def main() -> int:
             '        enriched["integration_revision"] = integration_revision\n',
         ),
         (
-            "install-prior-unvalidated-ledger-factory",
-            '    namespace["PromotionExecutionLedger"] = factory\n',
-            '    namespace["PromotionExecutionLedger"] = current_factory\n',
+            "retain-non-replay-ledger-proxy",
+            "    state.ledger_wrapper = _ReplayAuditedExecutionLedger\n",
+            "    state.ledger_wrapper = manager_boundary._AuditedExecutionLedger\n",
+        ),
+        (
+            "replace-public-ledger-class",
+            '    namespace["_MANAGER_AUDIT_V1_LEDGER_TYPE"] = ledger_type\n',
+            '    namespace["PromotionExecutionLedger"] = _ReplayAuditedExecutionLedger\n    namespace["_MANAGER_AUDIT_V1_LEDGER_TYPE"] = ledger_type\n',
         ),
     )
 
