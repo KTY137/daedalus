@@ -14,64 +14,26 @@ from daedalus.kernel.promotion_effect_inventory import (
     main,
     verify_promotion_effect_inventory,
 )
-from daedalus.spine.effect_boundary import (
-    ENTRYPOINTS,
-    Effect,
-    EntrypointSpec,
-    Surface,
-    Wiring,
-)
+from daedalus.spine.effect_boundary import ENTRYPOINTS, Effect, EntrypointSpec, Wiring
 
 
 ROOT = Path(__file__).resolve().parents[2]
 REVISION = "a" * 40
+_PROMOTION_ROWS = {
+    "python.promote_candidates",
+    "kernel.promotion_execution.open",
+    "kernel.promotion_execution.begin",
+    "kernel.promotion_execution.complete",
+}
 
 
 def _central_registry() -> tuple[EntrypointSpec, ...]:
-    rows: list[EntrypointSpec] = []
-    for row in ENTRYPOINTS:
-        if row.id == "python.promote_candidates":
-            rows.append(dataclasses.replace(row, wiring=Wiring.CENTRAL))
-        else:
-            rows.append(row)
-    rows.extend(
-        (
-            EntrypointSpec(
-                id="kernel.promotion_execution.open",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.__init__"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-            EntrypointSpec(
-                id="kernel.promotion_execution.begin",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.begin"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-            EntrypointSpec(
-                id="kernel.promotion_execution.complete",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.complete"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-        )
+    return tuple(
+        dataclasses.replace(row, wiring=Wiring.CENTRAL)
+        if row.id in _PROMOTION_ROWS
+        else row
+        for row in ENTRYPOINTS
     )
-    return tuple(rows)
 
 
 def _copy_sources(tmp_path: Path) -> Path:
@@ -88,23 +50,15 @@ def _copy_sources(tmp_path: Path) -> Path:
 
 
 def test_current_promotion_inventory_is_honestly_open() -> None:
-    report = build_promotion_effect_inventory(
-        ROOT,
-        source_revision=REVISION,
-    )
+    report = build_promotion_effect_inventory(ROOT, source_revision=REVISION)
     findings = {row.entrypoint_id: row for row in report.findings}
     assert not report.closed
-    assert findings["python.promote_candidates"].status == "blocked"
-    assert findings["python.promote_candidates"].blockers == (
-        "registry.not_central:local_guards",
-    )
-    for entrypoint_id in (
-        "kernel.promotion_execution.open",
-        "kernel.promotion_execution.begin",
-        "kernel.promotion_execution.complete",
-    ):
-        assert findings[entrypoint_id].status == "missing"
-        assert findings[entrypoint_id].blockers == ("registry.missing",)
+    assert set(findings) == _PROMOTION_ROWS
+    for entrypoint_id in _PROMOTION_ROWS:
+        assert findings[entrypoint_id].status == "blocked"
+        assert findings[entrypoint_id].blockers == (
+            "registry.not_central:local_guards",
+        )
     assert len(report.report_sha256) == 64
 
 
@@ -259,14 +213,11 @@ def test_report_is_deterministic_and_live_verification_rebuilds() -> None:
     second = build_promotion_effect_inventory(ROOT, source_revision=REVISION)
     assert first == second
     assert first.to_dict() == second.to_dict()
-    assert (
-        verify_promotion_effect_inventory(
-            first,
-            ROOT,
-            expected_source_revision=REVISION,
-        )
-        == first
-    )
+    assert verify_promotion_effect_inventory(
+        first,
+        ROOT,
+        expected_source_revision=REVISION,
+    ) == first
     with pytest.raises(PromotionEffectInventoryError, match="differs"):
         verify_promotion_effect_inventory(
             first,
@@ -295,12 +246,9 @@ def test_cli_is_stdout_only_and_require_closed_fails(
 
 def test_inventory_module_has_no_effect_or_authority_surface() -> None:
     source = (
-        ROOT
-        / "daedalus"
-        / "kernel"
-        / "promotion_effect_inventory.py"
+        ROOT / "daedalus" / "kernel" / "promotion_effect_inventory.py"
     ).read_text(encoding="utf-8").lower()
-    forbidden = (
+    for token in (
         "issue_owner_approval",
         "consume_owner_approval",
         "subprocess",
@@ -308,6 +256,5 @@ def test_inventory_module_has_no_effect_or_authority_surface() -> None:
         "git worktree",
         "merge_pull_request",
         "promote_candidates(",
-    )
-    for token in forbidden:
+    ):
         assert token not in source
