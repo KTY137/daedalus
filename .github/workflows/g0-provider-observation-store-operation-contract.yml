@@ -1,0 +1,103 @@
+name: Gate 0 Provider Observation Store Operation Contract
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-observation-preprovisioned-store-linear
+  push:
+    branches:
+      - g0/provider-observation-store-operation-contract-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-06Z_PROVIDER_OBSERVATION_STORE_OPERATION_CONTRACT.json
+      - run: python -m pytest -q tests/runtimes/test_provider_observation_store_contract.py tests/runtimes/test_provider_observation_store_contract_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_observation_store_contract_mutations.py
+
+  predecessor-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q tests/runtimes/test_provider_observation_store.py tests/runtimes/test_provider_observation_store_review.py tests/runtimes/test_provider_observation_authority.py tests/runtimes/test_provider_observation_authority_review.py tests/gates/test_provider_observation_persistence_inventory.py tests/gates/test_provider_observation_persistence_inventory_review.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-store-contract-wheel
+      - run: /tmp/daedalus-store-contract-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-store-contract-wheel/bin/python - <<'PY'
+          from daedalus.runtimes.provider_observation_store_contract import (
+              ProviderObservationStoreOperationAuthority,
+              ProviderObservationStoreOperationSubject,
+              authorize_provider_observation_store_operation,
+              build_provider_observation_store_operation_subject,
+          )
+          assert ProviderObservationStoreOperationAuthority is not None
+          assert ProviderObservationStoreOperationSubject is not None
+          assert callable(authorize_provider_observation_store_operation)
+          assert callable(build_provider_observation_store_operation_subject)
+          PY
