@@ -112,6 +112,11 @@ from .promotion_effects import (
     PromotionEffectBindingMismatch,
     PromotionEffectCapability,
 )
+from .promotion_effect_replay import (
+    PromotionEffectReplayError,
+    PromotionEffectReplayResult,
+    inspect_promotion_effect_execution,
+)
 from .promotion_execution import (
     PromotionExecutionBeginResult,
     PromotionExecutionBindingMismatch,
@@ -178,6 +183,9 @@ __all__ += [
     "PROMOTION_TARGET",
     "PromotionEffectBindingMismatch",
     "PromotionEffectCapability",
+    "PromotionEffectReplayError",
+    "PromotionEffectReplayResult",
+    "inspect_promotion_effect_execution",
     "PromotionExecutionBeginResult",
     "PromotionExecutionBindingMismatch",
     "PromotionExecutionCompletion",
