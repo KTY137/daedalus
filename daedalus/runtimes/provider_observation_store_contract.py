@@ -1,15 +1,15 @@
 """Signed guard contract for provider-observation store operations.
 
 The pre-provisioned store separates schema publication from ordinary ledger
-construction.  This module adds the next non-executing boundary: one signed,
-short-lived authority whose subject binds an exact store target, exact local
-filesystem-write execution, exact persisted Effect Lease digest and, for a
-provider-start binding, the exact provider-observation authority and start
-receipt plus runtime manifest/conformance digests.
+construction. This module adds the next non-executing boundary: one signed,
+short-lived authority whose subject binds an exact store target, exact isolated
+store path, exact local filesystem-write execution, exact persisted Effect
+Lease digest and, for a provider-start binding, the exact provider-observation
+authority and start receipt plus runtime manifest/conformance digests.
 
 The contract deliberately does not verify or persist the Effect Lease, call
 ``begin_effect``, open SQLite, initialize a store, bind a row, execute a
-provider, recover, promote or close a Gate.  A central entrypoint must still
+provider, recover, promote or close a Gate. A central entrypoint must still
 verify and begin the persisted lease, consume the returned GuardDecision, and
 perform the operation in the isolated target.
 """
@@ -20,13 +20,14 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from daedalus.kernel.contracts import EffectLease
 from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
 from daedalus.runtimes.provider_observation import ProviderObservationAuthority
 from daedalus.runtimes.provider_observation_store import ProviderObservationStoreTarget
-from daedalus.schemas import _identifier, _revision, _sha256, _utc_timestamp
+from daedalus.schemas import _identifier, _repo_path, _revision, _sha256, _utc_timestamp
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 
@@ -132,6 +133,16 @@ def _signature(digest: str, secret: bytes | str, label: str) -> str:
     ).hexdigest()
 
 
+def _target_scope_path(target: ProviderObservationStoreTarget) -> str:
+    try:
+        relative = Path(target.path).relative_to(Path(target.attempt_root)).as_posix()
+        return _repo_path(relative, "store_scope_path")
+    except (TypeError, ValueError) as exc:
+        raise ProviderObservationStoreContractBindingError(
+            "store target cannot be represented below its attempt root"
+        ) from exc
+
+
 def _validate_start_receipt(
     receipt: LeasedEffectStartReceipt,
     authority: ProviderObservationAuthority,
@@ -199,7 +210,7 @@ def _validate_store_write_subjects(
     target: ProviderObservationStoreTarget,
     execution: EffectExecutionRequest,
     effect_lease: EffectLease,
-) -> str:
+) -> tuple[str, str]:
     if operation not in _ENTRYPOINT_BY_OPERATION:
         raise ProviderObservationStoreContractBindingError(
             "unknown provider-observation store operation"
@@ -217,6 +228,7 @@ def _validate_store_write_subjects(
             "effect_lease must be exact EffectLease"
         )
     expected_entrypoint = _ENTRYPOINT_BY_OPERATION[operation]
+    scope_path = _target_scope_path(target)
     comparisons = {
         "entrypoint_id": (effect_lease.entrypoint_id, expected_entrypoint),
         "requested_effects": (
@@ -227,6 +239,15 @@ def _validate_store_write_subjects(
             execution.requested_effects,
             ("filesystem_write",),
         ),
+        "execution_writable_paths": (
+            execution.writable_paths,
+            (scope_path,),
+        ),
+        "lease_writable_paths": (
+            effect_lease.effect_scope.writable_paths,
+            (scope_path,),
+        ),
+        "scope_read_only": (effect_lease.effect_scope.read_only, False),
         "source_revision": (
             effect_lease.provenance.source_revision,
             target.source_revision,
@@ -234,6 +255,10 @@ def _validate_store_write_subjects(
         "kill_switch_generation": (
             execution.kill_switch_generation,
             effect_lease.kill_switch_generation,
+        ),
+        "kill_switch_ref": (
+            execution.kill_switch_ref,
+            effect_lease.effect_scope.kill_switch_ref,
         ),
         "runtime_id": (effect_lease.runtime_id, ""),
         "runtime_manifest_sha256": (
@@ -256,20 +281,20 @@ def _validate_store_write_subjects(
         raise ProviderObservationStoreContractBindingError(
             "store write lease/execution mismatch: " + ", ".join(mismatches)
         )
-    if not execution.writable_paths:
-        raise ProviderObservationStoreContractBindingError(
-            "store write execution must name a bounded writable path"
-        )
     if (
         execution.egress_endpoints
         or execution.tools
         or execution.secret_refs
         or execution.max_cost_microusd
+        or effect_lease.effect_scope.egress_endpoints
+        or effect_lease.effect_scope.tools
+        or effect_lease.effect_scope.secret_refs
+        or effect_lease.effect_scope.max_cost_microusd
     ):
         raise ProviderObservationStoreContractBindingError(
             "store write execution contains unrelated effect scope"
         )
-    return expected_entrypoint
+    return expected_entrypoint, scope_path
 
 
 @dataclass(frozen=True)
@@ -279,6 +304,7 @@ class ProviderObservationStoreOperationSubject:
     operation: str
     entrypoint_id: str
     store_target_sha256: str
+    store_scope_path: str
     source_revision: str
     store_execution_id: str
     store_idempotency_key: str
@@ -305,6 +331,11 @@ class ProviderObservationStoreOperationSubject:
                 raise ProviderObservationStoreContractBindingError(
                     "store operation entrypoint does not match operation"
                 )
+            object.__setattr__(
+                self,
+                "store_scope_path",
+                _repo_path(self.store_scope_path, "store_scope_path"),
+            )
             object.__setattr__(
                 self,
                 "source_revision",
@@ -372,6 +403,7 @@ class ProviderObservationStoreOperationSubject:
             "operation",
             "entrypoint_id",
             "store_target_sha256",
+            "store_scope_path",
             "source_revision",
             "store_execution_id",
             "store_idempotency_key",
@@ -529,7 +561,7 @@ def build_provider_observation_store_operation_subject(
 ) -> ProviderObservationStoreOperationSubject:
     """Build and cross-check one exact inert store-operation subject."""
 
-    entrypoint_id = _validate_store_write_subjects(
+    entrypoint_id, scope_path = _validate_store_write_subjects(
         operation=operation,
         target=target,
         execution=execution,
@@ -589,6 +621,7 @@ def build_provider_observation_store_operation_subject(
         operation=operation,
         entrypoint_id=entrypoint_id,
         store_target_sha256=target.digest,
+        store_scope_path=scope_path,
         source_revision=target.source_revision,
         store_execution_id=execution.execution_id,
         store_idempotency_key=execution.idempotency_key,
