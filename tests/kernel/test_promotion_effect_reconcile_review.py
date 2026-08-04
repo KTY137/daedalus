@@ -54,8 +54,10 @@ def test_terminal_payload_is_derived_only_from_replay_decision() -> None:
         "promotion.completion.receipt.completed_at",
         "finished_at=finished_at",
         'decision.action != "reconcile_effect_terminal"',
-        'raced.action != "replay_promotion_report"',
-        'replayed.action != "replay_promotion_report"',
+        "_inspect_after_terminal_attempt(",
+        'decision.action != "replay_promotion_report"',
+        "effect terminal changed concurrently to a non-replayable state",
+        "reconciled terminal did not become an exact report replay",
         "persisted reconciled terminal differs from returned receipt",
     )
     for fragment in required:
