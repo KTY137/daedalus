@@ -1,0 +1,121 @@
+name: Gate 0 Promotion Manager Wiring
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-effect-inventory-linear
+    paths:
+      - "daedalus/kairos/gated_writes.py"
+      - "daedalus/kairos/promotion_manager_audit.py"
+      - "daedalus/kairos/promotion_manager_boundary.py"
+      - "daedalus/kairos/promotion_manager_replay.py"
+      - "daedalus/kernel/promotion_effect_inventory.py"
+      - "tests/kernel/test_promotion_manager*.py"
+      - "tests/kernel/test_promotion_effect_inventory.py"
+      - "scripts/run_promotion_manager_*mutations.py"
+      - "docs/work-packets/G0-PRM-24_TYPED_MANAGER_WIRING.*"
+      - ".github/workflows/g0-promotion-manager-wiring.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g0/promotion-manager-wiring-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-manager-wiring-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts tools
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-24_TYPED_MANAGER_WIRING.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_manager_audit.py
+          tests/kernel/test_promotion_manager_boundary.py
+          tests/kernel/test_promotion_manager_boundary_review.py
+          tests/kernel/test_promotion_manager_installation.py
+          tests/kernel/test_promotion_manager_live_wiring.py
+          tests/kernel/test_promotion_manager_replay.py
+          tests/kernel/test_promotion_manager_replay_review.py
+          tests/kernel/test_promotion_effect_inventory.py
+          tests/kernel/test_promotion_effect_inventory_review.py
+          tests/kernel/test_promotion_execution.py
+          tests/kernel/test_promotion_execution_adversarial.py
+          tests/kernel/test_live_promotion_execution_review.py
+          tests/kernel/test_sealed_promotion.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_manager_wiring_mutations.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_manager_audit_mutations.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_manager_replay_mutations.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_effect_inventory_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-manager-wiring-wheel
+      - run: /tmp/daedalus-manager-wiring-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-manager-wiring-wheel/bin/python - <<'PY'
+          import daedalus.kairos.gated_writes as gated_writes
+          from daedalus.kairos.promotion_manager_boundary import _BoundaryState
+          from daedalus.kairos.promotion_manager_replay import (
+              _ReplayAuditedExecutionLedger,
+          )
+          from daedalus.kernel.promotion_execution import PromotionExecutionLedger
+
+          state = gated_writes._promotion_manager_boundary_state
+          assert isinstance(state, _BoundaryState)
+          assert gated_writes.PromotionExecutionLedger is PromotionExecutionLedger
+          assert state.ledger_type is PromotionExecutionLedger
+          assert state.ledger_wrapper is _ReplayAuditedExecutionLedger
+          assert callable(gated_writes.promote_candidates)
+          assert not hasattr(gated_writes, "_install_promotion_manager_boundary")
+          assert not hasattr(gated_writes, "_install_promotion_manager_replay_boundary")
+          PY
