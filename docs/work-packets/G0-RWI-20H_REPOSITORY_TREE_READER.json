@@ -1,0 +1,64 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20H",
+  "title": "Exact Read-Only Repository Tree Snapshot",
+  "gate": 0,
+  "parent_revision": "df69e4ef1c50a634e34bd1fa5df5273df7ac51a8",
+  "parent_branch": "g0/repository-write-guard-manifest-linear",
+  "branch": "g0/repository-tree-reader-linear",
+  "change_class": "additive-read-only-strangler-primitive",
+  "authority": "exact-repository-source-read-only",
+  "scope": {
+    "normalizes_repository_relative_posix_paths": true,
+    "rejects_drive_absolute_dot_and_symlink_paths": true,
+    "uses_bounded_no_follow_read_only_descriptor_access": true,
+    "checks_root_file_and_path_identity": true,
+    "rejects_incomplete_nul_and_non_utf8_sources": true,
+    "returns_immutable_bytes_digest_size_snapshot": true,
+    "migrates_existing_source_anchor_caller": false,
+    "replays_guard_semantics": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "exact_tree_snapshot_available": true,
+    "source_anchor_semantics_extended": false,
+    "guard_contract_semantics_verified": false,
+    "evidence_authenticated": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_path_tests_prepared": true,
+    "symlink_tests_prepared": true,
+    "replacement_and_identity_race_tests_prepared": true,
+    "size_incomplete_nul_utf8_tests_prepared": true,
+    "snapshot_detachment_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "author_side_isolated_stub_execution": {
+      "focused_and_review_tests": "25 passed",
+      "bounded_mutants": "8 killed",
+      "evidence_class": "isolated module harness only; not exact-head repository, supported-platform, packaging, independent-human, or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the existing source-anchor verifier has not yet migrated to this primitive and retains its compatibility implementation",
+    "the guard manifest and guard evidence are not yet replayed against snapshots from this reader",
+    "all remaining Gate-0 semantic receipt, caller migration, sandbox, fault-matrix and GateReport blockers remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
