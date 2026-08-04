@@ -1,0 +1,82 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20D",
+  "title": "Content-Addressed Repository Write Evidence Materialization",
+  "gate": 0,
+  "parent_revision": "dc2b582a6620680e490ce80d3a14fa091069fcea",
+  "parent_branch": "g0/repository-write-classification-contract-linear",
+  "branch": "g0/repository-write-evidence-authentication-linear",
+  "change_class": "additive-preparatory-verifier",
+  "authority": "content-materialization-only",
+  "scope": {
+    "consumes_classification_contract": true,
+    "requires_cas_sha256_locators": true,
+    "verifies_exact_blob_sha256": true,
+    "verifies_strict_utf8": true,
+    "rejects_duplicate_json_keys": true,
+    "verifies_canonical_json_bytes": true,
+    "binds_source_revision": true,
+    "binds_exact_surface_identity": true,
+    "binds_evidence_kind": true,
+    "binds_guard_contract": true,
+    "verifies_payload_digest": true,
+    "validates_typed_payload_shape": true,
+    "rejects_empty_binding_completeness": true,
+    "authenticates_external_issuer": false,
+    "replays_semantic_ledgers": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "evidence_kinds": [
+    "source_anchor",
+    "guard_contract",
+    "effect_lease_receipt",
+    "runtime_conformance_receipt",
+    "primary_checkout_disjointness_receipt",
+    "retirement_receipt"
+  ],
+  "claims": {
+    "materialization_complete_may_be_reported": true,
+    "materialization_complete_requires_nonempty_bindings": true,
+    "materialization_complete_means_evidence_authenticated": false,
+    "content_addressed": true,
+    "canonical_bytes_verified": true,
+    "binding_verified": true,
+    "origin_authenticated": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_surface_tests_prepared": true,
+    "blob_and_locator_substitution_tests_prepared": true,
+    "canonicalization_and_duplicate_key_tests_prepared": true,
+    "empty_binding_laundering_test_prepared": true,
+    "authority_bypass_review_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 12,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "no external issuer signature or trust root is authenticated by this packet",
+    "Effect-Lease, RuntimeConformance, checkout-disjointness and retirement receipts are not replayed against their authoritative ledgers",
+    "the materialization digest is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write inventory has not been populated with authenticated evidence blobs",
+    "canonical registry migration, Docker sandbox composition and fault-matrix execution remain open",
+    "exact-head executable evidence is unavailable while Actions issue 67 persists"
+  ]
+}
