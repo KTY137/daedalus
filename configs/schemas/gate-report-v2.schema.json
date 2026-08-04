@@ -34,8 +34,7 @@
     },
     "source_revision": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 200
+      "pattern": "^[0-9a-f]{40}$"
     },
     "registry_sha256": {
       "$ref": "#/$defs/sha256"
