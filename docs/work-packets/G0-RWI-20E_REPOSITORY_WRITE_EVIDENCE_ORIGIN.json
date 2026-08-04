@@ -1,0 +1,75 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20E",
+  "title": "Authenticated Repository Write Evidence Origin",
+  "gate": 0,
+  "parent_revision": "be76936fd1ef9b18b1aa22c745a75c8ee5e2008d",
+  "parent_branch": "g0/repository-write-evidence-authentication-linear",
+  "branch": "g0/repository-write-evidence-origin-linear",
+  "change_class": "additive-preparatory-verifier",
+  "authority": "external-origin-authentication-only",
+  "scope": {
+    "consumes_complete_materialization": true,
+    "rejects_empty_or_partial_materialization": true,
+    "uses_externally_provisioned_collector_key": true,
+    "binds_collector_identity_and_key_id": true,
+    "binds_source_revision": true,
+    "binds_classification_digest": true,
+    "binds_materialization_digest": true,
+    "binds_record_blob_and_payload_projections": true,
+    "requires_unique_record_and_blob_identities": true,
+    "permits_repeated_payload_digests": true,
+    "uses_hmac_sha256": true,
+    "bounds_attestation_lifetime_to_24_hours": true,
+    "bounds_parser_input_bytes": true,
+    "rejects_noncanonical_duplicate_and_nonfinite_json": true,
+    "verifies_signature_before_live_projection": true,
+    "replays_semantic_ledgers": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "origin_authenticated_after_verification": true,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_collector_tests_prepared": true,
+    "signature_and_key_substitution_tests_prepared": true,
+    "materialization_and_record_substitution_tests_prepared": true,
+    "canonicalization_duplicate_key_nonfinite_and_oversized_tests_prepared": true,
+    "future_expiry_and_ttl_tests_prepared": true,
+    "authority_bypass_review_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 13,
+    "author_side_stub_execution": {
+      "focused_and_review_tests": "20 passed",
+      "bounded_mutants": "13 killed",
+      "evidence_class": "preparatory isolated stub execution only; not exact-head repository evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "no externally issued production attestation or collector trust root is populated by this packet",
+    "Effect-Lease, RuntimeConformance, checkout-disjointness, guard, source-anchor and retirement receipts are not replayed against authoritative state",
+    "the authenticated origin report is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification is not yet populated with complete authenticated evidence",
+    "canonical caller migration, Runtime Manifest composition, Docker sandboxing and fault-matrix execution remain open",
+    "exact-head executable evidence is unavailable while Actions issue 67 persists"
+  ]
+}
