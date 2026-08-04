@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 from pathlib import Path
 
@@ -207,6 +208,40 @@ def test_fresh_delegate_pending_window_is_never_reexecuted(
             inspect_promotion_reconciliation(capability, ledger).disposition
             is PromotionReconciliationDisposition.PROMOTION_PENDING
         )
+    finally:
+        ledger.close()
+
+
+def test_concurrent_effect_start_never_enters_delegate(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth = authorization()
+    capability = build_capability(tmp_path, promotion_value=auth)
+    ledger = PromotionExecutionLedger(tmp_path / "spine.sqlite3")
+    original_begin = type(capability).begin
+    monkeypatch.setattr(lifecycle, "_preauthorize_exact_subject", lambda **_: None)
+
+    def concurrent_begin(self):
+        started = original_begin(self)
+        assert started.execute is True
+        return dataclasses.replace(started, execute=False)
+
+    monkeypatch.setattr(type(capability), "begin", concurrent_begin)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("concurrent effect start must suppress execution")
+
+    monkeypatch.setattr(lifecycle.gated_writes, "promote_candidates", forbidden)
+    try:
+        report = _call(capability, ledger)
+        assert report["promotion_effect_pending_reconciliation"] is True
+        assert (
+            report["promotion_effect_lifecycle"]["disposition"]
+            == "effect-only-pending-reconciliation"
+        )
+        effect = inspect_promotion_effect_execution(capability)
+        assert effect is not None and effect.terminal is None
     finally:
         ledger.close()
 
