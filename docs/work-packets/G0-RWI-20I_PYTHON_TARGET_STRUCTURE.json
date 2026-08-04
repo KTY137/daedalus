@@ -1,0 +1,65 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20I",
+  "title": "Exact Structural Python Target Resolution",
+  "gate": 0,
+  "parent_revision": "be334863eca4944977f38feaf94ab25fe0671227",
+  "parent_branch": "g0/repository-tree-reader-linear",
+  "branch": "g0/python-target-structure-linear",
+  "change_class": "additive-read-only-structural-front-end",
+  "authority": "python-target-structure-only",
+  "scope": {
+    "maps_canonical_daedalus_target_to_repository_path": true,
+    "uses_shared_exact_repository_tree_snapshot": true,
+    "binds_expected_source_digest_before_ast_projection": true,
+    "parses_python_without_import_or_execution": true,
+    "requires_unique_conservative_definition_chain": true,
+    "supports_module_functions_async_functions_and_class_methods": true,
+    "evaluates_behavior": false,
+    "replays_guard_semantics": false,
+    "modifies_repository_files": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "structural_target_verified_after_resolution": true,
+    "behavior_verified": false,
+    "target_executed": false,
+    "guard_contract_semantics_verified": false,
+    "evidence_authenticated": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_target_tests_prepared": true,
+    "stale_source_digest_tests_prepared": true,
+    "syntax_missing_and_ambiguity_tests_prepared": true,
+    "no_execution_test_prepared": true,
+    "conservative_parent_chain_tests_prepared": true,
+    "result_detachment_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "author_side_isolated_stub_execution": {
+      "focused_and_review_tests": "26 passed",
+      "bounded_mutants": "8 killed",
+      "evidence_class": "isolated module harness only; not exact-head repository, supported-platform, packaging, independent-human, behavioral, or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "structural target resolution is not yet joined to the authenticated guard manifest and guard evidence",
+    "structural presence does not prove guard behavior or execution",
+    "all remaining Gate-0 semantic receipt, caller migration, sandbox, fault-matrix and GateReport blockers remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
