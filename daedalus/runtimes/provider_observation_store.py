@@ -179,6 +179,7 @@ class ProviderObservationStoreStatus:
     source_revision: str
     file_device: int
     file_inode: int
+    file_nlink: int
     file_size: int
     file_mtime_ns: int
     schema_version: int
@@ -256,7 +257,20 @@ def _validated_target_path(
         raise ProviderObservationStoreError(
             "provider-observation store must be a regular file"
         )
+    if result.st_nlink != 1:
+        raise ProviderObservationStoreError(
+            "provider-observation store may not have hard-link aliases"
+        )
     return resolved, result
+
+
+def _refuse_existing_sidecars(path: Path) -> None:
+    for suffix in ("-journal", "-wal", "-shm"):
+        sidecar = Path(str(path) + suffix)
+        if os.path.lexists(sidecar):
+            raise ProviderObservationStoreError(
+                "provider-observation SQLite sidecar already exists"
+            )
 
 
 def _open_sqlite(path: Path, *, mode: str, query_only: bool) -> sqlite3.Connection:
@@ -388,6 +402,7 @@ def inspect_provider_observation_binding_store(
 
     path, before = _validated_target_path(target, require_exists=True)
     assert before is not None
+    _refuse_existing_sidecars(path)
     connection = _open_sqlite(path, mode="ro", query_only=True)
     try:
         _verify_schema(connection)
@@ -395,6 +410,7 @@ def inspect_provider_observation_binding_store(
         connection.close()
     path_after, after = _validated_target_path(target, require_exists=True)
     assert after is not None
+    _refuse_existing_sidecars(path_after)
     if _normal(path) != _normal(path_after) or (
         before.st_dev,
         before.st_ino,
@@ -408,6 +424,7 @@ def inspect_provider_observation_binding_store(
         source_revision=target.source_revision,
         file_device=after.st_dev,
         file_inode=after.st_ino,
+        file_nlink=after.st_nlink,
         file_size=after.st_size,
         file_mtime_ns=after.st_mtime_ns,
         schema_version=_SCHEMA_VERSION,
@@ -561,6 +578,7 @@ class PreprovisionedProviderObservationBindingLedger(
         before = self._require_current_store()
         connection: sqlite3.Connection | None = None
         try:
+            _refuse_existing_sidecars(self.path)
             connection = _open_sqlite(self.path, mode="rw", query_only=False)
             _verify_schema(connection)
             after = self._require_current_store()
@@ -584,6 +602,7 @@ class PreprovisionedProviderObservationBindingLedger(
         before = self._require_current_store()
         connection: sqlite3.Connection | None = None
         try:
+            _refuse_existing_sidecars(self.path)
             connection = _open_sqlite(self.path, mode="ro", query_only=True)
             _verify_schema(connection)
             after = self._require_current_store()
