@@ -125,14 +125,10 @@ def test_adapter_has_no_provider_process_network_or_promotion_authority() -> Non
 def test_authentication_failures_are_wrapped_in_recovery_domain() -> None:
     function = _function("_validate_runtime_binding")
     handlers = [node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler)]
-    assert len(handlers) == 2
-    target = next(
-        node
-        for node in handlers
-        if "runtime provider recovery capability failed authentication"
-        in (ast.get_source_segment(SOURCE, node) or "")
-    )
+    assert len(handlers) == 1
+    target = handlers[0]
     text = ast.get_source_segment(SOURCE, target) or ""
+    assert "runtime provider recovery capability failed authentication" in text
     assert "EffectLeaseError" in text
     assert "RuntimeLeaseAdmissionError" in text
     assert "ValueError" in text
