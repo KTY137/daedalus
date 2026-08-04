@@ -6,13 +6,13 @@
   "base_revision": "f76899e806501633d1b89417d1c740f67ceb00e9",
   "branch": "g0/promotion-manager-audit-linear",
   "authority": {
-    "retained_live_boundary": "daedalus.kairos._gated_writes_execution_accounting.py.src",
+    "live_boundary": "daedalus.kairos.gated_writes.promote_candidates",
     "manager_adapter": "daedalus.kairos.promotion_manager_audit.AuditedWorktreeManager",
-    "execution_authority": "daedalus.kernel.promotion_execution.PromotionExecutionLedger",
-    "boundary_installer": "daedalus.kairos.promotion_manager_boundary.install_promotion_manager_boundary"
+    "typed_ledger_proxy": "daedalus.kairos.promotion_manager_boundary._AuditedExecutionLedger",
+    "typed_replay_proxy": "daedalus.kairos.promotion_manager_replay._ReplayAuditedExecutionLedger",
+    "execution_authority": "daedalus.kernel.promotion_execution.PromotionExecutionLedger"
   },
   "implemented": [
-    "exact-parent-blob-strangler-loader",
     "allocation-cleanup-reaper-audit",
     "immutable-manager-audit-snapshot",
     "audit-digest-bound-terminal-report",
@@ -20,25 +20,41 @@
     "refusal-branch-deletion-proof",
     "swallowed-reaper-failure-escalation",
     "exact-fault-identity-rebinding",
-    "unknown-post-mutation-identity-pending-reconciliation"
+    "unknown-post-mutation-identity-pending-reconciliation",
+    "typed-per-call-ledger-proxy",
+    "invalid-ledger-non-laundering",
+    "public-ledger-class-preservation",
+    "semantic-restart-replay-validation"
+  ],
+  "adversarial_findings_fixed": [
+    "stale-review-claimed-a-nonexistent-retained-source-loader",
+    "stale-review-claimed-production-installation-that-was-not-present",
+    "installer-replaced-ledger-class-with-factory-breaking-isinstance",
+    "mutation-runner-referenced-nonexistent-tests",
+    "mutation-runner-used-non-unique-failure-seams",
+    "branch-resolution-caught-process-control-exceptions",
+    "stray-temporary-review-file"
   ],
   "verification_commands": [
-    "python -m pytest -q tests/kernel/test_promotion_manager_audit.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_live_promotion_execution_adversarial.py tests/kernel/test_live_promotion_execution_review.py",
+    "python -m pytest -q tests/kernel/test_promotion_manager_audit.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_promotion_manager_installation.py tests/kernel/test_promotion_manager_replay.py tests/kernel/test_promotion_manager_replay_review.py",
     "python scripts/run_promotion_manager_audit_mutations.py",
+    "python scripts/run_promotion_manager_replay_mutations.py",
     "python -m pytest -q",
     "python -m build"
   ],
   "verification_state": "pending-exact-head-execution",
-  "production_wiring": true,
+  "production_wiring": false,
   "gate_closed": false,
   "owner_approval_issued": false,
   "automatic_promotion": false,
   "remaining_blockers": [
+    "install-manager-and-replay-boundaries-in-live-promotion-module",
+    "register-promotion-execution-effect-ownership",
+    "compose-effect-lease-runtime-conformance-and-docker-sandbox",
     "execute-focused-and-mutation-checks-on-exact-head",
     "execute-full-suite-platform-and-packaging-checks-on-exact-head",
     "independent-human-review",
-    "complete-canonical-effect-inventory-registration",
     "complete-all-other-gate0-release-report-blockers"
   ],
-  "external_observation": "GitHub Actions issue #67 prevents jobs from recording Step 1; such runs are not evidence."
+  "external_observation": "GitHub Actions issue #67 repeatedly prevents jobs from recording Step 1; zero-step runs are not product evidence."
 }
