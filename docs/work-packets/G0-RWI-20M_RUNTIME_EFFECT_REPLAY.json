@@ -1,0 +1,79 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20M",
+  "title": "Runtime-Bound Effect Execution Replay",
+  "gate": 0,
+  "parent_revision": "5ba80d79b0c2685a94af684cc17bca437e113a20",
+  "parent_branch": "g0/effect-replay-integration-linear",
+  "branch": "g0/runtime-effect-replay-linear",
+  "change_class": "additive-read-only-runtime-capability-projection",
+  "authority": "runtime-bound-effect-replay-only",
+  "scope": {
+    "composes_strict_inner_effect_execution_replay": true,
+    "binds_signed_runtime_bound_effect_capability": true,
+    "uses_retained_start_timestamp": true,
+    "uses_retained_effect_lease_generation": true,
+    "requires_authenticated_current_active_runtime_trust": true,
+    "binds_exact_runtime_trust_record_digest_and_runtime_id": true,
+    "distinguishes_missing_started_and_terminal_execution": true,
+    "supports_historical_runtime_replay_after_quarantine_or_expiry": false,
+    "uses_append_only_runtime_trust_history": false,
+    "grants_starts_finishes_revokes_or_reexecutes_effects": false,
+    "mutates_runtime_trust_ledger": false,
+    "joins_repository_write_effect_evidence": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "runtime_bound_effect_replay_projection_available": true,
+    "current_runtime_trust_reauthenticated": true,
+    "historical_runtime_trust_transition_replayed": false,
+    "repository_write_effect_lease_semantics_verified": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "missing_started_and_terminal_state_tests_prepared": true,
+    "retained_generation_test_prepared": true,
+    "wrong_runtime_authority_key_test_prepared": true,
+    "quarantined_runtime_trust_test_prepared": true,
+    "inner_execution_substitution_test_prepared": true,
+    "signed_capability_trust_digest_test_prepared": true,
+    "post_verifier_trust_digest_detachment_test_prepared": true,
+    "post_verifier_runtime_identity_detachment_test_prepared": true,
+    "strict_type_test_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 6,
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository write and review access but no executable private-repository checkout; source inspection and LLM assertions are not recorded as test evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the runtime trust ledger does not yet retain an authenticated append-only transition history, so replay after quarantine or expiry is intentionally refused",
+    "repository-write Effect-Lease evidence is not yet joined to exact typed runtime authorization, execution request and replay snapshot",
+    "missing or STARTED execution states still require an explicit fail-closed no-automatic-reexecution decision contract",
+    "guard behavioral semantics remain unverified",
+    "Primary-Checkout disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification and evidence corpus remain unpopulated",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
