@@ -19,6 +19,7 @@
     "current-canonical-registry-and-scanner-gap-proof",
     "separate-ast-authority-revision-fence-and-false-closure-counter-review",
     "malformed-near-miss-scanner-tests",
+    "stale-predecessor-inventory-test-corrected-to-the-installed-registry-and-scanner-state",
     "bounded-eight-mutant-inventory-campaign",
     "ubuntu-windows-python-310-312-two-hash-seed-ci-request",
     "full-suite-package-build-and-isolated-wheel-check-request"
@@ -27,7 +28,7 @@
     "python -m compileall -q daedalus tests scripts",
     "python tools/iron_plan_guard.py verify",
     "python -m json.tool docs/work-packets/G0-PRM-25P_PROMOTION_RECOVERY_CONSUMPTION_STORE_INVENTORY.json",
-    "python -m pytest -q tests/test_promotion_recovery_consumption_store_inventory.py tests/test_promotion_recovery_consumption_store_inventory_review.py tests/test_promotion_recovery_consumption_store.py tests/test_promotion_recovery_consumption_store_review.py tests/test_promotion_recovery_consumption_registry.py tests/test_promotion_recovery_consumption_registry_review.py",
+    "python -m pytest -q tests/test_promotion_recovery_consumption_store_inventory.py tests/test_promotion_recovery_consumption_store_inventory_review.py tests/test_promotion_recovery_consumption_inventory.py tests/test_promotion_recovery_consumption_inventory_review.py tests/test_promotion_recovery_consumption_store.py tests/test_promotion_recovery_consumption_store_review.py tests/test_promotion_recovery_consumption_registry.py tests/test_promotion_recovery_consumption_registry_review.py",
     "python scripts/run_promotion_recovery_consumption_store_inventory_mutations.py",
     "python -m pytest -q",
     "python -m build"
