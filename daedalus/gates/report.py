@@ -14,8 +14,14 @@ from daedalus.spine.effect_boundary import (
     Wiring,
     check_conformance,
 )
+from daedalus.spine.writer_inventory import (
+    WriterInventoryError,
+    scan_event_store_writers,
+)
 
-_SCHEMA = "daedalus-gate-report/1"
+_SCHEMA = "daedalus-gate-report/2"
+_LEGACY_SCHEMA = "daedalus-gate-report/1"
+_SUPPORTED_SCHEMAS = frozenset({_SCHEMA, _LEGACY_SCHEMA})
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:
@@ -24,6 +30,15 @@ def _canonical_json(value: Mapping[str, Any]) -> str:
 
 def _sorted_unique(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(set(values)))
+
+
+def _sha256_or_none(value: str | None, name: str) -> str | None:
+    if value is None:
+        return None
+    if len(value) != 64:
+        raise ValueError(f"{name} must be a sha256 hex digest or null")
+    int(value, 16)
+    return value.lower()
 
 
 @dataclass(frozen=True)
@@ -39,6 +54,8 @@ class GateReport:
     runtime_conformance_failures: tuple[str, ...] = ()
     fault_injection_failures: tuple[str, ...] = ()
     primary_checkout_mutations: tuple[str, ...] = ()
+    event_store_writer_inventory_sha256: str | None = None
+    event_store_writer_failures: tuple[str, ...] = ()
     owner_approval_enforced: bool = False
     diagnostics: tuple[str, ...] = ()
 
@@ -50,6 +67,14 @@ class GateReport:
         if len(self.registry_sha256) != 64:
             raise ValueError("registry_sha256 must be a sha256 hex digest")
         int(self.registry_sha256, 16)
+        object.__setattr__(
+            self,
+            "event_store_writer_inventory_sha256",
+            _sha256_or_none(
+                self.event_store_writer_inventory_sha256,
+                "event_store_writer_inventory_sha256",
+            ),
+        )
         for name in (
             "unregistered_effectful_entrypoints",
             "unguarded_entrypoints",
@@ -58,6 +83,7 @@ class GateReport:
             "runtime_conformance_failures",
             "fault_injection_failures",
             "primary_checkout_mutations",
+            "event_store_writer_failures",
             "diagnostics",
         ):
             object.__setattr__(self, name, _sorted_unique(getattr(self, name)))
@@ -81,8 +107,13 @@ class GateReport:
             "runtime_conformance_failures",
             "fault_injection_failures",
             "primary_checkout_mutations",
+            "event_store_writer_failures",
         ):
-            rows.extend(f"{field_name}:{item}" for item in getattr(self, field_name))
+            rows.extend(
+                f"{field_name}:{item}" for item in getattr(self, field_name)
+            )
+        if self.event_store_writer_inventory_sha256 is None:
+            rows.append("event_store_writer_inventory_sha256:missing")
         if not self.security_boundary_claimed:
             rows.append("security_boundary_claimed:false")
         if not self.owner_approval_enforced:
@@ -97,23 +128,36 @@ class GateReport:
             "registry_sha256": self.registry_sha256,
             "closed": self.closed,
             "security_boundary_claimed": self.security_boundary_claimed,
-            "unregistered_effectful_entrypoints": list(self.unregistered_effectful_entrypoints),
+            "unregistered_effectful_entrypoints": list(
+                self.unregistered_effectful_entrypoints
+            ),
             "unguarded_entrypoints": list(self.unguarded_entrypoints),
-            "inventory_only_production_entrypoints": list(self.inventory_only_production_entrypoints),
+            "inventory_only_production_entrypoints": list(
+                self.inventory_only_production_entrypoints
+            ),
             "missing_guard_contracts": list(self.missing_guard_contracts),
-            "runtime_conformance_failures": list(self.runtime_conformance_failures),
+            "runtime_conformance_failures": list(
+                self.runtime_conformance_failures
+            ),
             "fault_injection_failures": list(self.fault_injection_failures),
             "primary_checkout_mutations": list(self.primary_checkout_mutations),
+            "event_store_writer_inventory_sha256": (
+                self.event_store_writer_inventory_sha256
+            ),
+            "event_store_writer_failures": list(self.event_store_writer_failures),
             "owner_approval_enforced": self.owner_approval_enforced,
             "diagnostics": list(self.diagnostics),
             "blockers": list(self.blockers),
         }
-        body["report_sha256"] = hashlib.sha256(_canonical_json(body).encode()).hexdigest()
+        body["report_sha256"] = hashlib.sha256(
+            _canonical_json(body).encode()
+        ).hexdigest()
         return body
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "GateReport":
-        if payload.get("schema") != _SCHEMA:
+        schema = payload.get("schema")
+        if schema not in _SUPPORTED_SCHEMAS:
             raise ValueError("unsupported gate report schema")
         expected = payload.get("report_sha256")
         if expected is not None:
@@ -127,16 +171,58 @@ class GateReport:
             source_revision=str(payload["source_revision"]),
             registry_sha256=str(payload["registry_sha256"]),
             security_boundary_claimed=bool(payload["security_boundary_claimed"]),
-            unregistered_effectful_entrypoints=tuple(payload.get("unregistered_effectful_entrypoints", ())),
+            unregistered_effectful_entrypoints=tuple(
+                payload.get("unregistered_effectful_entrypoints", ())
+            ),
             unguarded_entrypoints=tuple(payload.get("unguarded_entrypoints", ())),
-            inventory_only_production_entrypoints=tuple(payload.get("inventory_only_production_entrypoints", ())),
-            missing_guard_contracts=tuple(payload.get("missing_guard_contracts", ())),
-            runtime_conformance_failures=tuple(payload.get("runtime_conformance_failures", ())),
-            fault_injection_failures=tuple(payload.get("fault_injection_failures", ())),
-            primary_checkout_mutations=tuple(payload.get("primary_checkout_mutations", ())),
-            owner_approval_enforced=bool(payload.get("owner_approval_enforced", False)),
+            inventory_only_production_entrypoints=tuple(
+                payload.get("inventory_only_production_entrypoints", ())
+            ),
+            missing_guard_contracts=tuple(
+                payload.get("missing_guard_contracts", ())
+            ),
+            runtime_conformance_failures=tuple(
+                payload.get("runtime_conformance_failures", ())
+            ),
+            fault_injection_failures=tuple(
+                payload.get("fault_injection_failures", ())
+            ),
+            primary_checkout_mutations=tuple(
+                payload.get("primary_checkout_mutations", ())
+            ),
+            event_store_writer_inventory_sha256=payload.get(
+                "event_store_writer_inventory_sha256"
+            ),
+            event_store_writer_failures=tuple(
+                payload.get("event_store_writer_failures", ())
+            ),
+            owner_approval_enforced=bool(
+                payload.get("owner_approval_enforced", False)
+            ),
             diagnostics=tuple(payload.get("diagnostics", ())),
         )
+
+
+def _writer_inventory_evidence(
+    root: Path,
+    source_revision: str,
+) -> tuple[str | None, tuple[str, ...], tuple[str, ...]]:
+    try:
+        inventory = scan_event_store_writers(
+            root,
+            source_revision=source_revision,
+        )
+    except WriterInventoryError:
+        return (
+            None,
+            ("inventory-refused",),
+            ("blocker:event_store_writer_inventory:refused",),
+        )
+    failures = tuple(
+        f"{site.path}:{site.line}:{site.column}:{site.kind}:{site.callee}"
+        for site in inventory.blockers
+    )
+    return inventory.digest, failures, ()
 
 
 def build_gate0_report(
@@ -155,12 +241,19 @@ def build_gate0_report(
         for finding in conformance.findings
         if finding.code == "entrypoint.unregistered"
     ]
-    unguarded = [row.id for row in conformance.matrix if row.wiring is Wiring.UNGUARDED]
-    inventory = [row.id for row in conformance.matrix if row.wiring is Wiring.INVENTORY_ONLY]
+    unguarded = [
+        row.id for row in conformance.matrix if row.wiring is Wiring.UNGUARDED
+    ]
+    inventory_only = [
+        row.id
+        for row in conformance.matrix
+        if row.wiring is Wiring.INVENTORY_ONLY
+    ]
     missing_guards = [
         finding.subject
         for finding in conformance.findings
-        if finding.code in {"registry.guard_not_implemented", "registry.guard_unknown"}
+        if finding.code
+        in {"registry.guard_not_implemented", "registry.guard_unknown"}
     ]
     diagnostics = [
         f"{finding.severity}:{finding.code}:{finding.subject}"
@@ -179,13 +272,22 @@ def build_gate0_report(
     if fault_results is None:
         fault_failures = ("fault-matrix:not-yet-bound",)
     else:
-        fault_failures = tuple(sorted(name for name, passed in fault_results.items() if not passed))
+        fault_failures = tuple(
+            sorted(name for name, passed in fault_results.items() if not passed)
+        )
+
+    writer_digest, writer_failures, writer_diagnostics = _writer_inventory_evidence(
+        root,
+        source_revision,
+    )
+    diagnostics.extend(writer_diagnostics)
 
     promotion = REGISTRY_BY_ID.get("python.promote_candidates")
     promotion_findings = {
         finding.code
         for finding in conformance.findings
-        if finding.subject == "python.promote_candidates" and finding.severity == "blocker"
+        if finding.subject == "python.promote_candidates"
+        and finding.severity == "blocker"
     }
     owner_enforced = bool(
         promotion is not None
@@ -201,11 +303,13 @@ def build_gate0_report(
         security_boundary_claimed=security_boundary_claimed,
         unregistered_effectful_entrypoints=tuple(unregistered),
         unguarded_entrypoints=tuple(unguarded),
-        inventory_only_production_entrypoints=tuple(inventory),
+        inventory_only_production_entrypoints=tuple(inventory_only),
         missing_guard_contracts=tuple(missing_guards),
         runtime_conformance_failures=runtime_failures,
         fault_injection_failures=fault_failures,
         primary_checkout_mutations=tuple(primary_checkout_mutations),
+        event_store_writer_inventory_sha256=writer_digest,
+        event_store_writer_failures=writer_failures,
         owner_approval_enforced=owner_enforced,
         diagnostics=tuple(diagnostics),
     )
