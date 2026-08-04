@@ -40,11 +40,18 @@ def _segment(path: Path, node: ast.AST) -> str:
     return value
 
 
-def test_public_boundary_remains_unwired_until_dependent_packet() -> None:
+def test_public_boundary_installs_both_adapters_after_sealed_callable() -> None:
     source = _source(PUBLIC)
-    assert "def promote_candidates(" in source
-    assert "install_promotion_manager_boundary(globals())" not in source
-    assert "install_promotion_manager_replay_boundary(globals())" not in source
+    assert source.count("def promote_candidates(") == 1
+    assert source.count("_install_promotion_manager_boundary(globals())") == 1
+    assert source.count("_install_promotion_manager_replay_boundary(globals())") == 1
+    sealed = source.index("def promote_candidates(")
+    exports = source.index("__all__ = tuple(")
+    manager_install = source.index("_install_promotion_manager_boundary(globals())")
+    replay_install = source.index("_install_promotion_manager_replay_boundary(globals())")
+    assert sealed < exports < manager_install < replay_install
+    assert "_gated_writes_legacy.py.src" in source
+    assert "_gated_writes_execution_accounting.py.src" not in source
     assert "issue_owner_approval" not in source
     assert "merge_pull_request" not in source
 
