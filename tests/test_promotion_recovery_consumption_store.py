@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import daedalus.kernel.promotion_recovery_consumption_store as store_module
 from daedalus.kernel.promotion_recovery_consumption import (
     PromotionRecoveryConsumptionStateError,
 )
@@ -87,6 +88,35 @@ def test_malformed_schema_is_refused(tmp_path: Path) -> None:
         PreprovisionedPromotionRecoveryConsumptionLedger(path)
 
 
+def test_exact_table_sql_and_nullability_are_verified(tmp_path: Path) -> None:
+    path = tmp_path / "store.sqlite3"
+    initialize_promotion_recovery_consumption_store(path)
+
+    with sqlite3.connect(path) as connection:
+        original = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+            ("promotion_recovery_consumptions_v1",),
+        ).fetchone()[0]
+        changed = original.replace(
+            "decision_sha256 TEXT NOT NULL PRIMARY KEY",
+            "decision_sha256 TEXT PRIMARY KEY",
+        )
+        assert changed != original
+        connection.execute("PRAGMA writable_schema=ON")
+        connection.execute(
+            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
+            (changed, "promotion_recovery_consumptions_v1"),
+        )
+        current_version = int(
+            connection.execute("PRAGMA schema_version").fetchone()[0]
+        )
+        connection.execute(f"PRAGMA schema_version={current_version + 1}")
+        connection.execute("PRAGMA writable_schema=OFF")
+
+    with pytest.raises(PromotionRecoveryConsumptionStoreError):
+        inspect_promotion_recovery_consumption_store(path)
+
+
 def test_writer_open_uses_existing_store_and_does_not_create(tmp_path: Path) -> None:
     path = tmp_path / "store.sqlite3"
     initialize_promotion_recovery_consumption_store(path)
@@ -120,6 +150,47 @@ def test_admitted_store_identity_cannot_be_substituted(tmp_path: Path) -> None:
         _ = ledger.store_status
     with pytest.raises(PromotionRecoveryConsumptionStateError):
         ledger._connect_read_only()
+
+
+def test_failed_postpublication_check_removes_only_own_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "store.sqlite3"
+
+    def refuse(_path: Path) -> object:
+        raise PromotionRecoveryConsumptionStoreError("injected postpublication fault")
+
+    monkeypatch.setattr(
+        store_module,
+        "inspect_promotion_recovery_consumption_store",
+        refuse,
+    )
+    with pytest.raises(PromotionRecoveryConsumptionStoreError):
+        store_module.initialize_promotion_recovery_consumption_store(path)
+    assert not path.exists()
+
+
+def test_failed_postpublication_check_preserves_foreign_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "store.sqlite3"
+    foreign = tmp_path / "foreign.sqlite3"
+    foreign.write_bytes(b"foreign-operator-state")
+
+    def substitute_then_refuse(_path: Path) -> object:
+        os.replace(foreign, path)
+        raise PromotionRecoveryConsumptionStoreError("injected replacement fault")
+
+    monkeypatch.setattr(
+        store_module,
+        "inspect_promotion_recovery_consumption_store",
+        substitute_then_refuse,
+    )
+    with pytest.raises(PromotionRecoveryConsumptionStoreError):
+        store_module.initialize_promotion_recovery_consumption_store(path)
+    assert path.read_bytes() == b"foreign-operator-state"
 
 
 def test_inspection_is_read_only(tmp_path: Path) -> None:
