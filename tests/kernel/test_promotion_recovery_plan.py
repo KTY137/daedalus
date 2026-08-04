@@ -73,31 +73,41 @@ def _projection(disposition: PromotionReconciliationDisposition):
 
 
 @pytest.mark.parametrize(
-    ("disposition", "action", "owner_required"),
+    (
+        "disposition",
+        "action",
+        "manual_reconciliation",
+        "owner_required",
+    ),
     [
         (
             PromotionReconciliationDisposition.FRESH,
             recovery.PromotionRecoveryAction.NONE,
+            False,
             False,
         ),
         (
             PromotionReconciliationDisposition.EFFECT_ONLY_PENDING,
             recovery.PromotionRecoveryAction.OWNER_DECISION_BEFORE_EFFECT_CANCELLATION,
             True,
+            True,
         ),
         (
             PromotionReconciliationDisposition.PROMOTION_PENDING,
             recovery.PromotionRecoveryAction.FORENSIC_PROMOTION_RECONCILIATION,
             True,
+            False,
         ),
         (
             PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED,
             recovery.PromotionRecoveryAction.TERMINALIZE_EFFECT_FROM_RETAINED_EVIDENCE,
             False,
+            False,
         ),
         (
             PromotionReconciliationDisposition.COMPLETE,
             recovery.PromotionRecoveryAction.REPLAY_RETAINED_REPORT,
+            False,
             False,
         ),
     ],
@@ -106,6 +116,7 @@ def test_recovery_plan_maps_every_retained_state_exactly(
     monkeypatch,
     disposition,
     action,
+    manual_reconciliation,
     owner_required,
 ) -> None:
     projection = _projection(disposition)
@@ -122,6 +133,7 @@ def test_recovery_plan_maps_every_retained_state_exactly(
     assert plan.disposition == disposition.value
     assert plan.action == action.value
     assert plan.automatic_external_reexecution is False
+    assert plan.manual_reconciliation_required is manual_reconciliation
     assert plan.owner_decision_required is owner_required
     assert plan.promotion_authorization_sha256 == AUTHORIZATION_DIGEST
     assert digest == canonical_sha(wire)
