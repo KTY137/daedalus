@@ -187,7 +187,7 @@ def test_missing_manager_install_source_anchor_refuses_closure(tmp_path: Path) -
     )
     assert finding.status == "blocked"
     assert finding.blockers == (
-        "source.missing_call:install_promotion_manager_boundary",
+        "source.missing_call:_install_promotion_manager_boundary",
     )
     assert not report.closed
 
