@@ -15,24 +15,56 @@ def _qualified_name(node: ast.AST) -> str | None:
     return None
 
 
+def _imported_modules(tree: ast.AST) -> set[str]:
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imported.add(node.module)
+                imported.update(
+                    f"{node.module}.{alias.name}" for alias in node.names
+                )
+            else:
+                imported.update(alias.name for alias in node.names)
+    return imported
+
+
 def test_descriptor_module_has_no_registry_or_effect_authority() -> None:
     source = inspect.getsource(rows)
     tree = ast.parse(source)
-    imports = {
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.Import, ast.ImportFrom))
-        for alias in node.names
-    }
+    imports = _imported_modules(tree)
     calls = {
         name
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         if (name := _qualified_name(node.func)) is not None
     }
+    forbidden_import_prefixes = (
+        "daedalus.spine.effect_boundary",
+        "daedalus.kernel.promotion_recovery_consumption",
+        "daedalus.kernel.promotion_recovery_decision",
+        "sqlite3",
+        "subprocess",
+    )
+    forbidden_call_suffixes = (
+        ".begin_effect",
+        ".verify_promotion_recovery_decision",
+        ".connect",
+        ".run",
+        ".Popen",
+        ".consume",
+        ".cancel",
+        ".finish",
+        ".promote",
+    )
 
-    assert "daedalus.spine.effect_boundary" not in imports
-    assert "effect_boundary" not in imports
+    assert not any(
+        imported == prefix or imported.startswith(prefix + ".")
+        for imported in imports
+        for prefix in forbidden_import_prefixes
+    )
     assert not {
         "begin_effect",
         "verify_promotion_recovery_decision",
@@ -41,6 +73,10 @@ def test_descriptor_module_has_no_registry_or_effect_authority() -> None:
         "subprocess.Popen",
         "PromotionRecoveryConsumptionLedger",
     } & calls
+    assert all(
+        not name.endswith(forbidden_call_suffixes)
+        for name in calls
+    )
     assert "ENTRYPOINTS" not in vars(rows)
     assert "REGISTRY_BY_ID" not in vars(rows)
     assert "GUARD_CONTRACT_IMPLEMENTED" not in vars(rows)
@@ -58,7 +94,7 @@ def test_descriptor_module_cannot_mutate_an_injected_registry() -> None:
     assert not any(
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
-        and node.func.attr in {"append", "extend", "update", "add"}
+        and node.func.attr in {"append", "extend", "update", "add", "setdefault"}
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id in {
             "entrypoints",
@@ -66,6 +102,19 @@ def test_descriptor_module_cannot_mutate_an_injected_registry() -> None:
             "registry_by_id",
             "guard_contracts",
         }
+        for node in ast.walk(tree)
+    )
+    assert not any(
+        isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign))
+        and any(
+            isinstance(name, ast.Name)
+            and name.id in {
+                "ENTRYPOINTS",
+                "REGISTRY_BY_ID",
+                "GUARD_CONTRACT_IMPLEMENTED",
+            }
+            for name in ast.walk(node)
+        )
         for node in ast.walk(tree)
     )
 
