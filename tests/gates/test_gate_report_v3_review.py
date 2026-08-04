@@ -30,15 +30,29 @@ def test_builder_uses_canonical_v2_scanner_and_never_accepts_caller_failures() -
     assert "repository_write_failures" not in signature.parameters
     assert "repository_write_inventory_sha256" not in signature.parameters
     source = inspect.getsource(report_v3.build_gate0_report_v3)
-    helper = inspect.getsource(report_v3._repository_write_evidence)
-    assert "build_gate0_report(" in source
-    assert "_repository_write_evidence(" in source
-    assert "scan_repository_write_surfaces_v2(" in helper
-    assert "inventory.digest" in helper
-    assert "inventory.scan_input_sha256" in helper
-    assert "inventory.files_scanned" in helper
-    assert "for surface in inventory.blockers" in helper
-    assert '"inventory-refused"' in helper
+    base_helper = inspect.getsource(report_v3._build_base_report)
+    inventory_helper = inspect.getsource(report_v3._repository_write_evidence)
+    assert source.count("_build_base_report(") == 2
+    assert source.count("_repository_write_evidence(") == 2
+    assert "build_gate0_report(" in base_helper
+    assert "type(report) is not GateReport" in base_helper
+    assert "scan_repository_write_surfaces_v2(" in inventory_helper
+    assert "inventory.digest" in inventory_helper
+    assert "inventory.scan_input_sha256" in inventory_helper
+    assert "inventory.files_scanned" in inventory_helper
+    assert "for surface in inventory.blockers" in inventory_helper
+    assert '"inventory-refused"' in inventory_helper
+
+
+def test_builder_snapshots_inputs_and_refuses_observed_composition_drift() -> None:
+    source = inspect.getsource(report_v3.build_gate0_report_v3)
+    assert "receipt_rows = tuple(runtime_receipts)" in source
+    assert "mutation_rows = tuple(primary_checkout_mutations)" in source
+    assert "dict(fault_results)" in source
+    assert "base_before.to_dict() != base_after.to_dict()" in source
+    assert "inventory_before != inventory_after" in source
+    assert "base GateReport-v2 changed while composing GateReport-v3" in source
+    assert "repository-write inventory changed while composing GateReport-v3" in source
 
 
 def test_v3_parser_rejects_v2_and_requires_exact_fields() -> None:
@@ -46,6 +60,7 @@ def test_v3_parser_rejects_v2_and_requires_exact_fields() -> None:
     assert "set(payload) != _V3_FIELDS" in source
     assert "unsupported GateReport-v3 schema" in source
     assert "GateReport-v3 digest mismatch" in source
+    assert "payload is not canonical JSON data" in source
     assert "dict(payload) != report.to_dict()" in source
     assert "GateReport.from_dict" not in source
 
