@@ -1,0 +1,118 @@
+name: Gate 0 Runtime Post-Provider Unknown Outcome
+
+on:
+  pull_request:
+    branches:
+      - g0/repository-write-effect-lease-replay-linear
+    paths:
+      - "daedalus/runtimes/broker.py"
+      - "tests/runtimes/test_runtime_provider_broker.py"
+      - "tests/runtimes/test_runtime_provider_post_invoke_unknown*.py"
+      - "scripts/run_runtime_post_provider_unknown_mutations.py"
+      - "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.*"
+      - ".github/workflows/g0-runtime-post-provider-unknown.yml"
+  push:
+    branches:
+      - g0/runtime-post-provider-unknown-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-runtime-post-provider-unknown-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.json
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_runtime_provider_post_invoke_unknown.py
+          tests/runtimes/test_runtime_provider_post_invoke_unknown_review.py
+          tests/kernel/test_effect_recovery.py
+          tests/kernel/test_effect_recovery_hardening.py
+          tests/kernel/test_runtime_effect_replay_projection.py
+          tests/kernel/test_runtime_effect_replay_projection_review.py
+          tests/runtimes/test_unknown_outcome_reconciliation_fault_executor.py
+          tests/runtimes/test_unknown_outcome_reconciliation_fault_executor_review.py
+          tests/runtimes/test_runtime_provider_trust_fence.py
+          tests/runtimes/test_runtime_provider_trust_fence_review.py
+          tests/test_runtime_profiles.py
+          tests/test_runtime_trust_store.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_runtime_post_provider_unknown_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-runtime-unknown-wheel
+      - run: /tmp/daedalus-runtime-unknown-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-runtime-unknown-wheel/bin/python - <<'PY'
+          from daedalus.runtimes.broker import (
+              RuntimeProviderBrokerError,
+              RuntimeProviderReconciliationRequired,
+              run_runtime_provider,
+          )
+
+          assert issubclass(
+              RuntimeProviderReconciliationRequired,
+              RuntimeProviderBrokerError,
+          )
+          assert callable(run_runtime_provider)
+          PY
