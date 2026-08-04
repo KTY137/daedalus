@@ -9,9 +9,14 @@ sandbox authority.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 
 from daedalus.spine.envelope import canonical_sha
+
+
+BASE_REVISION = "27e8527c1eb811399f8d7ed2d60321ac37db1e9c"
+_REVISION_RE = re.compile(r"[0-9a-f]{40,64}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +34,7 @@ class ProposedEntrypoint:
 @dataclass(frozen=True, slots=True)
 class PromotionRecoveryConsumptionStoreInventoryDelta:
     schema: str
+    source_revision: str
     entrypoints: tuple[ProposedEntrypoint, ...]
     scanner_module: str
     scanner_function: str
@@ -41,6 +47,7 @@ class PromotionRecoveryConsumptionStoreInventoryDelta:
     def payload_dict(self) -> dict[str, object]:
         return {
             "schema": self.schema,
+            "source_revision": self.source_revision,
             "entrypoints": [asdict(row) for row in self.entrypoints],
             "scanner_module": self.scanner_module,
             "scanner_function": self.scanner_function,
@@ -103,9 +110,22 @@ def recognizes_recovery_consumption_store_initializer(
     return module == SCANNER_MODULE and function == SCANNER_FUNCTION
 
 
-def _build_delta() -> PromotionRecoveryConsumptionStoreInventoryDelta:
+def build_promotion_recovery_consumption_store_inventory_delta(
+    source_revision: str,
+) -> PromotionRecoveryConsumptionStoreInventoryDelta:
+    """Build the exact parent-revision-bound inventory delta.
+
+    A different but syntactically valid revision is stale for this packet and is
+    refused rather than silently relabeling the reviewed source anchors.
+    """
+
+    if type(source_revision) is not str or _REVISION_RE.fullmatch(source_revision) is None:
+        raise ValueError("source revision must be lowercase 40-64 hexadecimal characters")
+    if source_revision != BASE_REVISION:
+        raise ValueError("source revision is stale for this inventory delta")
     body = {
         "schema": "daedalus-promotion-recovery-consumption-store-inventory-delta/1",
+        "source_revision": source_revision,
         "entrypoints": [asdict(row) for row in ENTRYPOINTS],
         "scanner_module": SCANNER_MODULE,
         "scanner_function": SCANNER_FUNCTION,
@@ -116,6 +136,7 @@ def _build_delta() -> PromotionRecoveryConsumptionStoreInventoryDelta:
     }
     return PromotionRecoveryConsumptionStoreInventoryDelta(
         schema=body["schema"],
+        source_revision=source_revision,
         entrypoints=ENTRYPOINTS,
         scanner_module=SCANNER_MODULE,
         scanner_function=SCANNER_FUNCTION,
@@ -127,10 +148,13 @@ def _build_delta() -> PromotionRecoveryConsumptionStoreInventoryDelta:
     )
 
 
-INVENTORY_DELTA = _build_delta()
+INVENTORY_DELTA = build_promotion_recovery_consumption_store_inventory_delta(
+    BASE_REVISION
+)
 
 
 __all__ = [
+    "BASE_REVISION",
     "BLOCKERS",
     "ENTRYPOINTS",
     "INVENTORY_DELTA",
@@ -138,5 +162,6 @@ __all__ = [
     "ProposedEntrypoint",
     "SCANNER_FUNCTION",
     "SCANNER_MODULE",
+    "build_promotion_recovery_consumption_store_inventory_delta",
     "recognizes_recovery_consumption_store_initializer",
 ]
