@@ -104,6 +104,8 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-manager-wiring-wheel/bin/python - <<'PY'
+          import inspect
+
           import daedalus.kairos.gated_writes as gated_writes
           from daedalus.kairos.promotion_manager_boundary import _BoundaryState
           from daedalus.kairos.promotion_manager_replay import (
@@ -112,11 +114,18 @@ jobs:
           from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 
           state = gated_writes._promotion_manager_boundary_state
+          public = gated_writes.promote_candidates
+          parent = gated_writes._ACCOUNTED_PROMOTE_CANDIDATES
           assert isinstance(state, _BoundaryState)
           assert gated_writes.PromotionExecutionLedger is PromotionExecutionLedger
           assert state.ledger_type is PromotionExecutionLedger
           assert state.ledger_wrapper is _ReplayAuditedExecutionLedger
-          assert callable(gated_writes.promote_candidates)
+          assert inspect.isfunction(public)
+          assert inspect.unwrap(public) is parent
+          assert inspect.signature(public) == inspect.signature(parent)
+          assert public.__module__ == parent.__module__ == gated_writes.__name__
+          assert not hasattr(gated_writes, "_make_public_promotion_wrapper")
+          assert not hasattr(gated_writes, "_wraps")
           assert not hasattr(gated_writes, "_install_promotion_manager_boundary")
           assert not hasattr(gated_writes, "_install_promotion_manager_replay_boundary")
           PY
