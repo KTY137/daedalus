@@ -12,6 +12,7 @@
   "authority": "binding-only",
   "scope": {
     "adds_repository_write_artifact_evidence": true,
+    "adds_exact_json_schema": true,
     "binds_source_revision": true,
     "binds_source_tree_revision": true,
     "binds_gate_report_v3_digest": true,
@@ -45,6 +46,7 @@
   "verification": {
     "builder_tests_prepared": true,
     "exact_round_trip_test_prepared": true,
+    "json_schema_parity_tests_prepared": true,
     "report_substitution_matrix_prepared": true,
     "locator_content_mismatch_test_prepared": true,
     "missing_provenance_input_test_prepared": true,
