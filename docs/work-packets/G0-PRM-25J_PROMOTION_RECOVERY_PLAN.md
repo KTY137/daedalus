@@ -11,17 +11,20 @@ promotion.
 
 The exact retained reconciliation disposition selects exactly one action:
 
-| Disposition | Operator action | Owner decision required |
-| --- | --- | --- |
-| `fresh` | `none` | no |
-| `effect-only-pending-reconciliation` | `owner-decision-before-effect-cancellation` | yes |
-| `promotion-pending-reconciliation` | `forensic-promotion-reconciliation` | yes |
-| `effect-terminalization-required` | `terminalize-effect-from-retained-evidence` | no |
-| `complete` | `replay-retained-report` | no |
+| Disposition | Operator action | Manual reconciliation | Owner decision |
+| --- | --- | --- | --- |
+| `fresh` | `none` | no | no |
+| `effect-only-pending-reconciliation` | `owner-decision-before-effect-cancellation` | yes | yes |
+| `promotion-pending-reconciliation` | `forensic-promotion-reconciliation` | yes | no |
+| `effect-terminalization-required` | `terminalize-effect-from-retained-evidence` | no | no |
+| `complete` | `replay-retained-report` | no | no |
 
-Every plan states `automatic_external_reexecution=false`. The plan binds the
-promotion authorization digest and all retained effect/promotion start and
-terminal receipt digests, then hashes its canonical wire form.
+Every plan states `automatic_external_reexecution=false`. Only the effect-only
+crash window requires a new owner recovery decision. A retained promotion start
+requires manual forensic reconciliation, but the read-only plan does not
+misrepresent that technical investigation as a new OwnerApproval. The plan
+binds the promotion authorization digest and all retained effect/promotion start
+and terminal receipt digests, then hashes its canonical wire form.
 
 ## Authority boundary
 
@@ -32,12 +35,13 @@ requires forensic reconciliation first.
 
 ## Prepared adversarial verification
 
-The behavior matrix covers all five dispositions, exact digest binding,
-canonical plan hashing and malformed authority types before projection. A
-separate AST/source review permits one read-only reconciliation call and rejects
-lease writers, terminalization, promotion, Git, subprocess and SQLite authority.
-A bounded five-mutant campaign attacks automatic re-execution, owner-decision
-removal, state/action substitution, receipt omission and plan-digest omission.
+The behavior matrix covers all five dispositions, separate manual/owner flags,
+exact digest binding, canonical plan hashing and malformed authority types before
+projection. A separate AST/source review permits one read-only reconciliation
+call and rejects lease writers, terminalization, promotion, Git, subprocess and
+SQLite authority. A bounded six-mutant campaign attacks automatic re-execution,
+manual reconciliation, owner-decision removal, state/action substitution,
+receipt omission and plan-digest omission.
 
 Exact-head compilation, focused tests, mutation execution, full suite,
 packaging and the supported platform/Python matrix remain pending. Repository
