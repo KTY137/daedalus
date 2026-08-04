@@ -52,6 +52,7 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
 ) -> None:
     authorization, _record = fixture._authorization(tmp_path, monkeypatch)
     execution = fixture._execution()
+    entrypoint_id = fixture._request().entrypoint_id
     _constant_runtime_clock(monkeypatch)
     provider_commits: list[str] = []
 
@@ -72,7 +73,7 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
 
     with pytest.raises(RuntimeProviderReconciliationRequired) as captured:
         run_runtime_provider(
-            fixture._request().entrypoint_id,
+            entrypoint_id,
             authorization=authorization,
             execution=execution,
             invoke=invoke,
@@ -80,14 +81,16 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
         )
 
     error = captured.value
-    assert provider_commits == [provider_commits[0]]
+    assert len(provider_commits) == 1
+    acknowledgement = provider_commits[0]
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
     assert error.start_receipt.execution_id == execution.execution_id
     assert error.start_receipt.idempotency_key == execution.idempotency_key
     assert error.__cause__ is not None
+    assert not hasattr(error, "value")
 
     replay = run_runtime_provider(
-        fixture._request().entrypoint_id,
+        entrypoint_id,
         authorization=authorization,
         execution=execution,
         invoke=lambda: provider_commits.append("duplicate") or {},
@@ -97,14 +100,14 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
     assert replay.start_receipt == error.start_receipt
     assert replay.terminal_receipt is None
     assert replay.value is None
-    assert provider_commits == [provider_commits[0]]
+    assert provider_commits == [acknowledgement]
 
     observation = issue_external_effect_observation(
         observation_id="post-provider-observation",
         provider_id=PROVIDER_ID,
         execution=execution,
         start_receipt=error.start_receipt,
-        acknowledgement_sha256=provider_commits[0],
+        acknowledgement_sha256=acknowledgement,
         output_digests=(OUTPUT_SHA,),
         issuer_key_id="post-provider-observation-key",
         issuer_secret=OBSERVATION_KEY,
@@ -126,10 +129,4 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
     assert recovered.terminal_receipt.output_digests == (OUTPUT_SHA,)
     assert recovered.terminal_receipt.detail_sha256 == observation.digest
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "COMPLETED"
-    assert provider_commits == [provider_commits[0]]
-
-
-def test_reconciliation_error_does_not_retain_provider_value_or_cause_text() -> None:
-    fixture_start = fixture._execution()
-    assert not hasattr(RuntimeProviderReconciliationRequired, "value")
-    assert fixture_start.execution_id not in str(RuntimeProviderReconciliationRequired)
+    assert provider_commits == [acknowledgement]
