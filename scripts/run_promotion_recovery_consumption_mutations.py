@@ -61,6 +61,16 @@ MUTATIONS = (
         "        if actual != expected:\n",
         "        if False:  # mutant accepts unbound fields\n",
     ),
+    (
+        "open-inspection-database-read-write",
+        '                resolved.as_uri() + "?mode=ro",\n',
+        '                str(resolved),  # mutant\n',
+    ),
+    (
+        "skip-query-only-reader-confirmation",
+        '            if int(connection.execute("PRAGMA query_only").fetchone()[0]) != 1:\n',
+        "            if False:  # mutant\n",
+    ),
 )
 
 
