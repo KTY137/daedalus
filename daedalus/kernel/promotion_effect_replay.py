@@ -1,9 +1,9 @@
-"""Read-only replay projection for one promotion Effect-Lease execution.
+"""Strict read-only replay for one promotion Effect-Lease execution.
 
-The projection binds retained start/terminal bytes to an already-validated
-``PromotionEffectCapability``.  It opens the existing lease database with
-``mode=ro`` and never calls the writer connection factory, grants a lease,
-starts or finishes an effect, invokes Git, or executes promotion.
+The live Effect-Lease writer remains :mod:`daedalus.kernel.effects`.  This
+module only projects already-retained state for one exact
+:class:`PromotionEffectCapability`.  It opens SQLite with ``mode=ro`` and
+``query_only`` and never grants, begins, finishes, or executes an effect.
 """
 from __future__ import annotations
 
@@ -15,10 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from daedalus.kernel.effects import (
-    EffectTerminalReceipt,
-    LeasedEffectStartReceipt,
-)
+from daedalus.kernel.effects import EffectTerminalReceipt, LeasedEffectStartReceipt
 from daedalus.kernel.promotion_effects import PromotionEffectCapability
 from daedalus.schemas import _identifier, _sha256
 from daedalus.spine.envelope import canonical_json, canonical_sha
@@ -28,12 +25,12 @@ _TERMINAL_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
 
 
 class PromotionEffectReplayError(RuntimeError):
-    """Persisted Effect-Lease material is malformed or belongs elsewhere."""
+    """Retained Effect-Lease state is malformed or belongs to another subject."""
 
 
 @dataclass(frozen=True)
 class PromotionEffectReplayResult:
-    """Strict retained state for one exact promotion effect execution."""
+    """Exact retained state for one promotion Effect-Lease execution."""
 
     start: LeasedEffectStartReceipt
     state: str
@@ -52,42 +49,18 @@ class PromotionEffectReplayResult:
         return self.state == "STARTED"
 
 
-def _strict_object(raw: Any, label: str) -> dict[str, Any]:
-    if not isinstance(raw, str):
-        raise PromotionEffectReplayError(f"{label} must be retained JSON text")
-    if len(raw.encode("utf-8")) > _MAX_ROW_BYTES:
-        raise PromotionEffectReplayError(f"{label} exceeds {_MAX_ROW_BYTES} bytes")
-
-    def pairs(values: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in values:
-            if key in result:
-                raise PromotionEffectReplayError(
-                    f"{label} contains duplicate key {key!r}"
-                )
-            result[key] = value
-        return result
-
+def _digest(value: Any, label: str) -> str:
     try:
-        value = json.loads(
-            raw,
-            object_pairs_hook=pairs,
-            parse_constant=lambda token: (_ for _ in ()).throw(
-                PromotionEffectReplayError(
-                    f"{label} contains non-finite constant {token}"
-                )
-            ),
-        )
-    except PromotionEffectReplayError:
-        raise
-    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
-        raise PromotionEffectReplayError(f"{label} is malformed JSON") from exc
-    if not isinstance(value, dict):
-        raise PromotionEffectReplayError(f"{label} must be a JSON object")
-    _validate_json(value, label)
-    if canonical_json(value) != raw:
-        raise PromotionEffectReplayError(f"{label} is not canonical JSON")
-    return value
+        return _sha256(value, label)
+    except (TypeError, ValueError) as exc:
+        raise PromotionEffectReplayError(f"{label} is not a canonical digest") from exc
+
+
+def _name(value: Any, label: str) -> str:
+    try:
+        return _identifier(value, label)
+    except (TypeError, ValueError) as exc:
+        raise PromotionEffectReplayError(f"{label} is not a canonical identifier") from exc
 
 
 def _validate_json(value: Any, label: str) -> None:
@@ -95,7 +68,7 @@ def _validate_json(value: Any, label: str) -> None:
         return
     if isinstance(value, float):
         if not math.isfinite(value):
-            raise PromotionEffectReplayError(f"{label} contains non-finite float")
+            raise PromotionEffectReplayError(f"{label} contains a non-finite float")
         return
     if isinstance(value, list):
         for item in value:
@@ -112,6 +85,44 @@ def _validate_json(value: Any, label: str) -> None:
     raise PromotionEffectReplayError(
         f"{label} contains unsupported {type(value).__name__}"
     )
+
+
+def _strict_object(raw: Any, label: str) -> dict[str, Any]:
+    if not isinstance(raw, str):
+        raise PromotionEffectReplayError(f"{label} must be retained JSON text")
+    if len(raw.encode("utf-8")) > _MAX_ROW_BYTES:
+        raise PromotionEffectReplayError(f"{label} exceeds {_MAX_ROW_BYTES} bytes")
+
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise PromotionEffectReplayError(
+                    f"{label} contains duplicate key {key!r}"
+                )
+            result[key] = value
+        return result
+
+    try:
+        value = json.loads(
+            raw,
+            object_pairs_hook=object_pairs,
+            parse_constant=lambda token: (_ for _ in ()).throw(
+                PromotionEffectReplayError(
+                    f"{label} contains non-finite constant {token}"
+                )
+            ),
+        )
+    except PromotionEffectReplayError:
+        raise
+    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError) as exc:
+        raise PromotionEffectReplayError(f"{label} is malformed JSON") from exc
+    if not isinstance(value, dict):
+        raise PromotionEffectReplayError(f"{label} must be a JSON object")
+    _validate_json(value, label)
+    if canonical_json(value) != raw:
+        raise PromotionEffectReplayError(f"{label} is not canonical JSON")
+    return value
 
 
 def _timestamp(value: Any, label: str) -> str:
@@ -133,9 +144,7 @@ def _readonly(path: Path) -> sqlite3.Connection:
     try:
         resolved = path.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
-        raise PromotionEffectReplayError(
-            "effect replay database is unavailable"
-        ) from exc
+        raise PromotionEffectReplayError("effect replay database is unavailable") from exc
     if path.is_symlink() or not resolved.is_file():
         raise PromotionEffectReplayError(
             "effect replay database must be a regular non-symlink file"
@@ -155,10 +164,42 @@ def _readonly(path: Path) -> sqlite3.Connection:
                 "effect replay connection did not enter query-only mode"
             )
         return conn
-    except Exception:
+    except PromotionEffectReplayError:
         if conn is not None:
             conn.close()
         raise
+    except sqlite3.Error as exc:
+        if conn is not None:
+            conn.close()
+        raise PromotionEffectReplayError(
+            "effect replay database could not be opened read-only"
+        ) from exc
+
+
+def _mismatches(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> list[str]:
+    return sorted(name for name, wanted in expected.items() if actual[name] != wanted)
+
+
+def _validate_lease(row: sqlite3.Row, capability: PromotionEffectCapability) -> None:
+    authorization = capability.authorization
+    lease = authorization.lease
+    expected = {
+        "lease_sha256": lease.digest,
+        "lease_id": lease.lease_id,
+        "request_sha256": authorization.request.digest,
+        "policy_decision_sha256": authorization.policy_decision.digest,
+        "registry_sha256": lease.registry_sha256,
+        "entrypoint_id": lease.entrypoint_id,
+        "lease_json": lease.to_json(),
+        "issued_at": lease.issued_at,
+        "expires_at": lease.expires_at,
+    }
+    actual = {name: row[name] for name in expected}
+    mismatches = _mismatches(actual, expected)
+    if mismatches:
+        raise PromotionEffectReplayError(
+            "persisted effect lease mismatch: " + ", ".join(mismatches)
+        )
 
 
 def _decode_start(
@@ -180,17 +221,17 @@ def _decode_start(
             "effect start receipt has an unexpected field set"
         )
     body = {key: payload[key] for key in fields - {"receipt_sha256"}}
-    declared = _sha256(payload["receipt_sha256"], "receipt_sha256")
+    declared = _digest(payload["receipt_sha256"], "receipt_sha256")
     if canonical_sha(body) != declared:
         raise PromotionEffectReplayError("effect start receipt digest mismatch")
     receipt = LeasedEffectStartReceipt(
-        lease_sha256=_sha256(payload["lease_sha256"], "lease_sha256"),
-        execution_id=_identifier(payload["execution_id"], "execution_id"),
-        idempotency_key=_identifier(payload["idempotency_key"], "idempotency_key"),
-        execution_request_sha256=_sha256(
+        lease_sha256=_digest(payload["lease_sha256"], "lease_sha256"),
+        execution_id=_name(payload["execution_id"], "execution_id"),
+        idempotency_key=_name(payload["idempotency_key"], "idempotency_key"),
+        execution_request_sha256=_digest(
             payload["execution_request_sha256"], "execution_request_sha256"
         ),
-        boundary_receipt_sha256=_sha256(
+        boundary_receipt_sha256=_digest(
             payload["boundary_receipt_sha256"], "boundary_receipt_sha256"
         ),
         started_at=_timestamp(payload["started_at"], "started_at"),
@@ -218,17 +259,12 @@ def _decode_start(
         "start_receipt_sha256": receipt.receipt_sha256,
         "started_at": receipt.started_at,
     }
-    mismatches = sorted(
-        name for name, wanted in expected.items() if actual[name] != wanted
-    )
-    mismatches += sorted(
-        f"row.{name}"
-        for name, wanted in row_expected.items()
-        if row[name] != wanted
-    )
+    row_actual = {name: row[name] for name in row_expected}
+    mismatches = _mismatches(actual, expected)
+    mismatches += [f"row.{name}" for name in _mismatches(row_actual, row_expected)]
     if mismatches:
         raise PromotionEffectReplayError(
-            "persisted effect start mismatch: " + ", ".join(mismatches)
+            "persisted effect start mismatch: " + ", ".join(sorted(mismatches))
         )
     return receipt
 
@@ -237,9 +273,7 @@ def _decode_terminal(
     row: sqlite3.Row,
     start: LeasedEffectStartReceipt,
 ) -> EffectTerminalReceipt:
-    payload = _strict_object(
-        row["terminal_receipt_json"], "effect terminal receipt"
-    )
+    payload = _strict_object(row["terminal_receipt_json"], "effect terminal receipt")
     fields = {
         "lease_sha256",
         "execution_id",
@@ -260,22 +294,22 @@ def _decode_terminal(
     raw_outputs = payload["output_digests"]
     if not isinstance(raw_outputs, list):
         raise PromotionEffectReplayError("effect outputs must be an array")
-    outputs = tuple(_sha256(value, "output_digest") for value in raw_outputs)
+    outputs = tuple(_digest(value, "output_digest") for value in raw_outputs)
     if outputs != tuple(sorted(set(outputs))):
         raise PromotionEffectReplayError("effect outputs are not canonical")
     detail = (
         None
         if payload["detail_sha256"] is None
-        else _sha256(payload["detail_sha256"], "detail_sha256")
+        else _digest(payload["detail_sha256"], "detail_sha256")
     )
     body = {key: payload[key] for key in fields - {"receipt_sha256"}}
-    declared = _sha256(payload["receipt_sha256"], "receipt_sha256")
+    declared = _digest(payload["receipt_sha256"], "receipt_sha256")
     if canonical_sha(body) != declared:
         raise PromotionEffectReplayError("effect terminal receipt digest mismatch")
     receipt = EffectTerminalReceipt(
-        lease_sha256=_sha256(payload["lease_sha256"], "lease_sha256"),
-        execution_id=_identifier(payload["execution_id"], "execution_id"),
-        start_receipt_sha256=_sha256(
+        lease_sha256=_digest(payload["lease_sha256"], "lease_sha256"),
+        execution_id=_name(payload["execution_id"], "execution_id"),
+        start_receipt_sha256=_digest(
             payload["start_receipt_sha256"], "start_receipt_sha256"
         ),
         outcome=outcome,
@@ -300,9 +334,7 @@ def _decode_terminal(
         "finished_at": row["finished_at"],
         "terminal_receipt_sha256": row["terminal_receipt_sha256"],
     }
-    mismatches = sorted(
-        name for name, wanted in expected.items() if actual[name] != wanted
-    )
+    mismatches = _mismatches(actual, expected)
     if mismatches:
         raise PromotionEffectReplayError(
             "persisted effect terminal mismatch: " + ", ".join(mismatches)
@@ -313,12 +345,10 @@ def _decode_terminal(
 def inspect_promotion_effect_execution(
     capability: PromotionEffectCapability,
 ) -> PromotionEffectReplayResult | None:
-    """Return exact retained state without creating or changing a row."""
+    """Project one exact retained execution without creating or changing rows."""
 
     if not isinstance(capability, PromotionEffectCapability):
-        raise TypeError(
-            "promotion effect replay requires PromotionEffectCapability"
-        )
+        raise TypeError("promotion effect replay requires PromotionEffectCapability")
     path = getattr(capability.authorization.effect_ledger, "path", None)
     if not isinstance(path, Path):
         raise PromotionEffectReplayError(
@@ -327,61 +357,34 @@ def inspect_promotion_effect_execution(
     conn = _readonly(path)
     try:
         lease = capability.authorization.lease
+        execution = capability.execution
         lease_rows = conn.execute(
-            """
-            SELECT * FROM effect_leases
-            WHERE lease_sha256=? OR lease_id=?
-            """,
+            "SELECT * FROM effect_leases WHERE lease_sha256=? OR lease_id=?",
             (lease.digest, lease.lease_id),
         ).fetchall()
-        if not lease_rows:
-            return None
-        if len(lease_rows) != 1:
-            raise PromotionEffectReplayError("effect lease identity is ambiguous")
-        lease_row = lease_rows[0]
-        lease_expected = {
-            "lease_sha256": lease.digest,
-            "lease_id": lease.lease_id,
-            "request_sha256": capability.authorization.request.digest,
-            "policy_decision_sha256": (
-                capability.authorization.policy_decision.digest
-            ),
-            "registry_sha256": lease.registry_sha256,
-            "entrypoint_id": lease.entrypoint_id,
-            "lease_json": lease.to_json(),
-            "issued_at": lease.issued_at,
-            "expires_at": lease.expires_at,
-        }
-        lease_mismatches = sorted(
-            name for name, wanted in lease_expected.items()
-            if lease_row[name] != wanted
-        )
-        if lease_mismatches:
-            raise PromotionEffectReplayError(
-                "persisted effect lease mismatch: "
-                + ", ".join(lease_mismatches)
-            )
-
-        execution = capability.execution
-        rows = conn.execute(
+        execution_rows = conn.execute(
             """
             SELECT * FROM effect_executions
             WHERE execution_id=?
                OR (lease_sha256=? AND idempotency_key=?)
             """,
-            (
-                execution.execution_id,
-                lease.digest,
-                execution.idempotency_key,
-            ),
+            (execution.execution_id, lease.digest, execution.idempotency_key),
         ).fetchall()
-        if not rows:
+        if len(lease_rows) > 1:
+            raise PromotionEffectReplayError("effect lease identity is ambiguous")
+        if len(execution_rows) > 1:
+            raise PromotionEffectReplayError("effect execution identity is ambiguous")
+        if not lease_rows:
+            if execution_rows:
+                raise PromotionEffectReplayError(
+                    "effect execution exists without its persisted lease"
+                )
             return None
-        if len(rows) != 1:
-            raise PromotionEffectReplayError(
-                "effect execution identity is ambiguous"
-            )
-        row = rows[0]
+        _validate_lease(lease_rows[0], capability)
+        if not execution_rows:
+            return None
+
+        row = execution_rows[0]
         start = _decode_start(row, capability)
         state = str(row["state"])
         terminal_columns = (
@@ -402,10 +405,12 @@ def inspect_promotion_effect_execution(
                 "terminal effect is missing receipt material"
             )
         return PromotionEffectReplayResult(
-            start,
-            state,
-            _decode_terminal(row, start),
+            start=start,
+            state=state,
+            terminal=_decode_terminal(row, start),
         )
+    except PromotionEffectReplayError:
+        raise
     except sqlite3.Error as exc:
         raise PromotionEffectReplayError("effect replay query failed") from exc
     finally:
