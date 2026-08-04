@@ -1,0 +1,50 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25",
+  "title": "Promotion Effect Rows",
+  "gate": 0,
+  "base_branch": "g0/promotion-manager-wiring-frozen-a824904a",
+  "base_revision": "a824904af04b5e7aae11cee187cdad3aacfb4584",
+  "source_parent_pr": 140,
+  "branch": "g0/promotion-effect-rows-v2-linear",
+  "implemented": [
+    "promotion-execution-open-row",
+    "promotion-execution-begin-row",
+    "promotion-execution-complete-row",
+    "canonical-registry-default-refresh",
+    "partial-or-conflicting-installation-refusal",
+    "bounded-row-mutation-campaign"
+  ],
+  "current_expected_blockers": [
+    "python.promote_candidates:registry.not_central:local_guards",
+    "kernel.promotion_execution.open:registry.not_central:local_guards",
+    "kernel.promotion_execution.begin:registry.not_central:local_guards",
+    "kernel.promotion_execution.complete:registry.not_central:local_guards"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_effect_rows.py tests/kernel/test_promotion_effect_rows_review.py",
+    "python -m pytest -q tests/kernel/test_promotion_effect_inventory.py tests/kernel/test_promotion_effect_inventory_review.py",
+    "python -m pytest -q tests/kernel/test_promotion_manager_live_wiring.py tests/kernel/test_promotion_manager_live_wiring_review.py",
+    "python scripts/run_promotion_effect_rows_mutations.py",
+    "python scripts/run_promotion_effect_inventory_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "compose-persisted-effect-lease",
+    "bind-exact-runtime-manifest",
+    "bind-current-runtime-conformance-receipt",
+    "bind-current-kill-switch-generation",
+    "compose-selected-docker-sandbox",
+    "upgrade-promotion-rows-to-central-only-after-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly yields zero-step jobs; those runs are not product evidence."
+}
