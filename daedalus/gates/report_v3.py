@@ -160,13 +160,19 @@ class GateReportV3(GateReport):
                 "repository_write_scan_input_sha256",
             ),
         )
-        if type(self.repository_write_files_scanned) is not int:
+        if (
+            type(self.repository_write_files_scanned) is not int
+            or self.repository_write_files_scanned < 0
+        ):
             raise GateReportV3Error(
-                "repository_write_files_scanned must be an integer"
+                "repository_write_files_scanned must be a non-negative integer"
             )
-        if type(self.repository_write_inventory_generation) is not int:
+        if (
+            type(self.repository_write_inventory_generation) is not int
+            or self.repository_write_inventory_generation < 0
+        ):
             raise GateReportV3Error(
-                "repository_write_inventory_generation must be an integer"
+                "repository_write_inventory_generation must be a non-negative integer"
             )
         object.__setattr__(
             self,
