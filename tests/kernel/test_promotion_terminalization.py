@@ -41,14 +41,20 @@ def _start() -> LeasedEffectStartReceipt:
     )
 
 
-def _terminal(*, receipt_sha256: str = DIGEST_C) -> EffectTerminalReceipt:
+def _terminal(
+    *,
+    receipt_sha256: str = DIGEST_C,
+    outcome: str = "COMPLETED",
+    output_digests: tuple[str, ...] = (DIGEST_A, DIGEST_B),
+    detail_sha256: str = DIGEST_B,
+) -> EffectTerminalReceipt:
     return EffectTerminalReceipt(
         lease_sha256=DIGEST_A,
         execution_id="promotion-1",
         start_receipt_sha256=DIGEST_D,
-        outcome="COMPLETED",
-        output_digests=(DIGEST_A, DIGEST_B),
-        detail_sha256=DIGEST_B,
+        outcome=outcome,
+        output_digests=output_digests,
+        detail_sha256=detail_sha256,
         finished_at="2026-08-04T04:00:02.000000+00:00",
         receipt_sha256=receipt_sha256,
     )
@@ -84,6 +90,9 @@ def _projection(
     disposition: PromotionReconciliationDisposition,
     *,
     terminal: EffectTerminalReceipt | None = None,
+    expected_outcome: str = "COMPLETED",
+    expected_outputs: tuple[str, ...] = (DIGEST_A, DIGEST_B),
+    expected_detail: str = DIGEST_B,
 ) -> PromotionReconciliationProjection:
     start = _start()
     effect = None
@@ -103,9 +112,9 @@ def _projection(
         }:
             completion = SimpleNamespace(receipt=SimpleNamespace())
             expected = ExpectedPromotionEffectTerminal(
-                outcome="COMPLETED",
-                output_digests=(DIGEST_A, DIGEST_B),
-                detail_sha256=DIGEST_B,
+                outcome=expected_outcome,
+                output_digests=expected_outputs,
+                detail_sha256=expected_detail,
             )
         promotion = SimpleNamespace(completion=completion)
     return PromotionReconciliationProjection(
@@ -116,15 +125,33 @@ def _projection(
     )
 
 
-def test_terminalizes_only_exact_material_and_rechecks_retained_state(monkeypatch):
-    written = _terminal()
+@pytest.mark.parametrize(
+    ("outcome", "outputs"),
+    [
+        ("COMPLETED", (DIGEST_A, DIGEST_B)),
+        ("FAILED", ()),
+        ("CANCELLED", ()),
+    ],
+)
+def test_terminalizes_only_exact_material_and_rechecks_retained_state(
+    monkeypatch,
+    outcome,
+    outputs,
+):
+    written = _terminal(outcome=outcome, output_digests=outputs)
     effect_ledger = _EffectLedger(written)
     projections = iter(
         [
-            _projection(PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED),
+            _projection(
+                PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED,
+                expected_outcome=outcome,
+                expected_outputs=outputs,
+            ),
             _projection(
                 PromotionReconciliationDisposition.COMPLETE,
                 terminal=written,
+                expected_outcome=outcome,
+                expected_outputs=outputs,
             ),
         ]
     )
@@ -142,8 +169,8 @@ def test_terminalizes_only_exact_material_and_rechecks_retained_state(monkeypatc
     assert len(effect_ledger.calls) == 1
     call = effect_ledger.calls[0]
     assert call["start"] == _start()
-    assert call["outcome"] == "COMPLETED"
-    assert call["output_digests"] == (DIGEST_A, DIGEST_B)
+    assert call["outcome"] == outcome
+    assert call["output_digests"] == outputs
     assert call["detail_sha256"] == DIGEST_B
     assert call["finished_at"].tzinfo is not None
 
