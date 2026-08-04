@@ -139,6 +139,10 @@ from .promotion_replay import (
     PromotionReplayProjectionMismatch,
     inspect_promotion_execution,
 )
+from .promotion_terminalization import (
+    PromotionTerminalizationError,
+    reconcile_promotion_effect_terminal,
+)
 from .runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
@@ -209,6 +213,8 @@ __all__ += [
     "inspect_promotion_reconciliation",
     "PromotionReplayProjectionMismatch",
     "inspect_promotion_execution",
+    "PromotionTerminalizationError",
+    "reconcile_promotion_effect_terminal",
     "RecordedObservation",
     "RuntimeConformanceError",
     "assemble_recorded_conformance",
