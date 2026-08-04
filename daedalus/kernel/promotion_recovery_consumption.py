@@ -175,12 +175,8 @@ class ConsumedPromotionRecoveryDecision:
         if set(expectation_payload) != expectation_fields:
             raise ValueError("recovery expectation fields mismatch")
         return cls(
-            verified=VerifiedPromotionRecoveryDecision(
-                **dict(verified_payload)
-            ),
-            expectation=PromotionRecoveryExpectation(
-                **dict(expectation_payload)
-            ),
+            verified=VerifiedPromotionRecoveryDecision(**dict(verified_payload)),
+            expectation=PromotionRecoveryExpectation(**dict(expectation_payload)),
             consumed_at=payload["consumed_at"],
             consumption_sha256=payload["consumption_sha256"],
         )
@@ -210,13 +206,9 @@ def _expectation_from_verified(
     verified: VerifiedPromotionRecoveryDecision,
 ) -> PromotionRecoveryExpectation:
     return PromotionRecoveryExpectation(
-        promotion_authorization_sha256=(
-            verified.promotion_authorization_sha256
-        ),
+        promotion_authorization_sha256=verified.promotion_authorization_sha256,
         recovery_plan_sha256=verified.recovery_plan_sha256,
-        effect_start_receipt_sha256=(
-            verified.effect_start_receipt_sha256
-        ),
+        effect_start_receipt_sha256=verified.effect_start_receipt_sha256,
         source_revision=verified.source_revision,
     )
 
@@ -238,7 +230,7 @@ class PromotionRecoveryConsumptionLedger:
     def _now(self) -> datetime:
         return _as_utc(self._clock(), "recovery consumption ledger clock")
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect_writer(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
             str(self.path),
             isolation_level=None,
@@ -251,8 +243,45 @@ class PromotionRecoveryConsumptionLedger:
         connection.execute("PRAGMA busy_timeout=30000")
         return connection
 
+    def _connect_read_only(self) -> sqlite3.Connection:
+        try:
+            resolved = self.path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise PromotionRecoveryConsumptionStateError(
+                "recovery consumption database is unavailable"
+            ) from exc
+        if self.path.is_symlink() or not resolved.is_file():
+            raise PromotionRecoveryConsumptionStateError(
+                "recovery consumption database must be a regular non-symlink file"
+            )
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = sqlite3.connect(
+                resolved.as_uri() + "?mode=ro",
+                uri=True,
+                isolation_level=None,
+                timeout=30,
+            )
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA query_only=ON")
+            if int(connection.execute("PRAGMA query_only").fetchone()[0]) != 1:
+                raise PromotionRecoveryConsumptionStateError(
+                    "recovery consumption reader did not enter query-only mode"
+                )
+            return connection
+        except PromotionRecoveryConsumptionStateError:
+            if connection is not None:
+                connection.close()
+            raise
+        except sqlite3.Error as exc:
+            if connection is not None:
+                connection.close()
+            raise PromotionRecoveryConsumptionStateError(
+                "recovery consumption database could not be opened read-only"
+            ) from exc
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connect_writer() as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS promotion_recovery_consumptions_v1 (
@@ -304,7 +333,7 @@ class PromotionRecoveryConsumptionLedger:
         preflight_expectation = _expectation_from_verified(preflight)
         decision_json = canonical_json(decision.to_dict())
 
-        connection = self._connect()
+        connection = self._connect_writer()
         try:
             connection.execute("BEGIN IMMEDIATE")
             transaction_at = self._now()
@@ -418,7 +447,7 @@ class PromotionRecoveryConsumptionLedger:
             )
         if not isinstance(keyring, Mapping):
             raise TypeError("verification requires an owner keyring mapping")
-        with self._connect() as connection:
+        with self._connect_read_only() as connection:
             row = connection.execute(
                 """
                 SELECT decision_sha256, decision_id, owner_id, key_id, nonce,
@@ -448,9 +477,7 @@ class PromotionRecoveryConsumptionLedger:
             if not isinstance(consumption_payload, dict):
                 raise ValueError("consumption JSON must be an object")
             stored_decision = PromotionRecoveryDecision.from_dict(decision_payload)
-            stored_expectation = PromotionRecoveryExpectation(
-                **expectation_payload
-            )
+            stored_expectation = PromotionRecoveryExpectation(**expectation_payload)
             persisted = ConsumedPromotionRecoveryDecision.from_dict(
                 consumption_payload
             )
@@ -459,9 +486,7 @@ class PromotionRecoveryConsumptionLedger:
                 "persisted recovery decision consumption is corrupt"
             ) from exc
 
-        secret = keyring.get(
-            (stored_decision.owner_id, stored_decision.key_id)
-        )
+        secret = keyring.get((stored_decision.owner_id, stored_decision.key_id))
         if secret is None:
             raise PromotionRecoveryDecisionSignatureError(
                 "persisted owner recovery decision key is unknown"
@@ -538,7 +563,7 @@ class PromotionRecoveryConsumptionLedger:
 
     def consumed(self, decision_sha256: str) -> bool:
         digest = _sha256(decision_sha256, "decision_sha256")
-        with self._connect() as connection:
+        with self._connect_read_only() as connection:
             row = connection.execute(
                 "SELECT 1 FROM promotion_recovery_consumptions_v1 "
                 "WHERE decision_sha256=?",
