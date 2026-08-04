@@ -13,6 +13,7 @@ from daedalus.spine.durability import (
     Gate0DurabilityError,
     Gate0DurabilityStatus,
     enforce_gate0_durability,
+    open_gate0_spine_writer,
 )
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.ledger import (
@@ -55,22 +56,34 @@ class AttemptLedger:
         if not isinstance(source_store, SourceTreeStore):
             raise AttemptStateError("source_store must be SourceTreeStore")
         self.source_store = source_store
-        self.spine = path if isinstance(path, SpineLedger) else SpineLedger(path)
-        if getattr(self.spine, "read_only", False):
-            raise AttemptStateError(
-                "attempt lifecycle requires a writable canonical event spine"
-            )
+        self._owns_spine = not isinstance(path, SpineLedger)
         try:
+            self.spine = (
+                open_gate0_spine_writer(path)
+                if self._owns_spine
+                else path
+            )
+            if getattr(self.spine, "read_only", False):
+                raise AttemptStateError(
+                    "attempt lifecycle requires a writable canonical event spine"
+                )
             self.durability_status: Gate0DurabilityStatus = (
                 enforce_gate0_durability(self.spine)
             )
         except Gate0DurabilityError as exc:
+            if self._owns_spine and hasattr(self, "spine"):
+                self.spine.close()
             raise AttemptStateError(
                 "attempt lifecycle requires the Gate-0 Event-Store durability profile"
             ) from exc
         self.path = self.spine.path
         self._clock = AttemptLifecycleClock()
-        self._install_single_start_invariant()
+        try:
+            self._install_single_start_invariant()
+        except BaseException:
+            if self._owns_spine:
+                self.spine.close()
+            raise
 
     def _install_single_start_invariant(self) -> None:
         """Install the Attempt index through the admitted canonical writer.
