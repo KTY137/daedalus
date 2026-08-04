@@ -61,13 +61,16 @@ def test_only_both_absent_can_produce_fresh_authority_decision() -> None:
     assert 'return self.action == "fresh"' in source
 
 
-def test_report_replay_requires_completed_effect_outputs_detail_and_chronology() -> None:
+def test_report_replay_requires_outcome_outputs_detail_and_chronology() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     required = (
+        '"succeeded": "COMPLETED"',
+        '"refused": "COMPLETED"',
+        '"faulted": "FAILED"',
         "completion.receipt.report_sha256",
         "completion.receipt.digest",
-        'if effect.state != "COMPLETED":',
-        "failed or cancelled Effect Lease contradicts terminal promotion report",
+        "effect.state != expected_outcome",
+        'mismatches.append("outcome")',
         "terminal.output_digests != outputs",
         "terminal.detail_sha256 != detail",
         "_enforce_terminal_order(effect, promotion)",
@@ -89,4 +92,8 @@ def test_decision_object_contains_no_execute_or_reconcile_method() -> None:
     assert "finish" not in public
     assert "reconcile" not in public
     assert "promote" not in public
-    assert {"permits_fresh_execution", "requires_reconciliation"} <= public
+    assert {
+        "permits_fresh_execution",
+        "requires_reconciliation",
+        "expected_effect_outcome",
+    } <= public
