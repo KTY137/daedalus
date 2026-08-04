@@ -72,21 +72,31 @@ def _report(root: Path, **changes) -> GateReport:
 
 
 def _release_index(index, report: GateReport):
+    normalized_base = tuple(
+        fixture._artifact(
+            item.artifact_id,
+            item.artifact_kind,
+            content=item.content_sha256,
+            locator=item.content_sha256,
+        )
+        for item in index.artifacts
+    )
+    report_content = strict_gate_report_artifact_sha256(report)
     report_artifact = fixture._artifact(
         "gate-report-release",
         "gate-report",
-        content=strict_gate_report_artifact_sha256(report),
-        locator="a" * 64,
+        content=report_content,
+        locator=report_content,
     )
     effect_inventory = fixture._artifact(
         "effect-inventory-release",
         "effect-inventory",
         content=fixture.REGISTRY,
-        locator="b" * 64,
+        locator=fixture.REGISTRY,
     )
     artifacts = tuple(
         sorted(
-            (*index.artifacts, report_artifact, effect_inventory),
+            (*normalized_base, report_artifact, effect_inventory),
             key=lambda item: item.artifact_id,
         )
     )
