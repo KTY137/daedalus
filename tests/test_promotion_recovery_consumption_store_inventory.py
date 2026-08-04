@@ -58,11 +58,11 @@ def _initializer_calls() -> list[str]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name == SCANNER_FUNCTION
     )
-    return [
-        _name(node.func, aliases)
-        for node in ast.walk(function)
-        if isinstance(node, ast.Call)
-    ]
+    calls = sorted(
+        (node for node in ast.walk(function) if isinstance(node, ast.Call)),
+        key=lambda node: (node.lineno, node.col_offset),
+    )
+    return [_name(node.func, aliases) for node in calls]
 
 
 def test_delta_is_canonical_machine_readable_and_open() -> None:
