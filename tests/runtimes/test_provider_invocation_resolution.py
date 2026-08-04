@@ -22,9 +22,7 @@ from daedalus.runtimes.provider_invocation_resolution import (
     resolve_provider_invocation_authority,
     verify_provider_invocation_resolution_receipt,
 )
-from daedalus.runtimes.provider_observation import (
-    issue_provider_observation_authority,
-)
+from daedalus.runtimes.provider_observation import issue_provider_observation_authority
 
 
 REVISION = "f2c7de5c65ba49f3a6de11dd1d5a26f89fa49f7b"
@@ -148,6 +146,31 @@ def _resolve(
     )
 
 
+def _verify_receipt(
+    receipt: ProviderInvocationResolutionReceipt,
+    authority: ProviderInvocationObservationAuthority,
+    manifest,
+    execution: EffectExecutionRequest,
+    *,
+    at: datetime = NOW,
+) -> None:
+    verify_provider_invocation_resolution_receipt(
+        receipt,
+        authority,
+        manifest,
+        authority_id="authority.runtime-provider-observation",
+        authority_keyring=AUTHORITY_KEYRING,
+        observation_keyring=OBSERVATION_KEYRING,
+        invocation_contract_id="provider-invocation-contract",
+        entrypoint_id="provider.runtime-fixture",
+        runtime_id="runtime-fixture",
+        execution=execution,
+        lease_sha256=LEASE_SHA256,
+        source_revision=REVISION,
+        at=at,
+    )
+
+
 def test_exact_resolution_emits_round_trippable_receipt() -> None:
     execution = _execution()
     manifest = _manifest()
@@ -155,12 +178,7 @@ def test_exact_resolution_emits_round_trippable_receipt() -> None:
 
     receipt = _resolve(authority, manifest, execution)
     restored = ProviderInvocationResolutionReceipt.from_dict(receipt.to_dict())
-    verify_provider_invocation_resolution_receipt(
-        restored,
-        authority=authority,
-        manifest=manifest,
-        verified_at=NOW,
-    )
+    _verify_receipt(restored, authority, manifest, execution)
 
     assert restored == receipt
     assert receipt.registry_sha256 == manifest.digest
@@ -274,7 +292,7 @@ def test_receipt_digest_and_exact_shape_are_fail_closed() -> None:
         ProviderInvocationResolutionReceipt.from_dict(payload)
 
 
-def test_receipt_verifier_derives_descriptor_from_manifest() -> None:
+def test_receipt_verifier_reauthenticates_authority_and_registry() -> None:
     execution = _execution()
     manifest = _manifest()
     authority = _authority(execution, manifest=manifest)
@@ -288,12 +306,14 @@ def test_receipt_verifier_derives_descriptor_from_manifest() -> None:
         ProviderInvocationResolutionBindingError,
         match="registry digest",
     ):
-        verify_provider_invocation_resolution_receipt(
-            receipt,
-            authority=changed_authority,
-            manifest=manifest,
-            verified_at=NOW,
-        )
+        _verify_receipt(receipt, changed_authority, manifest, execution)
+
+    tampered_signature = dataclasses.replace(
+        authority,
+        signature_sha256="0" * 64,
+    )
+    with pytest.raises(ProviderInvocationResolutionAuthenticationError):
+        _verify_receipt(receipt, tampered_signature, manifest, execution)
 
 
 def test_receipt_verification_time_is_part_of_exact_subject() -> None:
@@ -306,9 +326,10 @@ def test_receipt_verification_time_is_part_of_exact_subject() -> None:
         ProviderInvocationResolutionBindingError,
         match="subject mismatch",
     ):
-        verify_provider_invocation_resolution_receipt(
+        _verify_receipt(
             receipt,
-            authority=authority,
-            manifest=manifest,
-            verified_at=NOW + timedelta(microseconds=1),
+            authority,
+            manifest,
+            execution,
+            at=NOW + timedelta(microseconds=1),
         )
