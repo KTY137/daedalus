@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus/gates/repository_write_evidence.py"
 TESTS = (
     "tests/gates/test_repository_write_evidence.py",
+    "tests/gates/test_repository_write_evidence_provenance.py",
     "tests/gates/test_repository_write_evidence_review.py",
 )
 
