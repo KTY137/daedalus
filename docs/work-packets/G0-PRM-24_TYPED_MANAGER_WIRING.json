@@ -1,0 +1,66 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-24",
+  "title": "Typed Promotion Manager Wiring",
+  "gate": 0,
+  "base_revision": "0a676cc6f3944c564acc0a42a9a844b9eeb43a49",
+  "branch": "g0/promotion-manager-wiring-linear",
+  "authority": {
+    "public_module": "daedalus.kairos.gated_writes",
+    "existing_retained_resource": "daedalus.kairos._gated_writes_legacy.py.src",
+    "sealed_parent": "daedalus.kairos.gated_writes._ACCOUNTED_PROMOTE_CANDIDATES",
+    "manager_state": "daedalus.kairos.gated_writes._promotion_manager_boundary_state",
+    "canonical_ledger_type": "daedalus.kernel.promotion_execution.PromotionExecutionLedger"
+  },
+  "implemented": [
+    "post-definition-manager-audit-installation",
+    "post-manager-replay-installation",
+    "canonical-ledger-class-preservation",
+    "typed-per-call-replay-proxy-selection",
+    "invalid-ledger-non-laundering",
+    "installer-alias-removal",
+    "existing-strangler-preservation"
+  ],
+  "source_order": [
+    "verified-legacy-resource-execution",
+    "historical-promotion-retirement",
+    "sealed-persisted-authority-callable-definition",
+    "public-export-freeze",
+    "typed-manager-installation",
+    "typed-replay-installation"
+  ],
+  "current_expected_promotion_inventory_blockers": [
+    "python.promote_candidates:not-central",
+    "kernel.promotion_execution.open:missing-registry-row",
+    "kernel.promotion_execution.begin:missing-registry-row",
+    "kernel.promotion_execution.complete:missing-registry-row"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_manager_live_wiring.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_promotion_manager_installation.py tests/kernel/test_promotion_manager_replay.py tests/kernel/test_promotion_manager_replay_review.py tests/kernel/test_promotion_effect_inventory.py",
+    "python scripts/run_promotion_manager_wiring_mutations.py",
+    "python scripts/run_promotion_manager_audit_mutations.py",
+    "python scripts/run_promotion_manager_replay_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_manager_wiring": true,
+  "canonical_registry_modified": false,
+  "effect_lease_required": false,
+  "runtime_conformance_required": false,
+  "docker_sandbox_required": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "register-promotion-execution-open-begin-complete-as-honest-noncentral-rows",
+    "compose-persisted-effect-lease",
+    "compose-runtime-manifest-and-current-conformance-receipt",
+    "compose-docker-sandbox",
+    "upgrade-promotion-surface-to-central-only-after-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly prevents jobs from recording Step 1; zero-step runs are not product evidence."
+}
