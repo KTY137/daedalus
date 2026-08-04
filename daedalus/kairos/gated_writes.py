@@ -493,4 +493,21 @@ def promote_candidates(
     return completion.report_dict()
 
 
+# Install the typed manager audit and restart-validation stranglers only after
+# the sealed callable exists. The installers preserve the canonical ledger
+# class and wrap only already-typed per-call instances; they perform no Git,
+# filesystem or repository mutation during module import.
+from daedalus.kairos.promotion_manager_boundary import (
+    install_promotion_manager_boundary,
+)
+from daedalus.kairos.promotion_manager_replay import (
+    install_promotion_manager_replay_boundary,
+)
+
+install_promotion_manager_boundary(globals())
+install_promotion_manager_replay_boundary(globals())
+del install_promotion_manager_boundary
+del install_promotion_manager_replay_boundary
+
+
 __all__ = tuple(sorted(name for name in globals() if not name.startswith("_")))
