@@ -577,11 +577,11 @@ class PreprovisionedPromotionRecoveryConsumptionLedger(
             )
 
     def _connect_verified(self, *, read_only: bool) -> sqlite3.Connection:
-        status = inspect_promotion_recovery_consumption_store(self.path)
-        self._require_same_store(status)
-        mode = "ro" if read_only else "rw"
         connection: sqlite3.Connection | None = None
         try:
+            status = inspect_promotion_recovery_consumption_store(self.path)
+            self._require_same_store(status)
+            mode = "ro" if read_only else "rw"
             connection = sqlite3.connect(
                 self.path.as_uri() + f"?mode={mode}",
                 uri=True,
@@ -608,6 +608,10 @@ class PreprovisionedPromotionRecoveryConsumptionLedger(
             after = inspect_promotion_recovery_consumption_store(self.path)
             self._require_same_store(after)
             return connection
+        except PromotionRecoveryConsumptionStateError:
+            if connection is not None:
+                connection.close()
+            raise
         except (PromotionRecoveryConsumptionStoreError, sqlite3.Error) as exc:
             if connection is not None:
                 connection.close()
