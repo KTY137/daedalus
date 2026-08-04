@@ -37,6 +37,19 @@ from .writer_inventory import (
     scan_event_store_writers,
 )
 
+# Temporary strangler: the legacy effect_boundary module remains the sole
+# registry authority while exact promotion-execution descriptors are appended
+# before callers can observe its captured immutable projections.
+from . import effect_boundary as _effect_boundary
+from .promotion_effect_registry import (
+    install_promotion_execution_rows as _install_promotion_execution_rows,
+)
+
+_install_promotion_execution_rows(_effect_boundary)
+del _install_promotion_execution_rows
+del _effect_boundary
+
+
 __all__ = [
     "DEFAULT_BUSY_TIMEOUT_MS",
     "DEFAULT_DB_PATH",
