@@ -256,9 +256,14 @@ class GateReportV3(GateReport):
             raise GateReportV3Error("report_sha256 is required")
         digest_body = dict(payload)
         digest_body.pop("report_sha256")
-        actual_digest = hashlib.sha256(
-            canonical_json(digest_body).encode("ascii")
-        ).hexdigest()
+        try:
+            actual_digest = hashlib.sha256(
+                canonical_json(digest_body).encode("ascii")
+            ).hexdigest()
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise GateReportV3Error(
+                "GateReport-v3 payload is not canonical JSON data"
+            ) from exc
         if claimed_digest != actual_digest:
             raise GateReportV3Error("GateReport-v3 digest mismatch")
 
@@ -360,6 +365,30 @@ def _repository_write_evidence(
     )
 
 
+def _build_base_report(
+    root: Path,
+    *,
+    source_revision: str,
+    runtime_receipts: tuple[RuntimeConformanceReceipt, ...],
+    fault_results: Mapping[str, bool] | None,
+    primary_checkout_mutations: tuple[str, ...],
+    security_boundary_claimed: bool,
+) -> GateReport:
+    report = build_gate0_report(
+        root,
+        source_revision=source_revision,
+        runtime_receipts=runtime_receipts,
+        fault_results=fault_results,
+        primary_checkout_mutations=primary_checkout_mutations,
+        security_boundary_claimed=security_boundary_claimed,
+    )
+    if type(report) is not GateReport:
+        raise GateReportV3Error(
+            "base GateReport-v2 builder returned a non-exact report"
+        )
+    return report
+
+
 def build_gate0_report_v3(
     repo_root: Path,
     *,
@@ -369,17 +398,46 @@ def build_gate0_report_v3(
     primary_checkout_mutations: Iterable[str] = (),
     security_boundary_claimed: bool = False,
 ) -> GateReportV3:
-    """Build v2 evidence plus the exact canonical repository-write inventory."""
+    """Build v2 and repository-write evidence under a repeated drift fence."""
 
     root = repo_root.resolve()
-    base = build_gate0_report(
+    receipt_rows = tuple(runtime_receipts)
+    mutation_rows = tuple(primary_checkout_mutations)
+    fault_rows = None if fault_results is None else dict(fault_results)
+
+    base_before = _build_base_report(
         root,
         source_revision=source_revision,
-        runtime_receipts=runtime_receipts,
-        fault_results=fault_results,
-        primary_checkout_mutations=primary_checkout_mutations,
+        runtime_receipts=receipt_rows,
+        fault_results=fault_rows,
+        primary_checkout_mutations=mutation_rows,
         security_boundary_claimed=security_boundary_claimed,
     )
+    inventory_before = _repository_write_evidence(
+        root,
+        source_revision=source_revision,
+    )
+    base_after = _build_base_report(
+        root,
+        source_revision=source_revision,
+        runtime_receipts=receipt_rows,
+        fault_results=fault_rows,
+        primary_checkout_mutations=mutation_rows,
+        security_boundary_claimed=security_boundary_claimed,
+    )
+    inventory_after = _repository_write_evidence(
+        root,
+        source_revision=source_revision,
+    )
+    if base_before.to_dict() != base_after.to_dict():
+        raise GateReportV3Error(
+            "base GateReport-v2 changed while composing GateReport-v3"
+        )
+    if inventory_before != inventory_after:
+        raise GateReportV3Error(
+            "repository-write inventory changed while composing GateReport-v3"
+        )
+
     (
         inventory_digest,
         scan_input_digest,
@@ -387,13 +445,13 @@ def build_gate0_report_v3(
         generation,
         failures,
         diagnostics,
-    ) = _repository_write_evidence(root, source_revision=source_revision)
+    ) = inventory_after
     base_fields = {
-        field.name: getattr(base, field.name)
+        field.name: getattr(base_after, field.name)
         for field in dataclasses.fields(GateReport)
     }
     base_fields["diagnostics"] = tuple(
-        sorted(set(base.diagnostics).union(diagnostics))
+        sorted(set(base_after.diagnostics).union(diagnostics))
     )
     return GateReportV3(
         **base_fields,
