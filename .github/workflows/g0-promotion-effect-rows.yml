@@ -1,0 +1,89 @@
+name: Gate 0 Promotion Effect Rows
+
+on:
+  pull_request:
+    branches: [g0/promotion-manager-wiring-linear]
+    paths:
+      - "daedalus/spine/__init__.py"
+      - "daedalus/spine/promotion_effect_rows.py"
+      - "tests/kernel/test_promotion_effect_rows*.py"
+      - "tests/kernel/test_promotion_effect_inventory.py"
+      - "scripts/run_promotion_effect_rows_mutations.py"
+      - "docs/work-packets/G0-PRM-25_PROMOTION_EFFECT_ROWS.*"
+      - ".github/workflows/g0-promotion-effect-rows.yml"
+  push:
+    branches: [g0/promotion-effect-rows-linear]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promotion-effect-rows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_effect_rows.py
+          tests/kernel/test_promotion_effect_rows_review.py
+          tests/kernel/test_promotion_effect_inventory.py
+          tests/kernel/test_promotion_effect_inventory_review.py
+          tests/kernel/test_promotion_manager_live_wiring.py
+          tests/kernel/test_promotion_manager_live_wiring_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_promotion_effect_rows_mutations.py
+      - run: python scripts/run_promotion_effect_inventory_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv wheel-venv
+      - run: wheel-venv/bin/python -m pip install dist/*.whl
+      - run: >-
+          wheel-venv/bin/python -c
+          "from daedalus.spine import effect_boundary; expected={'kernel.promotion_execution.open','kernel.promotion_execution.begin','kernel.promotion_execution.complete'}; assert expected <= set(effect_boundary.REGISTRY_BY_ID)"
