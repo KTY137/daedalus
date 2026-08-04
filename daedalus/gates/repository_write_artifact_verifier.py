@@ -22,7 +22,7 @@ from daedalus.schemas import (
     _sorted_strings,
     _utc_timestamp,
 )
-from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.envelope import canonical_json, canonical_sha
 
 from .report_v3 import GateReportV3
 from .repository_write_evidence import RepositoryWriteArtifactEvidence
@@ -167,9 +167,14 @@ def _strict_inventory_from_bytes(raw: bytes) -> RepositoryWriteInventoryV2:
         raise RepositoryWriteArtifactVerificationError(
             "artifact inventory contract is malformed"
         ) from exc
-    if payload != inventory.to_dict():
+    canonical_payload = inventory.to_dict()
+    if payload != canonical_payload:
         raise RepositoryWriteArtifactVerificationError(
             "artifact inventory payload is non-canonical"
+        )
+    if exact != canonical_json(canonical_payload).encode("ascii"):
+        raise RepositoryWriteArtifactVerificationError(
+            "artifact inventory bytes are non-canonical"
         )
     return inventory
 
