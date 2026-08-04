@@ -1,0 +1,87 @@
+name: Gate 0 Attempt Durability Admission
+
+on:
+  pull_request:
+    branches:
+      - g0/event-store-durability-after-attempt-linear
+    paths:
+      - "daedalus/kernel/attempt_ledger.py"
+      - "tests/kernel/test_attempt_durability_admission.py"
+      - "scripts/run_attempt_durability_admission_mutations.py"
+      - "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.md"
+      - "docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.json"
+      - ".github/workflows/g0-attempt-durability-admission.yml"
+  push:
+    branches:
+      - g0/attempt-durability-admission-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-attempt-durability-admission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  admission:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-ATT-15_ATTEMPT_DURABILITY_ADMISSION.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_attempt_durability_admission.py
+          tests/test_spine_gate0_durability.py
+          tests/test_spine_gate0_durability_review.py
+          tests/test_spine_ledger.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
+          tests/kernel/test_isolated_attempt_lifecycle_review.py
+          tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+          tests/kernel/test_isolated_attempt_time_tampering.py
+          tests/kernel/test_isolated_attempt_workspace_root_authority.py
+          tests/kernel/test_isolated_attempt_workspace_identity_review.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
+          tests/kernel/test_isolated_attempt_effect_inventory_registration.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_attempt_durability_admission_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-attempt-durability-wheel
+      - run: /tmp/daedalus-attempt-durability-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-attempt-durability-wheel/bin/python - <<'PY'
+          from daedalus.kernel.attempts import AttemptLedger
+          from daedalus.spine.durability import Gate0DurabilityStatus
+
+          assert AttemptLedger.__module__ == "daedalus.kernel.attempt_ledger"
+          assert Gate0DurabilityStatus.__module__ == "daedalus.spine.durability"
+          PY
