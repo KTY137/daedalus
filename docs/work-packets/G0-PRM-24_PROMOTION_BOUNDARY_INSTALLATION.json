@@ -1,0 +1,56 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-24",
+  "title": "Promotion Boundary Installation",
+  "gate": 0,
+  "base_revision": "0a676cc6f3944c564acc0a42a9a844b9eeb43a49",
+  "branch": "g0/promotion-boundary-installation-v2-linear",
+  "authority": {
+    "live_promotion": "daedalus.kairos.gated_writes.promote_candidates",
+    "manager_boundary": "daedalus.kairos.promotion_manager_boundary.install_promotion_manager_boundary",
+    "manager_replay": "daedalus.kairos.promotion_manager_replay.install_promotion_manager_replay_boundary",
+    "canonical_registry": "daedalus.spine.effect_boundary.ENTRYPOINTS",
+    "registry_strangler": "daedalus.spine.promotion_effect_rows.install_promotion_effect_rows",
+    "execution_ledger": "daedalus.kernel.promotion_execution.PromotionExecutionLedger"
+  },
+  "implemented": [
+    "live-typed-manager-audit-installation",
+    "live-restart-validation-installation",
+    "canonical-ledger-class-preservation",
+    "promotion-execution-open-registry-row",
+    "promotion-execution-begin-registry-row",
+    "promotion-execution-complete-registry-row",
+    "captured-registry-default-refresh",
+    "partial-or-conflicting-installation-refusal",
+    "bounded-installation-mutation-campaign"
+  ],
+  "current_expected_blockers": [
+    "python.promote_candidates:not-central",
+    "kernel.promotion_execution.open:not-central",
+    "kernel.promotion_execution.begin:not-central",
+    "kernel.promotion_execution.complete:not-central"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_boundary_installation.py tests/kernel/test_promotion_boundary_installation_review.py",
+    "python -m pytest -q tests/kernel/test_promotion_effect_inventory.py tests/kernel/test_promotion_effect_inventory_review.py",
+    "python scripts/run_promotion_boundary_installation_mutations.py",
+    "python scripts/run_promotion_effect_inventory_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "compose-persisted-effect-lease-with-live-promotion",
+    "bind-exact-runtime-manifest-and-current-conformance-receipt",
+    "execute-repository-effect-inside-selected-docker-sandbox",
+    "upgrade-promotion-rows-to-central-only-after-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly prevents jobs from recording Step 1; zero-step runs are not product evidence."
+}
