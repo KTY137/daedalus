@@ -1,0 +1,136 @@
+{
+  "schema": "daedalus-gate0-event-store-writer-inventory-work-packet/1",
+  "work_packet": "G0-ES-17",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "selected_parent": "g0/event-store-writer-factory-linear",
+  "report_contract": {
+    "schema": "daedalus-gate0-event-store-writer-inventory/1",
+    "implementation": "daedalus.spine.writer_inventory",
+    "cli": "scripts/report_spine_writer_inventory.py",
+    "json_schema": "configs/schemas/event-store-writer-inventory-v1.schema.json",
+    "production_scope": "daedalus/**/*.py",
+    "revision_binding": "exact_lowercase_40_hex_commit",
+    "input_binding": "sha256_of_sorted_production_path_and_file_sha256_pairs",
+    "output": "canonical_json_stdout_only"
+  },
+  "classifications": [
+    {
+      "kind": "gate0_factory",
+      "blocking": false,
+      "meaning": "direct unshadowed call to the canonical Gate-0 writer factory"
+    },
+    {
+      "kind": "read_only",
+      "blocking": false,
+      "meaning": "direct unshadowed SpineLedger call with literal read_only=true"
+    },
+    {
+      "kind": "legacy_direct",
+      "blocking": true,
+      "meaning": "direct writable or default SpineLedger construction"
+    },
+    {
+      "kind": "ambiguous_direct",
+      "blocking": true,
+      "meaning": "direct SpineLedger construction with dynamic read_only or expanded keyword arguments"
+    },
+    {
+      "kind": "ambiguous_binding",
+      "blocking": true,
+      "meaning": "shadowed, conflicting, indirect or otherwise unresolved writer/factory binding"
+    }
+  ],
+  "invariants": [
+    {
+      "code": "writer_inventory.revision_bound",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_writer_inventory.py::test_revision_and_repository_shape_are_fail_closed"
+    },
+    {
+      "code": "writer_inventory.production_bytes_bound",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_writer_inventory.py::test_inventory_is_deterministic_and_bound_to_all_production_bytes"
+    },
+    {
+      "code": "writer_inventory.shadowing_fails_closed",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_writer_inventory.py::test_shadowed_conflicting_and_indirect_bindings_block_instead_of_disappearing"
+    },
+    {
+      "code": "writer_inventory.malformed_source_refused",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_writer_inventory.py::test_malformed_source_and_relative_import_escape_are_refused"
+    },
+    {
+      "code": "writer_inventory.stdout_only",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/test_spine_writer_inventory_cli.py::test_cli_prints_one_canonical_report_and_does_not_mutate_repository"
+    }
+  ],
+  "mutation_campaign": {
+    "runner": "scripts/run_spine_writer_inventory_mutations.py",
+    "state": "implemented_unexecuted",
+    "mutants": [
+      "legacy-direct-is-not-blocking",
+      "default-direct-constructor-is-read-only",
+      "shadowed-binding-is-admitted-factory",
+      "skip-source-revision-validation",
+      "omit-production-file-bytes-from-binding",
+      "do-not-normalize-syntax-errors"
+    ]
+  },
+  "known_limits": [
+    {
+      "code": "writer_inventory.dynamic_constructor_aliases",
+      "effect": "Wrappers, reflection, eval/exec and nontrivial runtime alias propagation are not proven complete by this AST inventory.",
+      "mitigation": "The inventory is one conservative evidence layer and cannot close Gate 0 without effect inventory, runtime conformance and execution-boundary enforcement."
+    },
+    {
+      "code": "writer_inventory.python_scope_only",
+      "effect": "Non-Python launchers and external processes are outside this scanner.",
+      "mitigation": "They remain governed by the canonical effect-entrypoint inventory and runtime manifests."
+    }
+  ],
+  "remaining_blockers": [
+    {
+      "code": "writer_inventory.exact_head_report_unexecuted",
+      "severity": "blocker",
+      "reason": "The current production callsite count and classifications cannot be claimed until the exact-head scanner runs."
+    },
+    {
+      "code": "event_store.production_writer_migration_incomplete",
+      "severity": "blocker",
+      "reason": "Every exact-head legacy_direct, ambiguous_direct and ambiguous_binding callsite must be migrated or resolved before release closure."
+    },
+    {
+      "code": "writer_inventory.dynamic_completeness_not_proven",
+      "severity": "blocker",
+      "reason": "AST callsite inventory alone does not prove absence of dynamic construction; effect and runtime boundaries remain mandatory."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents scanner, tests, mutations, full-suite, packaging and supported-platform execution."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Builder and context-separated counter-review tests are prepared; an independent reviewer decision is absent."
+    }
+  ],
+  "verification_state": {
+    "builder_implementation": "complete",
+    "builder_static_review": "performed",
+    "separate_counter_review": "implemented_unexecuted",
+    "malformed_and_stale_revision_tests": "implemented_unexecuted",
+    "mutation_tests": "implemented_unexecuted",
+    "exact_head_inventory": "blocked_by_github_actions_issue_67",
+    "full_suite": "blocked_by_github_actions_issue_67",
+    "platform_matrix": "blocked_by_github_actions_issue_67",
+    "isolated_wheel": "blocked_by_github_actions_issue_67",
+    "independent_review": "open",
+    "all_production_writers_migrated": false,
+    "gate0_closed": false
+  }
+}
