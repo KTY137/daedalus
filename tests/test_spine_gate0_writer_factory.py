@@ -14,7 +14,7 @@ from daedalus.spine.durability import (
     Gate0DurabilityError,
     inspect_gate0_durability,
 )
-from daedalus.spine.ledger import SpineLedger
+from daedalus.spine.ledger import SpineError, SpineLedger
 
 
 def test_factory_enters_full_before_generic_schema_migration(
@@ -75,6 +75,16 @@ def test_factory_clamps_timeout_and_refuses_malformed_timeout(tmp_path) -> None:
 
     with pytest.raises(Gate0DurabilityError, match="integer"):
         open_gate0_spine_writer(tmp_path / "bad.sqlite3", busy_timeout_ms="bad")
+
+
+def test_factory_normalizes_canonical_opening_failure(tmp_path, monkeypatch) -> None:
+    def fail_open(*args, **kwargs):
+        raise SpineError("injected non-WAL opening failure")
+
+    monkeypatch.setattr(durability, "_Gate0OpeningSpineLedger", fail_open)
+    with pytest.raises(Gate0DurabilityError, match="could not be opened") as raised:
+        durability.open_gate0_spine_writer(tmp_path / "state" / "spine.sqlite3")
+    assert isinstance(raised.value.__cause__, SpineError)
 
 
 def test_factory_closes_writer_when_final_readback_is_weak(
