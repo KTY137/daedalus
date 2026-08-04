@@ -90,6 +90,19 @@ def test_receipt_exposes_no_execution_methods() -> None:
     assert forbidden.isdisjoint(vars(consumption.ConsumedPromotionRecoveryDecision))
 
 
+def test_receipt_parser_requires_exact_fields_without_coercion() -> None:
+    source = inspect.getsource(
+        consumption.ConsumedPromotionRecoveryDecision.from_dict
+    )
+
+    assert "if actual != expected" in source
+    assert "if set(verified_payload) != verified_fields" in source
+    assert "if set(expectation_payload) != expectation_fields" in source
+    assert "str(payload" not in source
+    assert "str(verified_payload" not in source
+    assert "str(expectation_payload" not in source
+
+
 def test_consume_revalidates_before_and_inside_immediate_transaction() -> None:
     source = inspect.getsource(
         consumption.PromotionRecoveryConsumptionLedger.consume
