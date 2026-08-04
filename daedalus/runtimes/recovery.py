@@ -1,9 +1,11 @@
 """Runtime-bound reconciliation for provider effects with unknown outcomes.
 
 This adapter authenticates the exact persisted runtime execution at its durable
-start instant and binds it to the entrypoint, lease, execution, idempotency key
-and source revision before delegating to the generic signed-observation recovery
-operation.  It never invokes a provider and accepts only an already STARTED
+start instant, loads the pre-invocation provider-observation binding, and derives
+both provider identity and accepted observation keys from retained authenticated
+material.  Recovery callers cannot supply or replace either trust dimension.
+
+The adapter never invokes a provider and accepts only an already STARTED
 execution that is pending reconciliation.
 """
 from __future__ import annotations
@@ -23,6 +25,10 @@ from daedalus.kernel.runtime_effect_replay import (
     inspect_runtime_effect_execution,
 )
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
+from daedalus.runtimes.provider_observation import (
+    ProviderObservationAuthorityError,
+    ProviderObservationBindingLedger,
+)
 from daedalus.spine.effect_boundary import EntrypointSpec, Wiring
 
 
@@ -37,14 +43,28 @@ class RuntimeProviderRecoveryBindingError(RuntimeProviderRecoveryError):
 def _registry_map(
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec],
 ) -> dict[str, EntrypointSpec]:
-    if isinstance(registry, Mapping):
-        rows = dict(registry)
-        if any(key != value.id for key, value in rows.items()):
-            raise RuntimeProviderRecoveryBindingError(
-                "runtime recovery registry contains mismatched key/id rows"
-            )
-        return rows
-    rows = tuple(registry)
+    try:
+        if isinstance(registry, Mapping):
+            rows = dict(registry)
+            if any(
+                type(value) is not EntrypointSpec or key != value.id
+                for key, value in rows.items()
+            ):
+                raise RuntimeProviderRecoveryBindingError(
+                    "runtime recovery registry contains malformed key/id rows"
+                )
+            return rows
+        if isinstance(registry, (str, bytes)):
+            raise TypeError("registry sequence cannot be text")
+        rows = tuple(registry)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime recovery registry is malformed"
+        ) from exc
+    if any(type(row) is not EntrypointSpec for row in rows):
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime recovery registry contains malformed rows"
+        )
     if len({row.id for row in rows}) != len(rows):
         raise RuntimeProviderRecoveryBindingError(
             "runtime recovery registry contains duplicate entrypoint ids"
@@ -57,8 +77,7 @@ def _validate_runtime_binding(
     authorization: RuntimeBoundEffectAuthorization,
     execution: EffectExecutionRequest,
     start_receipt: LeasedEffectStartReceipt,
-    expected_source_revision: str,
-) -> None:
+) -> RuntimeEffectExecutionReplaySnapshot:
     if type(authorization) is not RuntimeBoundEffectAuthorization:
         raise RuntimeProviderRecoveryBindingError(
             "authorization must be an exact RuntimeBoundEffectAuthorization"
@@ -74,43 +93,44 @@ def _validate_runtime_binding(
     if not isinstance(entrypoint_id, str) or not entrypoint_id.strip():
         raise RuntimeProviderRecoveryBindingError("entrypoint_id must be non-empty")
     expected = entrypoint_id.strip()
-    spec = _registry_map(authorization.registry).get(expected)
-    if spec is None:
+    try:
+        spec = _registry_map(authorization.registry).get(expected)
+        if spec is None:
+            raise RuntimeProviderRecoveryBindingError(
+                "runtime recovery entrypoint is absent from the registry"
+            )
+        comparisons = {
+            "request_entrypoint": (authorization.request.entrypoint_id, expected),
+            "lease_entrypoint": (
+                authorization.capability.lease.entrypoint_id,
+                expected,
+            ),
+            "spec_runtime": (spec.runtime_id, authorization.capability.runtime_id),
+            "lease_runtime": (
+                authorization.capability.lease.runtime_id,
+                authorization.capability.runtime_id,
+            ),
+            "lease_sha256": (
+                start_receipt.lease_sha256,
+                authorization.capability.lease.digest,
+            ),
+            "execution_id": (
+                start_receipt.execution_id,
+                execution.execution_id,
+            ),
+            "idempotency_key": (
+                start_receipt.idempotency_key,
+                execution.idempotency_key,
+            ),
+            "execution_request_sha256": (
+                start_receipt.execution_request_sha256,
+                execution.digest,
+            ),
+        }
+    except AttributeError as exc:
         raise RuntimeProviderRecoveryBindingError(
-            "runtime recovery entrypoint is absent from the registry"
-        )
-    comparisons = {
-        "request_entrypoint": (authorization.request.entrypoint_id, expected),
-        "lease_entrypoint": (
-            authorization.capability.lease.entrypoint_id,
-            expected,
-        ),
-        "spec_runtime": (spec.runtime_id, authorization.capability.runtime_id),
-        "lease_runtime": (
-            authorization.capability.lease.runtime_id,
-            authorization.capability.runtime_id,
-        ),
-        "lease_sha256": (
-            start_receipt.lease_sha256,
-            authorization.capability.lease.digest,
-        ),
-        "execution_id": (
-            start_receipt.execution_id,
-            execution.execution_id,
-        ),
-        "idempotency_key": (
-            start_receipt.idempotency_key,
-            execution.idempotency_key,
-        ),
-        "execution_request_sha256": (
-            start_receipt.execution_request_sha256,
-            execution.digest,
-        ),
-        "source_revision": (
-            authorization.capability.source_revision,
-            expected_source_revision,
-        ),
-    }
+            "runtime provider recovery subject is malformed"
+        ) from exc
     mismatches = sorted(
         name
         for name, (actual, required) in comparisons.items()
@@ -148,6 +168,57 @@ def _validate_runtime_binding(
         raise RuntimeProviderRecoveryBindingError(
             "runtime provider recovery execution is already terminal"
         )
+    return replay
+
+
+def _load_provider_binding(
+    *,
+    entrypoint_id: str,
+    authorization: RuntimeBoundEffectAuthorization,
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+    observation: ExternalEffectObservation,
+    ledger: ProviderObservationBindingLedger,
+):
+    if type(ledger) is not ProviderObservationBindingLedger:
+        raise RuntimeProviderRecoveryBindingError(
+            "observation_binding_ledger must be an exact "
+            "ProviderObservationBindingLedger"
+        )
+    try:
+        record = ledger.load(execution.execution_id)
+        if record is None:
+            raise RuntimeProviderRecoveryBindingError(
+                "runtime provider recovery has no retained observation authority"
+            )
+        ledger.require_bound(
+            record.authority,
+            start_receipt,
+            entrypoint_id=entrypoint_id,
+            runtime_id=authorization.capability.runtime_id,
+            execution=execution,
+            lease_sha256=authorization.capability.lease.digest,
+            source_revision=authorization.capability.source_revision,
+        )
+    except RuntimeProviderRecoveryBindingError:
+        raise
+    except (AttributeError, ProviderObservationAuthorityError, ValueError) as exc:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery observation authority failed authentication"
+        ) from exc
+    if type(observation) is not ExternalEffectObservation:
+        raise RuntimeProviderRecoveryBindingError(
+            "observation must be an exact ExternalEffectObservation"
+        )
+    if observation.provider_id != record.authority.provider_id:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery observation provider differs from retained authority"
+        )
+    if observation.issuer_key_id not in record.authority.observation_issuer_key_ids:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery observation issuer is not retained"
+        )
+    return record
 
 
 def reconcile_runtime_provider_unknown(
@@ -157,9 +228,7 @@ def reconcile_runtime_provider_unknown(
     execution: EffectExecutionRequest,
     start_receipt: LeasedEffectStartReceipt,
     observation: ExternalEffectObservation,
-    observation_keyring: Mapping[str, bytes | str],
-    expected_provider_id: str,
-    expected_source_revision: str,
+    observation_binding_ledger: ProviderObservationBindingLedger,
     reconciled_at: datetime,
 ) -> EffectRecoveryResult:
     """Reconcile one STARTED provider effect without invoking it again."""
@@ -169,18 +238,30 @@ def reconcile_runtime_provider_unknown(
         authorization,
         execution,
         start_receipt,
-        expected_source_revision,
     )
-    return reconcile_unknown_effect(
-        authorization.effect_ledger,
+    record = _load_provider_binding(
+        entrypoint_id=entrypoint_id.strip(),
+        authorization=authorization,
         execution=execution,
         start_receipt=start_receipt,
         observation=observation,
-        keyring=observation_keyring,
-        expected_provider_id=expected_provider_id,
-        expected_source_revision=expected_source_revision,
-        reconciled_at=reconciled_at,
+        ledger=observation_binding_ledger,
     )
+    try:
+        return reconcile_unknown_effect(
+            authorization.effect_ledger,
+            execution=execution,
+            start_receipt=start_receipt,
+            observation=observation,
+            keyring=observation_binding_ledger.observation_keyring,
+            expected_provider_id=record.authority.provider_id,
+            expected_source_revision=record.authority.source_revision,
+            reconciled_at=reconciled_at,
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery delegated subject is malformed"
+        ) from exc
 
 
 __all__ = [

@@ -6,6 +6,13 @@ and effect start are durable before external code runs. Exact replay is inert,
 and success, failure, cancellation, and runtime-trust loss receive terminal
 receipts.
 
+For exact production runtime authority, a signed provider-observation authority
+is authenticated before the effect start.  After the durable start, its provider
+and observation-key subject is persisted before external code runs.  Exact
+replay requires the same retained binding.  Narrow test doubles remain available
+through the compatibility seam while callers migrate; they cannot participate
+in runtime-bound unknown-outcome recovery.
+
 Once a provider returns, failure to create canonical output evidence is an
 unknown external outcome. The execution remains durably ``STARTED`` and must be
 reconciled from independently authenticated provider evidence. The broker never
@@ -39,6 +46,11 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
+from daedalus.runtimes.provider_observation import (
+    ProviderObservationAuthority,
+    ProviderObservationAuthorityError,
+    ProviderObservationBindingLedger,
+)
 from daedalus.spine.effect_boundary import EntrypointSpec, Wiring
 from daedalus.spine.envelope import canonical_sha
 
@@ -116,14 +128,28 @@ def _utc_now() -> datetime:
 def _registry_map(
     registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec],
 ) -> Mapping[str, EntrypointSpec]:
-    if isinstance(registry, Mapping):
-        rows = dict(registry)
-        if any(key != row.id for key, row in rows.items()):
-            raise RuntimeProviderBindingMismatch(
-                "runtime authorization registry contains mismatched key/id rows"
-            )
-        return rows
-    rows = tuple(registry)
+    try:
+        if isinstance(registry, Mapping):
+            rows = dict(registry)
+            if any(
+                type(row) is not EntrypointSpec or key != row.id
+                for key, row in rows.items()
+            ):
+                raise RuntimeProviderBindingMismatch(
+                    "runtime authorization registry contains malformed key/id rows"
+                )
+            return rows
+        if isinstance(registry, (str, bytes)):
+            raise TypeError("registry sequence cannot be text")
+        rows = tuple(registry)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise RuntimeProviderBindingMismatch(
+            "runtime authorization registry is malformed"
+        ) from exc
+    if any(type(row) is not EntrypointSpec for row in rows):
+        raise RuntimeProviderBindingMismatch(
+            "runtime authorization registry contains malformed rows"
+        )
     if len({row.id for row in rows}) != len(rows):
         raise RuntimeProviderBindingMismatch(
             "runtime authorization registry contains duplicate entrypoint ids"
@@ -161,10 +187,15 @@ def _validate_binding(
     if not isinstance(entrypoint_id, str) or not entrypoint_id.strip():
         raise RuntimeProviderBindingMismatch("entrypoint_id must be non-empty")
     expected = entrypoint_id.strip()
-    comparisons = {
-        "request entrypoint": authorization.request.entrypoint_id,
-        "lease entrypoint": authorization.capability.lease.entrypoint_id,
-    }
+    try:
+        comparisons = {
+            "request entrypoint": authorization.request.entrypoint_id,
+            "lease entrypoint": authorization.capability.lease.entrypoint_id,
+        }
+    except AttributeError as exc:
+        raise RuntimeProviderBindingMismatch(
+            "runtime authorization subject is malformed"
+        ) from exc
     mismatches = sorted(
         label for label, actual in comparisons.items() if actual != expected
     )
@@ -310,8 +341,6 @@ def _rollback_runtime_fence(connection: sqlite3.Connection) -> None:
     try:
         connection.execute("ROLLBACK")
     except BaseException:
-        # Closing the connection still releases its SQLite writer lock. A
-        # rollback failure must not replace the original trust-fence failure.
         pass
 
 
@@ -334,7 +363,7 @@ def _finish_completed_under_runtime_fence(
 
     ledger, capability = components
     try:
-        connection = ledger._connect()  # noqa: SLF001 - persisted authority seam
+        connection = ledger._connect()
     except sqlite3.Error as exc:
         raise RuntimeProviderTrustFenceError(
             "runtime trust terminal fence could not open its SQLite authority"
@@ -352,7 +381,7 @@ def _finish_completed_under_runtime_fence(
                 "runtime trust record disappeared before terminal completion"
             )
         try:
-            record = ledger._from_row(row)  # noqa: SLF001 - authenticates row
+            record = ledger._from_row(row)
         except BaseException as exc:
             raise RuntimeProviderTrustFenceError(
                 "runtime trust record failed authentication at terminal completion"
@@ -407,11 +436,6 @@ def _finish_completed_under_runtime_fence(
             outcome="completed",
             output_digests=output_digests,
         )
-
-        # This transaction changed no trust state. Releasing it with ROLLBACK is
-        # intentional: if an unnecessary read-only COMMIT failed after the
-        # separate effect ledger had already committed, raising would lose an
-        # otherwise valid provider value and exact replay could not recover it.
         _rollback_runtime_fence(connection)
         return terminal
     except sqlite3.Error as exc:
@@ -426,6 +450,92 @@ def _finish_completed_under_runtime_fence(
         connection.close()
 
 
+def _production_observation_binding(
+    authorization: RuntimeBoundEffectAuthorization,
+    authority: ProviderObservationAuthority | None,
+    ledger: ProviderObservationBindingLedger | None,
+) -> tuple[ProviderObservationAuthority, ProviderObservationBindingLedger] | None:
+    """Require the new contract for exact production authority.
+
+    Non-exact authorization objects are the retained compatibility seam for
+    narrow unit doubles.  They cannot be accepted by runtime-bound recovery,
+    which requires an exact ``RuntimeBoundEffectAuthorization``.
+    """
+
+    if type(authorization) is not RuntimeBoundEffectAuthorization:
+        if authority is not None or ledger is not None:
+            if (
+                type(authority) is not ProviderObservationAuthority
+                or type(ledger) is not ProviderObservationBindingLedger
+            ):
+                raise RuntimeProviderBindingMismatch(
+                    "provider observation compatibility inputs are incomplete"
+                )
+            return authority, ledger
+        return None
+    if type(authority) is not ProviderObservationAuthority:
+        raise RuntimeProviderBindingMismatch(
+            "exact runtime providers require ProviderObservationAuthority"
+        )
+    if type(ledger) is not ProviderObservationBindingLedger:
+        raise RuntimeProviderBindingMismatch(
+            "exact runtime providers require ProviderObservationBindingLedger"
+        )
+    return authority, ledger
+
+
+def _prepare_observation_authority_after_start(
+    *,
+    spec: EntrypointSpec,
+    authorization: RuntimeBoundEffectAuthorization,
+    execution: EffectExecutionRequest,
+    start_receipt: LeasedEffectStartReceipt,
+    authority: ProviderObservationAuthority,
+    ledger: ProviderObservationBindingLedger,
+    replay: bool,
+    at: datetime,
+) -> None:
+    """Authenticate/load the exact binding before any provider callback."""
+
+    try:
+        if replay:
+            ledger.require_bound(
+                authority,
+                start_receipt,
+                entrypoint_id=spec.id,
+                runtime_id=spec.runtime_id,
+                execution=execution,
+                lease_sha256=authorization.capability.lease.digest,
+                source_revision=authorization.capability.source_revision,
+            )
+        else:
+            ledger.verify_authority(
+                authority,
+                entrypoint_id=spec.id,
+                runtime_id=spec.runtime_id,
+                execution=execution,
+                lease_sha256=authorization.capability.lease.digest,
+                source_revision=authorization.capability.source_revision,
+                at=at,
+            )
+            ledger.bind_start(authority, start_receipt, bound_at=at)
+    except (AttributeError, ProviderObservationAuthorityError, ValueError) as exc:
+        if not replay:
+            _finish_or_raise_state(
+                authorization,
+                start_receipt,
+                outcome="failed",
+                detail_sha256=_exception_detail(
+                    "provider-observation-authority-binding",
+                    exc,
+                ),
+            )
+        raise RuntimeProviderBindingMismatch(
+            "provider observation authority could not authenticate and bind "
+            "the durable start"
+        ) from exc
+
+
 def run_runtime_provider(
     entrypoint_id: str,
     *,
@@ -433,6 +543,8 @@ def run_runtime_provider(
     execution: EffectExecutionRequest,
     invoke: Callable[[], T],
     output_digests: Callable[[T], Iterable[str]],
+    observation_authority: ProviderObservationAuthority | None = None,
+    observation_binding_ledger: ProviderObservationBindingLedger | None = None,
 ) -> RuntimeInvocationResult[T]:
     """Run one exact provider effect after durable grant/start authorization."""
 
@@ -440,10 +552,31 @@ def run_runtime_provider(
         raise TypeError("invoke must be callable")
     if not callable(output_digests):
         raise TypeError("output_digests must be callable")
+    if type(execution) is not EffectExecutionRequest:
+        raise RuntimeProviderBindingMismatch(
+            "execution must be an exact EffectExecutionRequest"
+        )
     spec = _validate_binding(entrypoint_id, authorization)
+    observation_binding = _production_observation_binding(
+        authorization,
+        observation_authority,
+        observation_binding_ledger,
+    )
 
     authorization.grant()
     start = authorization.begin_effect(execution)
+    if observation_binding is not None:
+        authority, binding_ledger = observation_binding
+        _prepare_observation_authority_after_start(
+            spec=spec,
+            authorization=authorization,
+            execution=execution,
+            start_receipt=start.receipt,
+            authority=authority,
+            ledger=binding_ledger,
+            replay=not start.execute,
+            at=_utc_now(),
+        )
     if not start.execute:
         return RuntimeInvocationResult(
             entrypoint_id=spec.id,
