@@ -99,6 +99,7 @@ jobs:
           /tmp/daedalus-promotion-dual-replay-wheel/bin/python - <<'PY'
           from daedalus.kernel import (
               ExpectedPromotionEffectTerminal,
+              PromotionReconciliationDisposition,
               PromotionReconciliationError,
               PromotionReconciliationProjection,
               inspect_promotion_reconciliation,
@@ -107,5 +108,6 @@ jobs:
           assert inspect_promotion_reconciliation.__module__ == "daedalus.kernel.promotion_reconciliation"
           assert PromotionReconciliationError.__module__ == "daedalus.kernel.promotion_reconciliation"
           assert PromotionReconciliationProjection.__module__ == "daedalus.kernel.promotion_reconciliation"
+          assert PromotionReconciliationDisposition.__module__ == "daedalus.kernel.promotion_reconciliation"
           assert ExpectedPromotionEffectTerminal.__module__ == "daedalus.kernel.promotion_reconciliation"
           PY
