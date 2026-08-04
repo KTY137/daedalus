@@ -34,9 +34,10 @@ Every row remains `local_guards`, declares only `filesystem_write`, and requires
 the one-start invariant, `record_intent`, and `mark_completed`.
 
 Partial installation, conflicting row material, duplicate canonical IDs, a
-registry tuple/mapping disagreement, and an unexpected descriptor identity set
-all refuse. Repeating the exact installation is idempotent and repairs only
-captured immutable defaults.
+registry tuple/mapping disagreement, an unexpected descriptor identity set and
+retained exact rows outside the required ordered registry suffix all refuse.
+Repeating the exact installation is idempotent and repairs only captured
+immutable defaults.
 
 ## Honest scoped result
 
@@ -61,20 +62,20 @@ The packet adds builder tests and a separate source-level counter-review for:
 
 - exact installed identities, targets, effects, guards, anchors and migration
   statement;
-- one canonical tuple and immutable mapping;
+- one canonical tuple, exact ordered suffix and immutable mapping;
 - refreshed defaults for `registry_sha256`, `begin_effect` and
   `check_conformance`;
 - generic effect-start refusal while the rows remain local;
-- partial and conflicting installation refusal;
+- partial, conflicting and reordered installation refusal;
 - inventory transition from missing rows to four local-guard blockers;
 - package-initialization ordering before export projection.
 
 A bounded mutation campaign attacks skipped package installation, partial-row
-acceptance, identity substitution, anchor removal and stale captured defaults.
-The workflow also retains the parent descriptor and promotion-inventory
-mutations, the typed manager-wiring regressions, the complete test suite,
-packaging, an isolated wheel and Ubuntu/Windows on Python 3.10 and 3.12 with two
-hash seeds.
+acceptance, reordered-row acceptance, identity substitution, anchor removal and
+stale captured defaults. The workflow also retains the parent descriptor and
+promotion-inventory mutations, the typed manager-wiring regressions, the
+complete test suite, packaging, an isolated wheel and Ubuntu/Windows on Python
+3.10 and 3.12 with two hash seeds.
 
 No successful verification is claimed before those commands execute against
 the exact branch head. Repository issue `#67` currently causes hosted jobs to
