@@ -1,0 +1,92 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06V",
+  "title": "Pre-provisioned Provider Observation Binding Store",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "8c3429119a6eeffdf81ef553aa3886ee73477e44",
+  "parent_branch": "g0/provider-observation-persistence-inventory-linear",
+  "branch": "g0/provider-observation-preprovisioned-store-linear",
+  "primary_finding": "issue-189",
+  "change_class": "additive-strangler-persistence-foundation",
+  "authority": "explicit-store-bootstrap-and-existing-store-only-compatibility",
+  "scope": {
+    "adds_explicit_no_clobber_store_initializer": true,
+    "adds_read_only_noncreating_store_inspection": true,
+    "adds_existing_store_only_compatibility_ledger": true,
+    "binds_store_metadata_to_exact_target_and_source_revision": true,
+    "requires_isolated_attempt_target": true,
+    "requires_primary_checkout_disjointness": true,
+    "rejects_symlink_redirection": true,
+    "rejects_hard_link_aliases": true,
+    "rejects_preexisting_sqlite_sidecars": true,
+    "uses_sqlite_mode_ro_for_replay": true,
+    "uses_sqlite_mode_rw_for_writers": true,
+    "retains_historical_auto_initializing_import_path": true,
+    "registers_canonical_effect_entrypoints": false,
+    "binds_effect_lease_or_runtime_authority": false,
+    "migrates_runtime_provider_broker": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "normal_construction_creates_or_repairs_state": false,
+    "replay_load_is_read_only": true,
+    "missing_store_is_not_recreated": true,
+    "store_subject_is_revision_bound": true,
+    "primary_checkout_target_is_refused_by_this_api": true,
+    "canonical_inventory_integrated": false,
+    "guard_contracts_complete": false,
+    "production_callers_migrated": false,
+    "fault_matrix_complete": false,
+    "issue_189_closed": false,
+    "closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "round_trip_binding_test_prepared": true,
+    "missing_store_noncreation_test_prepared": true,
+    "stale_revision_metadata_test_prepared": true,
+    "primary_checkout_overlap_test_prepared": true,
+    "symlink_and_hard_link_tests_prepared": true,
+    "sqlite_sidecar_test_prepared": true,
+    "store_identity_substitution_test_prepared": true,
+    "read_only_replay_connection_test_prepared": true,
+    "postpublication_cleanup_fault_test_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 11,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "adversarial_corrections": [
+    "the first publication draft inspected the target while the temporary hard-link alias still existed; the alias is now removed before inspection and exact single-link status is required",
+    "the first isolation draft did not persist the source revision and target subject inside the database; an exact metadata table now binds both and stale target revisions refuse",
+    "hard-link aliases and pre-existing SQLite journal, WAL and SHM files are now explicit blockers"
+  ],
+  "remaining_blockers": [
+    "the explicit initializer and binding writer are not yet canonical guarded effect entrypoints",
+    "the runtime provider broker still requires the historical exact ledger type and has not migrated to this compatibility ledger",
+    "the historical auto-initializing constructor and default create-capable SQLite paths remain production inventory blockers",
+    "the complete open, begin, select, insert, commit, rollback and close fault-injection matrix remains a dependent guarded-integration packet",
+    "Docker sandbox and RuntimeConformance authority are not composed with store bootstrap or binding writes",
+    "canonical inventory integration and exact production caller migration remain open",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
