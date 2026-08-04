@@ -1,0 +1,110 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-PRM-25I",
+  "title": "Promotion Public Boundary Installer",
+  "gate": 0,
+  "source_branch": "g0/promotion-public-boundary-linear",
+  "base_branch": "g0/promotion-effect-lifecycle-linear",
+  "base_revision": "5f01a5cfe456cf7340c89d520a7577cc87cd524d",
+  "status": "prepared_not_installed",
+  "scope": {
+    "added_modules": [
+      "daedalus/kairos/promotion_effect_public_boundary.py"
+    ],
+    "added_tests": [
+      "tests/kernel/test_promotion_effect_public_boundary.py",
+      "tests/kernel/test_promotion_effect_public_boundary_adversarial.py",
+      "tests/kernel/test_promotion_effect_public_boundary_review.py"
+    ],
+    "added_mutation_runner": "scripts/run_promotion_effect_public_boundary_mutations.py",
+    "live_gated_writes_modified": false,
+    "canonical_registry_modified": false,
+    "owner_approval_issued": false,
+    "promotion_executed": false,
+    "merge_requested": false
+  },
+  "contract": {
+    "entrypoint_id": "python.promote_candidates",
+    "capability_keyword": "promotion_effect_capability",
+    "missing_capability_behavior": "refuse_before_delegate",
+    "direct_delegate_behavior": "refuse_outside_scoped_lifecycle",
+    "automatic_promotion_allowed": false,
+    "public_wrapped_delegate_exposed": false,
+    "visible_signature_preserved": true,
+    "installation_idempotent": true,
+    "installation_performs_repository_effect": false
+  },
+  "adversarial_matrix": [
+    "missing capability",
+    "direct delegate bypass",
+    "direct lifecycle bypass",
+    "namespace substitution",
+    "forged installation marker",
+    "public entrypoint replacement",
+    "delegate facade replacement",
+    "malformed candidate iterator",
+    "wrong capability failure",
+    "exception scope reset",
+    "cross-thread scope isolation",
+    "receipt projection mutation",
+    "post-install lifecycle callable substitution"
+  ],
+  "mutations": [
+    "claim-direct-delegate-unblocked",
+    "accept-namespace-substitution",
+    "skip-capability-presence-guard",
+    "remove-direct-delegate-scope-guard",
+    "authorize-scope-without-token",
+    "leak-delegate-scope-after-call",
+    "publish-wrapped-delegate",
+    "ignore-public-entrypoint-tampering"
+  ],
+  "verification": {
+    "builder": "pending_exact_head_execution",
+    "independent_source_review": "prepared",
+    "malformed_input": "prepared",
+    "stale_or_substituted_identity": "prepared",
+    "bypass_and_mutation": "prepared",
+    "full_suite": "blocked_by_issue_67",
+    "packaging": "blocked_by_issue_67",
+    "platform_matrix": "blocked_by_issue_67",
+    "iron_plan": "blocked_by_issue_67"
+  },
+  "exit_criteria": {
+    "installer_verified": false,
+    "installed_in_live_gated_writes": false,
+    "all_production_callers_inventory_closed": false,
+    "canonical_row_central": false,
+    "gate_0_closed": false
+  },
+  "blockers": [
+    {
+      "id": "github-actions-issue-67",
+      "kind": "external_infrastructure",
+      "affected": [
+        "exact-head tests",
+        "mutation campaign",
+        "full suite",
+        "packaging",
+        "Python and platform matrix",
+        "Iron Plan"
+      ],
+      "does_not_block": [
+        "source implementation",
+        "static counter-review",
+        "test preparation",
+        "documentation",
+        "later live-installation packet preparation"
+      ]
+    },
+    {
+      "id": "dependent-live-installation",
+      "kind": "planned_work_packet",
+      "affected": [
+        "sole public production route",
+        "production caller inventory",
+        "registry centralization"
+      ]
+    }
+  ]
+}
