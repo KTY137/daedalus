@@ -20,6 +20,10 @@ from types import MappingProxyType
 from typing import Any, Callable, ClassVar, Mapping
 
 from daedalus.kernel.promotion import PromotionAuthorization
+from daedalus.kernel.promotion_execution_reader import (
+    PromotionExecutionReadError,
+    read_promotion_execution_intents,
+)
 from daedalus.schemas import (
     CanonicalContract,
     ContractProvenance,
@@ -644,8 +648,20 @@ class PromotionExecutionLedger:
                 "canonical Event Store cannot enforce one promotion start"
             ) from exc
 
+    def _read_intents(self, *, effect_key: str | None = None) -> list[Intent]:
+        try:
+            return read_promotion_execution_intents(
+                self.path,
+                effect_key=effect_key,
+            )
+        except PromotionExecutionReadError as exc:
+            raise PromotionExecutionStateError(
+                "strict promotion execution Event-Store projection refused"
+            ) from exc
+
     def _intent_for(self, promotion_id: str) -> Intent | None:
-        rows = self._require_spine().resolve_by_effect(_effect_key(promotion_id))
+        key = _effect_key(promotion_id)
+        rows = self._read_intents(effect_key=key)
         if any(row.kind != _PROMOTION_INTENT_KIND for row in rows):
             raise PromotionExecutionStateError(
                 "promotion effect key belongs to another intent kind"
@@ -1010,13 +1026,17 @@ class PromotionExecutionLedger:
         return completion
 
     def pending(self) -> tuple[PromotionExecutionStart, ...]:
-        starts = [
-            self._decode_start(intent)
-            for intent in self._require_spine().open_intents(
-                kind=_PROMOTION_INTENT_KIND
-            )
-        ]
-        return tuple(sorted(starts, key=lambda value: value.promotion_id))
+        pending: list[PromotionExecutionStart] = []
+        for intent in self._read_intents():
+            if intent.kind != _PROMOTION_INTENT_KIND:
+                raise PromotionExecutionStateError(
+                    "reserved promotion effect key belongs to another intent kind"
+                )
+            start = self._decode_start(intent)
+            completion = self._decode_completion(intent, start)
+            if completion is None:
+                pending.append(start)
+        return tuple(sorted(pending, key=lambda value: value.promotion_id))
 
 
 __all__ = [
