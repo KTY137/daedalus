@@ -1,0 +1,81 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20K",
+  "title": "Authenticated Repository Write Guard Behavior Attestation",
+  "gate": 0,
+  "parent_revision": "5f07c2fbd2956557f626c7d2efeb2b8c4352ff0a",
+  "parent_branch": "g0/repository-write-guard-structure-linear",
+  "branch": "g0/repository-write-guard-behavior-attestation-linear",
+  "change_class": "additive-read-only-authentication-contract",
+  "authority": "external-guard-behavior-result-authentication-only",
+  "scope": {
+    "binds_exact_guard_structure_report": true,
+    "binds_exact_structure_record_set": true,
+    "binds_exact_source_revision_and_classification": true,
+    "binds_harness_identity_and_digest": true,
+    "binds_runtime_manifest_digest_without_claiming_conformance": true,
+    "authenticates_short_lived_external_result": true,
+    "requires_exact_contract_set": true,
+    "requires_allow_and_refuse_vector_per_contract": true,
+    "requires_observed_outcome_to_equal_expected_outcome": true,
+    "executes_guard_target": false,
+    "replays_behavior_harness": false,
+    "verifies_runtime_conformance": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "guard_behavior_attestation_authenticated_after_verification": true,
+    "positive_and_negative_vectors_complete": true,
+    "guard_execution_replayed": false,
+    "guard_contract_semantics_verified": false,
+    "runtime_conformance_verified": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_structure_tests_prepared": true,
+    "signature_first_tests_prepared": true,
+    "unknown_and_substituted_key_tests_prepared": true,
+    "contract_set_substitution_tests_prepared": true,
+    "positive_negative_vacuity_tests_prepared": true,
+    "failed_case_tests_prepared": true,
+    "harness_and_runtime_digest_substitution_tests_prepared": true,
+    "canonical_wire_and_ttl_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 10,
+    "author_side_execution": {
+      "status": "isolated-stub-preparation-only",
+      "behavior_tests": "23 passed",
+      "source_review_tests": "7 passed",
+      "bounded_mutants_killed": 10,
+      "limitations": "executed against a local stub of the predecessor structural report; not exact-head repository, supported-platform, packaging, runtime, independent-human, semantic, or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the authenticated result is not an independent replay of the behavior harness",
+    "the runtime-manifest digest is bound but runtime conformance is not verified",
+    "Effect-Lease, Primary-Checkout-disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification, manifest, vectors and attestation corpus remain unpopulated",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
