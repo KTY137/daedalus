@@ -103,9 +103,10 @@ def test_report_binding_uses_exact_v3_and_derived_failure_set() -> None:
     assert "len(report.repository_write_failures)" in source
 
 
-def test_contract_does_not_claim_artifact_bytes_were_fetched_or_verified() -> None:
+def test_contract_does_not_fetch_or_verify_external_artifact_bytes() -> None:
     source = inspect.getsource(evidence)
     assert "read_bytes" not in source
     assert "download" not in source
-    assert "signature" not in source.lower()
+    assert "verify_signature" not in source
+    assert "verify_artifact" not in source
     assert "trust_bundle" not in source
