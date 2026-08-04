@@ -1,0 +1,140 @@
+{
+  "schema": "daedalus-gate0-baseline-v2-work-packet/1",
+  "work_packet": "G0-BL-19",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "selected_parent": "g0/gate-report-writer-inventory-linear",
+  "contracts": {
+    "baseline": "daedalus-gate-baseline/2",
+    "monotonicity_receipt": "daedalus-gate-monotonicity/2",
+    "baseline_schema": "configs/schemas/gate-baseline-v2.schema.json",
+    "receipt_schema": "configs/schemas/gate-monotonicity-v2.schema.json",
+    "implementation": "daedalus.gates.baseline",
+    "independent_verifier": "daedalus.gates.baseline_verifier",
+    "cli": "scripts/gate0_baseline.py",
+    "output": "canonical_json_stdout_only"
+  },
+  "baseline_binding": {
+    "gate": 0,
+    "source_revision": "exact_lowercase_40_hex_commit",
+    "source_tree_revision": "exact_lowercase_40_hex_tree",
+    "gate_report_sha256": "required",
+    "gate_report_artifact_sha256": "required",
+    "registry_sha256": "required",
+    "event_store_writer_inventory_sha256": "required",
+    "blocker_set_sha256": "required",
+    "external_baseline_digest_pin": "required_for_every_comparison",
+    "self_authenticating": false
+  },
+  "monotonicity": {
+    "new_blockers": "current_minus_baseline",
+    "resolved_blockers": "baseline_minus_current",
+    "retained_blockers": "baseline_intersection_current",
+    "passed": "new_blockers_is_empty",
+    "receipt_recomputed_before_acceptance": true,
+    "missing_current_writer_inventory": "new_blocker"
+  },
+  "invariants": [
+    {
+      "code": "baseline.current_v2_report_required",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_baseline_requires_writer_inventory_and_exact_revisions"
+    },
+    {
+      "code": "baseline.external_digest_pin_required",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_expected_baseline_digest_is_mandatory_and_exact"
+    },
+    {
+      "code": "baseline.blocker_set_bound",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_baseline_digest_and_blocker_set_tampering_refuse"
+    },
+    {
+      "code": "monotonicity.writer_regression_detected",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_new_writer_blocker_fails_monotonicity"
+    },
+    {
+      "code": "monotonicity.receipt_recomputed",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_receipt_verifier_recomputes_every_partition_and_binding"
+    },
+    {
+      "code": "baseline.strict_untrusted_loaders",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_v2.py::test_baseline_and_receipt_file_loaders_are_strict"
+    },
+    {
+      "code": "baseline.stdout_only_cli",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_baseline_cli.py"
+    }
+  ],
+  "mutation_campaign": {
+    "runner": "scripts/run_gate_baseline_v2_mutations.py",
+    "state": "implemented_unexecuted",
+    "mutants": [
+      "allow-baseline-without-writer-inventory",
+      "accept-unpinned-baseline-digest",
+      "omit-new-blockers",
+      "always-pass-monotonicity",
+      "trust-serialized-receipt-status",
+      "accept-duplicate-json-keys",
+      "accept-nonrevision-tree",
+      "skip-receipt-recomputation-comparison"
+    ]
+  },
+  "known_limits": [
+    {
+      "code": "baseline.not_self_authenticating",
+      "effect": "A digest detects mutation but does not establish who authorized the baseline.",
+      "mitigation": "Every comparison requires an externally pinned baseline digest; final release evidence must retain that pin in authenticated exact-head evidence or an explicit owner decision."
+    },
+    {
+      "code": "baseline.git_ancestry_external",
+      "effect": "The pure comparison API does not spawn Git and does not prove the current commit descends from the baseline commit.",
+      "mitigation": "Source and tree revisions are exact and retained; ancestry must be supplied by the exact-head collector or release workflow without adding a new unguarded production process-spawn path."
+    }
+  ],
+  "remaining_blockers": [
+    {
+      "code": "baseline.canonical_gate0_record_not_adopted",
+      "severity": "blocker",
+      "reason": "No exact-head GateReport-v2 baseline has been generated, independently reviewed and pinned as the canonical Gate-0 baseline."
+    },
+    {
+      "code": "baseline.external_digest_pin_not_retained",
+      "severity": "blocker",
+      "reason": "The final evidence index or owner-controlled configuration does not yet retain the selected baseline digest."
+    },
+    {
+      "code": "baseline.git_ancestry_evidence_unbound",
+      "severity": "blocker",
+      "reason": "Exact baseline/current Git ancestry is not yet retained by the release evidence collector."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents baseline generation, tests, mutations, full-suite, packaging and supported-platform execution."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Builder and separate counter-review tests are prepared; an independent reviewer decision is absent."
+    }
+  ],
+  "verification_state": {
+    "builder_implementation": "complete",
+    "builder_static_review": "performed",
+    "separate_counter_review": "implemented_unexecuted",
+    "malformed_and_stale_revision_tests": "implemented_unexecuted",
+    "mutation_tests": "implemented_unexecuted",
+    "canonical_baseline_generation": "blocked_by_github_actions_issue_67",
+    "full_suite": "blocked_by_github_actions_issue_67",
+    "platform_matrix": "blocked_by_github_actions_issue_67",
+    "isolated_wheel": "blocked_by_github_actions_issue_67",
+    "independent_review": "open",
+    "gate0_closed": false
+  }
+}
