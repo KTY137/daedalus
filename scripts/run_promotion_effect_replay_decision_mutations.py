@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus" / "kernel" / "promotion_effect_replay.py"
 TESTS = (
     "tests/kernel/test_promotion_effect_replay_decision.py",
+    "tests/kernel/test_promotion_effect_replay_outcomes.py",
     "tests/kernel/test_promotion_effect_replay_decision_review.py",
 )
 MUTATIONS = (
@@ -54,15 +55,9 @@ MUTATIONS = (
         "        mismatches.append(\"detail_sha256\")\n",
     ),
     (
-        "accept-failed-effect-with-terminal-promotion",
-        "    if effect.state != \"COMPLETED\":\n"
-        "        raise PromotionEffectReplayMismatch(\n"
-        "            \"failed or cancelled Effect Lease contradicts terminal promotion report\"\n"
-        "        )\n",
-        "    if False:  # mutant accepts failed effect with retained promotion report\n"
-        "        raise PromotionEffectReplayMismatch(\n"
-        "            \"failed or cancelled Effect Lease contradicts terminal promotion report\"\n"
-        "        )\n",
+        "map-faulted-promotion-to-completed-effect",
+        '    "faulted": "FAILED",\n',
+        '    "faulted": "COMPLETED",  # mutant hides a faulted promotion\n',
     ),
 )
 
