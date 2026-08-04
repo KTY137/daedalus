@@ -43,14 +43,14 @@ MUTATIONS = (
         "            \"adapter_config_sha256\": (\n                subject.adapter_config_sha256,\n                subject.adapter_config_sha256,  # mutant\n            ),\n",
     ),
     (
-        "accept-nonexact-subject",
-        "        if type(subject) is not ProviderInvocationSubject:\n",
-        "        if not isinstance(subject, ProviderInvocationSubject):  # mutant\n",
+        "accept-nonexact-resolve-subject",
+        "    def resolve(\n        self,\n        subject: ProviderInvocationSubject,\n    ) -> ProviderAdapterDescriptor:\n        if type(subject) is not ProviderInvocationSubject:\n",
+        "    def resolve(\n        self,\n        subject: ProviderInvocationSubject,\n    ) -> ProviderAdapterDescriptor:\n        if not isinstance(subject, ProviderInvocationSubject):  # mutant\n",
     ),
     (
         "accept-extra-manifest-fields",
-        "        if not isinstance(payload, Mapping) or set(payload) != expected:\n",
-        "        if not isinstance(payload, Mapping) or False:  # mutant\n",
+        "        if not isinstance(payload, Mapping) or set(payload) != expected:\n            raise ProviderInvocationRegistryShapeError(\n                \"provider invocation registry fields are not exact\"\n            )\n",
+        "        if not isinstance(payload, Mapping) or False:  # mutant\n            raise ProviderInvocationRegistryShapeError(\n                \"provider invocation registry fields are not exact\"\n            )\n",
     ),
 )
 
