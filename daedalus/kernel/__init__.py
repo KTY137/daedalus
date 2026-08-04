@@ -128,6 +128,17 @@ from .promotion_execution import (
     PromotionExecutionStart,
     PromotionExecutionStateError,
 )
+from .promotion_reconciliation import (
+    COMPLETE,
+    EFFECT_ONLY_PENDING,
+    EFFECT_TERMINAL_REQUIRED,
+    FRESH,
+    PROMOTION_PENDING,
+    ExpectedPromotionEffectTerminal,
+    PromotionReconciliationError,
+    PromotionReconciliationProjection,
+    inspect_promotion_reconciliation,
+)
 from .promotion_replay import (
     PromotionReplayProjectionMismatch,
     inspect_promotion_execution,
@@ -195,6 +206,15 @@ __all__ += [
     "PromotionExecutionReplay",
     "PromotionExecutionStart",
     "PromotionExecutionStateError",
+    "COMPLETE",
+    "EFFECT_ONLY_PENDING",
+    "EFFECT_TERMINAL_REQUIRED",
+    "FRESH",
+    "PROMOTION_PENDING",
+    "ExpectedPromotionEffectTerminal",
+    "PromotionReconciliationError",
+    "PromotionReconciliationProjection",
+    "inspect_promotion_reconciliation",
     "PromotionReplayProjectionMismatch",
     "inspect_promotion_execution",
     "RecordedObservation",
