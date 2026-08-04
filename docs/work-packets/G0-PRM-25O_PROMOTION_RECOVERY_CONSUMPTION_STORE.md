@@ -27,15 +27,15 @@ Admission requires a strict read-only projection of an already initialized regul
 - exact unique-index columns, origins, and non-partial state;
 - canonical schema digest.
 
-Every subsequent read or write open rechecks that identity and schema. Writer opening uses SQLite URI `mode=rw`; a missing store cannot be created. Read opening uses `mode=ro` with `query_only` confirmed. No alternate table, database, receipt type, owner-decision issuer, cancellation writer, Git seam, or promotion seam is introduced.
+Every subsequent read or write open rechecks that identity and schema. Writer opening uses SQLite URI `mode=rw`; a missing store cannot be created. Read opening uses `mode=ro` with `query_only` confirmed. Pre-open store failures are normalized to the ledger's `PromotionRecoveryConsumptionStateError` boundary rather than leaking a lower-level store exception. No alternate table, database, receipt type, owner-decision issuer, cancellation writer, Git seam, or promotion seam is introduced.
 
 ## Adversarial batch prepared
 
-Behavior tests cover explicit initialization, deterministic inspection, normal open, missing-store noncreation, missing-parent noncreation, existing-target preservation, one-use publication, malformed and nullable schema drift, post-admission deletion, concrete-file substitution, own-publication cleanup, preservation of a racing foreign replacement, read-only inspection, and parent/file symlink redirection.
+Behavior tests cover malformed non-path inputs, pathless names, explicit initialization, deterministic inspection, normal open, missing-store noncreation, missing-parent noncreation, existing-target preservation, one-use and concurrent publication, malformed and nullable schema drift, post-admission deletion, concrete-file substitution, own-publication cleanup, preservation of a racing foreign replacement, read-only inspection, and parent/file symlink redirection.
 
 A separate AST/source review checks authority separation, constructor noninitialization, existing-store-only writer mode, query-only inspection, normalized SQL/nullability/default/index verification, publication ordering, no-clobber hard-link use, identity-guarded cleanup, additive compatibility, absence of canonical registry mutation, and signatures without callback or keyword authority smuggling.
 
-Nine bounded mutants attack normal-open creation, existing-target refusal, target replacement, identity substitution, table-SQL drift, nullability drift, unique-index drift, deletion of a foreign replacement, and removal of explicit pre-open inspection. The requested workflow covers Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, predecessor regressions, Iron Plan, mutation, the full suite, package build, and isolated-wheel import.
+Ten bounded mutants attack normal-open creation, existing-target refusal, target replacement, identity substitution, table-SQL drift, nullability drift, unique-index drift, deletion of a foreign replacement, removal of explicit pre-open inspection, and leakage of store errors through the ledger boundary. The requested workflow covers Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, predecessor regressions, Iron Plan, mutation, the full suite, package build, and isolated-wheel import.
 
 ## Honest remaining boundary
 
