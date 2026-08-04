@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 from daedalus.spine.ledger import ROOT
 
@@ -132,11 +131,29 @@ def test_bounded_read_binds_descriptor_before_and_after() -> None:
         "opened.st_dev, opened.st_ino",
         "remaining = _MAX_ARTIFACT_BYTES + 1",
         "after = os.fstat(descriptor)",
-        "identity_after != identity_before",
+        "_file_identity(after) != _file_identity(before)",
     )
     for marker in required:
         assert marker in source
     assert "os.write" not in source
+
+
+def test_post_read_revalidation_refuses_path_redirection() -> None:
+    function = _function("_revalidate_exact_path")
+    source = ast.get_source_segment(SOURCE, function) or ""
+    required = (
+        "os.path.lexists(path)",
+        "path.is_symlink()",
+        "path.parent.resolve(strict=True)",
+        "path.resolve(strict=True)",
+        "_normal(path.parent) != _normal(resolved_parent)",
+        "_normal(path) != _normal(resolved)",
+        "stat.S_ISREG(after.st_mode)",
+        "after.st_nlink != 1",
+        "identity_after != identity_before",
+    )
+    for marker in required:
+        assert marker in source
 
 
 def test_public_resolver_hashes_bytes_and_rechecks_path_identity() -> None:
@@ -147,12 +164,32 @@ def test_public_resolver_hashes_bytes_and_rechecks_path_identity() -> None:
         "_read_exact_file(path, before)",
         "hashlib.sha256(content).hexdigest()",
         "content_sha256 != artifact.artifact_content_sha256",
-        "after = path.stat()",
-        "identity_after != identity_before",
+        "after = _revalidate_exact_path(path, before)",
         "ContractProvenance(",
         "artifact.digest",
         "root.digest",
         "RepositoryWriteArtifactResolutionReceipt(",
+    )
+    for marker in required:
+        assert marker in source
+
+
+def test_receipt_rebinds_locator_path_size_and_provenance() -> None:
+    class_node = next(
+        node
+        for node in TREE.body
+        if isinstance(node, ast.ClassDef)
+        and node.name == "RepositoryWriteArtifactResolutionReceipt"
+    )
+    source = ast.get_source_segment(SOURCE, class_node) or ""
+    required = (
+        "_locator_sha256(self.locator) != self.artifact_content_sha256",
+        "self.relative_path != artifact_relative_path(self.locator)",
+        "not 1 <= self.file_size <= _MAX_ARTIFACT_BYTES",
+        "type(self.provenance) is not ContractProvenance",
+        "self.provenance.source_revision != self.source_revision",
+        "self.provenance.created_at != self.resolved_at",
+        "_require_provenance_inputs",
     )
     for marker in required:
         assert marker in source
