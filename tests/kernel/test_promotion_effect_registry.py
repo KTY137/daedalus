@@ -19,9 +19,25 @@ def _installed_rows():
     return tuple(effect_boundary.REGISTRY_BY_ID[entrypoint_id] for entrypoint_id in IDS)
 
 
+def _fake_boundary(rows):
+    return SimpleNamespace(
+        EntrypointSpec=effect_boundary.EntrypointSpec,
+        GuardAnchor=effect_boundary.GuardAnchor,
+        Surface=effect_boundary.Surface,
+        Effect=effect_boundary.Effect,
+        Wiring=effect_boundary.Wiring,
+        ENTRYPOINTS=tuple(rows),
+        REGISTRY_BY_ID=MappingProxyType({row.id: row for row in rows}),
+        registry_sha256=effect_boundary.registry_sha256,
+        begin_effect=effect_boundary.begin_effect,
+        check_conformance=effect_boundary.check_conformance,
+    )
+
+
 def test_exact_rows_are_installed_once_in_canonical_registry() -> None:
     rows = _installed_rows()
     assert tuple(row.id for row in rows) == IDS
+    assert tuple(effect_boundary.ENTRYPOINTS[-len(rows) :]) == rows
     assert len(effect_boundary.ENTRYPOINTS) == len(effect_boundary.REGISTRY_BY_ID)
     assert all(row.wiring is effect_boundary.Wiring.LOCAL_GUARDS for row in rows)
     assert all(row.effects == (effect_boundary.Effect.FILESYSTEM_WRITE,) for row in rows)
@@ -73,20 +89,16 @@ def test_local_rows_still_refuse_generic_effect_start() -> None:
 
 def test_partial_or_conflicting_installation_refuses() -> None:
     opened = effect_boundary.REGISTRY_BY_ID[IDS[0]]
-    fake = SimpleNamespace(
-        EntrypointSpec=effect_boundary.EntrypointSpec,
-        GuardAnchor=effect_boundary.GuardAnchor,
-        Surface=effect_boundary.Surface,
-        Effect=effect_boundary.Effect,
-        Wiring=effect_boundary.Wiring,
-        ENTRYPOINTS=(opened,),
-        REGISTRY_BY_ID=MappingProxyType({opened.id: opened}),
-        registry_sha256=effect_boundary.registry_sha256,
-        begin_effect=effect_boundary.begin_effect,
-        check_conformance=effect_boundary.check_conformance,
-    )
     with pytest.raises(RuntimeError, match="partially or incorrectly"):
-        install_promotion_execution_rows(fake)
+        install_promotion_execution_rows(_fake_boundary((opened,)))
+
+
+def test_reordered_exact_rows_refuse() -> None:
+    opened, begun, completed = _installed_rows()
+    with pytest.raises(RuntimeError, match="exact ordered registry suffix"):
+        install_promotion_execution_rows(
+            _fake_boundary((begun, opened, completed))
+        )
 
 
 def test_registry_mapping_is_immutable() -> None:
