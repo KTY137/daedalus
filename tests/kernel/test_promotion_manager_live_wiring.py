@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import daedalus.kairos.gated_writes as gated_writes
@@ -24,8 +25,13 @@ def test_live_module_preserves_existing_strangler_and_canonical_ledger_type() ->
     assert "promote_candidates" in gated_writes.__all__
     assert "install_promotion_manager_boundary" not in gated_writes.__all__
     assert "install_promotion_manager_replay_boundary" not in gated_writes.__all__
-    assert not hasattr(gated_writes, "_install_promotion_manager_boundary")
-    assert not hasattr(gated_writes, "_install_promotion_manager_replay_boundary")
+    for private_name in (
+        "_install_promotion_manager_boundary",
+        "_install_promotion_manager_replay_boundary",
+        "_make_public_promotion_wrapper",
+        "_wraps",
+    ):
+        assert not hasattr(gated_writes, private_name)
 
 
 def test_live_module_selects_typed_replay_proxy() -> None:
@@ -41,17 +47,20 @@ def test_live_module_selects_typed_replay_proxy() -> None:
     assert type(wrapped) is _ReplayAuditedExecutionLedger
 
 
-def test_live_public_callable_is_the_scoped_manager_wrapper() -> None:
+def test_live_public_callable_remains_function_compatible() -> None:
     state = gated_writes._promotion_manager_boundary_state
     public = gated_writes.promote_candidates
-    assert getattr(public, "__self__", None) is state
-    assert getattr(public, "__func__", None) is getattr(
-        state.promote_candidates,
-        "__func__",
-        None,
-    )
-    assert callable(gated_writes._ACCOUNTED_PROMOTE_CANDIDATES)
-    assert gated_writes._ACCOUNTED_PROMOTE_CANDIDATES is not public
+    parent = gated_writes._ACCOUNTED_PROMOTE_CANDIDATES
+    assert inspect.isfunction(public)
+    assert inspect.unwrap(public) is parent
+    assert public.__wrapped__ is parent
+    assert public.__name__ == parent.__name__ == "promote_candidates"
+    assert public.__qualname__ == parent.__qualname__
+    assert public.__module__ == parent.__module__ == gated_writes.__name__
+    assert inspect.signature(public) == inspect.signature(parent)
+    assert callable(state.promote_candidates)
+    assert parent is state.parent_promote_candidates
+    assert public is not parent
 
 
 def test_live_untyped_ledger_is_not_laundered_or_executed(tmp_path: Path) -> None:
