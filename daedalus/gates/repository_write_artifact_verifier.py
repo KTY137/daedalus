@@ -16,7 +16,6 @@ from daedalus.schemas import (
     CanonicalContract,
     ContractProvenance,
     _identifier,
-    _record_payload,
     _require_provenance_inputs,
     _revision,
     _sha256,
@@ -78,6 +77,18 @@ class RepositoryWriteArtifactVerificationError(ValueError):
     """The artifact bytes or their retained bindings are invalid."""
 
 
+def _validated_artifact_bytes(raw: object) -> bytes:
+    if type(raw) is not bytes:
+        raise RepositoryWriteArtifactVerificationError(
+            "artifact content must be exact immutable bytes"
+        )
+    if not raw or len(raw) > _MAX_ARTIFACT_BYTES:
+        raise RepositoryWriteArtifactVerificationError(
+            "artifact content size is invalid"
+        )
+    return raw
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -96,16 +107,9 @@ def _reject_json_constant(value: str) -> None:
 
 
 def _strict_inventory_from_bytes(raw: bytes) -> RepositoryWriteInventoryV2:
-    if type(raw) is not bytes:
-        raise RepositoryWriteArtifactVerificationError(
-            "artifact content must be exact immutable bytes"
-        )
-    if not raw or len(raw) > _MAX_ARTIFACT_BYTES:
-        raise RepositoryWriteArtifactVerificationError(
-            "artifact content size is invalid"
-        )
+    exact = _validated_artifact_bytes(raw)
     try:
-        text = raw.decode("utf-8")
+        text = exact.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RepositoryWriteArtifactVerificationError(
             "artifact content must be UTF-8"
@@ -306,7 +310,8 @@ def verify_repository_write_artifact(
         raise RepositoryWriteArtifactVerificationError(
             "report must be exact GateReportV3"
         )
-    content_sha256 = hashlib.sha256(artifact_bytes).hexdigest()
+    exact_bytes = _validated_artifact_bytes(artifact_bytes)
+    content_sha256 = hashlib.sha256(exact_bytes).hexdigest()
     if content_sha256 != artifact.artifact_content_sha256:
         raise RepositoryWriteArtifactVerificationError(
             "artifact byte digest contradicts artifact evidence"
@@ -317,7 +322,7 @@ def verify_repository_write_artifact(
             "artifact evidence contradicts GateReport-v3: "
             + ", ".join(report_blockers)
         )
-    inventory = _strict_inventory_from_bytes(artifact_bytes)
+    inventory = _strict_inventory_from_bytes(exact_bytes)
     if inventory.source_revision != artifact.source_revision:
         raise RepositoryWriteArtifactVerificationError(
             "artifact inventory source revision contradicts evidence"
