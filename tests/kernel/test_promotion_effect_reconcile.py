@@ -47,7 +47,7 @@ PRIMARY = "1" * 64
 INTEGRATION = "2" * 40
 SECRET = b"promotion-effect-reconcile-secret-32-bytes-minimum"
 NOW = datetime.now(timezone.utc).replace(microsecond=0)
-PROMOTION_TIME = NOW + timedelta(seconds=1)
+PROMOTION_TIME = NOW + timedelta(hours=2)
 
 
 def build_fixture(tmp_path):
@@ -132,7 +132,7 @@ def build_fixture(tmp_path):
         lease_id="promotion-reconcile-lease-1",
         issuer_key_id="promotion-reconcile-key-1",
         issued_at=NOW,
-        expires_at=NOW + timedelta(hours=1),
+        expires_at=NOW + timedelta(hours=3),
         secret=SECRET,
         registry=registry,
     )
