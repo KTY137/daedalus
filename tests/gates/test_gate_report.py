@@ -11,6 +11,7 @@ from daedalus.spine.writer_inventory import scan_event_store_writers
 
 
 REVISION = "a" * 40
+NEXT_REVISION = "b" * 40
 
 
 def test_gate_report_is_deterministic_and_fail_closed() -> None:
@@ -41,7 +42,7 @@ def test_gate_report_binds_exact_writer_inventory_digest() -> None:
 def test_round_trip_rejects_tampering() -> None:
     report = GateReport(
         gate=0,
-        source_revision="b" * 40,
+        source_revision=NEXT_REVISION,
         registry_sha256="c" * 64,
         security_boundary_claimed=False,
         unguarded_entrypoints=("z", "z", "a"),
@@ -60,7 +61,7 @@ def test_round_trip_rejects_tampering() -> None:
 def test_monotonic_comparison_refuses_new_blockers() -> None:
     baseline = GateReport(
         gate=0,
-        source_revision="a",
+        source_revision=REVISION,
         registry_sha256="1" * 64,
         security_boundary_claimed=False,
         unguarded_entrypoints=("old",),
@@ -68,7 +69,7 @@ def test_monotonic_comparison_refuses_new_blockers() -> None:
     )
     current = GateReport(
         gate=0,
-        source_revision="b",
+        source_revision=NEXT_REVISION,
         registry_sha256="2" * 64,
         security_boundary_claimed=False,
         unguarded_entrypoints=("old", "new"),
@@ -82,14 +83,14 @@ def test_monotonic_comparison_refuses_new_blockers() -> None:
 def test_monotonic_comparison_includes_new_writer_findings() -> None:
     baseline = GateReport(
         gate=0,
-        source_revision="a",
+        source_revision=REVISION,
         registry_sha256="1" * 64,
         security_boundary_claimed=False,
         event_store_writer_inventory_sha256="3" * 64,
     )
     current = GateReport(
         gate=0,
-        source_revision="b",
+        source_revision=NEXT_REVISION,
         registry_sha256="2" * 64,
         security_boundary_claimed=False,
         event_store_writer_inventory_sha256="4" * 64,
@@ -106,7 +107,7 @@ def test_monotonic_comparison_includes_new_writer_findings() -> None:
 def test_serialized_shape_matches_gate_contract_v2() -> None:
     report = GateReport(
         gate=0,
-        source_revision="a",
+        source_revision=REVISION,
         registry_sha256="0" * 64,
         security_boundary_claimed=True,
         owner_approval_enforced=True,
@@ -125,7 +126,7 @@ def test_legacy_v1_report_loads_but_cannot_claim_current_closure() -> None:
     body = {
         "schema": "daedalus-gate-report/1",
         "gate": 0,
-        "source_revision": "a",
+        "source_revision": REVISION,
         "registry_sha256": "0" * 64,
         "closed": True,
         "security_boundary_claimed": True,
@@ -175,7 +176,7 @@ def test_gate_report_accepts_bound_fault_results() -> None:
 def test_missing_writer_inventory_digest_is_always_a_blocker() -> None:
     report = GateReport(
         gate=0,
-        source_revision="a",
+        source_revision=REVISION,
         registry_sha256="0" * 64,
         security_boundary_claimed=True,
         owner_approval_enforced=True,
@@ -190,8 +191,19 @@ def test_writer_inventory_digest_validation_is_fail_closed() -> None:
     with pytest.raises(ValueError, match="event_store_writer_inventory_sha256"):
         GateReport(
             gate=0,
-            source_revision="a",
+            source_revision=REVISION,
             registry_sha256="0" * 64,
             security_boundary_claimed=False,
             event_store_writer_inventory_sha256="bad",
         )
+
+
+def test_source_revision_must_be_exact_lowercase_commit() -> None:
+    for revision in ("a", "A" * 40, "a" * 39, "g" * 40, "a" * 64):
+        with pytest.raises(ValueError, match="source_revision"):
+            GateReport(
+                gate=0,
+                source_revision=revision,
+                registry_sha256="0" * 64,
+                security_boundary_claimed=False,
+            )
