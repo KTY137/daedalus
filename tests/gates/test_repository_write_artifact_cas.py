@@ -26,7 +26,11 @@ BUILT_AT = "2026-08-04T20:00:00+00:00"
 RESOLVED_AT = "2026-08-04T20:01:00+00:00"
 
 
-def _artifact(content: bytes, *, revision: str = REVISION) -> RepositoryWriteArtifactEvidence:
+def _artifact(
+    content: bytes,
+    *,
+    revision: str = REVISION,
+) -> RepositoryWriteArtifactEvidence:
     digest = hashlib.sha256(content).hexdigest()
     report = "3" * 64
     inventory = "4" * 64
@@ -56,7 +60,11 @@ def _artifact(content: bytes, *, revision: str = REVISION) -> RepositoryWriteArt
     )
 
 
-def _roots(tmp_path: Path, *, revision: str = REVISION) -> RepositoryWriteArtifactCASRoot:
+def _roots(
+    tmp_path: Path,
+    *,
+    revision: str = REVISION,
+) -> RepositoryWriteArtifactCASRoot:
     cas = tmp_path / "cas"
     primary = tmp_path / "primary"
     cas.mkdir()
@@ -68,7 +76,11 @@ def _roots(tmp_path: Path, *, revision: str = REVISION) -> RepositoryWriteArtifa
     )
 
 
-def _publish(root: RepositoryWriteArtifactCASRoot, artifact: RepositoryWriteArtifactEvidence, content: bytes) -> Path:
+def _publish(
+    root: RepositoryWriteArtifactCASRoot,
+    artifact: RepositoryWriteArtifactEvidence,
+    content: bytes,
+) -> Path:
     relative = artifact_relative_path(artifact.locator)
     path = Path(root.path).joinpath(*relative.split("/"))
     path.parent.mkdir(parents=True)
@@ -118,7 +130,10 @@ def test_missing_object_refuses_without_creating_shards(tmp_path: Path) -> None:
     artifact = _artifact(b"missing")
     root = _roots(tmp_path)
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="shard directory is missing"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match="shard directory is missing",
+    ):
         resolve_repository_write_artifact(
             artifact,
             root,
@@ -148,7 +163,10 @@ def test_stale_revision_refuses_before_open(tmp_path: Path) -> None:
     root = _roots(tmp_path, revision="7" * 40)
     _publish(root, artifact, b"bytes")
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="source revisions differ"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match="source revisions differ",
+    ):
         resolve_repository_write_artifact(
             artifact,
             root,
@@ -204,7 +222,10 @@ def test_symlink_shard_refuses(tmp_path: Path) -> None:
         pytest.skip("directory symlinks are unavailable")
     (outside / digest[2:]).write_bytes(b"bytes")
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="symlink components"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match="symlink components",
+    ):
         resolve_repository_write_artifact(
             artifact,
             root,
@@ -222,7 +243,10 @@ def test_hard_link_alias_refuses(tmp_path: Path) -> None:
     except OSError:
         pytest.skip("hard links are unavailable")
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="hard-link aliases"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match="hard-link aliases",
+    ):
         resolve_repository_write_artifact(
             artifact,
             root,
@@ -268,9 +292,15 @@ def test_path_replacement_during_read_refuses(
             os.replace(replacement, path)
         return block
 
-    monkeypatch.setattr("daedalus.gates.repository_write_artifact_cas.os.read", replacing_read)
+    monkeypatch.setattr(
+        "daedalus.gates.repository_write_artifact_cas.os.read",
+        replacing_read,
+    )
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="changed after read"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match=r"changed (?:during|after) read",
+    ):
         resolve_repository_write_artifact(
             artifact,
             root,
@@ -315,5 +345,8 @@ def test_receipt_rejects_substituted_locator(tmp_path: Path) -> None:
     payload = resolved.receipt.to_dict()
     payload["locator"] = "artifact-locator:sha256:" + "f" * 64
 
-    with pytest.raises(RepositoryWriteArtifactCASError, match="contradicts content digest"):
+    with pytest.raises(
+        RepositoryWriteArtifactCASError,
+        match="contradicts content digest",
+    ):
         RepositoryWriteArtifactResolutionReceipt.from_dict(payload)
