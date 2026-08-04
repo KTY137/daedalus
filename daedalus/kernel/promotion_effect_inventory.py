@@ -65,8 +65,8 @@ REQUIREMENTS: tuple[PromotionEffectRequirement, ...] = (
         owner_kind="module",
         owner_name="",
         required_calls=(
-            "install_promotion_manager_boundary",
-            "install_promotion_manager_replay_boundary",
+            "_install_promotion_manager_boundary",
+            "_install_promotion_manager_replay_boundary",
         ),
     ),
     PromotionEffectRequirement(
