@@ -13,7 +13,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .ledger import DEFAULT_BUSY_TIMEOUT_MS, SpineLedger
+from .ledger import DEFAULT_BUSY_TIMEOUT_MS, SpineError, SpineLedger
 
 
 _REQUIRED_SYNCHRONOUS = 2  # SQLite FULL
@@ -51,9 +51,9 @@ class _Gate0OpeningSpineLedger(SpineLedger):
     """Private opening profile over the single canonical ledger implementation.
 
     ``SpineLedger.__init__`` calls ``_apply_pragmas`` immediately before its
-    generic migration.  The private subclass changes only that connection-local
+    generic migration. The private subclass changes only that connection-local
     opening posture and inherits every schema, transaction, read and write path
-    unchanged.  It is deliberately not exported as another ledger authority.
+    unchanged. It is deliberately not exported as another ledger authority.
     """
 
     def _apply_pragmas(self) -> None:
@@ -190,8 +190,8 @@ def open_gate0_spine_writer(
     """Open the canonical ledger at FULL before its first migration write.
 
     The returned object is still a ``SpineLedger`` and uses its exact schema and
-    transaction implementation.  Only the private connection-opening profile is
-    specialized.  A final machine readback is mandatory before the writer is
+    transaction implementation. Only the private connection-opening profile is
+    specialized. A final machine readback is mandatory before the writer is
     returned to production code.
     """
     try:
@@ -214,7 +214,7 @@ def open_gate0_spine_writer(
         if "ledger" in locals():
             ledger.close()
         raise
-    except (sqlite3.Error, OSError, ValueError, TypeError) as exc:
+    except (SpineError, sqlite3.Error, OSError, ValueError, TypeError) as exc:
         if "ledger" in locals():
             ledger.close()
         raise Gate0DurabilityError(
