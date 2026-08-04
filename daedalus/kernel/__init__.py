@@ -104,6 +104,14 @@ from .promotion import (
     candidate_batch_sha256,
     resolve_live_target_revision,
 )
+from .promotion_effects import (
+    PROMOTION_EFFECTS,
+    PROMOTION_ENTRYPOINT_ID,
+    PROMOTION_GUARD_CONTRACTS,
+    PROMOTION_TARGET,
+    PromotionEffectBindingMismatch,
+    PromotionEffectCapability,
+)
 from .promotion_execution import (
     PromotionExecutionBeginResult,
     PromotionExecutionBindingMismatch,
@@ -160,6 +168,12 @@ __all__ += [
     "authorize_promotion",
     "candidate_batch_sha256",
     "resolve_live_target_revision",
+    "PROMOTION_EFFECTS",
+    "PROMOTION_ENTRYPOINT_ID",
+    "PROMOTION_GUARD_CONTRACTS",
+    "PROMOTION_TARGET",
+    "PromotionEffectBindingMismatch",
+    "PromotionEffectCapability",
     "PromotionExecutionBeginResult",
     "PromotionExecutionBindingMismatch",
     "PromotionExecutionCompletion",
