@@ -1,0 +1,135 @@
+name: Gate 0 Repository-Write-Bound Report v3
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-observation-authority-linear
+    paths:
+      - "daedalus/gates/report_v3.py"
+      - "configs/schemas/gate-report-v3.schema.json"
+      - "scripts/report_gate0_v3.py"
+      - "scripts/run_gate_report_v3_mutations.py"
+      - "tests/gates/test_gate_report_v3*.py"
+      - "docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.*"
+      - ".github/workflows/g0-gate-report-repository-write-v3.yml"
+  push:
+    branches:
+      - g0/gate-report-repository-write-v3-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-gate-report-repository-write-v3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/gate-report-v3.schema.json
+      - run: python -m json.tool docs/work-packets/G0-GR-20_REPOSITORY_WRITE_BOUND_GATE_REPORT_V3.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_gate_report_v3.py
+          tests/gates/test_gate_report_v3_review.py
+          tests/gates/test_gate_report_v3_schema.py
+          tests/gates/test_gate_report_v3_cli.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_gate_report_v3_mutations.py
+
+  predecessor-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_gate_report.py
+          tests/gates/test_gate_report_v2_schema.py
+          tests/gates/test_gate0_release_assessment.py
+          tests/gates/test_gate0_release_assessment_review.py
+          tests/gates/test_repository_write_inventory.py
+          tests/gates/test_repository_write_inventory_review.py
+          tests/gates/test_repository_write_stdlib_delta.py
+          tests/gates/test_repository_write_stdlib_delta_review.py
+          tests/gates/test_repository_write_inventory_v2.py
+          tests/gates/test_repository_write_inventory_v2_review.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-gate-report-v3-wheel
+      - run: /tmp/daedalus-gate-report-v3-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-gate-report-v3-wheel/bin/python - <<'PY'
+          from daedalus.gates.report_v3 import (
+              GateReportV3,
+              GateReportV3Error,
+              assert_monotonic_v3,
+              build_gate0_report_v3,
+              load_gate_report_v3,
+          )
+
+          assert GateReportV3 is not None
+          assert GateReportV3Error is not None
+          assert callable(assert_monotonic_v3)
+          assert callable(build_gate0_report_v3)
+          assert callable(load_gate_report_v3)
+          PY
