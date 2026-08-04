@@ -51,6 +51,11 @@ MUTATIONS = (
         ),
     ),
     (
+        "accept-stale-source-revision",
+        "    if source_revision != BASE_REVISION:\n",
+        "    if False:  # mutant\n",
+    ),
+    (
         "remove-effect-lease-blocker",
         '    "initializer-not-bound-to-persisted-effect-lease",\n',
         "",
