@@ -1,0 +1,69 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20G",
+  "title": "Authenticated Guard Implementation Manifest",
+  "gate": 0,
+  "parent_revision": "515299546278d8471b11e7608e8d9daf31d495fc",
+  "parent_branch": "g0/repository-write-source-anchor-semantics-linear",
+  "branch": "g0/repository-write-guard-manifest-linear",
+  "change_class": "additive-read-only-authentication-contract",
+  "authority": "guard-manifest-authentication-only",
+  "scope": {
+    "issues_short_lived_hmac_sha256_manifest": true,
+    "binds_source_revision_and_classification_digest": true,
+    "binds_unique_guard_contract_target_digest_records": true,
+    "parses_bounded_strict_canonical_json": true,
+    "authenticates_before_expected_binding_projection": true,
+    "inspects_repository_source": false,
+    "replays_guard_contract_semantics": false,
+    "replays_evidence_bindings": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "guard_manifest_authenticated_after_verification": true,
+    "guard_contract_semantics_verified": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_tests_prepared": true,
+    "stale_classification_tests_prepared": true,
+    "signature_substitution_tests_prepared": true,
+    "future_expiry_and_ttl_tests_prepared": true,
+    "canonical_wire_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "author_side_isolated_stub_execution": {
+      "focused_and_review_tests": "27 passed",
+      "bounded_mutants": "8 killed",
+      "evidence_class": "isolated compatibility harness only; not exact-head repository, supported-platform, packaging, independent-human, semantic-runtime, or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the authenticated manifest is not yet bound to the authenticated source-anchor chain",
+    "guard evidence is not yet replayed against exact current source bytes and the authenticated manifest",
+    "Effect-Lease, RuntimeConformance, Primary-Checkout-disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification and evidence corpus remain unpopulated",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
