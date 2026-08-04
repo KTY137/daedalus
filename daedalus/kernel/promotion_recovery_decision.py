@@ -25,7 +25,10 @@ from daedalus.schemas import (
 )
 from daedalus.spine.envelope import canonical_sha
 
-from .promotion_effects import PromotionEffectCapability
+from .promotion_effects import (
+    PromotionEffectCapability,
+    _promotion_authorization_digest,
+)
 from .promotion_reconciliation import PromotionReconciliationDisposition
 from .promotion_recovery import (
     PromotionRecoveryAction,
@@ -35,6 +38,7 @@ from .promotion_recovery import (
 
 _MAX_RECOVERY_DECISION_TTL = timedelta(hours=24)
 _RECOVERY_OPERATION = "cancel-unentered-promotion-effect"
+_RECOVERY_PLAN_SCHEMA = "daedalus-promotion-recovery-plan/1"
 
 
 class PromotionRecoveryDecisionError(RuntimeError):
@@ -133,6 +137,12 @@ class PromotionRecoveryDecision(CanonicalContract):
         )
         if self.expires_at <= self.issued_at:
             raise ValueError("recovery decision expires_at must be after issued_at")
+        if not isinstance(self.provenance, ContractProvenance):
+            raise ValueError("promotion recovery decision requires provenance")
+        if self.provenance.created_at != self.issued_at:
+            raise ValueError(
+                "promotion recovery decision issued_at must match provenance.created_at"
+            )
         _require_provenance_inputs(
             self.provenance,
             (
@@ -256,7 +266,12 @@ def _parse_utc(value: str, label: str) -> datetime:
 
 
 def _secret_bytes(secret: bytes | str) -> bytes:
-    value = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
+    if isinstance(secret, str):
+        value = secret.encode("utf-8")
+    elif isinstance(secret, bytes):
+        value = secret
+    else:
+        raise TypeError("owner recovery secret must be bytes or string")
     if len(value) < 32:
         raise ValueError("owner recovery secret must contain at least 32 bytes")
     return value
@@ -272,7 +287,12 @@ def _signature(signing_digest: str, secret: bytes | str) -> str:
 
 def _verify_plan_digest(plan: PromotionRecoveryPlan) -> None:
     body = plan.to_dict()
-    declared = body.pop("plan_sha256")
+    try:
+        declared = _sha256(body.pop("plan_sha256"), "plan_sha256")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise PromotionRecoveryDecisionBindingMismatch(
+            "promotion recovery plan digest is malformed"
+        ) from exc
     if not hmac.compare_digest(declared, canonical_sha(body)):
         raise PromotionRecoveryDecisionBindingMismatch(
             "promotion recovery plan digest mismatch"
@@ -292,7 +312,8 @@ def recovery_expectation(
     _verify_plan_digest(plan)
 
     if (
-        plan.disposition
+        plan.schema != _RECOVERY_PLAN_SCHEMA
+        or plan.disposition
         != PromotionReconciliationDisposition.EFFECT_ONLY_PENDING.value
         or plan.action
         != PromotionRecoveryAction.OWNER_DECISION_BEFORE_EFFECT_CANCELLATION.value
@@ -309,15 +330,25 @@ def recovery_expectation(
         )
 
     authorization = capability.promotion
-    if plan.promotion_authorization_sha256 != authorization.authorization_sha256:
+    try:
+        authorization_digest = _promotion_authorization_digest(authorization)
+        source_revision = _revision(
+            authorization.source_revision,
+            "promotion.source_revision",
+        )
+    except (TypeError, ValueError, RuntimeError) as exc:
+        raise PromotionRecoveryDecisionBindingMismatch(
+            "promotion capability authorization is malformed"
+        ) from exc
+    if plan.promotion_authorization_sha256 != authorization_digest:
         raise PromotionRecoveryDecisionBindingMismatch(
             "recovery plan does not bind the supplied promotion capability"
         )
     return PromotionRecoveryExpectation(
-        promotion_authorization_sha256=authorization.authorization_sha256,
+        promotion_authorization_sha256=authorization_digest,
         recovery_plan_sha256=plan.plan_sha256,
         effect_start_receipt_sha256=plan.effect_start_receipt_sha256,
-        source_revision=authorization.source_revision,
+        source_revision=source_revision,
     )
 
 
@@ -334,6 +365,8 @@ def verify_promotion_recovery_decision(
         raise TypeError("verification requires PromotionRecoveryDecision")
     if not isinstance(expectation, PromotionRecoveryExpectation):
         raise TypeError("verification requires PromotionRecoveryExpectation")
+    if not isinstance(keyring, Mapping):
+        raise TypeError("verification requires an owner keyring mapping")
     secret = keyring.get((decision.owner_id, decision.key_id))
     if secret is None:
         raise PromotionRecoveryDecisionSignatureError(
