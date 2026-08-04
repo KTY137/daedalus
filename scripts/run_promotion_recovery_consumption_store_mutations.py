@@ -58,6 +58,11 @@ MUTATIONS = (
         "    if False:  # mutant: unlink even when target identity changed\n        return\n",
     ),
     (
+        "skip-published-directory-fsync",
+        "        _fsync_directory(parent)\n",
+        "        pass  # mutant: skip durable directory publication\n",
+    ),
+    (
         "skip-preopen-store-verification",
         "            status = inspect_promotion_recovery_consumption_store(self.path)\n            self._require_same_store(status)\n            mode = \"ro\" if read_only else \"rw\"\n",
         "            status = self.store_status  # mutant: no explicit pre-open inspection\n            mode = \"ro\" if read_only else \"rw\"\n",
