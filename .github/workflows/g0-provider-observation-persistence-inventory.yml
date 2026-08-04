@@ -53,6 +53,7 @@ jobs:
           tests/gates/test_provider_observation_persistence_inventory.py
           tests/gates/test_provider_observation_persistence_inventory_review.py
           tests/gates/test_provider_observation_persistence_inventory_cli.py
+          tests/gates/test_provider_observation_persistence_inventory_revision.py
 
   mutation:
     runs-on: ubuntu-latest
