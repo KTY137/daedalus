@@ -1,0 +1,98 @@
+name: Gate 0 Event Store Writer Factory
+
+on:
+  pull_request:
+    branches:
+      - g0/attempt-durability-admission-linear
+    paths:
+      - "daedalus/spine/durability.py"
+      - "daedalus/spine/__init__.py"
+      - "daedalus/kernel/attempt_ledger.py"
+      - "tests/test_spine_gate0_writer_factory.py"
+      - "tests/test_spine_gate0_writer_factory_review.py"
+      - "tests/kernel/test_attempt_durability_admission_review.py"
+      - "scripts/run_spine_writer_factory_mutations.py"
+      - "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.md"
+      - "docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.json"
+      - ".github/workflows/g0-event-store-writer-factory.yml"
+  push:
+    branches:
+      - g0/event-store-writer-factory-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-event-store-writer-factory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  factory:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-ES-16_EVENT_STORE_WRITER_FACTORY.json
+      - run: >-
+          python -m pytest -q
+          tests/test_spine_gate0_writer_factory.py
+          tests/test_spine_gate0_writer_factory_review.py
+          tests/test_spine_gate0_durability.py
+          tests/test_spine_gate0_durability_review.py
+          tests/test_spine_ledger.py
+          tests/kernel/test_attempt_durability_admission.py
+          tests/kernel/test_attempt_durability_admission_review.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/kernel/test_isolated_attempt_lifecycle_adversarial.py
+          tests/kernel/test_isolated_attempt_lifecycle_review.py
+          tests/kernel/test_isolated_attempt_spine_wire_review.py
+          tests/kernel/test_isolated_attempt_time_and_preflight.py
+          tests/kernel/test_isolated_attempt_time_tampering.py
+          tests/kernel/test_isolated_attempt_workspace_root_authority.py
+          tests/kernel/test_isolated_attempt_workspace_identity_review.py
+          tests/kernel/test_isolated_attempt_effect_inventory.py
+          tests/kernel/test_isolated_attempt_effect_inventory_registration.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_spine_writer_factory_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-spine-writer-factory-wheel
+      - run: /tmp/daedalus-spine-writer-factory-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-spine-writer-factory-wheel/bin/python - <<'PY'
+          from daedalus.spine import (
+              Gate0DurabilityStatus,
+              SpineLedger,
+              open_gate0_spine_writer,
+          )
+
+          assert Gate0DurabilityStatus.__module__ == "daedalus.spine.durability"
+          assert SpineLedger.__module__ == "daedalus.spine.ledger"
+          assert callable(open_gate0_spine_writer)
+          PY
