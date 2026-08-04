@@ -2,13 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import daedalus.kairos.gated_writes as gated_writes
-from daedalus.kairos.promotion_manager_boundary import (
-    _BoundaryState,
-    _ReplayAuditedExecutionLedger as _NeverImportedReplayAlias,
-)
+from daedalus.kairos.promotion_manager_boundary import _BoundaryState
 from daedalus.kairos.promotion_manager_replay import (
     _ReplayAuditedExecutionLedger,
 )
