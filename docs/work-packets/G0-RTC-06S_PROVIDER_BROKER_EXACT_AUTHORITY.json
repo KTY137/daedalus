@@ -1,0 +1,74 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06S",
+  "title": "Exact Runtime Provider Broker Authority Boundary",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "1449f1a0a802171b173bf0ab130b2713d515d22b",
+  "parent_branch": "g0/provider-observation-authority-linear",
+  "branch": "g0/provider-broker-exact-authority-linear",
+  "change_class": "narrow-public-broker-bypass-closure",
+  "authority": "runtime-provider-public-boundary-only",
+  "scope": {
+    "requires_exact_runtime_bound_authorization": true,
+    "requires_exact_effect_execution_request": true,
+    "requires_exact_provider_observation_authority": true,
+    "requires_exact_provider_observation_binding_ledger": true,
+    "allows_duck_typed_authorization": false,
+    "allows_authorization_subclasses": false,
+    "allows_observation_authority_subclasses": false,
+    "allows_binding_ledger_subclasses": false,
+    "preserves_exact_replay": true,
+    "preserves_public_import_path": true,
+    "adds_effectful_private_bypass": false,
+    "changes_provider_behavior": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "public_broker_rejects_overridable_authority_objects": true,
+    "authority_validation_precedes_grant": true,
+    "durable_observation_binding_precedes_provider_callback": true,
+    "replay_requires_retained_binding_store": true,
+    "missing_authority_fails_before_effect_start": true,
+    "gate_closed": false
+  },
+  "verification": {
+    "exact_authority_builder_tests_prepared": true,
+    "duck_type_bypass_test_prepared": true,
+    "subclass_bypass_tests_prepared": true,
+    "missing_authority_tests_prepared": true,
+    "substituted_replay_store_test_prepared": true,
+    "malformed_registry_tests_prepared": true,
+    "provider_failure_and_cancellation_tests_prepared": true,
+    "runtime_trust_loss_tests_prepared": true,
+    "unknown_outcome_tests_prepared": true,
+    "terminal_persistence_failure_test_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "affected_legacy_suite_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection is not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "the parent provider-observation authority packet remains unverified",
+    "Gate 0 still requires complete production caller migration, Docker sandbox evidence, Primary-Checkout mutation exclusion, complete fault evidence and a closed exact-head release report",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
