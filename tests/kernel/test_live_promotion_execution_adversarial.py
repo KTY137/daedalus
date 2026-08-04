@@ -47,10 +47,10 @@ def _candidate():
     return gated_writes.GatedCandidate(assignment=None, spec=None, result=result)
 
 
-def _authorization() -> PromotionAuthorization:
+def _authorization(*, candidate_sha: str = "1" * 64) -> PromotionAuthorization:
     body = {
         "promotion_id": "promotion-1",
-        "candidate_artifact_sha256": "1" * 64,
+        "candidate_artifact_sha256": candidate_sha,
         "evidence_packet_sha256": "2" * 64,
         "source_revision": REVISION,
         "target_ref": "experimental",
@@ -66,9 +66,17 @@ def _consumed():
     )
 
 
-def _install(monkeypatch, tmp_path: Path, ledger: PromotionExecutionLedger, *, mutate=False):
+def _install(
+    monkeypatch,
+    tmp_path: Path,
+    ledger: PromotionExecutionLedger,
+    *,
+    mutate: bool = False,
+    live_authorization: PromotionAuthorization | None = None,
+):
     auth = _authorization()
     order: list[str] = []
+    authorize_count = 0
 
     class Manager:
         def __init__(self, root):
@@ -88,7 +96,11 @@ def _install(monkeypatch, tmp_path: Path, ledger: PromotionExecutionLedger, *, m
             return False
 
     def authorize(**_kwargs):
+        nonlocal authorize_count
+        authorize_count += 1
         order.append("authorize")
+        if authorize_count == 2 and live_authorization is not None:
+            return live_authorization
         return auth
 
     def resolve(_root, ref):
@@ -203,6 +215,28 @@ def test_pending_restart_never_reexecutes_automatically(
     assert "lock" not in order
     assert "mutate" not in order
     assert len(ledger.pending()) == 1
+
+
+def test_live_authorization_substitution_is_terminally_refused(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "source.py").write_text("original\n", encoding="utf-8")
+    ledger = PromotionExecutionLedger(tmp_path / "promotion.sqlite3")
+    _, order = _install(
+        monkeypatch,
+        tmp_path,
+        ledger,
+        live_authorization=_authorization(candidate_sha="9" * 64),
+    )
+
+    report = _call(repo, ledger)
+    assert report["promoted"] == []
+    assert "differs from persisted start" in report["refused"][0]["reason"]
+    assert "mutate" not in order
+    assert not ledger.pending()
 
 
 def test_primary_checkout_mutation_is_persisted_as_fault_not_success(
