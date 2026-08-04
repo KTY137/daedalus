@@ -1,8 +1,8 @@
 """Revision-bound inventory for the live promotion effect boundary.
 
-This module is deliberately read-only.  It does not issue OwnerApproval,
+This module is deliberately read-only. It does not issue OwnerApproval,
 consume an EffectLease, invoke Git, create a worktree, merge a branch, or
-perform a promotion.  It projects the exact promotion-related rows required in
+perform a promotion. It projects the exact promotion-related rows required in
 the canonical Gate-0 effect registry and verifies that the source anchors those
 rows claim still exist at the inspected repository revision.
 """
@@ -67,6 +67,22 @@ REQUIREMENTS: tuple[PromotionEffectRequirement, ...] = (
         required_calls=(
             "install_promotion_manager_boundary",
             "install_promotion_manager_replay_boundary",
+        ),
+    ),
+    PromotionEffectRequirement(
+        entrypoint_id="kernel.promotion_execution.open",
+        target=(
+            "daedalus.kernel.promotion_execution:"
+            "PromotionExecutionLedger.__init__"
+        ),
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("spine.intent_ledger",),
+        source_path="daedalus/kernel/promotion_execution.py",
+        owner_kind="method",
+        owner_name="PromotionExecutionLedger.__init__",
+        required_calls=(
+            "open_gate0_spine_writer",
+            "_install_single_start_invariant",
         ),
     ),
     PromotionEffectRequirement(
@@ -168,7 +184,8 @@ def _source_bytes(root: Path, relative: str) -> tuple[Path, bytes]:
         ) from exc
     if candidate.is_symlink() or not resolved.is_file():
         raise PromotionEffectInventoryError(
-            f"promotion inventory source must be a regular non-symlink file: {relative}"
+            "promotion inventory source must be a regular non-symlink file: "
+            f"{relative}"
         )
     try:
         payload = resolved.read_bytes()
@@ -208,7 +225,10 @@ def _method_node(tree: ast.Module, qualified_name: str) -> ast.FunctionDef:
         if not isinstance(node, ast.ClassDef) or node.name != class_name:
             continue
         for child in node.body:
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == method_name:
+            if (
+                isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and child.name == method_name
+            ):
                 return child
     raise PromotionEffectInventoryError(
         f"promotion inventory source lacks method {qualified_name}"
