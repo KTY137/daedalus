@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import daedalus.gates.report as report_module
-from daedalus.gates.report import GateReport
+from daedalus.gates.report import GateReport, load_gate_report
 from daedalus.spine.writer_inventory import WriterInventoryError
 
 
@@ -174,9 +174,53 @@ def test_report_digest_tampering_cannot_remove_writer_failure() -> None:
         GateReport.from_dict(payload)
 
 
+def test_loader_rejects_duplicate_json_keys(tmp_path) -> None:
+    path = tmp_path / "report.json"
+    path.write_text('{"schema":"a","schema":"b"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate key"):
+        load_gate_report(path)
+
+
+def test_loader_rejects_nonfinite_constants_and_malformed_json(tmp_path) -> None:
+    constant = tmp_path / "constant.json"
+    constant.write_text('{"value":NaN}', encoding="utf-8")
+    with pytest.raises(ValueError, match="non-finite"):
+        load_gate_report(constant)
+
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text("{", encoding="utf-8")
+    with pytest.raises(ValueError, match="malformed JSON"):
+        load_gate_report(malformed)
+
+
+def test_loader_rejects_non_utf8_and_oversized_reports(tmp_path, monkeypatch) -> None:
+    binary = tmp_path / "binary.json"
+    binary.write_bytes(b"\xff")
+    with pytest.raises(ValueError, match="UTF-8"):
+        load_gate_report(binary)
+
+    monkeypatch.setattr(report_module, "_MAX_REPORT_BYTES", 10)
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(b"{" + b" " * 10)
+    with pytest.raises(ValueError, match="maximum size"):
+        load_gate_report(oversized)
+
+
+def test_loader_rejects_missing_file_and_nonobject_root(tmp_path) -> None:
+    with pytest.raises(ValueError, match="could not be read"):
+        load_gate_report(tmp_path / "missing.json")
+
+    array = tmp_path / "array.json"
+    array.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="root must be an object"):
+        load_gate_report(array)
+
+
 def test_parser_does_not_trust_serialized_closed_or_blocker_projection() -> None:
     source = Path(report_module.__file__).read_text(encoding="utf-8")
     assert "serialized_closed != report.closed" in source
     assert "serialized_blockers != report.blockers" in source
     assert "dict(payload) != report.to_dict()" in source
     assert "event_store_writer_inventory_sha256:missing" in source
+    assert "object_pairs_hook=_object_without_duplicates" in source
+    assert "parse_constant=_reject_json_constant" in source
