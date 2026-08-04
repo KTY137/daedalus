@@ -35,8 +35,14 @@ MUTATIONS = {
         "if False and retained.receipt_sha256 != written.receipt_sha256:",
     ),
     "skip-post-write-reconciliation": (
-        "retained = _complete_terminal(capability, promotion_ledger)",
-        "retained = written",
+        """    try:
+        retained = _complete_terminal(capability, promotion_ledger)
+    except PromotionReconciliationError as exc:
+""",
+        """    try:
+        retained = written
+    except PromotionReconciliationError as exc:
+""",
     ),
 }
 
