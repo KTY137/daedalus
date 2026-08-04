@@ -11,15 +11,16 @@
     "read-only-cross-ledger-operator-plan",
     "complete-five-state-reconciliation-action-table",
     "effect-only-owner-decision-required-contract",
-    "promotion-pending-forensic-reconciliation-contract",
+    "promotion-pending-manual-forensic-reconciliation-without-owner-decision",
     "evidence-terminalization-action-for-retained-promotion-terminal",
     "complete-state-retained-report-replay-action",
     "automatic-external-reexecution-always-false",
+    "manual-reconciliation-required-only-for-nonterminal-retained-starts",
     "exact-effect-and-promotion-receipt-digest-binding",
     "canonical-machine-readable-plan-digest",
     "malformed-authority-type-refusal-before-projection",
     "independent-read-only-source-authority-review",
-    "bounded-five-mutant-recovery-campaign"
+    "bounded-six-mutant-recovery-campaign"
   ],
   "verification_commands": [
     "python -m compileall -q daedalus tests scripts",
