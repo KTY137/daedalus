@@ -37,6 +37,17 @@ def _central_registry() -> tuple[EntrypointSpec, ...]:
     rows.extend(
         (
             EntrypointSpec(
+                id="kernel.promotion_execution.open",
+                surface=Surface.PYTHON,
+                target=(
+                    "daedalus.kernel.promotion_execution:"
+                    "PromotionExecutionLedger.__init__"
+                ),
+                effects=(Effect.FILESYSTEM_WRITE,),
+                guard_contracts=("spine.intent_ledger",),
+                wiring=Wiring.CENTRAL,
+            ),
+            EntrypointSpec(
                 id="kernel.promotion_execution.begin",
                 surface=Surface.PYTHON,
                 target=(
@@ -99,14 +110,13 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
         "source.missing_call:install_promotion_manager_boundary",
         "source.missing_call:install_promotion_manager_replay_boundary",
     )
-    assert findings["kernel.promotion_execution.begin"].status == "missing"
-    assert findings["kernel.promotion_execution.begin"].blockers == (
-        "registry.missing",
-    )
-    assert findings["kernel.promotion_execution.complete"].status == "missing"
-    assert findings["kernel.promotion_execution.complete"].blockers == (
-        "registry.missing",
-    )
+    for entrypoint_id in (
+        "kernel.promotion_execution.open",
+        "kernel.promotion_execution.begin",
+        "kernel.promotion_execution.complete",
+    ):
+        assert findings[entrypoint_id].status == "missing"
+        assert findings[entrypoint_id].blockers == ("registry.missing",)
     assert len(report.report_sha256) == 64
 
 
@@ -121,6 +131,7 @@ def test_exact_central_registry_and_wired_source_close_only_scoped_inventory(
         registry=_central_registry(),
     )
     assert report.closed
+    assert len(report.findings) == 4
     assert {row.status for row in report.findings} == {"central"}
     assert all(not row.blockers for row in report.findings)
 
@@ -167,7 +178,7 @@ def test_duplicate_registry_identity_refuses_before_projection() -> None:
         )
 
 
-def test_missing_source_anchor_refuses_closure(tmp_path: Path) -> None:
+def test_missing_begin_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
     _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
@@ -190,6 +201,34 @@ def test_missing_source_anchor_refuses_closure(tmp_path: Path) -> None:
     )
     assert finding.status == "blocked"
     assert finding.blockers == ("source.missing_call:record_intent",)
+    assert not report.closed
+
+
+def test_missing_open_source_anchor_refuses_closure(tmp_path: Path) -> None:
+    root = _copy_sources(tmp_path)
+    _wire_manager_boundaries(root)
+    source = root / "daedalus" / "kernel" / "promotion_execution.py"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "open_gate0_spine_writer(path)",
+            "open_gate0_spine_writer_removed(path)",
+        ),
+        encoding="utf-8",
+    )
+    report = build_promotion_effect_inventory(
+        root,
+        source_revision=REVISION,
+        registry=_central_registry(),
+    )
+    finding = next(
+        row
+        for row in report.findings
+        if row.entrypoint_id == "kernel.promotion_execution.open"
+    )
+    assert finding.status == "blocked"
+    assert finding.blockers == (
+        "source.missing_call:open_gate0_spine_writer",
+    )
     assert not report.closed
 
 
@@ -224,7 +263,9 @@ def test_report_is_deterministic_and_live_verification_rebuilds() -> None:
         )
 
 
-def test_cli_is_stdout_only_and_require_closed_fails(capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_is_stdout_only_and_require_closed_fails(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     result = main(
         [
             str(ROOT),
@@ -237,7 +278,7 @@ def test_cli_is_stdout_only_and_require_closed_fails(capsys: pytest.CaptureFixtu
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema"] == "daedalus-promotion-effect-inventory/1"
     assert payload["closed"] is False
-    assert len(payload["findings"]) == 3
+    assert len(payload["findings"]) == 4
 
 
 def test_inventory_module_has_no_effect_or_authority_surface() -> None:
