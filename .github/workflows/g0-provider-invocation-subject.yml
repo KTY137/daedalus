@@ -7,7 +7,7 @@ on:
     paths:
       - "daedalus/runtimes/provider_invocation.py"
       - "tests/runtimes/test_provider_invocation_subject*.py"
-      - "docs/work-packets/G0-RTC-06S_PROVIDER_INVOCATION_SUBJECT.*"
+      - "docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.*"
       - ".github/workflows/g0-provider-invocation-subject.yml"
   push:
     branches:
@@ -45,7 +45,7 @@ jobs:
       - run: python -m pip install -e . pytest
       - run: python -m compileall -q daedalus tests
       - run: python tools/iron_plan_guard.py verify
-      - run: python -m json.tool docs/work-packets/G0-RTC-06S_PROVIDER_INVOCATION_SUBJECT.json
+      - run: python -m json.tool docs/work-packets/G0-RTC-06T_PROVIDER_INVOCATION_SUBJECT.json
       - run: >-
           python -m pytest -q
           tests/runtimes/test_provider_invocation_subject.py
