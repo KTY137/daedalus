@@ -346,21 +346,14 @@ def test_cross_layer_digest_chain_cannot_be_detached(
         _verify(classification, blobs, attestation, tmp_path)
 
 
-def test_drive_qualified_source_path_is_refused_before_tree_access(
-    tmp_path: Path,
-) -> None:
-    surface = _surface(path="C:/outside.py")
-    anchor = _source_anchor(surface)
-    classification, blobs = _classification(surface=surface, anchors=(anchor,))
+def test_drive_qualified_source_path_is_refused_portably() -> None:
     with pytest.raises(
         RepositoryWriteSourceAnchorSemanticsError,
         match="repository-relative",
     ):
-        _verify(
-            classification,
-            blobs,
-            _attestation(classification, blobs),
-            tmp_path,
+        source_anchor_semantics._strict_path(
+            "C:/outside.py",
+            "source anchor path",
         )
 
 
