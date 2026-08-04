@@ -13,6 +13,7 @@ TARGET = ROOT / "daedalus/gates/report_v3.py"
 TESTS = (
     "tests/gates/test_gate_report_v3.py",
     "tests/gates/test_gate_report_v3_bounds.py",
+    "tests/gates/test_gate_report_v3_drift.py",
     "tests/gates/test_gate_report_v3_review.py",
     "tests/gates/test_gate_report_v3_schema.py",
     "tests/gates/test_gate_report_v3_cli.py",
@@ -46,6 +47,14 @@ MUTATIONS = {
     "omit-inventory-digest-from-wire-body": (
         """        body[\"repository_write_inventory_sha256\"] = (\n            self.repository_write_inventory_sha256\n        )\n""",
         """        body[\"repository_write_inventory_sha256\"] = None\n""",
+    ),
+    "disable-base-report-drift-fence": (
+        "        if base_before.to_dict() != base_after.to_dict():\n",
+        "        if False and base_before.to_dict() != base_after.to_dict():\n",
+    ),
+    "disable-repository-inventory-drift-fence": (
+        "        if inventory_before != inventory_after:\n",
+        "        if False and inventory_before != inventory_after:\n",
     ),
     "disable-v3-monotonicity": (
         "    return tuple(sorted(set(current.blockers) - set(baseline.blockers)))\n",
