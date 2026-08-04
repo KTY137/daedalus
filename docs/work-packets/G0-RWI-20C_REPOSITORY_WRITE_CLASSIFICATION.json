@@ -1,0 +1,90 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20C",
+  "title": "Revision-Bound Repository Write Classification Contract",
+  "gate": 0,
+  "parent_revision": "acd663f87908442f2fa53f11ce70807ba06ac3f3",
+  "parent_branch": "g0/repository-write-canonical-v2-linear",
+  "branch": "g0/repository-write-classification-contract-linear",
+  "change_class": "additive-preparatory-contract",
+  "authority": "classification-preparation-only",
+  "scope": {
+    "binds_inventory_generation": 2,
+    "binds_source_revision": true,
+    "binds_inventory_digest": true,
+    "binds_scan_input_sha256": true,
+    "binds_exact_surface_identity": true,
+    "defines_target_dispositions": true,
+    "defines_guard_dispositions": true,
+    "defines_evidence_bindings": true,
+    "modifies_canonical_registry": false,
+    "modifies_canonical_scanner": false,
+    "authenticates_external_evidence": false,
+    "binds_gate_report": false
+  },
+  "classification_contract": {
+    "target_dispositions": [
+      "primary_checkout",
+      "checkout_external",
+      "non_repository",
+      "unknown"
+    ],
+    "guard_dispositions": [
+      "central",
+      "local_guards",
+      "inventory_only",
+      "unguarded",
+      "retired"
+    ],
+    "central_requires": [
+      "guard_contract",
+      "effect_lease_receipt",
+      "runtime_conformance_receipt",
+      "primary_checkout_disjointness_receipt"
+    ],
+    "retired_requires": [
+      "production_reachable=false",
+      "retirement_receipt"
+    ]
+  },
+  "claims": {
+    "classification_ready_may_be_reported": true,
+    "classification_ready_means_gate_closed": false,
+    "evidence_authenticated": false,
+    "primary_checkout_target_proven": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_inventory_tests_prepared": true,
+    "surface_substitution_and_duplicate_tests_prepared": true,
+    "authority_bypass_review_prepared": true,
+    "mutation_campaign_prepared": true,
+    "local_stub_execution": {
+      "focused_tests": "19 passed",
+      "bounded_mutants": "6 killed",
+      "evidence_class": "author-side preparation only; not exact-head repository evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the production inventory has not been classified with authenticated receipts",
+    "classification declarations are not independently verified against live runtime and filesystem evidence",
+    "the classification digest is not bound into GateReport-v2 or the release verifier",
+    "canonical registry migration and Primary-Checkout mutation exclusion remain open",
+    "exact-head executable evidence is unavailable while Actions issue 67 persists"
+  ]
+}
