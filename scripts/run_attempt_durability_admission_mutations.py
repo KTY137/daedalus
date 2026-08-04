@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus" / "kernel" / "attempt_ledger.py"
 TESTS = (
     "tests/kernel/test_attempt_durability_admission.py",
+    "tests/kernel/test_attempt_durability_admission_review.py",
     "tests/test_spine_gate0_durability.py",
     "tests/test_spine_gate0_durability_review.py",
     "tests/kernel/test_isolated_attempt_lifecycle.py",
