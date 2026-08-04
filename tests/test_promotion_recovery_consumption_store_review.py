@@ -109,7 +109,7 @@ def test_compatibility_constructor_cannot_initialize_or_create_paths() -> None:
     assert "inspect_promotion_recovery_consumption_store" in calls
 
 
-def test_writer_open_is_existing_store_only() -> None:
+def test_writer_open_is_existing_store_only_and_error_normalized() -> None:
     opener = _method(
         "PreprovisionedPromotionRecoveryConsumptionLedger",
         "_connect_verified",
@@ -120,10 +120,16 @@ def test_writer_open_is_existing_store_only() -> None:
     assert "mode=rwc" not in rendered
     assert "mode=memory" not in rendered
     assert "mkdir" not in set(_call_names(opener))
+    assert rendered.index("try:") < rendered.index(
+        "inspect_promotion_recovery_consumption_store"
+    )
     assert rendered.index("inspect_promotion_recovery_consumption_store") < rendered.index(
         "sqlite3.connect"
     )
     assert rendered.count("inspect_promotion_recovery_consumption_store") == 2
+    assert "except PromotionRecoveryConsumptionStateError:" in rendered
+    assert "except (PromotionRecoveryConsumptionStoreError, sqlite3.Error) as exc:" in rendered
+    assert "raise PromotionRecoveryConsumptionStateError(" in rendered
 
 
 def test_inspection_is_read_only_and_schema_exact() -> None:
@@ -160,6 +166,18 @@ def test_inspection_is_read_only_and_schema_exact() -> None:
     assert store._SCHEMA_DESCRIPTOR["sql"] == store._normalized_sql(store._SCHEMA_SQL)
 
 
+def test_directory_entry_durability_is_explicit_and_platform_bounded() -> None:
+    fsync_directory = _function("_fsync_directory")
+    rendered = ast.get_source_segment(SOURCE, fsync_directory)
+    assert rendered is not None
+    assert 'if os.name == "nt":' in rendered
+    assert "os.O_DIRECTORY" in rendered
+    assert "os.open(path, flags)" in rendered
+    assert "os.fsync(descriptor)" in rendered
+    assert "os.close(descriptor)" in rendered
+    assert "PromotionRecoveryConsumptionStoreError" in rendered
+
+
 def test_initializer_is_the_only_publication_authority_and_does_not_clobber() -> None:
     initializer = _function("initialize_promotion_recovery_consumption_store")
     calls = set(_call_names(initializer))
@@ -180,19 +198,25 @@ def test_initializer_is_the_only_publication_authority_and_does_not_clobber() ->
     assert rendered.index("os.link(temporary, target)") < rendered.index(
         "_file_identity(target) != published_identity"
     )
-    assert rendered.index("os.link(temporary, target)") < rendered.index(
+    assert rendered.index("_fsync_file(target)") < rendered.index(
+        "_fsync_directory(parent)"
+    )
+    assert rendered.index("_fsync_directory(parent)") < rendered.index(
         "inspect_promotion_recovery_consumption_store(target)"
     )
     assert "_remove_own_publication(target, published_identity)" in rendered
 
 
-def test_failed_publication_cleanup_is_identity_guarded() -> None:
+def test_failed_publication_cleanup_is_identity_guarded_and_durable() -> None:
     cleanup = _function("_remove_own_publication")
     rendered = ast.get_source_segment(SOURCE, cleanup)
     assert rendered is not None
     assert "_file_identity(target)" in rendered
     assert rendered.index("current_identity != published_identity") < rendered.index(
         "target.unlink()"
+    )
+    assert rendered.index("target.unlink()") < rendered.index(
+        "_fsync_directory(target.parent)"
     )
     assert "target.unlink()" not in ast.get_source_segment(
         SOURCE,
