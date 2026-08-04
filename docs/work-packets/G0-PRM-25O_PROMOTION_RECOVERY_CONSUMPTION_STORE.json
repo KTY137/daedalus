@@ -11,15 +11,16 @@
     "explicit-store-initialization-separated-from-normal-ledger-construction",
     "preexisting-nonsymlink-parent-required-without-coordinator-mkdir",
     "same-directory-temporary-schema-build-and-no-clobber-hardlink-publication",
-    "strict-schema-version-column-primary-key-and-unique-constraint-verification",
+    "strict-normalized-table-sql-schema-version-column-nullability-default-primary-key-and-unique-index-verification",
     "regular-file-path-and-concrete-file-identity-admission",
     "read-only-query-only-store-inspection",
     "compatibility-subclass-preserving-existing-consume-and-verification-methods",
     "normal-writer-open-uses-sqlite-mode-rw-and-cannot-create-a-missing-store",
     "store-identity-and-schema-rechecked-before-and-after-every-open",
-    "malformed-missing-redirected-and-substituted-store-refusal-tests",
-    "separate-ast-authority-and-publication-order-review",
-    "bounded-six-mutant-store-campaign"
+    "postpublication-cleanup-unlinks-only-the-exact-published-file-identity",
+    "malformed-missing-redirected-substituted-and-racing-replacement-refusal-tests",
+    "separate-ast-authority-schema-and-publication-order-review",
+    "bounded-nine-mutant-store-campaign"
   ],
   "verification_commands": [
     "python -m compileall -q daedalus tests scripts",
