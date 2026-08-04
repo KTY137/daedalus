@@ -1,0 +1,52 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25G",
+  "title": "Promotion Effect Terminalization Authority",
+  "gate": 0,
+  "base_branch": "g0/promotion-dual-replay-linear",
+  "base_revision": "7b2443d3684f447702b097d328ee1c79fc9ec26f",
+  "source_parent_pr": 150,
+  "branch": "g0/promotion-effect-terminalization-linear",
+  "implemented": [
+    "separate-restart-only-terminalization-authority",
+    "strict-cross-ledger-projection-before-any-write",
+    "exact-promotion-derived-outcome-output-and-detail-material",
+    "success-terminalization-after-current-lease-expiry-or-revocation",
+    "failed-and-cancelled-terminalization-from-exact-promotion-receipts",
+    "complete-state-read-only-replay",
+    "fresh-and-pending-state-refusal",
+    "single-canonical-effect-ledger-finish-writer-seam",
+    "post-write-strict-reprojection",
+    "concurrent-exact-terminal-idempotency",
+    "written-versus-retained-receipt-binding",
+    "no-effect-begin-grant-verify-runtime-git-or-promotion-authority",
+    "independent-source-authority-review",
+    "bounded-six-mutant-terminalization-campaign"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25G_PROMOTION_EFFECT_TERMINALIZATION.json",
+    "python -m pytest -q tests/kernel/test_promotion_reconciliation.py tests/kernel/test_promotion_reconciliation_adversarial.py tests/kernel/test_promotion_terminalization.py tests/kernel/test_promotion_terminalization_review.py",
+    "python scripts/run_promotion_terminalization_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "not-installed",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "persist-top-level-effect-start-before-live-promotion-execution-start",
+    "wire-live-promotion-result-to-immediate-exact-effect-terminalization",
+    "route-restart-effect-terminal-required-state-through-this-authority",
+    "preserve-reconciliation-only-refusal-for-effect-only-and-promotion-pending-states",
+    "install-runtime-and-docker-sandbox-composition-before-centralizing-promotion-row",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
