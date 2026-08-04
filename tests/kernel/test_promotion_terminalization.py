@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -27,6 +28,7 @@ DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
 DIGEST_C = "c" * 64
 DIGEST_D = "d" * 64
+PROMOTION_COMPLETED_AT = "2026-08-04T04:00:01.000000+00:00"
 
 
 def _start() -> LeasedEffectStartReceipt:
@@ -93,6 +95,7 @@ def _projection(
     expected_outcome: str = "COMPLETED",
     expected_outputs: tuple[str, ...] = (DIGEST_A, DIGEST_B),
     expected_detail: str = DIGEST_B,
+    promotion_completed_at: str = PROMOTION_COMPLETED_AT,
 ) -> PromotionReconciliationProjection:
     start = _start()
     effect = None
@@ -110,7 +113,9 @@ def _projection(
             PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED,
             PromotionReconciliationDisposition.COMPLETE,
         }:
-            completion = SimpleNamespace(receipt=SimpleNamespace())
+            completion = SimpleNamespace(
+                receipt=SimpleNamespace(completed_at=promotion_completed_at)
+            )
             expected = ExpectedPromotionEffectTerminal(
                 outcome=expected_outcome,
                 output_digests=expected_outputs,
@@ -212,6 +217,28 @@ def test_nonterminal_states_refuse_without_writing(monkeypatch, disposition):
     )
 
     with pytest.raises(PromotionTerminalizationError, match="not eligible"):
+        reconcile_promotion_effect_terminal(
+            _capability(effect_ledger),
+            _promotion_ledger(),
+        )
+    assert effect_ledger.calls == []
+
+
+def test_regressed_clock_refuses_before_writer(monkeypatch):
+    effect_ledger = _EffectLedger(AssertionError("writer must not run"))
+    monkeypatch.setattr(
+        "daedalus.kernel.promotion_terminalization.inspect_promotion_reconciliation",
+        lambda *_args: _projection(
+            PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED,
+            promotion_completed_at="2026-08-04T04:00:10.000000+00:00",
+        ),
+    )
+    monkeypatch.setattr(
+        "daedalus.kernel.promotion_terminalization._utc_now",
+        lambda: datetime(2026, 8, 4, 4, 0, 5, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(PromotionTerminalizationError, match="current clock precedes"):
         reconcile_promotion_effect_terminal(
             _capability(effect_ledger),
             _promotion_ledger(),
