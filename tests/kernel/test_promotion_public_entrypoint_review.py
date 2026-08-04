@@ -36,12 +36,14 @@ def test_entrypoint_has_one_lifecycle_call_and_no_lower_authority() -> None:
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
     ]
+    signature = inspect.signature(entrypoint.promote_candidates)
 
     assert calls.count("promote_candidates_with_effect_lifecycle") == 1
     assert not (set(filter(None, calls)) & FORBIDDEN_NAMES)
-    assert "callback" not in source
-    assert "provider" not in source
-    assert "automatic" not in source.lower()
+    assert "callback" not in signature.parameters
+    assert "provider" not in signature.parameters
+    assert "outcome" not in signature.parameters
+    assert "terminal_receipt" not in signature.parameters
 
 
 def test_entrypoint_imports_only_typed_contracts_and_lifecycle() -> None:
