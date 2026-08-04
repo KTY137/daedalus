@@ -85,7 +85,7 @@ def _recover(
     )
 
 
-def test_runtime_bound_adapter_reconciles_exact_started_execution(
+def test_runtime_bound_adapter_reconciles_exact_started_execution_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -96,6 +96,8 @@ def test_runtime_bound_adapter_reconciles_exact_started_execution(
     assert result.terminal_receipt.lease_sha256 == authorization.capability.lease.digest
     assert result.terminal_receipt.output_digests == (OUTPUT_SHA,)
     assert authorization.effect_ledger.execution_state(execution.execution_id) == "COMPLETED"
+    with pytest.raises(RuntimeProviderRecoveryBindingError, match="already terminal"):
+        _recover(authorization, execution, start, observation)
 
 
 @pytest.mark.parametrize(
@@ -181,7 +183,7 @@ def test_forged_runtime_capability_and_wrong_revision_refuse(
             signature_sha256="0" * 64,
         ),
     )
-    with pytest.raises(RuntimeProviderRecoveryBindingError, match="authentication"):
+    with pytest.raises(RuntimeProviderRecoveryBindingError, match="authenticated replay"):
         _recover(forged, execution, start, observation)
     with pytest.raises(RuntimeProviderRecoveryBindingError, match="source_revision"):
         _recover(
