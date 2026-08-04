@@ -28,6 +28,7 @@ from daedalus.kernel.effects import (
     LeasedEffectStartReceipt,
 )
 from daedalus.kernel.promotion import PromotionAuthorization
+from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.effect_boundary import (
     Effect,
     EntrypointSpec,
@@ -68,17 +69,41 @@ def _promotion_authorization_digest(value: PromotionAuthorization) -> str:
         raise PromotionEffectBindingMismatch(
             "promotion effect capability requires PromotionAuthorization"
         )
-    body = {
-        "promotion_id": value.promotion_id,
-        "candidate_artifact_sha256": value.candidate_artifact_sha256,
-        "evidence_packet_sha256": value.evidence_packet_sha256,
-        "source_revision": value.source_revision,
-        "target_ref": value.target_ref,
-        "live_target_revision": value.live_target_revision,
-        "approval_consumption_sha256": value.approval_consumption_sha256,
-    }
+    try:
+        body = {
+            "promotion_id": _identifier(value.promotion_id, "promotion_id"),
+            "candidate_artifact_sha256": _sha256(
+                value.candidate_artifact_sha256,
+                "candidate_artifact_sha256",
+            ),
+            "evidence_packet_sha256": _sha256(
+                value.evidence_packet_sha256,
+                "evidence_packet_sha256",
+            ),
+            "source_revision": _revision(
+                value.source_revision,
+                "source_revision",
+            ),
+            "target_ref": _identifier(value.target_ref, "target_ref"),
+            "live_target_revision": _revision(
+                value.live_target_revision,
+                "live_target_revision",
+            ),
+            "approval_consumption_sha256": _sha256(
+                value.approval_consumption_sha256,
+                "approval_consumption_sha256",
+            ),
+        }
+        declared = _sha256(
+            value.authorization_sha256,
+            "authorization_sha256",
+        )
+    except (TypeError, ValueError) as exc:
+        raise PromotionEffectBindingMismatch(
+            "promotion authorization contains a noncanonical field"
+        ) from exc
     digest = canonical_sha(body)
-    if digest != value.authorization_sha256:
+    if digest != declared:
         raise PromotionEffectBindingMismatch(
             "promotion authorization digest does not bind its fields"
         )
@@ -90,13 +115,22 @@ def _registry_row(
 ) -> EntrypointSpec:
     if isinstance(registry, Mapping):
         row = registry.get(PROMOTION_ENTRYPOINT_ID)
-        if row is None or row.id != PROMOTION_ENTRYPOINT_ID:
+        if not isinstance(row, EntrypointSpec) or row.id != PROMOTION_ENTRYPOINT_ID:
             raise PromotionEffectBindingMismatch(
                 "effect authorization registry does not contain the exact promotion row"
             )
         return row
 
-    rows = tuple(row for row in registry if row.id == PROMOTION_ENTRYPOINT_ID)
+    try:
+        rows = tuple(
+            row
+            for row in registry
+            if isinstance(row, EntrypointSpec) and row.id == PROMOTION_ENTRYPOINT_ID
+        )
+    except TypeError as exc:
+        raise PromotionEffectBindingMismatch(
+            "effect authorization registry is not an iterable registry"
+        ) from exc
     if len(rows) != 1:
         raise PromotionEffectBindingMismatch(
             "effect authorization registry must contain exactly one promotion row"
@@ -170,6 +204,7 @@ class PromotionEffectCapability:
             "lease_entrypoint": (lease.entrypoint_id, PROMOTION_ENTRYPOINT_ID),
             "request_effects": (request.requested_effects, PROMOTION_EFFECTS),
             "lease_effects": (lease.requested_effects, PROMOTION_EFFECTS),
+            "lease_scope": (lease.effect_scope, request.effect_scope),
             "request_attempt": (request.attempt_id, self.promotion.promotion_id),
             "request_revision": (
                 request.provenance.source_revision,
@@ -178,6 +213,21 @@ class PromotionEffectCapability:
             "lease_revision": (
                 lease.provenance.source_revision,
                 self.promotion.source_revision,
+            ),
+            "request_runtime": (
+                (
+                    request.runtime_manifest_sha256,
+                    request.runtime_conformance_sha256,
+                ),
+                (None, None),
+            ),
+            "lease_runtime": (
+                (
+                    lease.runtime_id,
+                    lease.runtime_manifest_sha256,
+                    lease.runtime_conformance_sha256,
+                ),
+                ("", None, None),
             ),
             "execution_id": (
                 self.execution.execution_id,
