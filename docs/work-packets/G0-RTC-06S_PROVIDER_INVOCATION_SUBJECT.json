@@ -1,0 +1,65 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06S",
+  "title": "Exact Provider Invocation Subject",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "d8910f435a4e9886c33748d6e056ac497d6a9aad",
+  "parent_branch": "g0/provider-observation-authority-linear",
+  "branch": "g0/provider-invocation-subject-linear",
+  "primary_finding": "issue-188",
+  "change_class": "narrow-non-executing-provider-adapter-identity-foundation",
+  "authority": "identity-model-only",
+  "scope": {
+    "adds_exact_provider_invocation_subject": true,
+    "binds_provider_id": true,
+    "binds_adapter_id": true,
+    "binds_adapter_artifact_digest": true,
+    "binds_adapter_config_digest": true,
+    "binds_entrypoint_runtime_execution_lease_revision": true,
+    "adds_provider_execution": false,
+    "changes_broker": false,
+    "changes_recovery": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "subject_is_canonical_and_content_addressed": true,
+    "subject_has_callback_or_execution_authority": false,
+    "broker_enforces_subject": false,
+    "authority_binds_subject_digest": false,
+    "provider_callback_gap_closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "exact_field_round_trip_prepared": true,
+    "all_dimension_digest_sensitivity_prepared": true,
+    "malformed_and_noncanonical_input_tests_prepared": true,
+    "non_execution_review_prepared": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the signed provider-observation authority does not yet bind this subject digest",
+    "the production broker still accepts an independent arbitrary callback",
+    "the provider-observation SQLite writes remain outside complete Gate-0 effect inventory coverage under issue 189",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
