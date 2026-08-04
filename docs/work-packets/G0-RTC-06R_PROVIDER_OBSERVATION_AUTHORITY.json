@@ -1,0 +1,73 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06R",
+  "title": "Authenticated Provider Observation Authority Binding",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "370e931baef8f254f22e55698feb5794ed22d685",
+  "parent_branch": "g0/runtime-post-provider-unknown-linear",
+  "branch": "g0/provider-observation-authority-linear",
+  "primary_finding": "issue-186",
+  "change_class": "narrow-pre-invocation-provider-observation-authority-repair",
+  "authority": "provider-observation-identity-and-recovery-key-binding-only",
+  "scope": {
+    "adds_signed_provider_observation_authority": true,
+    "authenticates_provider_before_external_invocation": true,
+    "persists_start_bound_observation_authority": true,
+    "derives_recovery_provider_from_retained_binding": true,
+    "derives_recovery_keyring_from_retained_binding_ledger": true,
+    "accepts_recovery_provider_id_from_caller": false,
+    "accepts_recovery_observation_keyring_from_caller": false,
+    "allows_provider_callback_in_recovery": false,
+    "preserves_inert_exact_replay": true,
+    "keeps_legacy_narrow_test_double_compatibility": true,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "provider_identity_is_signed_and_revision_bound": true,
+    "observation_issuer_key_set_is_secret_free_digest_bound": true,
+    "durable_binding_precedes_provider_callback": true,
+    "retained_binding_binds_exact_start_receipt": true,
+    "recovery_provider_substitution_is_permitted": false,
+    "recovery_keyset_substitution_is_permitted": false,
+    "authority_authentication_is_provider_execution": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "durable_sqlite_binding_tests_prepared": true,
+    "provider_substitution_tests_prepared": true,
+    "issuer_id_substitution_tests_prepared": true,
+    "issuer_key_material_substitution_tests_prepared": true,
+    "entrypoint_runtime_execution_lease_revision_tests_prepared": true,
+    "malformed_registry_tests_prepared": true,
+    "tampered_row_hmac_tests_prepared": true,
+    "restart_replay_test_prepared": true,
+    "independent_source_authority_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "affected_legacy_suite_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; syntax/source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "the selected Gate-0 stack still lacks complete caller migration, Docker sandbox evidence, Primary-Checkout mutation exclusion, full fault-matrix evidence and a closed exact-head release report",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}

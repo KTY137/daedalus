@@ -28,7 +28,7 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
-def test_public_recovery_signature_has_no_provider_or_retry_callback() -> None:
+def test_public_recovery_signature_has_no_provider_keyring_revision_or_retry_callback() -> None:
     function = _function("reconcile_runtime_provider_unknown")
     assert function.args.vararg is None
     assert function.args.kwarg is None
@@ -40,32 +40,40 @@ def test_public_recovery_signature_has_no_provider_or_retry_callback() -> None:
         "execution",
         "start_receipt",
         "observation",
-        "observation_keyring",
-        "expected_provider_id",
-        "expected_source_revision",
+        "observation_binding_ledger",
         "reconciled_at",
     ]
     assert not any(
         token in name
         for name in names
-        for token in ("invoke", "provider_callback", "retry", "executor", "writer")
+        for token in (
+            "invoke",
+            "provider_callback",
+            "retry",
+            "executor",
+            "writer",
+            "expected_provider_id",
+            "observation_keyring",
+            "expected_source_revision",
+        )
     )
 
 
-def test_runtime_binding_is_verified_before_generic_reconciliation() -> None:
+def test_runtime_and_retained_provider_binding_precede_generic_reconciliation() -> None:
     function = _function("reconcile_runtime_provider_unknown")
     calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
     by_name: dict[str, list[int]] = {}
     for call in calls:
         by_name.setdefault(_call_name(call), []).append(call.lineno)
     assert len(by_name["_validate_runtime_binding"]) == 1
+    assert len(by_name["_load_provider_binding"]) == 1
     assert len(by_name["reconcile_unknown_effect"]) == 1
     assert by_name["_validate_runtime_binding"][0] < by_name[
-        "reconcile_unknown_effect"
-    ][0]
+        "_load_provider_binding"
+    ][0] < by_name["reconcile_unknown_effect"][0]
 
 
-def test_exact_runtime_lease_execution_and_revision_fences_remain() -> None:
+def test_exact_runtime_lease_execution_and_retained_revision_fences_remain() -> None:
     required = (
         '"request_entrypoint":',
         '"lease_entrypoint":',
@@ -75,9 +83,11 @@ def test_exact_runtime_lease_execution_and_revision_fences_remain() -> None:
         '"execution_id":',
         '"idempotency_key":',
         '"execution_request_sha256":',
-        '"source_revision":',
         "if spec.wiring is not Wiring.CENTRAL:",
         "inspect_runtime_effect_execution(authorization, execution)",
+        "source_revision=authorization.capability.source_revision",
+        "record.authority.provider_id",
+        "record.authority.observation_issuer_key_ids",
     )
     for fence in required:
         assert fence in SOURCE
@@ -91,6 +101,15 @@ def test_authenticated_runtime_replay_must_be_pending_and_exact() -> None:
     assert "replay.execution.start_receipt != start_receipt" in text
     assert "not replay.pending_reconciliation" in text
     assert "already terminal" in text
+
+
+def test_retained_provider_and_keyring_are_not_observation_derived() -> None:
+    function = _function("reconcile_runtime_provider_unknown")
+    text = ast.get_source_segment(SOURCE, function) or ""
+    assert "keyring=observation_binding_ledger.observation_keyring" in text
+    assert "expected_provider_id=record.authority.provider_id" in text
+    assert "expected_source_revision=record.authority.source_revision" in text
+    assert "expected_provider_id=observation.provider_id" not in text
 
 
 def test_adapter_has_no_provider_process_network_or_promotion_authority() -> None:
@@ -118,23 +137,33 @@ def test_adapter_has_no_provider_process_network_or_promotion_authority() -> Non
         }
     )
     assert calls.intersection(
-        {"inspect_runtime_effect_execution", "reconcile_unknown_effect"}
-    ) == {"inspect_runtime_effect_execution", "reconcile_unknown_effect"}
+        {
+            "inspect_runtime_effect_execution",
+            "reconcile_unknown_effect",
+            "load",
+            "require_bound",
+        }
+    ) == {
+        "inspect_runtime_effect_execution",
+        "reconcile_unknown_effect",
+        "load",
+        "require_bound",
+    }
 
 
-def test_replay_failures_are_wrapped_in_recovery_domain() -> None:
+def test_replay_and_malformed_subject_failures_are_wrapped_in_recovery_domain() -> None:
     function = _function("_validate_runtime_binding")
-    handlers = [node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler)]
-    assert len(handlers) == 1
-    text = ast.get_source_segment(SOURCE, handlers[0]) or ""
-    assert "RuntimeEffectReplayProjectionError" in text
+    text = ast.get_source_segment(SOURCE, function) or ""
+    assert "except AttributeError as exc:" in text
+    assert "runtime provider recovery subject is malformed" in text
+    assert "except RuntimeEffectReplayProjectionError as exc:" in text
     assert "failed authenticated replay" in text
 
 
 def test_exported_adapter_grants_no_automatic_reexecution() -> None:
     assert '"reconcile_runtime_provider_unknown"' in SOURCE
-    assert "automatic" not in SOURCE.lower()
-    assert "provider" not in {
+    assert "provider_callback" not in SOURCE
+    assert "retry" not in {
         _call_name(node)
         for node in ast.walk(TREE)
         if isinstance(node, ast.Call)
