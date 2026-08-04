@@ -1,0 +1,101 @@
+name: Gate 0 Revision Bound Baseline v2
+
+on:
+  pull_request:
+    branches:
+      - g0/gate-report-writer-inventory-linear
+    paths:
+      - "daedalus/gates/baseline.py"
+      - "daedalus/gates/baseline_verifier.py"
+      - "scripts/gate0_baseline.py"
+      - "scripts/run_gate_baseline_v2_mutations.py"
+      - "configs/schemas/gate-baseline-v2.schema.json"
+      - "configs/schemas/gate-monotonicity-v2.schema.json"
+      - "tests/gates/test_gate_baseline_v2.py"
+      - "tests/gates/test_gate_baseline_cli.py"
+      - "tests/gates/test_gate_baseline_v2_schema.py"
+      - "tests/gates/test_gate_baseline_v2_review.py"
+      - "tests/gates/test_gate_baseline_v2_review_fixed.py"
+      - "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.md"
+      - "docs/work-packets/G0-BL-19_GATE_BASELINE_V2.json"
+      - ".github/workflows/g0-gate-baseline-v2.yml"
+  push:
+    branches:
+      - g0/gate-baseline-v2-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-gate-baseline-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts tools
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/gate-baseline-v2.schema.json
+      - run: python -m json.tool configs/schemas/gate-monotonicity-v2.schema.json
+      - run: python -m json.tool docs/work-packets/G0-BL-19_GATE_BASELINE_V2.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_gate_baseline_v2.py
+          tests/gates/test_gate_baseline_cli.py
+          tests/gates/test_gate_baseline_v2_schema.py
+          tests/gates/test_gate_baseline_v2_review.py
+          tests/gates/test_gate_baseline_v2_review_fixed.py
+          tests/gates/test_gate_report.py
+          tests/gates/test_gate_report_writer_inventory_review.py
+          tests/gates/test_gate_report_v2_schema.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_gate_baseline_v2_mutations.py
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-gate-baseline-v2-wheel
+      - run: /tmp/daedalus-gate-baseline-v2-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-gate-baseline-v2-wheel/bin/python - <<'PY'
+          from daedalus.gates.baseline import (
+              GateBaseline,
+              GateMonotonicityReceipt,
+              assess_gate0_monotonicity,
+              create_gate0_baseline,
+          )
+          from daedalus.gates.baseline_verifier import (
+              verify_gate0_monotonicity_receipt,
+          )
+
+          assert GateBaseline.__module__ == "daedalus.gates.baseline"
+          assert GateMonotonicityReceipt.__module__ == "daedalus.gates.baseline"
+          assert callable(create_gate0_baseline)
+          assert callable(assess_gate0_monotonicity)
+          assert callable(verify_gate0_monotonicity_receipt)
+          PY
