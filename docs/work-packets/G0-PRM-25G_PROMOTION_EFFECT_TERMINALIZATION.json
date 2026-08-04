@@ -15,13 +15,14 @@
     "failed-and-cancelled-terminalization-from-exact-promotion-receipts",
     "complete-state-read-only-replay",
     "fresh-and-pending-state-refusal",
+    "pre-write-current-clock-versus-promotion-completion-fence",
     "single-canonical-effect-ledger-finish-writer-seam",
     "post-write-strict-reprojection",
     "concurrent-exact-terminal-idempotency",
     "written-versus-retained-receipt-binding",
     "no-effect-begin-grant-verify-runtime-git-or-promotion-authority",
     "independent-source-authority-review",
-    "bounded-six-mutant-terminalization-campaign"
+    "bounded-seven-mutant-terminalization-campaign"
   ],
   "verification_commands": [
     "python -m compileall -q daedalus tests scripts",
