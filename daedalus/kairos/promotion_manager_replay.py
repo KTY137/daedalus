@@ -1,10 +1,10 @@
 """Restart-safe manager-audit binding for live promotion accounting.
 
-This is the second, deliberately narrow layer installed after
-``promotion_manager_boundary``.  It uses the original canonical execution
-ledger retained by that boundary, fixes terminal report identity before the
-write, and refuses to trust a persisted completion whose manager audit cannot
-be reconstructed exactly after restart.
+This second narrow layer is installed after ``promotion_manager_boundary``.
+It selects the typed per-call ledger proxy retained by that boundary, fixes
+terminal report identity before the canonical write, and refuses to trust a
+persisted completion whose manager audit cannot be reconstructed exactly after
+restart.  The public ``PromotionExecutionLedger`` class remains untouched.
 """
 from __future__ import annotations
 
@@ -300,13 +300,8 @@ def validate_persisted_manager_completion(completion: Any) -> None:
         raise PromotionManagerReplayError("branchless fault lacks deletion proof")
 
 
-class _ReplayAuditedExecutionLedger:
-    def __init__(self, delegate: object, *, state: Any) -> None:
-        self._delegate = delegate
-        self._state = state
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._delegate, name)
+class _ReplayAuditedExecutionLedger(manager_boundary._AuditedExecutionLedger):
+    """Typed replay-validating proxy over one canonical ledger instance."""
 
     def begin(self, *args: Any, **kwargs: Any) -> Any:
         result = self._delegate.begin(*args, **kwargs)
@@ -394,20 +389,23 @@ class _ReplayAuditedExecutionLedger:
 def install_promotion_manager_replay_boundary(
     namespace: MutableMapping[str, Any],
 ) -> None:
+    """Select replay validation for per-call typed ledger wrapping."""
     state = namespace.get("_promotion_manager_boundary_state")
-    current_factory = namespace.get("PromotionExecutionLedger")
-    if state is None or not callable(current_factory):
+    ledger_type = namespace.get("PromotionExecutionLedger")
+    if (
+        not isinstance(state, manager_boundary._BoundaryState)
+        or not isinstance(ledger_type, type)
+        or ledger_type is not state.ledger_type
+    ):
         raise RuntimeError("promotion manager replay installation target is invalid")
+    if namespace.get("_promotion_manager_replay_wrapper") is not None:
+        raise RuntimeError("promotion manager replay boundary is already installed")
 
-    def factory(*args: Any, **kwargs: Any) -> _ReplayAuditedExecutionLedger:
-        return _ReplayAuditedExecutionLedger(
-            state.ledger_constructor(*args, **kwargs),
-            state=state,
-        )
-
-    namespace["_MANAGER_AUDIT_V1_LEDGER_FACTORY"] = current_factory
-    namespace["PromotionExecutionLedger"] = factory
-    namespace["_promotion_manager_replay_factory"] = factory
+    state.ledger_wrapper = _ReplayAuditedExecutionLedger
+    namespace["_MANAGER_AUDIT_V1_LEDGER_TYPE"] = ledger_type
+    namespace["_promotion_manager_replay_wrapper"] = (
+        _ReplayAuditedExecutionLedger
+    )
 
 
 __all__ = [
