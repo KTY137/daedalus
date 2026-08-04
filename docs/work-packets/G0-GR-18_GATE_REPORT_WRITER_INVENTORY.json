@@ -8,6 +8,7 @@
     "current_schema": "daedalus-gate-report/2",
     "legacy_read_schema": "daedalus-gate-report/1",
     "json_schema": "configs/schemas/gate-report-v2.schema.json",
+    "source_revision": "exact_lowercase_40_hex_commit",
     "writer_inventory_digest_field": "event_store_writer_inventory_sha256",
     "writer_failure_field": "event_store_writer_failures",
     "missing_inventory_is_blocker": true,
@@ -15,7 +16,10 @@
     "strict_shape": true,
     "strict_types": true,
     "canonical_projection_check": true,
-    "digest_required": true
+    "digest_required": true,
+    "duplicate_json_keys_refused": true,
+    "nonfinite_json_refused": true,
+    "maximum_bytes": 4194304
   },
   "invariants": [
     {
@@ -34,6 +38,11 @@
       "evidence": "tests/gates/test_gate_report.py::test_missing_writer_inventory_digest_is_always_a_blocker"
     },
     {
+      "code": "gate_report.exact_revision_required",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/gates/test_gate_report.py::test_source_revision_must_be_exact_lowercase_commit"
+    },
+    {
       "code": "gate_report.legacy_v1_read_only_compatibility",
       "state": "implemented_unexecuted",
       "evidence": "tests/gates/test_gate_report.py::test_legacy_v1_report_loads_but_cannot_claim_current_closure"
@@ -44,7 +53,7 @@
       "evidence": "tests/gates/test_gate_report_writer_inventory_review.py::test_parser_does_not_trust_serialized_closed_or_blocker_projection"
     },
     {
-      "code": "gate_report.malformed_v2_refused",
+      "code": "gate_report.strict_json_loading",
       "state": "implemented_unexecuted",
       "evidence": "tests/gates/test_gate_report_writer_inventory_review.py"
     }
@@ -59,13 +68,17 @@
       "inventory-refusal-claims-a-digest",
       "coerce-string-security-claim-to-boolean",
       "skip-v2-canonical-payload-comparison",
-      "trust-serialized-closed-flag"
+      "trust-serialized-closed-flag",
+      "accept-nonrevision-source-label",
+      "accept-duplicate-json-keys",
+      "remove-report-size-bound"
     ]
   },
   "compatibility": {
     "v1_digest_verification": "required",
     "v1_shape_verification": "strict",
     "v1_derived_projection_verification": "strict",
+    "v1_exact_revision_required": true,
     "v1_missing_writer_inventory_result": "v2 closure blocker",
     "v2_output": "canonical_only"
   },
@@ -101,6 +114,7 @@
     "builder_static_review": "performed",
     "separate_counter_review": "implemented_unexecuted",
     "malformed_and_stale_revision_tests": "implemented_unexecuted",
+    "strict_json_loader_tests": "implemented_unexecuted",
     "mutation_tests": "implemented_unexecuted",
     "exact_head_report": "blocked_by_github_actions_issue_67",
     "full_suite": "blocked_by_github_actions_issue_67",
