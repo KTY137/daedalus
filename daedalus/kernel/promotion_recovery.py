@@ -60,6 +60,7 @@ class PromotionRecoveryPlan:
     disposition: str
     action: str
     automatic_external_reexecution: bool
+    manual_reconciliation_required: bool
     owner_decision_required: bool
     effect_start_receipt_sha256: str | None
     effect_terminal_receipt_sha256: str | None
@@ -74,6 +75,7 @@ class PromotionRecoveryPlan:
             "disposition": self.disposition,
             "action": self.action,
             "automatic_external_reexecution": self.automatic_external_reexecution,
+            "manual_reconciliation_required": self.manual_reconciliation_required,
             "owner_decision_required": self.owner_decision_required,
             "effect_start_receipt_sha256": self.effect_start_receipt_sha256,
             "effect_terminal_receipt_sha256": self.effect_terminal_receipt_sha256,
@@ -109,11 +111,13 @@ def plan_promotion_recovery(
         "disposition": projection.disposition.value,
         "action": action.value,
         "automatic_external_reexecution": False,
-        "owner_decision_required": projection.disposition
+        "manual_reconciliation_required": projection.disposition
         in {
             PromotionReconciliationDisposition.EFFECT_ONLY_PENDING,
             PromotionReconciliationDisposition.PROMOTION_PENDING,
         },
+        "owner_decision_required": projection.disposition
+        is PromotionReconciliationDisposition.EFFECT_ONLY_PENDING,
         "effect_start_receipt_sha256": (
             None if effect is None else effect.start.receipt_sha256
         ),
