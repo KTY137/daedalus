@@ -10,11 +10,44 @@ from daedalus.gates.repository_write_evidence import (
 )
 from daedalus.schemas import ContractProvenance
 
-from .test_repository_write_evidence import _artifact
+
+REVISION = "1" * 40
+TREE = "2" * 40
+BUILT_AT = "2026-08-04T20:00:00+00:00"
+REPORT = "a" * 64
+INVENTORY = "b" * 64
+SCAN = "c" * 64
+FAILURES = "d" * 64
+CONTENT = "e" * 64
 
 
 class DerivedProvenance(ContractProvenance):
     pass
+
+
+def _artifact() -> RepositoryWriteArtifactEvidence:
+    provenance = ContractProvenance(
+        origin="gate0.repository-write-artifact",
+        source_revision=REVISION,
+        created_at=BUILT_AT,
+        input_digests=(REPORT, INVENTORY, SCAN, FAILURES, CONTENT),
+    )
+    return RepositoryWriteArtifactEvidence(
+        artifact_id="artifact.repository-write-inventory",
+        source_revision=REVISION,
+        source_tree_revision=TREE,
+        gate_report_v3_sha256=REPORT,
+        inventory_sha256=INVENTORY,
+        scan_input_sha256=SCAN,
+        files_scanned=1,
+        inventory_generation=2,
+        failure_set_sha256=FAILURES,
+        failure_count=0,
+        artifact_content_sha256=CONTENT,
+        locator=f"artifact-locator:sha256:{CONTENT}",
+        built_at=BUILT_AT,
+        provenance=provenance,
+    )
 
 
 def test_artifact_requires_exact_provenance_container() -> None:
