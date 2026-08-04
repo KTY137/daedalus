@@ -10,13 +10,15 @@ The previous broker behavior called the external provider, received a normal ret
 
 After `invoke()` returns, failure to call or normalize `output_digests(value)` now raises `RuntimeProviderReconciliationRequired` without calling any terminal writer. The exact persisted execution remains `STARTED`.
 
-The exception exposes only the entrypoint, runtime identity, exact start receipt, fixed phase and a digest of the local exception class. It does not expose the provider value and does not persist raw exception text. The exception grants no recovery, retry, provider or promotion authority.
+The exception exposes only the entrypoint, runtime identity, exact start receipt, fixed phase and a digest of the local exception class. It does not retain the provider value and does not persist raw exception text. The exception grants no recovery, retry, provider or promotion authority.
 
-A retry with the exact execution identity reaches the existing inert replay path before provider or output-evidence callbacks. Completion requires the existing authenticated `ExternalEffectObservation` and `reconcile_unknown_effect(...)` operation for that same execution, idempotency key and start receipt.
+A retry with the exact execution identity reaches the existing inert replay path before provider or output-evidence callbacks.
+
+Completion goes through `reconcile_runtime_provider_unknown(...)`. That adapter authenticates the runtime-bound capability at the durable start instant and requires the exact central entrypoint, runtime identity, lease digest, execution ID, idempotency key, execution-request digest and source revision before delegating to the signed `ExternalEffectObservation` reconciliation operation. The adapter contains no provider callback and cannot execute or retry the external effect.
 
 ## Explicitly unchanged
 
-This packet does not redefine provider exceptions before a normal return, runtime-trust-loss cancellation, terminal-fence behavior, provider adapter contracts, runtime manifests, entrypoint migration, promotion, OwnerApproval or Gate reporting. Those are separate axes and remain subject to their own findings and Work Packets.
+This packet does not redefine provider exceptions before a normal return, runtime-trust-loss cancellation, terminal-fence behavior, provider invocation contracts, runtime manifests, entrypoint migration, promotion, OwnerApproval or Gate reporting. Those are separate axes and remain subject to their own findings and Work Packets.
 
 ## Adversarial batch
 
@@ -28,11 +30,12 @@ Prepared builder coverage proves:
 - a real runtime-bound SQLite Effect Lease row remains `STARTED`;
 - exact replay does not invoke the provider again;
 - a signed external observation reconciles that same row to `COMPLETED`;
+- foreign lease, execution, idempotency, request, runtime, entrypoint, capability-signature and source-revision bindings refuse before generic reconciliation;
 - the external commitment count remains one.
 
-A separate AST/source review rejects terminal writer calls in the output-evidence handler, unsafe provider-value retention, raw exception-text materialization, replay ordering regressions, recovery authority in the exception and reintroduction of the old `FAILED` branch.
+Separate broker and recovery AST/source reviews reject terminal writer calls in the output-evidence handler, unsafe provider-value retention, raw exception-text materialization, replay ordering regressions, recovery authority in the exception, missing runtime binding dimensions, unauthenticated capability recovery and reintroduction of the old `FAILED` branch.
 
-Four bounded mutants restore the false `FAILED` terminal, bypass exact replay, retain a provider value and expose raw cause text.
+Eight bounded mutants restore the false `FAILED` terminal, bypass exact replay, retain a provider value, expose raw cause text, remove lease/idempotency/revision bindings and bypass runtime-capability authentication.
 
 CI requests Ubuntu and Windows on Python 3.10 and 3.12, the affected runtime/effect/recovery suites, mutation, the full suite, package build and isolated-wheel import.
 
