@@ -24,7 +24,6 @@ from daedalus.spine.envelope import canonical_sha
 
 REVISION = "a" * 40
 OTHER_REVISION = "b" * 40
-AUTHORIZATION_DIGEST = "c" * 64
 EFFECT_START_DIGEST = "d" * 64
 SECRET = b"owner-recovery-secret-material-0001"
 NOW = datetime(2026, 8, 4, 8, 0, tzinfo=timezone.utc)
@@ -112,18 +111,21 @@ def _decision(
         "issued_at": issued_at,
         "expires_at": expires_at,
         "signature_sha256": "0" * 64,
-        "provenance": ContractProvenance(
-            origin="owner-console",
-            source_revision=source_revision,
-            created_at=issued_at,
-            input_digests=(
-                expectation.promotion_authorization_sha256,
-                expectation.recovery_plan_sha256,
-                expectation.effect_start_receipt_sha256,
-            ),
-        ),
     }
     body.update(changes)
+    body.setdefault(
+        "provenance",
+        ContractProvenance(
+            origin="owner-console",
+            source_revision=source_revision,
+            created_at=str(body["issued_at"]),
+            input_digests=(
+                str(body["promotion_authorization_sha256"]),
+                str(body["recovery_plan_sha256"]),
+                str(body["effect_start_receipt_sha256"]),
+            ),
+        ),
+    )
     placeholder = PromotionRecoveryDecision(**body)
     signature = hmac.new(
         secret,
