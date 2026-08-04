@@ -93,10 +93,7 @@ def test_package_initialization_installs_exact_rows_guard_and_defaults() -> None
 
 
 def test_exact_scanner_hook_discovers_only_the_two_writer_methods(tmp_path) -> None:
-    module = tmp_path / "daedalus" / "kernel" / "promotion_recovery_consumption.py"
-    module.parent.mkdir(parents=True)
-    module.write_text(
-        """
+    source = """
 class PromotionRecoveryConsumptionLedger:
     def __init__(self, path):
         path.mkdir(parents=True, exist_ok=True)
@@ -113,9 +110,17 @@ class PromotionRecoveryConsumptionLedger:
 
     def verify_consumption(self):
         return None
-""".lstrip(),
-        encoding="utf-8",
+""".lstrip()
+    module = tmp_path / "daedalus" / "kernel" / "promotion_recovery_consumption.py"
+    module.parent.mkdir(parents=True)
+    module.write_text(source, encoding="utf-8")
+    decoy = (
+        tmp_path
+        / "daedalus"
+        / "kernel"
+        / "promotion_recovery_consumption_extra.py"
     )
+    decoy.write_text(source, encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text(
         "[project]\nname = 'scanner-fixture'\nversion = '0'\n",
         encoding="utf-8",
