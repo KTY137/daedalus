@@ -1,0 +1,112 @@
+name: Gate 0 Effect Replay Projection
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-replay-projection-linear
+    paths:
+      - "daedalus/kernel/__init__.py"
+      - "daedalus/kernel/authorization.py"
+      - "daedalus/kernel/effects.py"
+      - "daedalus/kernel/effect_replay.py"
+      - "tests/kernel/test_effect_authorization.py"
+      - "tests/kernel/test_effect_replay_projection*.py"
+      - "tests/kernel/test_promotion_replay_projection.py"
+      - "scripts/run_effect_replay_projection_mutations.py"
+      - "docs/work-packets/G0-PRM-25E_EFFECT_REPLAY_PROJECTION.*"
+      - ".github/workflows/g0-effect-replay-projection.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g0/effect-replay-projection-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-effect-replay-projection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-25E_EFFECT_REPLAY_PROJECTION.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_effect_authorization.py
+          tests/kernel/test_effect_replay_projection.py
+          tests/kernel/test_effect_replay_projection_review.py
+          tests/kernel/test_promotion_replay_projection.py
+          tests/kernel/test_promotion_replay_projection_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_effect_replay_projection_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-effect-replay-wheel
+      - run: /tmp/daedalus-effect-replay-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-effect-replay-wheel/bin/python - <<'PY'
+          from daedalus.kernel import (
+              EffectExecutionReplaySnapshot,
+              EffectReplayProjectionError,
+              inspect_effect_execution,
+          )
+
+          assert inspect_effect_execution.__module__ == "daedalus.kernel.effect_replay"
+          assert EffectExecutionReplaySnapshot.__module__ == "daedalus.kernel.effect_replay"
+          assert EffectReplayProjectionError.__module__ == "daedalus.kernel.effect_replay"
+          PY
