@@ -2,12 +2,13 @@
 
 This module does not introduce another ledger or another state authority. It
 hardens the exact existing writable ``SpineLedger`` connection and reads the
-settings back from SQLite. Gate-0 writers must pass through this profile before
-claiming power-loss-aware intent durability; ordinary legacy callers remain
-honestly outside that claim until migrated.
+settings back from SQLite. It also owns the Gate-0 writer-opening factory so a
+selected production writer can enter ``synchronous=FULL`` before the canonical
+ledger performs its generic schema migration.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -44,6 +45,20 @@ class Gate0DurabilityStatus:
             "foreign_keys": self.foreign_keys,
             "satisfied": self.satisfied,
         }
+
+
+class _Gate0OpeningSpineLedger(SpineLedger):
+    """Private opening profile over the single canonical ledger implementation.
+
+    ``SpineLedger.__init__`` calls ``_apply_pragmas`` immediately before its
+    generic migration.  The private subclass changes only that connection-local
+    opening posture and inherits every schema, transaction, read and write path
+    unchanged.  It is deliberately not exported as another ledger authority.
+    """
+
+    def _apply_pragmas(self) -> None:
+        super()._apply_pragmas()
+        self._conn.execute("PRAGMA synchronous=FULL")
 
 
 def _status(
@@ -167,9 +182,50 @@ def enforce_gate0_durability(ledger: SpineLedger) -> Gate0DurabilityStatus:
     return status
 
 
+def open_gate0_spine_writer(
+    path: str | os.PathLike[str] | None = None,
+    *,
+    busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
+) -> SpineLedger:
+    """Open the canonical ledger at FULL before its first migration write.
+
+    The returned object is still a ``SpineLedger`` and uses its exact schema and
+    transaction implementation.  Only the private connection-opening profile is
+    specialized.  A final machine readback is mandatory before the writer is
+    returned to production code.
+    """
+    try:
+        timeout = max(DEFAULT_BUSY_TIMEOUT_MS, int(busy_timeout_ms))
+    except (TypeError, ValueError) as exc:
+        raise Gate0DurabilityError("busy_timeout_ms must be an integer") from exc
+    try:
+        ledger = _Gate0OpeningSpineLedger(
+            path,
+            busy_timeout_ms=timeout,
+            read_only=False,
+        )
+        status = inspect_gate0_durability(ledger)
+        if not status.satisfied:
+            raise Gate0DurabilityError(
+                "new Gate-0 Event-Store writer failed opening readback"
+            )
+        return ledger
+    except Gate0DurabilityError:
+        if "ledger" in locals():
+            ledger.close()
+        raise
+    except (sqlite3.Error, OSError, ValueError, TypeError) as exc:
+        if "ledger" in locals():
+            ledger.close()
+        raise Gate0DurabilityError(
+            "Gate-0 Event-Store writer could not be opened"
+        ) from exc
+
+
 __all__ = [
     "Gate0DurabilityError",
     "Gate0DurabilityStatus",
     "enforce_gate0_durability",
     "inspect_gate0_durability",
+    "open_gate0_spine_writer",
 ]
