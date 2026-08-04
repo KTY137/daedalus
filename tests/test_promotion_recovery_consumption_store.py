@@ -172,6 +172,46 @@ def test_admitted_store_identity_cannot_be_substituted(tmp_path: Path) -> None:
         ledger._connect_read_only()
 
 
+def test_publication_fsyncs_parent_before_return(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "store.sqlite3"
+    calls: list[Path] = []
+    original = store_module._fsync_directory
+
+    def record(parent: Path) -> None:
+        assert path.exists()
+        calls.append(parent)
+        original(parent)
+
+    monkeypatch.setattr(store_module, "_fsync_directory", record)
+    created = store_module.initialize_promotion_recovery_consumption_store(path)
+
+    assert created.path == str(path.resolve())
+    assert calls == [tmp_path.resolve()]
+
+
+def test_directory_fsync_failure_removes_only_own_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "store.sqlite3"
+    calls: list[Path] = []
+
+    def refuse(parent: Path) -> None:
+        calls.append(parent)
+        raise PromotionRecoveryConsumptionStoreError("injected directory fsync fault")
+
+    monkeypatch.setattr(store_module, "_fsync_directory", refuse)
+    with pytest.raises(PromotionRecoveryConsumptionStoreError):
+        store_module.initialize_promotion_recovery_consumption_store(path)
+
+    assert not path.exists()
+    assert calls
+    assert all(parent == tmp_path.resolve() for parent in calls)
+
+
 def test_failed_postpublication_check_removes_only_own_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
