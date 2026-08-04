@@ -6,18 +6,21 @@ Close the remaining post-mutation identity gap in `G0-PRM-20` without rewriting 
 
 ## Corrected strangler boundary
 
-Adversarial review found that the first draft described a retained-source loader and production installation that were not present in the final tree. It also replaced the public `PromotionExecutionLedger` class with a factory even though the sealed promotion callable performs an `isinstance` check against that global. Installing the draft literally would therefore raise `TypeError` before any promotion work.
+The repository already has a compatibility strangler: `daedalus.kairos.gated_writes` verifies and executes the retained `_gated_writes_legacy.py.src` blob, retires the historical promotion callable and defines the sealed persisted-authority replacement under the historic import path.
 
-The corrected boundary is narrower and honest:
+Adversarial review found that the first manager-audit draft described a different retained resource, `_gated_writes_execution_accounting.py.src`, and claimed live installer calls that were not present in the final tree. The draft also replaced the public `PromotionExecutionLedger` class with a factory even though the sealed promotion callable performs an `isinstance` check against that global. Installing the draft literally would therefore raise `TypeError` before any promotion work.
+
+The corrected boundary composes with the existing strangler rather than inventing another one:
 
 1. `AuditedWorktreeManager` remains a pure delegate/audit adapter;
-2. the public `PromotionExecutionLedger` class is never replaced;
-3. one already-open, correctly typed ledger instance is wrapped only for the duration of a public promotion call;
-4. both audit and replay proxies subclass the canonical ledger type, while an arbitrary duck-typed object is deliberately left unwrapped so the sealed parent rejects it;
-5. a `ContextVar` scopes the one audited manager to one call and rejects a second manager allocation;
-6. the manager and replay installers remain **unwired** until the dependent production-wiring packet.
+2. the existing verified legacy-resource loader and sealed public callable remain authoritative;
+3. the public `PromotionExecutionLedger` class is never replaced;
+4. one already-open, correctly typed ledger instance is wrapped only for the duration of a public promotion call;
+5. both audit and replay proxies subclass the canonical ledger type, while an arbitrary duck-typed object is deliberately left unwrapped so the sealed parent rejects it;
+6. a `ContextVar` scopes the one audited manager to one call and rejects a second manager allocation;
+7. the manager and replay installers remain **unwired** until the dependent production-wiring packet.
 
-No Big-Bang rename, duplicate promotion implementation, new Git command path or new workflow database is introduced.
+No Big-Bang rename, duplicate promotion implementation, new Git command path, second dynamic source resource or new workflow database is introduced.
 
 ## Manager audit
 
@@ -56,13 +59,13 @@ The corrected installation tests prove that:
 - replay selects a typed replay proxy without replacing the class;
 - an arbitrary object is not laundered into a valid ledger;
 - duplicate and out-of-order installer calls refuse;
-- the live public module does not yet claim either installer call.
+- the live public module does not yet call either installer.
 
-Separate source reviews prove delegation order, no mutating authority in the adapters, audit binding before terminal delegation, semantic replay validation and pending reconciliation for unknown identity. Bounded mutation campaigns now use unique source seams and attack failure recording, reaper ambiguity, digest/report binding, stale revision, deletion proof, completion assessment, ledger laundering, class replacement and replay-selector bypass.
+Separate source reviews prove the existing compatibility loader remains present, delegation order is preserved, no mutating authority enters the adapters, audit data is bound before terminal delegation, restart replay is semantic rather than digest-only and unknown identity remains pending. Bounded mutation campaigns now use unique source seams and attack failure recording, reaper ambiguity, digest/report binding, stale revision, deletion proof, completion assessment, ledger laundering, class replacement and replay-selector bypass.
 
 ## Deliberate remaining boundary
 
-This packet is not production wiring. It does not issue OwnerApproval, consume an EffectLease, create promotion authorization, merge a branch or automatically promote. A dependent packet must install the manager and replay adapters in `daedalus.kairos.gated_writes`; another dependent packet must compose EffectLease, runtime conformance and Docker containment before the promotion surface can become `central`.
+This packet is not production wiring. It does not issue OwnerApproval, consume an EffectLease, create promotion authorization, merge a branch or automatically promote. A dependent packet must install the manager and replay adapters after the sealed callable has been defined in `daedalus.kairos.gated_writes`; another dependent packet must compose EffectLease, runtime conformance and Docker containment before the promotion surface can become `central`.
 
 Gate 0 remains open. The following work still includes canonical effect-inventory registration, complete release evidence, runtime/sandbox closure and the remaining fault matrix.
 
