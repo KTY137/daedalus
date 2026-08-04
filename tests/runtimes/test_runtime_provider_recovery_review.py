@@ -77,20 +77,20 @@ def test_exact_runtime_lease_execution_and_revision_fences_remain() -> None:
         '"execution_request_sha256":',
         '"source_revision":',
         "if spec.wiring is not Wiring.CENTRAL:",
-        "verify_runtime_bound_effect_lease(",
+        "inspect_runtime_effect_execution(authorization, execution)",
     )
     for fence in required:
         assert fence in SOURCE
 
 
-def test_capability_is_authenticated_at_durable_start_instant() -> None:
+def test_authenticated_runtime_replay_must_be_pending_and_exact() -> None:
     function = _function("_validate_runtime_binding")
     text = ast.get_source_segment(SOURCE, function) or ""
-    assert "now=_parse_start(start_receipt.started_at)" in text
-    assert "runtime_trust_ledger=authorization.runtime_trust_ledger" in text
-    assert "lease_keyring=authorization.lease_keyring" in text
-    assert "runtime_authority_keyring=authorization.runtime_authority_keyring" in text
-    assert "current_kill_switch_generation" in text
+    assert "inspect_runtime_effect_execution(authorization, execution)" in text
+    assert "type(replay) is not RuntimeEffectExecutionReplaySnapshot" in text
+    assert "replay.execution.start_receipt != start_receipt" in text
+    assert "not replay.pending_reconciliation" in text
+    assert "already terminal" in text
 
 
 def test_adapter_has_no_provider_process_network_or_promotion_authority() -> None:
@@ -117,21 +117,18 @@ def test_adapter_has_no_provider_process_network_or_promotion_authority() -> Non
             "connect",
         }
     )
-    assert calls.intersection({"reconcile_unknown_effect"}) == {
-        "reconcile_unknown_effect"
-    }
+    assert calls.intersection(
+        {"inspect_runtime_effect_execution", "reconcile_unknown_effect"}
+    ) == {"inspect_runtime_effect_execution", "reconcile_unknown_effect"}
 
 
-def test_authentication_failures_are_wrapped_in_recovery_domain() -> None:
+def test_replay_failures_are_wrapped_in_recovery_domain() -> None:
     function = _function("_validate_runtime_binding")
     handlers = [node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler)]
     assert len(handlers) == 1
-    target = handlers[0]
-    text = ast.get_source_segment(SOURCE, target) or ""
-    assert "runtime provider recovery capability failed authentication" in text
-    assert "EffectLeaseError" in text
-    assert "RuntimeLeaseAdmissionError" in text
-    assert "ValueError" in text
+    text = ast.get_source_segment(SOURCE, handlers[0]) or ""
+    assert "RuntimeEffectReplayProjectionError" in text
+    assert "failed authenticated replay" in text
 
 
 def test_exported_adapter_grants_no_automatic_reexecution() -> None:
