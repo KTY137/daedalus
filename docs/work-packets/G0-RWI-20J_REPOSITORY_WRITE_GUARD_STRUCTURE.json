@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20J",
+  "title": "Repository Write Guard Structural Replay",
+  "gate": 0,
+  "parent_revision": "a59e693a2fcfe54554de28ccf6747f9bf111cc0a",
+  "parent_branch": "g0/python-target-structure-linear",
+  "branch": "g0/repository-write-guard-structure-linear",
+  "change_class": "additive-read-only-cross-layer-verifier",
+  "authority": "authenticated-guard-structure-replay-only",
+  "scope": {
+    "snapshots_evidence_blobs_before_dependent_verification": true,
+    "re_authenticates_evidence_origin_and_source_anchors": true,
+    "re_materializes_exact_cas_evidence": true,
+    "re_authenticates_guard_implementation_manifest": true,
+    "checks_complete_cross_layer_digest_chain": true,
+    "requires_guarded_non_vacuous_production_classification": true,
+    "requires_exact_manifest_contract_coverage": true,
+    "requires_exactly_one_guard_binding_per_surface_contract": true,
+    "binds_guard_payload_to_authenticated_manifest": true,
+    "resolves_exact_python_target_structure": true,
+    "executes_guard_target": false,
+    "verifies_guard_behavior": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "origin_authenticated_after_verification": true,
+    "source_anchor_semantics_verified": true,
+    "guard_manifest_authenticated": true,
+    "guard_contract_structure_verified": true,
+    "guard_contract_semantics_verified": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_and_classification_tests_prepared": true,
+    "origin_and_manifest_signature_tests_prepared": true,
+    "manifest_contract_coverage_tests_prepared": true,
+    "target_and_digest_substitution_tests_prepared": true,
+    "implementation_byte_and_ast_ambiguity_tests_prepared": true,
+    "unguarded_vacuity_and_duplicate_binding_tests_prepared": true,
+    "cross_layer_digest_chain_tests_prepared": true,
+    "blob_snapshot_bypass_test_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 10,
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository write and review access but no executable private-repository checkout; no LLM or static assertion is recorded as test evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "guard implementation structure does not establish guard behavior or prove that a guard executed",
+    "behavioral guard conformance evidence has not been authenticated or replayed",
+    "Effect-Lease, RuntimeConformance, Primary-Checkout-disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification and evidence corpus remain unpopulated",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
