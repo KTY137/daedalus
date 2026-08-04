@@ -1,0 +1,53 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-RWI-20",
+  "title": "Revision-Bound Repository Write Surface Inventory",
+  "gate": 0,
+  "base_branch": "g0/gate-baseline-v2-linear",
+  "base_revision": "cc870c84b210b392aa18dde2c6596839996b0241",
+  "source_parent_pr": 132,
+  "branch": "g0/repository-write-surface-inventory-linear",
+  "implemented": [
+    "deterministic-scan-of-production-daedalus-python-files",
+    "exact-source-revision-shape-and-production-byte-digest-binding",
+    "filesystem-path-write-mode-os-open-sqlite-and-process-surface-discovery",
+    "conservative-import-alias-rebinding-and-indirect-call-classification",
+    "literal-git-mutation-detection-with-all-process-surfaces-still-blocking",
+    "only-exact-literal-sqlite-mode-ro-classified-nonblocking",
+    "malformed-source-relative-import-escape-symlink-and-package-escape-refusal",
+    "machine-readable-canonical-report-and-json-schema",
+    "stdout-only-cli-with-scoped-require-closed-assertion",
+    "separate-source-level-authority-and-assurance-counter-review",
+    "bounded-eight-mutant-inventory-campaign"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool configs/schemas/repository-write-inventory-v1.schema.json",
+    "python -m json.tool docs/work-packets/G0-RWI-20_REPOSITORY_WRITE_SURFACE_INVENTORY.json",
+    "python -m pytest -q tests/gates/test_repository_write_inventory.py tests/gates/test_repository_write_inventory_cli.py tests/gates/test_repository_write_inventory_review.py tests/gates/test_repository_write_inventory_schema.py",
+    "python scripts/run_repository_write_inventory_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "inventory_scope": "potential_repository_write_surface",
+  "primary_checkout_target_proven": false,
+  "production_callers_migrated": false,
+  "gate_report_integrated": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "execute-the-inventory-on-an-exact-repository-head-and-retain-the-canonical-artifact",
+    "independently-review-every-reported-production-callsite-and-its-target-semantics",
+    "add-revision-bound-target-and-guard-contract-classification-without-source-annotations-as-authority",
+    "bind-primary-checkout-disjointness-or-fingerprint-evidence-for-every-write-capable-path",
+    "bind-the-inventory-digest-and-blockers-into-gate-report-and-release-verification",
+    "migrate-or-retire-every-inventory-only-unguarded-or-ambiguous-production-path",
+    "execute-malformed-stale-bypass-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 has repeatedly ended hosted jobs before Step 1 with steps=null, no logs and no artifacts; zero-step runs are infrastructure observations and are not accepted as test, mutation, packaging, platform, inventory or Gate evidence."
+}
