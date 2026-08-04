@@ -106,14 +106,14 @@ jobs:
               GuardBehaviorAttestation,
               GuardBehaviorAttestationError,
               GuardBehaviorAttestationReport,
-              GuardBehaviorResult,
+              GuardBehaviorCaseResult,
               issue_guard_behavior_attestation,
               parse_guard_behavior_attestation,
               verify_guard_behavior_attestation,
           )
 
           assert GuardBehaviorAttestation.__dataclass_fields__
-          assert GuardBehaviorResult.__dataclass_fields__
+          assert GuardBehaviorCaseResult.__dataclass_fields__
           assert GuardBehaviorAttestationReport.__dataclass_fields__
           assert issubclass(GuardBehaviorAttestationError, RuntimeError)
           assert callable(issue_guard_behavior_attestation)
