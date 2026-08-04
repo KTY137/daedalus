@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06Y",
+  "title": "Authenticated Provider Invocation Identity Projection",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "f2c7de5c65ba49f3a6de11dd1d5a26f89fa49f7b",
+  "parent_branch": "g0/provider-invocation-registry-manifest-linear",
+  "branch": "g0/provider-invocation-identity-admission-linear",
+  "primary_finding": "issue-188",
+  "change_class": "narrow-read-only-cross-contract-identity-projection",
+  "authority": "authentication-and-resolution-only",
+  "scope": {
+    "authenticates_composite_invocation_observation_authority": true,
+    "uses_fixed_invocation_contract_id": true,
+    "binds_live_registry_manifest_digest": true,
+    "resolves_exact_provider_descriptor": true,
+    "binds_provider_adapter_implementation_artifact_config": true,
+    "binds_entrypoint_runtime_execution_lease_revision": true,
+    "returns_content_addressed_projection": true,
+    "adds_callback_or_provider_execution": false,
+    "starts_or_finishes_effect": false,
+    "changes_broker": false,
+    "changes_recovery": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "signed_authority_authenticated": true,
+    "registry_manifest_authenticated_by_signed_digest": true,
+    "exact_descriptor_resolved": true,
+    "projection_authorizes_runtime_effect": false,
+    "projection_allows_provider_execution": false,
+    "broker_enforces_projection": false,
+    "production_loose_callback_gap_closed": false,
+    "issue_188_closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "malformed_and_exact_wire_tests_prepared": true,
+    "stale_execution_test_prepared": true,
+    "foreign_contract_test_prepared": true,
+    "registry_implementation_substitution_test_prepared": true,
+    "signed_subject_descriptor_mismatch_test_prepared": true,
+    "signature_before_resolution_test_prepared": true,
+    "authority_escalation_tests_prepared": true,
+    "bounded_mutations_prepared": 9,
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the exact broker-authority sibling packet still requires controlled integration into this selected invocation stack",
+    "the production broker does not yet require this projection before begin_effect",
+    "the production broker still accepts independently supplied invoke and output_digests callbacks",
+    "no guarded executable provider registry mechanically loads or invokes the descriptor-bound artifact",
+    "the retained provider-observation binding and recovery projection do not yet carry the invocation contract and descriptor digests",
+    "the provider-observation SQLite writes remain outside complete Gate-0 effect inventory coverage under issue 189",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
