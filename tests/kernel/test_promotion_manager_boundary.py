@@ -7,6 +7,7 @@ import pytest
 
 import daedalus.kairos.promotion_manager_boundary as boundary
 from daedalus.kairos.promotion_manager_audit import AuditedWorktreeManager
+from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 
 
 BRANCH = "daedalus/integration/promotion-1"
@@ -51,7 +52,7 @@ def state(manager: AuditedWorktreeManager, ledger: CaptureLedger):
     active.set(manager)
     return boundary._BoundaryState(
         manager_constructor=lambda *_args, **_kwargs: manager,
-        ledger_constructor=lambda *_args, **_kwargs: ledger,
+        ledger_type=PromotionExecutionLedger,
         parent_promote_candidates=lambda *_args, **_kwargs: None,
         active_manager=active,
     )
