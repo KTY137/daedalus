@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping
 
-from daedalus.schemas import _identifier, _sha256, _utc_timestamp
+from daedalus.schemas import _sha256, _utc_timestamp
 from daedalus.spine.envelope import canonical_json, canonical_sha
 
 from .promotion_effects import PromotionEffectCapability
@@ -176,19 +176,13 @@ class ConsumedPromotionRecoveryDecision:
             raise ValueError("recovery expectation fields mismatch")
         return cls(
             verified=VerifiedPromotionRecoveryDecision(
-                **{
-                    key: str(verified_payload[key])
-                    for key in verified_fields
-                }
+                **dict(verified_payload)
             ),
             expectation=PromotionRecoveryExpectation(
-                **{
-                    key: str(expectation_payload[key])
-                    for key in expectation_fields
-                }
+                **dict(expectation_payload)
             ),
-            consumed_at=str(payload["consumed_at"]),
-            consumption_sha256=str(payload["consumption_sha256"]),
+            consumed_at=payload["consumed_at"],
+            consumption_sha256=payload["consumption_sha256"],
         )
 
     @property
@@ -427,10 +421,13 @@ class PromotionRecoveryConsumptionLedger:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT decision_sha256, promotion_authorization_sha256,
+                SELECT decision_sha256, decision_id, owner_id, key_id, nonce,
+                       operation, promotion_authorization_sha256,
                        recovery_plan_sha256, effect_start_receipt_sha256,
-                       source_revision, expectation_sha256, verified_sha256,
-                       decision_json, expectation_json, consumption_json
+                       source_revision, issued_at, expires_at, signature_sha256,
+                       expectation_sha256, verified_sha256, consumed_at,
+                       consumption_sha256, decision_json, expectation_json,
+                       consumption_json
                 FROM promotion_recovery_consumptions_v1
                 WHERE consumption_sha256=?
                 """,
@@ -452,10 +449,7 @@ class PromotionRecoveryConsumptionLedger:
                 raise ValueError("consumption JSON must be an object")
             stored_decision = PromotionRecoveryDecision.from_dict(decision_payload)
             stored_expectation = PromotionRecoveryExpectation(
-                **{
-                    key: str(value)
-                    for key, value in expectation_payload.items()
-                }
+                **expectation_payload
             )
             persisted = ConsumedPromotionRecoveryDecision.from_dict(
                 consumption_payload
@@ -517,6 +511,11 @@ class PromotionRecoveryConsumptionLedger:
             or stored_verified != receipt.verified
             or stored_expectation != receipt.expectation
             or row["decision_sha256"] != stored_decision.digest
+            or row["decision_id"] != stored_verified.decision_id
+            or row["owner_id"] != stored_verified.owner_id
+            or row["key_id"] != stored_verified.key_id
+            or row["nonce"] != stored_verified.nonce
+            or row["operation"] != stored_verified.operation
             or row["promotion_authorization_sha256"]
             != stored_expectation.promotion_authorization_sha256
             or row["recovery_plan_sha256"]
@@ -524,8 +523,13 @@ class PromotionRecoveryConsumptionLedger:
             or row["effect_start_receipt_sha256"]
             != stored_expectation.effect_start_receipt_sha256
             or row["source_revision"] != stored_expectation.source_revision
+            or row["issued_at"] != stored_verified.issued_at
+            or row["expires_at"] != stored_verified.expires_at
+            or row["signature_sha256"] != stored_verified.signature_sha256
             or row["expectation_sha256"] != stored_expectation.digest
             or row["verified_sha256"] != stored_verified.digest
+            or row["consumed_at"] != receipt.consumed_at
+            or row["consumption_sha256"] != receipt.consumption_sha256
         ):
             raise PromotionRecoveryConsumptionStateError(
                 "recovery consumption does not match persisted authority"
