@@ -1,0 +1,131 @@
+name: Gate 0 Repository Write Guard Structure
+
+on:
+  pull_request:
+    branches:
+      - g0/python-target-structure-linear
+    paths:
+      - "daedalus/gates/repository_write_guard_structure.py"
+      - "tests/gates/test_repository_write_guard_structure*.py"
+      - "scripts/run_repository_write_guard_structure_mutations.py"
+      - "configs/schemas/repository-write-guard-structure.schema.json"
+      - "docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.*"
+      - ".github/workflows/g0-repository-write-guard-structure.yml"
+  push:
+    branches:
+      - g0/repository-write-guard-structure-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-repository-write-guard-structure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/repository-write-guard-structure.schema.json
+      - run: python -m json.tool docs/work-packets/G0-RWI-20J_REPOSITORY_WRITE_GUARD_STRUCTURE.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_repository_write_guard_structure.py
+          tests/gates/test_repository_write_guard_structure_review.py
+          tests/gates/test_python_target_structure.py
+          tests/gates/test_python_target_structure_review.py
+          tests/gates/test_repository_tree.py
+          tests/gates/test_repository_tree_review.py
+          tests/gates/test_guard_implementation_manifest.py
+          tests/gates/test_guard_implementation_manifest_review.py
+          tests/gates/test_repository_write_source_anchor_semantics.py
+          tests/gates/test_repository_write_source_anchor_semantics_review.py
+          tests/gates/test_repository_write_evidence_origin.py
+          tests/gates/test_repository_write_evidence_origin_review.py
+          tests/gates/test_repository_write_evidence_materialization.py
+          tests/gates/test_repository_write_evidence_materialization_review.py
+          tests/gates/test_repository_write_classification.py
+          tests/gates/test_repository_write_classification_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_repository_write_guard_structure_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-guard-structure-wheel
+      - run: /tmp/daedalus-guard-structure-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-guard-structure-wheel/bin/python - <<'PY'
+          from daedalus.gates.repository_write_guard_structure import (
+              GuardStructureRecord,
+              RepositoryWriteGuardStructureBindingError,
+              RepositoryWriteGuardStructureError,
+              RepositoryWriteGuardStructurePayloadError,
+              RepositoryWriteGuardStructureReport,
+              verify_repository_write_guard_structure,
+          )
+
+          assert issubclass(
+              RepositoryWriteGuardStructureBindingError,
+              RepositoryWriteGuardStructureError,
+          )
+          assert issubclass(
+              RepositoryWriteGuardStructurePayloadError,
+              RepositoryWriteGuardStructureError,
+          )
+          assert GuardStructureRecord.__dataclass_fields__
+          assert RepositoryWriteGuardStructureReport.__dataclass_fields__
+          assert callable(verify_repository_write_guard_structure)
+          PY
