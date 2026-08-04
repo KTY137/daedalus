@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus" / "kairos" / "gated_writes.py"
 TESTS = (
     "tests/kernel/test_promotion_manager_live_wiring.py",
+    "tests/kernel/test_promotion_manager_live_wiring_review.py",
     "tests/kernel/test_promotion_manager_boundary_review.py",
     "tests/kernel/test_promotion_manager_replay_review.py",
     "tests/kernel/test_promotion_effect_inventory.py",
