@@ -9,6 +9,7 @@
     "public_module": "daedalus.kairos.gated_writes",
     "existing_retained_resource": "daedalus.kairos._gated_writes_legacy.py.src",
     "sealed_parent": "daedalus.kairos.gated_writes._ACCOUNTED_PROMOTE_CANDIDATES",
+    "public_facade": "daedalus.kairos.gated_writes.promote_candidates",
     "manager_state": "daedalus.kairos.gated_writes._promotion_manager_boundary_state",
     "canonical_ledger_type": "daedalus.kernel.promotion_execution.PromotionExecutionLedger"
   },
@@ -18,8 +19,14 @@
     "canonical-ledger-class-preservation",
     "typed-per-call-replay-proxy-selection",
     "invalid-ledger-non-laundering",
-    "installer-alias-removal",
+    "function-compatible-public-promotion-facade",
+    "installer-and-factory-alias-removal",
     "existing-strangler-preservation"
+  ],
+  "adversarial_findings_fixed": [
+    "direct-bound-method-public-surface-changed-callable-type",
+    "direct-bound-method-public-surface-changed-signature-and-introspection",
+    "untyped-ledger-could-not-be-wrapped-without-defeating-parent-type-guard"
   ],
   "source_order": [
     "verified-legacy-resource-execution",
@@ -27,7 +34,8 @@
     "sealed-persisted-authority-callable-definition",
     "public-export-freeze",
     "typed-manager-installation",
-    "typed-replay-installation"
+    "typed-replay-installation",
+    "function-compatible-public-facade"
   ],
   "current_expected_promotion_inventory_blockers": [
     "python.promote_candidates:not-central",
@@ -36,7 +44,7 @@
     "kernel.promotion_execution.complete:missing-registry-row"
   ],
   "verification_commands": [
-    "python -m pytest -q tests/kernel/test_promotion_manager_live_wiring.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_promotion_manager_installation.py tests/kernel/test_promotion_manager_replay.py tests/kernel/test_promotion_manager_replay_review.py tests/kernel/test_promotion_effect_inventory.py",
+    "python -m pytest -q tests/kernel/test_promotion_manager_live_wiring.py tests/kernel/test_promotion_manager_live_wiring_review.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_promotion_manager_installation.py tests/kernel/test_promotion_manager_replay.py tests/kernel/test_promotion_manager_replay_review.py tests/kernel/test_promotion_effect_inventory.py",
     "python scripts/run_promotion_manager_wiring_mutations.py",
     "python scripts/run_promotion_manager_audit_mutations.py",
     "python scripts/run_promotion_manager_replay_mutations.py",
