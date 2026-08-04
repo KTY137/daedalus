@@ -215,7 +215,10 @@ def test_missing_and_empty_binding_sets_remain_blocking() -> None:
     missing = materialize_repository_write_evidence(report, {})
     assert missing.materialization_complete is False
     assert missing.missing_locators == (binding.locator,)
-    assert "evidence-blobs-missing" in missing.to_dict()["blockers"]
+    missing_material = missing.to_dict()
+    assert "evidence-blobs-missing" in missing_material["blockers"]
+    assert missing_material["canonical_bytes_verified"] is False
+    assert missing_material["binding_verified"] is False
 
     surface = _surface()
     empty = materialize_repository_write_evidence(
@@ -353,6 +356,48 @@ def test_payload_digest_and_false_semantics_refuse() -> None:
                 _report(_row(surface, (bad_binding,))),
                 {bad_binding.locator: bad_raw},
             )
+
+
+def test_nonfinite_and_oversized_json_refuse_inside_domain_boundary() -> None:
+    report, binding, _, document = _one()
+    canonical = canonical_json(document)
+    nonfinite = canonical.replace(
+        '"line":1', '"line":NaN', 1
+    ).encode("ascii")
+    digest = hashlib.sha256(nonfinite).hexdigest()
+    rebound = EvidenceBinding(
+        kind=binding.kind,
+        source_revision=binding.source_revision,
+        surface_sha256=binding.surface_sha256,
+        sha256=digest,
+        locator="cas:sha256:" + digest,
+    )
+    with pytest.raises(
+        RepositoryWriteEvidenceMaterializationError,
+        match="strict canonical JSON",
+    ):
+        materialize_repository_write_evidence(
+            _report(_row(_surface(), (rebound,))),
+            {rebound.locator: nonfinite},
+        )
+
+    oversized = b" " * 1_048_577
+    digest = hashlib.sha256(oversized).hexdigest()
+    rebound = EvidenceBinding(
+        kind=binding.kind,
+        source_revision=binding.source_revision,
+        surface_sha256=binding.surface_sha256,
+        sha256=digest,
+        locator="cas:sha256:" + digest,
+    )
+    with pytest.raises(
+        RepositoryWriteEvidenceMaterializationError,
+        match="bounded materialization size",
+    ):
+        materialize_repository_write_evidence(
+            _report(_row(_surface(), (rebound,))),
+            {rebound.locator: oversized},
+        )
 
 
 def test_reused_blob_digest_across_distinct_surfaces_refuses() -> None:
