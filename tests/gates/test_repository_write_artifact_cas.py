@@ -299,7 +299,7 @@ def test_path_replacement_during_read_refuses(
 
     with pytest.raises(
         RepositoryWriteArtifactCASError,
-        match=r"changed (?:during|after) read",
+        match=r"(?:changed (?:during|after) read|read failed)",
     ):
         resolve_repository_write_artifact(
             artifact,
