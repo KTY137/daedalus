@@ -12,13 +12,15 @@ The packet declares exactly one newly introduced filesystem-writing production s
 
 The row is Python, declares only `filesystem_write`, has no fabricated guard contract, and remains explicitly `unguarded`. Exact source anchors bind same-directory temporary-file creation, SQLite schema construction, no-clobber hard-link publication, file durability and parent-directory durability.
 
+The machine-readable delta is bound to the exact reviewed parent revision. Malformed revisions and any different syntactically valid revision are refused rather than allowing the source anchors to be relabelled after the parent moves.
+
 ## Exact scanner contract
 
 The proposed static-scanner hook matches only module `daedalus.kernel.promotion_recovery_consumption_store` and function `initialize_promotion_recovery_consumption_store`. Prefix modules, suffixed functions and the read-only inspector are excluded. The canonical scanner is not changed in this packet.
 
 ## Adversarial batch prepared
 
-Builder tests cover canonical hashing, the exact row, exact anchors, malformed near-misses and the current registry/scanner gap. A separate source review checks that the inventory module imports no effect or registry authority, cannot install rows, cannot execute initialization, cannot claim centrality or closure, retains the full blocker set and uses exact scanner equality. Seven bounded mutants attack false registry/scanner integration, hidden unguarded status, fabricated guards, removed effects, wildcard scanner matching and blocker removal.
+Builder tests cover canonical hashing, exact parent-revision binding, malformed and stale revisions, the exact row, exact anchors, malformed scanner near-misses and the current registry/scanner gap. A separate source review checks that the inventory module imports no effect or registry authority, cannot install rows, cannot execute initialization, cannot claim centrality or closure, retains the full blocker set, uses an exact revision fence and uses exact scanner equality. Eight bounded mutants attack false registry/scanner integration, hidden unguarded status, fabricated guards, removed effects, wildcard scanner matching, stale-revision acceptance and blocker removal.
 
 The workflow requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, focused predecessor regressions, Iron Plan verification, mutation, full suite, package build and isolated-wheel import.
 
