@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -155,6 +156,23 @@ def test_initializer_requires_preexisting_isolated_parent(tmp_path: Path) -> Non
     assert not missing_parent.exists()
 
 
+def test_existing_target_parent_must_stay_inside_attempt_root(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    attempt = tmp_path / "attempt"
+    outside = tmp_path / "outside"
+    primary.mkdir()
+    attempt.mkdir()
+    outside.mkdir()
+
+    with pytest.raises(ProviderObservationStoreError, match="attempt root"):
+        ProviderObservationStoreTarget(
+            path=str((outside / "store.sqlite3").resolve()),
+            attempt_root=str(attempt.resolve()),
+            primary_checkout_root=str(primary.resolve()),
+            source_revision=REVISION,
+        )
+
+
 def test_primary_checkout_and_attempt_roots_must_be_disjoint(tmp_path: Path) -> None:
     primary = tmp_path / "checkout"
     attempt = primary / "attempt"
@@ -245,25 +263,21 @@ def test_preexisting_sqlite_sidecar_is_refused(tmp_path: Path) -> None:
         _ledger(target)
 
 
-def test_store_identity_replacement_is_refused_by_admitted_ledger(
+def test_admitted_store_inode_cannot_be_substituted_with_same_bound_bytes(
     tmp_path: Path,
 ) -> None:
     target = _target(tmp_path)
     initialize_provider_observation_binding_store(target)
     ledger = _ledger(target)
+    replacement = Path(target.path).with_name("replacement.sqlite3")
+    shutil.copyfile(target.path, replacement)
+    assert replacement.stat().st_ino != Path(target.path).stat().st_ino
+    os.replace(replacement, target.path)
 
-    second_root = tmp_path / "second"
-    second_root.mkdir()
-    replacement = ProviderObservationStoreTarget(
-        path=str((second_root / "replacement.sqlite3").resolve()),
-        attempt_root=str(second_root.resolve()),
-        primary_checkout_root=target.primary_checkout_root,
-        source_revision=REVISION,
-    )
-    initialize_provider_observation_binding_store(replacement)
-    os.replace(replacement.path, target.path)
-
-    with pytest.raises(ProviderObservationAuthorityStateError):
+    with pytest.raises(
+        ProviderObservationAuthorityStateError,
+        match="identity changed",
+    ):
         ledger.load("provider-store-execution")
 
 
