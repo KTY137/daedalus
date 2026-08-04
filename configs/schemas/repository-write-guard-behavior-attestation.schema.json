@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-guard-behavior-attestation.schema.json",
+  "title": "Daedalus Gate 0 repository-write guard behavior attestation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "classification_digest",
+    "guard_structure_report_digest",
+    "guard_structure_record_set_sha256",
+    "attestation_digest",
+    "attestation_id",
+    "authority_id",
+    "authority_key_id",
+    "harness_id",
+    "harness_sha256",
+    "runtime_manifest_digest",
+    "contract_count",
+    "case_count",
+    "case_set_sha256",
+    "guard_behavior_attestation_authenticated",
+    "positive_and_negative_vectors_complete",
+    "guard_execution_replayed",
+    "guard_contract_semantics_verified",
+    "runtime_conformance_verified",
+    "semantic_receipts_verified",
+    "evidence_authenticated",
+    "gate_report_bound",
+    "closed",
+    "scope",
+    "blockers",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-guard-behavior-attestation-report/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "classification_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_structure_report_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_structure_record_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "attestation_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "attestation_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authority_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authority_key_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "harness_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "harness_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_manifest_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "contract_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "case_set_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "guard_behavior_attestation_authenticated": {
+      "const": true
+    },
+    "positive_and_negative_vectors_complete": {
+      "const": true
+    },
+    "guard_execution_replayed": {
+      "const": false
+    },
+    "guard_contract_semantics_verified": {
+      "const": false
+    },
+    "runtime_conformance_verified": {
+      "const": false
+    },
+    "semantic_receipts_verified": {
+      "const": false
+    },
+    "evidence_authenticated": {
+      "const": false
+    },
+    "gate_report_bound": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    },
+    "scope": {
+      "const": "repository-write-guard-behavior-attestation"
+    },
+    "blockers": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "effect-lease-semantic-verification-missing"
+        },
+        {
+          "const": "gate-report-binding-missing"
+        },
+        {
+          "const": "guard-behavior-harness-replay-missing"
+        },
+        {
+          "const": "primary-checkout-disjointness-semantic-verification-missing"
+        },
+        {
+          "const": "retirement-semantic-verification-missing"
+        },
+        {
+          "const": "runtime-conformance-semantic-verification-missing"
+        }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    }
+  }
+}
