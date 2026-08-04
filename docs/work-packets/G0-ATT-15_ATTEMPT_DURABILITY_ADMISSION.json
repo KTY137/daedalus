@@ -1,0 +1,90 @@
+{
+  "schema": "daedalus-gate0-attempt-durability-admission/1",
+  "work_packet": "G0-ATT-15",
+  "status": "partial",
+  "security_boundary_claimed": false,
+  "selected_parent": "g0/event-store-durability-after-attempt-linear",
+  "writer": {
+    "authority": "canonical_spine_ledger_connection",
+    "profile": "daedalus-gate0-spine-durability/1",
+    "journal_mode": "wal",
+    "synchronous": "full",
+    "minimum_busy_timeout_ms": 30000,
+    "foreign_keys": true,
+    "attempt_index_connection": "same_admitted_connection"
+  },
+  "invariants": [
+    {
+      "code": "attempt.writer_admitted_before_index",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/kernel/test_attempt_durability_admission.py::test_durability_refusal_precedes_attempt_index_install"
+    },
+    {
+      "code": "attempt.index_uses_canonical_transaction",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/kernel/test_attempt_durability_admission.py::test_attempt_index_uses_no_second_sqlite_writer_connection"
+    },
+    {
+      "code": "attempt.writer_full_readback",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/kernel/test_attempt_durability_admission.py::test_attempt_ledger_admits_exact_writer_at_full_durability"
+    },
+    {
+      "code": "attempt.read_only_refusal",
+      "state": "implemented_unexecuted",
+      "evidence": "tests/kernel/test_attempt_durability_admission.py::test_read_only_spine_is_refused_without_attempt_schema_mutation"
+    }
+  ],
+  "mutation_campaign": {
+    "runner": "scripts/run_attempt_durability_admission_mutations.py",
+    "state": "implemented_unexecuted",
+    "mutants": [
+      "bypass-durability-admission",
+      "restore-second-writer-connection",
+      "install-attempt-index-before-durability"
+    ]
+  },
+  "resolved_parent_blockers": [
+    {
+      "code": "attempt_lifecycle.profile_not_applied",
+      "resolution": "AttemptLedger requires the Gate-0 durability profile before installing its unique lifecycle index or writing lifecycle records."
+    },
+    {
+      "code": "attempt_lifecycle.second_writer_connection",
+      "resolution": "The lifecycle index is installed through the exact admitted SpineLedger transaction instead of a separate SQLite connection."
+    }
+  ],
+  "remaining_blockers": [
+    {
+      "code": "event_store.initial_generic_migration_uses_legacy_default",
+      "severity": "blocker",
+      "reason": "A path-created SpineLedger performs its generic schema migration under the legacy NORMAL default before AttemptLedger admits the connection. A later canonical Gate-0 writer factory must apply FULL before every production initialization write."
+    },
+    {
+      "code": "event_store.other_production_writers_not_migrated",
+      "severity": "blocker",
+      "reason": "Only the selected Attempt lifecycle writer is admitted by this packet; every other production Event-Store writer still requires inventory and migration."
+    },
+    {
+      "code": "exact_head_execution_unavailable",
+      "severity": "blocker",
+      "reason": "GitHub Actions issue #67 prevents supported-platform tests, mutation execution, full-suite and packaging evidence."
+    },
+    {
+      "code": "independent_review_missing",
+      "severity": "blocker",
+      "reason": "Builder and source-separated adversarial checks are present, but an independent reviewer decision is not."
+    }
+  ],
+  "verification_state": {
+    "builder_implementation": "complete",
+    "builder_static_review": "performed",
+    "malformed_and_bypass_tests": "implemented_unexecuted",
+    "mutation_tests": "implemented_unexecuted",
+    "full_suite": "blocked_by_github_actions_issue_67",
+    "platform_matrix": "blocked_by_github_actions_issue_67",
+    "isolated_wheel": "blocked_by_github_actions_issue_67",
+    "independent_review": "open",
+    "gate0_closed": false
+  }
+}
