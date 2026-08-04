@@ -1,0 +1,48 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25E",
+  "title": "Strict Effect Execution Replay Projection",
+  "gate": 0,
+  "base_branch": "g0/promotion-replay-projection-linear",
+  "base_revision": "bbbd2a9d325a5a5d4286dba980161fc8bfe5fd11",
+  "source_parent_pr": 146,
+  "branch": "g0/effect-replay-projection-linear",
+  "implemented": [
+    "read-only-mode-ro-effect-ledger-projection",
+    "exact-persisted-lease-row-binding",
+    "exact-execution-identity-and-request-binding",
+    "strict-canonical-start-receipt-decoding",
+    "historical-signed-lease-authentication-at-start-instant",
+    "started-versus-terminal-state-separation",
+    "strict-canonical-terminal-receipt-decoding",
+    "post-revocation-historical-terminal-read-without-effect-authority",
+    "writer-bypass-and-coherent-rehash-tests",
+    "bounded-effect-replay-mutation-campaign"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25E_EFFECT_REPLAY_PROJECTION.json",
+    "python -m pytest -q tests/kernel/test_effect_authorization.py tests/kernel/test_effect_replay_projection.py tests/kernel/test_effect_replay_projection_review.py tests/kernel/test_promotion_replay_projection.py",
+    "python scripts/run_effect_replay_projection_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "not-installed",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "compose-effect-and-promotion-replay-projections-into-one-decision",
+    "wire-fresh-effect-start-before-live-promotion-lifecycle",
+    "reconcile-retained-promotion-terminal-into-top-level-effect-terminal",
+    "refuse-missing-or-pending-cross-ledger-state-without-automatic-reexecution",
+    "upgrade-promotion-rows-only-after-live-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
