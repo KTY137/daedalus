@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus/gates/report_v3.py"
 TESTS = (
     "tests/gates/test_gate_report_v3.py",
+    "tests/gates/test_gate_report_v3_bounds.py",
     "tests/gates/test_gate_report_v3_review.py",
     "tests/gates/test_gate_report_v3_schema.py",
     "tests/gates/test_gate_report_v3_cli.py",
