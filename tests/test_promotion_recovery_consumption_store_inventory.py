@@ -4,14 +4,18 @@ import ast
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
 from daedalus.spine import effect_boundary
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.promotion_recovery_consumption_store_inventory import (
+    BASE_REVISION,
     BLOCKERS,
     ENTRYPOINTS,
     INVENTORY_DELTA,
     SCANNER_FUNCTION,
     SCANNER_MODULE,
+    build_promotion_recovery_consumption_store_inventory_delta,
     recognizes_recovery_consumption_store_initializer,
 )
 
@@ -65,11 +69,15 @@ def _initializer_calls() -> list[str]:
     return [_name(node.func, aliases) for node in calls]
 
 
-def test_delta_is_canonical_machine_readable_and_open() -> None:
+def test_delta_is_canonical_revision_bound_machine_readable_and_open() -> None:
     payload = INVENTORY_DELTA.payload_dict()
 
     assert INVENTORY_DELTA.schema == (
         "daedalus-promotion-recovery-consumption-store-inventory-delta/1"
+    )
+    assert INVENTORY_DELTA.source_revision == BASE_REVISION
+    assert INVENTORY_DELTA == (
+        build_promotion_recovery_consumption_store_inventory_delta(BASE_REVISION)
     )
     assert INVENTORY_DELTA.delta_sha256 == canonical_sha(payload)
     assert INVENTORY_DELTA.to_dict() == {
@@ -80,6 +88,27 @@ def test_delta_is_canonical_machine_readable_and_open() -> None:
     assert INVENTORY_DELTA.canonical_scanner_integrated is False
     assert INVENTORY_DELTA.closed is False
     assert INVENTORY_DELTA.blockers == BLOCKERS
+
+
+def test_delta_rejects_malformed_and_stale_source_revisions() -> None:
+    malformed = (
+        None,
+        True,
+        7,
+        "",
+        "A" * 40,
+        "g" * 40,
+        "0" * 39,
+        "0" * 65,
+        "0" * 40 + "\n",
+    )
+    for value in malformed:
+        with pytest.raises(ValueError, match="source revision"):
+            build_promotion_recovery_consumption_store_inventory_delta(value)  # type: ignore[arg-type]
+
+    stale = "0" * 40 if BASE_REVISION != "0" * 40 else "1" * 40
+    with pytest.raises(ValueError, match="stale"):
+        build_promotion_recovery_consumption_store_inventory_delta(stale)
 
 
 def test_delta_describes_exact_initializer_without_fabricated_guard() -> None:
