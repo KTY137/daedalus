@@ -105,6 +105,23 @@ def main() -> int:
                 raise ValueError("gate report closed flag is inconsistent")
 """,
         ),
+        (
+            "accept-nonrevision-source-label",
+            """            or not _SOURCE_REVISION.fullmatch(self.source_revision)
+""",
+            """            or False
+""",
+        ),
+        (
+            "accept-duplicate-json-keys",
+            "            object_pairs_hook=_object_without_duplicates,\n",
+            "            object_pairs_hook=dict,\n",
+        ),
+        (
+            "remove-report-size-bound",
+            "    if len(raw) > _MAX_REPORT_BYTES:\n",
+            "    if False:\n",
+        ),
     )
 
     killed: list[str] = []
