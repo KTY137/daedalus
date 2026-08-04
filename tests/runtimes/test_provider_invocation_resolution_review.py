@@ -156,16 +156,29 @@ def test_receipt_constructor_recomputes_digest_and_parser_is_exact() -> None:
     assert "observation_authority_sha256" in parser_source
 
 
-def test_receipt_reverification_derives_descriptor_instead_of_accepting_one() -> None:
+def test_receipt_reverification_reauthenticates_full_resolution_subject() -> None:
     verifier = _definition("verify_provider_invocation_resolution_receipt")
     source = ast.get_source_segment(SOURCE, verifier) or ""
     arguments = [argument.arg for argument in verifier.args.args]
     keyword_only = [argument.arg for argument in verifier.args.kwonlyargs]
     assert "descriptor" not in arguments + keyword_only
-    assert "authority.invocation_registry_sha256 != manifest.digest" in source
-    assert "manifest.resolve" in _calls(verifier)
-    assert "_receipt_for" in _calls(verifier)
+    assert "verified_at" not in arguments + keyword_only
+    assert "type(receipt) is not ProviderInvocationResolutionReceipt" in source
+    assert "resolve_provider_invocation_authority" in _calls(verifier)
     assert "receipt != expected" in source
+    for field in (
+        "authority_id",
+        "authority_keyring",
+        "observation_keyring",
+        "invocation_contract_id",
+        "entrypoint_id",
+        "runtime_id",
+        "execution",
+        "lease_sha256",
+        "source_revision",
+        "at",
+    ):
+        assert field in source
 
 
 def test_resolution_time_is_timezone_aware_and_canonical() -> None:
