@@ -29,6 +29,7 @@ _REPOSITORY_PATH = re.compile(
     r"^(?!/)(?!.*(?:^|/)\.\.?(?:/|$))(?!.*//)[^\\\r\n]+$"
 )
 _SINGLE_LINE = re.compile(r"^[^\r\n]+$")
+_MAX_EVIDENCE_BYTES = 1_048_576
 
 
 class RepositoryWriteEvidenceMaterializationError(RuntimeError):
@@ -166,8 +167,8 @@ class RepositoryWriteEvidenceMaterializationReport:
             "missing_locators": list(self.missing_locators),
             "materialization_complete": self.materialization_complete,
             "content_addressed": True,
-            "canonical_bytes_verified": True,
-            "binding_verified": True,
+            "canonical_bytes_verified": self.materialization_complete,
+            "binding_verified": self.materialization_complete,
             "origin_authenticated": False,
             "semantic_receipts_verified": False,
             "evidence_authenticated": False,
@@ -254,6 +255,10 @@ def materialize_repository_write_evidence(
 def _materialize_one(
     binding: EvidenceBinding, raw: bytes
 ) -> MaterializedEvidenceRecord:
+    if len(raw) > _MAX_EVIDENCE_BYTES:
+        raise RepositoryWriteEvidenceMaterializationError(
+            "evidence blob exceeds the bounded materialization size"
+        )
     raw_sha256 = hashlib.sha256(raw).hexdigest()
     if raw_sha256 != binding.sha256:
         raise RepositoryWriteEvidenceMaterializationError(
@@ -265,11 +270,19 @@ def _materialize_one(
         )
     try:
         text = raw.decode("utf-8", errors="strict")
-        document = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+        document = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_nonfinite,
+        )
+        canonical = canonical_json(document).encode("ascii")
     except (
         UnicodeDecodeError,
         json.JSONDecodeError,
         RepositoryWriteEvidenceMaterializationError,
+        RecursionError,
+        TypeError,
+        ValueError,
     ) as exc:
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence blob is not strict canonical JSON"
@@ -280,7 +293,7 @@ def _materialize_one(
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence document must be an object"
         )
-    if raw != canonical_json(document).encode("ascii"):
+    if raw != canonical:
         raise RepositoryWriteEvidenceMaterializationError(
             "evidence blob bytes are not canonical JSON"
         )
@@ -465,6 +478,12 @@ def _validate_payload(
         return
 
     raise RepositoryWriteEvidenceMaterializationError("evidence kind is unsupported")
+
+
+def _reject_nonfinite(value: str) -> object:
+    raise RepositoryWriteEvidenceMaterializationError(
+        f"evidence JSON contains non-finite number {value}"
+    )
 
 
 def _reject_duplicate_keys(
