@@ -1,0 +1,52 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25A",
+  "title": "Promotion Execution Row Descriptors",
+  "gate": 0,
+  "base_revision": "6765b139ab53dc07881d9c187243599755df8bdc",
+  "branch": "g0/promotion-ledger-inventory-linear",
+  "authority": {
+    "canonical_registry": "daedalus.spine.effect_boundary.ENTRYPOINTS",
+    "descriptor_module": "daedalus.spine.promotion_effect_rows",
+    "future_materializer": "daedalus.spine.promotion_effect_rows.materialize_promotion_execution_rows"
+  },
+  "implemented": [
+    "exact-open-begin-complete-descriptors",
+    "local-guards-only-contract",
+    "intent-ledger-guard-binding",
+    "filesystem-write-effect-binding",
+    "import-cycle-free-dependency-injected-materializer",
+    "deterministic-pure-row-materialization",
+    "descriptor-set-identity-and-order-refusal"
+  ],
+  "adversarial_boundaries": [
+    "no-canonical-registry-import",
+    "no-import-time-registry-mutation",
+    "no-central-wiring-claim",
+    "no-effect-lease-runtime-or-sandbox-claim",
+    "no-external-effect-authority"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_effect_rows.py tests/kernel/test_promotion_effect_rows_review.py",
+    "python scripts/run_promotion_effect_rows_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "canonical_registry_modified": false,
+  "production_wiring": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "materialize-descriptors-inside-canonical-effect-boundary-before-default-registry-bindings",
+    "rebuild-registry-by-id-from-extended-canonical-tuple",
+    "prove-gate-report-and-inventory-see-three-local-guards-rows",
+    "compose-persisted-effect-lease-runtime-conformance-and-docker-sandbox",
+    "upgrade-promotion-surface-to-central-only-after-mechanical-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly prevents jobs from recording Step 1; zero-step runs are not product evidence."
+}
