@@ -19,8 +19,8 @@ TESTS = (
 MUTATIONS = (
     (
         "allow-create-on-normal-writer-open",
-        '        mode = "ro" if read_only else "rw"\n',
-        '        mode = "ro" if read_only else "rwc"  # mutant\n',
+        '            mode = "ro" if read_only else "rw"\n',
+        '            mode = "ro" if read_only else "rwc"  # mutant\n',
     ),
     (
         "skip-preexisting-target-refusal",
@@ -59,8 +59,13 @@ MUTATIONS = (
     ),
     (
         "skip-preopen-store-verification",
-        "        status = inspect_promotion_recovery_consumption_store(self.path)\n        self._require_same_store(status)\n        mode = \"ro\" if read_only else \"rw\"\n",
-        "        status = self.store_status  # mutant: no explicit pre-open inspection\n        mode = \"ro\" if read_only else \"rw\"\n",
+        "            status = inspect_promotion_recovery_consumption_store(self.path)\n            self._require_same_store(status)\n            mode = \"ro\" if read_only else \"rw\"\n",
+        "            status = self.store_status  # mutant: no explicit pre-open inspection\n            mode = \"ro\" if read_only else \"rw\"\n",
+    ),
+    (
+        "leak-store-errors-through-ledger-boundary",
+        "        except (PromotionRecoveryConsumptionStoreError, sqlite3.Error) as exc:\n",
+        "        except sqlite3.Error as exc:  # mutant: leak store errors\n",
     ),
 )
 
