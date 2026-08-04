@@ -7,7 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus" / "kernel" / "promotion_effect_inventory.py"
-TEST = "tests/kernel/test_promotion_effect_inventory.py"
+TESTS = (
+    "tests/kernel/test_promotion_effect_inventory.py",
+    "tests/kernel/test_promotion_effect_inventory_review.py",
+)
 
 MUTATIONS = (
     (
@@ -31,6 +34,11 @@ MUTATIONS = (
         "if False\n    )",
     ),
     (
+        "omit-ledger-open-effect",
+        "for requirement in REQUIREMENTS\n    )",
+        "for requirement in REQUIREMENTS\n        if requirement.entrypoint_id != \"kernel.promotion_execution.open\"\n    )",
+    ),
+    (
         "force-closed",
         "closed = all(finding.status == \"central\" for finding in findings)",
         "closed = True",
@@ -40,7 +48,7 @@ MUTATIONS = (
 
 def _run() -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", TEST],
+        [sys.executable, "-m", "pytest", "-q", *TESTS],
         cwd=ROOT,
         text=True,
         capture_output=True,
