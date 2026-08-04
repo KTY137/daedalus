@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import sys
 from datetime import timedelta
@@ -104,6 +105,40 @@ def test_exact_runtime_provider_refuses_without_observation_authority(
         )
     assert called == []
     assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+
+
+def test_forged_observation_authority_refuses_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, _record = fixture._authorization(tmp_path, monkeypatch)
+    execution = fixture._execution()
+    _constant_runtime_clock(monkeypatch)
+    observation_authority, observation_ledger = _observation_authority(
+        tmp_path,
+        authorization,
+        execution,
+    )
+    forged = dataclasses.replace(
+        observation_authority,
+        signature_sha256="0" * 64,
+    )
+    called: list[str] = []
+    with pytest.raises(
+        RuntimeProviderBindingMismatch,
+        match="could not authenticate and bind",
+    ):
+        run_runtime_provider(
+            fixture._request().entrypoint_id,
+            authorization=authorization,
+            execution=execution,
+            invoke=lambda: called.append("invoked"),
+            output_digests=lambda value: (OUTPUT_SHA,),
+            observation_authority=forged,
+            observation_binding_ledger=observation_ledger,
+        )
+    assert called == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "FAILED"
 
 
 def test_returned_provider_with_evidence_callback_failure_stays_started_and_reconciles(

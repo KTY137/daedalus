@@ -7,7 +7,8 @@ and success, failure, cancellation, and runtime-trust loss receive terminal
 receipts.
 
 For exact production runtime authority, a signed provider-observation authority
-is authenticated before the effect start.  After the durable start, its provider
+is supplied before the effect start and authenticated before external code runs.
+After the durable start, its provider
 and observation-key subject is persisted before external code runs.  Exact
 replay requires the same retained binding.  Narrow test doubles remain available
 through the compatibility seam while callers migrate; they cannot participate
@@ -462,7 +463,7 @@ def _production_observation_binding(
     which requires an exact ``RuntimeBoundEffectAuthorization``.
     """
 
-    if type(authorization) is not RuntimeBoundEffectAuthorization:
+    if not isinstance(authorization, RuntimeBoundEffectAuthorization):
         if authority is not None or ledger is not None:
             if (
                 type(authority) is not ProviderObservationAuthority

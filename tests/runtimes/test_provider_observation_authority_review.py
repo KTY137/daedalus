@@ -27,6 +27,8 @@ def test_broker_authenticates_and_persists_observation_authority_before_invoke()
     assert "observation_authority" in keyword_names
     assert "observation_binding_ledger" in keyword_names
     assert "observation_keyring" not in keyword_names
+    compatibility = inspect.getsource(broker._production_observation_binding)
+    assert "if not isinstance(authorization, RuntimeBoundEffectAuthorization):" in compatibility
     assert "expected_provider_id" not in keyword_names
 
     grant_position = source.index("    authorization.grant()")
