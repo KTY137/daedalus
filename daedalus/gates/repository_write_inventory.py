@@ -21,7 +21,6 @@ from daedalus.spine.envelope import canonical_json
 
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-
 _FILESYSTEM_FUNCTIONS = frozenset(
     {
         "os.remove",
@@ -151,15 +150,25 @@ class RepositoryWriteCallsite:
     operation: str
 
     def __post_init__(self) -> None:
-        if not _safe_relative_posix(self.path):
+        if not isinstance(self.path, str) or not _safe_relative_posix(self.path):
             raise ValueError("callsite path must be repository-relative POSIX")
+        if type(self.line) is not int or type(self.column) is not int:
+            raise ValueError("callsite position must use strict integers")
         if self.line < 1 or self.column < 0:
             raise ValueError("callsite position is invalid")
-        if self.kind not in _ALLOWED_KINDS:
+        if not isinstance(self.kind, str) or self.kind not in _ALLOWED_KINDS:
             raise ValueError("unknown repository write callsite kind")
-        if not self.callee or any(ch.isspace() for ch in self.callee):
+        if (
+            not isinstance(self.callee, str)
+            or not self.callee
+            or any(ch.isspace() for ch in self.callee)
+        ):
             raise ValueError("callsite callee is invalid")
-        if not self.operation or any(ch in self.operation for ch in "\r\n"):
+        if (
+            not isinstance(self.operation, str)
+            or not self.operation
+            or any(ch in self.operation for ch in "\r\n")
+        ):
             raise ValueError("callsite operation is invalid")
 
     @property
@@ -187,14 +196,25 @@ class RepositoryWriteInventory:
     callsites: tuple[RepositoryWriteCallsite, ...]
 
     def __post_init__(self) -> None:
-        if not _SOURCE_REVISION.fullmatch(self.source_revision):
+        if (
+            not isinstance(self.source_revision, str)
+            or not _SOURCE_REVISION.fullmatch(self.source_revision)
+        ):
             raise ValueError("source_revision must be a lowercase 40-hex commit")
-        if not _safe_relative_posix(self.package_root):
+        if (
+            not isinstance(self.package_root, str)
+            or not _safe_relative_posix(self.package_root)
+        ):
             raise ValueError("package_root must be repository-relative POSIX")
-        if not _SHA256.fullmatch(self.scan_input_sha256):
+        if (
+            not isinstance(self.scan_input_sha256, str)
+            or not _SHA256.fullmatch(self.scan_input_sha256)
+        ):
             raise ValueError("scan_input_sha256 must be lowercase sha256")
-        if self.files_scanned < 1:
+        if type(self.files_scanned) is not int or self.files_scanned < 1:
             raise ValueError("inventory must scan at least one production file")
+        if not isinstance(self.callsites, tuple):
+            raise ValueError("callsites must be an immutable tuple")
         if tuple(sorted(self.callsites)) != self.callsites:
             raise ValueError("callsites must be sorted")
         if len(set(self.callsites)) != len(self.callsites):
@@ -391,24 +411,22 @@ def _literal_string(node: ast.AST | None) -> str | None:
     return None
 
 
-def _keyword(call: ast.Call, name: str) -> ast.AST | None:
-    found: ast.AST | None = None
-    for item in call.keywords:
-        if item.arg is None:
-            return None
-        if item.arg == name:
-            if found is not None:
-                return None
-            found = item.value
-    return found
+def _keyword_value(
+    call: ast.Call,
+    name: str,
+) -> tuple[ast.AST | None, bool]:
+    values = [item.value for item in call.keywords if item.arg == name]
+    ambiguous = any(item.arg is None for item in call.keywords) or len(values) > 1
+    return (values[0] if len(values) == 1 else None, ambiguous)
 
 
 def _open_mode(call: ast.Call, *, method: bool) -> tuple[str, str] | None:
-    mode_node = _keyword(call, "mode")
-    if mode_node is None:
-        index = 0 if method else 1
-        if len(call.args) > index:
-            mode_node = call.args[index]
+    mode_node, ambiguous = _keyword_value(call, "mode")
+    index = 0 if method else 1
+    if mode_node is None and len(call.args) > index:
+        mode_node = call.args[index]
+    if ambiguous:
+        return ("ambiguous_open_mode", "expanded-or-duplicate-mode")
     if mode_node is None:
         return None
     mode = _literal_string(mode_node)
@@ -420,22 +438,22 @@ def _open_mode(call: ast.Call, *, method: bool) -> tuple[str, str] | None:
 
 
 def _os_open_flags(call: ast.Call) -> tuple[str, str] | None:
-    node = _keyword(call, "flags")
+    node, ambiguous = _keyword_value(call, "flags")
     if node is None and len(call.args) > 1:
         node = call.args[1]
-    if node is None:
-        return ("ambiguous_os_open_flags", "missing-flags")
-    names = {
-        item.id
-        for item in ast.walk(node)
-        if isinstance(item, ast.Name)
-    }
+    if ambiguous or node is None:
+        return ("ambiguous_os_open_flags", "expanded-duplicate-or-missing-flags")
     attributes = {
         item.attr
         for item in ast.walk(node)
-        if isinstance(item, ast.Attribute)
+        if isinstance(item, ast.Attribute) and item.attr.startswith("O_")
     }
-    tokens = names | attributes
+    bare_names = {
+        item.id
+        for item in ast.walk(node)
+        if isinstance(item, ast.Name) and item.id.startswith("O_")
+    }
+    tokens = attributes | bare_names
     write_tokens = {
         "O_WRONLY",
         "O_RDWR",
@@ -445,24 +463,46 @@ def _os_open_flags(call: ast.Call) -> tuple[str, str] | None:
         "O_EXCL",
     }
     if tokens.intersection(write_tokens):
-        return ("os_open_write", "+".join(sorted(tokens.intersection(write_tokens))))
-    if tokens and tokens <= {"O_RDONLY", "O_CLOEXEC", "O_NOFOLLOW", "O_DIRECTORY"}:
+        return (
+            "os_open_write",
+            "+".join(sorted(tokens.intersection(write_tokens))),
+        )
+    if tokens and tokens <= {
+        "O_RDONLY",
+        "O_CLOEXEC",
+        "O_NOFOLLOW",
+        "O_DIRECTORY",
+        "O_BINARY",
+    }:
         return None
-    if isinstance(node, ast.Constant) and isinstance(node.value, int):
-        return None if node.value == 0 else ("ambiguous_os_open_flags", str(node.value))
+    if isinstance(node, ast.Constant) and type(node.value) is int:
+        return (
+            None
+            if node.value == 0
+            else ("ambiguous_os_open_flags", str(node.value))
+        )
     return ("ambiguous_os_open_flags", "dynamic-flags")
 
 
 def _sqlite_mode(call: ast.Call) -> tuple[str, str]:
-    database = call.args[0] if call.args else _keyword(call, "database")
-    uri_node = _keyword(call, "uri")
-    uri_true = isinstance(uri_node, ast.Constant) and uri_node.value is True
+    database = call.args[0] if call.args else None
+    database_keyword, database_ambiguous = _keyword_value(call, "database")
+    if database is None:
+        database = database_keyword
+    uri_node, uri_ambiguous = _keyword_value(call, "uri")
+    if database_ambiguous or uri_ambiguous:
+        return ("ambiguous_sqlite_mode", "expanded-or-duplicate-keyword")
     value = _literal_string(database)
     if value is None:
         return ("ambiguous_sqlite_mode", "dynamic-database")
+    uri_true = isinstance(uri_node, ast.Constant) and uri_node.value is True
     if uri_true and "?" in value:
         query = value.split("?", 1)[1]
-        modes = [part.split("=", 1)[1] for part in query.split("&") if part.startswith("mode=")]
+        modes = [
+            part.split("=", 1)[1]
+            for part in query.split("&")
+            if part.startswith("mode=")
+        ]
         if modes == ["ro"]:
             return ("sqlite_read_only", "mode=ro")
         if len(modes) == 1 and modes[0] in {"rw", "rwc", "memory"}:
@@ -473,7 +513,12 @@ def _sqlite_mode(call: ast.Call) -> tuple[str, str]:
 
 
 def _process_tokens(call: ast.Call) -> tuple[str, ...] | None:
-    command = call.args[0] if call.args else _keyword(call, "args")
+    command = call.args[0] if call.args else None
+    keyword, ambiguous = _keyword_value(call, "args")
+    if command is None:
+        command = keyword
+    if ambiguous:
+        return None
     if isinstance(command, (ast.List, ast.Tuple)):
         tokens: list[str] = []
         for item in command.elts:
@@ -505,7 +550,10 @@ def _process_kind(call: ast.Call) -> tuple[str, str]:
 
 
 def _targets_tracked(values: Iterable[str]) -> bool:
-    return any(value.rsplit(".", 1)[-1] in _TRACKED_TERMINALS for value in values)
+    return any(
+        value.rsplit(".", 1)[-1] in _TRACKED_TERMINALS
+        for value in values
+    )
 
 
 def _indirect_aliases(
@@ -553,11 +601,20 @@ def _classify_call(
     if raw in indirect or terminal in indirect:
         return ("ambiguous_binding", raw, "indirect-call-alias")
     if ambiguous and (
-        terminal in _TRACKED_TERMINALS or _targets_tracked(aliases.get(root, ()))
+        terminal in _TRACKED_TERMINALS
+        or _targets_tracked(aliases.get(root, ()))
     ):
-        return ("ambiguous_binding", raw, "rebound-or-conflicting-binding")
+        return (
+            "ambiguous_binding",
+            raw,
+            "rebound-or-conflicting-binding",
+        )
     if resolved in _FILESYSTEM_FUNCTIONS:
-        return ("filesystem_mutation", resolved, resolved.rsplit(".", 1)[-1])
+        return (
+            "filesystem_mutation",
+            resolved,
+            resolved.rsplit(".", 1)[-1],
+        )
     if terminal in _PATH_METHODS:
         return ("path_mutation", resolved or raw, terminal)
     if resolved in _PROCESS_FUNCTIONS:
@@ -585,7 +642,11 @@ def _classify_call(
         kind, operation = classified
         return (kind, resolved or raw, operation)
     if terminal in _TRACKED_TERMINALS or resolved_terminal in _TRACKED_TERMINALS:
-        return ("ambiguous_binding", resolved or raw, "unresolved-tracked-terminal")
+        return (
+            "ambiguous_binding",
+            resolved or raw,
+            "unresolved-tracked-terminal",
+        )
     return None
 
 
@@ -616,12 +677,20 @@ def _callsites_for_file(
             continue
         raw = _syntactic_name(node.func)
         if raw is None:
-            continue
-        resolved, ambiguous = _resolve_name(
-            raw,
-            aliases=aliases,
-            rebound=rebound,
-        )
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr in (_PATH_METHODS | {"open"})
+            ):
+                raw = f"<expression>.{node.func.attr}"
+                resolved, ambiguous = raw, False
+            else:
+                continue
+        else:
+            resolved, ambiguous = _resolve_name(
+                raw,
+                aliases=aliases,
+                rebound=rebound,
+            )
         classified = _classify_call(
             node,
             raw=raw,
@@ -699,13 +768,16 @@ def scan_repository_write_surfaces(
 ) -> RepositoryWriteInventory:
     """Inventory production write-capable callsites for one exact revision."""
 
-    if not _SOURCE_REVISION.fullmatch(str(source_revision)):
+    if (
+        not isinstance(source_revision, str)
+        or not _SOURCE_REVISION.fullmatch(source_revision)
+    ):
         raise RepositoryWriteInventoryError(
             "source_revision must be a lowercase 40-hex commit"
         )
     try:
         root = Path(repository_root).resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, TypeError) as exc:
         raise RepositoryWriteInventoryError(
             "repository root does not resolve"
         ) from exc
@@ -730,7 +802,7 @@ def scan_repository_write_surfaces(
         )
     )
     return RepositoryWriteInventory(
-        source_revision=str(source_revision),
+        source_revision=source_revision,
         package_root=package_root.relative_to(root).as_posix(),
         scan_input_sha256=_scan_input(files, root),
         files_scanned=len(files),
