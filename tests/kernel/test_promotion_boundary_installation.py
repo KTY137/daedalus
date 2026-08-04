@@ -117,21 +117,24 @@ def test_source_order_installs_audit_then_replay_after_callable_definition() -> 
         for index, node in enumerate(tree.body)
         if isinstance(node, ast.FunctionDef) and node.name == "promote_candidates"
     )
-    calls = [
-        (index, node.func.id)
-        for index, node in enumerate(tree.body)
-        if isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Name)
-        and node.value.func.id
-        in {
+    calls: list[tuple[int, str]] = []
+    for index, statement in enumerate(tree.body):
+        if not isinstance(statement, ast.Expr) or not isinstance(
+            statement.value,
+            ast.Call,
+        ):
+            continue
+        function = statement.value.func
+        if not isinstance(function, ast.Name):
+            continue
+        if function.id in {
             "install_promotion_manager_boundary",
             "install_promotion_manager_replay_boundary",
-        }
-        for node in (node.value,)
-    ]
-    assert calls == [
-        (calls[0][0], "install_promotion_manager_boundary"),
-        (calls[1][0], "install_promotion_manager_replay_boundary"),
+        }:
+            calls.append((index, function.id))
+
+    assert [name for _, name in calls] == [
+        "install_promotion_manager_boundary",
+        "install_promotion_manager_replay_boundary",
     ]
     assert promote_index < calls[0][0] < calls[1][0]
