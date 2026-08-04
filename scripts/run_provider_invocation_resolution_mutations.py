@@ -43,9 +43,9 @@ MUTATIONS = (
         "    if False:  # mutant: accept naive time\n",
     ),
     (
-        "accept-retained-registry-mismatch",
-        "    if authority.invocation_registry_sha256 != manifest.digest:\n        raise ProviderInvocationResolutionBindingError(\n            \"retained authority and registry digest do not match\"\n        )\n",
-        "    if False:  # mutant: accept retained registry mismatch\n        raise ProviderInvocationResolutionBindingError(\n            \"retained authority and registry digest do not match\"\n        )\n",
+        "skip-receipt-reauthentication",
+        "    expected = resolve_provider_invocation_authority(\n        authority,\n        manifest,\n        authority_id=authority_id,\n        authority_keyring=authority_keyring,\n        observation_keyring=observation_keyring,\n        invocation_contract_id=invocation_contract_id,\n        entrypoint_id=entrypoint_id,\n        runtime_id=runtime_id,\n        execution=execution,\n        lease_sha256=lease_sha256,\n        source_revision=source_revision,\n        at=at,\n    )\n",
+        "    expected = receipt  # mutant: skip full reauthentication\n",
     ),
     (
         "accept-receipt-subject-mismatch",
