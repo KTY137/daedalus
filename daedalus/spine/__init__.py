@@ -30,6 +30,12 @@ from .durability import (
     inspect_gate0_durability,
     open_gate0_spine_writer,
 )
+from .writer_inventory import (
+    WriterCallsite,
+    WriterInventory,
+    WriterInventoryError,
+    scan_event_store_writers,
+)
 
 __all__ = [
     "DEFAULT_BUSY_TIMEOUT_MS",
@@ -47,10 +53,14 @@ __all__ = [
     "SpineError",
     "SpineLedger",
     "UnknownIntent",
+    "WriterCallsite",
+    "WriterInventory",
+    "WriterInventoryError",
     "canonical_json",
     "canonical_sha",
     "default_db_path",
     "enforce_gate0_durability",
     "inspect_gate0_durability",
     "open_gate0_spine_writer",
+    "scan_event_store_writers",
 ]
