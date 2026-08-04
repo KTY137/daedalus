@@ -12,6 +12,7 @@ from daedalus.kernel.effects import (
 )
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
+    RuntimeProviderReconciliationRequired,
     RuntimeProviderStateError,
     run_runtime_provider,
 )
@@ -321,28 +322,38 @@ def test_runtime_trust_loss_after_evidence_extraction_blocks_completion() -> Non
     assert auth.finish_calls[0]["outcome"] == "cancelled"
 
 
-def test_missing_or_malformed_output_evidence_marks_execution_failed() -> None:
-    missing = FakeAuthorization()
-    with pytest.raises(ValueError, match="requires output evidence"):
+@pytest.mark.parametrize(
+    "output_digests,cause_type",
+    [
+        (lambda value: (), ValueError),
+        (lambda value: ("not-a-digest",), ValueError),
+        (lambda value: (_ for _ in ()).throw(RuntimeError("local digest crash")), RuntimeError),
+    ],
+)
+def test_post_provider_output_evidence_failure_requires_reconciliation(
+    output_digests,
+    cause_type: type[BaseException],
+) -> None:
+    auth = FakeAuthorization()
+    with pytest.raises(RuntimeProviderReconciliationRequired) as captured:
         run_runtime_provider(
             ENTRYPOINT,
-            authorization=missing,  # type: ignore[arg-type]
+            authorization=auth,  # type: ignore[arg-type]
             execution=_execution(),
-            invoke=lambda: "output",
-            output_digests=lambda value: (),
+            invoke=lambda: "external-output",
+            output_digests=output_digests,
         )
-    assert missing.finish_calls[0]["outcome"] == "failed"
 
-    malformed = FakeAuthorization()
-    with pytest.raises(ValueError, match="lowercase SHA-256"):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=malformed,  # type: ignore[arg-type]
-            execution=_execution(),
-            invoke=lambda: "output",
-            output_digests=lambda value: ("not-a-digest",),
-        )
-    assert malformed.finish_calls[0]["outcome"] == "failed"
+    error = captured.value
+    assert error.entrypoint_id == ENTRYPOINT
+    assert error.runtime_id == RUNTIME
+    assert error.start_receipt == _start_receipt()
+    assert error.phase == "output-evidence"
+    assert len(error.cause_sha256) == 64
+    assert isinstance(error.__cause__, cause_type)
+    assert auth.verify_calls == 1
+    assert auth.finish_calls == []
+    assert not hasattr(error, "value")
 
 
 def test_terminal_persistence_failure_is_a_broker_state_error() -> None:
