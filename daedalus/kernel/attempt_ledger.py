@@ -9,6 +9,11 @@ from typing import Mapping
 from daedalus.kernel.artifacts import ArtifactRef
 from daedalus.kernel.source_trees import SourceTreeStore, StoredSourceTree
 from daedalus.schemas import AttemptContract, ContractProvenance, _sha256
+from daedalus.spine.durability import (
+    Gate0DurabilityError,
+    Gate0DurabilityStatus,
+    enforce_gate0_durability,
+)
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.ledger import (
     STATE_COMPLETED,
@@ -55,28 +60,35 @@ class AttemptLedger:
             raise AttemptStateError(
                 "attempt lifecycle requires a writable canonical event spine"
             )
+        try:
+            self.durability_status: Gate0DurabilityStatus = (
+                enforce_gate0_durability(self.spine)
+            )
+        except Gate0DurabilityError as exc:
+            raise AttemptStateError(
+                "attempt lifecycle requires the Gate-0 Event-Store durability profile"
+            ) from exc
         self.path = self.spine.path
         self._clock = AttemptLifecycleClock()
         self._install_single_start_invariant()
 
     def _install_single_start_invariant(self) -> None:
-        """Enforce one lifecycle intent per Attempt inside the existing spine DB."""
+        """Install the Attempt index through the admitted canonical writer.
+
+        A second SQLite connection would have its own per-connection durability
+        settings and could silently fall back to ``synchronous=NORMAL``.  The
+        index is therefore installed through the exact already-admitted
+        ``SpineLedger`` transaction seam.
+        """
         try:
-            with sqlite3.connect(
-                self.path,
-                timeout=30.0,
-                isolation_level=None,
-            ) as connection:
-                connection.execute("PRAGMA busy_timeout=30000")
-                connection.execute("BEGIN IMMEDIATE")
+            with self.spine._txn() as connection:
                 connection.execute(
                     "CREATE UNIQUE INDEX IF NOT EXISTS "
                     "idx_attempt_lifecycle_effect_key "
                     "ON intents(effect_key) "
                     "WHERE kind = 'attempt.lifecycle'"
                 )
-                connection.commit()
-        except sqlite3.DatabaseError as exc:
+        except (sqlite3.DatabaseError, AttributeError) as exc:
             raise AttemptStateError(
                 "canonical event spine cannot enforce one attempt start"
             ) from exc
