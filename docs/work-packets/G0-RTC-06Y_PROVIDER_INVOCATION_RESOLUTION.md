@@ -12,17 +12,19 @@ The packet remains preparatory. It does not load an adapter, call a provider, pe
 
 It then authenticates the nested provider-observation authority and composite invocation signature through the existing verifier. Only after authentication does it resolve the signed `ProviderInvocationSubject` through the registry. The resulting receipt binds the complete registry digest, composite and nested authority digests, invocation contract, invocation subject, resolved descriptor, selected implementation identity, adapter artifact/config digests, runtime routing identity and effect execution/lease subject.
 
-The receipt recomputes its own digest during construction and requires an exact serialized shape. Reverification does not accept a descriptor from the caller. It derives the descriptor again from the retained manifest and signed invocation subject, then reconstructs and compares the complete receipt.
+The receipt recomputes its own digest during construction and requires an exact serialized shape. Reverification accepts neither a caller-selected descriptor nor a claim that the authority was already authenticated. It reruns the complete authority, registry, execution, lease, revision and verification-time resolution and compares the newly derived receipt with the retained receipt.
 
-## Adversarial correction
+## Adversarial corrections
 
-The initial receipt-verification draft accepted a `descriptor` argument. That would have allowed a caller to choose a matching descriptor outside the retained manifest while presenting the manifest digest separately. The public verifier now has no descriptor parameter and mechanically derives the descriptor through `manifest.resolve(authority.invocation_subject)`.
+The initial receipt-verification draft accepted a `descriptor` argument. That would have allowed a caller to choose a matching descriptor outside the retained manifest while presenting the manifest digest separately. The descriptor argument was removed and resolution became manifest-derived.
+
+The next draft described its authority and manifest inputs as already authenticated and only reconstructed the receipt. That created a dangerous public API assumption. The verifier now requires the complete authority keyrings, execution, lease, revision, contract and verification time and calls `resolve_provider_invocation_authority(...)` again before comparison.
 
 ## Prepared verification
 
-Builder tests cover exact resolution and receipt round-trip, changed manifest identity, a valid signed subject that does not resolve, composite and nested signature tampering, stale revision, wrong execution, malformed verification time, receipt digest and shape tampering, registry mismatch during reverification and verification-time binding.
+Builder tests cover exact resolution and receipt round-trip, changed manifest identity, a valid signed subject that does not resolve, composite and nested signature tampering, stale revision, wrong execution, malformed verification time, receipt digest and shape tampering, full authority reauthentication and verification-time binding.
 
-A separate AST/source review verifies absence of execution, loading, persistence and promotion authority; exact verification-before-resolution ordering; complete receipt subject coverage; digest recomputation; exact parsing; descriptor derivation; and timezone-aware canonical verification time. Eight bounded mutants target signed-registry mismatch, skipped authority verification, resolution bypass, implementation detachment, receipt-digest bypass, naive time, retained-registry mismatch and receipt-subject mismatch.
+A separate AST/source review verifies absence of execution, loading, persistence and promotion authority; exact verification-before-resolution ordering; complete receipt subject coverage; digest recomputation; exact parsing; full reverification through the authenticated resolver; and timezone-aware canonical verification time. Eight bounded mutants target signed-registry mismatch, skipped authority verification, resolution bypass, implementation detachment, receipt-digest bypass, naive time, skipped receipt reauthentication and receipt-subject mismatch.
 
 Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds, predecessor tests, full suite, package build and isolated-wheel import are requested. These commands are prepared, not represented as executed evidence. GitHub Actions issue #67 currently terminates jobs before checkout/Step 1 and yields no logs or artifacts.
 
