@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 
 from daedalus.kernel.effects import EffectTerminalReceipt
 from daedalus.kernel.promotion_effect_replay import (
@@ -24,20 +25,15 @@ from daedalus.kernel.promotion_execution import (
 from daedalus.kernel.promotion_replay import inspect_promotion_execution
 from daedalus.schemas import _sha256
 
-FRESH = "fresh"
-EFFECT_ONLY_PENDING = "effect-only-pending-reconciliation"
-PROMOTION_PENDING = "promotion-pending-reconciliation"
-EFFECT_TERMINAL_REQUIRED = "effect-terminalization-required"
-COMPLETE = "complete"
-_DISPOSITIONS = frozenset(
-    {
-        FRESH,
-        EFFECT_ONLY_PENDING,
-        PROMOTION_PENDING,
-        EFFECT_TERMINAL_REQUIRED,
-        COMPLETE,
-    }
-)
+
+class PromotionReconciliationDisposition(str, Enum):
+    """Inert restart classifications across both promotion lifecycles."""
+
+    FRESH = "fresh"
+    EFFECT_ONLY_PENDING = "effect-only-pending-reconciliation"
+    PROMOTION_PENDING = "promotion-pending-reconciliation"
+    EFFECT_TERMINAL_REQUIRED = "effect-terminalization-required"
+    COMPLETE = "complete"
 
 
 class PromotionReconciliationError(RuntimeError):
@@ -74,40 +70,45 @@ class ExpectedPromotionEffectTerminal:
 class PromotionReconciliationProjection:
     """One inert restart classification over both persisted authorities."""
 
-    disposition: str
+    disposition: PromotionReconciliationDisposition
     effect_execution: PromotionEffectReplayResult | None
     promotion_execution: PromotionExecutionBeginResult | None
     expected_effect_terminal: ExpectedPromotionEffectTerminal | None
 
     def __post_init__(self) -> None:
-        if self.disposition not in _DISPOSITIONS:
+        if not isinstance(
+            self.disposition,
+            PromotionReconciliationDisposition,
+        ):
             raise ValueError("promotion reconciliation disposition is invalid")
         effect = self.effect_execution
         promotion = self.promotion_execution
         expected = self.expected_effect_terminal
         valid = {
-            FRESH: effect is None and promotion is None and expected is None,
-            EFFECT_ONLY_PENDING: (
+            PromotionReconciliationDisposition.FRESH: (
+                effect is None and promotion is None and expected is None
+            ),
+            PromotionReconciliationDisposition.EFFECT_ONLY_PENDING: (
                 effect is not None
                 and effect.terminal is None
                 and promotion is None
                 and expected is None
             ),
-            PROMOTION_PENDING: (
+            PromotionReconciliationDisposition.PROMOTION_PENDING: (
                 effect is not None
                 and effect.terminal is None
                 and promotion is not None
                 and promotion.completion is None
                 and expected is None
             ),
-            EFFECT_TERMINAL_REQUIRED: (
+            PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED: (
                 effect is not None
                 and effect.terminal is None
                 and promotion is not None
                 and promotion.completion is not None
                 and expected is not None
             ),
-            COMPLETE: (
+            PromotionReconciliationDisposition.COMPLETE: (
                 effect is not None
                 and effect.terminal is not None
                 and promotion is not None
@@ -198,7 +199,12 @@ def inspect_promotion_reconciliation(
     )
 
     if effect is None and promotion is None:
-        return PromotionReconciliationProjection(FRESH, None, None, None)
+        return PromotionReconciliationProjection(
+            PromotionReconciliationDisposition.FRESH,
+            None,
+            None,
+            None,
+        )
     if effect is None:
         raise PromotionReconciliationError(
             "promotion execution exists without a top-level effect start"
@@ -209,7 +215,7 @@ def inspect_promotion_reconciliation(
                 "effect terminal exists without a promotion-execution start"
             )
         return PromotionReconciliationProjection(
-            EFFECT_ONLY_PENDING,
+            PromotionReconciliationDisposition.EFFECT_ONLY_PENDING,
             effect,
             None,
             None,
@@ -231,7 +237,7 @@ def inspect_promotion_reconciliation(
                 "effect terminal exists while promotion execution is pending"
             )
         return PromotionReconciliationProjection(
-            PROMOTION_PENDING,
+            PromotionReconciliationDisposition.PROMOTION_PENDING,
             effect,
             promotion,
             None,
@@ -240,7 +246,7 @@ def inspect_promotion_reconciliation(
     expected = _expected_terminal(promotion.completion.receipt)
     if effect.terminal is None:
         return PromotionReconciliationProjection(
-            EFFECT_TERMINAL_REQUIRED,
+            PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED,
             effect,
             promotion,
             expected,
@@ -260,7 +266,7 @@ def inspect_promotion_reconciliation(
         )
     _verify_terminal(effect.terminal, expected)
     return PromotionReconciliationProjection(
-        COMPLETE,
+        PromotionReconciliationDisposition.COMPLETE,
         effect,
         promotion,
         expected,
@@ -268,12 +274,8 @@ def inspect_promotion_reconciliation(
 
 
 __all__ = [
-    "COMPLETE",
-    "EFFECT_ONLY_PENDING",
-    "EFFECT_TERMINAL_REQUIRED",
-    "FRESH",
-    "PROMOTION_PENDING",
     "ExpectedPromotionEffectTerminal",
+    "PromotionReconciliationDisposition",
     "PromotionReconciliationError",
     "PromotionReconciliationProjection",
     "inspect_promotion_reconciliation",
