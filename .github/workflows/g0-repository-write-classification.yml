@@ -1,0 +1,109 @@
+name: Gate 0 Repository Write Classification Contract
+
+on:
+  pull_request:
+    branches:
+      - g0/repository-write-canonical-v2-linear
+    paths:
+      - "daedalus/gates/repository_write_classification.py"
+      - "scripts/report_repository_write_classification.py"
+      - "scripts/run_repository_write_classification_mutations.py"
+      - "tests/gates/test_repository_write_classification*.py"
+      - "configs/schemas/repository-write-classification.schema.json"
+      - "docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.*"
+      - ".github/workflows/g0-repository-write-classification.yml"
+  push:
+    branches:
+      - g0/repository-write-classification-contract-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-repository-write-classification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/repository-write-classification.schema.json
+      - run: python -m json.tool docs/work-packets/G0-RWI-20C_REPOSITORY_WRITE_CLASSIFICATION.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_repository_write_classification.py
+          tests/gates/test_repository_write_classification_review.py
+          tests/gates/test_repository_write_inventory_v2.py
+          tests/gates/test_repository_write_inventory_v2_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_repository_write_classification_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-repository-write-classification-wheel
+      - run: /tmp/daedalus-repository-write-classification-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-repository-write-classification-wheel/bin/python - <<'PY'
+          from daedalus.gates.repository_write_classification import (
+              EvidenceKind,
+              GuardDisposition,
+              TargetDisposition,
+          )
+
+          assert EvidenceKind.EFFECT_LEASE_RECEIPT.value == "effect_lease_receipt"
+          assert GuardDisposition.CENTRAL.value == "central"
+          assert TargetDisposition.UNKNOWN.value == "unknown"
+          PY
