@@ -36,6 +36,16 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _instant(value: str, label: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise PromotionTerminalizationError(f"{label} is not ISO-8601") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise PromotionTerminalizationError(f"{label} is not timezone-aware")
+    return parsed.astimezone(timezone.utc)
+
+
 def _complete_terminal(
     capability: PromotionEffectCapability,
     promotion_ledger: PromotionExecutionLedger,
@@ -103,13 +113,23 @@ def reconcile_promotion_effect_terminal(
 
     start = projection.effect_execution.start
     expected = projection.expected_effect_terminal
+    finished_at = _utc_now()
+    promotion_finished_at = _instant(
+        projection.promotion_execution.completion.receipt.completed_at,
+        "promotion completion time",
+    )
+    if finished_at < promotion_finished_at:
+        raise PromotionTerminalizationError(
+            "current clock precedes retained promotion completion; refusing "
+            "a chronologically invalid effect terminal"
+        )
     try:
         written = capability.authorization.effect_ledger.finish(
             start,
             outcome=expected.outcome,
             output_digests=expected.output_digests,
             detail_sha256=expected.detail_sha256,
-            finished_at=_utc_now(),
+            finished_at=finished_at,
         )
     except EffectLeaseStateError:
         # A concurrent reconciler may have terminalized the exact same retained
