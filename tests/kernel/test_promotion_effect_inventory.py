@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+import dataclasses
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+
+from daedalus.kernel.promotion_effect_inventory import (
+    PromotionEffectInventoryError,
+    REQUIREMENTS,
+    build_promotion_effect_inventory,
+    main,
+    verify_promotion_effect_inventory,
+)
+from daedalus.spine.effect_boundary import (
+    ENTRYPOINTS,
+    Effect,
+    EntrypointSpec,
+    Surface,
+    Wiring,
+)
+
+
+ROOT = Path(__file__).resolve().parents[2]
+REVISION = "a" * 40
+
+
+def _central_registry() -> tuple[EntrypointSpec, ...]:
+    rows: list[EntrypointSpec] = []
+    for row in ENTRYPOINTS:
+        if row.id == "python.promote_candidates":
+            rows.append(dataclasses.replace(row, wiring=Wiring.CENTRAL))
+        else:
+            rows.append(row)
+    rows.extend(
+        (
+            EntrypointSpec(
+                id="kernel.promotion_execution.begin",
+                surface=Surface.PYTHON,
+                target=(
+                    "daedalus.kernel.promotion_execution:"
+                    "PromotionExecutionLedger.begin"
+                ),
+                effects=(Effect.FILESYSTEM_WRITE,),
+                guard_contracts=("spine.intent_ledger",),
+                wiring=Wiring.CENTRAL,
+            ),
+            EntrypointSpec(
+                id="kernel.promotion_execution.complete",
+                surface=Surface.PYTHON,
+                target=(
+                    "daedalus.kernel.promotion_execution:"
+                    "PromotionExecutionLedger.complete"
+                ),
+                effects=(Effect.FILESYSTEM_WRITE,),
+                guard_contracts=("spine.intent_ledger",),
+                wiring=Wiring.CENTRAL,
+            ),
+        )
+    )
+    return tuple(rows)
+
+
+def _copy_sources(tmp_path: Path) -> Path:
+    for requirement in REQUIREMENTS:
+        source = ROOT / requirement.source_path
+        target = tmp_path / requirement.source_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    return tmp_path
+
+
+def test_current_promotion_inventory_is_honestly_open() -> None:
+    report = build_promotion_effect_inventory(
+        ROOT,
+        source_revision=REVISION,
+    )
+    findings = {row.entrypoint_id: row for row in report.findings}
+    assert not report.closed
+    assert findings["python.promote_candidates"].status == "blocked"
+    assert findings["python.promote_candidates"].blockers == (
+        "registry.not_central:local_guards",
+    )
+    assert findings["kernel.promotion_execution.begin"].status == "missing"
+    assert findings["kernel.promotion_execution.begin"].blockers == (
+        "registry.missing",
+    )
+    assert findings["kernel.promotion_execution.complete"].status == "missing"
+    assert findings["kernel.promotion_execution.complete"].blockers == (
+        "registry.missing",
+    )
+    assert len(report.report_sha256) == 64
+
+
+def test_exact_central_registry_closes_only_the_scoped_inventory() -> None:
+    report = build_promotion_effect_inventory(
+        ROOT,
+        source_revision=REVISION,
+        registry=_central_registry(),
+    )
+    assert report.closed
+    assert {row.status for row in report.findings} == {"central"}
+    assert all(not row.blockers for row in report.findings)
+
+
+def test_wrong_target_effects_and_guards_are_all_blocking() -> None:
+    registry = list(_central_registry())
+    index = next(
+        position
+        for position, row in enumerate(registry)
+        if row.id == "kernel.promotion_execution.begin"
+    )
+    registry[index] = dataclasses.replace(
+        registry[index],
+        target="daedalus.kernel.promotion_execution:wrong",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=("containment.worktree",),
+    )
+    report = build_promotion_effect_inventory(
+        ROOT,
+        source_revision=REVISION,
+        registry=tuple(registry),
+    )
+    finding = next(
+        row
+        for row in report.findings
+        if row.entrypoint_id == "kernel.promotion_execution.begin"
+    )
+    assert finding.status == "mismatched"
+    assert finding.blockers == (
+        "registry.effects_mismatch",
+        "registry.guards_mismatch",
+        "registry.target_mismatch",
+    )
+    assert not report.closed
+
+
+def test_duplicate_registry_identity_refuses_before_projection() -> None:
+    registry = (*_central_registry(), _central_registry()[-1])
+    with pytest.raises(PromotionEffectInventoryError, match="duplicate"):
+        build_promotion_effect_inventory(
+            ROOT,
+            source_revision=REVISION,
+            registry=registry,
+        )
+
+
+def test_missing_source_anchor_refuses_closure(tmp_path: Path) -> None:
+    root = _copy_sources(tmp_path)
+    source = root / "daedalus" / "kernel" / "promotion_execution.py"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "record_intent(",
+            "record_intent_removed(",
+        ),
+        encoding="utf-8",
+    )
+    report = build_promotion_effect_inventory(
+        root,
+        source_revision=REVISION,
+        registry=_central_registry(),
+    )
+    finding = next(
+        row
+        for row in report.findings
+        if row.entrypoint_id == "kernel.promotion_execution.begin"
+    )
+    assert finding.status == "blocked"
+    assert finding.blockers == ("source.missing_call:record_intent",)
+    assert not report.closed
+
+
+def test_malformed_revision_and_missing_repository_refuse(tmp_path: Path) -> None:
+    with pytest.raises(PromotionEffectInventoryError, match="40 lowercase"):
+        build_promotion_effect_inventory(ROOT, source_revision="A" * 40)
+    with pytest.raises(PromotionEffectInventoryError, match="unavailable"):
+        build_promotion_effect_inventory(
+            tmp_path / "missing",
+            source_revision=REVISION,
+        )
+
+
+def test_report_is_deterministic_and_live_verification_rebuilds() -> None:
+    first = build_promotion_effect_inventory(ROOT, source_revision=REVISION)
+    second = build_promotion_effect_inventory(ROOT, source_revision=REVISION)
+    assert first == second
+    assert first.to_dict() == second.to_dict()
+    assert (
+        verify_promotion_effect_inventory(
+            first,
+            ROOT,
+            expected_source_revision=REVISION,
+        )
+        == first
+    )
+    with pytest.raises(PromotionEffectInventoryError, match="differs"):
+        verify_promotion_effect_inventory(
+            first,
+            ROOT,
+            expected_source_revision="b" * 40,
+        )
+
+
+def test_cli_is_stdout_only_and_require_closed_fails(capsys: pytest.CaptureFixture[str]) -> None:
+    result = main(
+        [
+            str(ROOT),
+            "--source-revision",
+            REVISION,
+            "--require-closed",
+        ]
+    )
+    assert result == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema"] == "daedalus-promotion-effect-inventory/1"
+    assert payload["closed"] is False
+    assert len(payload["findings"]) == 3
+
+
+def test_inventory_module_has_no_effect_or_authority_surface() -> None:
+    source = (
+        ROOT
+        / "daedalus"
+        / "kernel"
+        / "promotion_effect_inventory.py"
+    ).read_text(encoding="utf-8").lower()
+    forbidden = (
+        "issue_owner_approval",
+        "consume_owner_approval",
+        "subprocess",
+        "sqlite3",
+        "git worktree",
+        "merge_pull_request",
+        "promote_candidates(",
+    )
+    for token in forbidden:
+        assert token not in source
