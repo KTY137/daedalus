@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-WRAPPER = ROOT / "daedalus" / "kairos" / "gated_writes.py"
-RESOURCE = ROOT / "daedalus" / "kairos" / "_gated_writes_execution_accounting.py.src"
+PUBLIC = ROOT / "daedalus" / "kairos" / "gated_writes.py"
 AUDIT = ROOT / "daedalus" / "kairos" / "promotion_manager_audit.py"
 BOUNDARY = ROOT / "daedalus" / "kairos" / "promotion_manager_boundary.py"
-EXPECTED_PARENT_BLOB = "56fb60a5432b3a372c90b8b6bf279129f69db870"
 
 
 def _source(path: Path) -> str:
@@ -28,66 +25,91 @@ def _function(path: Path, name: str) -> ast.FunctionDef:
     raise AssertionError(f"missing function {name}")
 
 
+def _method(path: Path, class_name: str, name: str) -> ast.FunctionDef:
+    for node in _tree(path).body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name == name:
+                    return child
+    raise AssertionError(f"missing {class_name}.{name}")
+
+
 def _segment(path: Path, node: ast.AST) -> str:
     value = ast.get_source_segment(_source(path), node)
     assert value is not None
     return value
 
 
-def _git_blob_sha(payload: bytes) -> str:
-    return hashlib.sha1(
-        f"blob {len(payload)}\0".encode("ascii") + payload
-    ).hexdigest()
-
-
-def test_wrapper_executes_exact_parent_blob_before_installing_boundary() -> None:
-    assert _git_blob_sha(RESOURCE.read_bytes()) == EXPECTED_PARENT_BLOB
-    source = _source(WRAPPER)
-    assert f'_EXPECTED_GIT_BLOB_SHA = "{EXPECTED_PARENT_BLOB}"' in source
-    assert "_git_blob_sha(_payload)" in source
-    assert "exec(" in source
-    assert "install_promotion_manager_boundary(globals())" in source
-    assert source.index("exec(") < source.index("install_promotion_manager_boundary")
-
-
-def test_wrapper_contains_no_reimplemented_promotion_logic() -> None:
-    tree = _tree(WRAPPER)
-    functions = {
-        node.name for node in tree.body if isinstance(node, ast.FunctionDef)
-    }
-    assert functions == {"_git_blob_sha"}
-    source = _source(WRAPPER)
-    assert "git worktree" not in source.lower()
-    assert "subprocess" not in source
-    assert "OwnerApproval" not in source
+def test_public_boundary_remains_unwired_until_dependent_packet() -> None:
+    source = _source(PUBLIC)
+    assert "def promote_candidates(" in source
+    assert "install_promotion_manager_boundary(globals())" not in source
+    assert "install_promotion_manager_replay_boundary(globals())" not in source
+    assert "issue_owner_approval" not in source
     assert "merge_pull_request" not in source
 
 
-def test_boundary_replaces_only_constructor_and_public_call_seams() -> None:
+def test_installer_preserves_public_ledger_class_and_wraps_only_call_seams() -> None:
     installer = _segment(
         BOUNDARY,
         _function(BOUNDARY, "install_promotion_manager_boundary"),
     )
     for required in (
         'namespace["GitWorktreeManager"] = state.manager_factory',
-        'namespace["PromotionExecutionLedger"] = state.ledger_factory',
+        'namespace["PromotionExecutionLedger"] = ledger_type',
         'namespace["promote_candidates"] = state.promote_candidates',
         'namespace["_REAL_GIT_WORKTREE_MANAGER"]',
         'namespace["_REAL_PROMOTION_EXECUTION_LEDGER"]',
         'namespace["_ACCOUNTED_PROMOTE_CANDIDATES"]',
     ):
         assert required in installer
+    assert "state.ledger_factory" not in installer
     assert "exec(" not in installer
 
 
-def test_boundary_never_performs_mutating_git_or_filesystem_calls() -> None:
+def test_typed_proxy_cannot_turn_an_arbitrary_object_into_a_valid_ledger() -> None:
     source = _source(BOUNDARY)
+    tree = _tree(BOUNDARY)
+    proxy = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "_AuditedExecutionLedger"
+    )
+    assert any(
+        isinstance(base, ast.Name) and base.id == "PromotionExecutionLedger"
+        for base in proxy.bases
+    )
+    wrapper = _segment(BOUNDARY, _method(BOUNDARY, "_BoundaryState", "wrap_ledger"))
+    assert "if not isinstance(delegate, self.ledger_type)" in wrapper
+    assert "return delegate" in wrapper
+    assert "wrapper(delegate, self)" in wrapper
+    assert "ledger_constructor" not in source
+
+
+def test_manager_context_is_single_and_scoped_to_one_public_call() -> None:
+    manager_factory = _segment(
+        BOUNDARY,
+        _method(BOUNDARY, "_BoundaryState", "manager_factory"),
+    )
+    promote = _segment(
+        BOUNDARY,
+        _method(BOUNDARY, "_BoundaryState", "promote_candidates"),
+    )
+    assert "self.active_manager.get() is not None" in manager_factory
+    assert "more than one manager" in manager_factory
+    assert "token = self.active_manager.set(None)" in promote
+    assert "self.active_manager.reset(token)" in promote
+    assert '"promotion_execution_ledger" in call_kwargs' in promote
+
+
+def test_boundary_never_performs_mutating_git_or_filesystem_calls() -> None:
+    source = _source(BOUNDARY).lower()
     forbidden = (
         "subprocess",
         "git worktree",
         "git merge",
-        "Path.write_text",
-        "Path.write_bytes",
+        "path.write_text",
+        "path.write_bytes",
         "os.replace",
         "shutil",
         "issue_owner_approval",
@@ -129,21 +151,13 @@ def test_manager_adapter_delegates_before_recording_success() -> None:
 
 
 def test_execution_proxy_binds_audit_before_terminal_delegate() -> None:
-    tree = _tree(BOUNDARY)
-    proxy = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "_AuditedExecutionLedger"
+    complete = _segment(
+        BOUNDARY,
+        _method(BOUNDARY, "_AuditedExecutionLedger", "complete"),
     )
-    complete = next(
-        child
-        for child in proxy.body
-        if isinstance(child, ast.FunctionDef) and child.name == "complete"
-    )
-    source = _segment(BOUNDARY, complete)
-    assert 'enriched["manager_audit"] = snapshot.to_dict()' in source
-    assert 'enriched["manager_audit_sha256"] = snapshot.digest' in source
-    assert source.index("_assess_completion(") < source.rindex(
+    assert 'enriched["manager_audit"] = snapshot.to_dict()' in complete
+    assert 'enriched["manager_audit_sha256"] = snapshot.digest' in complete
+    assert complete.index("_assess_completion(") < complete.rindex(
         "self._delegate.complete("
     )
 
@@ -157,7 +171,7 @@ def test_unknown_identity_uses_pending_not_optimistic_fault() -> None:
 
 
 def test_no_gate_or_owner_claim_is_embedded() -> None:
-    source = (_source(WRAPPER) + _source(AUDIT) + _source(BOUNDARY)).lower()
+    source = (_source(AUDIT) + _source(BOUNDARY)).lower()
     assert "closed=true" not in source
     assert "gate 0 is closed" not in source
     assert "issue_owner_approval" not in source
