@@ -23,13 +23,13 @@ MUTATIONS = (
         "widen-open-effect",
         'effects=("filesystem_write",),',
         'effects=("process_spawn",),',
-        1,
+        3,
     ),
     (
-        "remove-intent-ledger-guard",
+        "remove-open-intent-ledger-guard",
         'guard_contracts=("spine.intent_ledger",),',
         "guard_contracts=(),",
-        1,
+        3,
     ),
     (
         "skip-exact-descriptor-set-check",
