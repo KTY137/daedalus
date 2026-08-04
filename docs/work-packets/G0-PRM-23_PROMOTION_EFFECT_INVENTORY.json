@@ -1,0 +1,50 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-23",
+  "title": "Promotion Effect Inventory",
+  "gate": 0,
+  "base_revision": "3deec36a260994cdf3c498ce36be2077c7f645f1",
+  "branch": "g0/promotion-effect-inventory-linear",
+  "authority": {
+    "canonical_registry": "daedalus.spine.effect_boundary.ENTRYPOINTS",
+    "inventory_builder": "daedalus.kernel.promotion_effect_inventory.build_promotion_effect_inventory",
+    "live_promotion": "daedalus.kairos.gated_writes.promote_candidates",
+    "execution_ledger": "daedalus.kernel.promotion_execution.PromotionExecutionLedger"
+  },
+  "implemented": [
+    "revision-bound-promotion-effect-report",
+    "exact-registry-target-effect-and-guard-matching",
+    "source-anchor-byte-binding",
+    "duplicate-registry-refusal",
+    "stdout-only-require-closed-cli",
+    "live-rebuild-verification"
+  ],
+  "current_expected_blockers": [
+    "python.promote_candidates:not-central",
+    "python.promote_candidates:manager-boundary-not-installed",
+    "python.promote_candidates:manager-replay-boundary-not-installed",
+    "kernel.promotion_execution.begin:missing-registry-row",
+    "kernel.promotion_execution.complete:missing-registry-row"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_effect_inventory.py",
+    "python scripts/run_promotion_effect_inventory_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "install-manager-audit-and-replay-boundaries-in-live-promotion-module",
+    "register-promotion-execution-begin-and-complete",
+    "compose-effect-lease-runtime-conformance-and-docker-sandbox",
+    "upgrade-promotion-rows-to-central-only-after-mechanical-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 repeatedly prevents jobs from recording Step 1; zero-step runs are not product evidence."
+}
