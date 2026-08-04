@@ -1,0 +1,143 @@
+name: Gate 0 Repository Write Effect-Lease Replay
+
+on:
+  pull_request:
+    branches:
+      - g0/runtime-effect-replay-linear
+    paths:
+      - "daedalus/gates/repository_write_effect_lease.py"
+      - "tests/gates/test_repository_write_effect_lease*.py"
+      - "scripts/run_repository_write_effect_lease_mutations.py"
+      - "configs/schemas/repository-write-effect-lease.schema.json"
+      - "docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.*"
+      - ".github/workflows/g0-repository-write-effect-lease.yml"
+  push:
+    branches:
+      - g0/repository-write-effect-lease-replay-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-repository-write-effect-lease-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool configs/schemas/repository-write-effect-lease.schema.json
+      - run: python -m json.tool docs/work-packets/G0-RWI-20N_REPOSITORY_WRITE_EFFECT_LEASE.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_repository_write_effect_lease.py
+          tests/gates/test_repository_write_effect_lease_review.py
+          tests/kernel/test_runtime_effect_replay_projection.py
+          tests/kernel/test_runtime_effect_replay_projection_review.py
+          tests/kernel/test_effect_replay_projection.py
+          tests/kernel/test_effect_replay_projection_review.py
+          tests/gates/test_repository_write_runtime_conformance.py
+          tests/gates/test_repository_write_runtime_conformance_review.py
+          tests/gates/test_repository_write_guard_structure.py
+          tests/gates/test_repository_write_guard_structure_review.py
+          tests/gates/test_python_target_structure.py
+          tests/gates/test_python_target_structure_review.py
+          tests/gates/test_repository_tree.py
+          tests/gates/test_repository_tree_review.py
+          tests/gates/test_guard_implementation_manifest.py
+          tests/gates/test_guard_implementation_manifest_review.py
+          tests/gates/test_repository_write_source_anchor_semantics.py
+          tests/gates/test_repository_write_source_anchor_semantics_review.py
+          tests/gates/test_repository_write_evidence_origin.py
+          tests/gates/test_repository_write_evidence_origin_review.py
+          tests/gates/test_repository_write_evidence_materialization.py
+          tests/gates/test_repository_write_evidence_materialization_review.py
+          tests/gates/test_repository_write_classification.py
+          tests/gates/test_repository_write_classification_review.py
+          tests/test_runtime_profiles.py
+          tests/test_runtime_trust_store.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_repository_write_effect_lease_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-effect-replay-wheel
+      - run: /tmp/daedalus-effect-replay-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-effect-replay-wheel/bin/python - <<'PY'
+          from daedalus.gates.repository_write_effect_lease import (
+              EffectLeaseReplayRecord,
+              EffectLeaseReplaySubject,
+              RepositoryWriteEffectLeaseBindingError,
+              RepositoryWriteEffectLeaseError,
+              RepositoryWriteEffectLeasePayloadError,
+              RepositoryWriteEffectLeaseReport,
+              verify_repository_write_effect_leases,
+          )
+
+          assert issubclass(
+              RepositoryWriteEffectLeaseBindingError,
+              RepositoryWriteEffectLeaseError,
+          )
+          assert issubclass(
+              RepositoryWriteEffectLeasePayloadError,
+              RepositoryWriteEffectLeaseError,
+          )
+          assert EffectLeaseReplayRecord.__dataclass_fields__
+          assert EffectLeaseReplaySubject.__dataclass_fields__
+          assert RepositoryWriteEffectLeaseReport.__dataclass_fields__
+          assert callable(verify_repository_write_effect_leases)
+          PY
