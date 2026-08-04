@@ -41,6 +41,8 @@ def test_counter_review_has_one_bounded_registry_append_and_projection_refresh()
     assert source.count("check_conformance.__kwdefaults__") == 2
     assert source.count("materialize_promotion_execution_rows(") == 1
     assert source.count("promotion execution rows are partially or incorrectly installed") == 1
+    assert source.count("boundary.ENTRYPOINTS[-len(required) :]") == 1
+    assert source.count("promotion execution rows are not the exact ordered registry suffix") == 1
 
 
 def test_counter_review_package_initializes_before_export_projection() -> None:
