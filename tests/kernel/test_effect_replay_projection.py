@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -25,7 +26,7 @@ from daedalus.spine.effect_boundary import (
     Surface,
     Wiring,
 )
-from daedalus.spine.envelope import canonical_json
+from daedalus.spine.envelope import canonical_json, canonical_sha
 
 
 REVISION = "a" * 40
@@ -214,6 +215,18 @@ def test_exact_terminal_remains_readable_after_later_revocation(tmp_path) -> Non
     assert snapshot.terminal_receipt == terminal
 
 
+def test_historical_projection_authenticates_the_original_lease_signature(tmp_path) -> None:
+    authorization, execution, _generation, _start = grant_and_start(tmp_path)
+    wrong_key = dataclasses.replace(
+        authorization,
+        lease_keyring={
+            "effect-replay-key-1": b"wrong-effect-replay-secret-32-bytes-minimum"
+        },
+    )
+    with pytest.raises(EffectReplayProjectionError, match="authenticate"):
+        inspect_effect_execution(wrong_key, execution)
+
+
 def test_cross_execution_identity_is_refused_not_treated_as_missing(tmp_path) -> None:
     authorization, execution, _generation, _start = grant_and_start(tmp_path)
     substituted = EffectExecutionRequest(
@@ -259,8 +272,6 @@ def test_coherently_rehashed_start_subject_substitution_is_refused(tmp_path) -> 
         payload = {
             key: value for key, value in parsed.items() if key != "receipt_sha256"
         }
-        from daedalus.spine.envelope import canonical_sha
-
         parsed["receipt_sha256"] = canonical_sha(payload)
         replaced = canonical_json(parsed)
         connection.execute(
@@ -275,6 +286,37 @@ def test_coherently_rehashed_start_subject_substitution_is_refused(tmp_path) -> 
         inspect_effect_execution(authorization, execution)
 
 
+def test_row_start_digest_must_bind_exact_start_receipt(tmp_path) -> None:
+    authorization, execution, _generation, _start = grant_and_start(tmp_path)
+    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+        connection.execute(
+            "UPDATE effect_executions SET start_receipt_sha256=? WHERE execution_id=?",
+            ("8" * 64, execution.execution_id),
+        )
+    with pytest.raises(EffectReplayProjectionError, match="start digest"):
+        inspect_effect_execution(authorization, execution)
+
+
+def test_started_row_cannot_hide_terminal_material(tmp_path) -> None:
+    authorization, execution, _generation, _start = grant_and_start(tmp_path)
+    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+        connection.execute(
+            """
+            UPDATE effect_executions
+            SET finished_at=?, terminal_receipt_sha256=?, terminal_receipt_json=?
+            WHERE execution_id=?
+            """,
+            (
+                NOW.isoformat(timespec="microseconds"),
+                "7" * 64,
+                "{}",
+                execution.execution_id,
+            ),
+        )
+    with pytest.raises(EffectReplayProjectionError, match="terminal material"):
+        inspect_effect_execution(authorization, execution)
+
+
 def test_terminal_row_state_and_receipt_outcome_must_match(tmp_path) -> None:
     authorization, execution, _generation, start = grant_and_start(tmp_path)
     authorization.finish_effect(start, outcome="completed")
@@ -284,6 +326,18 @@ def test_terminal_row_state_and_receipt_outcome_must_match(tmp_path) -> None:
             (execution.execution_id,),
         )
     with pytest.raises(EffectReplayProjectionError, match="outcome"):
+        inspect_effect_execution(authorization, execution)
+
+
+def test_row_terminal_digest_must_bind_exact_terminal_receipt(tmp_path) -> None:
+    authorization, execution, _generation, start = grant_and_start(tmp_path)
+    authorization.finish_effect(start, outcome="failed")
+    with sqlite3.connect(authorization.effect_ledger.path) as connection:
+        connection.execute(
+            "UPDATE effect_executions SET terminal_receipt_sha256=? WHERE execution_id=?",
+            ("9" * 64, execution.execution_id),
+        )
+    with pytest.raises(EffectReplayProjectionError, match="terminal digest"):
         inspect_effect_execution(authorization, execution)
 
 
