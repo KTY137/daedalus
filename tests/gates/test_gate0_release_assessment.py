@@ -20,10 +20,12 @@ from daedalus.gates.release import (
     load_gate0_release_receipt,
     load_strict_gate_report,
     parse_gate0_release_receipt,
+    strict_gate_report_artifact_sha256,
     validate_strict_gate_report_payload,
     verify_gate0_release_receipt,
 )
 from daedalus.gates.report import GateReport
+from daedalus.spine.writer_inventory import scan_event_store_writers
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "gates" / "test_evidence_trust_bundle.py"
@@ -44,23 +46,85 @@ def _load_fixture():
 fixture = _load_fixture()
 
 
-def _report(**changes) -> GateReport:
+def _install_production_package(root: Path) -> None:
+    package = root / "daedalus"
+    package.mkdir(exist_ok=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+
+
+def _report(root: Path, **changes) -> GateReport:
+    revision = changes.get("source_revision", fixture.REVISION)
+    inventory = scan_event_store_writers(root, source_revision=revision)
     values = {
         "gate": 0,
         "source_revision": fixture.REVISION,
         "registry_sha256": fixture.REGISTRY,
         "security_boundary_claimed": True,
         "owner_approval_enforced": True,
+        "event_store_writer_inventory_sha256": inventory.digest,
+        "event_store_writer_failures": tuple(
+            f"{site.path}:{site.line}:{site.column}:{site.kind}:{site.callee}"
+            for site in inventory.blockers
+        ),
     }
     values.update(changes)
     return GateReport(**values)
 
 
-def _inputs(tmp_path: Path, *, owner_present: bool = True):
+def _release_index(index, report: GateReport):
+    report_artifact = fixture._artifact(
+        "gate-report-release",
+        "gate-report",
+        content=strict_gate_report_artifact_sha256(report),
+        locator="a" * 64,
+    )
+    effect_inventory = fixture._artifact(
+        "effect-inventory-release",
+        "effect-inventory",
+        content=fixture.REGISTRY,
+        locator="b" * 64,
+    )
+    artifacts = tuple(
+        sorted(
+            (*index.artifacts, report_artifact, effect_inventory),
+            key=lambda item: item.artifact_id,
+        )
+    )
+    requirements = tuple(
+        sorted(
+            set(index.required_artifact_kinds)
+            | {"gate-report", "effect-inventory"}
+        )
+    )
+    provenance = fixture._provenance(
+        "tests.gate-evidence-index",
+        fixture.PLAN,
+        index.registry_sha256,
+        *(item.digest for item in artifacts),
+    )
+    return dataclasses.replace(
+        index,
+        required_artifact_kinds=requirements,
+        artifacts=artifacts,
+        provenance=provenance,
+    )
+
+
+def _inputs(
+    tmp_path: Path,
+    *,
+    owner_present: bool = True,
+    report_changes: dict | None = None,
+):
     root = fixture._repo(tmp_path)
-    index = fixture._index(owner_present=owner_present)
+    _install_production_package(root)
+    report = _report(root, **(report_changes or {}))
+    index = _release_index(
+        fixture._index(owner_present=owner_present),
+        report,
+    )
     bundle = fixture._bundle(index, root)
-    return root, index, bundle
+    return root, report, index, bundle
 
 
 def _issue(report, index, bundle, root, **changes):
@@ -130,6 +194,8 @@ def _resign(receipt: Gate0ReleaseReceipt, **changes) -> Gate0ReleaseReceipt:
         sorted(
             {
                 payload["gate_report_sha256"],
+                payload["gate_report_artifact_sha256"],
+                payload["registry_sha256"],
                 payload["evidence_index_sha256"],
                 payload["trust_bundle_sha256"],
                 payload["requirements_sha256"],
@@ -150,8 +216,7 @@ def _resign(receipt: Gate0ReleaseReceipt, **changes) -> Gate0ReleaseReceipt:
 def test_release_receipt_round_trip_signature_and_exact_bindings(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    report = _report()
+    root, report, index, bundle = _inputs(tmp_path)
     receipt = _issue(report, index, bundle, root)
 
     assert report.closed is True
@@ -170,7 +235,8 @@ def test_release_receipt_round_trip_signature_and_exact_bindings(
 def test_strict_gate_report_loader_rejects_coercion_and_derived_field_forgery(
     tmp_path: Path,
 ) -> None:
-    payload = _report().to_dict()
+    root, report, _, _ = _inputs(tmp_path)
+    payload = report.to_dict()
 
     string_bool = dict(payload)
     string_bool["closed"] = "true"
@@ -211,28 +277,31 @@ def test_strict_gate_report_loader_rejects_coercion_and_derived_field_forgery(
 
     duplicate = tmp_path / "duplicate-report.json"
     duplicate.write_text(
-        '{"schema":"daedalus-gate-report/1","schema":"foreign"}',
+        '{"schema":"daedalus-gate-report/2","schema":"foreign"}',
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_strict_gate_report(duplicate)
+    assert root.exists()
 
 
 def test_open_report_and_missing_owner_evidence_refuse_release(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    open_report = _report(security_boundary_claimed=False)
+    root, open_report, index, bundle = _inputs(
+        tmp_path,
+        report_changes={"security_boundary_claimed": False},
+    )
     with pytest.raises(Gate0ReleaseBlocked, match="security_boundary_claimed:false"):
         _issue(open_report, index, bundle, root)
 
-    no_owner_root, no_owner_index, no_owner_bundle = _inputs(
+    no_owner_root, no_owner_report, no_owner_index, no_owner_bundle = _inputs(
         tmp_path / "no-owner",
         owner_present=False,
     )
     with pytest.raises(ValueError, match="owner-decision:missing"):
         _issue(
-            _report(),
+            no_owner_report,
             no_owner_index,
             no_owner_bundle,
             no_owner_root,
@@ -242,24 +311,24 @@ def test_open_report_and_missing_owner_evidence_refuse_release(
 def test_report_revision_registry_and_current_tree_mismatches_refuse(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
+    root, report, index, bundle = _inputs(tmp_path)
     with pytest.raises(Gate0ReleaseBindingError, match="report_source_revision"):
         _issue(
-            _report(source_revision="e" * 40),
+            _report(root, source_revision="e" * 40),
             index,
             bundle,
             root,
         )
     with pytest.raises(Gate0ReleaseBindingError, match="report_registry_sha256"):
         _issue(
-            _report(registry_sha256="e" * 64),
+            _report(root, registry_sha256="e" * 64),
             index,
             bundle,
             root,
         )
     with pytest.raises(Gate0ReleaseBindingError, match="source_tree_revision"):
         _issue(
-            _report(),
+            report,
             index,
             bundle,
             root,
@@ -267,11 +336,43 @@ def test_report_revision_registry_and_current_tree_mismatches_refuse(
         )
 
 
+def test_live_writer_inventory_is_recomputed_before_release(tmp_path: Path) -> None:
+    root, report, index, bundle = _inputs(tmp_path)
+    receipt = _issue(report, index, bundle, root)
+
+    (root / "daedalus" / "legacy_writer.py").write_text(
+        "from daedalus.spine import SpineLedger\n"
+        "SpineLedger('state.sqlite3')\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        Gate0ReleaseBindingError,
+        match="event_store_writer_inventory_sha256",
+    ):
+        _verify(receipt, report, index, bundle, root)
+
+
+def test_forged_writer_inventory_digest_refuses_even_when_report_is_signed(
+    tmp_path: Path,
+) -> None:
+    root, _, _, _ = _inputs(tmp_path / "base")
+    forged = _report(
+        root,
+        event_store_writer_inventory_sha256="e" * 64,
+    )
+    index = _release_index(fixture._index(), forged)
+    bundle = fixture._bundle(index, root)
+    with pytest.raises(
+        Gate0ReleaseBindingError,
+        match="event_store_writer_inventory_sha256",
+    ):
+        _issue(forged, index, bundle, root)
+
+
 def test_workflow_drift_is_rechecked_before_receipt_issue_and_replay(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    report = _report()
+    root, report, index, bundle = _inputs(tmp_path)
     receipt = _issue(report, index, bundle, root)
     (root / fixture.WORKFLOW_PATH).write_text(
         "name: replaced\non: [push]\njobs: {}\n",
@@ -284,8 +385,7 @@ def test_workflow_drift_is_rechecked_before_receipt_issue_and_replay(
 def test_verifier_key_scope_signature_and_expected_identity_refuse(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    report = _report()
+    root, report, index, bundle = _inputs(tmp_path)
     receipt = _issue(report, index, bundle, root)
 
     with pytest.raises(Gate0ReleaseSignatureError, match="unknown"):
@@ -318,12 +418,14 @@ def test_verifier_key_scope_signature_and_expected_identity_refuse(
 def test_receipt_cannot_be_repacked_for_another_report_or_index(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    report = _report()
+    root, report, index, bundle = _inputs(tmp_path)
     receipt = _issue(report, index, bundle, root)
 
-    other_report = _report(diagnostics=("different-release-observation",))
-    with pytest.raises(Gate0ReleaseBindingError, match="gate_report_sha256"):
+    other_report = _report(root, diagnostics=("different-release-observation",))
+    with pytest.raises(
+        Gate0ReleaseBindingError,
+        match="gate_report_artifact_sha256",
+    ):
         _verify(receipt, other_report, index, bundle, root)
 
     repacked = _resign(receipt, gate_report_sha256="f" * 64)
@@ -336,8 +438,7 @@ def test_receipt_cannot_be_repacked_for_another_report_or_index(
 
 
 def test_future_and_pre_bundle_signed_receipts_refuse(tmp_path: Path) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    report = _report()
+    root, report, index, bundle = _inputs(tmp_path)
     receipt = _issue(report, index, bundle, root)
 
     future = _resign(
@@ -365,8 +466,8 @@ def test_future_and_pre_bundle_signed_receipts_refuse(tmp_path: Path) -> None:
 def test_receipt_wire_rejects_extra_fields_duplicate_keys_and_non_objects(
     tmp_path: Path,
 ) -> None:
-    root, index, bundle = _inputs(tmp_path)
-    receipt = _issue(_report(), index, bundle, root)
+    root, report, index, bundle = _inputs(tmp_path)
+    receipt = _issue(report, index, bundle, root)
     payload = receipt.to_dict()
     payload["closed"] = True
     with pytest.raises(ValueError, match="unknown field"):
