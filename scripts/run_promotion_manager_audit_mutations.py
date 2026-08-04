@@ -12,8 +12,7 @@ TESTS = (
     "tests/kernel/test_promotion_manager_audit.py",
     "tests/kernel/test_promotion_manager_boundary.py",
     "tests/kernel/test_promotion_manager_boundary_review.py",
-    "tests/kernel/test_live_promotion_execution_adversarial.py",
-    "tests/kernel/test_live_promotion_execution_review.py",
+    "tests/kernel/test_promotion_manager_installation.py",
 )
 
 
@@ -111,9 +110,15 @@ def main() -> int:
         ),
         (
             BOUNDARY,
-            "do-not-install-audited-ledger",
-            '    namespace["PromotionExecutionLedger"] = state.ledger_factory\n',
-            '    namespace["PromotionExecutionLedger"] = ledger_constructor\n',
+            "launder-untyped-ledger",
+            "        if not isinstance(delegate, self.ledger_type):\n",
+            "        if False:\n",
+        ),
+        (
+            BOUNDARY,
+            "replace-public-ledger-class-with-wrapper",
+            '    namespace["PromotionExecutionLedger"] = ledger_type\n',
+            '    namespace["PromotionExecutionLedger"] = state.wrap_ledger\n',
         ),
     )
 
