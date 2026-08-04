@@ -139,15 +139,25 @@ def test_inspection_is_read_only_and_schema_exact() -> None:
     required = (
         "PRAGMA integrity_check",
         "PRAGMA user_version",
+        "SELECT type, name, sql",
+        "_normalized_sql(object_sql)",
         "PRAGMA table_info",
+        "columns != _COLUMNS",
+        "tuple(int(row[3]) for row in table_rows)",
+        "any(row[4] is not None for row in table_rows)",
         "PRAGMA index_list",
         "PRAGMA index_info",
-        "columns != _COLUMNS",
-        "projected != _UNIQUE_CONSTRAINTS",
+        "str(row[3])",
+        "int(row[4])",
+        "projected_contract != _UNIQUE_INDEX_CONTRACT",
+        "unique_constraints != _UNIQUE_CONSTRAINTS",
         "schema_version != _SCHEMA_VERSION",
     )
     for fragment in required:
         assert fragment in contract_source
+
+    assert "decision_sha256 TEXT NOT NULL PRIMARY KEY" in store._SCHEMA_SQL
+    assert store._SCHEMA_DESCRIPTOR["sql"] == store._normalized_sql(store._SCHEMA_SQL)
 
 
 def test_initializer_is_the_only_publication_authority_and_does_not_clobber() -> None:
@@ -164,8 +174,29 @@ def test_initializer_is_the_only_publication_authority_and_does_not_clobber() ->
     assert rendered.index("_connection_contract(connection)") < rendered.index(
         "os.link(temporary, target)"
     )
+    assert rendered.index("temporary_identity = _file_identity(temporary)") < (
+        rendered.index("os.link(temporary, target)")
+    )
+    assert rendered.index("os.link(temporary, target)") < rendered.index(
+        "_file_identity(target) != published_identity"
+    )
     assert rendered.index("os.link(temporary, target)") < rendered.index(
         "inspect_promotion_recovery_consumption_store(target)"
+    )
+    assert "_remove_own_publication(target, published_identity)" in rendered
+
+
+def test_failed_publication_cleanup_is_identity_guarded() -> None:
+    cleanup = _function("_remove_own_publication")
+    rendered = ast.get_source_segment(SOURCE, cleanup)
+    assert rendered is not None
+    assert "_file_identity(target)" in rendered
+    assert rendered.index("current_identity != published_identity") < rendered.index(
+        "target.unlink()"
+    )
+    assert "target.unlink()" not in ast.get_source_segment(
+        SOURCE,
+        _function("initialize_promotion_recovery_consumption_store"),
     )
 
 
