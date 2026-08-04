@@ -494,3 +494,18 @@ def promote_candidates(
 
 
 __all__ = tuple(sorted(name for name in globals() if not name.startswith("_")))
+
+# Install the manager audit only after the sealed public callable exists. The
+# installers preserve the public PromotionExecutionLedger class and wrap only
+# a caller-supplied, already-typed ledger instance for the duration of one call.
+from .promotion_manager_boundary import (
+    install_promotion_manager_boundary as _install_promotion_manager_boundary,
+)
+from .promotion_manager_replay import (
+    install_promotion_manager_replay_boundary as _install_promotion_manager_replay_boundary,
+)
+
+_install_promotion_manager_boundary(globals())
+_install_promotion_manager_replay_boundary(globals())
+del _install_promotion_manager_boundary
+del _install_promotion_manager_replay_boundary
