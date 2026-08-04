@@ -32,6 +32,16 @@ MUTATIONS = (
         1,
     ),
     (
+        "accept-reordered-installed-rows",
+        INSTALLER,
+        "        if tuple(boundary.ENTRYPOINTS[-len(required) :]) != required:\n"
+        "            raise RuntimeError(\n"
+        "                \"promotion execution rows are not the exact ordered registry suffix\"\n"
+        "            )\n",
+        "        pass  # mutant accepts reordered exact promotion rows\n",
+        1,
+    ),
+    (
         "change-expected-complete-identity",
         INSTALLER,
         '    "kernel.promotion_execution.complete",\n',
