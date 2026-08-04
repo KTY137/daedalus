@@ -1,0 +1,77 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06W",
+  "title": "Signed Provider Invocation Observation Authority",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "0c437da95838f34b0cc1eb038d6886aa614e7548",
+  "parent_branch": "g0/provider-invocation-subject-r2-linear",
+  "branch": "g0/provider-invocation-observation-authority-linear",
+  "primary_finding": "issue-188",
+  "change_class": "additive-nonexecuting-composite-authority",
+  "authority": "signed-provider-observation-plus-invocation-subject",
+  "scope": {
+    "signs_exact_provider_invocation_subject": true,
+    "signs_invocation_registry_digest": true,
+    "derives_invocation_contract_digest": true,
+    "cross_checks_provider_runtime_execution_lease_and_revision": true,
+    "verifies_nested_provider_observation_authority_first": true,
+    "retains_existing_provider_observation_authority": true,
+    "contains_callable_or_provider_execution": false,
+    "changes_runtime_broker": false,
+    "persists_composite_authority": false,
+    "changes_recovery": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "adapter_identity_and_artifact_are_in_signed_subject": true,
+    "adapter_config_digest_is_in_signed_subject": true,
+    "registry_revision_is_signed": true,
+    "observation_and_invocation_subjects_cannot_diverge": true,
+    "arbitrary_callback_gap_closed": false,
+    "production_registry_implemented": false,
+    "broker_migrated": false,
+    "recovery_uses_retained_contract": false,
+    "issue_188_closed": false,
+    "closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "round_trip_and_exact_field_tests_prepared": true,
+    "shared_subject_mismatch_test_prepared": true,
+    "adapter_artifact_config_substitution_tests_prepared": true,
+    "registry_and_contract_substitution_tests_prepared": true,
+    "nested_signature_test_prepared": true,
+    "malformed_keyring_boundary_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 9,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "a revision-bound provider invocation registry must resolve the signed subject to one exact executable adapter",
+    "the production broker still accepts an independently supplied callback and output-digest callback",
+    "the composite authority is not yet durably retained for recovery",
+    "provider recovery must derive the invocation contract from retained authenticated state and must accept no caller callback",
+    "runtime manifest and conformance authority must bind the invocation-registry digest",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
