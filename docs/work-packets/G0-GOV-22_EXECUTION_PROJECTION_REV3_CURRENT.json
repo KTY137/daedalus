@@ -1,0 +1,60 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GOV-22",
+  "title": "Revision-3 Current Execution Projection",
+  "gate": 0,
+  "parent_revision": "c6d57897ef1d9a266005b33b13305f95ed2330cb",
+  "parent_branch": "g0/guard-behavior-attestation-integration-linear",
+  "branch": "g0/execution-projection-r3-current-linear",
+  "change_class": "derived-documentation-projection-refresh",
+  "authority": "non-authoritative-execution-status-only",
+  "scope": {
+    "updates_fourfold_projection_to_master_plan_revision_3": true,
+    "binds_projection_to_exact_parent": true,
+    "records_current_selected_gate0_stack": true,
+    "records_zero_step_ci_as_infrastructure_only": true,
+    "records_strangler_responsibility_boundaries": true,
+    "records_partial_not_trusted_polyglot_rule": true,
+    "changes_master_plan_or_amendment_chain": false,
+    "changes_production_python": false,
+    "changes_effect_registry_or_guard": false,
+    "changes_gate_report": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "derived_projection_current_for_parent": true,
+    "canonical_authority_revision": 3,
+    "gate0_closed": false,
+    "gate1_closed": false,
+    "gate2_closed": false,
+    "exact_head_executable_evidence_available": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_document_review_prepared": true,
+    "independent_adversarial_reading_prepared": true,
+    "stale_revision_review_prepared": true,
+    "authority_escalation_review_prepared": true,
+    "zero_step_evidence_laundering_review_prepared": true,
+    "partial_to_trusted_escalation_review_prepared": true,
+    "direct_main_or_experimental_mutation_review_prepared": true,
+    "iron_plan_requested": true,
+    "governance_suite_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix_requested": true,
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository write and review access but no executable private-repository checkout; documentation inspection is not executable product or Gate evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "this derived projection cannot satisfy or alter any Gate exit criterion",
+    "the parent implementation line remains exact-head unverified under GitHub Actions issue 67",
+    "Gate 0 still lacks live runtime and sandbox evidence, complete semantic receipt replay, caller migration, Primary-Checkout mutation exclusion, complete fault injection, release-report closure and owner closure",
+    "Gate 1 and Gate 2 remain downstream and incomplete"
+  ]
+}

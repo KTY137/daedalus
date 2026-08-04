@@ -1,20 +1,29 @@
 # Fourfold v2 Execution Plan
 
 Status: active derived projection  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 2  
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 3  
 Active gate: Gate 0 — Canonical Kernel  
-Primary branch chain: `experimental` -> focused Work Packet branch -> draft PR  
+Projection base: `g0/guard-behavior-attestation-integration-linear` at `c6d57897ef1d9a266005b33b13305f95ed2330cb`  
+Branch rule: exact reviewed or explicitly frozen parent -> short-lived focused Work Packet branch -> draft PR; never mutate `main` or `experimental` directly  
 Rule: this document records execution status and evidence; it cannot override the Iron Plan.
 
 ## Operating model
 
-Daedalus is developed through one active Work Packet at a time. Each packet has
-one major architectural axis, one acceptance matrix, one builder, one independent
-review pass, and one explicit owner decision. A packet may be split into smaller
-commits, but its PR must not mix unrelated feature work, broad cleanup, dependency
-migration, evaluator changes, or policy amendments. The owner-requested revision-2
-amendment in WP-00 is a one-time foundational exception, retained as its own atomic
-commit and review unit because it defines the Work-Packet chain itself.
+Daedalus production delivery proceeds through one dependent Work Packet at a
+time. Each packet has one major architectural axis, one acceptance matrix, one
+builder, one independent review pass, and one explicit owner decision. While an
+external blocker freezes a dependency line, separate short-lived packets may
+prepare genuinely independent read-only inventories, tests, fixtures, schemas,
+or documentation. Those preparatory packets may not establish a second
+implementation truth or begin production work that depends on the blocked parent.
+
+A packet may be split into small commits, but its PR must not mix unrelated
+feature work, broad cleanup, dependency migration, evaluator changes, or policy
+amendments. The owner-requested revision-2 amendment in WP-00 remains a retained
+foundational transaction. The adopted revision-3 amendment additionally permits
+one bounded, isolated, non-promoting Gate-1 rehearsal while Gate 0 remains active;
+it does not relax Gate-0 closure, review, runtime-evidence, or owner-decision
+requirements.
 
 Every packet follows:
 
@@ -28,8 +37,11 @@ Every packet follows:
 8. publish evidence, residual risk, rollback, and next prerequisites;
 9. merge only after owner approval.
 
-No dependent packet enters build while its parent is red or unreviewed. Read-only
-research may continue, but it cannot establish another implementation truth.
+No dependent packet enters build while its parent is red or unreviewed. An
+explicitly frozen external blocker permits only packets with no implementation
+dependency on that parent. Read-only research and preparation may continue, but
+cannot establish another implementation truth or be represented as executable
+verification.
 
 ## Review roles
 
@@ -49,7 +61,8 @@ runtime probes, and owner decisions remain the evidence/promotion boundary.
 
 ## WP-00 — Fourfold snapshot foundation
 
-Status: implemented and builder-verified in PR #1; required CI is green; independent review and explicit owner decision remain open.
+Status: implemented and builder-verified in PR #1; required CI is green;
+independent review and explicit owner decision remain open.
 
 Scope:
 
@@ -170,6 +183,11 @@ Required fault cases: dropped file, stale base, partial rename, wrong CSV header
 broken documentation link, worker false success, restart after first WorkItem,
 and denied promotion without owner approval.
 
+Revision 3 permits this slice only as an isolated deterministic rehearsal stacked
+on a green Gate-0 Work Packet. It may produce candidate and evidence artifacts,
+but it may not consume approval for production promotion, mutate the primary
+checkout, change the active gate, or close Gate 0.
+
 ## WP-06 — Corpus seed and motif contracts
 
 Prerequisite: WP-05 green; still experimental until Gate 2.
@@ -232,7 +250,71 @@ Do not add the complete research stack at once.
 Each dependency packet records license, version, platform support, serialization
 boundary, failure mode, replacement path, and measured benefit.
 
-## Current branch/PR evidence
+## Current Gate-0 execution boundary
+
+This projection is bound to exact source parent
+`c6d57897ef1d9a266005b33b13305f95ed2330cb` and records status only. It is not
+release evidence and cannot alter `GateReport.closed`.
+
+The selected repository-write semantic line currently consists of focused draft
+packets for structural guard replay (#177), runtime-conformance replay (#178),
+strict persisted effect replay integration (#180), runtime-bound effect replay
+(#181), repository-write Effect-Lease semantic replay (#182), and controlled
+integration of authenticated guard-behavior observations (#183). PR #179 was
+closed without merge after its exact implementation/test blobs were ported into
+#183 with a fresh non-colliding Work Packet identity. None of these drafts is a
+merge, promotion, OwnerApproval, or Gate transition.
+
+The current semantic projection remains deliberately incomplete. The
+behavior-attestation contract authenticates a signed result set but does not
+execute the harness or establish guard semantics. The exact harness still needs
+independent replay under an authenticated current Runtime Manifest and
+RuntimeConformanceReceipt before it can be joined to the Effect-Lease report.
+Primary-Checkout disjointness and retirement receipts remain semantically
+unreplayed; live classification/evidence population and GateReport-v2 binding
+remain open.
+
+GitHub Actions issue #67 is the active external execution blocker. On #183 exact
+head `c6d57897ef1d9a266005b33b13305f95ed2330cb`, the focused platform matrix,
+mutation, full-suite, isolated-wheel and Iron Plan jobs all terminated before
+Step 1 with `steps=null`, no logs, and no artifacts. Those runs prove neither
+success nor product failure. Until a trivial checkout job and Iron Plan both
+record real executed steps, no packet may claim focused, mutation, full-suite,
+packaging, platform, runtime, fault-matrix, or release evidence from those runs.
+
+While issue #67 remains open, independent work is limited to work that does not
+depend on an unexecuted parent: static/adversarial review, contracts, schemas,
+tests, fixtures, documentation, conservative inventories, migration plans, and
+read-only evidence preparation. Dependent production wiring, `central`/`trusted`
+classification, Gate closure, merge, promotion, OwnerApproval, and owner closure
+decisions remain frozen.
+
+Gate 0 still requires, at minimum, all production effectful entrypoints to be
+registered and centrally guarded, live Runtime Manifests and current
+RuntimeConformanceReceipts, independently replayed guard behavior, persisted
+Effect Leases, Docker-sandbox evidence, the complete fault matrix,
+Primary-Checkout mutation exclusion, revision-bound machine-readable release
+reporting and monotonic baseline checks, independent architecture/security
+review, and an explicit owner closure decision. Gate 1 and Gate 2 cannot be
+represented as complete before their machine-readable prerequisites are
+satisfied. Polyglot or incomplete frontend semantics must remain `partial` and
+must never be reported as `trusted`.
+
+## Strangler migration boundary
+
+Repository-tree migration is responsibility-led and incremental. New canonical
+implementation should converge under `kernel`, `runtimes`, `orchestration`,
+`twin`, and `evolution`; existing import paths remain compatibility adapters
+until callers and packaging evidence permit retirement. A Work Packet may move
+one responsibility boundary at a time. Big-bang renames, unbounded file moves,
+and compatibility removal without import and wheel tests are forbidden.
+
+Fourfold/Polyglot work may be integrated only through revision-atomic adapters
+and explicit completeness states. A parser or language adapter with incomplete
+symbol/type/data/knowledge semantics emits `partial` plus retained reasons and
+provenance; it cannot mint trusted cross-plane claims.
+
+## Historical WP-00 evidence
 
 - Branch: `core/fourfold-v2`
 - Base: `experimental`
