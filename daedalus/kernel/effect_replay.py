@@ -14,16 +14,16 @@ re-execution authority.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
+    EffectLeaseError,
     EffectLeaseLedger,
     EffectLeaseStateError,
     EffectTerminalReceipt,
@@ -530,7 +530,7 @@ def inspect_effect_execution(
         )
     except EffectReplayProjectionError:
         raise
-    except (EffectLeaseBindingMismatch, sqlite3.DatabaseError) as exc:
+    except (EffectLeaseError, sqlite3.DatabaseError) as exc:
         raise EffectReplayProjectionError(
             "cannot authenticate or read persisted effect execution"
         ) from exc
