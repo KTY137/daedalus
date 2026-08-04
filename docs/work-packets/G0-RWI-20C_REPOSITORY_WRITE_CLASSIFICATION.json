@@ -17,6 +17,7 @@
     "defines_target_dispositions": true,
     "defines_guard_dispositions": true,
     "defines_evidence_bindings": true,
+    "requires_retirement_for_nonreachability": true,
     "modifies_canonical_registry": false,
     "modifies_canonical_scanner": false,
     "authenticates_external_evidence": false,
@@ -45,6 +46,10 @@
     "retired_requires": [
       "production_reachable=false",
       "retirement_receipt"
+    ],
+    "nonreachable_requires": [
+      "guard=retired",
+      "retirement_receipt"
     ]
   },
   "claims": {
@@ -63,13 +68,16 @@
     "malformed_input_tests_prepared": true,
     "stale_revision_and_inventory_tests_prepared": true,
     "surface_substitution_and_duplicate_tests_prepared": true,
+    "reachability_laundering_test_prepared": true,
     "authority_bypass_review_prepared": true,
     "mutation_campaign_prepared": true,
-    "local_stub_execution": {
+    "pre_correction_local_stub_execution": {
       "focused_tests": "19 passed",
       "bounded_mutants": "6 killed",
+      "covers_current_head": false,
       "evidence_class": "author-side preparation only; not exact-head repository evidence"
     },
+    "current_bounded_mutants": 7,
     "full_suite_requested": true,
     "packaging_requested": true,
     "platform_matrix": [
