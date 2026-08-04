@@ -12,6 +12,7 @@ TESTS = (
     "tests/kernel/test_promotion_effect_replay.py",
     "tests/kernel/test_promotion_replay_projection.py",
     "tests/kernel/test_promotion_reconciliation.py",
+    "tests/kernel/test_promotion_reconciliation_outcomes.py",
     "tests/kernel/test_promotion_reconciliation_adversarial.py",
     "tests/kernel/test_promotion_reconciliation_review.py",
 )
@@ -58,6 +59,16 @@ MUTATIONS = (
         "mis-map-successful-promotion",
         '            outcome="COMPLETED",\n',
         '            outcome="FAILED",  # mutant loses successful outcome\n',
+    ),
+    (
+        "mis-map-refused-promotion",
+        '            outcome="CANCELLED",\n',
+        '            outcome="FAILED",  # mutant loses refused outcome\n',
+    ),
+    (
+        "mis-map-faulted-promotion",
+        '            outcome="FAILED",\n',
+        '            outcome="CANCELLED",  # mutant loses faulted outcome\n',
     ),
 )
 
