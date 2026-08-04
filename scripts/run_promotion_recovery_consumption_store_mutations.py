@@ -38,9 +38,24 @@ MUTATIONS = (
         "        if False:  # mutant: accept substituted store identity\n",
     ),
     (
-        "accept-unique-constraint-drift",
-        "        if projected != _UNIQUE_CONSTRAINTS:\n",
-        "        if False:  # mutant: accept unique-constraint drift\n",
+        "accept-table-sql-drift",
+        "        if not isinstance(object_sql, str) or _normalized_sql(object_sql) != (\n",
+        "        if False and (not isinstance(object_sql, str) or _normalized_sql(object_sql) != (\n",
+    ),
+    (
+        "accept-nullability-drift",
+        "        if tuple(int(row[3]) for row in table_rows) != (1,) * len(_COLUMNS):\n",
+        "        if False:  # mutant: accept nullable columns\n",
+    ),
+    (
+        "accept-unique-index-drift",
+        "        if projected_contract != _UNIQUE_INDEX_CONTRACT:\n",
+        "        if False:  # mutant: accept unique-index drift\n",
+    ),
+    (
+        "unlink-foreign-replacement-during-cleanup",
+        "    if current_identity != published_identity:\n        return\n",
+        "    if False:  # mutant: unlink even when target identity changed\n        return\n",
     ),
     (
         "skip-preopen-store-verification",
