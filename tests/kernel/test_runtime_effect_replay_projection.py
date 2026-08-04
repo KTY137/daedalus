@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import daedalus.kernel.runtime_effect_replay as runtime_effect_replay
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
 from daedalus.kernel.runtime_effect_replay import (
@@ -390,6 +391,66 @@ def test_runtime_trust_record_digest_must_equal_signed_capability(
         match="historical start verification",
     ):
         inspect_runtime_effect_execution(forged, _execution())
+
+
+def test_verified_runtime_trust_digest_cannot_be_detached(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, record = _authorization(tmp_path, monkeypatch)
+    _set_runtime_clock(
+        monkeypatch,
+        NOW,
+        NOW + timedelta(seconds=1),
+        NOW + timedelta(seconds=1, microseconds=1),
+    )
+    authorization.grant()
+    authorization.begin_effect(_execution())
+
+    monkeypatch.setattr(
+        runtime_effect_replay,
+        "verify_runtime_bound_effect_lease",
+        lambda *args, **kwargs: SimpleNamespace(
+            record_sha256="f" * 64,
+            runtime_id=record.runtime_id,
+        ),
+    )
+    with pytest.raises(
+        RuntimeEffectReplayProjectionError,
+        match="record differs",
+    ):
+        inspect_runtime_effect_execution(authorization, _execution())
+
+
+def test_verified_runtime_identity_cannot_be_detached(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, record = _authorization(tmp_path, monkeypatch)
+    _set_runtime_clock(
+        monkeypatch,
+        NOW,
+        NOW + timedelta(seconds=1),
+        NOW + timedelta(seconds=1, microseconds=1),
+    )
+    authorization.grant()
+    authorization.begin_effect(_execution())
+
+    monkeypatch.setattr(
+        runtime_effect_replay,
+        "verify_runtime_bound_effect_lease",
+        lambda *args, **kwargs: SimpleNamespace(
+            record_sha256=(
+                authorization.capability.runtime_trust_record_sha256
+            ),
+            runtime_id="other_runtime",
+        ),
+    )
+    with pytest.raises(
+        RuntimeEffectReplayProjectionError,
+        match="identity differs",
+    ):
+        inspect_runtime_effect_execution(authorization, _execution())
 
 
 def test_projection_requires_exact_types() -> None:
