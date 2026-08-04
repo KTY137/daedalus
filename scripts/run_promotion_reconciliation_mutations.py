@@ -28,7 +28,9 @@ MUTATIONS = (
         "            \"promotion execution exists without a top-level effect start\"\n"
         "        )\n",
         "    if effect is None:\n"
-        "        return PromotionReconciliationProjection(FRESH, None, None, None)\n",
+        "        return PromotionReconciliationProjection(\n"
+        "            PromotionReconciliationDisposition.FRESH, None, None, None\n"
+        "        )\n",
     ),
     (
         "accept-reversed-start-order",
