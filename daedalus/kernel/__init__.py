@@ -123,6 +123,10 @@ from .promotion_execution import (
     PromotionExecutionStart,
     PromotionExecutionStateError,
 )
+from .promotion_replay import (
+    PromotionReplayProjectionMismatch,
+    inspect_promotion_execution,
+)
 from .runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
@@ -183,6 +187,8 @@ __all__ += [
     "PromotionExecutionReplay",
     "PromotionExecutionStart",
     "PromotionExecutionStateError",
+    "PromotionReplayProjectionMismatch",
+    "inspect_promotion_execution",
     "RecordedObservation",
     "RuntimeConformanceError",
     "assemble_recorded_conformance",
