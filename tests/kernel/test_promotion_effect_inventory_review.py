@@ -42,15 +42,23 @@ def test_counter_review_confirms_read_only_authority_boundary() -> None:
     assert "daedalus.kairos.gated_writes" not in imported_from
 
 
-def test_counter_review_requires_all_three_exact_promotion_rows() -> None:
+def test_counter_review_requires_all_four_exact_promotion_rows() -> None:
     source = TARGET.read_text(encoding="utf-8")
-    assert source.count("PromotionEffectRequirement(") == 3
+    assert source.count("PromotionEffectRequirement(") == 4
     for entrypoint_id in (
         "python.promote_candidates",
+        "kernel.promotion_execution.open",
         "kernel.promotion_execution.begin",
         "kernel.promotion_execution.complete",
     ):
         assert source.count(f'entrypoint_id="{entrypoint_id}"') == 1
+    for required_anchor in (
+        "open_gate0_spine_writer",
+        "_install_single_start_invariant",
+        "record_intent",
+        "mark_completed",
+    ):
+        assert required_anchor in source
     assert source.count("wiring is not Wiring.CENTRAL") == 1
     assert source.count("registry.missing") == 1
     assert source.count("registry.target_mismatch") == 1
