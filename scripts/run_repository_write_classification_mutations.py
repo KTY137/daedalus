@@ -36,9 +36,20 @@ MUTATIONS = {
         "if row.surface in by_surface:",
         "if False and row.surface in by_surface:",
     ),
-    "launder-unreachable-surface": (
-        "if not self.production_reachable and self.guard is not GuardDisposition.RETIRED:",
-        "if False and not self.production_reachable and self.guard is not GuardDisposition.RETIRED:",
+    "accept-cross-surface-evidence": (
+        "item.surface_sha256 != expected_surface_sha256 for item in self.evidence",
+        "False for item in self.evidence",
+    ),
+    "accept-unbound-guard-contract": (
+        "if evidenced_contracts != set(self.guard_contracts):\n"
+        "                raise ValueError(\"central guard evidence does not match guard contracts\")",
+        "if False and evidenced_contracts != set(self.guard_contracts):\n"
+        "                raise ValueError(\"central guard evidence does not match guard contracts\")",
+    ),
+    "allow-unreachable-nonretired": (
+        "not self.production_reachable\n"
+        "            and self.guard is not GuardDisposition.RETIRED",
+        "False",
     ),
 }
 
