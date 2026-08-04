@@ -11,6 +11,7 @@ TESTS = (
     "tests/test_spine_writer_inventory.py",
     "tests/test_spine_writer_inventory_review.py",
     "tests/test_spine_writer_inventory_cli.py",
+    "tests/test_spine_writer_inventory_schema.py",
 )
 
 
