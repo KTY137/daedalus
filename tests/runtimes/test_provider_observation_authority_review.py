@@ -20,25 +20,33 @@ def _function(module, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
     return matches[0]
 
 
-def test_broker_authenticates_and_persists_observation_authority_before_invoke() -> None:
+def test_broker_requires_exact_runtime_and_observation_authority_before_effect() -> None:
     source = inspect.getsource(broker)
     run = _function(broker, "run_runtime_provider")
     keyword_names = [arg.arg for arg in run.args.kwonlyargs]
     assert "observation_authority" in keyword_names
     assert "observation_binding_ledger" in keyword_names
     assert "observation_keyring" not in keyword_names
-    compatibility = inspect.getsource(broker._production_observation_binding)
-    assert "if not isinstance(authorization, RuntimeBoundEffectAuthorization):" in compatibility
     assert "expected_provider_id" not in keyword_names
 
-    grant_position = source.index("    authorization.grant()")
+    boundary = inspect.getsource(broker._production_observation_binding)
+    assert "type(authorization) is not RuntimeBoundEffectAuthorization" in boundary
+    assert "type(authority) is not ProviderObservationAuthority" in boundary
+    assert "type(ledger) is not ProviderObservationBindingLedger" in boundary
+    assert "isinstance(authorization, RuntimeBoundEffectAuthorization)" not in boundary
+    assert "compatibility" not in boundary.lower()
+
+    exact_position = source.index("observation_binding = _production_observation_binding(")
+    validate_position = source.index("spec = _validate_binding(", exact_position)
+    grant_position = source.index("    authorization.grant()", validate_position)
     begin_position = source.index("    start = authorization.begin_effect", grant_position)
     prepare_position = source.index(
         "_prepare_observation_authority_after_start(",
         begin_position,
     )
     invoke_position = source.index("        value = invoke()", prepare_position)
-    assert grant_position < begin_position < prepare_position < invoke_position
+    assert exact_position < validate_position < grant_position < begin_position
+    assert begin_position < prepare_position < invoke_position
 
     helper = inspect.getsource(broker._prepare_observation_authority_after_start)
     assert "ledger.verify_authority(" in helper
