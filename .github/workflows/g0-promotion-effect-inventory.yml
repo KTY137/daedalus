@@ -88,7 +88,7 @@ jobs:
           from pathlib import Path
           payload = json.loads(Path("promotion-effect-inventory.json").read_text())
           assert payload["closed"] is False
-          assert len(payload["findings"]) == 3
+          assert len(payload["findings"]) == 4
           PY
 
   manager-regression:
