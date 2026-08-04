@@ -87,16 +87,6 @@ def _copy_sources(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _wire_manager_boundaries(root: Path) -> None:
-    source = root / "daedalus" / "kairos" / "gated_writes.py"
-    source.write_text(
-        source.read_text(encoding="utf-8")
-        + "\ninstall_promotion_manager_boundary(globals())\n"
-        + "install_promotion_manager_replay_boundary(globals())\n",
-        encoding="utf-8",
-    )
-
-
 def test_current_promotion_inventory_is_honestly_open() -> None:
     report = build_promotion_effect_inventory(
         ROOT,
@@ -107,8 +97,6 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
     assert findings["python.promote_candidates"].status == "blocked"
     assert findings["python.promote_candidates"].blockers == (
         "registry.not_central:local_guards",
-        "source.missing_call:install_promotion_manager_boundary",
-        "source.missing_call:install_promotion_manager_replay_boundary",
     )
     for entrypoint_id in (
         "kernel.promotion_execution.open",
@@ -120,11 +108,10 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
     assert len(report.report_sha256) == 64
 
 
-def test_exact_central_registry_and_wired_source_close_only_scoped_inventory(
+def test_exact_central_registry_and_live_wired_source_close_only_scoped_inventory(
     tmp_path: Path,
 ) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     report = build_promotion_effect_inventory(
         root,
         source_revision=REVISION,
@@ -178,9 +165,35 @@ def test_duplicate_registry_identity_refuses_before_projection() -> None:
         )
 
 
+def test_missing_manager_install_source_anchor_refuses_closure(tmp_path: Path) -> None:
+    root = _copy_sources(tmp_path)
+    source = root / "daedalus" / "kairos" / "gated_writes.py"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "_install_promotion_manager_boundary(globals())",
+            "_install_promotion_manager_boundary_removed(globals())",
+        ),
+        encoding="utf-8",
+    )
+    report = build_promotion_effect_inventory(
+        root,
+        source_revision=REVISION,
+        registry=_central_registry(),
+    )
+    finding = next(
+        row
+        for row in report.findings
+        if row.entrypoint_id == "python.promote_candidates"
+    )
+    assert finding.status == "blocked"
+    assert finding.blockers == (
+        "source.missing_call:install_promotion_manager_boundary",
+    )
+    assert not report.closed
+
+
 def test_missing_begin_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
     source.write_text(
         source.read_text(encoding="utf-8").replace(
@@ -206,7 +219,6 @@ def test_missing_begin_source_anchor_refuses_closure(tmp_path: Path) -> None:
 
 def test_missing_open_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
     source.write_text(
         source.read_text(encoding="utf-8").replace(
