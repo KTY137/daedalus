@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-inventory-v1.schema.json",
+  "title": "Daedalus Gate 0 Repository Write Surface Inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_revision",
+    "package_root",
+    "scan_input_sha256",
+    "files_scanned",
+    "callsites",
+    "blocker_count",
+    "closed",
+    "scope",
+    "primary_checkout_target_proven",
+    "digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate0-repository-write-inventory/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "package_root": {
+      "const": "daedalus"
+    },
+    "scan_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "files_scanned": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "callsites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/callsite"
+      }
+    },
+    "blocker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "closed": {
+      "type": "boolean"
+    },
+    "scope": {
+      "const": "potential_repository_write_surface"
+    },
+    "primary_checkout_target_proven": {
+      "const": false
+    },
+    "digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "callsite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "line",
+        "column",
+        "kind",
+        "callee",
+        "operation",
+        "blocking"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!\\.\\.?/)(?!.*\\\\).+$"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "filesystem_mutation",
+            "path_mutation",
+            "write_mode_open",
+            "ambiguous_open_mode",
+            "os_open_write",
+            "ambiguous_os_open_flags",
+            "sqlite_write_or_create",
+            "sqlite_read_only",
+            "ambiguous_sqlite_mode",
+            "git_mutation_process",
+            "process_effect_unknown",
+            "ambiguous_binding"
+          ]
+        },
+        "callee": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "operation": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n]+$"
+        },
+        "blocking": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
