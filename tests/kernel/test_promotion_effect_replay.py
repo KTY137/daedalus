@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -8,7 +10,16 @@ from daedalus.kernel.promotion_effect_replay import (
     PromotionEffectReplayError,
     inspect_promotion_effect_execution,
 )
-from tests.kernel.test_promotion_effect_capability import build_capability
+
+_FIXTURE_PATH = Path(__file__).with_name("test_promotion_effect_capability.py")
+_SPEC = importlib.util.spec_from_file_location(
+    "_promotion_effect_capability_fixture",
+    _FIXTURE_PATH,
+)
+assert _SPEC is not None and _SPEC.loader is not None
+_FIXTURE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_FIXTURE)
+build_capability = _FIXTURE.build_capability
 
 
 def _write(capability, sql: str, parameters: tuple[object, ...] = ()) -> None:
