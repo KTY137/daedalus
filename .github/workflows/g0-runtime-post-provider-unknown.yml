@@ -6,8 +6,10 @@ on:
       - g0/repository-write-effect-lease-replay-linear
     paths:
       - "daedalus/runtimes/broker.py"
+      - "daedalus/runtimes/recovery.py"
       - "tests/runtimes/test_runtime_provider_broker.py"
       - "tests/runtimes/test_runtime_provider_post_invoke_unknown*.py"
+      - "tests/runtimes/test_runtime_provider_recovery*.py"
       - "scripts/run_runtime_post_provider_unknown_mutations.py"
       - "docs/work-packets/G0-RTC-06Q_POST_PROVIDER_UNKNOWN_OUTCOME.*"
       - ".github/workflows/g0-runtime-post-provider-unknown.yml"
@@ -53,6 +55,8 @@ jobs:
           tests/runtimes/test_runtime_provider_broker.py
           tests/runtimes/test_runtime_provider_post_invoke_unknown.py
           tests/runtimes/test_runtime_provider_post_invoke_unknown_review.py
+          tests/runtimes/test_runtime_provider_recovery.py
+          tests/runtimes/test_runtime_provider_recovery_review.py
           tests/kernel/test_effect_recovery.py
           tests/kernel/test_effect_recovery_hardening.py
           tests/kernel/test_runtime_effect_replay_projection.py
@@ -109,10 +113,20 @@ jobs:
               RuntimeProviderReconciliationRequired,
               run_runtime_provider,
           )
+          from daedalus.runtimes.recovery import (
+              RuntimeProviderRecoveryBindingError,
+              RuntimeProviderRecoveryError,
+              reconcile_runtime_provider_unknown,
+          )
 
           assert issubclass(
               RuntimeProviderReconciliationRequired,
               RuntimeProviderBrokerError,
           )
+          assert issubclass(
+              RuntimeProviderRecoveryBindingError,
+              RuntimeProviderRecoveryError,
+          )
           assert callable(run_runtime_provider)
+          assert callable(reconcile_runtime_provider_unknown)
           PY
