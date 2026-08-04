@@ -46,6 +46,17 @@ injection. It returns fresh immutable rows and has no registry parameter or
 mutation path. Identity order, exact targets, guards, anchors, effects and
 non-central wiring are checked before materialization and once at module import.
 
+## Adversarial review correction
+
+A separate source review found that the first draft checked anchor shape and
+uniqueness but did not prove that a caller-supplied typed descriptor retained the
+exact anchor tuple for its identity. Such a descriptor could have materialized a
+valid-looking row with a substituted local guard callsite. The descriptor now
+compares its anchor tuple against identity-specific constants. Behavior tests
+cover non-empty and reordered substitutions, the source review recognizes full
+`ImportFrom` module paths, and the mutation campaign attacks removal of the exact
+anchor equality check.
+
 ## Adversarial batch
 
 Prepared checks cover:
@@ -53,13 +64,13 @@ Prepared checks cover:
 - exact two-row identity, target, effect, guard and anchor subjects;
 - deterministic pure materialization through injected canonical stand-ins;
 - reordered, duplicated and partial descriptor refusal;
-- target, surface, effect, guard, wiring and anchor substitution;
+- target, surface, effect, guard, wiring and typed-valid anchor substitution;
 - incomplete canonical enum mappings and untyped factories;
-- independent AST/source review proving no canonical registry import, update,
-  effect start, persistence or recovery writer authority;
+- independent import-aware AST/source review proving no canonical registry
+  import, update, effect start, persistence or recovery writer authority;
 - six bounded mutants attacking premature centralization, effect widening,
-  owner-guard substitution, exact-set bypass, anchor omission and duplicate
-  anchor acceptance;
+  owner-guard substitution, exact-set bypass, anchor omission and exact-anchor
+  substitution acceptance;
 - focused parent-regression, full-suite, package, isolated-wheel,
   Ubuntu/Windows, Python 3.10/3.12 and two-hash-seed jobs.
 
