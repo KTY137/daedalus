@@ -11,7 +11,7 @@ Generation 2 makes potential repository-writing Python surfaces visible, but it 
 
 ## Contract
 
-Each declaration binds the exact inventory surface, source revision, target disposition, guard disposition, production reachability, named guard contracts, and immutable evidence locators with SHA-256 digests. A declaration cannot substitute a surface absent from the bound inventory, repeat a surface, use a stale revision, or target a different inventory digest.
+Each declaration binds the exact inventory surface, source revision, target disposition, guard disposition, production reachability, named guard contracts, and immutable evidence locators with SHA-256 digests. Every evidence binding also carries the canonical digest of the exact revision-and-surface identity; guard evidence names the exact guarded contract. A declaration cannot substitute a surface absent from the bound inventory, repeat a surface, use a stale revision, or target a different inventory digest.
 
 A candidate `central` declaration requires all of:
 
@@ -22,7 +22,7 @@ A candidate `central` declaration requires all of:
 - a RuntimeConformanceReceipt;
 - a Primary-Checkout disjointness receipt.
 
-A `retired` declaration requires `production_reachable=false`, no guard contracts, and a retirement receipt. The converse is also enforced: `production_reachable=false` is admitted only with the explicit `retired` disposition. A reviewer therefore cannot suppress every reachable non-central blocker merely by toggling the reachability flag. `primary_checkout`, `unknown`, and every reachable non-central classification remain explicit candidate blockers.
+A `retired` declaration requires `production_reachable=false`, no guard contracts, and a retirement receipt. `primary_checkout`, `unknown`, and every reachable non-central classification remain explicit candidate blockers.
 
 ## Non-authority boundary
 
@@ -32,9 +32,9 @@ The module imports no effect registry, Effect-Lease writer, runtime writer, prom
 
 ## Prepared adversarial batch
 
-Focused tests cover missing and complete candidate sets, stale source revision, stale inventory digest, exact surface substitution, duplicate rows, malformed primitive types, tampered inventory derived fields, evidence-revision drift, central evidence-family omission, disjoint-target evidence, reachability laundering, retirement constraints, report partition/count invariants, non-iterable normalization, strict CLI behavior, and schema parity.
+Focused tests cover missing and complete candidate sets, stale source revision, stale inventory digest, exact surface substitution, duplicate rows, malformed primitive types, tampered inventory derived fields, evidence-revision drift, central evidence-family omission, disjoint-target evidence, retirement constraints, report partition/count invariants, strict CLI behavior, and schema parity.
 
-A separate AST/source review checks the absence of effect, registry, filesystem, process, promotion, and lifecycle authority; hard-coded false assurance claims; the four mandatory central evidence families; the explicit non-reachability/retirement fence; and stale/substitution refusal. Seven bounded mutants attack false closure, forged authentication, forged Primary-Checkout proof, omitted Effect-Lease evidence, stale-inventory acceptance, duplicate-surface acceptance, and reachability laundering.
+A separate AST/source review checks the absence of effect, registry, filesystem, process, promotion, and lifecycle authority; hard-coded false assurance claims; the four mandatory central evidence families; and explicit stale/substitution refusal. Nine bounded mutants attack false closure, forged authentication, forged Primary-Checkout proof, omitted Effect-Lease evidence, stale-inventory acceptance, duplicate-surface acceptance, cross-surface receipt substitution, guard-contract laundering, and unreachable-route blocker suppression.
 
 The requested CI matrix is Ubuntu and Windows on Python 3.10 and 3.12, two hash seeds, focused predecessor regressions, mutation, Iron Plan verification, full suite, package build, and isolated-wheel import.
 
@@ -42,6 +42,6 @@ The requested CI matrix is Ubuntu and Windows on Python 3.10 and 3.12, two hash 
 
 This packet supplies no classifications for the live repository and verifies no evidence locator. A dependent packet may populate and independently verify the exact-head classification set only after the parent inventory is executable and retained. Later packets must authenticate every receipt, prove target-root disjointness against the live Primary Checkout, migrate or retire every reachable non-central route, bind the exact classification digest into GateReport-v2 and the release verifier, and execute the complete runtime/fault matrix.
 
-The pre-correction draft had an author-side isolated stub result of `19 passed` and `6` bounded mutants killed. That result does not cover the current reachability correction and is not exact-head repository, platform, packaging, runtime, or Gate evidence. GitHub Actions issue #67 continues to stop jobs before Step 1 with `steps=null`, no logs, and no artifacts; current exact-head execution is pending.
+GitHub Actions issue #67 still prevents jobs from reaching Step 1. Local author-side stub execution (`24 passed`, `9` bounded mutants killed) is preparation only and is not represented as exact-head repository, platform, packaging, runtime, or Gate evidence.
 
 No OwnerApproval, merge, promotion, automatic action, registry migration, or Gate transition is requested.
