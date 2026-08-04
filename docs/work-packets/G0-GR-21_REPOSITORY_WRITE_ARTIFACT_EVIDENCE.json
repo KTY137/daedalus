@@ -1,0 +1,82 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-21",
+  "title": "Repository-Write Artifact Evidence Contract",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "3f88ac508c7c4a9e065a4f9fd34d91e6f27532a2",
+  "parent_branch": "g0/gate-report-repository-write-v3-linear",
+  "branch": "g0/repository-write-evidence-index-v2-linear",
+  "primary_finding": "issue-194",
+  "change_class": "additive-content-addressed-artifact-evidence-contract",
+  "authority": "binding-only",
+  "scope": {
+    "adds_repository_write_artifact_evidence": true,
+    "binds_source_revision": true,
+    "binds_source_tree_revision": true,
+    "binds_gate_report_v3_digest": true,
+    "binds_inventory_digest": true,
+    "binds_scan_input_digest": true,
+    "binds_file_count_and_generation": true,
+    "binds_failure_set_digest_and_count": true,
+    "binds_artifact_content_and_locator": true,
+    "binds_exact_contract_provenance": true,
+    "compares_exact_gate_report_v3": true,
+    "fetches_or_hashes_artifact_bytes": false,
+    "changes_legacy_evidence_index": false,
+    "changes_trust_bundle_or_release_receipt": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "artifact_contract_is_canonical_and_content_addressed": true,
+    "locator_digest_matches_artifact_content_digest": true,
+    "provenance_binds_all_referenced_digests": true,
+    "report_substitution_is_mechanically_visible": true,
+    "artifact_bytes_are_independently_verified": false,
+    "artifact_signature_is_verified": false,
+    "source_tree_matches_current_head": false,
+    "legacy_evidence_index_requires_artifact": false,
+    "issue_194_closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "exact_round_trip_test_prepared": true,
+    "report_substitution_matrix_prepared": true,
+    "locator_content_mismatch_test_prepared": true,
+    "missing_provenance_input_test_prepared": true,
+    "exact_provenance_container_test_prepared": true,
+    "strict_integer_tests_prepared": true,
+    "malformed_contract_payload_tests_prepared": true,
+    "contract_digest_sensitivity_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "the contract records an artifact content digest but does not fetch and independently hash the referenced bytes",
+    "the legacy GateEvidenceIndex artifact-kind set does not require repository-write-inventory evidence",
+    "no v2 evidence-index wrapper yet binds this artifact contract digest to the exact report and current source tree",
+    "Gate0ReleaseReceipt and the trust bundle remain on the older release artifact contract",
+    "the source tree revision is retained but not compared with authenticated current HEAD in this packet",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
