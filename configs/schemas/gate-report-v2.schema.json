@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/gate-report-v2.schema.json",
+  "title": "Daedalus Gate Report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "gate",
+    "source_revision",
+    "registry_sha256",
+    "closed",
+    "security_boundary_claimed",
+    "unregistered_effectful_entrypoints",
+    "unguarded_entrypoints",
+    "inventory_only_production_entrypoints",
+    "missing_guard_contracts",
+    "runtime_conformance_failures",
+    "fault_injection_failures",
+    "primary_checkout_mutations",
+    "event_store_writer_inventory_sha256",
+    "event_store_writer_failures",
+    "owner_approval_enforced",
+    "diagnostics",
+    "blockers",
+    "report_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "daedalus-gate-report/2"
+    },
+    "gate": {
+      "const": 0
+    },
+    "source_revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "registry_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "closed": {
+      "type": "boolean"
+    },
+    "security_boundary_claimed": {
+      "type": "boolean"
+    },
+    "unregistered_effectful_entrypoints": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "unguarded_entrypoints": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "inventory_only_production_entrypoints": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "missing_guard_contracts": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "runtime_conformance_failures": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "fault_injection_failures": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "primary_checkout_mutations": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "event_store_writer_inventory_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "event_store_writer_failures": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "owner_approval_enforced": {
+      "type": "boolean"
+    },
+    "diagnostics": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "blockers": {
+      "$ref": "#/$defs/stringArray"
+    },
+    "report_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "boundedString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/boundedString"
+      },
+      "uniqueItems": true
+    }
+  }
+}
