@@ -62,9 +62,14 @@ def test_generation_two_merges_base_and_stdlib_delta(tmp_path: Path) -> None:
         "stdlib_delta_v1",
     }
     assert {surface["callee"] for surface in material["surfaces"]} >= {
-        "Path.write_text",
+        "pathlib.Path.write_text",
         "os.write",
     }
+    os_write = next(
+        surface for surface in material["surfaces"] if surface["callee"] == "os.write"
+    )
+    assert os_write["origin"] == "stdlib_delta_v1"
+    assert os_write["blocking"] is True
     assert material["surface_count"] == len(material["surfaces"])
     assert material["blocker_count"] == sum(
         surface["blocking"] for surface in material["surfaces"]
