@@ -17,17 +17,24 @@
     "source-anchor-byte-binding",
     "duplicate-registry-refusal",
     "stdout-only-require-closed-cli",
-    "live-rebuild-verification"
+    "live-rebuild-verification",
+    "effectful-ledger-construction-inventory"
+  ],
+  "adversarial_findings_fixed": [
+    "promotion-execution-constructor-opens-writable-event-store",
+    "promotion-execution-constructor-installs-sqlite-uniqueness-index",
+    "initial-three-row-inventory-omitted-construction-effects"
   ],
   "current_expected_blockers": [
     "python.promote_candidates:not-central",
     "python.promote_candidates:manager-boundary-not-installed",
     "python.promote_candidates:manager-replay-boundary-not-installed",
+    "kernel.promotion_execution.open:missing-registry-row",
     "kernel.promotion_execution.begin:missing-registry-row",
     "kernel.promotion_execution.complete:missing-registry-row"
   ],
   "verification_commands": [
-    "python -m pytest -q tests/kernel/test_promotion_effect_inventory.py",
+    "python -m pytest -q tests/kernel/test_promotion_effect_inventory.py tests/kernel/test_promotion_effect_inventory_review.py",
     "python scripts/run_promotion_effect_inventory_mutations.py",
     "python -m pytest -q",
     "python -m build"
@@ -39,7 +46,7 @@
   "automatic_promotion": false,
   "remaining_blockers": [
     "install-manager-audit-and-replay-boundaries-in-live-promotion-module",
-    "register-promotion-execution-begin-and-complete",
+    "register-promotion-execution-open-begin-and-complete",
     "compose-effect-lease-runtime-conformance-and-docker-sandbox",
     "upgrade-promotion-rows-to-central-only-after-mechanical-composition",
     "execute-focused-mutation-full-suite-platform-and-packaging-checks",
