@@ -53,6 +53,7 @@ jobs:
           python -m pytest -q
           tests/kernel/test_promotion_effect_capability.py
           tests/kernel/test_promotion_effect_replay.py
+          tests/kernel/test_promotion_effect_replay_adversarial.py
           tests/kernel/test_promotion_effect_replay_review.py
 
   mutation:
