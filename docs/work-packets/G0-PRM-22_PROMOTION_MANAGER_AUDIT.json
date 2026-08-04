@@ -1,0 +1,44 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-22",
+  "title": "Promotion Manager Audit",
+  "gate": 0,
+  "base_revision": "f76899e806501633d1b89417d1c740f67ceb00e9",
+  "branch": "g0/promotion-manager-audit-linear",
+  "authority": {
+    "retained_live_boundary": "daedalus.kairos._gated_writes_execution_accounting.py.src",
+    "manager_adapter": "daedalus.kairos.promotion_manager_audit.AuditedWorktreeManager",
+    "execution_authority": "daedalus.kernel.promotion_execution.PromotionExecutionLedger",
+    "boundary_installer": "daedalus.kairos.promotion_manager_boundary.install_promotion_manager_boundary"
+  },
+  "implemented": [
+    "exact-parent-blob-strangler-loader",
+    "allocation-cleanup-reaper-audit",
+    "immutable-manager-audit-snapshot",
+    "audit-digest-bound-terminal-report",
+    "successful-live-branch-revision-recheck",
+    "refusal-branch-deletion-proof",
+    "swallowed-reaper-failure-escalation",
+    "exact-fault-identity-rebinding",
+    "unknown-post-mutation-identity-pending-reconciliation"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_manager_audit.py tests/kernel/test_promotion_manager_boundary.py tests/kernel/test_promotion_manager_boundary_review.py tests/kernel/test_live_promotion_execution_adversarial.py tests/kernel/test_live_promotion_execution_review.py",
+    "python scripts/run_promotion_manager_audit_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": true,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "execute-focused-and-mutation-checks-on-exact-head",
+    "execute-full-suite-platform-and-packaging-checks-on-exact-head",
+    "independent-human-review",
+    "complete-canonical-effect-inventory-registration",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 prevents jobs from recording Step 1; such runs are not evidence."
+}
