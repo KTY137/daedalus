@@ -164,10 +164,9 @@ def test_current_canonical_registry_and_scanner_still_expose_exact_blocker() -> 
     )
 
 
-def test_delta_rows_are_unique_and_canonically_ordered() -> None:
+def test_delta_rows_are_unique_and_preserve_declared_order() -> None:
     assert len({row.id for row in ENTRYPOINTS}) == len(ENTRYPOINTS)
     assert len({row.target for row in ENTRYPOINTS}) == len(ENTRYPOINTS)
-    assert [row.id for row in ENTRYPOINTS] == sorted(row.id for row in ENTRYPOINTS)
     assert [asdict(row) for row in INVENTORY_DELTA.entrypoints] == [
         asdict(row) for row in ENTRYPOINTS
     ]
