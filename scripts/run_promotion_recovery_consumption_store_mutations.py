@@ -39,8 +39,8 @@ MUTATIONS = (
     ),
     (
         "accept-table-sql-drift",
-        "        if not isinstance(object_sql, str) or _normalized_sql(object_sql) != (\n",
-        "        if False and (not isinstance(object_sql, str) or _normalized_sql(object_sql) != (\n",
+        "        if not isinstance(object_sql, str) or _normalized_sql(object_sql) != (\n            _normalized_sql(_SCHEMA_SQL)\n        ):\n",
+        "        if False:  # mutant: accept table SQL drift\n",
     ),
     (
         "accept-nullability-drift",
