@@ -18,60 +18,27 @@ from daedalus.spine.effect_boundary import (
     ENTRYPOINTS,
     Effect,
     EntrypointSpec,
-    Surface,
     Wiring,
 )
 
 
 ROOT = Path(__file__).resolve().parents[2]
 REVISION = "a" * 40
+_PROMOTION_ROWS = {
+    "python.promote_candidates",
+    "kernel.promotion_execution.open",
+    "kernel.promotion_execution.begin",
+    "kernel.promotion_execution.complete",
+}
 
 
 def _central_registry() -> tuple[EntrypointSpec, ...]:
-    rows: list[EntrypointSpec] = []
-    for row in ENTRYPOINTS:
-        if row.id == "python.promote_candidates":
-            rows.append(dataclasses.replace(row, wiring=Wiring.CENTRAL))
-        else:
-            rows.append(row)
-    rows.extend(
-        (
-            EntrypointSpec(
-                id="kernel.promotion_execution.open",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.__init__"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-            EntrypointSpec(
-                id="kernel.promotion_execution.begin",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.begin"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-            EntrypointSpec(
-                id="kernel.promotion_execution.complete",
-                surface=Surface.PYTHON,
-                target=(
-                    "daedalus.kernel.promotion_execution:"
-                    "PromotionExecutionLedger.complete"
-                ),
-                effects=(Effect.FILESYSTEM_WRITE,),
-                guard_contracts=("spine.intent_ledger",),
-                wiring=Wiring.CENTRAL,
-            ),
-        )
+    return tuple(
+        dataclasses.replace(row, wiring=Wiring.CENTRAL)
+        if row.id in _PROMOTION_ROWS
+        else row
+        for row in ENTRYPOINTS
     )
-    return tuple(rows)
 
 
 def _copy_sources(tmp_path: Path) -> Path:
@@ -87,16 +54,6 @@ def _copy_sources(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _wire_manager_boundaries(root: Path) -> None:
-    source = root / "daedalus" / "kairos" / "gated_writes.py"
-    source.write_text(
-        source.read_text(encoding="utf-8")
-        + "\ninstall_promotion_manager_boundary(globals())\n"
-        + "install_promotion_manager_replay_boundary(globals())\n",
-        encoding="utf-8",
-    )
-
-
 def test_current_promotion_inventory_is_honestly_open() -> None:
     report = build_promotion_effect_inventory(
         ROOT,
@@ -104,19 +61,12 @@ def test_current_promotion_inventory_is_honestly_open() -> None:
     )
     findings = {row.entrypoint_id: row for row in report.findings}
     assert not report.closed
-    assert findings["python.promote_candidates"].status == "blocked"
-    assert findings["python.promote_candidates"].blockers == (
-        "registry.not_central:local_guards",
-        "source.missing_call:install_promotion_manager_boundary",
-        "source.missing_call:install_promotion_manager_replay_boundary",
-    )
-    for entrypoint_id in (
-        "kernel.promotion_execution.open",
-        "kernel.promotion_execution.begin",
-        "kernel.promotion_execution.complete",
-    ):
-        assert findings[entrypoint_id].status == "missing"
-        assert findings[entrypoint_id].blockers == ("registry.missing",)
+    assert set(findings) == _PROMOTION_ROWS
+    for entrypoint_id in _PROMOTION_ROWS:
+        assert findings[entrypoint_id].status == "blocked"
+        assert findings[entrypoint_id].blockers == (
+            "registry.not_central:local_guards",
+        )
     assert len(report.report_sha256) == 64
 
 
@@ -124,7 +74,6 @@ def test_exact_central_registry_and_wired_source_close_only_scoped_inventory(
     tmp_path: Path,
 ) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     report = build_promotion_effect_inventory(
         root,
         source_revision=REVISION,
@@ -180,7 +129,6 @@ def test_duplicate_registry_identity_refuses_before_projection() -> None:
 
 def test_missing_begin_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
     source.write_text(
         source.read_text(encoding="utf-8").replace(
@@ -206,7 +154,6 @@ def test_missing_begin_source_anchor_refuses_closure(tmp_path: Path) -> None:
 
 def test_missing_open_source_anchor_refuses_closure(tmp_path: Path) -> None:
     root = _copy_sources(tmp_path)
-    _wire_manager_boundaries(root)
     source = root / "daedalus" / "kernel" / "promotion_execution.py"
     source.write_text(
         source.read_text(encoding="utf-8").replace(
@@ -228,6 +175,35 @@ def test_missing_open_source_anchor_refuses_closure(tmp_path: Path) -> None:
     assert finding.status == "blocked"
     assert finding.blockers == (
         "source.missing_call:open_gate0_spine_writer",
+    )
+    assert not report.closed
+
+
+def test_missing_manager_installation_anchor_refuses_closure(
+    tmp_path: Path,
+) -> None:
+    root = _copy_sources(tmp_path)
+    source = root / "daedalus" / "kairos" / "gated_writes.py"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "install_promotion_manager_replay_boundary(globals())",
+            "install_promotion_manager_replay_boundary_removed(globals())",
+        ),
+        encoding="utf-8",
+    )
+    report = build_promotion_effect_inventory(
+        root,
+        source_revision=REVISION,
+        registry=_central_registry(),
+    )
+    finding = next(
+        row
+        for row in report.findings
+        if row.entrypoint_id == "python.promote_candidates"
+    )
+    assert finding.status == "blocked"
+    assert finding.blockers == (
+        "source.missing_call:install_promotion_manager_replay_boundary",
     )
     assert not report.closed
 
