@@ -1,8 +1,8 @@
 """Read-only reconciliation projection across both promotion lifecycles.
 
 A live promotion is intended to persist a top-level Effect-Lease start before
-its promotion-execution start.  This module compares the two existing strict
-read-only projections and classifies retained restart state.  It never grants,
+its promotion-execution start. This module compares the two existing strict
+read-only projections and classifies retained restart state. It never grants,
 starts, finishes, reconciles, invokes Git, or authorizes automatic execution.
 """
 from __future__ import annotations
@@ -22,6 +22,7 @@ from daedalus.kernel.promotion_execution import (
     PromotionExecutionReceipt,
 )
 from daedalus.kernel.promotion_replay import inspect_promotion_execution
+from daedalus.schemas import _sha256
 
 FRESH = "fresh"
 EFFECT_ONLY_PENDING = "effect-only-pending-reconciliation"
@@ -54,10 +55,19 @@ class ExpectedPromotionEffectTerminal:
     def __post_init__(self) -> None:
         if self.outcome not in {"COMPLETED", "FAILED", "CANCELLED"}:
             raise ValueError("expected promotion effect outcome is invalid")
-        if self.output_digests != tuple(sorted(set(self.output_digests))):
+        try:
+            outputs = tuple(
+                _sha256(value, "output_digest") for value in self.output_digests
+            )
+            detail = _sha256(self.detail_sha256, "detail_sha256")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "expected promotion effect terminal contains a malformed digest"
+            ) from exc
+        if outputs != tuple(sorted(set(outputs))):
             raise ValueError("expected promotion outputs must be sorted and unique")
-        if len(self.detail_sha256) != 64:
-            raise ValueError("expected promotion detail must be a SHA-256 digest")
+        object.__setattr__(self, "output_digests", outputs)
+        object.__setattr__(self, "detail_sha256", detail)
 
 
 @dataclass(frozen=True)
@@ -72,14 +82,43 @@ class PromotionReconciliationProjection:
     def __post_init__(self) -> None:
         if self.disposition not in _DISPOSITIONS:
             raise ValueError("promotion reconciliation disposition is invalid")
-        if self.disposition == EFFECT_TERMINAL_REQUIRED:
-            if self.expected_effect_terminal is None:
-                raise ValueError("terminalization-required state needs exact terminal material")
-        elif self.disposition == COMPLETE:
-            if self.expected_effect_terminal is None:
-                raise ValueError("complete state needs exact terminal material")
-        elif self.expected_effect_terminal is not None:
-            raise ValueError("nonterminal reconciliation state cannot carry terminal material")
+        effect = self.effect_execution
+        promotion = self.promotion_execution
+        expected = self.expected_effect_terminal
+        valid = {
+            FRESH: effect is None and promotion is None and expected is None,
+            EFFECT_ONLY_PENDING: (
+                effect is not None
+                and effect.terminal is None
+                and promotion is None
+                and expected is None
+            ),
+            PROMOTION_PENDING: (
+                effect is not None
+                and effect.terminal is None
+                and promotion is not None
+                and promotion.completion is None
+                and expected is None
+            ),
+            EFFECT_TERMINAL_REQUIRED: (
+                effect is not None
+                and effect.terminal is None
+                and promotion is not None
+                and promotion.completion is not None
+                and expected is not None
+            ),
+            COMPLETE: (
+                effect is not None
+                and effect.terminal is not None
+                and promotion is not None
+                and promotion.completion is not None
+                and expected is not None
+            ),
+        }[self.disposition]
+        if not valid:
+            raise ValueError(
+                "promotion reconciliation disposition contradicts retained state"
+            )
 
     @property
     def automatic_execution_allowed(self) -> bool:
