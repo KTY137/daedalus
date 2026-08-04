@@ -41,13 +41,18 @@ def test_contract_has_no_effect_or_registry_authority() -> None:
     }
     assert not (imported & forbidden_imports)
     assert not ({"open", "write_text", "write_bytes", "unlink", "replace"} & called)
-    assert not ({"begin_effect", "grant", "begin", "finish", "promote_candidates"} & called)
+    assert not (
+        {"begin_effect", "grant", "begin", "finish", "promote_candidates"}
+        & called
+    )
     assert "ENTRYPOINTS" not in attributes
     assert "REGISTRY_BY_ID" not in attributes
 
 
 def test_report_hard_codes_non_authoritative_claims_false() -> None:
-    source = inspect.getsource(contract.RepositoryWriteClassificationReport._payload)
+    source = inspect.getsource(
+        contract.RepositoryWriteClassificationReport._payload
+    )
     tree = ast.parse(textwrap.dedent(source))
     dict_nodes = [node for node in ast.walk(tree) if isinstance(node, ast.Dict)]
     material: dict[str, object] = {}
@@ -76,9 +81,19 @@ def test_central_candidate_requires_all_four_mechanical_evidence_families() -> N
     assert "central classification requires a disjoint target" in source
 
 
+def test_nonreachable_claim_requires_explicit_retirement_authority() -> None:
+    source = inspect.getsource(contract.SurfaceClassification.__post_init__)
+    assert "not self.production_reachable" in source
+    assert "GuardDisposition.RETIRED" in source
+    assert "non-reachable classification requires retired disposition" in source
+    assert "EvidenceKind.RETIREMENT_RECEIPT" in source
+
+
 def test_stale_inventory_and_surface_substitution_checks_are_explicit() -> None:
     input_source = inspect.getsource(contract.project_classification_input)
-    projection_source = inspect.getsource(contract.project_repository_write_classifications)
+    projection_source = inspect.getsource(
+        contract.project_repository_write_classifications
+    )
     assert "source revision is stale" in input_source
     assert "inventory digest is stale" in input_source
     assert "surface is absent from the bound inventory" in projection_source
