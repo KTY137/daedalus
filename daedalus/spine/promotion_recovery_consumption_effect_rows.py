@@ -19,6 +19,14 @@ _TARGET_PREFIX = (
 )
 _STORE_GUARD = "promotion.recovery_consumption_store"
 _DECISION_GUARD = "promotion.owner_recovery_decision"
+_OPEN_ANCHORS = (
+    (_TARGET_PREFIX + "__init__", "_initialize"),
+    (_TARGET_PREFIX + "_initialize", "_connect_writer"),
+)
+_CONSUME_ANCHORS = (
+    (_TARGET_PREFIX + "consume", "verify_promotion_recovery_decision"),
+    (_TARGET_PREFIX + "consume", "_connect_writer"),
+)
 
 
 @dataclass(frozen=True)
@@ -80,6 +88,15 @@ class PromotionRecoveryConsumptionRowDescriptor:
                 or not all(isinstance(value, str) and value for value in anchor)
             ):
                 raise ValueError("recovery-consumption anchors must be text pairs")
+        expected_anchors = (
+            _OPEN_ANCHORS
+            if self.entrypoint_id == _OPEN_ID
+            else _CONSUME_ANCHORS
+        )
+        if self.anchors != expected_anchors:
+            raise ValueError(
+                "recovery-consumption row has the wrong exact anchors"
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -107,10 +124,7 @@ PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS: tuple[
         effects=("filesystem_write",),
         guard_contracts=(_STORE_GUARD,),
         wiring="local_guards",
-        anchors=(
-            (_TARGET_PREFIX + "__init__", "_initialize"),
-            (_TARGET_PREFIX + "_initialize", "_connect_writer"),
-        ),
+        anchors=_OPEN_ANCHORS,
         notes=(
             "Creates or opens the durable one-use recovery-consumption store. "
             "The row is inventory-visible but not centrally authorized yet."
@@ -123,10 +137,7 @@ PROMOTION_RECOVERY_CONSUMPTION_ROW_DESCRIPTORS: tuple[
         effects=("filesystem_write",),
         guard_contracts=(_DECISION_GUARD, _STORE_GUARD),
         wiring="local_guards",
-        anchors=(
-            (_TARGET_PREFIX + "consume", "verify_promotion_recovery_decision"),
-            (_TARGET_PREFIX + "consume", "_connect_writer"),
-        ),
+        anchors=_CONSUME_ANCHORS,
         notes=(
             "Authenticates current owner recovery authority twice and commits "
             "one canonical one-use receipt. No cancellation writer is included."
