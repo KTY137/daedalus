@@ -16,6 +16,10 @@ def test_gate_report_v2_schema_matches_exact_runtime_shape() -> None:
     assert set(payload["required"]) == set(report_module._V2_FIELDS)
     assert payload["properties"]["schema"]["const"] == report_module._SCHEMA
     assert payload["properties"]["gate"]["const"] == 0
+    assert (
+        payload["properties"]["source_revision"]["pattern"]
+        == "^[0-9a-f]{40}$"
+    )
 
 
 def test_schema_keeps_writer_inventory_digest_nullable_but_mandatory() -> None:
