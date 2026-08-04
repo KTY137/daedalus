@@ -31,8 +31,7 @@ def test_counter_review_proves_parent_public_module_is_byte_identical_prefix() -
 def test_counter_review_limits_append_to_two_imports_calls_and_deletions() -> None:
     source = PUBLIC.read_text(encoding="utf-8")
     suffix = source.split(MARKER, 1)[1]
-    tree = ast.parse(suffix)
-    executable = [node for node in tree.body if not isinstance(node, ast.Expr)]
+    executable = ast.parse(suffix).body
     assert len(executable) == 6
     assert isinstance(executable[0], ast.ImportFrom)
     assert executable[0].module == "promotion_manager_boundary"
