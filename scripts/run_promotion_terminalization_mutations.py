@@ -30,6 +30,10 @@ MUTATIONS = {
         "detail_sha256=expected.detail_sha256,",
         "detail_sha256=None,",
     ),
+    "accept-regressed-clock": (
+        "if finished_at < promotion_finished_at:",
+        "if False and finished_at < promotion_finished_at:",
+    ),
     "accept-written-retained-substitution": (
         "if retained.receipt_sha256 != written.receipt_sha256:",
         "if False and retained.receipt_sha256 != written.receipt_sha256:",
