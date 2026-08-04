@@ -88,9 +88,11 @@ def test_unknown_outcome_exception_binds_only_safe_recovery_material() -> None:
         "phase",
         "cause_sha256",
     }
-    assert "self.value" not in SOURCE
-    assert "self.provider_value" not in SOURCE
-    assert "str(exc)" not in ast.get_source_segment(SOURCE, node)
+    class_text = ast.get_source_segment(SOURCE, node) or ""
+    assert "self.value" not in class_text
+    assert "self.provider_value" not in class_text
+    assert "str(" not in class_text
+    assert "repr(" not in class_text
 
 
 def test_exception_cause_is_class_digest_not_retained_message() -> None:
