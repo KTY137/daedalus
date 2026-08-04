@@ -146,17 +146,25 @@ def test_target_methods_and_declared_anchors_exist_in_source() -> None:
     assert declared <= observed
 
 
-def test_current_canonical_registry_and_scanner_still_expose_exact_blocker() -> None:
-    registered_targets = {row.target for row in effect_boundary.ENTRYPOINTS}
+def test_current_canonical_registry_and_scanner_integrate_exact_delta() -> None:
+    registered = {row.target: row for row in effect_boundary.ENTRYPOINTS}
     proposed_targets = {row.target for row in ENTRYPOINTS}
-    assert proposed_targets.isdisjoint(registered_targets)
-    assert "promotion.owner_recovery_decision" not in (
-        effect_boundary.GUARD_CONTRACT_IMPLEMENTED
-    )
+    assert proposed_targets <= set(registered)
+    assert effect_boundary.GUARD_CONTRACT_IMPLEMENTED[
+        "promotion.owner_recovery_decision"
+    ] is True
+
+    for proposed in ENTRYPOINTS:
+        installed = registered[proposed.target]
+        assert installed.id == proposed.id
+        assert installed.surface.value == proposed.surface
+        assert tuple(effect.value for effect in installed.effects) == proposed.effects
+        assert installed.guard_contracts == proposed.guard_contracts
+        assert installed.wiring.value == proposed.wiring
 
     discoveries, findings = effect_boundary.discover_entrypoints(ROOT)
     discovered_targets = {row.target for row in discoveries}
-    assert proposed_targets.isdisjoint(discovered_targets)
+    assert proposed_targets <= discovered_targets
     assert not any(
         row.code == "scan.source_unreadable"
         and "promotion_recovery_consumption.py" in row.target
