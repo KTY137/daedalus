@@ -33,6 +33,16 @@ MUTATIONS = (
         "    if False:  # mutant accepts forged owner signature\n",
     ),
     (
+        "trust-signed-stale-subject-without-current-projection",
+        "    expectation = recovery_expectation(capability, promotion_ledger)\n",
+        "    expectation = PromotionRecoveryExpectation(\n"
+        "        promotion_authorization_sha256=decision.promotion_authorization_sha256,\n"
+        "        recovery_plan_sha256=decision.recovery_plan_sha256,\n"
+        "        effect_start_receipt_sha256=decision.effect_start_receipt_sha256,\n"
+        "        source_revision=decision.provenance.source_revision,\n"
+        "    )  # mutant\n",
+    ),
+    (
         "skip-recovery-plan-subject-comparison",
         '        "recovery_plan_sha256": (\n            decision.recovery_plan_sha256,\n            expectation.recovery_plan_sha256,\n        ),\n',
         "",
