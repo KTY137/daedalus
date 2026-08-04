@@ -320,40 +320,39 @@ def resolve_provider_invocation_authority(
 
 def verify_provider_invocation_resolution_receipt(
     receipt: ProviderInvocationResolutionReceipt,
-    *,
     authority: ProviderInvocationObservationAuthority,
     manifest: ProviderInvocationRegistryManifest,
-    verified_at: datetime,
+    *,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    invocation_contract_id: str,
+    entrypoint_id: str,
+    runtime_id: str,
+    execution: EffectExecutionRequest,
+    lease_sha256: str,
+    source_revision: str,
+    at: datetime,
 ) -> None:
-    """Compare a retained receipt with exact already-authenticated subjects."""
+    """Re-authenticate all subjects and compare one exact retained receipt."""
 
     if type(receipt) is not ProviderInvocationResolutionReceipt:
         raise ProviderInvocationResolutionBindingError(
             "receipt must be exact ProviderInvocationResolutionReceipt"
         )
-    if type(authority) is not ProviderInvocationObservationAuthority:
-        raise ProviderInvocationResolutionBindingError(
-            "authority must be exact ProviderInvocationObservationAuthority"
-        )
-    if type(manifest) is not ProviderInvocationRegistryManifest:
-        raise ProviderInvocationResolutionBindingError(
-            "manifest must be exact ProviderInvocationRegistryManifest"
-        )
-    if authority.invocation_registry_sha256 != manifest.digest:
-        raise ProviderInvocationResolutionBindingError(
-            "retained authority and registry digest do not match"
-        )
-    try:
-        descriptor = manifest.resolve(authority.invocation_subject)
-    except ProviderInvocationRegistryError as exc:
-        raise ProviderInvocationResolutionBindingError(
-            "retained invocation subject did not resolve"
-        ) from exc
-    expected = _receipt_for(
-        authority=authority,
-        manifest=manifest,
-        descriptor=descriptor,
-        verified_at=_canonical_at(verified_at),
+    expected = resolve_provider_invocation_authority(
+        authority,
+        manifest,
+        authority_id=authority_id,
+        authority_keyring=authority_keyring,
+        observation_keyring=observation_keyring,
+        invocation_contract_id=invocation_contract_id,
+        entrypoint_id=entrypoint_id,
+        runtime_id=runtime_id,
+        execution=execution,
+        lease_sha256=lease_sha256,
+        source_revision=source_revision,
+        at=at,
     )
     if receipt != expected:
         raise ProviderInvocationResolutionBindingError(
