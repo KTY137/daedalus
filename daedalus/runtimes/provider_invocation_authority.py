@@ -1,15 +1,15 @@
 """Signed composite authority for one exact provider invocation subject.
 
 The existing ``ProviderObservationAuthority`` authenticates the provider ID,
-observation issuer keys and one runtime effect subject.  This module adds an
+observation issuer keys and one runtime effect subject. This module adds an
 exact, non-executing composite authority that also signs the immutable
 ``ProviderInvocationSubject`` and one revision-bound invocation-registry
-digest.  Adapter identity, artifact/config digests and the runtime effect
-subject therefore become one authenticated object before a later broker may
-resolve an executable adapter.
+digest. Adapter identity, artifact/config digests and the runtime effect subject
+therefore become one authenticated object before a later broker may resolve an
+executable adapter.
 
 This module contains no callback, registry lookup, provider execution, effect
-start, recovery action or promotion authority.  Broker and durable-store
+start, recovery action or promotion authority. Broker and durable-store
 integration are separate reviewed packets.
 """
 from __future__ import annotations
@@ -26,8 +26,8 @@ from daedalus.runtimes.provider_invocation import (
 )
 from daedalus.runtimes.provider_observation import (
     ProviderObservationAuthority,
-    ProviderObservationAuthorityBindingError,
     ProviderObservationAuthorityError,
+    _normalize_keyring,
     verify_provider_observation_authority,
 )
 from daedalus.schemas import _identifier, _sha256
@@ -287,16 +287,19 @@ def verify_provider_invocation_observation_authority(
             invocation_registry_sha256,
             "invocation_registry_sha256",
         )
+        authority_rows = dict(
+            _normalize_keyring(authority_keyring, label="authority_keyring")
+        )
     except (TypeError, ValueError) as exc:
         raise ProviderInvocationAuthorityBindingError(
-            "expected invocation authority subject is malformed"
+            "expected invocation authority subject or keyring is malformed"
         ) from exc
 
     try:
         verify_provider_observation_authority(
             authority.observation_authority,
             authority_id=authority_id,
-            authority_keyring=authority_keyring,
+            authority_keyring=authority_rows,
             observation_keyring=observation_keyring,
             entrypoint_id=entrypoint_id,
             runtime_id=runtime_id,
@@ -310,23 +313,18 @@ def verify_provider_invocation_observation_authority(
             "nested provider-observation authority did not authenticate"
         ) from exc
 
-    secret = authority_keyring.get(
+    secret = authority_rows.get(
         authority.observation_authority.authority_key_id
     )
     if secret is None:
         raise ProviderInvocationAuthoritySignatureError(
             "invocation-observation authority key is unknown"
         )
-    try:
-        expected_signature = _signature(
-            authority.signing_digest,
-            secret,
-            "authority_keyring secret",
-        )
-    except (TypeError, ValueError) as exc:
-        raise ProviderInvocationAuthorityBindingError(
-            "invocation-observation authority keyring is malformed"
-        ) from exc
+    expected_signature = _signature(
+        authority.signing_digest,
+        secret,
+        "authority_keyring secret",
+    )
     if not hmac.compare_digest(authority.signature_sha256, expected_signature):
         raise ProviderInvocationAuthoritySignatureError(
             "invocation-observation authority signature mismatch"
