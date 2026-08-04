@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 
 from daedalus.kernel.effects import EffectLeaseStateError
 from daedalus.kernel.promotion_execution import PromotionExecutionLedger
+from daedalus.kernel.promotion_reconciliation import PromotionReconciliationError
 from daedalus.kernel.promotion_terminalization import (
     PromotionEffectTerminalizationError,
     PromotionEffectTerminalizationResult,
@@ -103,7 +105,33 @@ def test_wrong_terminal_installed_by_competing_writer_is_not_laundered(
 
     monkeypatch.setattr(effect_ledger, "finish", install_wrong_terminal)
     try:
-        with pytest.raises(Exception, match="contradicts promotion terminal"):
+        with pytest.raises(
+            PromotionReconciliationError,
+            match="contradicts promotion terminal",
+        ):
+            terminalize_promotion_effect(capability, ledger)
+    finally:
+        ledger.close()
+
+
+def test_writer_return_substitution_is_refused_after_exact_reprojection(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    capability, ledger = _prepared(tmp_path)
+    effect_ledger = capability.authorization.effect_ledger
+    original_finish = effect_ledger.finish
+
+    def return_substituted_receipt(*args, **kwargs):
+        persisted = original_finish(*args, **kwargs)
+        return dataclasses.replace(persisted, receipt_sha256="8" * 64)
+
+    monkeypatch.setattr(effect_ledger, "finish", return_substituted_receipt)
+    try:
+        with pytest.raises(
+            PromotionEffectTerminalizationError,
+            match="differs from the terminalization write",
+        ):
             terminalize_promotion_effect(capability, ledger)
     finally:
         ledger.close()
