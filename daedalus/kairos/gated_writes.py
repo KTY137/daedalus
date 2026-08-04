@@ -498,6 +498,8 @@ __all__ = tuple(sorted(name for name in globals() if not name.startswith("_")))
 # Install the manager audit only after the sealed public callable exists. The
 # installers preserve the public PromotionExecutionLedger class and wrap only
 # a caller-supplied, already-typed ledger instance for the duration of one call.
+from functools import wraps as _wraps
+
 from .promotion_manager_boundary import (
     install_promotion_manager_boundary as _install_promotion_manager_boundary,
 )
@@ -507,5 +509,21 @@ from .promotion_manager_replay import (
 
 _install_promotion_manager_boundary(globals())
 _install_promotion_manager_replay_boundary(globals())
+
+
+def _make_public_promotion_wrapper(callable_, parent):
+    @_wraps(parent)
+    def public(*args, **kwargs):
+        return callable_(*args, **kwargs)
+
+    return public
+
+
+promote_candidates = _make_public_promotion_wrapper(
+    promote_candidates,
+    _ACCOUNTED_PROMOTE_CANDIDATES,
+)
+del _make_public_promotion_wrapper
+del _wraps
 del _install_promotion_manager_boundary
 del _install_promotion_manager_replay_boundary
