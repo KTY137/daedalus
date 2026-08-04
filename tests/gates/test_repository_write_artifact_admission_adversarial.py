@@ -131,6 +131,14 @@ def _call(artifact, report, root):
     )
 
 
+def _dataclass_values(subject: object) -> dict[str, object]:
+    return {
+        field.name: getattr(subject, field.name)
+        for field in dataclasses.fields(subject)
+        if field.init
+    }
+
+
 def _replace_digest(
     receipt: RepositoryWriteArtifactVerificationReceipt,
     field_name: str,
@@ -153,7 +161,7 @@ def test_exact_subject_subclasses_refuse(tmp_path: Path, subject: str) -> None:
     values = {"artifact": artifact, "report": report, "root": root}
     original = values[subject]
     substituted_type = type(f"{type(original).__name__}Subclass", (type(original),), {})
-    values[subject] = substituted_type(**dataclasses.asdict(original))
+    values[subject] = substituted_type(**_dataclass_values(original))
 
     with pytest.raises(RepositoryWriteArtifactAdmissionError, match=f"{subject} must be exact"):
         _call(values["artifact"], values["report"], values["root"])
