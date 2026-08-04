@@ -1,0 +1,78 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20F",
+  "title": "Repository Write Source-Anchor Semantic Replay",
+  "gate": 0,
+  "parent_revision": "6743dae62d669070b866c5925a6f8fea7bbdb6f0",
+  "parent_branch": "g0/repository-write-evidence-origin-linear",
+  "branch": "g0/repository-write-source-anchor-semantics-linear",
+  "change_class": "additive-read-only-semantic-verifier",
+  "authority": "authenticated-source-anchor-replay-only",
+  "scope": {
+    "re_materializes_classification_evidence": true,
+    "re_authenticates_origin_attestation": true,
+    "binds_complete_digest_chain": true,
+    "requires_one_source_anchor_per_classification": true,
+    "binds_anchor_to_exact_classified_path_line_and_column": true,
+    "binds_current_regular_file_bytes": true,
+    "uses_bounded_read_only_file_access": true,
+    "rejects_repository_root_and_path_symlinks": true,
+    "checks_open_file_identity_before_and_after_read": true,
+    "rejects_noncanonical_duplicate_and_nonfinite_evidence_json": true,
+    "verifies_guard_contract_semantics": false,
+    "verifies_effect_lease_semantics": false,
+    "verifies_runtime_conformance_semantics": false,
+    "verifies_checkout_disjointness_semantics": false,
+    "verifies_retirement_semantics": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "origin_authenticated_after_verification": true,
+    "source_anchor_semantics_verified": true,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_tests_prepared": true,
+    "origin_signature_reverification_prepared": true,
+    "path_line_column_substitution_tests_prepared": true,
+    "source_byte_substitution_tests_prepared": true,
+    "symlink_and_tree_identity_tests_prepared": true,
+    "digest_chain_bypass_tests_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 10,
+    "author_side_stub_execution": {
+      "focused_and_review_tests": "19 passed",
+      "bounded_mutants": "10 killed in targeted isolated executions",
+      "evidence_class": "preparatory isolated stub execution only; not exact-head repository, platform, packaging, independent-human, or Gate evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "guard-contract evidence is not replayed against the canonical implementation map",
+    "Effect-Lease receipts are not replayed against the authoritative persisted ledger",
+    "Runtime Manifest and RuntimeConformanceReceipt evidence is not replayed against authoritative runtime state",
+    "Primary-Checkout disjointness and retirement receipts are not replayed against authoritative current state",
+    "the semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification and evidence corpus are not populated by this packet",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while Actions issue 67 persists"
+  ]
+}
