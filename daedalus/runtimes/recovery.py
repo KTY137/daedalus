@@ -1,14 +1,14 @@
 """Runtime-bound reconciliation for provider effects with unknown outcomes.
 
-This adapter authenticates the exact runtime capability at the durable start
-instant and binds it to the entrypoint, lease, execution, idempotency key and
-source revision before delegating to the generic signed-observation recovery
+This adapter authenticates the exact persisted runtime execution at its durable
+start instant and binds it to the entrypoint, lease, execution, idempotency key
+and source revision before delegating to the generic signed-observation recovery
 operation.  It never invokes a provider and accepts only an already STARTED
-execution.
+execution that is pending reconciliation.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Mapping, Sequence
 
 from daedalus.kernel.effect_recovery import (
@@ -16,16 +16,13 @@ from daedalus.kernel.effect_recovery import (
     ExternalEffectObservation,
     reconcile_unknown_effect,
 )
-from daedalus.kernel.effects import (
-    EffectExecutionRequest,
-    EffectLeaseError,
-    LeasedEffectStartReceipt,
+from daedalus.kernel.effects import EffectExecutionRequest, LeasedEffectStartReceipt
+from daedalus.kernel.runtime_effect_replay import (
+    RuntimeEffectExecutionReplaySnapshot,
+    RuntimeEffectReplayProjectionError,
+    inspect_runtime_effect_execution,
 )
-from daedalus.kernel.runtime_effects import (
-    RuntimeBoundEffectAuthorization,
-    RuntimeLeaseAdmissionError,
-    verify_runtime_bound_effect_lease,
-)
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.spine.effect_boundary import EntrypointSpec, Wiring
 
 
@@ -35,20 +32,6 @@ class RuntimeProviderRecoveryError(RuntimeError):
 
 class RuntimeProviderRecoveryBindingError(RuntimeProviderRecoveryError):
     """The recovery material does not bind one exact runtime provider start."""
-
-
-def _parse_start(value: str) -> datetime:
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except (AttributeError, ValueError) as exc:
-        raise RuntimeProviderRecoveryBindingError(
-            "start receipt timestamp is malformed"
-        ) from exc
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise RuntimeProviderRecoveryBindingError(
-            "start receipt timestamp is timezone-naive"
-        )
-    return parsed.astimezone(timezone.utc)
 
 
 def _registry_map(
@@ -144,23 +127,27 @@ def _validate_runtime_binding(
         )
 
     try:
-        verify_runtime_bound_effect_lease(
-            authorization.capability,
-            request=authorization.request,
-            policy_decision=authorization.policy_decision,
-            lease_keyring=authorization.lease_keyring,
-            runtime_authority_keyring=authorization.runtime_authority_keyring,
-            runtime_trust_ledger=authorization.runtime_trust_ledger,
-            current_kill_switch_generation=(
-                authorization.current_kill_switch_generation
-            ),
-            now=_parse_start(start_receipt.started_at),
-            registry=authorization.registry,
-        )
-    except (EffectLeaseError, RuntimeLeaseAdmissionError, ValueError) as exc:
+        replay = inspect_runtime_effect_execution(authorization, execution)
+    except RuntimeEffectReplayProjectionError as exc:
         raise RuntimeProviderRecoveryBindingError(
-            "runtime provider recovery capability failed authentication"
+            "runtime provider recovery execution failed authenticated replay"
         ) from exc
+    if replay is None:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery execution has no durable start"
+        )
+    if type(replay) is not RuntimeEffectExecutionReplaySnapshot:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery replay type is invalid"
+        )
+    if replay.execution.start_receipt != start_receipt:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery start receipt differs from persisted replay"
+        )
+    if not replay.pending_reconciliation:
+        raise RuntimeProviderRecoveryBindingError(
+            "runtime provider recovery execution is already terminal"
+        )
 
 
 def reconcile_runtime_provider_unknown(
