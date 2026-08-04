@@ -7,14 +7,18 @@ import pytest
 
 from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 from daedalus.kernel.promotion_reconciliation import (
-    COMPLETE,
-    EFFECT_ONLY_PENDING,
-    EFFECT_TERMINAL_REQUIRED,
-    FRESH,
-    PROMOTION_PENDING,
+    PromotionReconciliationDisposition,
     PromotionReconciliationError,
     inspect_promotion_reconciliation,
 )
+
+FRESH = PromotionReconciliationDisposition.FRESH
+EFFECT_ONLY_PENDING = PromotionReconciliationDisposition.EFFECT_ONLY_PENDING
+PROMOTION_PENDING = PromotionReconciliationDisposition.PROMOTION_PENDING
+EFFECT_TERMINAL_REQUIRED = (
+    PromotionReconciliationDisposition.EFFECT_TERMINAL_REQUIRED
+)
+COMPLETE = PromotionReconciliationDisposition.COMPLETE
 
 
 def _load(name: str, filename: str):
