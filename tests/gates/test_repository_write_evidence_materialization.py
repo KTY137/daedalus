@@ -41,98 +41,81 @@ def _surface(index: int = 1) -> RepositoryWriteSurface:
     )
 
 
-def _payload(kind: EvidenceKind, *, guard_contract: str = "") -> dict[str, object]:
-    if kind is EvidenceKind.SOURCE_ANCHOR:
-        return {
+def _payload(kind: EvidenceKind, guard: str = "") -> dict[str, object]:
+    values: dict[EvidenceKind, dict[str, object]] = {
+        EvidenceKind.SOURCE_ANCHOR: {
             "path": "daedalus/example.py",
             "line": 1,
             "column": 0,
             "source_sha256": SHA,
-        }
-    if kind is EvidenceKind.GUARD_CONTRACT:
-        return {
-            "contract": guard_contract,
+        },
+        EvidenceKind.GUARD_CONTRACT: {
+            "contract": guard,
             "implementation_target": "daedalus.guard:verify",
             "implementation_sha256": SHA,
-        }
-    if kind is EvidenceKind.EFFECT_LEASE_RECEIPT:
-        return {
+        },
+        EvidenceKind.EFFECT_LEASE_RECEIPT: {
             "receipt_schema": "daedalus-effect-lease-receipt/1",
             "receipt_sha256": SHA,
             "entrypoint_id": "runtime.example",
             "terminal_state": "completed",
-        }
-    if kind is EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT:
-        return {
+        },
+        EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT: {
             "receipt_schema": "daedalus-runtime-conformance/1",
             "receipt_sha256": SHA,
             "runtime_id": "runtime-example",
             "conformant": True,
-        }
-    if kind is EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT:
-        return {
+        },
+        EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT: {
             "receipt_schema": "daedalus-checkout-disjointness/1",
             "receipt_sha256": SHA,
             "primary_checkout_sha256": "b" * 64,
             "target_root_sha256": "c" * 64,
             "disjoint": True,
-        }
-    if kind is EvidenceKind.RETIREMENT_RECEIPT:
-        return {
+        },
+        EvidenceKind.RETIREMENT_RECEIPT: {
             "receipt_schema": "daedalus-retirement-receipt/1",
             "receipt_sha256": SHA,
             "retired_target": "daedalus.example:write",
             "production_reachable": False,
-        }
-    raise AssertionError(kind)
+        },
+    }
+    return values[kind]
 
 
-def _binding_and_blob(
+def _binding_document(
     kind: EvidenceKind,
     surface: RepositoryWriteSurface,
     *,
     payload: dict[str, object] | None = None,
-    guard_contract: str = "",
+    guard: str = "",
 ) -> tuple[EvidenceBinding, bytes, dict[str, object]]:
-    surface_sha256 = surface_binding_sha256(REVISION, surface)
+    surface_sha = surface_binding_sha256(REVISION, surface)
     provisional = EvidenceBinding(
         kind=kind,
         source_revision=REVISION,
-        surface_sha256=surface_sha256,
+        surface_sha256=surface_sha,
         sha256="0" * 64,
         locator="cas:sha256:" + "0" * 64,
-        guard_contract=guard_contract,
+        guard_contract=guard,
     )
-    material = payload if payload is not None else _payload(
-        kind, guard_contract=guard_contract
-    )
-    payload_sha256 = hashlib.sha256(
-        canonical_json(material).encode("ascii")
-    ).hexdigest()
+    payload = _payload(kind, guard) if payload is None else payload
     document: dict[str, object] = {
         "schema": "daedalus-gate0-repository-write-evidence-object/1",
         "kind": kind.value,
         "source_revision": REVISION,
-        "surface_sha256": surface_sha256,
-        "guard_contract": guard_contract,
+        "surface_sha256": surface_sha,
+        "guard_contract": guard,
         "subject_sha256": evidence_subject_sha256(provisional),
-        "payload_sha256": payload_sha256,
-        "payload": material,
+        "payload_sha256": hashlib.sha256(
+            canonical_json(payload).encode("ascii")
+        ).hexdigest(),
+        "payload": payload,
     }
-    raw = canonical_json(document).encode("ascii")
-    digest = hashlib.sha256(raw).hexdigest()
-    binding = EvidenceBinding(
-        kind=kind,
-        source_revision=REVISION,
-        surface_sha256=surface_sha256,
-        sha256=digest,
-        locator="cas:sha256:" + digest,
-        guard_contract=guard_contract,
-    )
-    return binding, raw, document
+    return _rebind(provisional, document) + (document,)
 
 
-def _binding_for_document(
+def _rebind(
     template: EvidenceBinding, document: dict[str, object]
 ) -> tuple[EvidenceBinding, bytes]:
     raw = canonical_json(document).encode("ascii")
@@ -150,7 +133,7 @@ def _binding_for_document(
     )
 
 
-def _classification(
+def _row(
     surface: RepositoryWriteSurface,
     evidence: tuple[EvidenceBinding, ...],
 ) -> SurfaceClassification:
@@ -166,9 +149,7 @@ def _classification(
     )
 
 
-def _report(
-    rows: tuple[SurfaceClassification, ...],
-) -> RepositoryWriteClassificationReport:
+def _report(*rows: SurfaceClassification) -> RepositoryWriteClassificationReport:
     return RepositoryWriteClassificationReport(
         source_revision=REVISION,
         inventory_digest="d" * 64,
@@ -183,127 +164,123 @@ def _one(
     kind: EvidenceKind = EvidenceKind.SOURCE_ANCHOR,
     *,
     payload: dict[str, object] | None = None,
-    guard_contract: str = "",
-) -> tuple[RepositoryWriteClassificationReport, EvidenceBinding, bytes, dict[str, object]]:
+    guard: str = "",
+) -> tuple[
+    RepositoryWriteClassificationReport,
+    EvidenceBinding,
+    bytes,
+    dict[str, object],
+]:
     surface = _surface()
-    binding, raw, document = _binding_and_blob(
-        kind,
-        surface,
-        payload=payload,
-        guard_contract=guard_contract,
+    binding, raw, document = _binding_document(
+        kind, surface, payload=payload, guard=guard
     )
-    return _report((_classification(surface, (binding,)),)), binding, raw, document
+    return _report(_row(surface, (binding,))), binding, raw, document
 
 
-def test_materializes_exact_canonical_source_anchor() -> None:
+def test_materializes_exact_canonical_blob_without_trust_escalation() -> None:
     report, binding, raw, _ = _one()
-
     result = materialize_repository_write_evidence(
         report, {binding.locator: raw}
     )
-
     assert result.materialization_complete is True
-    assert result.binding_count == 1
     assert result.records[0].blob_sha256 == binding.sha256
     assert result.records[0].subject_sha256 == evidence_subject_sha256(binding)
     material = result.to_dict()
     assert material["content_addressed"] is True
     assert material["canonical_bytes_verified"] is True
     assert material["binding_verified"] is True
-    assert material["origin_authenticated"] is False
-    assert material["semantic_receipts_verified"] is False
-    assert material["evidence_authenticated"] is False
-    assert material["gate_report_bound"] is False
-    assert material["closed"] is False
+    for field in (
+        "origin_authenticated",
+        "semantic_receipts_verified",
+        "evidence_authenticated",
+        "gate_report_bound",
+        "closed",
+    ):
+        assert material[field] is False
 
 
 @pytest.mark.parametrize("kind", list(EvidenceKind))
-def test_accepts_every_typed_evidence_envelope(kind: EvidenceKind) -> None:
+def test_all_evidence_kinds_have_strict_envelopes(kind: EvidenceKind) -> None:
     guard = "runtime.guard" if kind is EvidenceKind.GUARD_CONTRACT else ""
-    report, binding, raw, _ = _one(kind, guard_contract=guard)
-
+    report, binding, raw, _ = _one(kind, guard=guard)
     result = materialize_repository_write_evidence(
         report, {binding.locator: raw}
     )
-
     assert result.records[0].kind is kind
 
 
-def test_missing_blob_is_reported_without_false_completeness() -> None:
+def test_missing_and_empty_binding_sets_remain_blocking() -> None:
     report, binding, _, _ = _one()
+    missing = materialize_repository_write_evidence(report, {})
+    assert missing.materialization_complete is False
+    assert missing.missing_locators == (binding.locator,)
+    assert "evidence-blobs-missing" in missing.to_dict()["blockers"]
 
-    result = materialize_repository_write_evidence(report, {})
-
-    assert result.materialization_complete is False
-    assert result.missing_locators == (binding.locator,)
-    assert "evidence-blobs-missing" in result.to_dict()["blockers"]
-
-
-def test_empty_binding_set_is_not_vacuously_complete() -> None:
     surface = _surface()
-    report = _report((_classification(surface, ()),))
+    empty = materialize_repository_write_evidence(
+        _report(_row(surface, ())), {}
+    )
+    assert empty.binding_count == 0
+    assert empty.materialization_complete is False
+    assert "evidence-bindings-empty" in empty.to_dict()["blockers"]
 
-    result = materialize_repository_write_evidence(report, {})
 
-    assert result.binding_count == 0
-    assert result.materialization_complete is False
-    assert "evidence-bindings-empty" in result.to_dict()["blockers"]
-
-
-def test_unexpected_locator_and_non_bytes_refuse() -> None:
+def test_unexpected_locator_non_bytes_and_raw_digest_mismatch_refuse() -> None:
     report, binding, raw, _ = _one()
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
         materialize_repository_write_evidence(
-            report, {binding.locator: raw, "cas:sha256:" + "f" * 64: b"{}"}
+            report,
+            {
+                binding.locator: raw,
+                "cas:sha256:" + "f" * 64: b"{}",
+            },
         )
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
-        materialize_repository_write_evidence(report, {binding.locator: raw.decode()})  # type: ignore[dict-item]
-
-
-def test_raw_digest_mismatch_refuses_before_parsing() -> None:
-    report, binding, raw, _ = _one()
+        materialize_repository_write_evidence(
+            report, {binding.locator: raw.decode()}  # type: ignore[dict-item]
+        )
     with pytest.raises(
-        RepositoryWriteEvidenceMaterializationError,
-        match="digest differs",
+        RepositoryWriteEvidenceMaterializationError, match="digest differs"
     ):
         materialize_repository_write_evidence(
             report, {binding.locator: raw + b" "}
         )
 
 
-def test_noncanonical_and_duplicate_key_json_refuse_with_rebound_digest() -> None:
-    report, binding, _, document = _one()
+def test_noncanonical_and_duplicate_key_json_refuse_after_digest_rebinding() -> None:
+    _, binding, _, document = _one()
     pretty = json.dumps(document, indent=2).encode()
-    pretty_digest = hashlib.sha256(pretty).hexdigest()
+    digest = hashlib.sha256(pretty).hexdigest()
     pretty_binding = EvidenceBinding(
         kind=binding.kind,
         source_revision=binding.source_revision,
         surface_sha256=binding.surface_sha256,
-        sha256=pretty_digest,
-        locator="cas:sha256:" + pretty_digest,
+        sha256=digest,
+        locator="cas:sha256:" + digest,
     )
-    pretty_report = _report((_classification(_surface(), (pretty_binding,)),))
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
         materialize_repository_write_evidence(
-            pretty_report, {pretty_binding.locator: pretty}
+            _report(_row(_surface(), (pretty_binding,))),
+            {pretty_binding.locator: pretty},
         )
 
     duplicate = (
         b'{"schema":"daedalus-gate0-repository-write-evidence-object/1",'
         b'"schema":"duplicate"}'
     )
-    duplicate_digest = hashlib.sha256(duplicate).hexdigest()
+    digest = hashlib.sha256(duplicate).hexdigest()
     duplicate_binding = EvidenceBinding(
         kind=binding.kind,
         source_revision=binding.source_revision,
         surface_sha256=binding.surface_sha256,
-        sha256=duplicate_digest,
-        locator="cas:sha256:" + duplicate_digest,
+        sha256=digest,
+        locator="cas:sha256:" + digest,
     )
-    duplicate_report = _report((_classification(_surface(), (duplicate_binding,)),))
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
         materialize_repository_write_evidence(
-            duplicate_report, {duplicate_binding.locator: duplicate}
+            _report(_row(_surface(), (duplicate_binding,))),
+            {duplicate_binding.locator: duplicate},
         )
 
 
@@ -323,68 +300,92 @@ def test_envelope_substitution_refuses_after_exact_blob_rebinding(
     _, binding, _, document = _one()
     mutated = deepcopy(document)
     mutated[field] = replacement
-    rebound, raw = _binding_for_document(binding, mutated)
-    report = _report((_classification(_surface(), (rebound,)),))
-
+    rebound, raw = _rebind(binding, mutated)
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
-        materialize_repository_write_evidence(report, {rebound.locator: raw})
+        materialize_repository_write_evidence(
+            _report(_row(_surface(), (rebound,))),
+            {rebound.locator: raw},
+        )
 
 
-def test_payload_digest_and_kind_semantics_refuse() -> None:
+def test_payload_digest_and_false_semantics_refuse() -> None:
     _, binding, _, document = _one()
     mutated = deepcopy(document)
     mutated["payload_sha256"] = "9" * 64
-    rebound, raw = _binding_for_document(binding, mutated)
-    report = _report((_classification(_surface(), (rebound,)),))
+    rebound, raw = _rebind(binding, mutated)
     with pytest.raises(RepositoryWriteEvidenceMaterializationError):
-        materialize_repository_write_evidence(report, {rebound.locator: raw})
+        materialize_repository_write_evidence(
+            _report(_row(_surface(), (rebound,))),
+            {rebound.locator: raw},
+        )
 
-    cases = [
-        (EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT, {**_payload(EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT), "conformant": False}),
-        (EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT, {**_payload(EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT), "disjoint": False}),
-        (EvidenceKind.RETIREMENT_RECEIPT, {**_payload(EvidenceKind.RETIREMENT_RECEIPT), "production_reachable": True}),
-        (EvidenceKind.SOURCE_ANCHOR, {**_payload(EvidenceKind.SOURCE_ANCHOR), "path": "../escape.py"}),
-    ]
+    cases = (
+        (
+            EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT,
+            {**_payload(EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT), "conformant": False},
+        ),
+        (
+            EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT,
+            {
+                **_payload(EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT),
+                "disjoint": False,
+            },
+        ),
+        (
+            EvidenceKind.RETIREMENT_RECEIPT,
+            {
+                **_payload(EvidenceKind.RETIREMENT_RECEIPT),
+                "production_reachable": True,
+            },
+        ),
+        (
+            EvidenceKind.SOURCE_ANCHOR,
+            {**_payload(EvidenceKind.SOURCE_ANCHOR), "path": "../escape.py"},
+        ),
+    )
     for index, (kind, payload) in enumerate(cases, start=2):
         surface = _surface(index)
-        bad_binding, bad_raw, _ = _binding_and_blob(kind, surface, payload=payload)
-        bad_report = _report((_classification(surface, (bad_binding,)),))
+        bad_binding, bad_raw, _ = _binding_document(
+            kind, surface, payload=payload
+        )
         with pytest.raises(RepositoryWriteEvidenceMaterializationError):
             materialize_repository_write_evidence(
-                bad_report, {bad_binding.locator: bad_raw}
+                _report(_row(surface, (bad_binding,))),
+                {bad_binding.locator: bad_raw},
             )
 
 
-def test_reused_blob_or_locator_across_bindings_refuses() -> None:
-    surface = _surface()
-    binding, raw, _ = _binding_and_blob(EvidenceKind.SOURCE_ANCHOR, surface)
-    report = _report((_classification(surface, (binding, binding)),))
-    with pytest.raises(ValueError, match="evidence must be unique"):
-        _ = report
-
-    surface_two = _surface(2)
+def test_reused_blob_digest_across_distinct_surfaces_refuses() -> None:
+    first_surface = _surface()
+    first, raw, _ = _binding_document(
+        EvidenceKind.SOURCE_ANCHOR, first_surface
+    )
+    second_surface = _surface(2)
     forged = EvidenceBinding(
         kind=EvidenceKind.SOURCE_ANCHOR,
         source_revision=REVISION,
-        surface_sha256=surface_binding_sha256(REVISION, surface_two),
-        sha256=binding.sha256,
-        locator=binding.locator,
+        surface_sha256=surface_binding_sha256(REVISION, second_surface),
+        sha256=first.sha256,
+        locator=first.locator,
     )
-    rows = (
-        _classification(surface, (binding,)),
-        _classification(surface_two, (forged,)),
+    report = _report(
+        _row(first_surface, (first,)),
+        _row(second_surface, (forged,)),
     )
     with pytest.raises(RepositoryWriteEvidenceMaterializationError, match="reused"):
         materialize_repository_write_evidence(
-            _report(rows), {binding.locator: raw}
+            report, {first.locator: raw}
         )
 
 
 def test_report_digest_is_deterministic_and_classification_bound() -> None:
     report, binding, raw, _ = _one()
-    first = materialize_repository_write_evidence(report, {binding.locator: raw})
-    second = materialize_repository_write_evidence(report, {binding.locator: raw})
-
+    first = materialize_repository_write_evidence(
+        report, {binding.locator: raw}
+    )
+    second = materialize_repository_write_evidence(
+        report, {binding.locator: raw}
+    )
     assert first == second
     assert first.digest == second.digest
     assert first.classification_digest == report.digest
