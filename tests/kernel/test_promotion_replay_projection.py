@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -201,7 +200,7 @@ def test_corrupt_retained_start_is_not_projected(tmp_path) -> None:
 
     with sqlite3.connect(path) as connection:
         connection.execute(
-            "UPDATE intents SET payload_json='{}' WHERE kind='promotion.execution'"
+            "UPDATE intents SET payload='{}' WHERE kind='promotion.execution'"
         )
 
     restarted = PromotionExecutionLedger(path)
