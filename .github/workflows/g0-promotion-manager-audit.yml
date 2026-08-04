@@ -6,19 +6,19 @@ on:
       - g0/live-promotion-execution-accounting-linear
     paths:
       - "daedalus/kairos/gated_writes.py"
-      - "daedalus/kairos/_gated_writes_execution_accounting.py.src"
       - "daedalus/kairos/promotion_manager_audit.py"
       - "daedalus/kairos/promotion_manager_boundary.py"
-      - "tests/kernel/test_promotion_manager_audit.py"
-      - "tests/kernel/test_promotion_manager_boundary.py"
-      - "tests/kernel/test_promotion_manager_boundary_review.py"
+      - "daedalus/kairos/promotion_manager_replay.py"
+      - "tests/kernel/test_promotion_manager*.py"
       - "scripts/run_promotion_manager_audit_mutations.py"
+      - "scripts/run_promotion_manager_replay_mutations.py"
       - "docs/work-packets/G0-PRM-22_PROMOTION_MANAGER_AUDIT.md"
       - "docs/work-packets/G0-PRM-22_PROMOTION_MANAGER_AUDIT.json"
       - ".github/workflows/g0-promotion-manager-audit.yml"
   push:
     branches:
       - g0/promotion-manager-audit-linear
+      - g0/promotion-effect-inventory-linear
   workflow_dispatch:
 
 permissions:
@@ -54,8 +54,9 @@ jobs:
           tests/kernel/test_promotion_manager_audit.py
           tests/kernel/test_promotion_manager_boundary.py
           tests/kernel/test_promotion_manager_boundary_review.py
-          tests/kernel/test_live_promotion_execution_adversarial.py
-          tests/kernel/test_live_promotion_execution_review.py
+          tests/kernel/test_promotion_manager_installation.py
+          tests/kernel/test_promotion_manager_replay.py
+          tests/kernel/test_promotion_manager_replay_review.py
           tests/kernel/test_promotion_execution.py
           tests/kernel/test_promotion_execution_adversarial.py
           tests/kernel/test_primary_checkout_fingerprint.py
@@ -65,6 +66,8 @@ jobs:
           tests/kernel/test_persisted_promotion_authorization_review.py
       - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
         run: python scripts/run_promotion_manager_audit_mutations.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_manager_replay_mutations.py
 
   full-suite:
     runs-on: ubuntu-latest
@@ -98,13 +101,17 @@ jobs:
           from daedalus.kairos.promotion_manager_boundary import (
               install_promotion_manager_boundary,
           )
+          from daedalus.kairos.promotion_manager_replay import (
+              install_promotion_manager_replay_boundary,
+          )
+          from daedalus.kernel.promotion_execution import PromotionExecutionLedger
 
           assert callable(gated_writes.promote_candidates)
-          assert gated_writes.GitWorktreeManager == (
-              gated_writes._promotion_manager_boundary_state.manager_factory
-          )
+          assert gated_writes.PromotionExecutionLedger is PromotionExecutionLedger
+          assert not hasattr(gated_writes, "_promotion_manager_boundary_state")
           assert AuditedWorktreeManager.__module__ == (
               "daedalus.kairos.promotion_manager_audit"
           )
           assert callable(install_promotion_manager_boundary)
+          assert callable(install_promotion_manager_replay_boundary)
           PY
