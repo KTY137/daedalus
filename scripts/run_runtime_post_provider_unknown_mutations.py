@@ -53,10 +53,10 @@ MUTATIONS = {
         """            execution.idempotency_key,\n            execution.idempotency_key,\n""",
         RECOVERY,
     ),
-    "bypass-runtime-capability-authentication": (
+    "accept-terminal-recovery": (
         RECOVERY_TARGET,
-        "        verify_runtime_bound_effect_lease(\n",
-        "        (lambda *args, **kwargs: None)(\n",
+        "if not replay.pending_reconciliation:",
+        "if False and not replay.pending_reconciliation:",
         RECOVERY,
     ),
     "ignore-recovery-source-revision": (
