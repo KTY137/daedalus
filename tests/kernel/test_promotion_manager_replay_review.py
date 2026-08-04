@@ -39,9 +39,13 @@ def _segment(path: Path, node: ast.AST) -> str:
     return value
 
 
-def test_public_boundary_does_not_claim_replay_wiring_early() -> None:
+def test_public_boundary_installs_replay_after_manager_boundary() -> None:
     source = _source(PUBLIC)
-    assert "install_promotion_manager_replay_boundary(globals())" not in source
+    manager_call = "_install_promotion_manager_boundary(globals())"
+    replay_call = "_install_promotion_manager_replay_boundary(globals())"
+    assert source.count(manager_call) == 1
+    assert source.count(replay_call) == 1
+    assert source.index(manager_call) < source.index(replay_call)
 
 
 def test_begin_refuses_to_trust_invalid_persisted_completion() -> None:
