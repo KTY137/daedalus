@@ -50,6 +50,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/kernel/test_promotion_recovery_consumption.py
+          tests/kernel/test_promotion_recovery_consumption_concurrency.py
           tests/kernel/test_promotion_recovery_consumption_review.py
           tests/kernel/test_promotion_recovery_decision.py
           tests/kernel/test_promotion_recovery_plan.py
