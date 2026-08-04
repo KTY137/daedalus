@@ -159,6 +159,17 @@ def test_mutable_view_or_bytes_subclass_refuses_before_hashing(raw) -> None:
         _verify(artifact, report, raw)
 
 
+def test_artifact_failure_count_must_match_verified_inventory() -> None:
+    artifact, report, raw = _subjects()
+    contradictory = dataclasses.replace(artifact, failure_count=1)
+    assert contradictory.failure_set_sha256 == artifact.failure_set_sha256
+    with pytest.raises(
+        RepositoryWriteArtifactVerificationError,
+        match="failure count contradicts evidence",
+    ):
+        _verify(contradictory, report, raw)
+
+
 def test_receipt_rejects_derived_provenance() -> None:
     artifact, report, raw = _subjects()
     receipt = _verify(artifact, report, raw)
