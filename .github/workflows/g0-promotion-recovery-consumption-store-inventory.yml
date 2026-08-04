@@ -1,0 +1,114 @@
+name: Gate 0 Promotion Recovery Consumption Store Inventory
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-recovery-consumption-store-linear
+    paths:
+      - "daedalus/spine/promotion_recovery_consumption_store_inventory.py"
+      - "tests/test_promotion_recovery_consumption_store_inventory*.py"
+      - "scripts/run_promotion_recovery_consumption_store_inventory_mutations.py"
+      - "docs/work-packets/G0-PRM-25P_PROMOTION_RECOVERY_CONSUMPTION_STORE_INVENTORY.*"
+      - ".github/workflows/g0-promotion-recovery-consumption-store-inventory.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - g0/promotion-recovery-consumption-store-inventory-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-recovery-consumption-store-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-25P_PROMOTION_RECOVERY_CONSUMPTION_STORE_INVENTORY.json
+      - run: >-
+          python -m pytest -q
+          tests/test_promotion_recovery_consumption_store_inventory.py
+          tests/test_promotion_recovery_consumption_store_inventory_review.py
+          tests/test_promotion_recovery_consumption_store.py
+          tests/test_promotion_recovery_consumption_store_review.py
+          tests/test_promotion_recovery_consumption_registry.py
+          tests/test_promotion_recovery_consumption_registry_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_promotion_recovery_consumption_store_inventory_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-promotion-recovery-consumption-store-inventory-wheel
+      - run: /tmp/daedalus-promotion-recovery-consumption-store-inventory-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-promotion-recovery-consumption-store-inventory-wheel/bin/python - <<'PY'
+          from daedalus.spine.promotion_recovery_consumption_store_inventory import (
+              ENTRYPOINTS,
+              INVENTORY_DELTA,
+              SCANNER_FUNCTION,
+              SCANNER_MODULE,
+              recognizes_recovery_consumption_store_initializer,
+          )
+
+          assert len(ENTRYPOINTS) == 1
+          assert ENTRYPOINTS[0].wiring == "unguarded"
+          assert INVENTORY_DELTA.closed is False
+          assert recognizes_recovery_consumption_store_initializer(
+              SCANNER_MODULE,
+              SCANNER_FUNCTION,
+          )
+          PY
