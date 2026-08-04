@@ -1,0 +1,49 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-25G",
+  "title": "Deterministic Promotion Effect Terminal Reconciliation",
+  "gate": 0,
+  "base_branch": "g0/promotion-effect-replay-decision-linear",
+  "base_revision": "7051cafb309467fefc8766ba8b5fd94af5467ae0",
+  "source_parent_pr": 149,
+  "branch": "g0/promotion-effect-terminal-reconcile-linear",
+  "implemented": [
+    "recompute-strict-cross-ledger-decision-before-any-write",
+    "reconcile-only-started-effect-with-terminal-promotion",
+    "derive-effect-outcome-report-and-detail-only-from-retained-promotion",
+    "use-promotion-completion-time-for-deterministic-terminal-receipt",
+    "historical-terminal-accounting-after-later-expiry-or-revocation",
+    "exact-second-reconciliation-is-read-only-replay",
+    "concurrent-exact-terminalization-is-idempotent",
+    "concurrent-contradictory-terminalization-fails-closed",
+    "no-effect-start-no-promotion-invocation-and-no-automatic-reexecution",
+    "bounded-promotion-terminal-reconciliation-mutation-campaign"
+  ],
+  "verification_commands": [
+    "python -m compileall -q daedalus tests scripts",
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-PRM-25G_PROMOTION_EFFECT_TERMINAL_RECONCILE.json",
+    "python -m pytest -q tests/kernel/test_effect_replay_projection.py tests/kernel/test_promotion_replay_projection.py tests/kernel/test_promotion_effect_replay_decision.py tests/kernel/test_promotion_effect_replay_outcomes.py tests/kernel/test_promotion_effect_reconcile.py tests/kernel/test_promotion_effect_reconcile_review.py",
+    "python scripts/run_promotion_effect_reconcile_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": "not-installed",
+  "canonical_promotion_row": "local_guards",
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "wire-fresh-effect-start-before-live-promotion-lifecycle",
+    "return-pending-reconciliation-without-calling-live-promotion",
+    "invoke-this-terminal-reconciler-only-for-exact-retained-terminal",
+    "replay-retained-promotion-report-without-calling-live-promotion",
+    "terminalize-pre-promotion-failures-without-fabricating-promotion-report",
+    "upgrade-promotion-rows-only-after-live-composition",
+    "execute-focused-mutation-full-suite-platform-and-packaging-checks",
+    "independent-human-review",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 still prevents hosted jobs from recording Step 1; zero-step runs are infrastructure observations and not product evidence."
+}
