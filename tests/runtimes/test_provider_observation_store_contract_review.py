@@ -77,18 +77,7 @@ def test_contract_module_has_no_store_effect_or_promotion_authority() -> None:
 
 
 def test_operation_to_entrypoint_mapping_is_closed_and_exact() -> None:
-    assignment = next(
-        node
-        for node in TREE.body
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name)
-            and target.id == "_ENTRYPOINT_BY_OPERATION"
-            for target in node.targets
-        )
-    )
-    value = ast.literal_eval(assignment.value)
-    assert value == {
+    assert contract_module._ENTRYPOINT_BY_OPERATION == {
         "initialize-store": "provider.observation-store.initialize",
         "bind-provider-start": "provider.observation-store.bind-start",
     }
@@ -112,7 +101,7 @@ def test_store_write_subject_binds_exact_local_effect_lease_and_revision() -> No
     assert "type(effect_lease) is not EffectLease" in source
     for field in (
         "effect_lease.entrypoint_id",
-        'effect_lease.requested_effects',
+        "effect_lease.requested_effects",
         "execution.requested_effects",
         "effect_lease.provenance.source_revision",
         "target.source_revision",
