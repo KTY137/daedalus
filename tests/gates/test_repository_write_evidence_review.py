@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import inspect
 
 import daedalus.gates.repository_write_evidence as evidence
@@ -48,7 +49,7 @@ def test_contract_has_no_execution_release_or_promotion_authority() -> None:
 def test_artifact_contract_binds_every_logical_and_content_identity() -> None:
     fields = {
         field.name
-        for field in evidence.dataclasses.fields(
+        for field in dataclasses.fields(
             evidence.RepositoryWriteArtifactEvidence
         )
     }
