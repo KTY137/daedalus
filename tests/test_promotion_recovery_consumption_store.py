@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,18 @@ def test_initialize_inspect_and_open_preprovisioned_store(tmp_path: Path) -> Non
     assert created.identity == ledger.store_status.identity
     assert path.is_file()
     assert not path.is_symlink()
+
+
+@pytest.mark.parametrize("path", [None, True, False])
+def test_malformed_non_path_inputs_are_refused(path: object) -> None:
+    with pytest.raises(TypeError):
+        initialize_promotion_recovery_consumption_store(path)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("path", ["", ".", ".."])
+def test_paths_without_a_file_name_are_refused(path: str) -> None:
+    with pytest.raises(PromotionRecoveryConsumptionStoreError):
+        initialize_promotion_recovery_consumption_store(path)
 
 
 def test_normal_open_never_creates_a_missing_store(tmp_path: Path) -> None:
@@ -76,6 +90,26 @@ def test_initializer_is_one_use_for_an_exact_target(tmp_path: Path) -> None:
     assert inspect_promotion_recovery_consumption_store(path) == first
 
 
+def test_concurrent_initializers_publish_exactly_once(tmp_path: Path) -> None:
+    path = tmp_path / "store.sqlite3"
+    barrier = threading.Barrier(2)
+
+    def initialize() -> str:
+        barrier.wait(timeout=10)
+        try:
+            initialize_promotion_recovery_consumption_store(path)
+        except PromotionRecoveryConsumptionStoreError:
+            return "refused"
+        return "published"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = sorted(executor.map(lambda _index: initialize(), range(2)))
+
+    assert results == ["published", "refused"]
+    inspect_promotion_recovery_consumption_store(path)
+    assert list(tmp_path.glob(".*.initializing")) == []
+
+
 def test_malformed_schema_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "malformed.sqlite3"
     with sqlite3.connect(path) as connection:
@@ -89,29 +123,15 @@ def test_malformed_schema_is_refused(tmp_path: Path) -> None:
 
 
 def test_exact_table_sql_and_nullability_are_verified(tmp_path: Path) -> None:
-    path = tmp_path / "store.sqlite3"
-    initialize_promotion_recovery_consumption_store(path)
-
+    path = tmp_path / "nullable.sqlite3"
+    nullable_sql = store_module._SCHEMA_SQL.replace(
+        "decision_sha256 TEXT NOT NULL PRIMARY KEY",
+        "decision_sha256 TEXT PRIMARY KEY",
+    )
+    assert nullable_sql != store_module._SCHEMA_SQL
     with sqlite3.connect(path) as connection:
-        original = connection.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
-            ("promotion_recovery_consumptions_v1",),
-        ).fetchone()[0]
-        changed = original.replace(
-            "decision_sha256 TEXT NOT NULL PRIMARY KEY",
-            "decision_sha256 TEXT PRIMARY KEY",
-        )
-        assert changed != original
-        connection.execute("PRAGMA writable_schema=ON")
-        connection.execute(
-            "UPDATE sqlite_master SET sql=? WHERE type='table' AND name=?",
-            (changed, "promotion_recovery_consumptions_v1"),
-        )
-        current_version = int(
-            connection.execute("PRAGMA schema_version").fetchone()[0]
-        )
-        connection.execute(f"PRAGMA schema_version={current_version + 1}")
-        connection.execute("PRAGMA writable_schema=OFF")
+        connection.execute(nullable_sql)
+        connection.execute("PRAGMA user_version=1")
 
     with pytest.raises(PromotionRecoveryConsumptionStoreError):
         inspect_promotion_recovery_consumption_store(path)
