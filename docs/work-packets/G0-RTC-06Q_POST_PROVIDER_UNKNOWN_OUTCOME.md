@@ -14,7 +14,7 @@ The exception exposes only the entrypoint, runtime identity, exact start receipt
 
 A retry with the exact execution identity reaches the existing inert replay path before provider or output-evidence callbacks.
 
-Completion goes through `reconcile_runtime_provider_unknown(...)`. That adapter authenticates the runtime-bound capability at the durable start instant and requires the exact central entrypoint, runtime identity, lease digest, execution ID, idempotency key, execution-request digest and source revision before delegating to the signed `ExternalEffectObservation` reconciliation operation. The adapter contains no provider callback and cannot execute or retry the external effect.
+Completion goes through `reconcile_runtime_provider_unknown(...)`. That adapter consumes the authenticated runtime-effect replay projection at the durable start instant and requires the exact central entrypoint, runtime identity, lease digest, execution ID, idempotency key, execution-request digest, persisted start receipt, pending-reconciliation state and source revision before delegating to the signed `ExternalEffectObservation` reconciliation operation. The adapter contains no provider callback and cannot execute or retry the external effect.
 
 ## Explicitly unchanged
 
@@ -29,13 +29,14 @@ Prepared builder coverage proves:
 - the typed error binds the exact start receipt and omits provider output;
 - a real runtime-bound SQLite Effect Lease row remains `STARTED`;
 - exact replay does not invoke the provider again;
-- a signed external observation reconciles that same row to `COMPLETED`;
+- a signed external observation reconciles that same row to `COMPLETED` exactly once;
 - foreign lease, execution, idempotency, request, runtime, entrypoint, capability-signature and source-revision bindings refuse before generic reconciliation;
+- a terminal execution cannot be reconciled again;
 - the external commitment count remains one.
 
-Separate broker and recovery AST/source reviews reject terminal writer calls in the output-evidence handler, unsafe provider-value retention, raw exception-text materialization, replay ordering regressions, recovery authority in the exception, missing runtime binding dimensions, unauthenticated capability recovery and reintroduction of the old `FAILED` branch.
+Separate broker and recovery AST/source reviews reject terminal writer calls in the output-evidence handler, unsafe provider-value retention, raw exception-text materialization, replay ordering regressions, recovery authority in the exception, missing runtime binding dimensions, unauthenticated or non-pending runtime replay and reintroduction of the old `FAILED` branch.
 
-Eight bounded mutants restore the false `FAILED` terminal, bypass exact replay, retain a provider value, expose raw cause text, remove lease/idempotency/revision bindings and bypass runtime-capability authentication.
+Eight bounded mutants restore the false `FAILED` terminal, bypass exact replay, retain a provider value, expose raw cause text, remove lease/idempotency/revision bindings and permit terminal recovery.
 
 CI requests Ubuntu and Windows on Python 3.10 and 3.12, the affected runtime/effect/recovery suites, mutation, the full suite, package build and isolated-wheel import.
 
