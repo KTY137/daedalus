@@ -1,0 +1,93 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GR-24",
+  "title": "Atomic Repository-Write Artifact Admission",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "f45363057d9321cd72aadf9a2c5736f690b0b00e",
+  "parent_branch": "g0/repository-write-artifact-cas-resolver-linear",
+  "branch": "g0/repository-write-artifact-admission-linear",
+  "primary_finding": "issue-194",
+  "change_class": "additive-read-only-resolver-verifier-composition",
+  "authority": "local-artifact-admission-only",
+  "scope": {
+    "requires_exact_artifact_report_and_cas_root_subjects": true,
+    "resolves_artifact_from_exact_local_cas_locator": true,
+    "passes_only_resolver_returned_immutable_bytes_to_verifier": true,
+    "verifies_canonical_inventory_bytes_against_gate_report_v3": true,
+    "cross_binds_source_revision": true,
+    "cross_binds_source_tree_revision": true,
+    "cross_binds_artifact_evidence_digest": true,
+    "cross_binds_artifact_content_digest": true,
+    "cross_binds_gate_report_v3_digest": true,
+    "cross_binds_resolution_and_verification_receipt_digests": true,
+    "issues_canonical_admission_receipt": true,
+    "adds_exact_admission_receipt_json_schema": true,
+    "accepts_caller_supplied_resolved_bytes": false,
+    "accepts_caller_supplied_predecessor_receipts": false,
+    "authenticates_artifact_signer_or_trust_bundle": false,
+    "compares_source_tree_with_current_git_head": false,
+    "updates_evidence_index_or_release_receipt": false,
+    "publishes_repairs_or_deletes_cas_objects": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "resolution_precedes_byte_verification": true,
+    "verifier_consumes_only_resolver_returned_bytes": true,
+    "admission_receipt_binds_both_predecessor_receipts": true,
+    "admitted_result_revalidates_byte_and_receipt_cross_bindings": true,
+    "admission_is_artifact_origin_authentication": false,
+    "admission_is_current_git_head_proof": false,
+    "admission_is_release_authority": false,
+    "issue_194_closed": false,
+    "gate_closed": false
+  },
+  "adversarial_corrections": [
+    "the composition API exposes no artifact-bytes or predecessor-receipt parameters, preventing caller-selected resolution and verification pairing",
+    "the immutable result independently rechecks byte length, content digest, source revisions, source-tree revision, artifact evidence and both predecessor receipt digests",
+    "the verifier receipt is compared with the live GateReport-v3 digest before the admission receipt is constructed"
+  ],
+  "verification": {
+    "builder_tests_prepared": true,
+    "exact_success_and_round_trip_test_prepared": true,
+    "no_caller_byte_or_receipt_injection_test_prepared": true,
+    "malformed_and_stale_subject_tests_prepared": true,
+    "cas_content_substitution_test_prepared": true,
+    "gate_report_substitution_test_prepared": true,
+    "cross_receipt_substitution_tests_prepared": true,
+    "exact_type_tests_prepared": true,
+    "primary_checkout_mutation_exclusion_test_prepared": true,
+    "receipt_json_schema_parity_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 9,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "no trusted signer or trust-bundle verification authenticates the artifact evidence and admission chain",
+    "the retained source-tree revision is not compared with authenticated current Git HEAD",
+    "the evidence index and Gate0ReleaseReceipt do not yet require the exact artifact evidence, resolution receipt, verification receipt and admission receipt chain",
+    "legacy GateReport-v2 and the older release artifact contract remain in the current release verifier",
+    "the canonical repository-write inventory remains blocking until every production write surface is registered, guarded and target-isolated",
+    "issue 189 provider-observation persistence surfaces are not yet canonically discharged",
+    "Docker sandbox, complete fault injection and Primary-Checkout mutation proof remain incomplete at Gate scope",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
