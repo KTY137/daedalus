@@ -204,14 +204,18 @@ def test_malformed_source_and_revision_refuse(tmp_path: Path) -> None:
     good = _repository(tmp_path / "other", {"ok.py": "value = 1\n"})
     for revision in ("main", "A" * 40, "f" * 39, True):
         with pytest.raises(RepositoryWriteInventoryError):
-            scan_repository_write_surfaces(good, source_revision=revision)  # type: ignore[arg-type]
+            scan_repository_write_surfaces(
+                good,
+                source_revision=revision,  # type: ignore[arg-type]
+            )
 
 
 def test_symlinked_package_and_python_files_refuse(tmp_path: Path) -> None:
     if not hasattr(os, "symlink"):
         pytest.skip("symlink unsupported")
     root = tmp_path / "repo"
-    real = tmp_path / "real"
+    root.mkdir()
+    real = root / "real_daedalus"
     real.mkdir()
     (real / "__init__.py").write_text("", encoding="utf-8")
     try:
