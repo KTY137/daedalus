@@ -3,10 +3,10 @@
 This module is a narrow strangler around ``PromotionRecoveryConsumptionLedger``.
 It separates explicit schema publication from normal ledger construction and
 ensures normal writer opens use SQLite ``mode=rw`` so a missing store cannot be
-created accidentally.  It does not issue an owner decision, consume one by
+created accidentally. It does not issue an owner decision, consume one by
 itself, cancel an Effect Lease, invoke Git, mutate a checkout, or promote.
 
-The historical ledger remains available for compatibility.  Production caller
+The historical ledger remains available for compatibility. Production caller
 migration and canonical Effect-Lease/runtime/sandbox composition are separate
 reviewed packets.
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import stat
 import tempfile
@@ -72,9 +73,24 @@ _UNIQUE_CONSTRAINTS = tuple(
         )
     )
 )
+_UNIQUE_INDEX_CONTRACT = tuple(
+    sorted(
+        (
+            (("decision_sha256",), "pk", 0),
+            (("decision_id",), "u", 0),
+            (("promotion_authorization_sha256",), "u", 0),
+            (("recovery_plan_sha256",), "u", 0),
+            (("effect_start_receipt_sha256",), "u", 0),
+            (("expectation_sha256",), "u", 0),
+            (("verified_sha256",), "u", 0),
+            (("consumption_sha256",), "u", 0),
+            (("owner_id", "key_id", "nonce"), "u", 0),
+        )
+    )
+)
 _SCHEMA_SQL = f"""
 CREATE TABLE {_TABLE} (
-    decision_sha256 TEXT PRIMARY KEY,
+    decision_sha256 TEXT NOT NULL PRIMARY KEY,
     decision_id TEXT NOT NULL UNIQUE,
     owner_id TEXT NOT NULL,
     key_id TEXT NOT NULL,
@@ -97,11 +113,21 @@ CREATE TABLE {_TABLE} (
     UNIQUE(owner_id, key_id, nonce)
 )
 """.strip()
+
+
+def _normalized_sql(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip())
+
+
 _SCHEMA_DESCRIPTOR = {
     "schema_version": _SCHEMA_VERSION,
     "table": _TABLE,
     "columns": list(_COLUMNS),
-    "unique_constraints": [list(item) for item in _UNIQUE_CONSTRAINTS],
+    "sql": _normalized_sql(_SCHEMA_SQL),
+    "unique_index_contract": [
+        {"columns": list(columns), "origin": origin, "partial": partial}
+        for columns, origin, partial in _UNIQUE_INDEX_CONTRACT
+    ],
 }
 SCHEMA_SHA256 = hashlib.sha256(
     json.dumps(
@@ -228,16 +254,28 @@ def _connection_contract(
         schema_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
         object_rows = connection.execute(
             """
-            SELECT type, name
+            SELECT type, name, sql
             FROM sqlite_master
             WHERE name NOT LIKE 'sqlite_%'
             ORDER BY type, name
             """
         ).fetchall()
-        if [(row[0], row[1]) for row in object_rows] != [("table", _TABLE)]:
+        if len(object_rows) != 1:
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store contains unexpected schema objects"
             )
+        object_type, object_name, object_sql = object_rows[0]
+        if object_type != "table" or object_name != _TABLE:
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption store table identity does not match"
+            )
+        if not isinstance(object_sql, str) or _normalized_sql(object_sql) != (
+            _normalized_sql(_SCHEMA_SQL)
+        ):
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption store table SQL does not match"
+            )
+
         table_rows = connection.execute(f"PRAGMA table_info({_TABLE})").fetchall()
         columns = tuple(str(row[1]) for row in table_rows)
         if columns != _COLUMNS:
@@ -248,14 +286,27 @@ def _connection_contract(
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store column types do not match the contract"
             )
-        if tuple(int(row[5]) for row in table_rows) != (1,) + (0,) * (len(_COLUMNS) - 1):
+        if tuple(int(row[3]) for row in table_rows) != (1,) * len(_COLUMNS):
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption store nullability does not match the contract"
+            )
+        if any(row[4] is not None for row in table_rows):
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption store defaults do not match the contract"
+            )
+        if tuple(int(row[5]) for row in table_rows) != (1,) + (0,) * (
+            len(_COLUMNS) - 1
+        ):
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store primary key does not match the contract"
             )
-        unique_constraints: list[tuple[str, ...]] = []
+
+        unique_index_contract: list[tuple[tuple[str, ...], str, int]] = []
         for row in connection.execute(f"PRAGMA index_list({_TABLE})").fetchall():
             if int(row[2]) != 1:
-                continue
+                raise PromotionRecoveryConsumptionStoreError(
+                    "recovery consumption store contains a nonunique index"
+                )
             index_name = str(row[1])
             columns_for_index = tuple(
                 str(item[2])
@@ -267,9 +318,18 @@ def _connection_contract(
                 raise PromotionRecoveryConsumptionStoreError(
                     "recovery consumption store has an empty unique index"
                 )
-            unique_constraints.append(columns_for_index)
-        projected = tuple(sorted(unique_constraints))
-        if projected != _UNIQUE_CONSTRAINTS:
+            unique_index_contract.append(
+                (columns_for_index, str(row[3]), int(row[4]))
+            )
+        projected_contract = tuple(sorted(unique_index_contract))
+        if projected_contract != _UNIQUE_INDEX_CONTRACT:
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption store unique indexes do not match"
+            )
+        unique_constraints = tuple(
+            columns for columns, _origin, _partial in projected_contract
+        )
+        if unique_constraints != _UNIQUE_CONSTRAINTS:
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store unique constraints do not match"
             )
@@ -277,7 +337,7 @@ def _connection_contract(
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store schema version does not match"
             )
-        return schema_version, columns, projected
+        return schema_version, columns, unique_constraints
     except PromotionRecoveryConsumptionStoreError:
         raise
     except (sqlite3.Error, TypeError, ValueError, IndexError) as exc:
@@ -366,14 +426,41 @@ def _fsync_file(path: Path) -> None:
         os.close(descriptor)
 
 
+def _file_identity(path: Path) -> tuple[int, int]:
+    metadata = os.lstat(path)
+    if not stat.S_ISREG(metadata.st_mode):
+        raise PromotionRecoveryConsumptionStoreError(
+            "recovery consumption publication target must remain a regular file"
+        )
+    return (int(metadata.st_dev), int(metadata.st_ino))
+
+
+def _remove_own_publication(
+    target: Path,
+    published_identity: tuple[int, int] | None,
+) -> None:
+    if published_identity is None:
+        return
+    try:
+        current_identity = _file_identity(target)
+    except (FileNotFoundError, OSError, PromotionRecoveryConsumptionStoreError):
+        return
+    if current_identity != published_identity:
+        return
+    try:
+        target.unlink()
+    except OSError:
+        pass
+
+
 def initialize_promotion_recovery_consumption_store(
     path: str | os.PathLike[str],
 ) -> PromotionRecoveryConsumptionStoreStatus:
     """Create and atomically publish one exact empty store.
 
     The parent directory must already exist and may not be reached through a
-    symlink.  Publication uses a same-directory hard link so an existing target
-    is never replaced.  This function is intentionally effectful and is not yet
+    symlink. Publication uses a same-directory hard link so an existing target
+    is never replaced. This function is intentionally effectful and is not yet
     claimed as centrally leased production wiring.
     """
 
@@ -392,7 +479,7 @@ def initialize_promotion_recovery_consumption_store(
     )
     os.close(descriptor)
     temporary = Path(temporary_name)
-    published = False
+    published_identity: tuple[int, int] | None = None
     connection: sqlite3.Connection | None = None
     try:
         try:
@@ -417,6 +504,7 @@ def initialize_promotion_recovery_consumption_store(
         connection.close()
         connection = None
         _fsync_file(temporary)
+        temporary_identity = _file_identity(temporary)
         try:
             os.link(temporary, target)
         except FileExistsError as exc:
@@ -427,10 +515,13 @@ def initialize_promotion_recovery_consumption_store(
             raise PromotionRecoveryConsumptionStoreError(
                 "recovery consumption store could not be published atomically"
             ) from exc
-        published = True
+        published_identity = temporary_identity
+        if _file_identity(target) != published_identity:
+            raise PromotionRecoveryConsumptionStoreError(
+                "recovery consumption publication identity does not match"
+            )
         _fsync_file(target)
-        status = inspect_promotion_recovery_consumption_store(target)
-        return status
+        return inspect_promotion_recovery_consumption_store(target)
     except Exception:
         if connection is not None:
             try:
@@ -438,11 +529,7 @@ def initialize_promotion_recovery_consumption_store(
             except sqlite3.Error:
                 pass
             connection.close()
-        if published:
-            try:
-                target.unlink()
-            except OSError:
-                pass
+        _remove_own_publication(target, published_identity)
         raise
     finally:
         try:
@@ -524,8 +611,6 @@ class PreprovisionedPromotionRecoveryConsumptionLedger(
         except (PromotionRecoveryConsumptionStoreError, sqlite3.Error) as exc:
             if connection is not None:
                 connection.close()
-            if isinstance(exc, PromotionRecoveryConsumptionStateError):
-                raise
             raise PromotionRecoveryConsumptionStateError(
                 "pre-provisioned recovery consumption store open refused"
             ) from exc
