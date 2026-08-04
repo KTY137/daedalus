@@ -51,6 +51,11 @@ MUTATIONS = (
         "del _make_public_promotion_wrapper\n",
         "# wrapper factory alias retained\n",
     ),
+    (
+        "retain-wraps-alias",
+        "del _wraps\n",
+        "# wraps alias retained\n",
+    ),
 )
 
 
