@@ -1,16 +1,16 @@
 """Pre-provisioned provider-observation binding store.
 
-This module is an additive strangler around
-``ProviderObservationBindingLedger``.  It separates explicit no-clobber schema
-publication from ordinary construction, requires the store to live below one
-isolated attempt root that is disjoint from the Primary Checkout, and keeps
-replay reads on SQLite ``mode=ro`` with ``query_only`` enabled.
+This additive strangler separates explicit no-clobber schema publication from
+ordinary ``ProviderObservationBindingLedger`` construction.  The store is bound
+inside its own SQLite metadata to one exact source revision, isolated attempt
+root, Primary-Checkout root and target path.  Replay reads are opened with
+SQLite ``mode=ro`` and ``query_only``; writer opens use ``mode=rw`` and can
+never create or repair a missing database.
 
 The historical auto-initializing ledger remains available for compatibility.
-This module does not register an effect entrypoint, grant an Effect Lease,
-execute a provider, mutate a checkout, issue OwnerApproval, promote, or close a
-Gate.  Canonical registry/guard integration and broker migration are separate
-reviewed packets.
+Canonical effect registration, guard composition and broker migration are
+separate reviewed packets.  Nothing in this module grants an Effect Lease,
+executes a provider, mutates a checkout, promotes, or closes a Gate.
 """
 from __future__ import annotations
 
@@ -42,20 +42,35 @@ class ProviderObservationStoreError(RuntimeError):
     """A pre-provisioned provider-observation store failed closed."""
 
 
-_TABLE = "provider_observation_bindings"
+_BINDINGS_TABLE = "provider_observation_bindings"
+_METADATA_TABLE = "provider_observation_store_metadata_v1"
 _SCHEMA_VERSION = 1
-_COLUMNS = (
+_BINDING_COLUMNS = (
     "execution_id",
     "record_json",
     "record_sha256",
     "record_hmac_sha256",
 )
-_SCHEMA_SQL = """
+_METADATA_COLUMNS = (
+    "singleton",
+    "target_sha256",
+    "source_revision",
+    "schema_sha256",
+)
+_BINDINGS_SQL = """
 CREATE TABLE provider_observation_bindings (
     execution_id TEXT NOT NULL PRIMARY KEY,
     record_json TEXT NOT NULL,
     record_sha256 TEXT NOT NULL,
     record_hmac_sha256 TEXT NOT NULL
+)
+""".strip()
+_METADATA_SQL = """
+CREATE TABLE provider_observation_store_metadata_v1 (
+    singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
+    target_sha256 TEXT NOT NULL,
+    source_revision TEXT NOT NULL,
+    schema_sha256 TEXT NOT NULL
 )
 """.strip()
 
@@ -66,9 +81,12 @@ def _normalized_sql(value: str) -> str:
 
 _SCHEMA_DESCRIPTOR = {
     "schema_version": _SCHEMA_VERSION,
-    "table": _TABLE,
-    "columns": list(_COLUMNS),
-    "sql": _normalized_sql(_SCHEMA_SQL),
+    "bindings_table": _BINDINGS_TABLE,
+    "bindings_columns": list(_BINDING_COLUMNS),
+    "bindings_sql": _normalized_sql(_BINDINGS_SQL),
+    "metadata_table": _METADATA_TABLE,
+    "metadata_columns": list(_METADATA_COLUMNS),
+    "metadata_sql": _normalized_sql(_METADATA_SQL),
 }
 SCHEMA_SHA256 = hashlib.sha256(
     json.dumps(
@@ -93,8 +111,7 @@ def _path_text(value: str | os.PathLike[str], label: str) -> str:
         raise TypeError(f"{label} must be a non-empty path")
     if "\x00" in raw or "\n" in raw or "\r" in raw:
         raise ValueError(f"{label} contains forbidden characters")
-    path = Path(raw)
-    if not path.is_absolute():
+    if not Path(raw).is_absolute():
         raise ValueError(f"{label} must be absolute")
     return os.path.normpath(os.path.abspath(raw))
 
@@ -146,9 +163,7 @@ class ProviderObservationStoreTarget:
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", _path_text(self.path, "path"))
         object.__setattr__(
-            self,
-            "attempt_root",
-            _path_text(self.attempt_root, "attempt_root"),
+            self, "attempt_root", _path_text(self.attempt_root, "attempt_root")
         )
         object.__setattr__(
             self,
@@ -208,8 +223,7 @@ def _validated_target_path(
         )
     attempt_root = _real_directory(target.attempt_root, "attempt_root")
     primary_root = _real_directory(
-        target.primary_checkout_root,
-        "primary_checkout_root",
+        target.primary_checkout_root, "primary_checkout_root"
     )
     if _roots_overlap(attempt_root, primary_root):
         raise ProviderObservationStoreError(
@@ -266,8 +280,7 @@ def _validated_target_path(
 
 def _refuse_existing_sidecars(path: Path) -> None:
     for suffix in ("-journal", "-wal", "-shm"):
-        sidecar = Path(str(path) + suffix)
-        if os.path.lexists(sidecar):
+        if os.path.lexists(Path(str(path) + suffix)):
             raise ProviderObservationStoreError(
                 "provider-observation SQLite sidecar already exists"
             )
@@ -304,57 +317,112 @@ def _open_sqlite(path: Path, *, mode: str, query_only: bool) -> sqlite3.Connecti
         ) from exc
 
 
-def _verify_schema(connection: sqlite3.Connection) -> None:
+def _exact_table_contract(
+    connection: sqlite3.Connection,
+    *,
+    table: str,
+    sql: str,
+    columns: tuple[str, ...],
+    types: tuple[str, ...],
+    not_null: tuple[int, ...],
+    primary_key: tuple[int, ...],
+) -> None:
+    row = connection.execute(
+        "SELECT type, name, sql FROM sqlite_master WHERE name=?",
+        (table,),
+    ).fetchone()
+    if row is None or row[0] != "table" or row[1] != table:
+        raise ProviderObservationStoreError(
+            "provider-observation table identity does not match"
+        )
+    if not isinstance(row[2], str) or _normalized_sql(row[2]) != _normalized_sql(sql):
+        raise ProviderObservationStoreError(
+            "provider-observation table SQL does not match"
+        )
+    info = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    if tuple(str(item[1]) for item in info) != columns:
+        raise ProviderObservationStoreError(
+            "provider-observation table columns do not match"
+        )
+    if tuple(str(item[2]).upper() for item in info) != types:
+        raise ProviderObservationStoreError(
+            "provider-observation table types do not match"
+        )
+    if tuple(int(item[3]) for item in info) != not_null:
+        raise ProviderObservationStoreError(
+            "provider-observation table nullability does not match"
+        )
+    if tuple(int(item[5]) for item in info) != primary_key:
+        raise ProviderObservationStoreError(
+            "provider-observation table primary key does not match"
+        )
+
+
+def _verify_schema(
+    connection: sqlite3.Connection,
+    target: ProviderObservationStoreTarget,
+) -> None:
     try:
         check = connection.execute("PRAGMA quick_check").fetchone()
         if check is None or check[0] != "ok":
             raise ProviderObservationStoreError(
                 "provider-observation store failed quick_check"
             )
-        version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) != _SCHEMA_VERSION:
+        version = connection.execute("PRAGMA user_version").fetchone()
+        if version is None or int(version[0]) != _SCHEMA_VERSION:
             raise ProviderObservationStoreError(
                 "provider-observation store schema version does not match"
             )
         objects = connection.execute(
             """
-            SELECT type, name, sql
+            SELECT type, name
             FROM sqlite_master
             WHERE name NOT LIKE 'sqlite_%'
             ORDER BY type, name
             """
         ).fetchall()
-        if len(objects) != 1:
+        if tuple((str(row[0]), str(row[1])) for row in objects) != (
+            ("table", _BINDINGS_TABLE),
+            ("table", _METADATA_TABLE),
+        ):
             raise ProviderObservationStoreError(
                 "provider-observation store contains unexpected schema objects"
             )
-        object_type, object_name, object_sql = objects[0]
-        if object_type != "table" or object_name != _TABLE:
+        _exact_table_contract(
+            connection,
+            table=_BINDINGS_TABLE,
+            sql=_BINDINGS_SQL,
+            columns=_BINDING_COLUMNS,
+            types=("TEXT", "TEXT", "TEXT", "TEXT"),
+            not_null=(1, 1, 1, 1),
+            primary_key=(1, 0, 0, 0),
+        )
+        _exact_table_contract(
+            connection,
+            table=_METADATA_TABLE,
+            sql=_METADATA_SQL,
+            columns=_METADATA_COLUMNS,
+            types=("INTEGER", "TEXT", "TEXT", "TEXT"),
+            not_null=(1, 1, 1, 1),
+            primary_key=(1, 0, 0, 0),
+        )
+        rows = connection.execute(
+            f"SELECT singleton, target_sha256, source_revision, schema_sha256 "
+            f"FROM {_METADATA_TABLE} ORDER BY singleton"
+        ).fetchall()
+        if len(rows) != 1:
             raise ProviderObservationStoreError(
-                "provider-observation table identity does not match"
+                "provider-observation store metadata cardinality does not match"
             )
-        if not isinstance(object_sql, str) or _normalized_sql(object_sql) != (
-            _normalized_sql(_SCHEMA_SQL)
+        row = rows[0]
+        if (
+            int(row[0]) != 1
+            or str(row[1]) != target.digest
+            or str(row[2]) != target.source_revision
+            or str(row[3]) != SCHEMA_SHA256
         ):
             raise ProviderObservationStoreError(
-                "provider-observation table SQL does not match"
-            )
-        rows = connection.execute(f"PRAGMA table_info({_TABLE})").fetchall()
-        if tuple(str(row[1]) for row in rows) != _COLUMNS:
-            raise ProviderObservationStoreError(
-                "provider-observation store columns do not match"
-            )
-        if tuple(str(row[2]).upper() for row in rows) != ("TEXT",) * len(_COLUMNS):
-            raise ProviderObservationStoreError(
-                "provider-observation store column types do not match"
-            )
-        if tuple(int(row[3]) for row in rows) != (1,) * len(_COLUMNS):
-            raise ProviderObservationStoreError(
-                "provider-observation store nullability does not match"
-            )
-        if tuple(int(row[5]) for row in rows) != (1, 0, 0, 0):
-            raise ProviderObservationStoreError(
-                "provider-observation store primary key does not match"
+                "provider-observation store metadata binding does not match"
             )
     except ProviderObservationStoreError:
         raise
@@ -390,9 +458,10 @@ def _same_identity(path: Path, expected: os.stat_result) -> bool:
         current = path.lstat()
     except OSError:
         return False
-    if not stat.S_ISREG(current.st_mode):
-        return False
-    return (current.st_dev, current.st_ino) == (expected.st_dev, expected.st_ino)
+    return stat.S_ISREG(current.st_mode) and (
+        current.st_dev,
+        current.st_ino,
+    ) == (expected.st_dev, expected.st_ino)
 
 
 def inspect_provider_observation_binding_store(
@@ -405,7 +474,7 @@ def inspect_provider_observation_binding_store(
     _refuse_existing_sidecars(path)
     connection = _open_sqlite(path, mode="ro", query_only=True)
     try:
-        _verify_schema(connection)
+        _verify_schema(connection, target)
     finally:
         connection.close()
     path_after, after = _validated_target_path(target, require_exists=True)
@@ -451,10 +520,17 @@ def initialize_provider_observation_binding_store(
     try:
         connection = _open_sqlite(temporary, mode="rw", query_only=False)
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute(_SCHEMA_SQL)
+        connection.execute(_BINDINGS_SQL)
+        connection.execute(_METADATA_SQL)
+        connection.execute(
+            f"INSERT INTO {_METADATA_TABLE} "
+            "(singleton, target_sha256, source_revision, schema_sha256) "
+            "VALUES (1, ?, ?, ?)",
+            (target.digest, target.source_revision, SCHEMA_SHA256),
+        )
         connection.execute(f"PRAGMA user_version={_SCHEMA_VERSION}")
         connection.commit()
-        _verify_schema(connection)
+        _verify_schema(connection, target)
         connection.close()
         connection = None
 
@@ -470,9 +546,6 @@ def initialize_provider_observation_binding_store(
             raise ProviderObservationStoreError(
                 "published provider-observation store identity does not match"
             )
-        # Drop the temporary hard-link name before inspection so the published
-        # store has exactly one link and cannot be aliased through the staging
-        # path.
         temporary.unlink()
         _fsync_file(path)
         _fsync_directory(path.parent)
@@ -493,8 +566,6 @@ def initialize_provider_observation_binding_store(
             and published_identity is not None
             and _same_identity(path, published_identity)
         ):
-            # Remove only the exact inode published by this call.  A racing
-            # foreign replacement is preserved.
             try:
                 path.unlink()
                 _fsync_directory(path.parent)
@@ -532,13 +603,11 @@ class PreprovisionedProviderObservationBindingLedger(
             )
             normalized_observation_keyring = dict(
                 _normalize_keyring(
-                    observation_keyring,
-                    label="observation_keyring",
+                    observation_keyring, label="observation_keyring"
                 )
             )
             normalized_record_secret = _secret_bytes(
-                record_secret,
-                "record_secret",
+                record_secret, "record_secret"
             )
         except (ProviderObservationStoreError, TypeError, ValueError) as exc:
             raise ProviderObservationAuthorityBindingError(
@@ -584,7 +653,7 @@ class PreprovisionedProviderObservationBindingLedger(
         try:
             _refuse_existing_sidecars(self.path)
             connection = _open_sqlite(self.path, mode="rw", query_only=False)
-            _verify_schema(connection)
+            _verify_schema(connection, self._store_target)
             after = self._require_current_store()
             if before.identity != after.identity:
                 raise ProviderObservationAuthorityStateError(
@@ -608,7 +677,7 @@ class PreprovisionedProviderObservationBindingLedger(
         try:
             _refuse_existing_sidecars(self.path)
             connection = _open_sqlite(self.path, mode="ro", query_only=True)
-            _verify_schema(connection)
+            _verify_schema(connection, self._store_target)
             after = self._require_current_store()
             if before.identity != after.identity:
                 raise ProviderObservationAuthorityStateError(
