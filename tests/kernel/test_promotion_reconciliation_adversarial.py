@@ -3,9 +3,8 @@ from __future__ import annotations
 import pytest
 
 from daedalus.kernel.promotion_reconciliation import (
-    COMPLETE,
-    FRESH,
     ExpectedPromotionEffectTerminal,
+    PromotionReconciliationDisposition,
     PromotionReconciliationProjection,
 )
 
@@ -31,7 +30,7 @@ def test_expected_terminal_refuses_unsorted_or_duplicate_outputs() -> None:
 def test_projection_refuses_disposition_state_substitution() -> None:
     with pytest.raises(ValueError, match="contradicts retained state"):
         PromotionReconciliationProjection(
-            disposition=COMPLETE,
+            disposition=PromotionReconciliationDisposition.COMPLETE,
             effect_execution=None,
             promotion_execution=None,
             expected_effect_terminal=ExpectedPromotionEffectTerminal(
@@ -45,7 +44,7 @@ def test_projection_refuses_disposition_state_substitution() -> None:
 def test_fresh_projection_cannot_smuggle_terminal_material() -> None:
     with pytest.raises(ValueError, match="contradicts retained state"):
         PromotionReconciliationProjection(
-            disposition=FRESH,
+            disposition=PromotionReconciliationDisposition.FRESH,
             effect_execution=None,
             promotion_execution=None,
             expected_effect_terminal=ExpectedPromotionEffectTerminal(
@@ -53,4 +52,14 @@ def test_fresh_projection_cannot_smuggle_terminal_material() -> None:
                 output_digests=(),
                 detail_sha256="e" * 64,
             ),
+        )
+
+
+def test_raw_string_disposition_is_refused() -> None:
+    with pytest.raises(ValueError, match="disposition is invalid"):
+        PromotionReconciliationProjection(
+            disposition="fresh",  # type: ignore[arg-type]
+            effect_execution=None,
+            promotion_execution=None,
+            expected_effect_terminal=None,
         )
