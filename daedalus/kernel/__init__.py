@@ -55,9 +55,15 @@ from .effects import (
     verify_effect_lease,
 )
 from .authorization import NonRuntimeEffectAuthorization
+from .effect_replay import (
+    EffectExecutionReplaySnapshot,
+    EffectReplayProjectionError,
+    inspect_effect_execution,
+)
 
 __all__ += [
     "EffectExecutionRequest",
+    "EffectExecutionReplaySnapshot",
     "EffectLease",
     "EffectLeaseBindingMismatch",
     "EffectLeaseConcurrencyError",
@@ -69,11 +75,13 @@ __all__ += [
     "EffectLeaseScopeError",
     "EffectLeaseSignatureError",
     "EffectLeaseStateError",
+    "EffectReplayProjectionError",
     "EffectStartResult",
     "EffectTerminalReceipt",
     "LeasedEffectStartReceipt",
     "LeasedEffectAuthorization",
     "NonRuntimeEffectAuthorization",
+    "inspect_effect_execution",
     "issue_effect_lease",
     "verify_effect_lease",
 ]
