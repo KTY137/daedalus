@@ -12,12 +12,13 @@
     "python-filesystem-write-only-effect-scope",
     "separate-recovery-store-and-owner-recovery-decision-guard-contracts",
     "exact-initialization-current-state-verification-and-writer-connection-anchors",
+    "typed-valid-anchor-substitution-refusal",
     "local-guards-only-no-premature-centralization",
     "pure-dependency-injected-canonical-row-materializer",
     "no-canonical-registry-import-or-mutation",
     "ordered-identity-target-guard-anchor-and-duplicate-refusal",
     "deterministic-materialization-and-malformed-mapping-tests",
-    "independent-source-authority-and-no-registry-mutation-review",
+    "hardened-import-aware-source-authority-and-no-registry-mutation-review",
     "bounded-six-mutant-descriptor-campaign"
   ],
   "verification_commands": [
