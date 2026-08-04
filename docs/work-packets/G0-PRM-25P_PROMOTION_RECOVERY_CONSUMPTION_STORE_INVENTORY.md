@@ -22,6 +22,8 @@ The proposed static-scanner hook matches only module `daedalus.kernel.promotion_
 
 Builder tests cover canonical hashing, exact parent-revision binding, malformed and stale revisions, the exact row, exact anchors, malformed scanner near-misses and the current registry/scanner gap. A separate source review checks that the inventory module imports no effect or registry authority, cannot install rows, cannot execute initialization, cannot claim centrality or closure, retains the full blocker set, uses an exact revision fence and uses exact scanner equality. Eight bounded mutants attack false registry/scanner integration, hidden unguarded status, fabricated guards, removed effects, wildcard scanner matching, stale-revision acceptance and blocker removal.
 
+The counter-review also found a stale predecessor assertion from the preparatory inventory packet: after the dependent registry packet installed the two historical consumption rows and scanner hook, the old test still required them to remain absent. This branch corrects that test to verify the exact installed IDs, targets, effects, guards, wiring and scanner discovery, and includes it in the focused matrix.
+
 The workflow requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, focused predecessor regressions, Iron Plan verification, mutation, full suite, package build and isolated-wheel import.
 
 ## Honest remaining boundary
