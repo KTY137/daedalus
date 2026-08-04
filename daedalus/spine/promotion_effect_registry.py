@@ -82,9 +82,9 @@ def _refresh_captured_registry_defaults(boundary: Any) -> None:
 def install_promotion_execution_rows(boundary: Any) -> None:
     """Append exactly three local-guard rows to the canonical registry.
 
-    Duplicate IDs, partial installations, conflicting rows and stale registry
-    projections refuse.  Repeating the exact installation is idempotent and
-    repairs only the captured immutable defaults.
+    Duplicate IDs, partial installations, conflicting rows, reordered retained
+    rows and stale registry projections refuse. Repeating the exact installation
+    is idempotent and repairs only the captured immutable defaults.
     """
     required = _canonical_rows(boundary)
     existing = {row.id: row for row in boundary.ENTRYPOINTS}
@@ -96,6 +96,10 @@ def install_promotion_execution_rows(boundary: Any) -> None:
         if present != required:
             raise RuntimeError(
                 "promotion execution rows are partially or incorrectly installed"
+            )
+        if tuple(boundary.ENTRYPOINTS[-len(required) :]) != required:
+            raise RuntimeError(
+                "promotion execution rows are not the exact ordered registry suffix"
             )
         expected_mapping = {row.id: row for row in boundary.ENTRYPOINTS}
         if dict(boundary.REGISTRY_BY_ID) != expected_mapping:
