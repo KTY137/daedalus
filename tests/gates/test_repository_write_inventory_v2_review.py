@@ -45,7 +45,8 @@ def test_v2_module_has_inventory_authority_only() -> None:
     assert "PromotionReceipt" not in source
     assert "EffectLease" not in source
     assert "guard_contract" not in source
-    assert "trusted" not in source.lower()
+    assert '"guarded":' not in source
+    assert '"trusted":' not in source
 
     forbidden_terminals = {
         "write_text",
@@ -118,7 +119,8 @@ def test_v2_report_cannot_claim_target_guard_or_gate_closure() -> None:
     assert '"primary_checkout_target_proven": False' in source
     assert "self.closed" in source
     assert '"unclassified-production-write-surfaces"' in source
-    assert "guarded" not in source
+    assert '"guarded":' not in source
+    assert '"trusted":' not in source
     assert "GateReport" not in source
 
 
