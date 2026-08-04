@@ -5,6 +5,7 @@ on:
     branches:
       - g0/promotion-replay-projection-linear
     paths:
+      - "daedalus/kernel/__init__.py"
       - "daedalus/kernel/promotion_effect_replay.py"
       - "tests/kernel/test_promotion_effect_capability.py"
       - "tests/kernel/test_promotion_effect_replay*.py"
@@ -94,7 +95,7 @@ jobs:
         shell: bash
         run: |
           /tmp/daedalus-promotion-effect-replay-wheel/bin/python - <<'PY'
-          from daedalus.kernel.promotion_effect_replay import (
+          from daedalus.kernel import (
               PromotionEffectReplayError,
               PromotionEffectReplayResult,
               inspect_promotion_effect_execution,
