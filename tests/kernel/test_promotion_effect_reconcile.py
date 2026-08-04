@@ -365,9 +365,9 @@ def test_nonmatching_concurrent_terminal_is_refused(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(effect_ledger, "finish", racing_wrong_finish)
     try:
         with pytest.raises(
-            (PromotionEffectReconciliationMismatch, Exception),
-        ) as raised:
+            PromotionEffectReconciliationMismatch,
+            match="non-replayable state",
+        ):
             reconcile_promotion_effect_terminal(capability, ledger)
-        assert "promotion report" in str(raised.value) or "terminal" in str(raised.value)
     finally:
         ledger.close()
