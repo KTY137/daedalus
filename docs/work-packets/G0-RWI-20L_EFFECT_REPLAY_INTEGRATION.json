@@ -1,0 +1,83 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RWI-20L",
+  "title": "Strict Effect Execution Replay Integration",
+  "gate": 0,
+  "parent_revision": "afb5715aa6bc8115e43ffb8c10b1dc68220f4198",
+  "parent_branch": "g0/repository-write-runtime-conformance-linear",
+  "branch": "g0/effect-replay-integration-linear",
+  "change_class": "controlled-port-read-only-persistence-projection",
+  "integration_source": {
+    "source_pr": 147,
+    "source_branch": "g0/effect-replay-projection-linear",
+    "source_revision": "d99e50c75f37fbd135aa0359ae33408bef922343",
+    "integration_mode": "controlled-port-with-current-stack-tests-and-documentation",
+    "source_pr_modified": false,
+    "source_pr_merged": false
+  },
+  "authority": "exact-persisted-effect-execution-read-only",
+  "scope": {
+    "opens_effect_ledger_mode_ro": true,
+    "enables_sqlite_query_only": true,
+    "binds_exact_persisted_lease_row": true,
+    "binds_exact_execution_identity_and_request": true,
+    "strictly_parses_canonical_start_receipt": true,
+    "authenticates_historical_signed_lease_at_start_instant": true,
+    "distinguishes_missing_started_and_terminal_execution": true,
+    "strictly_parses_canonical_terminal_receipt": true,
+    "permits_historical_terminal_read_after_later_revocation": true,
+    "exposes_reexecution_authority": false,
+    "uses_effect_ledger_writer_connection": false,
+    "grants_starts_finishes_or_revokes_effects": false,
+    "joins_repository_write_evidence": false,
+    "modifies_repository_files": false,
+    "modifies_canonical_registry": false,
+    "modifies_gate_report": false
+  },
+  "claims": {
+    "effect_execution_replay_projection_available": true,
+    "effect_lease_semantics_verified": false,
+    "repository_write_effect_receipts_bound": false,
+    "semantic_receipts_verified": false,
+    "evidence_authenticated": false,
+    "gate_report_bound": false,
+    "gate_closed": false,
+    "owner_approval_issued": false,
+    "promotion_requested": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "missing_started_and_terminal_state_tests_prepared": true,
+    "historical_signature_test_prepared": true,
+    "request_start_and_terminal_substitution_tests_prepared": true,
+    "hidden_terminal_material_test_prepared": true,
+    "post_revocation_read_test_prepared": true,
+    "writer_connection_bypass_test_prepared": true,
+    "mutation_campaign_prepared": true,
+    "bounded_mutants": 6,
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository write and review access but no executable private-repository checkout; neither source inspection nor an LLM assertion is accepted as test evidence"
+    },
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "repository-write Effect-Lease evidence is not yet joined to exact typed authorization, execution request and replay snapshot",
+    "missing or STARTED execution states still require an explicit no-automatic-reexecution decision contract",
+    "guard behavioral semantics remain unverified",
+    "Primary-Checkout disjointness and retirement receipts remain semantically unreplayed",
+    "the complete semantic projection is not bound into GateReport-v2 or the release verifier",
+    "the live repository-write classification and evidence corpus remain unpopulated",
+    "canonical caller migration, Docker sandboxing, Primary-Checkout mutation exclusion and the complete fault matrix remain open",
+    "exact-head executable evidence is unavailable while GitHub Actions issue 67 persists"
+  ]
+}
