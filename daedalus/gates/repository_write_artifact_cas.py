@@ -1,8 +1,8 @@
 """Read-only content-addressed resolution for repository-write artifacts.
 
 This module resolves one exact ``artifact-locator:sha256`` from a fixed local
-CAS layout.  It is intentionally narrower than an artifact store: it cannot
-publish, repair, fetch, delete, promote, or mutate repository state.  The
+CAS layout. It is intentionally narrower than an artifact store: it cannot
+publish, repair, fetch, delete, promote, or mutate repository state. The
 resolver binds the CAS root and source revision, proves that the root is
 separate from the Primary Checkout, opens the exact derived object read-only,
 and returns immutable bytes plus a canonical resolution receipt.
@@ -112,6 +112,28 @@ def _non_negative_int(value: Any, label: str) -> int:
             f"{label} must be a non-negative integer"
         )
     return value
+
+
+def _file_identity(result: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        result.st_dev,
+        result.st_ino,
+        result.st_nlink,
+        result.st_size,
+        result.st_mtime_ns,
+    )
+
+
+def artifact_relative_path(locator: str) -> str:
+    """Return the sole accepted local CAS path for one locator."""
+
+    try:
+        digest = _locator_sha256(_artifact_locator(locator, "locator"))
+    except (TypeError, ValueError) as exc:
+        raise RepositoryWriteArtifactCASError(
+            "artifact locator is malformed"
+        ) from exc
+    return f"sha256/{digest[:2]}/{digest[2:]}"
 
 
 @dataclass(frozen=True)
@@ -253,6 +275,14 @@ class RepositoryWriteArtifactResolutionReceipt(CanonicalContract):
             raise RepositoryWriteArtifactCASError(
                 "artifact resolution locator contradicts content digest"
             )
+        if self.relative_path != artifact_relative_path(self.locator):
+            raise RepositoryWriteArtifactCASError(
+                "artifact resolution relative path contradicts locator"
+            )
+        if not 1 <= self.file_size <= _MAX_ARTIFACT_BYTES:
+            raise RepositoryWriteArtifactCASError(
+                "artifact resolution file size is invalid"
+            )
         if type(self.provenance) is not ContractProvenance:
             raise RepositoryWriteArtifactCASError(
                 "resolution provenance must be exact ContractProvenance"
@@ -311,22 +341,14 @@ class ResolvedRepositoryWriteArtifact:
             raise RepositoryWriteArtifactCASError(
                 "resolved artifact receipt must be exact resolution receipt"
             )
+        if len(self.content) != self.receipt.file_size:
+            raise RepositoryWriteArtifactCASError(
+                "resolved artifact byte length contradicts resolution receipt"
+            )
         if hashlib.sha256(self.content).hexdigest() != self.receipt.artifact_content_sha256:
             raise RepositoryWriteArtifactCASError(
                 "resolved artifact bytes contradict resolution receipt"
             )
-
-
-def artifact_relative_path(locator: str) -> str:
-    """Return the sole accepted local CAS path for one locator."""
-
-    try:
-        digest = _locator_sha256(_artifact_locator(locator, "locator"))
-    except (TypeError, ValueError) as exc:
-        raise RepositoryWriteArtifactCASError(
-            "artifact locator is malformed"
-        ) from exc
-    return f"sha256/{digest[:2]}/{digest[2:]}"
 
 
 def _exact_artifact_file(
@@ -439,21 +461,7 @@ def _read_exact_file(path: Path, before: os.stat_result) -> bytes:
                 "artifact CAS object read size is invalid"
             )
         after = os.fstat(descriptor)
-        identity_before = (
-            before.st_dev,
-            before.st_ino,
-            before.st_nlink,
-            before.st_size,
-            before.st_mtime_ns,
-        )
-        identity_after = (
-            after.st_dev,
-            after.st_ino,
-            after.st_nlink,
-            after.st_size,
-            after.st_mtime_ns,
-        )
-        if identity_after != identity_before:
+        if _file_identity(after) != _file_identity(before):
             raise RepositoryWriteArtifactCASError(
                 "artifact CAS object changed during read"
             )
@@ -466,7 +474,49 @@ def _read_exact_file(path: Path, before: os.stat_result) -> bytes:
         ) from exc
     finally:
         if descriptor is not None:
-            os.close(descriptor)
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _revalidate_exact_path(path: Path, before: os.stat_result) -> os.stat_result:
+    """Refuse replacement or redirection after descriptor-bound reading."""
+
+    if not os.path.lexists(path):
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object disappeared after read"
+        )
+    if path.is_symlink():
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object became a symlink after read"
+        )
+    try:
+        resolved_parent = path.parent.resolve(strict=True)
+        resolved = path.resolve(strict=True)
+        after = resolved.stat()
+    except (OSError, RuntimeError) as exc:
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object disappeared after read"
+        ) from exc
+    if (
+        _normal(path.parent) != _normal(resolved_parent)
+        or _normal(path) != _normal(resolved)
+    ):
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object path redirected after read"
+        )
+    if not stat.S_ISREG(after.st_mode) or after.st_nlink != 1:
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object identity invalid after read"
+        )
+    identity_before = _file_identity(before)
+    identity_after = _file_identity(after)
+    if identity_after != identity_before:
+        raise RepositoryWriteArtifactCASError(
+            "artifact CAS object changed after read"
+        )
+    return after
 
 
 def resolve_repository_write_artifact(
@@ -485,30 +535,7 @@ def resolve_repository_write_artifact(
         raise RepositoryWriteArtifactCASError(
             "artifact CAS object digest contradicts evidence"
         )
-    try:
-        after = path.stat()
-    except OSError as exc:
-        raise RepositoryWriteArtifactCASError(
-            "artifact CAS object disappeared after read"
-        ) from exc
-    identity_before = (
-        before.st_dev,
-        before.st_ino,
-        before.st_nlink,
-        before.st_size,
-        before.st_mtime_ns,
-    )
-    identity_after = (
-        after.st_dev,
-        after.st_ino,
-        after.st_nlink,
-        after.st_size,
-        after.st_mtime_ns,
-    )
-    if identity_after != identity_before:
-        raise RepositoryWriteArtifactCASError(
-            "artifact CAS object changed after read"
-        )
+    after = _revalidate_exact_path(path, before)
     provenance = ContractProvenance(
         origin="gate0.repository-write-artifact-cas",
         source_revision=artifact.source_revision,
