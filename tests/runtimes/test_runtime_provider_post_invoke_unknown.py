@@ -7,14 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.kernel.effect_recovery import (
-    issue_external_effect_observation,
-    reconcile_unknown_effect,
-)
+from daedalus.kernel.effect_recovery import issue_external_effect_observation
 from daedalus.runtimes.broker import (
     RuntimeProviderReconciliationRequired,
     run_runtime_provider,
 )
+from daedalus.runtimes.recovery import reconcile_runtime_provider_unknown
 from daedalus.spine.envelope import canonical_sha
 
 
@@ -114,12 +112,13 @@ def test_returned_provider_with_evidence_callback_failure_stays_started_and_reco
         source_revision=REVISION,
         observed_at=fixture.NOW + timedelta(seconds=1),
     )
-    recovered = reconcile_unknown_effect(
-        authorization.effect_ledger,
+    recovered = reconcile_runtime_provider_unknown(
+        entrypoint_id,
+        authorization=authorization,
         execution=execution,
         start_receipt=error.start_receipt,
         observation=observation,
-        keyring={"post-provider-observation-key": OBSERVATION_KEY},
+        observation_keyring={"post-provider-observation-key": OBSERVATION_KEY},
         expected_provider_id=PROVIDER_ID,
         expected_source_revision=REVISION,
         reconciled_at=fixture.NOW + timedelta(seconds=2),
