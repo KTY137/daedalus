@@ -1,0 +1,48 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-20",
+  "title": "Live Promotion Execution Accounting",
+  "gate": 0,
+  "base_revision": "b4670c9c6c0cfb08da52d4a4db05c47bead2df93",
+  "branch": "g0/live-promotion-execution-accounting-linear",
+  "authority": {
+    "owner_capability": "daedalus.kernel.approvals.ApprovalLedger",
+    "promotion_authorization": "daedalus.kernel.promotion.PromotionAuthorization",
+    "execution_ledger": "daedalus.kernel.promotion_execution.PromotionExecutionLedger",
+    "mutation_seam": "daedalus.kairos.gated_writes.promote_candidates"
+  },
+  "implemented": [
+    "mandatory-injected-promotion-execution-ledger",
+    "stable-primary-checkout-before-after-fingerprint",
+    "persisted-start-before-promotion-lock-or-worktree-mutation",
+    "live-target-and-owner-capability-recheck-under-lock",
+    "preflight-and-live-authorization-digest-equality",
+    "terminal-success-refusal-and-fault-accounting",
+    "post-mutation-known-errors-classified-as-faults",
+    "malformed-untrusted-report-not-copied-into-terminal-event",
+    "created-integration-branch-retained-before-revision-lookup",
+    "exact-integration-branch-revision-binding",
+    "terminal-replay-without-lock-or-mutation",
+    "pending-reconciliation-without-automatic-reexecution",
+    "primary-checkout-mutation-laundering-refusal"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_live_promotion_seam.py tests/kernel/test_live_promotion_seam_review.py tests/kernel/test_live_promotion_execution_adversarial.py tests/kernel/test_live_promotion_fault_identity_review.py tests/kernel/test_promotion_fingerprint.py tests/kernel/test_promotion_execution.py",
+    "python scripts/run_live_promotion_execution_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "blocked-before-dependent-batch",
+  "production_wiring": true,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "audit-retained-worktree-allocation-and-reaper-result-so-unknown-post-mutation-branch-identity-remains-pending",
+    "register-live-promotion-and-promotion-execution-writes-in-canonical-effect-inventory",
+    "execute-focused-mutation-full-suite-and-packaging-checks-on-exact-head",
+    "complete-effect-lease-runtime-conformance-and-sandbox-composition-for-promotion",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 currently yields zero-step runs; those runs are not accepted as evidence."
+}
