@@ -16,6 +16,10 @@ from .promotion_recovery_consumption_inventory import (
 
 _REVISION = re.compile(r"^[0-9a-f]{40,64}$")
 _EXPECTED_IDS = tuple(row.id for row in INVENTORY_ENTRYPOINTS)
+_TARGET_PREFIX = (
+    "daedalus.kernel.promotion_recovery_consumption:"
+    "PromotionRecoveryConsumptionLedger."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +63,23 @@ def _row_dict(row: Any) -> dict[str, object]:
     }
 
 
+def _expected_anchors(entrypoint_id: str) -> list[dict[str, str]]:
+    if entrypoint_id == _EXPECTED_IDS[0]:
+        return [
+            {"target": _TARGET_PREFIX + "__init__", "call": "_initialize"},
+            {"target": _TARGET_PREFIX + "_initialize", "call": "_connect_writer"},
+        ]
+    if entrypoint_id == _EXPECTED_IDS[1]:
+        return [
+            {
+                "target": _TARGET_PREFIX + "consume",
+                "call": "verify_promotion_recovery_decision",
+            },
+            {"target": _TARGET_PREFIX + "consume", "call": "_connect_writer"},
+        ]
+    raise RuntimeError("unknown recovery-consumption entrypoint identity")
+
+
 def inspect_promotion_recovery_consumption_registry(
     *,
     source_revision: str,
@@ -98,6 +119,8 @@ def inspect_promotion_recovery_consumption_registry(
         if tuple(projected["guard_contracts"]) != proposed.guard_contracts:
             rows_exact = False
         if projected["wiring"] != proposed.wiring:
+            rows_exact = False
+        if projected["anchors"] != _expected_anchors(entrypoint_id):
             rows_exact = False
         if projected["migration"] != proposed.migration:
             rows_exact = False
