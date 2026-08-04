@@ -46,12 +46,13 @@ def _promotion_lock(function):
     return promotion_locks[0]
 
 
-def test_public_seam_retains_old_call_shape_but_cannot_use_it_as_authority() -> None:
+def test_public_seam_requires_all_persisted_authorities() -> None:
     signature = inspect.signature(gated_writes.promote_candidates)
     assert signature.parameters["approval_ledger"].default is None
     assert signature.parameters["owner_keyring"].default is None
+    assert signature.parameters["promotion_execution_ledger"].default is None
     source = inspect.getsource(gated_writes.promote_candidates)
-    assert "approval_ledger is None or not owner_keyring" in source
+    assert "isinstance(promotion_execution_ledger, PromotionExecutionLedger)" in source
     assert "_legacy_unpersisted_refusal" in source
 
 
@@ -72,7 +73,7 @@ def test_legacy_refusal_contains_no_git_or_other_effect_primitive() -> None:
     assert calls <= {"_promotion_refusal", "PromotionAuthorizationError"}
 
 
-def test_persisted_capability_preflight_precedes_every_effect_primitive() -> None:
+def test_persisted_capability_and_execution_start_precede_mutation() -> None:
     function = _promotion_function()
     source = inspect.getsource(gated_writes.promote_candidates)
     snapshot_at = source.index("_snapshot_promotion_candidates(submitted_candidates)")
@@ -80,29 +81,20 @@ def test_persisted_capability_preflight_precedes_every_effect_primitive() -> Non
         "authorize_persisted_promotion(\n            approval_ledger=approval_ledger"
     )
     manager_at = source.index("GitWorktreeManager(root)")
-    ledger_at = source.index("resolve_spine_db_path(root)")
+    fingerprint_at = source.index("fingerprint_primary_checkout(root)")
+    begin_at = source.index("promotion_execution_ledger.begin(")
     lock_at = source.index("with _PromotionLock(")
 
-    assert snapshot_at < preflight_at < manager_at < ledger_at < lock_at
+    assert snapshot_at < preflight_at < manager_at < fingerprint_at < begin_at < lock_at
 
     lock = _promotion_lock(function)
     lock_source = ast.unparse(ast.Module(body=lock.body, type_ignores=[]))
     assert "resolve_live_target_revision" in lock_source
     assert "authorize_persisted_promotion" in lock_source
-
-    lock_start = lock.lineno
-    lock_end = lock.end_lineno
-    assert lock_end is not None
-    calls_outside_lock = [
-        _call_name(node)
-        for node in ast.walk(function)
-        if isinstance(node, ast.Call)
-        and not (lock_start <= node.lineno <= lock_end)
-    ]
-    assert "resolve_live_target_revision" not in calls_outside_lock
+    assert "_promote_locked" in lock_source
 
 
-def test_locked_source_order_is_target_read_then_persisted_auth_then_integration() -> None:
+def test_locked_source_order_is_target_read_auth_mutation_and_result_read() -> None:
     function = _promotion_function()
     lock = _promotion_lock(function)
     body_source = ast.unparse(ast.Module(body=lock.body, type_ignores=[]))
@@ -114,9 +106,11 @@ def test_locked_source_order_is_target_read_then_persisted_auth_then_integration
         for node in ast.walk(statement)
         if isinstance(node, ast.Call)
     ]
-    assert calls.index("resolve_live_target_revision") < calls.index(
-        "authorize_promotion"
-    ) < calls.index("_promote_locked")
+    first_target_read = calls.index("resolve_live_target_revision")
+    live_auth = calls.index("authorize_promotion")
+    mutate = calls.index("_promote_locked")
+    result_read = calls.index("resolve_live_target_revision", mutate + 1)
+    assert first_target_read < live_auth < mutate < result_read
 
 
 def test_material_snapshot_and_stale_fences_precede_retained_mutation() -> None:
@@ -125,15 +119,35 @@ def test_material_snapshot_and_stale_fences_precede_retained_mutation() -> None:
     assert "len(submitted_candidates) != 1" in source
     assert "_snapshot_promotion_candidates(submitted_candidates)" in source
     assert "artifact.base_revision" in source
-    assert "authorization.live_target_revision" in source
+    assert "live_authorization.live_target_revision" in source
+    assert "live promotion authorization differs from persisted start" in source
     assert "stale regeneration requires new evidence and OwnerApproval" in source
     assert source.index("len(submitted_candidates) != 1") < source.index(
         "_snapshot_promotion_candidates(submitted_candidates)"
     ) < source.index("GitWorktreeManager")
-    assert source.index("authorization.live_target_revision") < source.index(
+    assert source.index("live_authorization.live_target_revision") < source.index(
         "_promote_locked"
     )
-    assert "sealed_candidates" in source
+
+
+def test_restart_paths_do_not_cross_the_lock_twice() -> None:
+    source = inspect.getsource(gated_writes.promote_candidates)
+    replay_at = source.index("if not begin.execute:")
+    lock_at = source.index("with _PromotionLock(")
+    assert replay_at < lock_at
+    replay_slice = source[replay_at:lock_at]
+    assert "begin.completion.report_dict()" in replay_slice
+    assert "pending_reconciliation" in replay_slice
+    assert "_promote_locked" not in replay_slice
+
+
+def test_terminal_paths_return_persisted_reports() -> None:
+    source = inspect.getsource(gated_writes.promote_candidates)
+    assert "promotion_execution_ledger.complete(" in source
+    assert "return completion.report_dict()" in source
+    assert "_complete_refusal(" in source
+    assert "_complete_fault(" in source
+    assert "primary_checkout_after_sha256=primary_after" in source
 
 
 def test_effect_inventory_still_observes_the_promotion_guard_anchors() -> None:
@@ -160,13 +174,13 @@ def test_dynamic_retained_source_is_exactly_bound_before_exec() -> None:
     assert "integrity mismatch" in source
 
 
-def test_compatibility_module_has_no_second_legacy_promotion_authority() -> None:
+def test_compatibility_module_has_no_second_promotion_authority() -> None:
     source = inspect.getsource(gated_writes)
     assert "_gated_writes_legacy.py.src" in source
     assert "exec(" in source
     assert "del promote_candidates" in source
     assert "_retired_legacy_promotion" in source
-    assert "persisted ApprovalLedger and owner keyring are mandatory" in source
+    assert "PromotionExecutionLedger" in source
     assert "authorize_promotion = authorize_persisted_promotion" in source
     assert "snapshot_promotion_candidates as _snapshot_promotion_candidates" in source
     assert 'name.startswith("_")' in source
