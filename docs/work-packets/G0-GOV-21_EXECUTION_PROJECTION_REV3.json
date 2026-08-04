@@ -1,0 +1,59 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-GOV-21",
+  "title": "Revision-3 Execution Projection Refresh",
+  "gate": 0,
+  "classification": "documentation-and-governance-projection",
+  "base_branch": "g0/repository-write-stdlib-delta-linear",
+  "base_revision": "f78e4c53fb5ac21d90a34a2fe6cd8f6da679ab14",
+  "source_parent_pr": 167,
+  "branch": "g0/execution-projection-rev3-linear",
+  "scope": [
+    "refresh-derived-execution-plan-authority-reference-from-master-plan-revision-2-to-revision-3",
+    "replace-direct-experimental-branch-chain-guidance-with-exact-parent-short-lived-work-packet-guidance",
+    "record-the-current-repository-write-discovery-line-without-claiming-integration-or-trust",
+    "record-github-actions-issue-67-as-an-external-execution-blocker",
+    "separate-permitted-independent-preparation-from-frozen-dependent-production-work",
+    "retain-historical-wp00-evidence-as-history-rather-than-current-gate-proof"
+  ],
+  "forbidden": [
+    "production-python-changes",
+    "effect-registry-changes",
+    "canonical-scanner-integration",
+    "gate-report-closure",
+    "runtime-conformance-claims",
+    "fault-matrix-pass-claims",
+    "owner-approval-issuance",
+    "merge-or-promotion",
+    "direct-main-or-experimental-mutation"
+  ],
+  "acceptance": [
+    "the-derived-projection-names-master-plan-revision-3-as-canonical-authority",
+    "the-derived-projection-does-not-authorize-dependent-builds-from-unverified-parents",
+    "zero-step-actions-runs-are-explicitly-excluded-from-product-and-gate-evidence",
+    "the-selected-repository-write-line-remains-inventory-only-and-untrusted",
+    "gate0-gate1-and-gate2-are-not-represented-as-complete",
+    "no-owner-approval-promotion-or-gate-transition-is-created"
+  ],
+  "verification_commands": [
+    "python tools/iron_plan_guard.py verify",
+    "python -m json.tool docs/work-packets/G0-GOV-21_EXECUTION_PROJECTION_REV3.json",
+    "python -m pytest -q tests/test_iron_plan_guard.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "independent_review_state": "pending",
+  "production_code_changed": false,
+  "gate_report_changed": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "github-actions-issue-67-must-produce-real-checkout-and-iron-plan-steps",
+    "exact-head-plan-governance-full-suite-and-packaging-checks-must-execute",
+    "independent-human-review",
+    "all-gate0-runtime-effect-inventory-fault-and-release-blockers-remain-open"
+  ],
+  "external_observation": "GitHub Actions issue #67 continues to terminate hosted jobs before Step 1 with steps=null, no logs and no artifacts. This packet records the blocker but does not treat it as product evidence."
+}
