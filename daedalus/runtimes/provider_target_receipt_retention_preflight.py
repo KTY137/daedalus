@@ -396,6 +396,18 @@ def verify_provider_target_receipt_retention_preflight(
         raise ProviderTargetReceiptRetentionPreflightShapeError(
             "inventory must contain the exact reviewed retention surfaces"
         )
+    event_path = _scope_path(
+        event_store_scope_path,
+        "event_store_scope_path",
+    )
+    cas_path = _scope_path(
+        receipt_cas_scope_path,
+        "receipt_cas_scope_path",
+    )
+    if _paths_overlap(event_path, cas_path):
+        raise ProviderTargetReceiptRetentionPreflightShapeError(
+            "retention request scope paths must be disjoint"
+        )
 
     source_revision = _source_revision(receipt.source_revision)
     head_receipt_digest = repository_head_receipt.digest
@@ -417,8 +429,8 @@ def verify_provider_target_receipt_retention_preflight(
             retention_inventory_source_sha256=inventory_source_sha256,
             execution=execution,
             effect_lease=effect_lease,
-            event_store_scope_path=event_store_scope_path,
-            receipt_cas_scope_path=receipt_cas_scope_path,
+            event_store_scope_path=event_path,
+            receipt_cas_scope_path=cas_path,
         )
         decision = authorize_provider_target_receipt_retention_operation(
             authority,
