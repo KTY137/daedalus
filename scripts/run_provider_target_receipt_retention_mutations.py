@@ -25,8 +25,12 @@ MUTATIONS = {
         "    if False and _paths_overlap(primary, store_root):\n",
     ),
     "allow-event-store-hardlink-alias": (
-        "    if event_store_stat.st_nlink != 1:\n",
-        "    if False and event_store_stat.st_nlink != 1:\n",
+        "            if identity.st_nlink != 1:\n",
+        "            if False and identity.st_nlink != 1:\n",
+    ),
+    "omit-event-store-wal-sidecar": (
+        "        Path(f\"{event_store}-wal\"),\n",
+        "",
     ),
     "skip-prewrite-topology-revalidation": (
         "        # Authentication and all pure local validation precede schema or data writes.\n"
