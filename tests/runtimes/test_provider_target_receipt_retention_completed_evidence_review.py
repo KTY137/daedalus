@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from pathlib import Path
 
 import daedalus.runtimes.provider_target_receipt_retention_completed_evidence as completed
 
@@ -145,6 +146,22 @@ def test_file_identity_fence_rejects_symlinks_non_regular_and_hard_links() -> No
     assert "info.st_nlink != 1" in source
     assert '"device": int(info.st_dev)' in source
     assert '"inode": int(info.st_ino)' in source
+
+
+def test_mutation_campaign_imports_only_its_isolated_sandbox_copy() -> None:
+    script = (
+        Path(__file__).resolve().parents[2]
+        / "scripts"
+        / "run_provider_target_receipt_retention_completed_evidence_mutations.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'env["PYTHONPATH"] = str(sandbox)' in script
+    assert 'env["DAEDALUS_MUTATION_SANDBOX"] = str(sandbox)' in script
+    assert 'cwd=sandbox' in script
+    assert 'assert root in actual.parents' in script
+    assert 'shutil.copytree(ROOT / "daedalus", sandbox / "daedalus")' in script
+    assert 'for relative in (*TESTS, *SUPPORT_TESTS, SCRIPT):' in script
+    assert 'os.pathsep' not in script
 
 
 def test_evidence_receipt_cannot_claim_effect_or_gate_authority() -> None:
