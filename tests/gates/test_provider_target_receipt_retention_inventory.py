@@ -93,13 +93,21 @@ def test_malformed_revision_refuses(revision: object) -> None:
             1,
         ),
         lambda source: source.replace(
+            "connection.execute(expected)",
+            'connection.execute(expected); connection.execute("PRAGMA user_version")',
+            1,
+        ),
+        lambda source: source.replace(
             "class ProviderTargetReceiptLedger:",
             "class RenamedProviderTargetReceiptLedger:",
             1,
         ),
     ],
 )
-def test_missing_duplicate_or_renamed_anchor_refuses(tmp_path: Path, mutation) -> None:
+def test_missing_duplicate_renamed_or_unclassified_anchor_refuses(
+    tmp_path: Path,
+    mutation,
+) -> None:
     source = SOURCE.read_text(encoding="utf-8")
     root = _fixture_root(tmp_path, mutation(source).encode("utf-8"))
     with pytest.raises(ProviderTargetReceiptRetentionInventoryError):
@@ -131,6 +139,21 @@ def test_source_symlink_refuses_when_supported(tmp_path: Path) -> None:
         link.symlink_to(target)
     except (OSError, NotImplementedError):
         pytest.skip("symlinks unavailable")
+    with pytest.raises(ProviderTargetReceiptRetentionInventoryError):
+        scan_provider_target_receipt_retention(root, source_revision=REVISION)
+
+
+def test_parent_directory_symlink_refuses_when_supported(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    external = tmp_path / "external/runtimes"
+    external.mkdir(parents=True)
+    (external / "provider_target_receipt_ledger.py").write_bytes(SOURCE.read_bytes())
+    (root / "daedalus").mkdir(parents=True)
+    link = root / "daedalus/runtimes"
+    try:
+        link.symlink_to(external, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("directory symlinks unavailable")
     with pytest.raises(ProviderTargetReceiptRetentionInventoryError):
         scan_provider_target_receipt_retention(root, source_revision=REVISION)
 
