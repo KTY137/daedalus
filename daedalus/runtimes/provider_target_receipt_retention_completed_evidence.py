@@ -180,11 +180,16 @@ def _path_identity(path: Path, label: str, *, directory: bool) -> dict[str, Any]
 def _topology_identity(
     retention_ledger: ProviderTargetReceiptLedger,
 ) -> dict[str, dict[str, Any]]:
-    _validate_topology(
-        retention_ledger.primary_checkout,
-        retention_ledger.source_store,
-        retention_ledger.spine,
-    )
+    try:
+        _validate_topology(
+            retention_ledger.primary_checkout,
+            retention_ledger.source_store,
+            retention_ledger.spine,
+        )
+    except ProviderTargetReceiptRetentionError as exc:
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "retention topology did not verify"
+        ) from exc
     return {
         "primary_checkout": _path_identity(
             Path(retention_ledger.primary_checkout),
@@ -201,6 +206,72 @@ def _topology_identity(
             "receipt CAS",
             directory=True,
         ),
+    }
+
+
+def _bind_admission_topology(
+    admission: ProviderTargetReceiptRetentionAdmissionReceipt,
+    observed: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    for field in (
+        "primary_checkout_path",
+        "retention_root_path",
+        "event_store_path",
+        "receipt_cas_path",
+    ):
+        if not Path(getattr(admission, field)).is_absolute():
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"{field} is not an absolute admission path"
+            )
+    expected = {
+        "primary_checkout": _path_identity(
+            Path(admission.primary_checkout_path),
+            "admission Primary Checkout",
+            directory=True,
+        ),
+        "event_store": _path_identity(
+            Path(admission.event_store_path),
+            "admission canonical Event Store",
+            directory=False,
+        ),
+        "receipt_cas": _path_identity(
+            Path(admission.receipt_cas_path),
+            "admission receipt CAS",
+            directory=True,
+        ),
+    }
+    for key in ("primary_checkout", "event_store", "receipt_cas"):
+        if expected[key] != observed[key]:
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"live {key} identity is detached from the retention admission"
+            )
+
+    root = _path_identity(
+        Path(admission.retention_root_path),
+        "admission retention root",
+        directory=True,
+    )
+    root_path = Path(root["path"])
+    primary_path = Path(observed["primary_checkout"]["path"])
+    event_path = Path(observed["event_store"]["path"])
+    cas_path = Path(observed["receipt_cas"]["path"])
+    if (
+        root_path == primary_path
+        or root_path in primary_path.parents
+        or primary_path in root_path.parents
+    ):
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "admission retention root overlaps the Primary Checkout"
+        )
+    if root_path not in event_path.parents or root_path not in cas_path.parents:
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "admission retention root does not contain Event Store and receipt CAS"
+        )
+    return {
+        "primary_checkout": observed["primary_checkout"],
+        "retention_root": root,
+        "event_store": observed["event_store"],
+        "receipt_cas": observed["receipt_cas"],
     }
 
 
@@ -310,6 +381,7 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
             "event_store_path": self.event_store_path,
             "receipt_cas_path": self.receipt_cas_path,
             "admission_identity_bound": True,
+            "admission_topology_bound": True,
             "recovery_decision_bound": True,
             "provider_target_receipt_authenticated": True,
             "retention_intent_completed": True,
@@ -334,6 +406,7 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
         }
         true_claims = {
             "admission_identity_bound",
+            "admission_topology_bound",
             "recovery_decision_bound",
             "provider_target_receipt_authenticated",
             "retention_intent_completed",
@@ -538,7 +611,10 @@ def verify_provider_target_receipt_retention_completed_evidence(
         )
 
     artifact = ArtifactRef.from_sha256(receipt.digest)
-    topology_before = _topology_identity(retention_ledger)
+    topology_before = _bind_admission_topology(
+        admission,
+        _topology_identity(retention_ledger),
+    )
     artifact_identity_before = _artifact_file_identity(retention_ledger, artifact)
 
     try:
@@ -569,7 +645,10 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "provider-target verification returned a non-exact projection"
         )
 
-    topology_mid = _topology_identity(retention_ledger)
+    topology_mid = _bind_admission_topology(
+        admission,
+        _topology_identity(retention_ledger),
+    )
     artifact_identity_mid = _artifact_file_identity(retention_ledger, artifact)
     if (
         topology_mid != topology_before
@@ -591,7 +670,10 @@ def verify_provider_target_receipt_retention_completed_evidence(
             )
         retention_ledger._validate_completed(intent, receipt, artifact, payload)
 
-        topology_after = _topology_identity(retention_ledger)
+        topology_after = _bind_admission_topology(
+            admission,
+            _topology_identity(retention_ledger),
+        )
         artifact_identity_after = _artifact_file_identity(
             retention_ledger,
             artifact,
