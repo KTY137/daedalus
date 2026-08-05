@@ -94,6 +94,7 @@ def test_repository_path_definition_accepts_only_canonical_posix_paths() -> None
         "attempt/../cas",
         "/attempt/cas",
         "C:/attempt/cas",
+        "artifact:attempt/cas",
         "attempt\\cas",
     ):
         assert re.fullmatch(pattern, value) is None
