@@ -63,13 +63,41 @@ def test_public_verifier_performs_two_replays_with_identity_fences() -> None:
     )
     assert source.count("inspect_effect_execution(authorization, execution)") == 2
     assert source.count("_effect_store_identity(effect_store_path)") == 3
+    assert source.index("authority_before") < source.index("store_before")
     assert source.index("store_before =") < source.index("first = inspect_effect_execution")
     assert source.index("store_mid =") > source.index("first = inspect_effect_execution")
     assert source.index("second = inspect_effect_execution") > source.index("store_mid =")
     assert source.index("store_after =") > source.index("second = inspect_effect_execution")
     assert "if first != second:" in source
+    assert "authority_after != authority_before" in source
     assert "terminal.output_digests != (" in source
     assert "completed_evidence.receipt_artifact_sha256" in source
+
+
+def test_authority_projection_requires_exact_revision_entrypoint_and_scope() -> None:
+    source = inspect.getsource(module._authority_snapshot)
+    assert "type(value) is not expected" in source
+    assert "request.entrypoint_id != RETENTION_ENTRYPOINT" in source
+    assert "lease.entrypoint_id != RETENTION_ENTRYPOINT" in source
+    assert "authority_revisions != {revision}" in source
+    assert "execution.requested_effects != lease.requested_effects" in source
+    assert "execution.writable_paths != lease.effect_scope.writable_paths" in source
+    assert "execution.kill_switch_generation != lease.kill_switch_generation" in source
+
+
+def test_snapshot_is_independently_rebound_and_rehashed() -> None:
+    source = inspect.getsource(module._require_completed_snapshot)
+    assert "type(snapshot) is not EffectExecutionReplaySnapshot" in source
+    assert 'snapshot.state != "COMPLETED"' in source
+    assert "start.lease_sha256 != authorization.lease.digest" in source
+    assert "start.execution_request_sha256 != execution.digest" in source
+    assert "expected_start_sha = canonical_sha" in source
+    assert "start_receipt_sha != expected_start_sha" in source
+    assert "terminal.lease_sha256 != authorization.lease.digest" in source
+    assert "terminal_start_sha != start_receipt_sha" in source
+    assert "expected_terminal_sha = canonical_sha" in source
+    assert "terminal_receipt_sha != expected_terminal_sha" in source
+    assert "terminal receipt precedes its start" in source
 
 
 def test_receipt_permanently_refuses_authority_escalation() -> None:
