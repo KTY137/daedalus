@@ -100,7 +100,7 @@ def test_admission_topology_is_exactly_bound_to_live_ledger_identities() -> None
     assert "root_path not in cas_path.parents" in source
 
 
-def test_authentication_and_retained_reads_are_surrounded_by_identity_fences() -> None:
+def test_authentication_and_both_retained_reads_have_identity_fences() -> None:
     source = inspect.getsource(
         completed.verify_provider_target_receipt_retention_completed_evidence
     )
@@ -112,6 +112,7 @@ def test_authentication_and_retained_reads_are_surrounded_by_identity_fences() -
     first_read = source.index("intent = _read_intent(")
     topology_after = source.index("topology_after = _bind_admission_topology")
     second_read = source.index("final_intent = _read_intent(")
+    topology_final = source.index("topology_final = _bind_admission_topology")
     final_subjects = source.index("final_subjects = _canonical_subjects")
 
     assert (
@@ -122,13 +123,16 @@ def test_authentication_and_retained_reads_are_surrounded_by_identity_fences() -
         < first_read
         < topology_after
         < second_read
+        < topology_final
         < final_subjects
     )
-    assert source.count("_bind_admission_topology(") == 3
+    assert source.count("_bind_admission_topology(") == 4
     assert "topology_mid != topology_before" in source
     assert "artifact_identity_mid != artifact_identity_before" in source
     assert "topology_after != topology_before" in source
     assert "artifact_identity_after != artifact_identity_before" in source
+    assert "topology_final != topology_before" in source
+    assert "artifact_identity_final != artifact_identity_before" in source
     assert "intent != final_intent" in source
 
 
