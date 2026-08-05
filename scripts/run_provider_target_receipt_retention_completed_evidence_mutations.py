@@ -15,11 +15,19 @@ MODULE = Path(
     "provider_target_receipt_retention_completed_evidence.py"
 )
 TESTS = (
-    "tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py",
-    "tests/runtimes/"
-    "test_provider_target_receipt_retention_completed_evidence_hardening.py",
-    "tests/runtimes/"
-    "test_provider_target_receipt_retention_completed_evidence_review.py",
+    Path("tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py"),
+    Path(
+        "tests/runtimes/"
+        "test_provider_target_receipt_retention_completed_evidence_hardening.py"
+    ),
+    Path(
+        "tests/runtimes/"
+        "test_provider_target_receipt_retention_completed_evidence_review.py"
+    ),
+)
+SUPPORT_TESTS = (
+    Path("tests/runtimes/test_provider_target_receipt_ledger.py"),
+    Path("tests/runtimes/test_provider_target_verification.py"),
 )
 
 MUTATIONS = (
@@ -110,18 +118,64 @@ MUTATIONS = (
 )
 
 
+def _copy_test(relative: Path, sandbox: Path) -> None:
+    source = ROOT / relative
+    target = sandbox / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+
+
 def _run(mutated_source: str, name: str) -> None:
     with tempfile.TemporaryDirectory(prefix=f"daedalus-{name}-") as directory:
-        sandbox = Path(directory)
+        sandbox = Path(directory).resolve()
         shutil.copytree(ROOT / "daedalus", sandbox / "daedalus")
+        for relative in (*TESTS, *SUPPORT_TESTS):
+            _copy_test(relative, sandbox)
+        conftest = ROOT / "tests" / "conftest.py"
+        if conftest.is_file():
+            _copy_test(Path("tests/conftest.py"), sandbox)
+
         target = sandbox / MODULE
         target.write_text(mutated_source, encoding="utf-8")
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(sandbox) + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(sandbox)
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+        env["DAEDALUS_MUTATION_SANDBOX"] = str(sandbox)
+
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import os; from pathlib import Path; "
+                    "import daedalus.runtimes."
+                    "provider_target_receipt_retention_completed_evidence as m; "
+                    "root=Path(os.environ['DAEDALUS_MUTATION_SANDBOX']).resolve(); "
+                    "actual=Path(m.__file__).resolve(); "
+                    "assert root in actual.parents, (root, actual)"
+                ),
+            ],
+            cwd=sandbox,
+            env=env,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        if probe.returncode != 0:
+            raise SystemExit(
+                f"mutation sandbox import isolation failed: {name}\n{probe.stdout}"
+            )
+
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", *TESTS],
-            cwd=ROOT,
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                *(relative.as_posix() for relative in TESTS),
+            ],
+            cwd=sandbox,
             env=env,
             check=False,
             stdout=subprocess.PIPE,
