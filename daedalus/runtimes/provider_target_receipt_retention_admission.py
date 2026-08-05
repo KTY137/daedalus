@@ -20,12 +20,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
+from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
     inspect_effect_execution,
 )
-from daedalus.kernel.effects import EffectExecutionRequest
+from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
 from daedalus.runtimes.provider_target_receipt_ledger import (
     ProviderTargetReceiptLedger,
 )
@@ -38,14 +39,10 @@ from daedalus.runtimes.provider_target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightReceipt,
     verify_provider_target_receipt_retention_preflight,
 )
-from daedalus.schemas import _repo_path, _revision, _sha256
+from daedalus.schemas import PolicyDecision, _repo_path, _revision, _sha256
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
 
-RETENTION_ENTRYPOINT_TARGET = (
-    "daedalus.runtimes.provider_target_receipt_retention_entrypoint:"
-    "retain_provider_target_receipt"
-)
 _EXECUTION_STATES = frozenset(
     {"not_started", "started", "COMPLETED", "FAILED", "CANCELLED"}
 )
@@ -492,6 +489,10 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
                 "retention admission receipt schema is wrong"
             )
         state = payload["execution_state"]
+        if type(state) is not str or state not in _EXECUTION_STATES:
+            raise ProviderTargetReceiptRetentionAdmissionShapeError(
+                "retention admission execution_state is unknown"
+            )
         expected_started = state != "not_started"
         expected_terminal = state in _TERMINAL_STATES
         expected_claims = {
@@ -524,6 +525,57 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
         return canonical_sha(self.to_dict())
 
 
+def _replay_preflight(
+    *,
+    repository_root: Path,
+    repository_head_receipt: Any,
+    receipt: Any,
+    inventory: Any,
+    authority: Any,
+    execution: EffectExecutionRequest,
+    effect_lease: EffectLease,
+    expected_authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    event_store_scope_path: str,
+    receipt_cas_scope_path: str,
+    at: Any,
+) -> ProviderTargetReceiptRetentionPreflightReceipt:
+    try:
+        preflight = verify_provider_target_receipt_retention_preflight(
+            repository_root,
+            repository_head_receipt,
+            receipt,
+            inventory,
+            authority,
+            execution,
+            effect_lease,
+            expected_authority_id=expected_authority_id,
+            authority_keyring=authority_keyring,
+            event_store_scope_path=event_store_scope_path,
+            receipt_cas_scope_path=receipt_cas_scope_path,
+            at=at,
+        )
+    except ProviderTargetReceiptRetentionPreflightError as exc:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention preflight did not reverify"
+        ) from exc
+    if type(preflight) is not ProviderTargetReceiptRetentionPreflightReceipt:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention preflight returned a non-exact receipt"
+        )
+    if (
+        preflight.retention_execution_request_sha256 != execution.digest
+        or preflight.retention_effect_lease_sha256 != effect_lease.digest
+        or preflight.provider_target_receipt_sha256 != receipt.digest
+        or preflight.retention_inventory_sha256 != inventory.digest
+        or preflight.retention_authority_sha256 != authority.digest
+    ):
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention preflight is detached from admission subjects"
+        )
+    return preflight
+
+
 def verify_provider_target_receipt_retention_admission(
     repository_root: Path,
     retention_root: Path,
@@ -543,8 +595,8 @@ def verify_provider_target_receipt_retention_admission(
 ) -> ProviderTargetReceiptRetentionAdmissionReceipt:
     """Verify one non-executing central-admission candidate.
 
-    The signed preflight is replayed before any persisted lease or topology
-    inspection. The function never grants, starts, finishes, or revokes an
+    The signed preflight and concrete topology are each fenced on both sides of
+    persisted replay. The function never grants, starts, finishes, or revokes an
     Effect Lease and never invokes ``ProviderTargetReceiptLedger.retain``.
     """
 
@@ -555,18 +607,35 @@ def verify_provider_target_receipt_retention_admission(
         raise ProviderTargetReceiptRetentionAdmissionShapeError(
             "repository_root and retention_root must be pathlib.Path"
         )
-    if type(execution) is not EffectExecutionRequest:
-        raise ProviderTargetReceiptRetentionAdmissionShapeError(
-            "execution must be exact EffectExecutionRequest"
-        )
-    if type(authorization) is not NonRuntimeEffectAuthorization:
-        raise ProviderTargetReceiptRetentionAdmissionShapeError(
-            "authorization must be exact NonRuntimeEffectAuthorization"
-        )
-    if type(retention_ledger) is not ProviderTargetReceiptLedger:
-        raise ProviderTargetReceiptRetentionAdmissionShapeError(
-            "retention_ledger must be exact ProviderTargetReceiptLedger"
-        )
+    exact_types = (
+        (execution, EffectExecutionRequest, "execution"),
+        (authorization, NonRuntimeEffectAuthorization, "authorization"),
+        (retention_ledger, ProviderTargetReceiptLedger, "retention_ledger"),
+    )
+    for value, expected, label in exact_types:
+        if type(value) is not expected:
+            raise ProviderTargetReceiptRetentionAdmissionShapeError(
+                f"{label} must be exact {expected.__name__}"
+            )
+    authorization_types = (
+        (authorization.lease, EffectLease, "authorization.lease"),
+        (authorization.request, EffectLeaseRequest, "authorization.request"),
+        (
+            authorization.policy_decision,
+            PolicyDecision,
+            "authorization.policy_decision",
+        ),
+        (
+            authorization.effect_ledger,
+            EffectLeaseLedger,
+            "authorization.effect_ledger",
+        ),
+    )
+    for value, expected, label in authorization_types:
+        if type(value) is not expected:
+            raise ProviderTargetReceiptRetentionAdmissionShapeError(
+                f"{label} must be exact {expected.__name__}"
+            )
     if authorization.lease.entrypoint_id != RETENTION_ENTRYPOINT:
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
             "persisted Effect Lease names the wrong retention entrypoint"
@@ -581,42 +650,23 @@ def verify_provider_target_receipt_retention_admission(
     request_digest = authorization.request.digest
     policy_digest = authorization.policy_decision.digest
 
-    try:
-        preflight = verify_provider_target_receipt_retention_preflight(
-            repository_root,
-            repository_head_receipt,
-            receipt,
-            inventory,
-            authority,
-            execution,
-            authorization.lease,
-            expected_authority_id=expected_authority_id,
-            authority_keyring=authority_keyring,
-            event_store_scope_path=event_store_scope_path,
-            receipt_cas_scope_path=receipt_cas_scope_path,
-            at=at,
-        )
-    except ProviderTargetReceiptRetentionPreflightError as exc:
-        raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "retention preflight did not reverify"
-        ) from exc
-    if type(preflight) is not ProviderTargetReceiptRetentionPreflightReceipt:
-        raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "retention preflight returned a non-exact receipt"
-        )
-    if (
-        preflight.retention_execution_request_sha256 != execution_digest
-        or preflight.retention_effect_lease_sha256 != lease_digest
-        or preflight.provider_target_receipt_sha256 != receipt.digest
-        or preflight.retention_inventory_sha256 != inventory.digest
-        or preflight.retention_authority_sha256 != authority.digest
-    ):
-        raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "retention preflight is detached from admission subjects"
-        )
+    preflight = _replay_preflight(
+        repository_root=repository_root,
+        repository_head_receipt=repository_head_receipt,
+        receipt=receipt,
+        inventory=inventory,
+        authority=authority,
+        execution=execution,
+        effect_lease=authorization.lease,
+        expected_authority_id=expected_authority_id,
+        authority_keyring=authority_keyring,
+        event_store_scope_path=event_store_scope_path,
+        receipt_cas_scope_path=receipt_cas_scope_path,
+        at=at,
+    )
     guard = _exact_guard(authorization, preflight)
 
-    primary, root, event, cas, effect_store = _verify_topology(
+    topology = _verify_topology(
         repository_root=repository_root,
         retention_root=retention_root,
         retention_ledger=retention_ledger,
@@ -636,6 +686,42 @@ def verify_provider_target_receipt_retention_admission(
             "effect replay returned a non-exact snapshot"
         )
 
+    final_topology = _verify_topology(
+        repository_root=repository_root,
+        retention_root=retention_root,
+        retention_ledger=retention_ledger,
+        effect_store_path=Path(authorization.effect_ledger.path),
+        event_store_scope_path=event_store_scope_path,
+        receipt_cas_scope_path=receipt_cas_scope_path,
+    )
+    if final_topology != topology:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention topology changed during persisted replay"
+        )
+
+    final_preflight = _replay_preflight(
+        repository_root=repository_root,
+        repository_head_receipt=repository_head_receipt,
+        receipt=receipt,
+        inventory=inventory,
+        authority=authority,
+        execution=execution,
+        effect_lease=authorization.lease,
+        expected_authority_id=expected_authority_id,
+        authority_keyring=authority_keyring,
+        event_store_scope_path=event_store_scope_path,
+        receipt_cas_scope_path=receipt_cas_scope_path,
+        at=at,
+    )
+    if final_preflight.digest != preflight.digest:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention preflight changed during persisted replay"
+        )
+    if _exact_guard(authorization, final_preflight) != guard:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention guard changed during persisted replay"
+        )
+
     state = "not_started"
     start_digest = None
     terminal_digest = None
@@ -648,14 +734,15 @@ def verify_provider_target_receipt_retention_admission(
             else replay.terminal_receipt.receipt_sha256
         )
 
+    primary, root, event, cas, effect_store = final_topology
     result = ProviderTargetReceiptRetentionAdmissionReceipt(
-        source_revision=preflight.source_revision,
-        preflight_sha256=preflight.digest,
+        source_revision=final_preflight.source_revision,
+        preflight_sha256=final_preflight.digest,
         provider_target_receipt_sha256=(
-            preflight.provider_target_receipt_sha256
+            final_preflight.provider_target_receipt_sha256
         ),
-        retention_inventory_sha256=preflight.retention_inventory_sha256,
-        retention_authority_sha256=preflight.retention_authority_sha256,
+        retention_inventory_sha256=final_preflight.retention_inventory_sha256,
+        retention_authority_sha256=final_preflight.retention_authority_sha256,
         retention_execution_request_sha256=execution_digest,
         retention_effect_lease_sha256=lease_digest,
         retention_effect_lease_request_sha256=request_digest,
@@ -677,7 +764,10 @@ def verify_provider_target_receipt_retention_admission(
         or authorization.lease.digest != lease_digest
         or authorization.request.digest != request_digest
         or authorization.policy_decision.digest != policy_digest
-        or result.preflight_sha256 != preflight.digest
+        or receipt.digest != result.provider_target_receipt_sha256
+        or inventory.digest != result.retention_inventory_sha256
+        or authority.digest != result.retention_authority_sha256
+        or result.preflight_sha256 != final_preflight.digest
     ):
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
             "retention admission subject changed during verification"
@@ -686,7 +776,6 @@ def verify_provider_target_receipt_retention_admission(
 
 
 __all__ = [
-    "RETENTION_ENTRYPOINT_TARGET",
     "ProviderTargetReceiptRetentionAdmissionBindingError",
     "ProviderTargetReceiptRetentionAdmissionError",
     "ProviderTargetReceiptRetentionAdmissionReceipt",
