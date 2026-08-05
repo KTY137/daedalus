@@ -1,0 +1,82 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION",
+  "classification": "ALIGNED",
+  "active_gate": 0,
+  "owner": "repository owner",
+  "base_revision": "4d67a562343d920da589d75cfecc8109657061fa",
+  "dependencies": [
+    "G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION"
+  ],
+  "primary_claim": "An authenticated inert provider-target verification receipt is durably retained through the canonical Event Store and existing content-addressed artifact store with restart-safe replay and no provider execution authority.",
+  "in_scope": [
+    "daedalus/runtimes/provider_target_receipt_ledger.py",
+    "tests/runtimes/test_provider_target_receipt_ledger.py",
+    "tests/runtimes/test_provider_target_receipt_ledger_review.py",
+    "scripts/run_provider_target_receipt_retention_mutations.py",
+    ".github/workflows/g0-provider-target-receipt-retention.yml",
+    "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.json",
+    "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.md"
+  ],
+  "forbidden": [
+    "main",
+    "experimental",
+    "provider loading or invocation",
+    "production invoke or output_digests callbacks",
+    "automatic reconciliation of provider outcomes",
+    "OwnerApproval construction or consumption",
+    "PromotionReceipt construction",
+    "merge or promotion",
+    "Gate transition or closed=true claim"
+  ],
+  "contracts": {
+    "event_store_kind": "runtime.provider-target-verification-retention",
+    "intent_schema": "daedalus-provider-target-verification-retention-intent/1",
+    "terminal_schema": "daedalus-provider-target-verification-retention-terminal/1",
+    "artifact_identity": "canonical receipt JSON SHA-256",
+    "wiring": "local_guards",
+    "provider_execution_allowed": false
+  },
+  "acceptance": {
+    "authenticate_before_any_retention_write": true,
+    "intent_before_cas_publication": true,
+    "cas_before_terminal_completion": true,
+    "one_event_store_no_second_database": true,
+    "one_receipt_intent_per_digest": true,
+    "restart_after_intent": true,
+    "restart_after_cas_publication": true,
+    "completed_replay_inert": true,
+    "exact_cas_readback": true,
+    "strict_duplicate_key_and_noncanonical_event_refusal": true,
+    "primary_checkout_disjointness": true,
+    "exact_authority_container_types": true,
+    "independent_no_loader_no_execution_review": true,
+    "bounded_mutation_campaign": 5,
+    "supported_ci": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "packaging_and_isolated_wheel": true,
+    "full_suite": true
+  },
+  "verification": {
+    "focused_builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_and_stale_tests_prepared": true,
+    "restart_and_mutation_tests_prepared": true,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute",
+    "hard_evidence_claimed": false
+  },
+  "known_boundaries": [
+    "The retention writer remains LOCAL_GUARDS and is not yet admitted by a persisted Effect Lease.",
+    "The canonical effect registry must classify this newly introduced write path before any production caller may use it.",
+    "The receipt remains structurally verified and cannot authorize provider execution.",
+    "No guarded executable registry or loader consumes the retained receipt yet.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared tests are not represented as executed evidence."
+  ],
+  "rollback": "Close the draft and delete the short-lived branch. No production caller, merge, promotion, approval, Gate state or primary checkout is changed.",
+  "promotion_requested": false,
+  "closed": false
+}
