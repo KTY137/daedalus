@@ -10,7 +10,9 @@ Every row is deliberately `inventory_only`, blocking, unguarded, without a consu
 
 ## Adversarial preparation
 
-The prepared batch covers deterministic reconstruction, exact source/revision binding, missing, duplicate and renamed anchors, malformed revisions, strict UTF-8, BOM, NUL and syntax refusal, source symlink refusal, canonical JSON reporting, a separate source-review perspective, six bounded mutants, predecessor retention regressions, full suite, package build, isolated-wheel imports, and Ubuntu/Windows on Python 3.10/3.12 with two hash seeds.
+The prepared batch covers deterministic reconstruction, exact source/revision binding, missing, duplicate, renamed and otherwise unclassified anchors, a closed two-call SQL set in the schema-invariant method, malformed revisions, strict UTF-8, BOM, NUL and syntax refusal, final-file and parent-directory symlink refusal, repository-root containment, canonical JSON reporting, a separate source-review perspective, seven bounded mutants, predecessor retention regressions, full suite, package build, isolated-wheel imports, and Ubuntu/Windows on Python 3.10/3.12 with two hash seeds.
+
+Static counter-review found and corrected two defects before dependency use: the first scanner checked only the final source path rather than every parent component, and it identified the schema write without refusing additional unclassified SQL calls in the same method. The corrected scanner rejects both cases. This review history is not executable evidence.
 
 Source inspection and LLM statements are not hard evidence. Exact-head execution remains pending while repository issue #67 terminates hosted Actions jobs before Step 1 with no logs or artifacts.
 
