@@ -12,6 +12,7 @@
   "in_scope": [
     "daedalus/runtimes/provider_target_receipt_ledger.py",
     "tests/runtimes/test_provider_target_receipt_ledger.py",
+    "tests/runtimes/test_provider_target_receipt_ledger_hardening.py",
     "tests/runtimes/test_provider_target_receipt_ledger_review.py",
     "scripts/run_provider_target_receipt_retention_mutations.py",
     ".github/workflows/g0-provider-target-receipt-retention.yml",
@@ -38,16 +39,18 @@
     "provider_execution_allowed": false
   },
   "acceptance": {
-    "authenticate_before_any_retention_write": true,
+    "authenticate_before_any_retention_or_schema_write": true,
     "intent_before_cas_publication": true,
     "cas_before_terminal_completion": true,
     "one_event_store_no_second_database": true,
     "one_receipt_intent_per_digest": true,
+    "unique_index_definition_reverified": true,
     "restart_after_intent": true,
     "restart_after_cas_publication": true,
     "completed_replay_inert": true,
     "exact_cas_readback": true,
     "strict_duplicate_key_and_noncanonical_event_refusal": true,
+    "execution_trace_binding": true,
     "primary_checkout_disjointness": true,
     "exact_authority_container_types": true,
     "independent_no_loader_no_execution_review": true,
@@ -65,7 +68,7 @@
     "focused_builder_tests_prepared": true,
     "independent_source_review_prepared": true,
     "malformed_and_stale_tests_prepared": true,
-    "restart_and_mutation_tests_prepared": true,
+    "restart_concurrency_and_mutation_tests_prepared": true,
     "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute",
     "hard_evidence_claimed": false
   },
