@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import runpy
 from pathlib import Path
 
 import pytest
 
+from daedalus.kernel.artifacts import ArtifactRef
+import daedalus.runtimes.provider_target_receipt_retention_completed_evidence as completed_module
 from daedalus.runtimes.provider_target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionReceipt,
 )
@@ -68,7 +71,16 @@ def _admission(primary, spine, ledger, fixture, receipt, **overrides):
     return ProviderTargetReceiptRetentionAdmissionReceipt(**values)
 
 
-def _verify(admission, recovery, ledger, receipt, fixture, **overrides):
+def _verify(
+    admission,
+    recovery,
+    ledger,
+    receipt,
+    fixture,
+    *,
+    source_tree_ref=None,
+    **overrides,
+):
     values = {
         "expected_source_revision": receipt.source_revision,
         "target_contract_id": TARGET_CONTRACT_ID,
@@ -90,7 +102,7 @@ def _verify(admission, recovery, ledger, receipt, fixture, **overrides):
         fixture.identity_registry,
         fixture.execution,
         fixture.target_manifest,
-        fixture.tree_ref,
+        fixture.tree_ref if source_tree_ref is None else source_tree_ref,
         **values,
     )
 
@@ -121,20 +133,23 @@ def test_completed_retention_evidence_is_read_only_and_canonical(
     )
 
     evidence = _verify(admission, recovery, ledger, receipt, fixture)
+    payload = evidence.to_dict()
 
     assert evidence.retention_intent_id == retained.intent_id
     assert evidence.receipt_artifact_sha256 == receipt.digest
     assert evidence.provider_target_receipt_sha256 == receipt.digest
     assert evidence.start_receipt_sha256 == admission.start_receipt_sha256
     assert evidence.terminal_receipt_sha256 == admission.terminal_receipt_sha256
-    assert evidence.to_dict()["retained_receipt_cas_verified"] is True
-    assert evidence.to_dict()["persisted_effect_terminal_verified"] is False
-    assert evidence.to_dict()["automatic_reexecution_allowed"] is False
-    assert evidence.to_dict()["closed"] is False
+    assert len(evidence.retention_topology_identity_sha256) == 64
+    assert len(evidence.receipt_artifact_file_identity_sha256) == 64
+    assert payload["retained_receipt_cas_verified"] is True
+    assert payload["retention_topology_stable"] is True
+    assert payload["receipt_artifact_identity_stable"] is True
+    assert payload["persisted_effect_terminal_verified"] is False
+    assert payload["automatic_reexecution_allowed"] is False
+    assert payload["closed"] is False
     assert (
-        ProviderTargetReceiptRetentionCompletedEvidenceReceipt.from_dict(
-            evidence.to_dict()
-        )
+        ProviderTargetReceiptRetentionCompletedEvidenceReceipt.from_dict(payload)
         == evidence
     )
     spine.close()
@@ -154,7 +169,28 @@ def test_completed_evidence_refuses_substituted_cas_bytes(tmp_path) -> None:
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
-        match="Event-Store or CAS evidence",
+        match="Event-Store or CAS evidence|provider-target receipt",
+    ):
+        _verify(admission, recovery, ledger, receipt, fixture)
+    spine.close()
+
+
+def test_completed_evidence_refuses_hard_linked_artifact_identity(tmp_path) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    primary, spine, ledger = _ledger(tmp_path, fixture)
+    retained = _retain(ledger, receipt, fixture)
+    admission = _admission(primary, spine, ledger, fixture, receipt)
+    recovery = decide_provider_target_receipt_retention_recovery(
+        admission,
+        expected_source_revision=receipt.source_revision,
+    )
+    alias = tmp_path / "retained-receipt-alias"
+    os.link(fixture.store._object_path(retained.artifact.sha256), alias)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
+        match="one filesystem identity",
     ):
         _verify(admission, recovery, ledger, receipt, fixture)
     spine.close()
@@ -194,6 +230,44 @@ def test_completed_evidence_refuses_terminal_event_substitution(tmp_path) -> Non
     spine.close()
 
 
+def test_completed_evidence_refuses_topology_identity_race(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    primary, spine, ledger = _ledger(tmp_path, fixture)
+    _retain(ledger, receipt, fixture)
+    admission = _admission(primary, spine, ledger, fixture, receipt)
+    recovery = decide_provider_target_receipt_retention_recovery(
+        admission,
+        expected_source_revision=receipt.source_revision,
+    )
+    original = completed_module._topology_identity
+    calls = 0
+
+    def changing_topology(value):
+        nonlocal calls
+        calls += 1
+        result = original(value)
+        if calls > 1:
+            result = {
+                key: dict(identity)
+                for key, identity in result.items()
+            }
+            result["event_store"]["inode"] += 1
+        return result
+
+    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
+        match="topology changed",
+    ):
+        _verify(admission, recovery, ledger, receipt, fixture)
+    spine.close()
+
+
 def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -> None:
     fixture = _fixture(tmp_path / "fixture")
     receipt = _issue(fixture)
@@ -204,6 +278,7 @@ def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -
         admission,
         expected_source_revision=receipt.source_revision,
     )
+    stale = "0" * 40 if receipt.source_revision != "0" * 40 else "1" * 40
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
@@ -215,7 +290,7 @@ def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -
             ledger,
             receipt,
             fixture,
-            expected_source_revision="f" * 40,
+            expected_source_revision=stale,
         )
 
     failed_admission = dataclasses.replace(
@@ -269,6 +344,40 @@ def test_completed_evidence_refuses_detached_and_non_exact_inputs(tmp_path) -> N
         match="admission must be exact",
     ):
         _verify(derived, recovery, ledger, receipt, fixture)
+
+    class DerivedArtifactRef(ArtifactRef):
+        pass
+
+    derived_ref = DerivedArtifactRef(
+        sha256=fixture.tree_ref.sha256,
+        locator=fixture.tree_ref.locator,
+    )
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
+        match="source_tree_ref must be exact",
+    ):
+        _verify(
+            admission,
+            recovery,
+            ledger,
+            receipt,
+            fixture,
+            source_tree_ref=derived_ref,
+        )
+
+    for invalid in (True, 0, -1):
+        with pytest.raises(
+            ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
+            match="max_source_bytes",
+        ):
+            _verify(
+                admission,
+                recovery,
+                ledger,
+                receipt,
+                fixture,
+                max_source_bytes=invalid,
+            )
     spine.close()
 
 
@@ -287,7 +396,9 @@ def test_completed_evidence_wire_claims_fail_closed(tmp_path) -> None:
     for field in (
         "persisted_effect_terminal_verified",
         "automatic_reexecution_allowed",
+        "effect_start_authorized",
         "retention_write_authorized",
+        "effect_terminalization_authorized",
         "canonical_entrypoint_registered",
         "gate_transition_authorized",
         "closed",
@@ -297,6 +408,18 @@ def test_completed_evidence_wire_claims_fail_closed(tmp_path) -> None:
         with pytest.raises(
             ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
             match="unsupported claim",
+        ):
+            ProviderTargetReceiptRetentionCompletedEvidenceReceipt.from_dict(payload)
+
+    for field in (
+        "retention_topology_stable",
+        "receipt_artifact_identity_stable",
+    ):
+        payload = evidence.to_dict()
+        payload[field] = False
+        with pytest.raises(
+            ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
+            match="lost required claim",
         ):
             ProviderTargetReceiptRetentionCompletedEvidenceReceipt.from_dict(payload)
     spine.close()
