@@ -83,6 +83,16 @@ MUTATIONS = (
         "        if False and _paths_overlap(\n",
     ),
     (
+        "exact-inventory-surface-type-bypass",
+        "            type(row) is not ProviderTargetReceiptRetentionSurface\n",
+        "            False\n",
+    ),
+    (
+        "canonical-scope-path-bypass",
+        "    if path != value:\n",
+        "    if False:\n",
+    ),
+    (
         "persisted-lease-claim-escalation",
         '            "persisted_effect_lease_verified": False,\n',
         '            "persisted_effect_lease_verified": True,\n',
