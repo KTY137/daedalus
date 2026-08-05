@@ -59,11 +59,20 @@ def test_authentication_and_validation_precede_intent_then_cas_then_terminal() -
     rendered = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
     verify_at = rendered.index("verify_provider_target_verification_receipt")
     payload_at = rendered.index("_receipt_bytes(receipt)")
+    topology_at = rendered.index("_validate_topology")
     schema_at = rendered.index("self._install_single_receipt_invariant")
     intent_at = rendered.index("self._record_or_recover_intent")
     cas_at = rendered.index("self.source_store.put_bytes")
     terminal_at = rendered.index("self.spine.mark_completed")
-    assert verify_at < payload_at < schema_at < intent_at < cas_at < terminal_at
+    assert (
+        verify_at
+        < payload_at
+        < topology_at
+        < schema_at
+        < intent_at
+        < cas_at
+        < terminal_at
+    )
 
     helper = ast.unparse(
         _method("ProviderTargetReceiptLedger", "_record_or_recover_intent")
@@ -138,9 +147,16 @@ def test_primary_checkout_is_only_inspected_and_never_a_write_target() -> None:
     assert "primary_checkout" in topology
     assert "_paths_overlap(primary, store_root)" in topology
     assert "_paths_overlap(primary, event_store)" in topology
+    assert "stat.S_ISREG(event_store_stat.st_mode)" in topology
+    assert "event_store_stat.st_nlink != 1" in topology
+    assert "_contains_symlink(path)" in topology
+    assert "_validate_topology(self.primary_checkout, self.source_store, self.spine)" in retain
     assert "write_bytes" not in source
     assert "mkdir" not in source
-    assert "primary_checkout" not in retain
+    assert "primary_checkout" not in retain.replace(
+        "_validate_topology(self.primary_checkout, self.source_store, self.spine)",
+        "",
+    )
 
 
 def test_single_receipt_invariant_is_scoped_and_definition_checked() -> None:
