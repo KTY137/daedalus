@@ -222,6 +222,20 @@ def _execute_name_argument(name: str) -> Callable[[ast.Call], bool]:
     return matches
 
 
+def _exact_sql_literal(expected: str) -> Callable[[ast.Call], bool]:
+    normalized_expected = " ".join(expected.split())
+
+    def matches(call: ast.Call) -> bool:
+        if _syntactic_name(call.func) != "connection.execute" or not call.args:
+            return False
+        value = call.args[0]
+        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            return False
+        return " ".join(value.value.split()) == normalized_expected
+
+    return matches
+
+
 def _surface(
     node: ast.Call,
     *,
@@ -264,11 +278,27 @@ def _discover_surfaces(
         )
     )
 
+    invariant_method = methods["_install_single_receipt_invariant"]
     invariant_write = _exact_call(
-        methods["_install_single_receipt_invariant"],
+        invariant_method,
         label="unique-index schema write",
         predicate=_execute_name_argument("expected"),
     )
+    _exact_call(
+        invariant_method,
+        label="sqlite-master verification read",
+        predicate=_exact_sql_literal(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name=?"
+        ),
+    )
+    execute_calls = _matching_calls(
+        invariant_method,
+        lambda call: _syntactic_name(call.func) == "connection.execute",
+    )
+    if len(execute_calls) != 2:
+        raise ProviderTargetReceiptRetentionInventoryError(
+            "schema invariant method contains an unclassified SQL call"
+        )
     rows.append(
         _surface(
             invariant_write,
@@ -337,6 +367,22 @@ def _discover_surfaces(
     return tuple(sorted(rows))
 
 
+def _contains_symlink(path: Path) -> bool:
+    current = Path(path.anchor) if path.is_absolute() else Path()
+    for part in path.parts:
+        if part == path.anchor:
+            continue
+        current = current / part
+        try:
+            if current.is_symlink():
+                return True
+        except OSError as exc:
+            raise ProviderTargetReceiptRetentionInventoryError(
+                "retention source path could not be inspected"
+            ) from exc
+    return False
+
+
 def _read_stable_source(path: Path) -> bytes:
     try:
         before = path.lstat()
@@ -399,7 +445,20 @@ def scan_provider_target_receipt_retention(
         raise ProviderTargetReceiptRetentionInventoryError(
             "repository root could not be inspected"
         ) from exc
-    raw = _read_stable_source(root / _SOURCE_PATH)
+    source_path = root / _SOURCE_PATH
+    if _contains_symlink(source_path):
+        raise ProviderTargetReceiptRetentionInventoryError(
+            "retention source path must not contain symlinks"
+        )
+    try:
+        resolved_root = root.resolve(strict=True)
+        resolved_source = source_path.resolve(strict=True)
+        resolved_source.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionInventoryError(
+            "retention source must remain inside the repository root"
+        ) from exc
+    raw = _read_stable_source(source_path)
     if raw.startswith(b"\xef\xbb\xbf") or b"\x00" in raw:
         raise ProviderTargetReceiptRetentionInventoryError(
             "retention source contains forbidden encoding markers"
