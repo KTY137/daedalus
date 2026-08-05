@@ -4,11 +4,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
 TESTS = (
     "tests/runtimes/test_provider_target_receipt_ledger.py",
+    "tests/runtimes/test_provider_target_receipt_ledger_hardening.py",
     "tests/runtimes/test_provider_target_receipt_ledger_review.py",
 )
 MUTATIONS = {
@@ -35,8 +35,8 @@ MUTATIONS = {
         "        try:\n            retained = self.source_store.read_bytes(\n",
     ),
     "remove-receipt-unique-index": (
-        "                    f\"CREATE UNIQUE INDEX IF NOT EXISTS {_UNIQUE_INDEX} \"\n",
-        "                    f\"CREATE INDEX IF NOT EXISTS {_UNIQUE_INDEX} \"\n",
+        "            f\"CREATE UNIQUE INDEX IF NOT EXISTS {_UNIQUE_INDEX} \"\n",
+        "            f\"CREATE INDEX IF NOT EXISTS {_UNIQUE_INDEX} \"\n",
     ),
 }
 
