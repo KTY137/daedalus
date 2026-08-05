@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/fault-matrix-contract.schema.json",
+  "title": "Daedalus Fault Matrix Contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/manifest" },
+    { "$ref": "#/$defs/scenarioReceipt" },
+    { "$ref": "#/$defs/verificationReceipt" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "identifierArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/identifier" },
+      "uniqueItems": true
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id",
+        "injection_point",
+        "targeted_invariants",
+        "expected_outcome",
+        "expected_durable_markers",
+        "forbidden_durable_markers",
+        "restart_policy",
+        "process_termination",
+        "automatic_reexecution_allowed",
+        "primary_checkout_mutation_allowed",
+        "llm_evidence_allowed"
+      ],
+      "properties": {
+        "scenario_id": { "$ref": "#/$defs/identifier" },
+        "injection_point": { "$ref": "#/$defs/identifier" },
+        "targeted_invariants": {
+          "allOf": [
+            { "$ref": "#/$defs/identifierArray" },
+            { "minItems": 1 }
+          ]
+        },
+        "expected_outcome": {
+          "enum": [
+            "blocked_before_effect",
+            "recoverable_restart",
+            "reconcile_only",
+            "terminal_failure",
+            "terminal_success_replay"
+          ]
+        },
+        "expected_durable_markers": { "$ref": "#/$defs/identifierArray" },
+        "forbidden_durable_markers": { "$ref": "#/$defs/identifierArray" },
+        "restart_policy": {
+          "enum": [
+            "manual_retry",
+            "retry_same_execution",
+            "reconcile_only",
+            "replay_only",
+            "no_retry"
+          ]
+        },
+        "process_termination": { "type": "boolean" },
+        "automatic_reexecution_allowed": { "const": false },
+        "primary_checkout_mutation_allowed": { "const": false },
+        "llm_evidence_allowed": { "const": false }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "matrix_id",
+        "gate",
+        "source_revision",
+        "subject_entrypoint_id",
+        "scenarios",
+        "scenario_count",
+        "inventory_complete_claimed",
+        "faults_executed",
+        "gate_transition_authorized",
+        "closed"
+      ],
+      "properties": {
+        "schema": { "const": "daedalus-fault-matrix-manifest/1" },
+        "matrix_id": { "$ref": "#/$defs/identifier" },
+        "gate": { "const": 0 },
+        "source_revision": { "$ref": "#/$defs/revision" },
+        "subject_entrypoint_id": { "$ref": "#/$defs/identifier" },
+        "scenarios": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/scenario" }
+        },
+        "scenario_count": { "type": "integer", "minimum": 1 },
+        "inventory_complete_claimed": { "const": false },
+        "faults_executed": { "const": false },
+        "gate_transition_authorized": { "const": false },
+        "closed": { "const": false }
+      }
+    },
+    "scenarioReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "scenario_id",
+        "scenario_spec_sha256",
+        "source_revision",
+        "harness_revision",
+        "injection_fingerprint",
+        "observed_outcome",
+        "durable_markers",
+        "primary_checkout_before_sha256",
+        "primary_checkout_after_sha256",
+        "run_artifact_sha256",
+        "automatic_reexecution_performed",
+        "llm_evidence_used",
+        "gate_transition_authorized",
+        "closed"
+      ],
+      "properties": {
+        "schema": { "const": "daedalus-fault-scenario-receipt/1" },
+        "scenario_id": { "$ref": "#/$defs/identifier" },
+        "scenario_spec_sha256": { "$ref": "#/$defs/sha256" },
+        "source_revision": { "$ref": "#/$defs/revision" },
+        "harness_revision": { "$ref": "#/$defs/revision" },
+        "injection_fingerprint": { "$ref": "#/$defs/sha256" },
+        "observed_outcome": {
+          "enum": [
+            "blocked_before_effect",
+            "recoverable_restart",
+            "reconcile_only",
+            "terminal_failure",
+            "terminal_success_replay"
+          ]
+        },
+        "durable_markers": { "$ref": "#/$defs/identifierArray" },
+        "primary_checkout_before_sha256": { "$ref": "#/$defs/sha256" },
+        "primary_checkout_after_sha256": { "$ref": "#/$defs/sha256" },
+        "run_artifact_sha256": { "$ref": "#/$defs/sha256" },
+        "automatic_reexecution_performed": { "const": false },
+        "llm_evidence_used": { "const": false },
+        "gate_transition_authorized": { "const": false },
+        "closed": { "const": false }
+      }
+    },
+    "verificationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "matrix_id",
+        "manifest_sha256",
+        "source_revision",
+        "harness_revision",
+        "scenario_receipt_sha256s",
+        "status",
+        "failure_count",
+        "failed_scenario_ids",
+        "missing_scenario_ids",
+        "extra_scenario_ids",
+        "inventory_complete",
+        "primary_checkout_unchanged",
+        "automatic_reexecution_absent",
+        "llm_evidence_absent",
+        "gate_transition_authorized",
+        "closed"
+      ],
+      "properties": {
+        "schema": { "const": "daedalus-fault-matrix-verification/1" },
+        "matrix_id": { "$ref": "#/$defs/identifier" },
+        "manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "source_revision": { "$ref": "#/$defs/revision" },
+        "harness_revision": { "$ref": "#/$defs/revision" },
+        "scenario_receipt_sha256s": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sha256" },
+          "uniqueItems": true
+        },
+        "status": { "enum": ["passed", "failed"] },
+        "failure_count": { "type": "integer", "minimum": 0 },
+        "failed_scenario_ids": { "$ref": "#/$defs/identifierArray" },
+        "missing_scenario_ids": { "$ref": "#/$defs/identifierArray" },
+        "extra_scenario_ids": { "$ref": "#/$defs/identifierArray" },
+        "inventory_complete": { "type": "boolean" },
+        "primary_checkout_unchanged": { "type": "boolean" },
+        "automatic_reexecution_absent": { "type": "boolean" },
+        "llm_evidence_absent": { "type": "boolean" },
+        "gate_transition_authorized": { "const": false },
+        "closed": { "const": false }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": { "const": "passed" },
+            "failure_count": { "const": 0 },
+            "failed_scenario_ids": { "maxItems": 0 },
+            "missing_scenario_ids": { "maxItems": 0 },
+            "extra_scenario_ids": { "maxItems": 0 },
+            "inventory_complete": { "const": true },
+            "primary_checkout_unchanged": { "const": true },
+            "automatic_reexecution_absent": { "const": true },
+            "llm_evidence_absent": { "const": true }
+          }
+        },
+        {
+          "properties": {
+            "status": { "const": "failed" }
+          }
+        }
+      ]
+    }
+  }
+}
