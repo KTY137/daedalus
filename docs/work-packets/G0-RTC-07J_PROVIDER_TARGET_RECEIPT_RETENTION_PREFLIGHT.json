@@ -1,0 +1,89 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-07J_PROVIDER_TARGET_RECEIPT_RETENTION_PREFLIGHT",
+  "title": "Provider Target Receipt Retention Read-Only Preflight",
+  "gate": 0,
+  "status": "prepared_not_executed",
+  "branch": "g0/provider-target-receipt-retention-preflight-linear",
+  "exact_parent_revision": "415b07394ac4c5d2fc7481e27c9c47b40119d859",
+  "parent_pull_request": 217,
+  "scope": {
+    "kind": "additive_read_only_composition",
+    "production_entrypoint_changed": false,
+    "canonical_registry_changed": false,
+    "effect_lease_state_changed": false,
+    "provider_executed": false,
+    "receipt_retained": false,
+    "primary_checkout_mutated": false,
+    "owner_approval_issued": false,
+    "promotion_performed": false,
+    "gate_transition_requested": false
+  },
+  "composed_subjects": [
+    "RepositoryHeadRevisionReceipt with live process-free reverification",
+    "ProviderExecutableTargetVerificationReceipt",
+    "freshly rebuilt ProviderTargetReceiptRetentionInventory",
+    "ProviderTargetReceiptRetentionOperationAuthority",
+    "ProviderTargetReceiptRetentionOperationSubject",
+    "EffectExecutionRequest",
+    "inert EffectLease subject"
+  ],
+  "ordering_contract": [
+    "rebuild the expected signed retention subject from exact supplied subjects",
+    "authenticate the signed retention authority and exact guard decision before repository reads",
+    "live-reverify the exact repository HEAD receipt against the provider receipt revision",
+    "rebuild the retention inventory from current repository bytes",
+    "require exact inventory equality and return a non-authorizing canonical preflight receipt"
+  ],
+  "receipt_claims": {
+    "repository_head_reverified": true,
+    "retention_inventory_rebuilt": true,
+    "retention_authority_authenticated": true,
+    "guard_decision_allowed": true,
+    "provider_execution_allowed": false,
+    "persisted_effect_lease_verified": false,
+    "retention_effect_started": false,
+    "retention_write_performed": false,
+    "canonical_entrypoint_registered": false,
+    "gate_transition_authorized": false,
+    "closed": false
+  },
+  "adversarial_coverage_prepared": [
+    "valid exact-subject and strict wire round trip",
+    "invalid authority refusal before repository reads",
+    "stale repository HEAD refusal",
+    "current source-byte and inventory-digest substitution refusal",
+    "guard evidence and unsupported authority-claim refusal",
+    "independent AST authority and ordering review",
+    "strict JSON Schema review",
+    "eight bounded mutations",
+    "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
+    "predecessor regressions, full suite, package build, and isolated-wheel import"
+  ],
+  "remaining_dependent_boundary": [
+    "authenticate and consume the persisted retention Effect Lease immediately before mutation",
+    "register the exact production retention entrypoint and guard contract centrally",
+    "prove concrete Event Store and CAS targets are outside the Primary Checkout at the effect boundary",
+    "invoke the retention ledger only after the durable effect start",
+    "reconcile every intent/CAS/terminal fault window without automatic re-execution",
+    "bind the resulting semantic receipts into the canonical Gate-0 release report"
+  ],
+  "external_verification_blocker": {
+    "issue": 67,
+    "description": "Hosted GitHub Actions jobs terminate before Step 1 with steps=null and no logs or artifacts.",
+    "hard_evidence_available": false,
+    "zero_step_runs_count_as_product_evidence": false
+  },
+  "verification": {
+    "builder": "requested_not_executed",
+    "independent_review": "requested_not_executed",
+    "malformed_and_stale": "requested_not_executed",
+    "bypass_and_mutation": "requested_not_executed",
+    "full_suite": "requested_not_executed",
+    "packaging": "requested_not_executed",
+    "supported_platform_matrix": "requested_not_executed"
+  },
+  "automatic_merge": false,
+  "automatic_promotion": false,
+  "owner_approval_fabricated": false
+}
