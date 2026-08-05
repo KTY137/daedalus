@@ -69,27 +69,39 @@ MUTATIONS = (
     ),
     (
         "effect-start-claim-escalation",
+        '            "terminal_state_observed": terminal,\n'
         '            "automatic_reexecution_allowed": False,\n'
         '            "effect_start_authorized": False,\n'
         '            "retention_write_authorized": False,\n',
+        '            "terminal_state_observed": terminal,\n'
         '            "automatic_reexecution_allowed": False,\n'
         '            "effect_start_authorized": True,\n'
         '            "retention_write_authorized": False,\n',
     ),
     (
         "retention-write-claim-escalation",
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": False,\n'
         '            "effect_start_authorized": False,\n'
         '            "retention_write_authorized": False,\n'
         '            "effect_terminalization_authorized": False,\n',
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": False,\n'
         '            "effect_start_authorized": False,\n'
         '            "retention_write_authorized": True,\n'
         '            "effect_terminalization_authorized": False,\n',
     ),
     (
         "terminalization-claim-escalation",
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": False,\n'
+        '            "effect_start_authorized": False,\n'
         '            "retention_write_authorized": False,\n'
         '            "effect_terminalization_authorized": False,\n'
         '            "canonical_entrypoint_registered": False,\n',
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": False,\n'
+        '            "effect_start_authorized": False,\n'
         '            "retention_write_authorized": False,\n'
         '            "effect_terminalization_authorized": True,\n'
         '            "canonical_entrypoint_registered": False,\n',
