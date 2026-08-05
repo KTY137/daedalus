@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import sqlite3
 import stat
 from dataclasses import dataclass
 from pathlib import Path
@@ -206,6 +207,39 @@ def _path_attribute(value: Any, label: str) -> Path:
     return value
 
 
+def _spine_database_identity(spine: SpineLedger) -> _Identity:
+    connection = getattr(spine, "_conn", None)
+    lock = getattr(spine, "_lock", None)
+    if type(connection) is not sqlite3.Connection:
+        raise ProviderTargetReceiptRetentionAdmissionShapeError(
+            "retention_ledger.spine must retain one exact SQLite connection"
+        )
+    if lock is None or not hasattr(lock, "__enter__") or not hasattr(
+        lock,
+        "__exit__",
+    ):
+        raise ProviderTargetReceiptRetentionAdmissionShapeError(
+            "retention_ledger.spine lock is malformed"
+        )
+    try:
+        with lock:
+            rows = connection.execute("PRAGMA database_list").fetchall()
+    except (sqlite3.Error, RuntimeError, TypeError) as exc:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention_ledger.spine connection cannot be inspected"
+        ) from exc
+    main_rows = [row for row in rows if len(row) >= 3 and row[1] == "main"]
+    if len(main_rows) != 1 or type(main_rows[0][2]) is not str or not main_rows[0][2]:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "retention_ledger.spine connection has no concrete main database"
+        )
+    return _identity(
+        Path(main_rows[0][2]),
+        "connected canonical Event Store",
+        directory=False,
+    )
+
+
 def _verify_topology(
     *,
     repository_root: Path,
@@ -264,6 +298,11 @@ def _verify_topology(
 
     root = _identity(retention_root, "retention_root", directory=True)
     event = _identity(event_path, "canonical Event Store", directory=False)
+    connected_event = _spine_database_identity(spine)
+    if not _same_identity(event, connected_event):
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "SpineLedger.path is detached from its live SQLite connection"
+        )
     cas = _identity(cas_path, "receipt CAS", directory=True)
     objects = _identity(objects_path, "receipt CAS objects", directory=True)
     effect = _identity(effect_store_path, "Effect-Lease store", directory=False)
