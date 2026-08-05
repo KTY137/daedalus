@@ -183,6 +183,15 @@ def _contains_symlink(path: Path) -> bool:
     return False
 
 
+def _sqlite_state_paths(event_store: Path) -> tuple[Path, ...]:
+    return (
+        event_store,
+        Path(f"{event_store}-wal"),
+        Path(f"{event_store}-shm"),
+        Path(f"{event_store}-journal"),
+    )
+
+
 def _validate_topology(
     primary_checkout: Path,
     source_store: SourceTreeStore,
@@ -195,7 +204,6 @@ def _validate_topology(
         for label, path in (
             ("primary checkout", raw_primary),
             ("receipt CAS", raw_store_root),
-            ("canonical Event Store", raw_event_store),
         ):
             if _contains_symlink(path):
                 raise ProviderTargetReceiptRetentionBindingError(
@@ -203,8 +211,25 @@ def _validate_topology(
                 )
         primary = raw_primary.resolve(strict=True)
         store_root = raw_store_root.resolve(strict=True)
-        event_store = raw_event_store.resolve(strict=True)
-        event_store_stat = event_store.stat()
+        event_store_files: list[Path] = []
+        for index, candidate in enumerate(_sqlite_state_paths(raw_event_store)):
+            if _contains_symlink(candidate):
+                raise ProviderTargetReceiptRetentionBindingError(
+                    "canonical Event Store state path must not contain symlinks"
+                )
+            if index and not candidate.exists():
+                continue
+            resolved = candidate.resolve(strict=True)
+            identity = resolved.stat()
+            if not stat.S_ISREG(identity.st_mode):
+                raise ProviderTargetReceiptRetentionBindingError(
+                    "canonical Event Store state must use real regular files"
+                )
+            if identity.st_nlink != 1:
+                raise ProviderTargetReceiptRetentionBindingError(
+                    "canonical Event Store state must have one filesystem identity"
+                )
+            event_store_files.append(resolved)
     except ProviderTargetReceiptRetentionError:
         raise
     except (OSError, RuntimeError) as exc:
@@ -219,26 +244,19 @@ def _validate_topology(
         raise ProviderTargetReceiptRetentionBindingError(
             "receipt CAS must be a real directory"
         )
-    if not stat.S_ISREG(event_store_stat.st_mode):
-        raise ProviderTargetReceiptRetentionBindingError(
-            "canonical Event Store must be one real regular file"
-        )
-    if event_store_stat.st_nlink != 1:
-        raise ProviderTargetReceiptRetentionBindingError(
-            "canonical Event Store must have one filesystem identity"
-        )
     if _paths_overlap(primary, store_root):
         raise ProviderTargetReceiptRetentionBindingError(
             "receipt CAS must be disjoint from the primary checkout"
         )
-    if _paths_overlap(primary, event_store):
-        raise ProviderTargetReceiptRetentionBindingError(
-            "canonical Event Store must be disjoint from the primary checkout"
-        )
-    if _paths_overlap(store_root, event_store):
-        raise ProviderTargetReceiptRetentionBindingError(
-            "receipt CAS and canonical Event Store must be disjoint"
-        )
+    for event_store_file in event_store_files:
+        if _paths_overlap(primary, event_store_file):
+            raise ProviderTargetReceiptRetentionBindingError(
+                "canonical Event Store must be disjoint from the primary checkout"
+            )
+        if _paths_overlap(store_root, event_store_file):
+            raise ProviderTargetReceiptRetentionBindingError(
+                "receipt CAS and canonical Event Store must be disjoint"
+            )
 
 
 def _intent_payload(
