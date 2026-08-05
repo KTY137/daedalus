@@ -52,15 +52,15 @@ def test_preflight_has_no_writer_process_network_or_provider_authority() -> None
     }
     assert imported_modules.isdisjoint(forbidden_imports)
 
-    forbidden_calls = {
+    forbidden_terminal_calls = {
         "open",
-        "Path.write_bytes",
-        "Path.write_text",
-        "Path.unlink",
-        "os.replace",
-        "os.rename",
-        "subprocess.run",
-        "subprocess.Popen",
+        "write_bytes",
+        "write_text",
+        "unlink",
+        "replace",
+        "rename",
+        "run",
+        "Popen",
         "begin_effect",
         "grant",
         "finish",
@@ -78,10 +78,13 @@ def test_preflight_has_no_writer_process_network_or_provider_authority() -> None
         for name in [_qualified_name(node.func)]
         if name is not None
     }
-    assert calls.isdisjoint(forbidden_calls)
+    assert all(
+        name.rsplit(".", 1)[-1] not in forbidden_terminal_calls
+        for name in calls
+    )
 
 
-def test_authority_authenticates_before_repository_observation() -> None:
+def test_authority_and_two_head_fences_order_inventory_observation() -> None:
     function = _function(
         _tree(),
         "verify_provider_target_receipt_retention_preflight",
@@ -95,14 +98,14 @@ def test_authority_authenticates_before_repository_observation() -> None:
             positions.setdefault(name, []).append(node.lineno)
 
     assert len(positions["authorize_provider_target_receipt_retention_operation"]) == 1
-    assert len(positions["verify_repository_head_revision_receipt"]) == 1
+    assert len(positions["verify_repository_head_revision_receipt"]) == 2
     assert len(positions["scan_provider_target_receipt_retention"]) == 1
     authority_line = positions[
         "authorize_provider_target_receipt_retention_operation"
     ][0]
-    head_line = positions["verify_repository_head_revision_receipt"][0]
+    head_lines = sorted(positions["verify_repository_head_revision_receipt"])
     inventory_line = positions["scan_provider_target_receipt_retention"][0]
-    assert authority_line < head_line < inventory_line
+    assert authority_line < head_lines[0] < inventory_line < head_lines[1]
 
 
 def test_guard_decision_compares_exact_contract_allow_and_evidence() -> None:
@@ -119,6 +122,32 @@ def test_guard_decision_compares_exact_contract_allow_and_evidence() -> None:
     assert "decision.contract != RETENTION_GUARD_CONTRACT" in comparisons
     assert "decision.allowed is not True" in comparisons
     assert "decision.evidence != expected_evidence" in comparisons
+
+
+def test_preflight_rechecks_every_supplied_subject_digest() -> None:
+    function = _function(
+        _tree(),
+        "verify_provider_target_receipt_retention_preflight",
+    )
+    calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and _qualified_name(node.func) == "_require_unchanged_digest"
+    ]
+    assert len(calls) == 1
+    generators = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.For)
+        and isinstance(node.target, ast.Tuple)
+        and [ast.unparse(item) for item in node.target.elts]
+        == ["value", "digest", "label"]
+    ]
+    assert len(generators) == 1
+    iterable = generators[0].iter
+    assert isinstance(iterable, ast.Tuple)
+    assert len(iterable.elts) == 7
 
 
 def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
@@ -147,10 +176,14 @@ def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
         and isinstance(key.value, str)
         and isinstance(value, ast.Constant)
     }
-    assert constants["repository_head_reverified"] is True
-    assert constants["retention_inventory_rebuilt"] is True
-    assert constants["retention_authority_authenticated"] is True
-    assert constants["guard_decision_allowed"] is True
+    for field in (
+        "repository_head_reverified",
+        "repository_head_stable_across_inventory",
+        "retention_inventory_rebuilt",
+        "retention_authority_authenticated",
+        "guard_decision_allowed",
+    ):
+        assert constants[field] is True
     for field in (
         "provider_execution_allowed",
         "persisted_effect_lease_verified",
@@ -161,6 +194,14 @@ def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
         "closed",
     ):
         assert constants[field] is False
+
+
+def test_receipt_enforces_exact_revision_surface_bound_and_disjoint_paths() -> None:
+    source = MODULE.read_text(encoding="utf-8")
+    assert '_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")' in source
+    assert "_EXPECTED_RETENTION_SURFACE_COUNT = 7" in source
+    assert "source_size > _MAX_INVENTORY_SOURCE_BYTES" in source
+    assert "if _paths_overlap(" in source
 
 
 def test_public_api_accepts_no_ledger_callback_or_writer() -> None:
