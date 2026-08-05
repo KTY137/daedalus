@@ -39,7 +39,7 @@
     "provider_execution_allowed": false
   },
   "acceptance": {
-    "authenticate_before_any_retention_or_schema_write": true,
+    "authenticate_and_validate_before_any_retention_or_schema_write": true,
     "intent_before_cas_publication": true,
     "cas_before_terminal_completion": true,
     "one_event_store_no_second_database": true,
@@ -47,9 +47,12 @@
     "unique_index_definition_reverified": true,
     "restart_after_intent": true,
     "restart_after_cas_publication": true,
+    "intent_post_commit_error_reconciliation": true,
+    "terminal_pre_commit_error_replay": true,
+    "terminal_post_commit_error_reconciliation": true,
     "completed_replay_inert": true,
     "exact_cas_readback": true,
-    "strict_duplicate_key_and_noncanonical_event_refusal": true,
+    "strict_duplicate_key_noncanonical_and_duplicate_terminal_refusal": true,
     "execution_trace_binding": true,
     "primary_checkout_disjointness": true,
     "exact_authority_container_types": true,
@@ -61,6 +64,7 @@
       "windows-latest/python-3.10",
       "windows-latest/python-3.12"
     ],
+    "declared_test_dependencies": true,
     "packaging_and_isolated_wheel": true,
     "full_suite": true
   },
@@ -68,13 +72,13 @@
     "focused_builder_tests_prepared": true,
     "independent_source_review_prepared": true,
     "malformed_and_stale_tests_prepared": true,
-    "restart_concurrency_and_mutation_tests_prepared": true,
+    "restart_concurrency_fault_and_mutation_tests_prepared": true,
     "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute",
     "hard_evidence_claimed": false
   },
   "known_boundaries": [
     "The retention writer remains LOCAL_GUARDS and is not yet admitted by a persisted Effect Lease.",
-    "The canonical effect registry must classify this newly introduced write path before any production caller may use it.",
+    "The canonical effect inventory must make this newly introduced write path visible before any production caller may use it.",
     "The receipt remains structurally verified and cannot authorize provider execution.",
     "No guarded executable registry or loader consumes the retained receipt yet.",
     "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared tests are not represented as executed evidence."
