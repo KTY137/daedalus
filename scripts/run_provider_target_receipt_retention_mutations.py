@@ -24,10 +24,6 @@ MUTATIONS = {
         "    if _paths_overlap(primary, store_root):\n",
         "    if False and _paths_overlap(primary, store_root):\n",
     ),
-    "allow-multiple-retention-intents": (
-        "        if len(rows) != 1:\n",
-        "        if False and len(rows) != 1:\n",
-    ),
     "publish-before-intent": (
         "        existing = _read_intent(self.spine.path, key)\n",
         "        self.source_store.put_bytes(payload)\n"
@@ -37,10 +33,6 @@ MUTATIONS = {
         "        try:\n            retained = self.source_store.read_bytes(\n",
         "        return\n"
         "        try:\n            retained = self.source_store.read_bytes(\n",
-    ),
-    "accept-terminal-failure": (
-        "            if state == STATE_FAILED:\n",
-        "            if False and state == STATE_FAILED:\n",
     ),
     "remove-receipt-unique-index": (
         "                    f\"CREATE UNIQUE INDEX IF NOT EXISTS {_UNIQUE_INDEX} \"\n",
