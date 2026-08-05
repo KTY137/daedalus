@@ -52,6 +52,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/runtimes/test_provider_target_receipt_retention_recovery.py
+          tests/runtimes/test_provider_target_receipt_retention_recovery_hardening.py
           tests/runtimes/test_provider_target_receipt_retention_recovery_review.py
           tests/runtimes/test_provider_target_receipt_retention_recovery_schema.py
 
