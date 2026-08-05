@@ -36,7 +36,8 @@
   },
 
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "MCP_TIMEOUT": "120000"
   },
   "teammateMode": "in-process",
 
@@ -74,6 +75,17 @@
             "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
             "timeout": 10,
             "statusMessage": "Guarding the Iron Plan..."
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
+            "timeout": 10,
+            "statusMessage": "Routing symbol work through Serena..."
           }
         ]
       }

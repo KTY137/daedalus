@@ -40,7 +40,14 @@ class IronPlanContractTests(unittest.TestCase):
         latest = records[-1]
         self.assertEqual(latest["result_plan_sha256"], guard.file_sha256(ROOT / guard.PLAN_REL))
         self.assertEqual(latest["record_sha256"], guard.canonical_record_sha256(latest))
-        self.assertEqual(latest["result_revision"], 1)
+        # The sealed revision is a STATUS, not a constant: it advances with every
+        # accepted amendment. Bind it to the plan header so this keeps asserting
+        # "the ledger seals the current plan" instead of "the plan is revision 1".
+        revision, version, _ = guard.parse_plan_header(
+            (ROOT / guard.PLAN_REL).read_text(encoding="utf-8")
+        )
+        self.assertEqual(latest["result_revision"], revision)
+        self.assertEqual(latest["version"], version)
 
     def test_canonical_hash_normalizes_line_endings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

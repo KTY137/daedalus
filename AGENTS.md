@@ -21,6 +21,19 @@ runtime work.
    `Iron Gate: 0..5`  
    `Evidence: <tests, receipts, or analysis>`
 
+## Symbol work goes through Serena
+
+When Serena is reachable, resolve symbols with it rather than by text search:
+`get_symbols_overview` before reading an unfamiliar source file,
+`find_symbol` instead of grepping for a declaration, `find_referencing_symbols`
+instead of guessing at call sites. Reach for `Grep` when you want text and for a
+whole-file `Read` when you have already seen the file's shape.
+
+This is a cost and recall rule, not a safety rule. `.claude/hooks/serena-first.py`
+enforces it at the Grep/Read boundary and deliberately enforces nothing when
+Serena is down; that hook is not a boundary in the §1 sense. When Serena is
+unavailable, text search is the correct tool and no rule is being bent.
+
 ## Non-negotiable boundaries
 
 - Daedalus is the kernel, Ikarus the assistant/orchestrator, Ariadne the
