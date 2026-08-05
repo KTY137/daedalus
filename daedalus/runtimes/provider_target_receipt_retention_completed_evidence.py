@@ -1,10 +1,10 @@
 """Read-only verification of completed provider-target receipt retention.
 
 This module composes an exact completed admission/recovery identity with live
-canonical Event-Store and receipt-CAS reads.  It authenticates the retained
+canonical Event-Store and receipt-CAS reads. It authenticates the retained
 provider-target verification receipt against its signed authority and exact
-source tree before inspecting retention state, then repeats topology, Event-
-Store and CAS verification before returning a deterministic evidence receipt.
+source tree, rechecks stable filesystem identities around every retained-state
+read, and emits a deterministic evidence receipt for the observed state.
 
 The verifier deliberately does not inspect or mutate the Effect-Lease ledger.
 The retained Effect terminal receipt remains separately required before a
@@ -13,6 +13,7 @@ future central execution packet may claim completion of the leased effect.
 from __future__ import annotations
 
 import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -67,6 +68,8 @@ _DIGEST_FIELDS = (
     "receipt_artifact_sha256",
     "retention_intent_payload_sha256",
     "retention_event_evidence_sha256",
+    "retention_topology_identity_sha256",
+    "receipt_artifact_file_identity_sha256",
     "start_receipt_sha256",
     "terminal_receipt_sha256",
 )
@@ -127,6 +130,97 @@ def _bounded_path(value: Any, label: str) -> str:
     return value
 
 
+def _contains_symlink(path: Path) -> bool:
+    current = Path(path.anchor) if path.is_absolute() else Path()
+    for part in path.parts:
+        if part == path.anchor:
+            continue
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _path_identity(path: Path, label: str, *, directory: bool) -> dict[str, Any]:
+    try:
+        absolute = Path(os.path.abspath(os.fspath(path)))
+        if _contains_symlink(absolute):
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"{label} path must not contain symlinks"
+            )
+        resolved = absolute.resolve(strict=True)
+        info = resolved.stat()
+    except ProviderTargetReceiptRetentionCompletedEvidenceError:
+        raise
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            f"{label} cannot be resolved"
+        ) from exc
+    if directory:
+        if not stat.S_ISDIR(info.st_mode):
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"{label} must be a real directory"
+            )
+    else:
+        if not stat.S_ISREG(info.st_mode):
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"{label} must be a real regular file"
+            )
+        if info.st_nlink != 1:
+            raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+                f"{label} must have one filesystem identity"
+            )
+    return {
+        "path": os.fspath(resolved),
+        "device": int(info.st_dev),
+        "inode": int(info.st_ino),
+    }
+
+
+def _topology_identity(
+    retention_ledger: ProviderTargetReceiptLedger,
+) -> dict[str, dict[str, Any]]:
+    _validate_topology(
+        retention_ledger.primary_checkout,
+        retention_ledger.source_store,
+        retention_ledger.spine,
+    )
+    return {
+        "primary_checkout": _path_identity(
+            Path(retention_ledger.primary_checkout),
+            "Primary Checkout",
+            directory=True,
+        ),
+        "event_store": _path_identity(
+            Path(retention_ledger.spine.path),
+            "canonical Event Store",
+            directory=False,
+        ),
+        "receipt_cas": _path_identity(
+            Path(retention_ledger.source_store.root),
+            "receipt CAS",
+            directory=True,
+        ),
+    }
+
+
+def _artifact_file_identity(
+    retention_ledger: ProviderTargetReceiptLedger,
+    artifact: ArtifactRef,
+) -> dict[str, Any]:
+    try:
+        object_path = retention_ledger.source_store._object_path(artifact.sha256)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "receipt CAS cannot derive the retained artifact path"
+        ) from exc
+    return _path_identity(
+        Path(object_path),
+        "retained receipt artifact",
+        directory=False,
+    )
+
+
 @dataclass(frozen=True)
 class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
     """Canonical read-only evidence for one completed retained receipt."""
@@ -140,6 +234,8 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
     retention_intent_id: int
     retention_intent_payload_sha256: str
     retention_event_evidence_sha256: str
+    retention_topology_identity_sha256: str
+    receipt_artifact_file_identity_sha256: str
     start_receipt_sha256: str
     terminal_receipt_sha256: str
     event_store_path: str
@@ -203,6 +299,12 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
             "retention_event_evidence_sha256": (
                 self.retention_event_evidence_sha256
             ),
+            "retention_topology_identity_sha256": (
+                self.retention_topology_identity_sha256
+            ),
+            "receipt_artifact_file_identity_sha256": (
+                self.receipt_artifact_file_identity_sha256
+            ),
             "start_receipt_sha256": self.start_receipt_sha256,
             "terminal_receipt_sha256": self.terminal_receipt_sha256,
             "event_store_path": self.event_store_path,
@@ -213,6 +315,8 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
             "retention_intent_completed": True,
             "retained_receipt_cas_verified": True,
             "primary_checkout_disjointness_verified": True,
+            "retention_topology_stable": True,
+            "receipt_artifact_identity_stable": True,
             **{field: False for field in _FALSE_CLAIMS},
         }
 
@@ -235,6 +339,8 @@ class ProviderTargetReceiptRetentionCompletedEvidenceReceipt:
             "retention_intent_completed",
             "retained_receipt_cas_verified",
             "primary_checkout_disjointness_verified",
+            "retention_topology_stable",
+            "receipt_artifact_identity_stable",
         }
         if not isinstance(payload, Mapping) or set(payload) != {
             "schema",
@@ -351,13 +457,42 @@ def verify_provider_target_receipt_retention_completed_evidence(
             ProviderExecutableTargetVerificationReceipt,
             "receipt",
         ),
+        (
+            target_authority,
+            ProviderExecutableTargetAuthority,
+            "target_authority",
+        ),
+        (
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+            "invocation_authority",
+        ),
+        (
+            identity_registry,
+            ProviderInvocationRegistryManifest,
+            "identity_registry",
+        ),
         (execution, EffectExecutionRequest, "execution"),
+        (
+            target_manifest,
+            ProviderExecutableTargetManifest,
+            "target_manifest",
+        ),
+        (source_tree_ref, ArtifactRef, "source_tree_ref"),
     )
     for value, expected, label in exact:
         if type(value) is not expected:
             raise ProviderTargetReceiptRetentionCompletedEvidenceShapeError(
                 f"{label} must be exact {expected.__name__}"
             )
+    if (
+        isinstance(max_source_bytes, bool)
+        or not isinstance(max_source_bytes, int)
+        or max_source_bytes < 1
+    ):
+        raise ProviderTargetReceiptRetentionCompletedEvidenceShapeError(
+            "max_source_bytes must be a positive integer"
+        )
     revision = _commit_revision(
         expected_source_revision,
         "expected_source_revision",
@@ -402,6 +537,10 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "completed execution receipt identities are detached"
         )
 
+    artifact = ArtifactRef.from_sha256(receipt.digest)
+    topology_before = _topology_identity(retention_ledger)
+    artifact_identity_before = _artifact_file_identity(retention_ledger, artifact)
+
     try:
         projection = verify_provider_target_verification_receipt(
             receipt,
@@ -430,14 +569,18 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "provider-target verification returned a non-exact projection"
         )
 
+    topology_mid = _topology_identity(retention_ledger)
+    artifact_identity_mid = _artifact_file_identity(retention_ledger, artifact)
+    if (
+        topology_mid != topology_before
+        or artifact_identity_mid != artifact_identity_before
+    ):
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "retention topology changed during receipt authentication"
+        )
+
     try:
         payload = _receipt_bytes(receipt)
-        artifact = ArtifactRef.from_sha256(receipt.digest)
-        _validate_topology(
-            retention_ledger.primary_checkout,
-            retention_ledger.source_store,
-            retention_ledger.spine,
-        )
         intent = _read_intent(
             retention_ledger.spine.path,
             _effect_key(receipt.digest),
@@ -448,10 +591,10 @@ def verify_provider_target_receipt_retention_completed_evidence(
             )
         retention_ledger._validate_completed(intent, receipt, artifact, payload)
 
-        _validate_topology(
-            retention_ledger.primary_checkout,
-            retention_ledger.source_store,
-            retention_ledger.spine,
+        topology_after = _topology_identity(retention_ledger)
+        artifact_identity_after = _artifact_file_identity(
+            retention_ledger,
+            artifact,
         )
         final_intent = _read_intent(
             retention_ledger.spine.path,
@@ -472,6 +615,13 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "completed retention Event-Store or CAS evidence did not verify"
         ) from exc
 
+    if (
+        topology_after != topology_before
+        or artifact_identity_after != artifact_identity_before
+    ):
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "retention topology changed during completed-state verification"
+        )
     if intent != final_intent or final_intent.state != STATE_COMPLETED:
         raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
             "completed retention state changed during verification"
@@ -511,6 +661,8 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "trace_id": final_intent.trace_id,
         }
     )
+    topology_digest = canonical_sha(topology_after)
+    artifact_identity_digest = canonical_sha(artifact_identity_after)
     return ProviderTargetReceiptRetentionCompletedEvidenceReceipt(
         source_revision=revision,
         admission_sha256=admission.digest,
@@ -521,14 +673,12 @@ def verify_provider_target_receipt_retention_completed_evidence(
         retention_intent_id=final_intent.id,
         retention_intent_payload_sha256=final_intent.payload_sha,
         retention_event_evidence_sha256=event_evidence,
+        retention_topology_identity_sha256=topology_digest,
+        receipt_artifact_file_identity_sha256=artifact_identity_digest,
         start_receipt_sha256=admission.start_receipt_sha256,
         terminal_receipt_sha256=admission.terminal_receipt_sha256,
-        event_store_path=os.fspath(
-            Path(retention_ledger.spine.path).resolve(strict=True)
-        ),
-        receipt_cas_path=os.fspath(
-            Path(retention_ledger.source_store.root).resolve(strict=True)
-        ),
+        event_store_path=topology_after["event_store"]["path"],
+        receipt_cas_path=topology_after["receipt_cas"]["path"],
     )
 
 
