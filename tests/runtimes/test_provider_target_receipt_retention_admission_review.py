@@ -50,6 +50,14 @@ def _source(node: ast.AST) -> str:
     return ast.unparse(node)
 
 
+def _string_literals(node: ast.AST) -> set[str]:
+    return {
+        child.value
+        for child in ast.walk(node)
+        if isinstance(child, ast.Constant) and isinstance(child.value, str)
+    }
+
+
 def test_admission_has_no_writer_process_network_or_promotion_authority() -> None:
     tree = _tree()
     imported_modules: set[str] = set()
@@ -59,8 +67,10 @@ def test_admission_has_no_writer_process_network_or_promotion_authority() -> Non
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported_modules.add(node.module)
 
+    # sqlite3 is intentionally imported only to authenticate the already-open
+    # Spine connection with PRAGMA database_list. The dedicated review below
+    # pins that SQL surface to one read-only literal.
     forbidden_imports = {
-        "sqlite3",
         "subprocess",
         "socket",
         "urllib",
@@ -70,6 +80,7 @@ def test_admission_has_no_writer_process_network_or_promotion_authority() -> Non
         "tempfile",
     }
     assert imported_modules.isdisjoint(forbidden_imports)
+    assert "sqlite3" in imported_modules
 
     forbidden_terminal_calls = {
         "open",
@@ -108,6 +119,54 @@ def test_admission_has_no_writer_process_network_or_promotion_authority() -> Non
     assert all(
         name.rsplit(".", 1)[-1] not in forbidden_terminal_calls
         for name in calls
+    )
+
+
+def test_live_spine_inspection_is_one_exact_read_only_pragma() -> None:
+    tree = _tree()
+    function = _function(tree, "_spine_database_identity")
+    source = _source(function)
+    literals = _string_literals(function)
+    calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and _qualified_name(node.func) == "connection.execute"
+    ]
+
+    assert len(calls) == 1
+    assert len(calls[0].args) == 1
+    assert isinstance(calls[0].args[0], ast.Constant)
+    assert calls[0].args[0].value == "PRAGMA database_list"
+    assert "type(connection) is not sqlite3.Connection" in source
+    assert "getattr(spine, '_conn', None)" in source
+    assert "getattr(spine, '_lock', None)" in source
+    assert "with lock:" in source
+    assert "len(main_rows) != 1" in source
+    assert "row[1] == 'main'" in source
+    assert "return _identity" in source
+
+    forbidden_sql = {
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "CREATE",
+        "DROP",
+        "ALTER",
+        "ATTACH",
+        "DETACH",
+        "REPLACE",
+        "VACUUM",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK",
+        "PRAGMA journal_mode",
+        "PRAGMA synchronous",
+        "PRAGMA query_only",
+    }
+    assert all(
+        not any(token in literal.upper() for token in forbidden_sql)
+        for literal in literals
     )
 
 
@@ -186,11 +245,14 @@ def test_topology_snapshot_retains_all_concrete_filesystem_identities() -> None:
         assert suffix in companions
 
 
-def test_topology_binds_exact_writable_ledger_and_real_cas_object_target() -> None:
+def test_topology_binds_live_writable_spine_and_real_cas_object_target() -> None:
     source = _source(_function(_tree(), "_verify_topology"))
     assert "type(spine) is not SpineLedger" in source
     assert "type(source_store) is not SourceTreeStore" in source
     assert "spine.read_only" in source
+    assert "connected_event = _spine_database_identity(spine)" in source
+    assert "_same_identity(event, connected_event)" in source
+    assert "SpineLedger.path is detached from its live SQLite connection" in source
     assert "retention_ledger.source_store.objects" in source
     assert "expected_cas[0] / 'objects'" in source
     assert "_same_identity(objects, expected_objects)" in source
