@@ -25,9 +25,9 @@ MUTATIONS = {
         "    if False and _paths_overlap(primary, store_root):\n",
     ),
     "publish-before-intent": (
-        "        existing = _read_intent(self.spine.path, key)\n",
+        "        existing = self._record_or_recover_intent(\n",
         "        self.source_store.put_bytes(payload)\n"
-        "        existing = _read_intent(self.spine.path, key)\n",
+        "        existing = self._record_or_recover_intent(\n",
     ),
     "trust-completed-without-cas-readback": (
         "        try:\n            retained = self.source_store.read_bytes(\n",
