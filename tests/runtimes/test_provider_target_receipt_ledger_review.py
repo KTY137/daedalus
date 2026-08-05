@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import ast
+import inspect
+
+import daedalus.runtimes.provider_target_receipt_ledger as ledger
+
+
+def _function(name: str) -> ast.FunctionDef:
+    tree = ast.parse(inspect.getsource(ledger))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"missing function {name}")
+
+
+def _method(class_name: str, method_name: str) -> ast.FunctionDef:
+    tree = ast.parse(inspect.getsource(ledger))
+    cls = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == class_name
+    )
+    return next(
+        node
+        for node in cls.body
+        if isinstance(node, ast.FunctionDef) and node.name == method_name
+    )
+
+
+def test_retention_has_no_loader_provider_process_network_or_promotion_authority() -> None:
+    source = inspect.getsource(ledger)
+    tree = ast.parse(source)
+    imported = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    forbidden_import_roots = {
+        "importlib",
+        "subprocess",
+        "socket",
+        "requests",
+        "urllib",
+        "httpx",
+    }
+    assert not {name.split(".")[0] for name in imported} & forbidden_import_roots
+    assert "OwnerApproval" not in source
+    assert "PromotionReceipt" not in source
+    assert "promote_candidates" not in source
+    assert "provider_execution_allowed\": True" not in source
+    assert "eval(" not in source
+    assert "exec(" not in source
+    assert "compile(" not in source
+
+
+def test_authentication_precedes_intent_and_intent_precedes_cas_publication() -> None:
+    rendered = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    verify_at = rendered.index("verify_provider_target_verification_receipt")
+    intent_at = rendered.index("self.spine.record_intent")
+    cas_at = rendered.index("self.source_store.put_bytes")
+    terminal_at = rendered.index("self.spine.mark_completed")
+    assert verify_at < intent_at < cas_at < terminal_at
+
+
+def test_replay_never_resolves_or_invokes_provider_targets() -> None:
+    rendered = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    assert "if existing.state == STATE_COMPLETED" in rendered
+    replay = rendered.split("if existing.state == STATE_COMPLETED", 1)[1]
+    replay = replay.split("if existing.state != STATE_INTENDED", 1)[0]
+    assert "put_bytes" not in replay
+    assert "mark_completed" not in replay
+    assert ".invoke(" not in replay
+    assert "import_module" not in replay
+
+
+def test_event_store_reader_is_read_only_and_rejects_ambiguous_state() -> None:
+    rendered = ast.unparse(_function("_read_intent"))
+    assert "mode=ro" in rendered
+    assert "PRAGMA query_only=ON" in rendered
+    assert "len(rows) != 1" in rendered
+    assert "len(events) > 2" in rendered
+    assert "STATE_FAILED" in rendered
+    assert "canonical_json(payload) != raw_payload" in rendered
+    assert "payload_sha" in rendered
+    assert "UPDATE " not in rendered
+    assert "INSERT " not in rendered
+    assert "DELETE " not in rendered
+
+
+def test_exact_writer_store_receipt_and_projection_types_are_required() -> None:
+    init = ast.unparse(_method("ProviderTargetReceiptLedger", "__init__"))
+    retain = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    result = ast.unparse(
+        next(
+            node
+            for node in ast.parse(inspect.getsource(ledger)).body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "ProviderTargetReceiptRetentionResult"
+        )
+    )
+    assert "type(spine) is not SpineLedger" in init
+    assert "type(source_store) is not SourceTreeStore" in init
+    assert (
+        "type(receipt) is not ProviderExecutableTargetVerificationReceipt"
+        in retain
+    )
+    assert "type(self.artifact) is not ArtifactRef" in result
+    assert "type(self.projection) is not ProviderExecutableTargetProjection" in result
+
+
+def test_primary_checkout_is_only_inspected_and_never_a_write_target() -> None:
+    source = inspect.getsource(ledger)
+    topology = ast.unparse(_function("_validate_topology"))
+    retain = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    assert "primary_checkout" in topology
+    assert "_paths_overlap(primary, store_root)" in topology
+    assert "_paths_overlap(primary, event_store)" in topology
+    assert "write_bytes" not in source
+    assert "mkdir" not in source
+    assert "primary_checkout" not in retain
+
+
+def test_single_receipt_invariant_is_scoped_to_exact_intent_kind() -> None:
+    rendered = ast.unparse(
+        _method("ProviderTargetReceiptLedger", "_install_single_receipt_invariant")
+    )
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS" in rendered
+    assert "ON intents(effect_key)" in rendered
+    assert "WHERE kind=" in rendered
+    assert "self.spine._txn()" in rendered
