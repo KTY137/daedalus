@@ -13,7 +13,7 @@ on:
       - ".github/workflows/g0-provider-target-receipt-retention-recovery.yml"
   push:
     branches:
-      - g0/provider-target-receipt-retention-recovery-decision-linear
+      - g0/provider-target-receipt-retention-recovery-decision-r2-linear
   workflow_dispatch:
 
 permissions:
