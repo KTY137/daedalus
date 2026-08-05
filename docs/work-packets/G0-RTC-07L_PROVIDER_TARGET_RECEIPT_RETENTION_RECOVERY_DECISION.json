@@ -27,7 +27,7 @@
   },
   "input_contract": [
     "exact ProviderTargetReceiptRetentionAdmissionReceipt type",
-    "exact 40-hex expected source revision",
+    "exact lowercase 40-hex commit revision across constructor, wire parser and projection API",
     "admission source revision equals the expected revision",
     "admission wire form reconstructs canonically before projection",
     "admission identity, state and revision remain unchanged through a second reconstruction fence"
@@ -54,7 +54,7 @@
   },
   "ordering_contract": [
     "reject non-exact admission input",
-    "validate and bind exact expected source revision",
+    "validate and bind exact expected commit revision",
     "refuse stale admission revision",
     "snapshot and canonically reconstruct the admission",
     "derive the closed state-specific decision and receipt identities",
@@ -63,7 +63,7 @@
   ],
   "adversarial_coverage_prepared": [
     "all five exact persisted execution states",
-    "stale and malformed revision refusal",
+    "stale, malformed and generic 64-hex revision refusal",
     "subclass and duck-typed admission refusal",
     "frozen-dataclass mutation and inconsistent receipt-state bypass refusal",
     "state-to-decision substitution refusal",
@@ -71,7 +71,7 @@
     "wire-field exactness and authority-claim escalation refusal",
     "independent AST no-effect and no-callback review",
     "Draft 2020-12 JSON Schema with five state-dependent branches",
-    "twelve bounded mutations",
+    "thirteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
     "admission and predecessor regressions, full suite, package build and isolated-wheel import"
   ],
