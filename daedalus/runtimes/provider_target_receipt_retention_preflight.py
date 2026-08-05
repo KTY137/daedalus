@@ -9,13 +9,14 @@ SQLite, publish CAS bytes, or invoke ``ProviderTargetReceiptLedger.retain``.
 The returned receipt proves only that the inert subjects agree on one current
 revision and that the signed guard contract authenticated before repository
 reads.  A later central packet must consume persisted Effect-Lease authority and
-this exact preflight receipt immediately before the retention write.
+re-run this exact preflight immediately before the retention write.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
 from daedalus.gates.provider_target_receipt_retention_inventory import (
@@ -41,9 +42,14 @@ from daedalus.runtimes.provider_target_receipt_retention_contract import (
 from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
 )
-from daedalus.schemas import _repo_path, _revision, _sha256
+from daedalus.schemas import _repo_path, _sha256
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
+
+
+_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
+_MAX_INVENTORY_SOURCE_BYTES = 2 * 1024 * 1024
+_EXPECTED_RETENTION_SURFACE_COUNT = 7
 
 
 class ProviderTargetReceiptRetentionPreflightError(RuntimeError):
@@ -80,12 +86,11 @@ def _digest(value: Any, label: str) -> str:
 
 
 def _source_revision(value: Any) -> str:
-    try:
-        return _revision(value, "source_revision")
-    except (TypeError, ValueError) as exc:
+    if not isinstance(value, str) or _SOURCE_REVISION.fullmatch(value) is None:
         raise ProviderTargetReceiptRetentionPreflightShapeError(
             "source_revision must be a lowercase 40-hex revision"
-        ) from exc
+        )
+    return value
 
 
 def _scope_path(value: Any, label: str) -> str:
@@ -100,6 +105,13 @@ def _scope_path(value: Any, label: str) -> str:
             f"{label} must not name the repository root"
         )
     return path
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    left_parts = PurePosixPath(left).parts
+    right_parts = PurePosixPath(right).parts
+    shortest = min(len(left_parts), len(right_parts))
+    return left_parts[:shortest] == right_parts[:shortest]
 
 
 @dataclass(frozen=True)
@@ -123,7 +135,11 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
     receipt_cas_scope_path: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "source_revision", _source_revision(self.source_revision))
+        object.__setattr__(
+            self,
+            "source_revision",
+            _source_revision(self.source_revision),
+        )
         for field in (
             "repository_head_receipt_sha256",
             "provider_target_receipt_sha256",
@@ -135,14 +151,22 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
             "retention_effect_lease_sha256",
         ):
             object.__setattr__(self, field, _digest(getattr(self, field), field))
-        _strict_positive_int(
+        source_size = _strict_positive_int(
             self.retention_inventory_source_size,
             "retention_inventory_source_size",
         )
-        _strict_positive_int(
+        if source_size > _MAX_INVENTORY_SOURCE_BYTES:
+            raise ProviderTargetReceiptRetentionPreflightShapeError(
+                "retention_inventory_source_size exceeds the scanner bound"
+            )
+        surface_count = _strict_positive_int(
             self.retention_inventory_surface_count,
             "retention_inventory_surface_count",
         )
+        if surface_count != _EXPECTED_RETENTION_SURFACE_COUNT:
+            raise ProviderTargetReceiptRetentionPreflightShapeError(
+                "retention_inventory_surface_count is not the exact reviewed set"
+            )
         if self.guard_contract != RETENTION_GUARD_CONTRACT:
             raise ProviderTargetReceiptRetentionPreflightShapeError(
                 "guard_contract is not the exact retention guard"
@@ -165,9 +189,12 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
             "receipt_cas_scope_path",
             _scope_path(self.receipt_cas_scope_path, "receipt_cas_scope_path"),
         )
-        if self.event_store_scope_path == self.receipt_cas_scope_path:
+        if _paths_overlap(
+            self.event_store_scope_path,
+            self.receipt_cas_scope_path,
+        ):
             raise ProviderTargetReceiptRetentionPreflightShapeError(
-                "retention scope paths must differ"
+                "retention scope paths must be disjoint"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -189,6 +216,7 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
             "event_store_scope_path": self.event_store_scope_path,
             "receipt_cas_scope_path": self.receipt_cas_scope_path,
             "repository_head_reverified": True,
+            "repository_head_stable_across_inventory": True,
             "retention_inventory_rebuilt": True,
             "retention_authority_authenticated": True,
             "guard_decision_allowed": True,
@@ -227,6 +255,7 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
             "schema",
             *fields,
             "repository_head_reverified",
+            "repository_head_stable_across_inventory",
             "retention_inventory_rebuilt",
             "retention_authority_authenticated",
             "guard_decision_allowed",
@@ -248,6 +277,7 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
             )
         for field in (
             "repository_head_reverified",
+            "repository_head_stable_across_inventory",
             "retention_inventory_rebuilt",
             "retention_authority_authenticated",
             "guard_decision_allowed",
@@ -283,6 +313,23 @@ class ProviderTargetReceiptRetentionPreflightReceipt:
         return canonical_sha(self.to_dict())
 
 
+def _require_unchanged_digest(
+    value: Any,
+    expected_digest: str,
+    label: str,
+) -> None:
+    try:
+        current = value.digest
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionPreflightBindingError(
+            f"{label} changed during preflight"
+        ) from exc
+    if current != expected_digest:
+        raise ProviderTargetReceiptRetentionPreflightBindingError(
+            f"{label} changed during preflight"
+        )
+
+
 def verify_provider_target_receipt_retention_preflight(
     repository_root: Path,
     repository_head_receipt: RepositoryHeadRevisionReceipt,
@@ -301,8 +348,8 @@ def verify_provider_target_receipt_retention_preflight(
     """Authenticate and revision-bind one inert retention request.
 
     Authority authentication is deliberately completed before repository reads.
-    The live HEAD receipt and retention inventory are then rebuilt from the exact
-    repository root.  No retained Effect-Lease state is inspected or changed.
+    HEAD is reverified both before and after inventory reconstruction.  No
+    retained Effect-Lease state is inspected or changed.
     """
 
     if not isinstance(repository_root, Path):
@@ -310,10 +357,18 @@ def verify_provider_target_receipt_retention_preflight(
             "repository_root must be pathlib.Path"
         )
     exact_types = (
-        (repository_head_receipt, RepositoryHeadRevisionReceipt, "repository_head_receipt"),
+        (
+            repository_head_receipt,
+            RepositoryHeadRevisionReceipt,
+            "repository_head_receipt",
+        ),
         (receipt, ProviderExecutableTargetVerificationReceipt, "receipt"),
         (inventory, ProviderTargetReceiptRetentionInventory, "inventory"),
-        (authority, ProviderTargetReceiptRetentionOperationAuthority, "authority"),
+        (
+            authority,
+            ProviderTargetReceiptRetentionOperationAuthority,
+            "authority",
+        ),
         (execution, EffectExecutionRequest, "execution"),
         (effect_lease, EffectLease, "effect_lease"),
     )
@@ -323,12 +378,24 @@ def verify_provider_target_receipt_retention_preflight(
                 f"{label} must be exact {expected_type.__name__}"
             )
 
+    source_revision = _source_revision(receipt.source_revision)
+    head_receipt_digest = repository_head_receipt.digest
+    provider_receipt_digest = receipt.digest
+    inventory_digest = inventory.digest
+    authority_digest = authority.digest
+    execution_digest = execution.digest
+    effect_lease_digest = effect_lease.digest
+    inventory_source_revision = inventory.source_revision
+    inventory_source_sha256 = inventory.source_sha256
+    inventory_source_size = inventory.source_size
+    inventory_surfaces = inventory.surfaces
+
     try:
         expected_subject = build_provider_target_receipt_retention_operation_subject(
             receipt=receipt,
-            retention_inventory_sha256=inventory.digest,
-            retention_inventory_source_revision=inventory.source_revision,
-            retention_inventory_source_sha256=inventory.source_sha256,
+            retention_inventory_sha256=inventory_digest,
+            retention_inventory_source_revision=inventory_source_revision,
+            retention_inventory_source_sha256=inventory_source_sha256,
             execution=execution,
             effect_lease=effect_lease,
             event_store_scope_path=event_store_scope_path,
@@ -350,9 +417,10 @@ def verify_provider_target_receipt_retention_preflight(
         raise ProviderTargetReceiptRetentionPreflightBindingError(
             "retention subject builder returned a non-exact subject"
         )
+    subject_digest = expected_subject.digest
     expected_evidence = (
-        f"authority_sha256={authority.digest};"
-        f"subject_sha256={expected_subject.digest}"
+        f"authority_sha256={authority_digest};"
+        f"subject_sha256={subject_digest}"
     )
     if (
         type(decision) is not GuardDecision
@@ -364,21 +432,22 @@ def verify_provider_target_receipt_retention_preflight(
             "retention guard decision is detached from signed authority"
         )
 
+    # First HEAD fence: the signed revision must be current before source reads.
     try:
         verify_repository_head_revision_receipt(
             repository_root,
-            receipt.source_revision,
+            source_revision,
             repository_head_receipt,
         )
     except RepositoryHeadRevisionError as exc:
         raise ProviderTargetReceiptRetentionPreflightBindingError(
-            "repository HEAD receipt did not reverify"
+            "repository HEAD receipt did not reverify before inventory"
         ) from exc
 
     try:
         rebuilt_inventory = scan_provider_target_receipt_retention(
             repository_root,
-            source_revision=receipt.source_revision,
+            source_revision=source_revision,
         )
     except ProviderTargetReceiptRetentionInventoryError as exc:
         raise ProviderTargetReceiptRetentionPreflightBindingError(
@@ -388,23 +457,55 @@ def verify_provider_target_receipt_retention_preflight(
         raise ProviderTargetReceiptRetentionPreflightBindingError(
             "retention inventory scanner returned a non-exact inventory"
         )
-    if rebuilt_inventory != inventory or rebuilt_inventory.digest != inventory.digest:
+    if rebuilt_inventory != inventory or rebuilt_inventory.digest != inventory_digest:
         raise ProviderTargetReceiptRetentionPreflightBindingError(
             "retention inventory differs from current repository bytes"
         )
 
+    # Second HEAD fence: refuse a revision change during inventory reconstruction.
+    try:
+        verify_repository_head_revision_receipt(
+            repository_root,
+            source_revision,
+            repository_head_receipt,
+        )
+    except RepositoryHeadRevisionError as exc:
+        raise ProviderTargetReceiptRetentionPreflightBindingError(
+            "repository HEAD receipt did not reverify after inventory"
+        ) from exc
+
+    for value, digest, label in (
+        (repository_head_receipt, head_receipt_digest, "repository HEAD receipt"),
+        (receipt, provider_receipt_digest, "provider target receipt"),
+        (inventory, inventory_digest, "retention inventory"),
+        (authority, authority_digest, "retention authority"),
+        (execution, execution_digest, "retention execution request"),
+        (effect_lease, effect_lease_digest, "retention Effect Lease"),
+        (expected_subject, subject_digest, "retention operation subject"),
+    ):
+        _require_unchanged_digest(value, digest, label)
+    if (
+        inventory.source_revision != inventory_source_revision
+        or inventory.source_sha256 != inventory_source_sha256
+        or inventory.source_size != inventory_source_size
+        or inventory.surfaces != inventory_surfaces
+    ):
+        raise ProviderTargetReceiptRetentionPreflightBindingError(
+            "retention inventory fields changed during preflight"
+        )
+
     return ProviderTargetReceiptRetentionPreflightReceipt(
-        source_revision=receipt.source_revision,
-        repository_head_receipt_sha256=repository_head_receipt.digest,
-        provider_target_receipt_sha256=receipt.digest,
-        retention_inventory_sha256=inventory.digest,
-        retention_inventory_source_sha256=inventory.source_sha256,
-        retention_inventory_source_size=inventory.source_size,
-        retention_inventory_surface_count=len(inventory.surfaces),
-        retention_authority_sha256=authority.digest,
-        retention_subject_sha256=expected_subject.digest,
-        retention_execution_request_sha256=execution.digest,
-        retention_effect_lease_sha256=effect_lease.digest,
+        source_revision=source_revision,
+        repository_head_receipt_sha256=head_receipt_digest,
+        provider_target_receipt_sha256=provider_receipt_digest,
+        retention_inventory_sha256=inventory_digest,
+        retention_inventory_source_sha256=inventory_source_sha256,
+        retention_inventory_source_size=inventory_source_size,
+        retention_inventory_surface_count=len(inventory_surfaces),
+        retention_authority_sha256=authority_digest,
+        retention_subject_sha256=subject_digest,
+        retention_execution_request_sha256=execution_digest,
+        retention_effect_lease_sha256=effect_lease_digest,
         guard_contract=decision.contract,
         guard_evidence=decision.evidence,
         event_store_scope_path=expected_subject.event_store_scope_path,
