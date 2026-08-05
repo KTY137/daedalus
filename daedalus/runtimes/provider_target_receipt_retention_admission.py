@@ -1,23 +1,22 @@
 """Read-only persisted-lease and topology admission for receipt retention.
 
-This packet deliberately stops before the durable effect start and before the
-receipt-retention write. It replays the exact signed retention preflight,
-authenticates the persisted non-runtime Effect Lease, and proves that the
-Primary Checkout, canonical Event Store, receipt CAS, and Effect-Lease store
-occupy disjoint concrete filesystem identities.
+This packet stops before the durable effect start and before receipt retention.
+It replays the signed retention preflight, authenticates the exact persisted
+non-runtime Effect Lease through the query-only replay projection, and proves
+that all protected filesystem targets remain concrete and disjoint.
 
-The result is an admission receipt, not execution authority. ``not_started``
-means a later canonical entrypoint may attempt ``begin_effect``. A retained
-``started`` or terminal state is reported without granting automatic replay,
-re-execution, retention, completion, promotion, or Gate authority.
+The returned receipt is admission evidence, not execution authority. A retained
+``STARTED`` execution is reported as ``started`` and never authorizes automatic
+re-execution, retention, completion, promotion, or a Gate transition.
 """
 from __future__ import annotations
 
 import os
+import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
@@ -27,6 +26,7 @@ from daedalus.kernel.effect_replay import (
     inspect_effect_execution,
 )
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
+from daedalus.kernel.source_trees import SourceTreeStore
 from daedalus.runtimes.provider_target_receipt_ledger import (
     ProviderTargetReceiptLedger,
 )
@@ -42,11 +42,41 @@ from daedalus.runtimes.provider_target_receipt_retention_preflight import (
 from daedalus.schemas import PolicyDecision, _repo_path, _revision, _sha256
 from daedalus.spine.effect_boundary import GuardDecision
 from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.ledger import SpineLedger
 
 _EXECUTION_STATES = frozenset(
     {"not_started", "started", "COMPLETED", "FAILED", "CANCELLED"}
 )
 _TERMINAL_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED"})
+_REVISION_40 = re.compile(r"^[0-9a-f]{40}$")
+_GUARD_EVIDENCE = re.compile(
+    r"^authority_sha256=[0-9a-f]{64};subject_sha256=[0-9a-f]{64}$"
+)
+_DIGEST_FIELDS = (
+    "preflight_sha256",
+    "provider_target_receipt_sha256",
+    "retention_inventory_sha256",
+    "retention_authority_sha256",
+    "retention_execution_request_sha256",
+    "retention_effect_lease_sha256",
+    "retention_effect_lease_request_sha256",
+    "retention_policy_decision_sha256",
+)
+_OPTIONAL_DIGEST_FIELDS = ("start_receipt_sha256", "terminal_receipt_sha256")
+_PATH_FIELDS = (
+    "primary_checkout_path",
+    "retention_root_path",
+    "event_store_path",
+    "receipt_cas_path",
+    "effect_lease_store_path",
+)
+_FALSE_CLAIMS = (
+    "retention_write_performed",
+    "automatic_reexecution_allowed",
+    "canonical_entrypoint_registered",
+    "gate_transition_authorized",
+    "closed",
+)
 
 
 class ProviderTargetReceiptRetentionAdmissionError(RuntimeError):
@@ -63,6 +93,26 @@ class ProviderTargetReceiptRetentionAdmissionBindingError(
     ProviderTargetReceiptRetentionAdmissionError
 ):
     """Persisted authority, topology, preflight, or replay state disagrees."""
+
+
+_Identity = tuple[Path, int, int]
+
+
+@dataclass(frozen=True)
+class _TopologySnapshot:
+    primary: _Identity
+    retention_root: _Identity
+    event_store: _Identity
+    receipt_cas: _Identity
+    effect_store: _Identity
+    sqlite_companions: tuple[_Identity, ...]
+
+    def __iter__(self) -> Iterator[Path]:
+        yield self.primary[0]
+        yield self.retention_root[0]
+        yield self.event_store[0]
+        yield self.receipt_cas[0]
+        yield self.effect_store[0]
 
 
 def _strict_scope_path(value: Any, label: str) -> str:
@@ -94,14 +144,9 @@ def _contains_symlink(path: Path) -> bool:
     return False
 
 
-def _identity(
-    path: Path,
-    label: str,
-    *,
-    directory: bool,
-) -> tuple[Path, int, int]:
+def _identity(path: Path, label: str, *, directory: bool) -> _Identity:
     try:
-        absolute = path.absolute()
+        absolute = Path(os.path.abspath(os.fspath(path)))
         if _contains_symlink(absolute):
             raise ProviderTargetReceiptRetentionAdmissionBindingError(
                 f"{label} path must not contain symlinks"
@@ -110,7 +155,7 @@ def _identity(
         info = resolved.stat()
     except ProviderTargetReceiptRetentionAdmissionError:
         raise
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
             f"{label} cannot be resolved"
         ) from exc
@@ -131,10 +176,7 @@ def _identity(
     return resolved, int(info.st_dev), int(info.st_ino)
 
 
-def _same_identity(
-    left: tuple[Path, int, int],
-    right: tuple[Path, int, int],
-) -> bool:
+def _same_identity(left: _Identity, right: _Identity) -> bool:
     return left[1:] == right[1:]
 
 
@@ -142,7 +184,7 @@ def _overlap(left: Path, right: Path) -> bool:
     return left == right or left in right.parents or right in left.parents
 
 
-def _sqlite_companions(path: Path) -> tuple[Path, ...]:
+def _sqlite_companion_paths(path: Path) -> tuple[Path, ...]:
     values: list[Path] = []
     for suffix in ("-wal", "-shm", "-journal"):
         candidate = Path(f"{path}{suffix}")
@@ -159,10 +201,27 @@ def _verify_topology(
     effect_store_path: Path,
     event_store_scope_path: str,
     receipt_cas_scope_path: str,
-) -> tuple[Path, Path, Path, Path, Path]:
+) -> _TopologySnapshot:
+    try:
+        spine = retention_ledger.spine
+        source_store = retention_ledger.source_store
+        ledger_checkout = Path(retention_ledger.primary_checkout)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionAdmissionShapeError(
+            "retention_ledger topology is malformed"
+        ) from exc
+    if type(spine) is not SpineLedger:
+        raise ProviderTargetReceiptRetentionAdmissionShapeError(
+            "retention_ledger.spine must be exact SpineLedger"
+        )
+    if type(source_store) is not SourceTreeStore:
+        raise ProviderTargetReceiptRetentionAdmissionShapeError(
+            "retention_ledger.source_store must be exact SourceTreeStore"
+        )
+
     primary = _identity(repository_root, "repository_root", directory=True)
     ledger_primary = _identity(
-        Path(retention_ledger.primary_checkout),
+        ledger_checkout,
         "retention ledger primary checkout",
         directory=True,
     )
@@ -172,21 +231,9 @@ def _verify_topology(
         )
 
     root = _identity(retention_root, "retention_root", directory=True)
-    event = _identity(
-        Path(retention_ledger.spine.path),
-        "canonical Event Store",
-        directory=False,
-    )
-    cas = _identity(
-        Path(retention_ledger.source_store.root),
-        "receipt CAS",
-        directory=True,
-    )
-    effect = _identity(
-        effect_store_path,
-        "Effect-Lease store",
-        directory=False,
-    )
+    event = _identity(Path(spine.path), "canonical Event Store", directory=False)
+    cas = _identity(Path(source_store.root), "receipt CAS", directory=True)
+    effect = _identity(effect_store_path, "Effect-Lease store", directory=False)
 
     event_scope = _strict_scope_path(
         event_store_scope_path,
@@ -214,7 +261,6 @@ def _verify_topology(
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
             "receipt_cas_scope_path does not bind the concrete receipt CAS"
         )
-
     if _overlap(primary[0], root[0]):
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
             "retention_root must be outside the Primary Checkout"
@@ -236,28 +282,38 @@ def _verify_topology(
                     "Primary Checkout and retention stores must be pairwise disjoint"
                 )
 
-    identities = {(row[1], row[2]) for row in protected}
+    companions: list[_Identity] = []
+    known_identities = {(row[1], row[2]) for row in protected}
+    known_paths = [row[0] for row in protected]
     for label, store in (
         ("canonical Event Store", event[0]),
         ("Effect-Lease store", effect[0]),
     ):
-        for companion_path in _sqlite_companions(store):
+        for companion_path in _sqlite_companion_paths(store):
             companion = _identity(
                 companion_path,
                 f"{label} companion",
                 directory=False,
             )
-            if (companion[1], companion[2]) in identities:
+            identity_key = (companion[1], companion[2])
+            if identity_key in known_identities or any(
+                _overlap(companion[0], path) for path in known_paths
+            ):
                 raise ProviderTargetReceiptRetentionAdmissionBindingError(
-                    f"{label} companion aliases a protected path"
+                    f"{label} companion aliases or overlaps a protected path"
                 )
-            if _overlap(primary[0], companion[0]):
-                raise ProviderTargetReceiptRetentionAdmissionBindingError(
-                    f"{label} companion is inside the Primary Checkout"
-                )
-            identities.add((companion[1], companion[2]))
+            known_identities.add(identity_key)
+            known_paths.append(companion[0])
+            companions.append(companion)
 
-    return primary[0], root[0], event[0], cas[0], effect[0]
+    return _TopologySnapshot(
+        primary=primary,
+        retention_root=root,
+        event_store=event,
+        receipt_cas=cas,
+        effect_store=effect,
+        sqlite_companions=tuple(companions),
+    )
 
 
 def _exact_guard(
@@ -283,6 +339,61 @@ def _exact_guard(
             "retention authorization guard is detached from the signed preflight"
         )
     return expected
+
+
+def _verify_authorization_shape(
+    authorization: NonRuntimeEffectAuthorization,
+) -> None:
+    exact = (
+        (authorization.lease, EffectLease, "authorization.lease"),
+        (authorization.request, EffectLeaseRequest, "authorization.request"),
+        (
+            authorization.policy_decision,
+            PolicyDecision,
+            "authorization.policy_decision",
+        ),
+        (
+            authorization.effect_ledger,
+            EffectLeaseLedger,
+            "authorization.effect_ledger",
+        ),
+    )
+    for value, expected, label in exact:
+        if type(value) is not expected:
+            raise ProviderTargetReceiptRetentionAdmissionShapeError(
+                f"{label} must be exact {expected.__name__}"
+            )
+
+    lease = authorization.lease
+    request = authorization.request
+    policy = authorization.policy_decision
+    if request.entrypoint_id != RETENTION_ENTRYPOINT:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "persisted Effect-Lease request names the wrong retention entrypoint"
+        )
+    if lease.entrypoint_id != RETENTION_ENTRYPOINT:
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "persisted Effect Lease names the wrong retention entrypoint"
+        )
+    if (
+        lease.request_id != request.request_id
+        or lease.request_sha256 != request.digest
+        or lease.policy_decision_id != policy.decision_id
+        or lease.policy_decision_sha256 != policy.digest
+        or policy.subject_id != request.request_id
+        or policy.subject_sha256 != request.digest
+        or policy.verdict != "allow"
+        or lease.requested_effects != request.requested_effects
+        or lease.effect_scope != request.effect_scope
+        or policy.effect_scope != request.effect_scope
+        or lease.idempotency_namespace != request.idempotency_namespace
+        or lease.kill_switch_generation != request.kill_switch_generation
+        or lease.runtime_manifest_sha256 != request.runtime_manifest_sha256
+        or lease.runtime_conformance_sha256 != request.runtime_conformance_sha256
+    ):
+        raise ProviderTargetReceiptRetentionAdmissionBindingError(
+            "persisted Effect-Lease authority components are detached"
+        )
 
 
 @dataclass(frozen=True)
@@ -311,27 +422,17 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
 
     def __post_init__(self) -> None:
         try:
-            object.__setattr__(
-                self,
-                "source_revision",
-                _revision(self.source_revision, "source_revision"),
-            )
-            for field in (
-                "preflight_sha256",
-                "provider_target_receipt_sha256",
-                "retention_inventory_sha256",
-                "retention_authority_sha256",
-                "retention_execution_request_sha256",
-                "retention_effect_lease_sha256",
-                "retention_effect_lease_request_sha256",
-                "retention_policy_decision_sha256",
-            ):
+            revision = _revision(self.source_revision, "source_revision")
+            if _REVISION_40.fullmatch(revision) is None:
+                raise ValueError("source_revision must be exact 40-hex commit")
+            object.__setattr__(self, "source_revision", revision)
+            for field in _DIGEST_FIELDS:
                 object.__setattr__(
                     self,
                     field,
                     _sha256(getattr(self, field), field),
                 )
-            for field in ("start_receipt_sha256", "terminal_receipt_sha256"):
+            for field in _OPTIONAL_DIGEST_FIELDS:
                 value = getattr(self, field)
                 if value is not None:
                     object.__setattr__(self, field, _sha256(value, field))
@@ -350,50 +451,43 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
             raise ProviderTargetReceiptRetentionAdmissionShapeError(
                 "retention admission guard_contract is wrong"
             )
-        if type(self.guard_evidence) is not str or not self.guard_evidence:
+        if type(self.guard_evidence) is not str or (
+            _GUARD_EVIDENCE.fullmatch(self.guard_evidence) is None
+        ):
             raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                "retention admission guard_evidence is empty"
+                "retention admission guard_evidence is malformed"
             )
         if self.execution_state == "not_started":
-            if (
-                self.start_receipt_sha256 is not None
-                or self.terminal_receipt_sha256 is not None
-            ):
-                raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                    "not_started admission cannot retain execution receipts"
-                )
-        elif self.execution_state == "started":
-            if (
+            valid_receipts = (
                 self.start_receipt_sha256 is None
-                or self.terminal_receipt_sha256 is not None
-            ):
-                raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                    "started admission must retain only the start receipt"
-                )
-        elif (
-            self.start_receipt_sha256 is None
-            or self.terminal_receipt_sha256 is None
-        ):
-            raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                "terminal admission must retain start and terminal receipts"
+                and self.terminal_receipt_sha256 is None
             )
-        for field in (
-            "primary_checkout_path",
-            "retention_root_path",
-            "event_store_path",
-            "receipt_cas_path",
-            "effect_lease_store_path",
-        ):
+        elif self.execution_state == "started":
+            valid_receipts = (
+                self.start_receipt_sha256 is not None
+                and self.terminal_receipt_sha256 is None
+            )
+        else:
+            valid_receipts = (
+                self.start_receipt_sha256 is not None
+                and self.terminal_receipt_sha256 is not None
+            )
+        if not valid_receipts:
+            raise ProviderTargetReceiptRetentionAdmissionShapeError(
+                "retention admission state and execution receipts disagree"
+            )
+        for field in _PATH_FIELDS:
             value = getattr(self, field)
             if (
                 type(value) is not str
                 or not value
+                or len(value) > 4096
                 or "\x00" in value
                 or "\r" in value
                 or "\n" in value
             ):
                 raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                    f"{field} must be a non-empty exact path string"
+                    f"{field} must be a bounded exact path string"
                 )
 
     def to_dict(self) -> dict[str, Any]:
@@ -443,35 +537,19 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
     ) -> "ProviderTargetReceiptRetentionAdmissionReceipt":
         fields = {
             "source_revision",
-            "preflight_sha256",
-            "provider_target_receipt_sha256",
-            "retention_inventory_sha256",
-            "retention_authority_sha256",
-            "retention_execution_request_sha256",
-            "retention_effect_lease_sha256",
-            "retention_effect_lease_request_sha256",
-            "retention_policy_decision_sha256",
+            *_DIGEST_FIELDS,
+            *_OPTIONAL_DIGEST_FIELDS,
             "guard_contract",
             "guard_evidence",
             "execution_state",
-            "start_receipt_sha256",
-            "terminal_receipt_sha256",
-            "primary_checkout_path",
-            "retention_root_path",
-            "event_store_path",
-            "receipt_cas_path",
-            "effect_lease_store_path",
+            *_PATH_FIELDS,
         }
         claims = {
             "persisted_effect_lease_verified",
             "primary_checkout_disjointness_verified",
             "retention_effect_started",
             "retention_effect_terminal",
-            "retention_write_performed",
-            "automatic_reexecution_allowed",
-            "canonical_entrypoint_registered",
-            "gate_transition_authorized",
-            "closed",
+            *_FALSE_CLAIMS,
         }
         if not isinstance(payload, Mapping) or set(payload) != {
             "schema",
@@ -493,18 +571,12 @@ class ProviderTargetReceiptRetentionAdmissionReceipt:
             raise ProviderTargetReceiptRetentionAdmissionShapeError(
                 "retention admission execution_state is unknown"
             )
-        expected_started = state != "not_started"
-        expected_terminal = state in _TERMINAL_STATES
         expected_claims = {
             "persisted_effect_lease_verified": True,
             "primary_checkout_disjointness_verified": True,
-            "retention_effect_started": expected_started,
-            "retention_effect_terminal": expected_terminal,
-            "retention_write_performed": False,
-            "automatic_reexecution_allowed": False,
-            "canonical_entrypoint_registered": False,
-            "gate_transition_authorized": False,
-            "closed": False,
+            "retention_effect_started": state != "not_started",
+            "retention_effect_terminal": state in _TERMINAL_STATES,
+            **{field: False for field in _FALSE_CLAIMS},
         }
         for field, expected in expected_claims.items():
             if payload[field] is not expected:
@@ -595,9 +667,8 @@ def verify_provider_target_receipt_retention_admission(
 ) -> ProviderTargetReceiptRetentionAdmissionReceipt:
     """Verify one non-executing central-admission candidate.
 
-    The signed preflight and concrete topology are each fenced on both sides of
-    persisted replay. The function never grants, starts, finishes, or revokes an
-    Effect Lease and never invokes ``ProviderTargetReceiptLedger.retain``.
+    Signed preflight and concrete topology are each fenced on both sides of the
+    persisted replay read. No lease or receipt-retention state is mutated.
     """
 
     if not isinstance(repository_root, Path) or not isinstance(
@@ -607,43 +678,17 @@ def verify_provider_target_receipt_retention_admission(
         raise ProviderTargetReceiptRetentionAdmissionShapeError(
             "repository_root and retention_root must be pathlib.Path"
         )
-    exact_types = (
+    exact = (
         (execution, EffectExecutionRequest, "execution"),
         (authorization, NonRuntimeEffectAuthorization, "authorization"),
         (retention_ledger, ProviderTargetReceiptLedger, "retention_ledger"),
     )
-    for value, expected, label in exact_types:
+    for value, expected, label in exact:
         if type(value) is not expected:
             raise ProviderTargetReceiptRetentionAdmissionShapeError(
                 f"{label} must be exact {expected.__name__}"
             )
-    authorization_types = (
-        (authorization.lease, EffectLease, "authorization.lease"),
-        (authorization.request, EffectLeaseRequest, "authorization.request"),
-        (
-            authorization.policy_decision,
-            PolicyDecision,
-            "authorization.policy_decision",
-        ),
-        (
-            authorization.effect_ledger,
-            EffectLeaseLedger,
-            "authorization.effect_ledger",
-        ),
-    )
-    for value, expected, label in authorization_types:
-        if type(value) is not expected:
-            raise ProviderTargetReceiptRetentionAdmissionShapeError(
-                f"{label} must be exact {expected.__name__}"
-            )
-    if authorization.lease.entrypoint_id != RETENTION_ENTRYPOINT:
-        raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "persisted Effect Lease names the wrong retention entrypoint"
-        )
-    if authorization.request.entrypoint_id != RETENTION_ENTRYPOINT:
-        raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "persisted Effect-Lease request names the wrong retention entrypoint"
-        )
+    _verify_authorization_shape(authorization)
 
     execution_digest = execution.digest
     lease_digest = authorization.lease.digest
@@ -674,7 +719,6 @@ def verify_provider_target_receipt_retention_admission(
         event_store_scope_path=event_store_scope_path,
         receipt_cas_scope_path=receipt_cas_scope_path,
     )
-
     try:
         replay = inspect_effect_execution(authorization, execution)
     except EffectReplayProjectionError as exc:
@@ -696,7 +740,7 @@ def verify_provider_target_receipt_retention_admission(
     )
     if final_topology != topology:
         raise ProviderTargetReceiptRetentionAdmissionBindingError(
-            "retention topology changed during persisted replay"
+            "retention topology identity changed during persisted replay"
         )
 
     final_preflight = _replay_preflight(
