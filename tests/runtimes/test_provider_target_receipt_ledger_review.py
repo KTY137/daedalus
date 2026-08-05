@@ -55,13 +55,21 @@ def test_retention_has_no_loader_provider_process_network_or_promotion_authority
     assert "compile(" not in source
 
 
-def test_authentication_precedes_intent_and_intent_precedes_cas_publication() -> None:
+def test_authentication_and_validation_precede_intent_then_cas_then_terminal() -> None:
     rendered = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
     verify_at = rendered.index("verify_provider_target_verification_receipt")
-    intent_at = rendered.index("self.spine.record_intent")
+    payload_at = rendered.index("_receipt_bytes(receipt)")
+    schema_at = rendered.index("self._install_single_receipt_invariant")
+    intent_at = rendered.index("self._record_or_recover_intent")
     cas_at = rendered.index("self.source_store.put_bytes")
     terminal_at = rendered.index("self.spine.mark_completed")
-    assert verify_at < intent_at < cas_at < terminal_at
+    assert verify_at < payload_at < schema_at < intent_at < cas_at < terminal_at
+
+    helper = ast.unparse(
+        _method("ProviderTargetReceiptLedger", "_record_or_recover_intent")
+    )
+    assert "self.spine.record_intent" in helper
+    assert "self.source_store" not in helper
 
 
 def test_replay_never_resolves_or_invokes_provider_targets() -> None:
@@ -87,6 +95,19 @@ def test_event_store_reader_is_read_only_and_rejects_ambiguous_state() -> None:
     assert "UPDATE " not in rendered
     assert "INSERT " not in rendered
     assert "DELETE " not in rendered
+
+
+def test_unknown_intent_and_terminal_outcomes_are_reread_not_guessed() -> None:
+    intent = ast.unparse(
+        _method("ProviderTargetReceiptLedger", "_record_or_recover_intent")
+    )
+    retain = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    assert "except sqlite3.DatabaseError as exc" in intent
+    assert intent.count("_read_intent(self.spine.path, key)") >= 2
+    assert "intent persistence is unresolved and requires replay" in intent
+    assert "completion_error" in retain
+    assert "terminal persistence is unresolved and requires replay" in retain
+    assert "terminal is None or terminal.state == STATE_INTENDED" in retain
 
 
 def test_exact_writer_store_receipt_and_projection_types_are_required() -> None:
@@ -122,7 +143,7 @@ def test_primary_checkout_is_only_inspected_and_never_a_write_target() -> None:
     assert "primary_checkout" not in retain
 
 
-def test_single_receipt_invariant_is_scoped_to_exact_intent_kind() -> None:
+def test_single_receipt_invariant_is_scoped_and_definition_checked() -> None:
     rendered = ast.unparse(
         _method("ProviderTargetReceiptLedger", "_install_single_receipt_invariant")
     )
@@ -130,3 +151,5 @@ def test_single_receipt_invariant_is_scoped_to_exact_intent_kind() -> None:
     assert "ON intents(effect_key)" in rendered
     assert "WHERE kind=" in rendered
     assert "self.spine._txn()" in rendered
+    assert "sqlite_master" in rendered
+    assert "foreign definition" in rendered
