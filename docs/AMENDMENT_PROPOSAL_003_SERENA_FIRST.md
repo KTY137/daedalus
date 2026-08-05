@@ -320,9 +320,25 @@ real `PreToolUse` payloads on stdin:
    `"matcher": "Grep|Read"` entry is picked up. The guard verifies the Iron Plan
    hook entries in `settings.json`; it does not verify this one.
 
-7. `python -m pytest tests/ -q` in the worktree → see "Discovered on
-   application" below. One new failure, found and fixed; one pre-existing
-   failure, left alone and reported.
+7. **Bounded, not the full suite.** `python -m pytest tests/ -q` did not
+   complete inside the session window in either the pre- or post-amendment run
+   (>18 min, no result), so the full-suite comparison item 7 originally asked
+   for is **not available** and is not claimed here.
+
+   What was run instead: every test file that reads an artifact this amendment
+   touches, found by searching `tests/` for `AGENTS.md`, the plan, the ledger,
+   `settings.json`, and `serena` — `test_iron_plan_guard.py`,
+   `test_serena_first_hook.py`, `test_tools_vet.py`,
+   `test_self_policy_confinement.py`, `test_gate0_faults_atalanta.py`,
+   `test_comms.py`:
+
+   ```
+   [MEASURED] 276 passed, 84 subtests passed, 1 failed in 30.95s
+   ```
+
+   The single failure is the pre-existing one described below. This bounds the
+   blast radius by construction — a test that never reads these files cannot
+   see this change — but it is a narrower claim than a green full suite.
 
 ---
 
