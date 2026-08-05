@@ -142,14 +142,20 @@ def test_exact_writer_store_receipt_and_projection_types_are_required() -> None:
 
 def test_primary_checkout_is_only_inspected_and_never_a_write_target() -> None:
     source = inspect.getsource(ledger)
+    sqlite_state = ast.unparse(_function("_sqlite_state_paths"))
     topology = ast.unparse(_function("_validate_topology"))
     retain = ast.unparse(_method("ProviderTargetReceiptLedger", "retain"))
+    assert "-wal" in sqlite_state
+    assert "-shm" in sqlite_state
+    assert "-journal" in sqlite_state
     assert "primary_checkout" in topology
     assert "_paths_overlap(primary, store_root)" in topology
-    assert "_paths_overlap(primary, event_store)" in topology
-    assert "stat.S_ISREG(event_store_stat.st_mode)" in topology
-    assert "event_store_stat.st_nlink != 1" in topology
-    assert "_contains_symlink(path)" in topology
+    assert "_paths_overlap(primary, event_store_file)" in topology
+    assert "_paths_overlap(store_root, event_store_file)" in topology
+    assert "stat.S_ISREG(identity.st_mode)" in topology
+    assert "identity.st_nlink != 1" in topology
+    assert "_contains_symlink(candidate)" in topology
+    assert "for event_store_file in event_store_files" in topology
     assert "_validate_topology(self.primary_checkout, self.source_store, self.spine)" in retain
     assert "write_bytes" not in source
     assert "mkdir" not in source
