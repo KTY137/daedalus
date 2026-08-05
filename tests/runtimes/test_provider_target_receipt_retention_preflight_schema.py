@@ -3,14 +3,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 
 SCHEMA = Path(
     "configs/schemas/provider-target-receipt-retention-preflight.schema.json"
 )
 
 
-def test_preflight_schema_is_exact_and_non_authorizing() -> None:
+def _document() -> dict[str, object]:
     document = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(document)
+    return document
+
+
+def test_preflight_schema_is_exact_and_non_authorizing() -> None:
+    document = _document()
 
     assert document["type"] == "object"
     assert document["additionalProperties"] is False
@@ -21,6 +29,7 @@ def test_preflight_schema_is_exact_and_non_authorizing() -> None:
     )
     for field in (
         "repository_head_reverified",
+        "repository_head_stable_across_inventory",
         "retention_inventory_rebuilt",
         "retention_authority_authenticated",
         "guard_decision_allowed",
@@ -38,11 +47,20 @@ def test_preflight_schema_is_exact_and_non_authorizing() -> None:
         assert properties[field]["const"] is False
 
 
-def test_preflight_schema_binds_revision_digests_and_guard_evidence() -> None:
-    document = json.loads(SCHEMA.read_text(encoding="utf-8"))
+def test_preflight_schema_binds_revision_inventory_digests_and_guard() -> None:
+    document = _document()
     properties = document["properties"]
 
     assert properties["source_revision"]["pattern"] == "^[0-9a-f]{40}$"
+    assert properties["retention_inventory_source_size"] == {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2097152,
+    }
+    assert properties["retention_inventory_surface_count"] == {
+        "type": "integer",
+        "const": 7,
+    }
     for field in (
         "repository_head_receipt_sha256",
         "provider_target_receipt_sha256",
