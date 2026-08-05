@@ -52,6 +52,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py
+          tests/runtimes/test_provider_target_receipt_retention_completed_evidence_hardening.py
           tests/runtimes/test_provider_target_receipt_retention_completed_evidence_review.py
           tests/runtimes/test_provider_target_receipt_retention_completed_evidence_schema.py
 
