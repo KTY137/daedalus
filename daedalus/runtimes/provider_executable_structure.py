@@ -1,10 +1,15 @@
-"""Read-only structural verification for authenticated provider targets.
+"""Authenticated read-only structural verification for provider targets.
 
-The target manifest authenticates which local Python objects and source digests
-belong to one provider invocation identity.  This module proves that both
-objects exist uniquely in the selected repository tree and retains that result
-in a deterministic receipt.  It never imports or executes repository code and
-cannot grant effect or provider-execution authority.
+The signed target authority authenticates which local Python objects and source
+digests belong to one provider invocation.  This module replays that complete
+authentication before reading repository bytes, proves that both objects exist
+uniquely in the selected tree, and retains the result in a deterministic
+receipt.
+
+Structural verification is deliberately weaker than executable admission.  No
+module is imported, no decorator is evaluated, and no provider or output
+materializer is called.  The receipt cannot grant effect or provider-execution
+authority.
 """
 from __future__ import annotations
 
@@ -17,8 +22,19 @@ from daedalus.gates.python_target_structure import (
     PythonTargetStructureError,
     resolve_python_target_structure,
 )
+from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_executable_targets import (
+    ProviderExecutableTargetAuthority,
+    ProviderExecutableTargetError,
+    ProviderExecutableTargetManifest,
     ProviderExecutableTargetProjection,
+    project_provider_executable_targets,
+)
+from daedalus.runtimes.provider_invocation_authority import (
+    ProviderInvocationObservationAuthority,
+)
+from daedalus.runtimes.provider_invocation_registry import (
+    ProviderInvocationRegistryManifest,
 )
 from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
@@ -33,7 +49,7 @@ class ProviderExecutableStructureShapeError(ProviderExecutableStructureError):
 
 
 class ProviderExecutableStructureBindingError(ProviderExecutableStructureError):
-    """Repository structure differs from the authenticated target subject."""
+    """Authenticated authority or repository structure differs from the subject."""
 
 
 def _strict_int(value: Any, label: str, minimum: int = 0) -> int:
@@ -91,7 +107,9 @@ class VerifiedProviderExecutableTarget:
         object.__setattr__(self, "role", _strict_role(self.role))
         try:
             object.__setattr__(
-                self, "source_sha256", _sha256(self.source_sha256, "source_sha256")
+                self,
+                "source_sha256",
+                _sha256(self.source_sha256, "source_sha256"),
             )
             object.__setattr__(
                 self,
@@ -111,7 +129,9 @@ class VerifiedProviderExecutableTarget:
         ):
             _strict_int(value, label, minimum)
         if not isinstance(self.target, str) or not self.target:
-            raise ProviderExecutableStructureShapeError("target must be non-empty")
+            raise ProviderExecutableStructureShapeError(
+                "target must be non-empty"
+            )
         if not isinstance(self.source_path, str) or not self.source_path:
             raise ProviderExecutableStructureShapeError(
                 "source_path must be non-empty"
@@ -160,11 +180,16 @@ class VerifiedProviderExecutableTarget:
         }
 
     def to_dict(self) -> dict[str, Any]:
-        return {"role": self.role, **self._subject(), "structure_sha256": self.structure_sha256}
+        return {
+            "role": self.role,
+            **self._subject(),
+            "structure_sha256": self.structure_sha256,
+        }
 
     @classmethod
     def from_dict(
-        cls, payload: Mapping[str, Any]
+        cls,
+        payload: Mapping[str, Any],
     ) -> "VerifiedProviderExecutableTarget":
         expected = {
             "role",
@@ -191,7 +216,10 @@ class VerifiedProviderExecutableTarget:
             raise ProviderExecutableStructureShapeError(
                 "target must retain structural verification"
             )
-        if payload["behavior_verified"] is not False or payload["executed"] is not False:
+        if (
+            payload["behavior_verified"] is not False
+            or payload["executed"] is not False
+        ):
             raise ProviderExecutableStructureShapeError(
                 "structural target cannot claim behavior or execution"
             )
@@ -224,18 +252,29 @@ class VerifiedProviderExecutableTarget:
 
 @dataclass(frozen=True)
 class ProviderExecutableStructureReceipt:
-    """Deterministic receipt for two exact structurally verified targets."""
+    """Deterministic receipt for authenticated, structurally verified targets."""
 
     provider_id: str
     adapter_id: str
     implementation_id: str
     entrypoint_id: str
     runtime_id: str
+    execution_id: str
+    idempotency_key: str
     source_revision: str
+    target_contract_id: str
+    lease_sha256: str
+    target_authority_sha256: str
+    invocation_authority_sha256: str
+    invocation_contract_sha256: str
     identity_sha256: str
+    identity_registry_sha256: str
+    identity_descriptor_sha256: str
     target_projection_sha256: str
     target_manifest_sha256: str
     target_descriptor_sha256: str
+    adapter_artifact_sha256: str
+    adapter_config_sha256: str
     invoke: VerifiedProviderExecutableTarget
     output_digests: VerifiedProviderExecutableTarget
 
@@ -247,9 +286,14 @@ class ProviderExecutableStructureReceipt:
                 "implementation_id",
                 "entrypoint_id",
                 "runtime_id",
+                "execution_id",
+                "idempotency_key",
+                "target_contract_id",
             ):
                 object.__setattr__(
-                    self, field, _identifier(getattr(self, field), field)
+                    self,
+                    field,
+                    _identifier(getattr(self, field), field),
                 )
             object.__setattr__(
                 self,
@@ -257,13 +301,23 @@ class ProviderExecutableStructureReceipt:
                 _revision(self.source_revision, "source_revision"),
             )
             for field in (
+                "lease_sha256",
+                "target_authority_sha256",
+                "invocation_authority_sha256",
+                "invocation_contract_sha256",
                 "identity_sha256",
+                "identity_registry_sha256",
+                "identity_descriptor_sha256",
                 "target_projection_sha256",
                 "target_manifest_sha256",
                 "target_descriptor_sha256",
+                "adapter_artifact_sha256",
+                "adapter_config_sha256",
             ):
                 object.__setattr__(
-                    self, field, _sha256(getattr(self, field), field)
+                    self,
+                    field,
+                    _sha256(getattr(self, field), field),
                 )
         except (TypeError, ValueError) as exc:
             raise ProviderExecutableStructureShapeError(
@@ -277,26 +331,41 @@ class ProviderExecutableStructureReceipt:
             raise ProviderExecutableStructureShapeError(
                 "output_digests must be an exact verified target"
             )
-        if self.invoke.role != "invoke" or self.output_digests.role != "output_digests":
+        if (
+            self.invoke.role != "invoke"
+            or self.output_digests.role != "output_digests"
+        ):
             raise ProviderExecutableStructureBindingError(
                 "verified targets have incorrect roles"
             )
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "daedalus-provider-executable-structure-receipt/1",
+            "schema": "daedalus-provider-executable-structure-receipt/2",
             "provider_id": self.provider_id,
             "adapter_id": self.adapter_id,
             "implementation_id": self.implementation_id,
             "entrypoint_id": self.entrypoint_id,
             "runtime_id": self.runtime_id,
+            "execution_id": self.execution_id,
+            "idempotency_key": self.idempotency_key,
             "source_revision": self.source_revision,
+            "target_contract_id": self.target_contract_id,
+            "lease_sha256": self.lease_sha256,
+            "target_authority_sha256": self.target_authority_sha256,
+            "invocation_authority_sha256": self.invocation_authority_sha256,
+            "invocation_contract_sha256": self.invocation_contract_sha256,
             "identity_sha256": self.identity_sha256,
+            "identity_registry_sha256": self.identity_registry_sha256,
+            "identity_descriptor_sha256": self.identity_descriptor_sha256,
             "target_projection_sha256": self.target_projection_sha256,
             "target_manifest_sha256": self.target_manifest_sha256,
             "target_descriptor_sha256": self.target_descriptor_sha256,
+            "adapter_artifact_sha256": self.adapter_artifact_sha256,
+            "adapter_config_sha256": self.adapter_config_sha256,
             "invoke": self.invoke.to_dict(),
             "output_digests": self.output_digests.to_dict(),
+            "target_authority_authenticated": True,
             "targets_structurally_verified": True,
             "repository_bytes_executed": False,
             "provider_execution_allowed": False,
@@ -305,7 +374,8 @@ class ProviderExecutableStructureReceipt:
 
     @classmethod
     def from_dict(
-        cls, payload: Mapping[str, Any]
+        cls,
+        payload: Mapping[str, Any],
     ) -> "ProviderExecutableStructureReceipt":
         expected = {
             "schema",
@@ -314,13 +384,25 @@ class ProviderExecutableStructureReceipt:
             "implementation_id",
             "entrypoint_id",
             "runtime_id",
+            "execution_id",
+            "idempotency_key",
             "source_revision",
+            "target_contract_id",
+            "lease_sha256",
+            "target_authority_sha256",
+            "invocation_authority_sha256",
+            "invocation_contract_sha256",
             "identity_sha256",
+            "identity_registry_sha256",
+            "identity_descriptor_sha256",
             "target_projection_sha256",
             "target_manifest_sha256",
             "target_descriptor_sha256",
+            "adapter_artifact_sha256",
+            "adapter_config_sha256",
             "invoke",
             "output_digests",
+            "target_authority_authenticated",
             "targets_structurally_verified",
             "repository_bytes_executed",
             "provider_execution_allowed",
@@ -330,9 +412,15 @@ class ProviderExecutableStructureReceipt:
             raise ProviderExecutableStructureShapeError(
                 "structure receipt fields are not exact"
             )
-        if payload["schema"] != "daedalus-provider-executable-structure-receipt/1":
+        if payload["schema"] != (
+            "daedalus-provider-executable-structure-receipt/2"
+        ):
             raise ProviderExecutableStructureShapeError(
                 "structure receipt schema does not match"
+            )
+        if payload["target_authority_authenticated"] is not True:
+            raise ProviderExecutableStructureShapeError(
+                "structure receipt must retain target-authority authentication"
             )
         if payload["targets_structurally_verified"] is not True:
             raise ProviderExecutableStructureShapeError(
@@ -353,12 +441,41 @@ class ProviderExecutableStructureReceipt:
                 implementation_id=payload["implementation_id"],
                 entrypoint_id=payload["entrypoint_id"],
                 runtime_id=payload["runtime_id"],
+                execution_id=payload["execution_id"],
+                idempotency_key=payload["idempotency_key"],
                 source_revision=payload["source_revision"],
+                target_contract_id=payload["target_contract_id"],
+                lease_sha256=payload["lease_sha256"],
+                target_authority_sha256=payload[
+                    "target_authority_sha256"
+                ],
+                invocation_authority_sha256=payload[
+                    "invocation_authority_sha256"
+                ],
+                invocation_contract_sha256=payload[
+                    "invocation_contract_sha256"
+                ],
                 identity_sha256=payload["identity_sha256"],
-                target_projection_sha256=payload["target_projection_sha256"],
+                identity_registry_sha256=payload[
+                    "identity_registry_sha256"
+                ],
+                identity_descriptor_sha256=payload[
+                    "identity_descriptor_sha256"
+                ],
+                target_projection_sha256=payload[
+                    "target_projection_sha256"
+                ],
                 target_manifest_sha256=payload["target_manifest_sha256"],
-                target_descriptor_sha256=payload["target_descriptor_sha256"],
-                invoke=VerifiedProviderExecutableTarget.from_dict(payload["invoke"]),
+                target_descriptor_sha256=payload[
+                    "target_descriptor_sha256"
+                ],
+                adapter_artifact_sha256=payload[
+                    "adapter_artifact_sha256"
+                ],
+                adapter_config_sha256=payload["adapter_config_sha256"],
+                invoke=VerifiedProviderExecutableTarget.from_dict(
+                    payload["invoke"]
+                ),
                 output_digests=VerifiedProviderExecutableTarget.from_dict(
                     payload["output_digests"]
                 ),
@@ -375,7 +492,10 @@ class ProviderExecutableStructureReceipt:
         return canonical_sha(self.to_dict())
 
 
-def _retain(role: str, structure: PythonTargetStructure) -> VerifiedProviderExecutableTarget:
+def _retain(
+    role: str,
+    structure: PythonTargetStructure,
+) -> VerifiedProviderExecutableTarget:
     if type(structure) is not PythonTargetStructure:
         raise ProviderExecutableStructureShapeError(
             "resolved target structure type is not exact"
@@ -397,20 +517,99 @@ def _retain(role: str, structure: PythonTargetStructure) -> VerifiedProviderExec
     )
 
 
+def _authenticate_projection(
+    target_authority: ProviderExecutableTargetAuthority,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    identity_registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
+    *,
+    target_contract_id: str,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    at: Any,
+) -> ProviderExecutableTargetProjection:
+    exact_subjects = (
+        (
+            target_authority,
+            ProviderExecutableTargetAuthority,
+            "target_authority",
+        ),
+        (
+            invocation_authority,
+            ProviderInvocationObservationAuthority,
+            "invocation_authority",
+        ),
+        (
+            identity_registry,
+            ProviderInvocationRegistryManifest,
+            "identity_registry",
+        ),
+        (execution, EffectExecutionRequest, "execution"),
+        (manifest, ProviderExecutableTargetManifest, "manifest"),
+    )
+    for value, expected, label in exact_subjects:
+        if type(value) is not expected:
+            raise ProviderExecutableStructureShapeError(
+                f"{label} must be exact {expected.__name__}"
+            )
+    try:
+        projection = project_provider_executable_targets(
+            target_authority,
+            invocation_authority,
+            identity_registry,
+            execution,
+            manifest,
+            target_contract_id=target_contract_id,
+            authority_id=authority_id,
+            authority_keyring=authority_keyring,
+            observation_keyring=observation_keyring,
+            at=at,
+        )
+    except ProviderExecutableTargetError as exc:
+        raise ProviderExecutableStructureBindingError(
+            "provider executable target authority did not authenticate"
+        ) from exc
+    if type(projection) is not ProviderExecutableTargetProjection:
+        raise ProviderExecutableStructureBindingError(
+            "authenticated target projection type is not exact"
+        )
+    return projection
+
+
 def verify_provider_executable_structure(
     repository_root: Path,
-    projection: ProviderExecutableTargetProjection,
+    target_authority: ProviderExecutableTargetAuthority,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    identity_registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
+    *,
+    target_contract_id: str,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    at: Any,
 ) -> ProviderExecutableStructureReceipt:
-    """Resolve both targets without importing or executing repository code."""
+    """Authenticate target authority, then resolve exact repository structure."""
 
     if not isinstance(repository_root, Path):
         raise ProviderExecutableStructureShapeError(
             "repository_root must be pathlib.Path"
         )
-    if type(projection) is not ProviderExecutableTargetProjection:
-        raise ProviderExecutableStructureShapeError(
-            "projection must be exact ProviderExecutableTargetProjection"
-        )
+    projection = _authenticate_projection(
+        target_authority,
+        invocation_authority,
+        identity_registry,
+        execution,
+        manifest,
+        target_contract_id=target_contract_id,
+        authority_id=authority_id,
+        authority_keyring=authority_keyring,
+        observation_keyring=observation_keyring,
+        at=at,
+    )
     try:
         invoke = resolve_python_target_structure(
             repository_root,
@@ -440,7 +639,10 @@ def verify_provider_executable_structure(
         raise ProviderExecutableStructureBindingError(
             "invoke source digest differs from authenticated projection"
         )
-    if retained_output.source_sha256 != projection.output_digests_source_sha256:
+    if (
+        retained_output.source_sha256
+        != projection.output_digests_source_sha256
+    ):
         raise ProviderExecutableStructureBindingError(
             "output source digest differs from authenticated projection"
         )
@@ -450,11 +652,24 @@ def verify_provider_executable_structure(
         implementation_id=projection.implementation_id,
         entrypoint_id=projection.entrypoint_id,
         runtime_id=projection.runtime_id,
+        execution_id=target_authority.execution_id,
+        idempotency_key=target_authority.idempotency_key,
         source_revision=projection.source_revision,
+        target_contract_id=target_authority.target_contract_id,
+        lease_sha256=target_authority.lease_sha256,
+        target_authority_sha256=target_authority.digest,
+        invocation_authority_sha256=invocation_authority.digest,
+        invocation_contract_sha256=(
+            invocation_authority.invocation_contract_sha256
+        ),
         identity_sha256=projection.identity_sha256,
+        identity_registry_sha256=projection.identity_registry_sha256,
+        identity_descriptor_sha256=projection.identity_descriptor_sha256,
         target_projection_sha256=projection.digest,
         target_manifest_sha256=projection.target_manifest_sha256,
         target_descriptor_sha256=projection.target_descriptor_sha256,
+        adapter_artifact_sha256=projection.adapter_artifact_sha256,
+        adapter_config_sha256=projection.adapter_config_sha256,
         invoke=retained_invoke,
         output_digests=retained_output,
     )
@@ -462,19 +677,41 @@ def verify_provider_executable_structure(
 
 def verify_provider_executable_structure_receipt(
     repository_root: Path,
-    projection: ProviderExecutableTargetProjection,
+    target_authority: ProviderExecutableTargetAuthority,
+    invocation_authority: ProviderInvocationObservationAuthority,
+    identity_registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
     receipt: ProviderExecutableStructureReceipt,
+    *,
+    target_contract_id: str,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    at: Any,
 ) -> None:
-    """Rebuild the exact receipt and refuse every detached retained field."""
+    """Re-authenticate and rebuild the receipt; refuse every detached field."""
 
     if type(receipt) is not ProviderExecutableStructureReceipt:
         raise ProviderExecutableStructureShapeError(
             "receipt must be exact ProviderExecutableStructureReceipt"
         )
-    rebuilt = verify_provider_executable_structure(repository_root, projection)
+    rebuilt = verify_provider_executable_structure(
+        repository_root,
+        target_authority,
+        invocation_authority,
+        identity_registry,
+        execution,
+        manifest,
+        target_contract_id=target_contract_id,
+        authority_id=authority_id,
+        authority_keyring=authority_keyring,
+        observation_keyring=observation_keyring,
+        at=at,
+    )
     if rebuilt.to_dict() != receipt.to_dict():
         raise ProviderExecutableStructureBindingError(
-            "structure receipt differs from live repository structure"
+            "structure receipt differs from authenticated live structure"
         )
 
 
