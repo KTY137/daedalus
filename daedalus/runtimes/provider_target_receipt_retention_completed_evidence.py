@@ -692,6 +692,14 @@ def verify_provider_target_receipt_retention_completed_evidence(
             artifact,
             payload,
         )
+        topology_final = _bind_admission_topology(
+            admission,
+            _topology_identity(retention_ledger),
+        )
+        artifact_identity_final = _artifact_file_identity(
+            retention_ledger,
+            artifact,
+        )
     except ProviderTargetReceiptRetentionError as exc:
         raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
             "completed retention Event-Store or CAS evidence did not verify"
@@ -702,7 +710,14 @@ def verify_provider_target_receipt_retention_completed_evidence(
         or artifact_identity_after != artifact_identity_before
     ):
         raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
-            "retention topology changed during completed-state verification"
+            "retention topology changed between completed-state reads"
+        )
+    if (
+        topology_final != topology_before
+        or artifact_identity_final != artifact_identity_before
+    ):
+        raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
+            "retention topology changed during final completed-state read"
         )
     if intent != final_intent or final_intent.state != STATE_COMPLETED:
         raise ProviderTargetReceiptRetentionCompletedEvidenceBindingError(
@@ -743,8 +758,8 @@ def verify_provider_target_receipt_retention_completed_evidence(
             "trace_id": final_intent.trace_id,
         }
     )
-    topology_digest = canonical_sha(topology_after)
-    artifact_identity_digest = canonical_sha(artifact_identity_after)
+    topology_digest = canonical_sha(topology_final)
+    artifact_identity_digest = canonical_sha(artifact_identity_final)
     return ProviderTargetReceiptRetentionCompletedEvidenceReceipt(
         source_revision=revision,
         admission_sha256=admission.digest,
@@ -759,8 +774,8 @@ def verify_provider_target_receipt_retention_completed_evidence(
         receipt_artifact_file_identity_sha256=artifact_identity_digest,
         start_receipt_sha256=admission.start_receipt_sha256,
         terminal_receipt_sha256=admission.terminal_receipt_sha256,
-        event_store_path=topology_after["event_store"]["path"],
-        receipt_cas_path=topology_after["receipt_cas"]["path"],
+        event_store_path=topology_final["event_store"]["path"],
+        receipt_cas_path=topology_final["receipt_cas"]["path"],
     )
 
 
