@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from daedalus.kernel.artifacts import ArtifactRef
+from daedalus.runtimes.provider_target_receipt_ledger import (
+    ProviderTargetReceiptLedger,
+)
 import daedalus.runtimes.provider_target_receipt_retention_completed_evidence as completed_module
 from daedalus.runtimes.provider_target_receipt_retention_admission import (
     ProviderTargetReceiptRetentionAdmissionReceipt,
@@ -25,6 +28,7 @@ from daedalus.runtimes.provider_target_receipt_retention_recovery import (
     decide_provider_target_receipt_retention_recovery,
 )
 from daedalus.spine.envelope import canonical_json
+from daedalus.spine.ledger import SpineLedger
 
 
 _LEDGER_HELPERS = runpy.run_path(
@@ -32,13 +36,25 @@ _LEDGER_HELPERS = runpy.run_path(
 )
 _fixture = _LEDGER_HELPERS["_fixture"]
 _issue = _LEDGER_HELPERS["_issue"]
-_ledger = _LEDGER_HELPERS["_ledger"]
 _retain = _LEDGER_HELPERS["_retain"]
 NOW = _LEDGER_HELPERS["NOW"]
 TARGET_CONTRACT_ID = _LEDGER_HELPERS["TARGET_CONTRACT_ID"]
 AUTHORITY_KEYRING = _LEDGER_HELPERS["AUTHORITY_KEYRING"]
 OBSERVATION_KEYRING = _LEDGER_HELPERS["OBSERVATION_KEYRING"]
 VERIFIER_KEYRING = _LEDGER_HELPERS["VERIFIER_KEYRING"]
+
+
+def _ledger(tmp_path: Path, fixture):
+    primary = tmp_path / "primary"
+    primary.mkdir(parents=True)
+    retention_root = tmp_path / "retention"
+    spine = SpineLedger(retention_root / "state" / "spine.sqlite3")
+    ledger = ProviderTargetReceiptLedger(
+        spine,
+        fixture.store,
+        primary_checkout=primary,
+    )
+    return primary, spine, ledger
 
 
 def _admission(primary, spine, ledger, fixture, receipt, **overrides):
@@ -111,7 +127,7 @@ def test_completed_retention_evidence_is_read_only_and_canonical(
     tmp_path,
     monkeypatch,
 ) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     retained = _retain(ledger, receipt, fixture)
@@ -156,7 +172,7 @@ def test_completed_retention_evidence_is_read_only_and_canonical(
 
 
 def test_completed_evidence_refuses_substituted_cas_bytes(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     retained = _retain(ledger, receipt, fixture)
@@ -176,7 +192,7 @@ def test_completed_evidence_refuses_substituted_cas_bytes(tmp_path) -> None:
 
 
 def test_completed_evidence_refuses_hard_linked_artifact_identity(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     retained = _retain(ledger, receipt, fixture)
@@ -197,7 +213,7 @@ def test_completed_evidence_refuses_hard_linked_artifact_identity(tmp_path) -> N
 
 
 def test_completed_evidence_refuses_terminal_event_substitution(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     retained = _retain(ledger, receipt, fixture)
@@ -231,7 +247,7 @@ def test_completed_evidence_refuses_terminal_event_substitution(tmp_path) -> Non
 
 
 def _topology_race_fixture(tmp_path):
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     _retain(ledger, receipt, fixture)
@@ -330,7 +346,7 @@ def test_completed_evidence_refuses_event_state_race(
 
 
 def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     _retain(ledger, receipt, fixture)
@@ -384,7 +400,7 @@ def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -
 
 
 def test_completed_evidence_refuses_detached_and_non_exact_inputs(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     _retain(ledger, receipt, fixture)
@@ -456,7 +472,7 @@ def test_completed_evidence_refuses_detached_and_non_exact_inputs(tmp_path) -> N
 
 
 def test_completed_evidence_wire_claims_fail_closed(tmp_path) -> None:
-    fixture = _fixture(tmp_path / "fixture")
+    fixture = _fixture(tmp_path / "retention" / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
     _retain(ledger, receipt, fixture)
