@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/provider-target-receipt-retention-recovery-decision.schema.json",
+  "title": "Provider Target Receipt Retention Recovery Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schema": {
+      "const": "daedalus-provider-target-receipt-retention-recovery-decision/1"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "admission_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "execution_state": {
+      "enum": [
+        "not_started",
+        "started",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "request_fresh_start_authorization",
+        "manual_reconciliation_required",
+        "verify_completed_retention_evidence",
+        "terminal_failure_refusal",
+        "terminal_cancellation_refusal"
+      ]
+    },
+    "start_receipt_sha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "terminal_receipt_sha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "admission_identity_bound": {
+      "const": true
+    },
+    "persisted_state_reverified": {
+      "const": false
+    },
+    "manual_reconciliation_required": {
+      "type": "boolean"
+    },
+    "terminal_state_observed": {
+      "type": "boolean"
+    },
+    "automatic_reexecution_allowed": {
+      "const": false
+    },
+    "effect_start_authorized": {
+      "const": false
+    },
+    "retention_write_authorized": {
+      "const": false
+    },
+    "effect_terminalization_authorized": {
+      "const": false
+    },
+    "canonical_entrypoint_registered": {
+      "const": false
+    },
+    "gate_transition_authorized": {
+      "const": false
+    },
+    "closed": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "source_revision",
+    "admission_sha256",
+    "execution_state",
+    "decision",
+    "start_receipt_sha256",
+    "terminal_receipt_sha256",
+    "admission_identity_bound",
+    "persisted_state_reverified",
+    "manual_reconciliation_required",
+    "terminal_state_observed",
+    "automatic_reexecution_allowed",
+    "effect_start_authorized",
+    "retention_write_authorized",
+    "effect_terminalization_authorized",
+    "canonical_entrypoint_registered",
+    "gate_transition_authorized",
+    "closed"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_state": {
+            "const": "not_started"
+          }
+        },
+        "required": [
+          "execution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "request_fresh_start_authorization"
+          },
+          "start_receipt_sha256": {
+            "type": "null"
+          },
+          "terminal_receipt_sha256": {
+            "type": "null"
+          },
+          "manual_reconciliation_required": {
+            "const": false
+          },
+          "terminal_state_observed": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_state": {
+            "const": "started"
+          }
+        },
+        "required": [
+          "execution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "manual_reconciliation_required"
+          },
+          "start_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "terminal_receipt_sha256": {
+            "type": "null"
+          },
+          "manual_reconciliation_required": {
+            "const": true
+          },
+          "terminal_state_observed": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_state": {
+            "const": "COMPLETED"
+          }
+        },
+        "required": [
+          "execution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "verify_completed_retention_evidence"
+          },
+          "start_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "terminal_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "manual_reconciliation_required": {
+            "const": false
+          },
+          "terminal_state_observed": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_state": {
+            "const": "FAILED"
+          }
+        },
+        "required": [
+          "execution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "terminal_failure_refusal"
+          },
+          "start_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "terminal_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "manual_reconciliation_required": {
+            "const": false
+          },
+          "terminal_state_observed": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_state": {
+            "const": "CANCELLED"
+          }
+        },
+        "required": [
+          "execution_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "terminal_cancellation_refusal"
+          },
+          "start_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "terminal_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "manual_reconciliation_required": {
+            "const": false
+          },
+          "terminal_state_observed": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}
