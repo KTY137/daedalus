@@ -1,0 +1,140 @@
+name: Gate 0 Provider Target Receipt Retention Effect Terminal Evidence
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-target-receipt-retention-completed-evidence-frozen-fad88f6
+    paths:
+      - "daedalus/runtimes/provider_target_receipt_retention_effect_terminal_evidence.py"
+      - "configs/schemas/provider-target-receipt-retention-effect-terminal-evidence.schema.json"
+      - "tests/runtimes/test_provider_target_receipt_retention_effect_terminal_evidence*.py"
+      - "scripts/run_provider_target_receipt_retention_effect_terminal_evidence_mutations.py"
+      - "docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.*"
+      - ".github/workflows/g0-provider-target-receipt-retention-effect-terminal-evidence.yml"
+  push:
+    branches:
+      - g0/provider-target-receipt-retention-effect-terminal-evidence-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-provider-target-receipt-retention-effect-terminal-evidence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest jsonschema
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-07N_PROVIDER_TARGET_RECEIPT_RETENTION_EFFECT_TERMINAL_EVIDENCE.json
+      - run: python -m json.tool configs/schemas/provider-target-receipt-retention-effect-terminal-evidence.schema.json
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_provider_target_receipt_retention_effect_terminal_evidence.py
+          tests/runtimes/test_provider_target_receipt_retention_effect_terminal_evidence_review.py
+          tests/runtimes/test_provider_target_receipt_retention_effect_terminal_evidence_schema.py
+
+  predecessor-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest jsonschema
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py
+          tests/runtimes/test_provider_target_receipt_retention_completed_evidence_review.py
+          tests/runtimes/test_provider_target_receipt_retention_completed_evidence_schema.py
+          tests/runtimes/test_provider_target_receipt_retention_recovery.py
+          tests/runtimes/test_provider_target_receipt_retention_recovery_hardening.py
+          tests/runtimes/test_provider_target_receipt_retention_recovery_review.py
+          tests/runtimes/test_provider_target_receipt_retention_recovery_schema.py
+          tests/runtimes/test_provider_target_receipt_retention_admission.py
+          tests/runtimes/test_provider_target_receipt_retention_admission_review.py
+          tests/runtimes/test_provider_target_receipt_retention_admission_schema.py
+          tests/kernel/test_effect_replay_projection.py
+          tests/kernel/test_effect_replay_projection_review.py
+          tests/runtimes/test_provider_target_receipt_ledger.py
+          tests/runtimes/test_provider_target_receipt_ledger_hardening.py
+          tests/runtimes/test_provider_target_receipt_ledger_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_target_receipt_retention_effect_terminal_evidence_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest jsonschema
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-retention-effect-terminal-wheel
+      - run: /tmp/daedalus-retention-effect-terminal-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-retention-effect-terminal-wheel/bin/python - <<'PY'
+          from daedalus.runtimes.provider_target_receipt_retention_effect_terminal_evidence import (
+              ProviderTargetReceiptRetentionEffectTerminalEvidenceReceipt,
+              verify_provider_target_receipt_retention_effect_terminal_evidence,
+          )
+
+          assert ProviderTargetReceiptRetentionEffectTerminalEvidenceReceipt is not None
+          assert callable(
+              verify_provider_target_receipt_retention_effect_terminal_evidence
+          )
+          PY
