@@ -52,6 +52,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/gates/test_repository_head_revision.py
+          tests/gates/test_repository_head_revision_wire.py
           tests/gates/test_repository_head_revision_review.py
           tests/gates/test_repository_head_revision_schema.py
           tests/gates/test_repository_tree.py
