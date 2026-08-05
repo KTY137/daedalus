@@ -1,12 +1,12 @@
 """Restart-safe retention for authenticated provider-target receipts.
 
 A receipt is reverified against its signed target/invocation authority and exact
-CAS-backed source tree before this module writes anything.  The canonical Event
+CAS-backed source tree before this module writes anything. The canonical Event
 Store then records intent before exact receipt bytes are published to the
-existing CAS.  Completion binds the artifact back into the Event Store.
+existing CAS. Completion binds the artifact back into the Event Store.
 
-This is intentionally a LOCAL_GUARDS migration step.  It provides no loader,
-provider callback, execution authority, promotion, or OwnerApproval.  A later
+This is intentionally a LOCAL_GUARDS migration step. It provides no loader,
+provider callback, execution authority, promotion, or OwnerApproval. A later
 packet must consume a persisted Effect Lease before this path becomes CENTRAL.
 """
 from __future__ import annotations
@@ -422,6 +422,38 @@ class ProviderTargetReceiptLedger:
                 "canonical Event Store cannot enforce one receipt retention"
             ) from exc
 
+    def _record_or_recover_intent(
+        self,
+        *,
+        key: str,
+        payload: Mapping[str, Any],
+        trace_id: str,
+    ) -> Intent:
+        existing = _read_intent(self.spine.path, key)
+        if existing is not None:
+            return existing
+        try:
+            return self.spine.record_intent(
+                _INTENT_KIND,
+                payload,
+                effect_key=key,
+                trace_id=trace_id,
+            )
+        except sqlite3.IntegrityError:
+            existing = _read_intent(self.spine.path, key)
+            if existing is None:
+                raise ProviderTargetReceiptRetentionStateError(
+                    "concurrent retention conflicted without a winner"
+                )
+            return existing
+        except sqlite3.DatabaseError as exc:
+            existing = _read_intent(self.spine.path, key)
+            if existing is None:
+                raise ProviderTargetReceiptRetentionStateError(
+                    "intent persistence is unresolved and requires replay"
+                ) from exc
+            return existing
+
     def _validate_completed(
         self,
         intent: Intent,
@@ -519,27 +551,17 @@ class ProviderTargetReceiptLedger:
                 "verification receipt did not authenticate"
             ) from exc
 
-        # Authentication precedes even the idempotent Event-Store schema write.
-        self._install_single_receipt_invariant()
         payload = _receipt_bytes(receipt)
         artifact = ArtifactRef.from_sha256(receipt.digest)
         expected_intent = _intent_payload(receipt, artifact)
         key = _effect_key(receipt.digest)
-        existing = _read_intent(self.spine.path, key)
-        if existing is None:
-            try:
-                existing = self.spine.record_intent(
-                    _INTENT_KIND,
-                    expected_intent,
-                    effect_key=key,
-                    trace_id=receipt.execution_id,
-                )
-            except sqlite3.IntegrityError:
-                existing = _read_intent(self.spine.path, key)
-                if existing is None:
-                    raise ProviderTargetReceiptRetentionStateError(
-                        "concurrent retention conflicted without a winner"
-                    )
+        # Authentication and all pure local validation precede schema or data writes.
+        self._install_single_receipt_invariant()
+        existing = self._record_or_recover_intent(
+            key=key,
+            payload=expected_intent,
+            trace_id=receipt.execution_id,
+        )
         if existing.kind != _INTENT_KIND or existing.effect_key != key:
             raise ProviderTargetReceiptRetentionStateError(
                 "retention intent identity is malformed"
@@ -572,6 +594,8 @@ class ProviderTargetReceiptLedger:
             raise ProviderTargetReceiptRetentionStateError(
                 "receipt CAS returned a foreign artifact identity"
             )
+
+        completion_error: BaseException | None = None
         try:
             self.spine.mark_completed(
                 existing.id,
@@ -580,10 +604,23 @@ class ProviderTargetReceiptLedger:
             )
         except IntentAlreadyResolved:
             pass
-        terminal = _read_intent(self.spine.path, key)
-        if terminal is None:
+        except sqlite3.DatabaseError as exc:
+            completion_error = exc
+        try:
+            terminal = _read_intent(self.spine.path, key)
+        except ProviderTargetReceiptRetentionStateError as exc:
+            if completion_error is not None:
+                raise ProviderTargetReceiptRetentionStateError(
+                    "terminal persistence is unresolved and requires replay"
+                ) from completion_error
+            raise
+        if terminal is None or terminal.state == STATE_INTENDED:
+            if completion_error is not None:
+                raise ProviderTargetReceiptRetentionStateError(
+                    "terminal persistence is unresolved and requires replay"
+                ) from completion_error
             raise ProviderTargetReceiptRetentionStateError(
-                "resolved receipt retention disappeared from Event Store"
+                "terminal Event-Store transition was not retained"
             )
         self._validate_completed(terminal, receipt, artifact, payload)
         return ProviderTargetReceiptRetentionResult(
