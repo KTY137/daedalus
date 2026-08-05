@@ -135,6 +135,7 @@ def _subject(
     execution: EffectExecutionRequest | None = None,
     lease: EffectLease | None = None,
     inventory_sha256: str = INVENTORY_SHA256,
+    inventory_source_revision: str = REVISION,
     inventory_source_sha256: str = INVENTORY_SOURCE_SHA256,
     event_path: str = EVENT_PATH,
     cas_path: str = CAS_PATH,
@@ -142,6 +143,7 @@ def _subject(
     return build_provider_target_receipt_retention_operation_subject(
         receipt=_receipt() if receipt is None else receipt,
         retention_inventory_sha256=inventory_sha256,
+        retention_inventory_source_revision=inventory_source_revision,
         retention_inventory_source_sha256=inventory_source_sha256,
         execution=_execution() if execution is None else execution,
         effect_lease=_lease() if lease is None else lease,
@@ -200,7 +202,7 @@ def test_exact_subject_and_signed_authority_round_trip() -> None:
     assert subject.to_dict()["primary_checkout_disjointness_verified"] is False
 
 
-def test_subject_binds_receipt_inventory_and_separate_retention_lease() -> None:
+def test_subject_binds_receipt_inventory_revision_and_separate_lease() -> None:
     receipt = _receipt()
     execution = _execution()
     lease = _lease()
@@ -210,6 +212,7 @@ def test_subject_binds_receipt_inventory_and_separate_retention_lease() -> None:
     assert subject.receipt_sha256 == receipt.digest
     assert subject.provider_effect_lease_sha256 == receipt.lease_sha256
     assert subject.retention_inventory_sha256 == INVENTORY_SHA256
+    assert subject.retention_inventory_source_revision == receipt.source_revision
     assert subject.retention_inventory_source_sha256 == INVENTORY_SOURCE_SHA256
     assert subject.retention_execution_request_sha256 == execution.digest
     assert subject.retention_effect_lease_sha256 == lease.digest
@@ -269,12 +272,30 @@ def test_scope_identity_and_bypass_substitutions_refuse(
         _subject(execution=execution, lease=lease)
 
 
-def test_stale_revision_and_runtime_bound_retention_lease_refuse() -> None:
+def test_stale_lease_and_inventory_revisions_refuse() -> None:
     stale_provenance = dataclasses.replace(
         _lease().provenance,
         source_revision="0" * 40,
     )
-    stale = _lease(provenance=stale_provenance)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionContractBindingError,
+        match="source_revision",
+    ):
+        _subject(lease=_lease(provenance=stale_provenance))
+    with pytest.raises(
+        ProviderTargetReceiptRetentionContractBindingError,
+        match="inventory and receipt source revisions differ",
+    ):
+        _subject(inventory_source_revision="0" * 40)
+
+
+@pytest.mark.parametrize("value", ["", "x", "G" * 40, None])
+def test_malformed_inventory_revision_refuses(value: object) -> None:
+    with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
+        _subject(inventory_source_revision=value)  # type: ignore[arg-type]
+
+
+def test_runtime_bound_retention_lease_refuses() -> None:
     runtime_bound = _lease(
         runtime_id="runtime.retention",
         runtime_manifest_sha256="1" * 64,
@@ -284,12 +305,6 @@ def test_stale_revision_and_runtime_bound_retention_lease_refuse() -> None:
             input_digests=("c" * 64, "d" * 64, "e" * 64, "1" * 64, "2" * 64),
         ),
     )
-
-    with pytest.raises(
-        ProviderTargetReceiptRetentionContractBindingError,
-        match="source_revision",
-    ):
-        _subject(lease=stale)
     with pytest.raises(
         ProviderTargetReceiptRetentionContractBindingError,
         match="runtime_",
@@ -312,41 +327,39 @@ def test_malformed_or_overlapping_paths_refuse(event_path: str, cas_path: str) -
 
 
 @pytest.mark.parametrize("value", ["", "x", "G" * 64, None])
-def test_malformed_inventory_identity_refuses(value: object) -> None:
+def test_malformed_inventory_digest_refuses(value: object) -> None:
     with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
         _subject(inventory_sha256=value)  # type: ignore[arg-type]
 
 
 def test_exact_receipt_execution_and_lease_types_refuse() -> None:
+    common = {
+        "retention_inventory_sha256": INVENTORY_SHA256,
+        "retention_inventory_source_revision": REVISION,
+        "retention_inventory_source_sha256": INVENTORY_SOURCE_SHA256,
+        "event_store_scope_path": EVENT_PATH,
+        "receipt_cas_scope_path": CAS_PATH,
+    }
     with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
         build_provider_target_receipt_retention_operation_subject(
             receipt=object(),  # type: ignore[arg-type]
-            retention_inventory_sha256=INVENTORY_SHA256,
-            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
             execution=_execution(),
             effect_lease=_lease(),
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
+            **common,
         )
     with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
         build_provider_target_receipt_retention_operation_subject(
             receipt=_receipt(),
-            retention_inventory_sha256=INVENTORY_SHA256,
-            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
             execution=object(),  # type: ignore[arg-type]
             effect_lease=_lease(),
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
+            **common,
         )
     with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
         build_provider_target_receipt_retention_operation_subject(
             receipt=_receipt(),
-            retention_inventory_sha256=INVENTORY_SHA256,
-            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
             execution=_execution(),
             effect_lease=object(),  # type: ignore[arg-type]
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
+            **common,
         )
 
 
@@ -361,6 +374,25 @@ def test_wire_claim_escalation_refuses() -> None:
         payload[field] = True
         with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
             ProviderTargetReceiptRetentionOperationSubject.from_dict(payload)
+
+
+def test_signed_inventory_revision_substitution_refuses() -> None:
+    subject = _subject()
+    authority = _authority(subject)
+    payload = subject.to_dict()
+    payload["source_revision"] = "0" * 40
+    payload["retention_inventory_source_revision"] = "0" * 40
+    substituted = ProviderTargetReceiptRetentionOperationSubject.from_dict(payload)
+
+    assert substituted.digest != subject.digest
+    with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
+        verify_provider_target_receipt_retention_operation_authority(
+            authority,
+            expected_authority_id="authority.provider-target-receipt-retention",
+            authority_keyring=KEYRING,
+            expected_subject=substituted,
+            at=NOW,
+        )
 
 
 def test_signature_unknown_key_expiry_and_subject_substitution_refuse() -> None:
