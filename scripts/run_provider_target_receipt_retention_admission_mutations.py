@@ -60,6 +60,21 @@ MUTATIONS = (
         "        if False:\n",
     ),
     (
+        "exact-live-spine-connection-bypass",
+        "    if type(connection) is not sqlite3.Connection:\n",
+        "    if False:\n",
+    ),
+    (
+        "live-spine-sql-write-escalation",
+        '            rows = connection.execute("PRAGMA database_list").fetchall()\n',
+        '            rows = connection.execute("PRAGMA journal_mode=WAL").fetchall()\n',
+    ),
+    (
+        "live-spine-database-identity-bypass",
+        "    if not _same_identity(event, connected_event):\n",
+        "    if False:\n",
+    ),
+    (
         "concrete-cas-binding-bypass",
         "    if not _same_identity(cas, expected_cas):\n",
         "    if False:\n",
