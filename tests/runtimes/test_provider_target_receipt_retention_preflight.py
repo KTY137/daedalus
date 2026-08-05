@@ -174,9 +174,16 @@ def _subjects(root: Path):
     return receipt, execution, lease, inventory, subject, authority, head_receipt
 
 
-def _verify(root: Path):
-    receipt, execution, lease, inventory, subject, authority, head_receipt = _subjects(root)
-    result = verify_provider_target_receipt_retention_preflight(
+def _call(
+    root: Path,
+    receipt,
+    execution,
+    lease,
+    inventory,
+    authority,
+    head_receipt,
+):
+    return verify_provider_target_receipt_retention_preflight(
         root,
         head_receipt,
         receipt,
@@ -189,6 +196,19 @@ def _verify(root: Path):
         event_store_scope_path=EVENT_PATH,
         receipt_cas_scope_path=CAS_PATH,
         at=NOW,
+    )
+
+
+def _verify(root: Path):
+    receipt, execution, lease, inventory, subject, authority, head_receipt = _subjects(root)
+    result = _call(
+        root,
+        receipt,
+        execution,
+        lease,
+        inventory,
+        authority,
+        head_receipt,
     )
     return result, (receipt, execution, lease, inventory, subject, authority, head_receipt)
 
@@ -203,6 +223,7 @@ def test_preflight_round_trip_binds_all_inert_subjects(tmp_path: Path) -> None:
     assert result.provider_target_receipt_sha256 == receipt.digest
     assert result.retention_inventory_sha256 == inventory.digest
     assert result.retention_inventory_source_sha256 == inventory.source_sha256
+    assert result.retention_inventory_surface_count == 7
     assert result.retention_authority_sha256 == authority.digest
     assert result.retention_subject_sha256 == subject.digest
     assert result.retention_execution_request_sha256 == execution.digest
@@ -210,6 +231,7 @@ def test_preflight_round_trip_binds_all_inert_subjects(tmp_path: Path) -> None:
     assert ProviderTargetReceiptRetentionPreflightReceipt.from_dict(
         result.to_dict()
     ) == result
+    assert result.to_dict()["repository_head_stable_across_inventory"] is True
     assert result.to_dict()["persisted_effect_lease_verified"] is False
     assert result.to_dict()["retention_effect_started"] is False
     assert result.to_dict()["retention_write_performed"] is False
@@ -249,19 +271,14 @@ def test_invalid_authority_refuses_before_repository_reads(
         ProviderTargetReceiptRetentionPreflightBindingError,
         match="authority did not authenticate",
     ):
-        verify_provider_target_receipt_retention_preflight(
+        _call(
             root,
-            head_receipt,
             receipt,
-            inventory,
-            invalid,
             execution,
             lease,
-            expected_authority_id="authority.provider-target-receipt-retention",
-            authority_keyring=KEYRING,
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
-            at=NOW,
+            inventory,
+            invalid,
+            head_receipt,
         )
     assert reads == []
 
@@ -275,21 +292,49 @@ def test_stale_repository_head_refuses_after_authority_authentication(
 
     with pytest.raises(
         ProviderTargetReceiptRetentionPreflightBindingError,
-        match="HEAD receipt did not reverify",
+        match="did not reverify before inventory",
     ):
-        verify_provider_target_receipt_retention_preflight(
+        _call(
             root,
-            head_receipt,
             receipt,
-            inventory,
-            authority,
             execution,
             lease,
-            expected_authority_id="authority.provider-target-receipt-retention",
-            authority_keyring=KEYRING,
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
-            at=NOW,
+            inventory,
+            authority,
+            head_receipt,
+        )
+
+
+def test_head_change_during_inventory_rebuild_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repository(tmp_path)
+    receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
+    real_scan = preflight_module.scan_provider_target_receipt_retention
+
+    def scan_then_move_head(*args, **kwargs):
+        rebuilt = real_scan(*args, **kwargs)
+        (root / ".git" / "HEAD").write_text("0" * 40 + "\n", encoding="ascii")
+        return rebuilt
+
+    monkeypatch.setattr(
+        preflight_module,
+        "scan_provider_target_receipt_retention",
+        scan_then_move_head,
+    )
+    with pytest.raises(
+        ProviderTargetReceiptRetentionPreflightBindingError,
+        match="did not reverify after inventory",
+    ):
+        _call(
+            root,
+            receipt,
+            execution,
+            lease,
+            inventory,
+            authority,
+            head_receipt,
         )
 
 
@@ -303,19 +348,14 @@ def test_current_source_byte_drift_refuses(tmp_path: Path) -> None:
         ProviderTargetReceiptRetentionPreflightBindingError,
         match="inventory differs from current repository bytes",
     ):
-        verify_provider_target_receipt_retention_preflight(
+        _call(
             root,
-            head_receipt,
             receipt,
-            inventory,
-            authority,
             execution,
             lease,
-            expected_authority_id="authority.provider-target-receipt-retention",
-            authority_keyring=KEYRING,
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
-            at=NOW,
+            inventory,
+            authority,
+            head_receipt,
         )
 
 
@@ -328,19 +368,14 @@ def test_inventory_digest_substitution_refuses_signed_subject(tmp_path: Path) ->
         ProviderTargetReceiptRetentionPreflightBindingError,
         match="authority did not authenticate",
     ):
-        verify_provider_target_receipt_retention_preflight(
+        _call(
             root,
-            head_receipt,
             receipt,
-            substituted,
-            authority,
             execution,
             lease,
-            expected_authority_id="authority.provider-target-receipt-retention",
-            authority_keyring=KEYRING,
-            event_store_scope_path=EVENT_PATH,
-            receipt_cas_scope_path=CAS_PATH,
-            at=NOW,
+            substituted,
+            authority,
+            head_receipt,
         )
 
 
@@ -372,5 +407,31 @@ def test_guard_evidence_detachment_refuses_receipt(tmp_path: Path) -> None:
     with pytest.raises(
         ProviderTargetReceiptRetentionPreflightShapeError,
         match="guard_evidence",
+    ):
+        ProviderTargetReceiptRetentionPreflightReceipt.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("source_revision", "a" * 64, "40-hex"),
+        ("retention_inventory_source_size", 2 * 1024 * 1024 + 1, "scanner bound"),
+        ("retention_inventory_surface_count", 6, "exact reviewed set"),
+        ("receipt_cas_scope_path", "attempt/state", "must be disjoint"),
+    ],
+)
+def test_malformed_revision_inventory_and_overlapping_scope_refuse(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    match: str,
+) -> None:
+    root = _repository(tmp_path)
+    result, _ = _verify(root)
+    payload = result.to_dict()
+    payload[field] = value
+    with pytest.raises(
+        ProviderTargetReceiptRetentionPreflightShapeError,
+        match=match,
     ):
         ProviderTargetReceiptRetentionPreflightReceipt.from_dict(payload)
