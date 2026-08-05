@@ -1,16 +1,13 @@
-"""Durably retain authenticated provider-target verification receipts.
+"""Restart-safe retention for authenticated provider-target receipts.
 
-The exact structural receipt is verified against its signed authority and
-CAS-backed source tree before the canonical Event Store records an intent. The
-receipt bytes are then published to the existing content-addressed store and a
-terminal Event-Store record binds the exact artifact. A crash after intent or
-CAS publication is restart-safe: replay completes the same immutable subject
-and never executes provider code.
+A receipt is reverified against its signed target/invocation authority and exact
+CAS-backed source tree before this module writes anything.  The canonical Event
+Store then records intent before exact receipt bytes are published to the
+existing CAS.  Completion binds the artifact back into the Event Store.
 
-This is deliberately a ``LOCAL_GUARDS`` migration step. It establishes durable
-receipt identity without creating a second state store, loader, provider
-callback, or execution authority. A dependent packet must place this write
-behind a persisted Effect Lease before the entrypoint can become ``CENTRAL``.
+This is intentionally a LOCAL_GUARDS migration step.  It provides no loader,
+provider callback, execution authority, promotion, or OwnerApproval.  A later
+packet must consume a persisted Effect Lease before this path becomes CENTRAL.
 """
 from __future__ import annotations
 
@@ -43,10 +40,7 @@ from daedalus.runtimes.provider_target_verification_contracts import (
     ProviderExecutableTargetVerificationReceipt,
     ProviderTargetVerificationError,
 )
-from daedalus.spine.durability import (
-    Gate0DurabilityError,
-    enforce_gate0_durability,
-)
+from daedalus.spine.durability import Gate0DurabilityError, enforce_gate0_durability
 from daedalus.spine.envelope import canonical_json
 from daedalus.spine.ledger import (
     STATE_COMPLETED,
@@ -58,7 +52,6 @@ from daedalus.spine.ledger import (
     _uri_path,
 )
 
-
 _INTENT_KIND = "runtime.provider-target-verification-retention"
 _INTENT_SCHEMA = "daedalus-provider-target-verification-retention-intent/1"
 _TERMINAL_SCHEMA = "daedalus-provider-target-verification-retention-terminal/1"
@@ -68,31 +61,23 @@ _UNIQUE_INDEX = "idx_provider_target_verification_receipt_effect_key"
 
 
 class ProviderTargetReceiptRetentionError(RuntimeError):
-    """Base class for retained-receipt boundary failures."""
+    """Base class for receipt-retention refusals."""
 
 
-class ProviderTargetReceiptRetentionBindingError(
-    ProviderTargetReceiptRetentionError
-):
-    """Submitted authority, receipt, topology, or retained bytes disagree."""
+class ProviderTargetReceiptRetentionBindingError(ProviderTargetReceiptRetentionError):
+    """Submitted authority, topology, or exact receipt material disagrees."""
 
 
-class ProviderTargetReceiptRetentionStateError(
-    ProviderTargetReceiptRetentionError
-):
-    """Canonical Event-Store state is malformed, ambiguous, or unresolved."""
+class ProviderTargetReceiptRetentionStateError(ProviderTargetReceiptRetentionError):
+    """Canonical Event-Store or CAS state is malformed or unresolved."""
 
 
-class ProviderTargetReceiptRetentionReplay(
-    ProviderTargetReceiptRetentionError
-):
-    """The same receipt identity was previously bound to different material."""
+class ProviderTargetReceiptRetentionReplay(ProviderTargetReceiptRetentionError):
+    """A retained identity was encountered with different material."""
 
 
 @dataclass(frozen=True)
 class ProviderTargetReceiptRetentionResult:
-    """One completed retention or inert exact replay."""
-
     receipt: ProviderExecutableTargetVerificationReceipt
     artifact: ArtifactRef
     projection: ProviderExecutableTargetProjection
@@ -102,19 +87,19 @@ class ProviderTargetReceiptRetentionResult:
     def __post_init__(self) -> None:
         if type(self.receipt) is not ProviderExecutableTargetVerificationReceipt:
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result receipt must be exact verification receipt"
+                "result receipt must be exact verification receipt"
             )
         if type(self.artifact) is not ArtifactRef:
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result artifact must be exact ArtifactRef"
+                "result artifact must be exact ArtifactRef"
             )
         if type(self.projection) is not ProviderExecutableTargetProjection:
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result projection must be exact target projection"
+                "result projection must be exact target projection"
             )
         if self.artifact.sha256 != self.receipt.digest:
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result artifact does not address receipt bytes"
+                "result artifact does not address receipt bytes"
             )
         if (
             isinstance(self.intent_id, bool)
@@ -122,11 +107,11 @@ class ProviderTargetReceiptRetentionResult:
             or self.intent_id < 1
         ):
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result intent_id must be a positive integer"
+                "result intent_id must be a positive integer"
             )
         if not isinstance(self.executed, bool):
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention result executed must be boolean"
+                "result executed must be boolean"
             )
 
 
@@ -140,8 +125,10 @@ def _strict_json_bytes(payload: bytes, label: str) -> Mapping[str, Any]:
         return result
 
     try:
-        text = payload.decode("utf-8", errors="strict")
-        value = json.loads(text, object_pairs_hook=pairs)
+        value = json.loads(
+            payload.decode("utf-8", errors="strict"),
+            object_pairs_hook=pairs,
+        )
     except (json.JSONDecodeError, UnicodeError, ValueError) as exc:
         raise ProviderTargetReceiptRetentionStateError(
             f"{label} is not strict UTF-8 JSON"
@@ -167,17 +154,15 @@ def _effect_key(receipt_sha256: str) -> str:
     return _EFFECT_PREFIX + receipt_sha256
 
 
-def _receipt_bytes(
-    receipt: ProviderExecutableTargetVerificationReceipt,
-) -> bytes:
+def _receipt_bytes(receipt: ProviderExecutableTargetVerificationReceipt) -> bytes:
     payload = canonical_json(receipt.to_dict()).encode("ascii")
     if len(payload) > _MAX_RECEIPT_BYTES:
         raise ProviderTargetReceiptRetentionBindingError(
-            "provider target verification receipt exceeds retention bound"
+            "verification receipt exceeds retention bound"
         )
     if hashlib.sha256(payload).hexdigest() != receipt.digest:
         raise ProviderTargetReceiptRetentionBindingError(
-            "provider target verification receipt digest is noncanonical"
+            "verification receipt digest is noncanonical"
         )
     return payload
 
@@ -198,7 +183,6 @@ def _contains_symlink(path: Path) -> bool:
 
 
 def _validate_topology(
-    *,
     primary_checkout: Path,
     source_store: SourceTreeStore,
     spine: SpineLedger,
@@ -267,9 +251,8 @@ def _terminal_result(
 def _read_intent(path: Path, effect_key: str) -> Intent | None:
     connection: sqlite3.Connection | None = None
     try:
-        database = path.resolve(strict=True)
         connection = sqlite3.connect(
-            f"file:{_uri_path(database)}?mode=ro",
+            f"file:{_uri_path(path.resolve(strict=True))}?mode=ro",
             uri=True,
             timeout=30.0,
             isolation_level=None,
@@ -316,16 +299,13 @@ def _read_intent(path: Path, effect_key: str) -> Intent | None:
             raise ProviderTargetReceiptRetentionStateError(
                 "retention start event time differs from intent row"
             )
-        start_detail_raw = str(events[0]["detail"])
-        start_detail = _strict_json_text(
-            start_detail_raw,
-            "retention start detail",
-        )
-        if canonical_json(start_detail) != start_detail_raw:
+        start_raw = str(events[0]["detail"])
+        start = _strict_json_text(start_raw, "retention start detail")
+        if canonical_json(start) != start_raw:
             raise ProviderTargetReceiptRetentionStateError(
                 "retention start detail is noncanonical"
             )
-        if dict(start_detail) != {"payload_sha": payload_sha}:
+        if dict(start) != {"payload_sha": payload_sha}:
             raise ProviderTargetReceiptRetentionStateError(
                 "retention start detail does not bind payload digest"
             )
@@ -346,10 +326,7 @@ def _read_intent(path: Path, effect_key: str) -> Intent | None:
                     "retention terminal event state is invalid"
                 )
             detail_raw = str(terminal["detail"])
-            detail = _strict_json_text(
-                detail_raw,
-                "retention terminal detail",
-            )
+            detail = _strict_json_text(detail_raw, "retention terminal detail")
             if canonical_json(detail) != detail_raw:
                 raise ProviderTargetReceiptRetentionStateError(
                     "retention terminal detail is noncanonical"
@@ -390,7 +367,7 @@ def _read_intent(path: Path, effect_key: str) -> Intent | None:
 
 
 class ProviderTargetReceiptLedger:
-    """Retention facade over the canonical Event Store and shared artifact CAS."""
+    """Facade over the canonical Event Store and existing artifact CAS."""
 
     def __init__(
         self,
@@ -411,28 +388,35 @@ class ProviderTargetReceiptLedger:
             enforce_gate0_durability(spine)
         except Gate0DurabilityError as exc:
             raise ProviderTargetReceiptRetentionBindingError(
-                "retention requires the Gate-0 Event-Store durability profile"
+                "retention requires Gate-0 Event-Store durability"
             ) from exc
         self.spine = spine
         self.source_store = source_store
         self.primary_checkout = Path(primary_checkout)
-        _validate_topology(
-            primary_checkout=self.primary_checkout,
-            source_store=self.source_store,
-            spine=self.spine,
-        )
-        self._install_single_receipt_invariant()
+        _validate_topology(self.primary_checkout, self.source_store, self.spine)
 
     def _install_single_receipt_invariant(self) -> None:
-        """Serialize one canonical retention intent per receipt digest."""
-
+        expected = (
+            f"CREATE UNIQUE INDEX IF NOT EXISTS {_UNIQUE_INDEX} "
+            "ON intents(effect_key) "
+            f"WHERE kind='{_INTENT_KIND}'"
+        )
         try:
             with self.spine._txn() as connection:
-                connection.execute(
-                    f"CREATE UNIQUE INDEX IF NOT EXISTS {_UNIQUE_INDEX} "
-                    "ON intents(effect_key) "
-                    f"WHERE kind='{_INTENT_KIND}'"
-                )
+                connection.execute(expected)
+                row = connection.execute(
+                    "SELECT sql FROM sqlite_master "
+                    "WHERE type='index' AND name=?",
+                    (_UNIQUE_INDEX,),
+                ).fetchone()
+                if row is None or " ".join(str(row[0]).split()) != " ".join(
+                    expected.replace(" IF NOT EXISTS", "").split()
+                ):
+                    raise ProviderTargetReceiptRetentionStateError(
+                        "receipt uniqueness index has a foreign definition"
+                    )
+        except ProviderTargetReceiptRetentionError:
+            raise
         except (AttributeError, sqlite3.DatabaseError) as exc:
             raise ProviderTargetReceiptRetentionStateError(
                 "canonical Event Store cannot enforce one receipt retention"
@@ -451,7 +435,7 @@ class ProviderTargetReceiptLedger:
             )
         if intent.effect_id != artifact.sha256:
             raise ProviderTargetReceiptRetentionStateError(
-                "retention terminal effect_id does not bind receipt artifact"
+                "terminal effect_id does not bind receipt artifact"
             )
         if not isinstance(intent.result, Mapping):
             raise ProviderTargetReceiptRetentionStateError(
@@ -459,7 +443,7 @@ class ProviderTargetReceiptLedger:
             )
         if dict(intent.result) != _terminal_result(receipt, artifact):
             raise ProviderTargetReceiptRetentionStateError(
-                "retention terminal result differs from receipt artifact"
+                "terminal result differs from receipt artifact"
             )
         try:
             retained = self.source_store.read_bytes(
@@ -472,7 +456,7 @@ class ProviderTargetReceiptLedger:
             ) from exc
         if retained != payload:
             raise ProviderTargetReceiptRetentionStateError(
-                "retained receipt bytes differ from authenticated receipt"
+                "retained bytes differ from authenticated receipt"
             )
         parsed = _strict_json_bytes(retained, "retained receipt artifact")
         try:
@@ -483,7 +467,7 @@ class ProviderTargetReceiptLedger:
             ) from exc
         if restored != receipt:
             raise ProviderTargetReceiptRetentionStateError(
-                "retained receipt artifact reconstructs a different receipt"
+                "retained artifact reconstructs a different receipt"
             )
 
     def retain(
@@ -505,7 +489,7 @@ class ProviderTargetReceiptLedger:
         at,
         max_source_bytes: int = 4 * 1024 * 1024,
     ) -> ProviderTargetReceiptRetentionResult:
-        """Verify, intent-record, publish, and terminally bind one exact receipt."""
+        """Authenticate, intent-record, publish, and bind one exact receipt."""
 
         if type(receipt) is not ProviderExecutableTargetVerificationReceipt:
             raise ProviderTargetReceiptRetentionBindingError(
@@ -532,9 +516,11 @@ class ProviderTargetReceiptLedger:
             )
         except ProviderTargetVerificationError as exc:
             raise ProviderTargetReceiptRetentionBindingError(
-                "provider target verification receipt did not authenticate"
+                "verification receipt did not authenticate"
             ) from exc
 
+        # Authentication precedes even the idempotent Event-Store schema write.
+        self._install_single_receipt_invariant()
         payload = _receipt_bytes(receipt)
         artifact = ArtifactRef.from_sha256(receipt.digest)
         expected_intent = _intent_payload(receipt, artifact)
@@ -552,11 +538,15 @@ class ProviderTargetReceiptLedger:
                 existing = _read_intent(self.spine.path, key)
                 if existing is None:
                     raise ProviderTargetReceiptRetentionStateError(
-                        "concurrent receipt retention conflicted without winner"
+                        "concurrent retention conflicted without a winner"
                     )
         if existing.kind != _INTENT_KIND or existing.effect_key != key:
             raise ProviderTargetReceiptRetentionStateError(
                 "retention intent identity is malformed"
+            )
+        if existing.trace_id != receipt.execution_id:
+            raise ProviderTargetReceiptRetentionStateError(
+                "retention intent trace does not bind execution"
             )
         if existing.payload != expected_intent:
             raise ProviderTargetReceiptRetentionReplay(
@@ -565,11 +555,7 @@ class ProviderTargetReceiptLedger:
         if existing.state == STATE_COMPLETED:
             self._validate_completed(existing, receipt, artifact, payload)
             return ProviderTargetReceiptRetentionResult(
-                receipt=receipt,
-                artifact=artifact,
-                projection=projection,
-                intent_id=existing.id,
-                executed=False,
+                receipt, artifact, projection, existing.id, False
             )
         if existing.state != STATE_INTENDED:
             raise ProviderTargetReceiptRetentionStateError(
@@ -578,7 +564,7 @@ class ProviderTargetReceiptLedger:
 
         try:
             published = self.source_store.put_bytes(payload)
-        except SourceTreeStoreError as exc:
+        except (OSError, SourceTreeStoreError) as exc:
             raise ProviderTargetReceiptRetentionStateError(
                 "receipt CAS publication is unresolved and requires replay"
             ) from exc
@@ -601,11 +587,7 @@ class ProviderTargetReceiptLedger:
             )
         self._validate_completed(terminal, receipt, artifact, payload)
         return ProviderTargetReceiptRetentionResult(
-            receipt=receipt,
-            artifact=artifact,
-            projection=projection,
-            intent_id=terminal.id,
-            executed=True,
+            receipt, artifact, projection, terminal.id, True
         )
 
 
