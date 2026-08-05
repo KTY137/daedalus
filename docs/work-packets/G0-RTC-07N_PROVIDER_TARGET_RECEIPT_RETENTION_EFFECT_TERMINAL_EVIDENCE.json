@@ -8,7 +8,7 @@
   "exact_parent_revision": "fad88f62bb6f4065fd21a666e9d2697a7c85c91d",
   "frozen_parent_branch": "g0/provider-target-receipt-retention-completed-evidence-frozen-fad88f6",
   "parent_pull_request": 224,
-  "pull_request": 0,
+  "pull_request": 225,
   "scope": {
     "kind": "additive_read_only_persisted_effect_terminal_evidence",
     "production_entrypoint_changed": false,
@@ -29,23 +29,27 @@
   },
   "input_contract": [
     "exact ProviderTargetReceiptRetentionCompletedEvidenceReceipt",
-    "exact NonRuntimeEffectAuthorization and EffectExecutionRequest",
+    "exact NonRuntimeEffectAuthorization, EffectLease, EffectLeaseRequest, PolicyDecision, EffectLeaseLedger and EffectExecutionRequest types",
     "exact lowercase 40-hex source revision",
     "request, policy and lease provenance all bind the exact source revision",
+    "request, policy, lease, retention entrypoint and exact narrowed execution scope remain cross-bound",
     "query-only replay resolves one exact persisted COMPLETED execution"
   ],
   "verification_order": [
     "canonically reconstruct completed retention evidence",
     "bind completed evidence and complete Effect authority provenance to the exact source revision",
+    "rebuild exact request, policy, lease, entrypoint, non-runtime and narrowed execution-scope bindings",
+    "snapshot request, policy, lease and execution digests",
     "capture concrete Effect-Lease SQLite path, device and inode identity",
     "perform the first query-only persisted execution projection",
     "recheck Effect-Lease store identity",
     "perform the second query-only persisted execution projection",
     "recheck Effect-Lease store identity again and compare both projections",
-    "require exact COMPLETED start and terminal receipts",
+    "require exact COMPLETED start and terminal receipt types",
+    "independently rebuild start and terminal receipt bindings, chronology and canonical digests",
     "bind both receipt digests to completed retention evidence",
     "require the sole terminal output digest to be the retained receipt artifact",
-    "reconstruct completed evidence again before emitting a non-authorizing receipt"
+    "reconstruct completed evidence and Effect authority again before emitting a non-authorizing receipt"
   ],
   "receipt_claims": {
     "completed_retention_evidence_bound": true,
@@ -65,21 +69,30 @@
     "closed": false
   },
   "adversarial_coverage_prepared": [
-    "exact structured-subject and subclass refusal",
+    "exact structured-subject, nested-authority and subclass refusal",
     "generic 64-hex and stale 40-hex revision refusal",
+    "stale request, policy or lease provenance refusal",
+    "wrong entrypoint, runtime-bearing authority and detached narrowed execution-scope refusal",
     "absent, STARTED and non-COMPLETED persisted execution refusal",
+    "internally detached or noncanonical start and terminal receipt refusal",
     "start-receipt substitution refusal",
     "terminal-receipt substitution refusal",
     "terminal output substitution refusal",
     "two-read persisted execution race refusal",
-    "Effect-Lease store identity race refusal",
+    "first-window and second-window Effect-Lease store identity race refusal",
     "Effect-Lease store hard-link ambiguity refusal",
+    "completed-evidence and Effect-authority mutation during verification refusal",
     "source-only no-effect, no-provider, no-promotion counter-review",
     "Draft 2020-12 exact JSON Schema and authority-claim escalation refusal",
-    "eleven bounded mutations",
+    "sixteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
     "completed-evidence, recovery, admission, effect-replay and retention-ledger regressions",
     "full suite, package build and isolated-wheel import"
+  ],
+  "review_findings_corrected": [
+    "the first draft trusted exact replay dataclasses without independently rebuilding their internal authority, execution, chronology and digest bindings",
+    "the first mutation runner used a non-unique exact-type seam shared by the public verifier and nested authority verifier",
+    "the first builder batch did not explicitly exercise stale nested authority provenance or the second store-identity fence"
   ],
   "frozen_dependent_boundary": [
     "do not represent persisted terminal verification as authority to start or repeat an effect",
