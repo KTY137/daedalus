@@ -1,0 +1,76 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY",
+  "gate": 0,
+  "status": "prepared-unverified",
+  "exact_parent": {
+    "branch": "g0/provider-target-receipt-retention-linear",
+    "revision": "b2bda280f8f98d6e977e092c5429da3c85427a33"
+  },
+  "branch": "g0/provider-target-receipt-retention-inventory-linear",
+  "purpose": "Make every known Event-Store, SQLite-schema and CAS write introduced by provider-target receipt retention machine-readable before central admission.",
+  "scope": {
+    "production_behavior_changed": false,
+    "inventory_scanner_added": true,
+    "reporter_added": true,
+    "canonical_effect_inventory_changed": false,
+    "guard_contract_added": false,
+    "effect_lease_consumed": false,
+    "provider_execution_authorized": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false
+  },
+  "expected_surfaces": [
+    "ProviderTargetReceiptLedger._install_single_receipt_invariant:self.spine._txn",
+    "ProviderTargetReceiptLedger._install_single_receipt_invariant:connection.execute(expected)",
+    "ProviderTargetReceiptLedger._record_or_recover_intent:self.spine.record_intent",
+    "ProviderTargetReceiptLedger.retain:self._install_single_receipt_invariant",
+    "ProviderTargetReceiptLedger.retain:self._record_or_recover_intent",
+    "ProviderTargetReceiptLedger.retain:self.source_store.put_bytes",
+    "ProviderTargetReceiptLedger.retain:self.spine.mark_completed"
+  ],
+  "acceptance": {
+    "source_bytes_and_revision_bound": true,
+    "exact_ast_anchors_required": true,
+    "missing_duplicate_or_renamed_anchor_refuses": true,
+    "strict_utf8_bom_nul_and_syntax_refusal": true,
+    "source_symlink_refusal": true,
+    "all_rows_inventory_only": true,
+    "all_rows_blocking": true,
+    "closed_hard_false": true,
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "malformed_and_revision_binding_tests_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "supported_platform_matrix_requested": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_and_isolated_wheel_requested": true
+  },
+  "verification": {
+    "hard_evidence_claimed": false,
+    "source_inspection_is_hard_evidence": false,
+    "llm_statement_is_hard_evidence": false,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute"
+  },
+  "known_boundaries": [
+    "This packet is discovery evidence only and cannot authorize receipt retention.",
+    "The seven surfaces remain inventory-only, unguarded and without a consumed persisted Effect Lease.",
+    "A later packet must register the exact central entrypoint, bind a guard contract and atomically consume persisted Effect-Lease authority.",
+    "The retained receipt remains structurally verified but does not authorize provider execution.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared tests are not represented as executed evidence."
+  ],
+  "forbidden_actions": [
+    "modify-main",
+    "modify-experimental",
+    "merge",
+    "automatic-promotion",
+    "fabricate-owner-approval",
+    "claim-gate-closure"
+  ]
+}
