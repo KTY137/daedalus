@@ -24,19 +24,22 @@
     "RepositoryHeadRevisionReceipt with two live process-free reverifications",
     "ProviderExecutableTargetVerificationReceipt",
     "freshly rebuilt ProviderTargetReceiptRetentionInventory",
+    "exact ProviderTargetReceiptRetentionSurface rows",
     "ProviderTargetReceiptRetentionOperationAuthority",
     "ProviderTargetReceiptRetentionOperationSubject",
     "EffectExecutionRequest",
-    "inert EffectLease subject"
+    "inert EffectLease subject",
+    "canonical disjoint retention scope paths"
   ],
   "ordering_contract": [
+    "reject non-exact inventory row types and noncanonical or overlapping scope paths before digest or authority evaluation",
     "snapshot exact supplied subject digests",
     "rebuild the expected signed retention subject from exact supplied subjects",
     "authenticate the signed retention authority and exact guard decision before repository reads",
     "live-reverify the exact repository HEAD receipt against the provider receipt revision before inventory",
     "rebuild the retention inventory from current repository bytes and require exact equality",
     "live-reverify the same HEAD receipt after inventory reconstruction",
-    "recheck every supplied subject digest and exact inventory fields before returning",
+    "recheck every supplied subject digest and exact inventory field before returning",
     "return a non-authorizing canonical preflight receipt"
   ],
   "receipt_claims": {
@@ -59,11 +62,13 @@
     "stale repository HEAD refusal before inventory",
     "repository HEAD change during inventory refusal after inventory",
     "current source-byte and inventory-digest substitution refusal",
+    "hostile inventory-surface subclass refusal before digest dispatch",
+    "canonical repository-relative POSIX request and receipt path enforcement",
     "40-hex revision, bounded source size, exact seven-surface set, and disjoint scope enforcement",
     "guard evidence and unsupported authority-claim refusal",
-    "independent AST authority, ordering, subject-stability, and no-writer review",
+    "independent AST authority, ordering, subject-stability, exact-row, exact-path, and no-writer review",
     "Draft 2020-12 JSON Schema validation",
-    "fourteen bounded mutations",
+    "sixteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
     "predecessor regressions, full suite, package build, and isolated-wheel import"
   ],
