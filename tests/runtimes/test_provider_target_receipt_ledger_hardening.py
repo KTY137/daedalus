@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import runpy
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -11,7 +12,6 @@ from daedalus.runtimes.provider_target_receipt_ledger import (
     ProviderTargetReceiptRetentionBindingError,
     ProviderTargetReceiptRetentionStateError,
 )
-
 
 _HELPERS = runpy.run_path(
     str(Path(__file__).with_name("test_provider_target_receipt_ledger.py"))
@@ -30,6 +30,12 @@ def _index_sql(spine):
             (_INDEX,),
         ).fetchone()
     return None if row is None else str(row[0])
+
+
+def _rows(spine, receipt):
+    return spine.resolve_by_effect(
+        "provider-target-verification-receipt:" + receipt.digest
+    )
 
 
 def test_invalid_receipt_cannot_install_retention_schema(tmp_path) -> None:
@@ -53,9 +59,7 @@ def test_foreign_same_name_index_is_not_trusted(tmp_path) -> None:
     receipt = _issue(fixture)
     _, spine, ledger = _ledger(tmp_path, fixture)
     with spine._txn() as connection:
-        connection.execute(
-            f"CREATE INDEX {_INDEX} ON intents(kind)"
-        )
+        connection.execute(f"CREATE INDEX {_INDEX} ON intents(kind)")
 
     with pytest.raises(
         ProviderTargetReceiptRetentionStateError,
@@ -110,6 +114,81 @@ def test_second_terminal_event_is_rejected_as_ambiguous(tmp_path) -> None:
     spine.close()
 
 
+def test_post_commit_intent_error_recovers_exact_persisted_winner(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    _, spine, ledger = _ledger(tmp_path, fixture)
+    original = spine.record_intent
+
+    def commit_then_disconnect(*args, **kwargs):
+        original(*args, **kwargs)
+        raise sqlite3.OperationalError("simulated disconnect after intent commit")
+
+    monkeypatch.setattr(spine, "record_intent", commit_then_disconnect)
+    result = _retain(ledger, receipt, fixture)
+
+    assert result.executed is True
+    rows = _rows(spine, receipt)
+    assert len(rows) == 1
+    assert rows[0].state == "COMPLETED"
+    spine.close()
+
+
+def test_pre_commit_terminal_error_stays_pending_and_replays(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    _, spine, ledger = _ledger(tmp_path, fixture)
+    original = spine.mark_completed
+
+    def disconnect_before_commit(*args, **kwargs):
+        raise sqlite3.OperationalError("simulated disconnect before terminal commit")
+
+    monkeypatch.setattr(spine, "mark_completed", disconnect_before_commit)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionStateError,
+        match="terminal persistence is unresolved and requires replay",
+    ):
+        _retain(ledger, receipt, fixture)
+    pending = _rows(spine, receipt)
+    assert len(pending) == 1
+    assert pending[0].state == "INTENDED"
+
+    monkeypatch.setattr(spine, "mark_completed", original)
+    replay = _retain(ledger, receipt, fixture)
+    assert replay.executed is True
+    assert _rows(spine, receipt)[0].state == "COMPLETED"
+    spine.close()
+
+
+def test_post_commit_terminal_error_is_reconciled_without_duplicate(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    _, spine, ledger = _ledger(tmp_path, fixture)
+    original = spine.mark_completed
+
+    def commit_then_disconnect(*args, **kwargs):
+        original(*args, **kwargs)
+        raise sqlite3.OperationalError("simulated disconnect after terminal commit")
+
+    monkeypatch.setattr(spine, "mark_completed", commit_then_disconnect)
+    result = _retain(ledger, receipt, fixture)
+
+    assert result.executed is True
+    rows = _rows(spine, receipt)
+    assert len(rows) == 1
+    assert rows[0].state == "COMPLETED"
+    spine.close()
+
+
 def test_concurrent_same_subject_keeps_one_event_store_identity(tmp_path) -> None:
     fixture = _fixture(tmp_path / "fixture")
     receipt = _issue(fixture)
@@ -125,9 +204,7 @@ def test_concurrent_same_subject_keeps_one_event_store_identity(tmp_path) -> Non
 
     assert {item.intent_id for item in results} == {results[0].intent_id}
     assert {item.artifact for item in results} == {results[0].artifact}
-    rows = spine.resolve_by_effect(
-        "provider-target-verification-receipt:" + receipt.digest
-    )
+    rows = _rows(spine, receipt)
     assert len(rows) == 1
     assert rows[0].state == "COMPLETED"
     spine.close()
