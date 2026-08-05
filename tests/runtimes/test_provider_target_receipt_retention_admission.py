@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,9 +9,11 @@ import pytest
 
 import daedalus.runtimes.provider_target_receipt_retention_admission as admission_module
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
+from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import EffectExecutionReplaySnapshot
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
+    EffectLeaseLedger,
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
 )
@@ -29,25 +32,19 @@ from daedalus.runtimes.provider_target_receipt_retention_preflight import (
     ProviderTargetReceiptRetentionPreflightBindingError,
     ProviderTargetReceiptRetentionPreflightReceipt,
 )
+from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import GuardDecision
 
 REVISION = "1" * 40
 EVENT_SCOPE = "state/spine.sqlite3"
 CAS_SCOPE = "cas/receipts"
 DIGESTS = tuple(f"{index:x}" * 64 for index in range(1, 13))
+NOW = datetime(2026, 8, 5, 8, 0, tzinfo=timezone.utc)
 
 
 class _DigestSubject:
     def __init__(self, digest: str) -> None:
         self.digest = digest
-
-
-class _Lease(_DigestSubject):
-    entrypoint_id = RETENTION_ENTRYPOINT
-
-
-class _Request(_DigestSubject):
-    entrypoint_id = RETENTION_ENTRYPOINT
 
 
 def _execution() -> EffectExecutionRequest:
@@ -61,22 +58,99 @@ def _execution() -> EffectExecutionRequest:
     )
 
 
-def _preflight(execution: EffectExecutionRequest) -> ProviderTargetReceiptRetentionPreflightReceipt:
+def _lease_subjects() -> tuple[EffectLeaseRequest, PolicyDecision, EffectLease]:
+    scope = EffectScope(
+        read_only=False,
+        writable_paths=(CAS_SCOPE, EVENT_SCOPE),
+        timeout_s=300,
+        max_concurrency=1,
+        kill_switch_ref="retention-kill-switch",
+    )
+    request = EffectLeaseRequest(
+        request_id="retention-request",
+        mission_id="retention-mission",
+        attempt_id="retention-attempt",
+        entrypoint_id=RETENTION_ENTRYPOINT,
+        requested_effects=("filesystem_write",),
+        effect_scope=scope,
+        idempotency_namespace="provider-target-receipt-retention",
+        kill_switch_generation=3,
+        runtime_manifest_sha256=None,
+        runtime_conformance_sha256=None,
+        provenance=ContractProvenance(
+            origin="tests.retention-admission-request",
+            source_revision=REVISION,
+            created_at=(NOW - timedelta(minutes=2)).isoformat(timespec="microseconds"),
+            input_digests=(DIGESTS[0],),
+            trace_id="retention-admission-trace",
+        ),
+    )
+    policy = PolicyDecision(
+        decision_id="retention-policy",
+        subject_id=request.request_id,
+        subject_sha256=request.digest,
+        policy_version="2026-08-05",
+        policy_sha256=DIGESTS[1],
+        verdict="allow",
+        reasons=("bounded receipt retention",),
+        effect_scope=scope,
+        provenance=ContractProvenance(
+            origin="tests.retention-admission-policy",
+            source_revision=REVISION,
+            created_at=(NOW - timedelta(minutes=1)).isoformat(timespec="microseconds"),
+            input_digests=(request.digest, DIGESTS[1]),
+            trace_id="retention-admission-trace",
+        ),
+    )
+    lease = EffectLease(
+        lease_id="retention-lease",
+        request_id=request.request_id,
+        request_sha256=request.digest,
+        policy_decision_id=policy.decision_id,
+        policy_decision_sha256=policy.digest,
+        registry_sha256=DIGESTS[2],
+        entrypoint_id=RETENTION_ENTRYPOINT,
+        requested_effects=("filesystem_write",),
+        effect_scope=scope,
+        idempotency_namespace=request.idempotency_namespace,
+        kill_switch_generation=3,
+        runtime_id="",
+        runtime_manifest_sha256=None,
+        runtime_conformance_sha256=None,
+        issuer_key_id="retention-lease-key",
+        issued_at=(NOW - timedelta(minutes=1)).isoformat(timespec="microseconds"),
+        expires_at=(NOW + timedelta(minutes=30)).isoformat(timespec="microseconds"),
+        signature_sha256=DIGESTS[3],
+        provenance=ContractProvenance(
+            origin="tests.retention-admission-lease",
+            source_revision=REVISION,
+            created_at=(NOW - timedelta(minutes=1)).isoformat(timespec="microseconds"),
+            input_digests=(request.digest, policy.digest, DIGESTS[2]),
+            trace_id="retention-admission-trace",
+        ),
+    )
+    return request, policy, lease
+
+
+def _preflight(
+    execution: EffectExecutionRequest,
+    lease: EffectLease,
+) -> ProviderTargetReceiptRetentionPreflightReceipt:
     return ProviderTargetReceiptRetentionPreflightReceipt(
         source_revision=REVISION,
-        repository_head_receipt_sha256=DIGESTS[0],
-        provider_target_receipt_sha256=DIGESTS[1],
-        retention_inventory_sha256=DIGESTS[2],
-        retention_inventory_source_sha256=DIGESTS[3],
+        repository_head_receipt_sha256=DIGESTS[4],
+        provider_target_receipt_sha256=DIGESTS[5],
+        retention_inventory_sha256=DIGESTS[6],
+        retention_inventory_source_sha256=DIGESTS[7],
         retention_inventory_source_size=4096,
         retention_inventory_surface_count=7,
-        retention_authority_sha256=DIGESTS[4],
-        retention_subject_sha256=DIGESTS[5],
+        retention_authority_sha256=DIGESTS[8],
+        retention_subject_sha256=DIGESTS[9],
         retention_execution_request_sha256=execution.digest,
-        retention_effect_lease_sha256=DIGESTS[7],
+        retention_effect_lease_sha256=lease.digest,
         guard_contract=RETENTION_GUARD_CONTRACT,
         guard_evidence=(
-            f"authority_sha256={DIGESTS[4]};subject_sha256={DIGESTS[5]}"
+            f"authority_sha256={DIGESTS[8]};subject_sha256={DIGESTS[9]}"
         ),
         event_store_scope_path=EVENT_SCOPE,
         receipt_cas_scope_path=CAS_SCOPE,
@@ -101,38 +175,29 @@ def _subjects(tmp_path: Path):
     ledger.source_store = SimpleNamespace(root=cas)
 
     execution = _execution()
-    preflight = _preflight(execution)
+    request, policy, lease = _lease_subjects()
+    preflight = _preflight(execution, lease)
     receipt = _DigestSubject(preflight.provider_target_receipt_sha256)
     inventory = _DigestSubject(preflight.retention_inventory_sha256)
     authority = _DigestSubject(preflight.retention_authority_sha256)
 
-    authorization = object.__new__(NonRuntimeEffectAuthorization)
-    object.__setattr__(
-        authorization,
-        "lease",
-        _Lease(preflight.retention_effect_lease_sha256),
-    )
-    object.__setattr__(authorization, "request", _Request(DIGESTS[8]))
-    object.__setattr__(
-        authorization,
-        "policy_decision",
-        _DigestSubject(DIGESTS[9]),
-    )
-    object.__setattr__(
-        authorization,
-        "effect_ledger",
-        SimpleNamespace(path=effect_store),
-    )
-    object.__setattr__(
-        authorization,
-        "guard_decisions",
-        (
+    effect_ledger = object.__new__(EffectLeaseLedger)
+    effect_ledger.path = effect_store
+    authorization = NonRuntimeEffectAuthorization(
+        lease=lease,
+        request=request,
+        policy_decision=policy,
+        effect_ledger=effect_ledger,
+        lease_keyring={"retention-lease-key": b"x" * 32},
+        guard_decisions=(
             GuardDecision(
                 RETENTION_GUARD_CONTRACT,
                 True,
                 preflight.guard_evidence,
             ),
         ),
+        kill_switch_generation_reader=lambda: 3,
+        registry={},
     )
     return SimpleNamespace(
         repository=repository,
@@ -188,12 +253,12 @@ def _verify(
     return _call(subjects), subjects
 
 
-def _start_receipt(execution: EffectExecutionRequest) -> LeasedEffectStartReceipt:
+def _start_receipt(subjects) -> LeasedEffectStartReceipt:
     return LeasedEffectStartReceipt(
-        lease_sha256=DIGESTS[7],
-        execution_id=execution.execution_id,
-        idempotency_key=execution.idempotency_key,
-        execution_request_sha256=execution.digest,
+        lease_sha256=subjects.authorization.lease.digest,
+        execution_id=subjects.execution.execution_id,
+        idempotency_key=subjects.execution.idempotency_key,
+        execution_request_sha256=subjects.execution.digest,
         boundary_receipt_sha256=DIGESTS[10],
         started_at="2026-08-05T08:00:00.000000+00:00",
         receipt_sha256=DIGESTS[11],
@@ -224,7 +289,7 @@ def test_started_replay_is_reported_without_terminal_or_reexecution(
 ) -> None:
     subjects = _subjects(tmp_path)
     replay = EffectExecutionReplaySnapshot(
-        _start_receipt(subjects.execution),
+        _start_receipt(subjects),
         "STARTED",
         None,
     )
@@ -253,9 +318,9 @@ def test_terminal_replay_retains_both_receipt_identities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     subjects = _subjects(tmp_path)
-    start = _start_receipt(subjects.execution)
+    start = _start_receipt(subjects)
     terminal = EffectTerminalReceipt(
-        lease_sha256=DIGESTS[7],
+        lease_sha256=subjects.authorization.lease.digest,
         execution_id=subjects.execution.execution_id,
         start_receipt_sha256=DIGESTS[11],
         outcome="COMPLETED",
@@ -310,6 +375,38 @@ def test_preflight_refusal_happens_before_topology_or_replay(
     ):
         _call(subjects)
     assert calls == ["preflight"]
+
+
+def test_final_preflight_refusal_fences_stale_revision_after_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    calls = {"preflight": 0, "replay": 0}
+
+    def preflight(*args, **kwargs):
+        calls["preflight"] += 1
+        if calls["preflight"] == 2:
+            raise ProviderTargetReceiptRetentionPreflightBindingError("HEAD moved")
+        return subjects.preflight
+
+    def replay(*args, **kwargs):
+        calls["replay"] += 1
+        return None
+
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        preflight,
+    )
+    monkeypatch.setattr(admission_module, "inspect_effect_execution", replay)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="preflight did not reverify",
+    ):
+        _call(subjects)
+    assert calls == {"preflight": 2, "replay": 1}
 
 
 def test_concrete_cas_scope_substitution_refuses(
@@ -499,5 +596,8 @@ def test_wire_claim_escalation_extra_fields_and_malformed_state_refuse(
 
     payload = result.to_dict()
     payload["execution_state"] = []
-    with pytest.raises(ProviderTargetReceiptRetentionAdmissionShapeError):
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionShapeError,
+        match="execution_state is unknown",
+    ):
         ProviderTargetReceiptRetentionAdmissionReceipt.from_dict(payload)
