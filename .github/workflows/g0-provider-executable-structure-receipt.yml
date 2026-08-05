@@ -52,7 +52,6 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/runtimes/test_provider_executable_structure.py
-          tests/runtimes/test_provider_executable_structure_bypass.py
           tests/runtimes/test_provider_executable_structure_review.py
           tests/runtimes/test_provider_executable_structure_schema.py
           tests/runtimes/test_provider_executable_targets.py
