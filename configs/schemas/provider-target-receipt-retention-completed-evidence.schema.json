@@ -70,6 +70,9 @@
     "admission_identity_bound": {
       "const": true
     },
+    "admission_topology_bound": {
+      "const": true
+    },
     "recovery_decision_bound": {
       "const": true
     },
@@ -134,6 +137,7 @@
     "event_store_path",
     "receipt_cas_path",
     "admission_identity_bound",
+    "admission_topology_bound",
     "recovery_decision_bound",
     "provider_target_receipt_authenticated",
     "retention_intent_completed",
