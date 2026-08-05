@@ -6,9 +6,17 @@ This packet starts from `824b1ec93b9c38c071613031be516facb0e6405b` on `g0/provid
 
 ## Scope
 
-The signed predecessor authenticates the provider, adapter, implementation, runtime, artifact/config digests and two local Python targets, but retains inert metadata only. This packet adds a read-only structural boundary. It resolves the invocation and output-evidence targets against exact repository bytes and retains their unique Python AST definition chains in a deterministic receipt.
+The signed predecessor authenticates the provider, adapter, implementation, runtime, execution, lease, artifact/config digests and two local Python targets, but it intentionally projects inert metadata only. This packet adds a read-only structural boundary. It replays the complete signed target-authority verification before any repository read, resolves the invocation and output-evidence targets against exact source bytes, and retains their unique Python AST definition chains in a deterministic receipt.
 
-The verifier consumes the exact `ProviderExecutableTargetProjection`, uses the shared race-aware repository reader and conservative Python target resolver, verifies each source digest, and binds path, size, definition kind, source positions and chain kinds. Receipt verification rebuilds the complete live result and accepts no caller-supplied source bytes.
+The public verifier accepts the signed `ProviderExecutableTargetAuthority`, invocation authority, identity registry, effect execution request and target manifest. It does not accept a caller-supplied target projection. The authenticated projection is rebuilt internally through `project_provider_executable_targets(...)`, then the shared race-aware repository reader and conservative Python target resolver bind path, size, source digest, definition kind, source positions and chain kinds.
+
+Receipt schema v2 retains the target-authority digest and contract, invocation-authority and invocation-contract digests, execution ID, idempotency key, lease digest, identity registry/descriptor, adapter artifact/config and target manifest/descriptor. Receipt verification re-authenticates and rebuilds the complete live result.
+
+## Adversarial finding and correction
+
+The first draft API accepted an exact `ProviderExecutableTargetProjection` supplied by the caller and treated class identity as proof that the signed target authority had been replayed. A frozen dataclass can be directly constructed, so this did not mechanically earn the authentication claim. The permanent non-execution flags prevented direct provider authority, but dependent work could not safely consume that receipt.
+
+The issue was found in the independent review of this batch and corrected before dependency use: the loose projection parameter was removed, signature and manifest verification now run before repository resolution, and the complete authority chain is retained. Tests explicitly reject direct-projection substitution, invalid signatures, manifest substitution and non-exact projected results before source resolution.
 
 ## Authority boundary
 
@@ -16,6 +24,7 @@ Structural presence is not executable admission. The packet does not import the 
 
 The receipt permanently records:
 
+- `target_authority_authenticated=true`
 - `targets_structurally_verified=true`
 - `repository_bytes_executed=false`
 - `provider_execution_allowed=false`
@@ -25,7 +34,7 @@ Issue #188 remains open. A later dependent packet must authenticate the reposito
 
 ## Adversarial batch
 
-Prepared coverage includes strict receipt round-trip and live reconstruction; changed source and missing target refusal; projection and retained-receipt substitution; resolver target and source-digest detachment; exact subject types; authority-escalation refusal; strict schema checks; an independent AST review for loading, execution and effect authority; and ten bounded mutants.
+Prepared coverage includes strict receipt round-trip and authenticated live reconstruction; invalid target signature and manifest substitution before repository resolution; loose and non-exact projection refusal; changed source and missing target refusal; resolver target and source-digest detachment; retained authority-digest detachment; authority-escalation refusal; strict schema checks; an independent AST review for authentication order, loading, execution and effect authority; and ten bounded mutants.
 
 CI requests Ubuntu and Windows, Python 3.10 and 3.12, two hash seeds, predecessor regressions, the full suite, package build and isolated-wheel import.
 
