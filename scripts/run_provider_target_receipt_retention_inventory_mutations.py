@@ -18,6 +18,10 @@ MUTANTS = {
     "fake_guard": ('"guard_contract_bound": False,', '"guard_contract_bound": True,'),
     "fake_lease": ('"effect_lease_consumed": False,', '"effect_lease_consumed": True,'),
     "permit_duplicate_anchor": ("if len(matches) != 1:", "if not matches:"),
+    "permit_unclassified_sql": (
+        "if len(execute_calls) != 2:",
+        "if len(execute_calls) < 2:",
+    ),
     "drop_last_surface": ("return tuple(sorted(rows))", "return tuple(sorted(rows[:-1]))"),
 }
 
