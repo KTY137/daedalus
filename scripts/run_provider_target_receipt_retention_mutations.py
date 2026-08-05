@@ -24,6 +24,17 @@ MUTATIONS = {
         "    if _paths_overlap(primary, store_root):\n",
         "    if False and _paths_overlap(primary, store_root):\n",
     ),
+    "allow-event-store-hardlink-alias": (
+        "    if event_store_stat.st_nlink != 1:\n",
+        "    if False and event_store_stat.st_nlink != 1:\n",
+    ),
+    "skip-prewrite-topology-revalidation": (
+        "        # Authentication and all pure local validation precede schema or data writes.\n"
+        "        _validate_topology(self.primary_checkout, self.source_store, self.spine)\n"
+        "        self._install_single_receipt_invariant()\n",
+        "        # Authentication and all pure local validation precede schema or data writes.\n"
+        "        self._install_single_receipt_invariant()\n",
+    ),
     "publish-before-intent": (
         "        existing = self._record_or_recover_intent(\n",
         "        self.source_store.put_bytes(payload)\n"
