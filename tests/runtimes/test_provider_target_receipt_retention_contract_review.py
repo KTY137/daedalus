@@ -99,12 +99,20 @@ def test_independent_review_confirms_separate_least_privilege_effect() -> None:
         assert required in source
 
 
-def test_independent_review_confirms_inventory_is_bound_not_trusted() -> None:
+def test_independent_review_confirms_inventory_revision_is_bound_not_trusted() -> None:
     source = inspect.getsource(contract)
+    builder = inspect.getsource(
+        contract.build_provider_target_receipt_retention_operation_subject
+    )
+    subject = inspect.getsource(contract.ProviderTargetReceiptRetentionOperationSubject)
+
     assert "retention_inventory_sha256" in source
+    assert "retention_inventory_source_revision" in source
     assert "retention_inventory_source_sha256" in source
+    assert "inventory_revision != receipt.source_revision" in builder
+    assert "retention_inventory_source_revision != self.source_revision" in subject
     assert "provider_target_receipt_retention_inventory" not in source
-    assert "verify the inventory artifact" in source
+    assert "authenticate the receipt and inventory" in source
 
 
 def test_public_authorization_api_only_returns_guard_evidence() -> None:
