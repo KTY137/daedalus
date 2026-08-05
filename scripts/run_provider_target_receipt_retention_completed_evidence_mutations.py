@@ -69,8 +69,13 @@ MUTATIONS = (
         "        False\n",
     ),
     (
-        "retained-read-topology-fence-bypass",
+        "between-read-topology-fence-bypass",
         "        topology_after != topology_before\n",
+        "        False\n",
+    ),
+    (
+        "final-read-topology-fence-bypass",
+        "        topology_final != topology_before\n",
         "        False\n",
     ),
     (
