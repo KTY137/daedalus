@@ -12,9 +12,13 @@ TESTS = (
     "tests/runtimes/test_provider_target_receipt_ledger_review.py",
 )
 MUTATIONS = {
-    "skip-receipt-authentication": (
-        "            projection = verify_provider_target_verification_receipt(\n",
-        "            projection = None or verify_provider_target_verification_receipt(\n",
+    "write-before-receipt-authentication": (
+        "        try:\n            projection = verify_provider_target_verification_receipt(\n",
+        "        self.spine.record_intent(\n"
+        "            _INTENT_KIND, {\"schema\": \"mutant\"},\n"
+        "            effect_key=_effect_key(receipt.digest),\n"
+        "        )\n"
+        "        try:\n            projection = verify_provider_target_verification_receipt(\n",
     ),
     "allow-primary-cas-overlap": (
         "    if _paths_overlap(primary, store_root):\n",
@@ -26,11 +30,13 @@ MUTATIONS = {
     ),
     "publish-before-intent": (
         "        existing = _read_intent(self.spine.path, key)\n",
-        "        self.source_store.put_bytes(payload)\n        existing = _read_intent(self.spine.path, key)\n",
+        "        self.source_store.put_bytes(payload)\n"
+        "        existing = _read_intent(self.spine.path, key)\n",
     ),
     "trust-completed-without-cas-readback": (
         "        try:\n            retained = self.source_store.read_bytes(\n",
-        "        return\n        try:\n            retained = self.source_store.read_bytes(\n",
+        "        return\n"
+        "        try:\n            retained = self.source_store.read_bytes(\n",
     ),
     "accept-terminal-failure": (
         "            if state == STATE_FAILED:\n",
