@@ -51,35 +51,59 @@ MUTATIONS = (
     ),
     (
         "persisted-state-claim-escalation",
-        '            "persisted_state_reverified": False,\n',
-        '            "persisted_state_reverified": True,\n',
+        '            "admission_identity_bound": True,\n'
+        '            "persisted_state_reverified": False,\n'
+        '            "manual_reconciliation_required": reconciliation,\n',
+        '            "admission_identity_bound": True,\n'
+        '            "persisted_state_reverified": True,\n'
+        '            "manual_reconciliation_required": reconciliation,\n',
     ),
     (
         "automatic-reexecution-claim-escalation",
-        '            "automatic_reexecution_allowed": False,\n',
-        '            "automatic_reexecution_allowed": True,\n',
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": False,\n'
+        '            "effect_start_authorized": False,\n',
+        '            "terminal_state_observed": terminal,\n'
+        '            "automatic_reexecution_allowed": True,\n'
+        '            "effect_start_authorized": False,\n',
     ),
     (
         "effect-start-claim-escalation",
-        '            "effect_start_authorized": False,\n',
-        '            "effect_start_authorized": True,\n',
+        '            "automatic_reexecution_allowed": False,\n'
+        '            "effect_start_authorized": False,\n'
+        '            "retention_write_authorized": False,\n',
+        '            "automatic_reexecution_allowed": False,\n'
+        '            "effect_start_authorized": True,\n'
+        '            "retention_write_authorized": False,\n',
     ),
     (
         "retention-write-claim-escalation",
-        '            "retention_write_authorized": False,\n',
-        '            "retention_write_authorized": True,\n',
+        '            "effect_start_authorized": False,\n'
+        '            "retention_write_authorized": False,\n'
+        '            "effect_terminalization_authorized": False,\n',
+        '            "effect_start_authorized": False,\n'
+        '            "retention_write_authorized": True,\n'
+        '            "effect_terminalization_authorized": False,\n',
     ),
     (
         "terminalization-claim-escalation",
-        '            "effect_terminalization_authorized": False,\n',
-        '            "effect_terminalization_authorized": True,\n',
+        '            "retention_write_authorized": False,\n'
+        '            "effect_terminalization_authorized": False,\n'
+        '            "canonical_entrypoint_registered": False,\n',
+        '            "retention_write_authorized": False,\n'
+        '            "effect_terminalization_authorized": True,\n'
+        '            "canonical_entrypoint_registered": False,\n',
     ),
     (
         "closure-claim-escalation",
+        '            "canonical_entrypoint_registered": False,\n'
         '            "gate_transition_authorized": False,\n'
-        '            "closed": False,\n',
+        '            "closed": False,\n'
+        "        }\n\n    @classmethod\n",
+        '            "canonical_entrypoint_registered": False,\n'
         '            "gate_transition_authorized": False,\n'
-        '            "closed": True,\n',
+        '            "closed": True,\n'
+        "        }\n\n    @classmethod\n",
     ),
 )
 
