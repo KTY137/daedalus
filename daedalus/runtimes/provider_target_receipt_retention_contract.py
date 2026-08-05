@@ -222,6 +222,10 @@ def _validate_retention_effect_scope(
         raise ProviderTargetReceiptRetentionContractBindingError(
             "retention lease/execution mismatch: " + ", ".join(mismatches)
         )
+    if not execution.kill_switch_ref or not effect_lease.effect_scope.kill_switch_ref:
+        raise ProviderTargetReceiptRetentionContractBindingError(
+            "retention execution requires a kill switch"
+        )
     if (
         execution.egress_endpoints
         or execution.tools
