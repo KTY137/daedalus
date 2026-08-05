@@ -43,6 +43,8 @@ The packet reuses the retention ledger's strict read-only helpers for effect-key
 
 The batch includes malformed and stale revisions, exact-type/subclass refusal, detached admission/recovery identities, foreign and relative admission topology paths, invalid retention-root containment, non-completed states, CAS substitution, terminal-detail substitution, artifact hard links, authentication-window, between-read and final-read topology races, a two-read Event-Store race, strict schema/claim tests, an independent AST/source review and sixteen bounded mutations.
 
+The mutation harness copies the package and only its required tests into a temporary root, sets that root as the complete `PYTHONPATH`, runs from the temporary root, and probes the imported production module path before every mutant. This prevents the repository checkout from shadowing the mutated module and turning a nominal mutation run into a false green result.
+
 The dedicated workflow requests Ubuntu and Windows coverage on Python 3.10 and 3.12 with two hash seeds, predecessor regressions, the full suite, package build and isolated-wheel import. None of those checks may be marked verified until Actions records real steps and artifacts on the exact head.
 
 ## Frozen dependent work
