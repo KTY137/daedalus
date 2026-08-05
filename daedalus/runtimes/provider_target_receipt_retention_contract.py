@@ -1,16 +1,16 @@
 """Signed guard contract for provider-target receipt retention.
 
-This module binds one exact retention request to a separate local filesystem-
-write Effect Lease and to the authenticated provider-target receipt identity.
-It is deliberately non-executing: it does not authenticate the provider-target
-receipt, verify the inventory artifact, persist or begin an Effect Lease, open
-SQLite, publish CAS bytes, mutate an Event Store, execute a provider, promote a
-candidate, or close a Gate.
+The contract is deliberately inert. It binds one exact receipt-retention
+request to a separate local filesystem-write Effect Lease, the authenticated
+provider-target receipt identity, and the exact revision/byte identities of the
+retention inventory. It does not authenticate the receipt or inventory, begin
+an Effect Lease, open SQLite, write CAS/Event-Store state, execute a provider,
+promote a candidate, or close a Gate.
 
 A future central entrypoint must independently authenticate the receipt and
-inventory, verify and begin the persisted retention lease, prove the concrete
-CAS/Event-Store targets are outside the Primary Checkout, consume this guard
-decision, and only then call the retention ledger.
+inventory, verify and begin the persisted retention lease, prove concrete
+CAS/Event-Store targets are outside the Primary Checkout, consume the returned
+guard decision, and only then call the retention ledger.
 """
 from __future__ import annotations
 
@@ -168,6 +168,7 @@ def _validate_retention_effect_scope(
         raise ProviderTargetReceiptRetentionContractBindingError(
             "retention Event Store and receipt CAS scopes must be disjoint"
         )
+
     expected_paths = tuple(sorted((event_path, cas_path)))
     comparisons = {
         "entrypoint_id": (effect_lease.entrypoint_id, RETENTION_ENTRYPOINT),
@@ -179,10 +180,7 @@ def _validate_retention_effect_scope(
             effect_lease.requested_effects,
             ("filesystem_write",),
         ),
-        "execution_writable_paths": (
-            execution.writable_paths,
-            expected_paths,
-        ),
+        "execution_writable_paths": (execution.writable_paths, expected_paths),
         "lease_writable_paths": (
             effect_lease.effect_scope.writable_paths,
             expected_paths,
@@ -273,6 +271,7 @@ class ProviderTargetReceiptRetentionOperationSubject:
     provider_idempotency_key: str
     provider_effect_lease_sha256: str
     retention_inventory_sha256: str
+    retention_inventory_source_revision: str
     retention_inventory_source_sha256: str
     retention_execution_id: str
     retention_idempotency_key: str
@@ -300,6 +299,14 @@ class ProviderTargetReceiptRetentionOperationSubject:
                 self,
                 "source_revision",
                 _revision(self.source_revision, "source_revision"),
+            )
+            object.__setattr__(
+                self,
+                "retention_inventory_source_revision",
+                _revision(
+                    self.retention_inventory_source_revision,
+                    "retention_inventory_source_revision",
+                ),
             )
             for field in (
                 "provider_id",
@@ -343,6 +350,11 @@ class ProviderTargetReceiptRetentionOperationSubject:
             raise ProviderTargetReceiptRetentionContractBindingError(
                 "receipt-retention operation subject is malformed"
             ) from exc
+
+        if self.retention_inventory_source_revision != self.source_revision:
+            raise ProviderTargetReceiptRetentionContractBindingError(
+                "retention inventory and receipt source revisions differ"
+            )
         expected_locator = ArtifactRef.from_sha256(self.receipt_sha256).locator
         if self.receipt_artifact_locator != expected_locator:
             raise ProviderTargetReceiptRetentionContractBindingError(
@@ -549,6 +561,7 @@ def build_provider_target_receipt_retention_operation_subject(
     *,
     receipt: ProviderExecutableTargetVerificationReceipt,
     retention_inventory_sha256: str,
+    retention_inventory_source_revision: str,
     retention_inventory_source_sha256: str,
     execution: EffectExecutionRequest,
     effect_lease: EffectLease,
@@ -569,6 +582,10 @@ def build_provider_target_receipt_retention_operation_subject(
             retention_inventory_sha256,
             "retention_inventory_sha256",
         )
+        inventory_revision = _revision(
+            retention_inventory_source_revision,
+            "retention_inventory_source_revision",
+        )
         inventory_source_digest = _sha256(
             retention_inventory_source_sha256,
             "retention_inventory_source_sha256",
@@ -577,6 +594,11 @@ def build_provider_target_receipt_retention_operation_subject(
         raise ProviderTargetReceiptRetentionContractBindingError(
             "retention inventory identities are malformed"
         ) from exc
+    if inventory_revision != receipt.source_revision:
+        raise ProviderTargetReceiptRetentionContractBindingError(
+            "retention inventory and receipt source revisions differ"
+        )
+
     return ProviderTargetReceiptRetentionOperationSubject(
         operation=RETAIN_RECEIPT,
         entrypoint_id=RETENTION_ENTRYPOINT,
@@ -589,6 +611,7 @@ def build_provider_target_receipt_retention_operation_subject(
         provider_idempotency_key=receipt.idempotency_key,
         provider_effect_lease_sha256=receipt.lease_sha256,
         retention_inventory_sha256=inventory_digest,
+        retention_inventory_source_revision=inventory_revision,
         retention_inventory_source_sha256=inventory_source_digest,
         retention_execution_id=execution.execution_id,
         retention_idempotency_key=execution.idempotency_key,
@@ -673,6 +696,7 @@ def verify_provider_target_receipt_retention_operation_authority(
         raise ProviderTargetReceiptRetentionContractSignatureError(
             "retention operation authority signature mismatch"
         )
+
     instant = _as_utc(at, "at")
     issued = datetime.fromisoformat(
         authority.issued_at.replace("Z", "+00:00")
