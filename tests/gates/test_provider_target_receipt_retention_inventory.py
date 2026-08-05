@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -16,7 +17,9 @@ from daedalus.spine.envelope import canonical_json
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "daedalus/runtimes/provider_target_receipt_ledger.py"
-REVISION = "b2bda280f8f98d6e977e092c5429da3c85427a33"
+REVISION = "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
+SOURCE_GIT_BLOB_SHA1 = "a5e3d1321e257c9ce1d70e9a68e4079445c6985a"
+PRE_HARDENING_REVISION = "b2bda280f8f98d6e977e092c5429da3c85427a33"
 EXPECTED_OPERATIONS = {
     "open-canonical-event-store-writer-transaction",
     "create-or-reverify-partial-unique-index",
@@ -28,11 +31,28 @@ EXPECTED_OPERATIONS = {
 }
 
 
+def _git_blob_sha1(raw: bytes) -> str:
+    header = f"blob {len(raw)}\0".encode("ascii")
+    return hashlib.sha1(header + raw, usedforsecurity=False).hexdigest()
+
+
 def _fixture_root(tmp_path: Path, raw: bytes | None = None) -> Path:
     target = tmp_path / "repo/daedalus/runtimes/provider_target_receipt_ledger.py"
     target.parent.mkdir(parents=True)
     target.write_bytes(SOURCE.read_bytes() if raw is None else raw)
     return tmp_path / "repo"
+
+
+def test_inventory_is_rebound_to_topology_hardened_parent() -> None:
+    raw = SOURCE.read_bytes()
+    report = scan_provider_target_receipt_retention(ROOT, source_revision=REVISION)
+
+    assert REVISION != PRE_HARDENING_REVISION
+    assert _git_blob_sha1(raw) == SOURCE_GIT_BLOB_SHA1
+    assert report.source_revision == REVISION
+    assert report.source_sha256 == hashlib.sha256(raw).hexdigest()
+    assert report.source_size == len(raw)
+    assert {row.operation for row in report.surfaces} == EXPECTED_OPERATIONS
 
 
 def test_inventory_is_deterministic_and_explicitly_blocking() -> None:
@@ -176,6 +196,7 @@ def test_cli_emits_canonical_blocking_report() -> None:
     assert completed.returncode == 1
     assert completed.stderr == ""
     payload = json.loads(completed.stdout)
+    assert payload["source_revision"] == REVISION
     assert payload["closed"] is False
     assert payload["surface_count"] == 7
     assert completed.stdout.strip() == canonical_json(payload)
