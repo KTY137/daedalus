@@ -44,8 +44,10 @@
     "authenticate the exact provider-target verification receipt and source tree",
     "repeat admission-bound topology and artifact identity checks before retained-state reads",
     "strictly read and validate the completed canonical Event-Store intent and CAS bytes",
-    "repeat admission-bound topology, artifact and Event-Store/CAS validation",
-    "compare both reads and both identity fences",
+    "repeat admission-bound topology and artifact identity checks between the two completed-state reads",
+    "repeat the completed Event-Store and CAS validation",
+    "repeat admission-bound topology and artifact identity checks after the final completed-state read",
+    "compare both completed-state observations and all identity fences",
     "reconstruct admission and recovery again before emitting non-authorizing evidence"
   ],
   "receipt_claims": {
@@ -78,11 +80,12 @@
     "retained artifact hard-link ambiguity refusal",
     "canonical Event-Store terminal detail substitution refusal",
     "authentication-window topology identity race refusal",
-    "retained-read-window topology identity race refusal",
+    "between-read topology identity race refusal",
+    "final-read topology identity race refusal",
     "two-read Event-Store state race refusal",
     "source-only no-writer and no-provider-execution review",
     "Draft 2020-12 exact JSON Schema and claim escalation refusal",
-    "fifteen bounded mutations",
+    "sixteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
     "recovery, admission, preflight, effect replay, ledger and inventory regressions",
     "full suite, package build and isolated-wheel import"
