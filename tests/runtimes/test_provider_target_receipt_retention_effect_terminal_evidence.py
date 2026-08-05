@@ -42,8 +42,11 @@ def _start_values(subjects, **overrides):
         "boundary_receipt_sha256": BOUNDARY_SHA,
         "started_at": STARTED_AT,
     }
+    explicit_receipt = overrides.pop("receipt_sha256", None)
     values.update(overrides)
     receipt_sha = canonical_sha(values)
+    if explicit_receipt is not None:
+        receipt_sha = explicit_receipt
     return {**values, "receipt_sha256": receipt_sha}
 
 
@@ -59,11 +62,9 @@ def _terminal_values(subjects, start, **overrides):
     }
     explicit_receipt = overrides.pop("receipt_sha256", None)
     values.update(overrides)
-    digest_payload = {
-        **values,
-        "output_digests": list(values["output_digests"]),
-    }
-    receipt_sha = canonical_sha(digest_payload)
+    receipt_sha = canonical_sha(
+        {**values, "output_digests": list(values["output_digests"])}
+    )
     if explicit_receipt is not None:
         receipt_sha = explicit_receipt
     return {**values, "receipt_sha256": receipt_sha}
@@ -100,6 +101,7 @@ def _snapshot(
     start_overrides=None,
     terminal_overrides=None,
 ):
+    del completed
     start = LeasedEffectStartReceipt(
         **_start_values(subjects, **(start_overrides or {}))
     )
@@ -107,6 +109,14 @@ def _snapshot(
         **_terminal_values(subjects, start, **(terminal_overrides or {}))
     )
     return EffectExecutionReplaySnapshot(start, terminal.outcome, terminal)
+
+
+def _install_snapshot(monkeypatch, snapshot):
+    monkeypatch.setattr(
+        terminal_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: snapshot,
+    )
 
 
 def _verify(subjects, completed):
@@ -160,11 +170,7 @@ def test_effect_terminal_evidence_refuses_stale_or_generic_revision(
 ) -> None:
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: _snapshot(subjects, completed),
-    )
+    _install_snapshot(monkeypatch, _snapshot(subjects, completed))
 
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError,
@@ -194,13 +200,9 @@ def test_effect_terminal_evidence_refuses_stale_authority_provenance(
 ) -> None:
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: _snapshot(subjects, completed),
-    )
+    _install_snapshot(monkeypatch, _snapshot(subjects, completed))
     object.__setattr__(
-        subjects.authorization.request.provenance,
+        subjects.authorization.lease.provenance,
         "source_revision",
         "e" * 40,
     )
@@ -212,6 +214,54 @@ def test_effect_terminal_evidence_refuses_stale_authority_provenance(
         _verify(subjects, completed)
 
 
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda subjects: object.__setattr__(
+                subjects.authorization.lease,
+                "entrypoint_id",
+                "wrong-retention-entrypoint",
+            ),
+            "wrong retention entrypoint",
+        ),
+        (
+            lambda subjects: object.__setattr__(
+                subjects.authorization.lease,
+                "runtime_id",
+                "runtime-provider",
+            ),
+            "non-runtime Effect authority",
+        ),
+        (
+            lambda subjects: object.__setattr__(
+                subjects.execution,
+                "writable_paths",
+                ("wrong/scope",),
+            ),
+            "detached from the exact leased effect scope",
+        ),
+    ],
+)
+def test_effect_terminal_evidence_refuses_wrong_authority_or_scope(
+    tmp_path,
+    monkeypatch,
+    mutate,
+    message,
+) -> None:
+    subjects = _subjects(tmp_path)
+    completed = _completed(subjects)
+    snapshot = _snapshot(subjects, completed)
+    mutate(subjects)
+    _install_snapshot(monkeypatch, snapshot)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
+        match=message,
+    ):
+        _verify(subjects, completed)
+
+
 def test_effect_terminal_evidence_refuses_absent_started_or_failed_state(
     tmp_path,
     monkeypatch,
@@ -219,11 +269,7 @@ def test_effect_terminal_evidence_refuses_absent_started_or_failed_state(
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
 
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: None,
-    )
+    _install_snapshot(monkeypatch, None)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="absent or non-exact",
@@ -236,11 +282,7 @@ def test_effect_terminal_evidence_refuses_absent_started_or_failed_state(
         "STARTED",
         None,
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: started,
-    )
+    _install_snapshot(monkeypatch, started)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="not COMPLETED",
@@ -252,11 +294,7 @@ def test_effect_terminal_evidence_refuses_absent_started_or_failed_state(
         completed,
         terminal_overrides={"outcome": "FAILED"},
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: failed,
-    )
+    _install_snapshot(monkeypatch, failed)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="not COMPLETED",
@@ -276,11 +314,7 @@ def test_effect_terminal_evidence_refuses_receipt_and_output_substitution(
         completed,
         start_overrides={"boundary_receipt_sha256": "c" * 64},
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: wrong_start,
-    )
+    _install_snapshot(monkeypatch, wrong_start)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="start receipt is detached",
@@ -292,11 +326,7 @@ def test_effect_terminal_evidence_refuses_receipt_and_output_substitution(
         completed,
         terminal_overrides={"finished_at": "2026-08-05T08:02:00.000000+00:00"},
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: wrong_terminal,
-    )
+    _install_snapshot(monkeypatch, wrong_terminal)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="terminal receipt is detached",
@@ -312,11 +342,7 @@ def test_effect_terminal_evidence_refuses_receipt_and_output_substitution(
         subjects,
         terminal_receipt_sha256=wrong_output.terminal_receipt.receipt_sha256,
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: wrong_output,
-    )
+    _install_snapshot(monkeypatch, wrong_output)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="terminal output is detached",
@@ -324,31 +350,47 @@ def test_effect_terminal_evidence_refuses_receipt_and_output_substitution(
         _verify(subjects, output_bound_completed)
 
 
-def test_effect_terminal_evidence_independently_refuses_invalid_receipt_digest(
+def test_effect_terminal_evidence_independently_refuses_invalid_receipt_digests(
     tmp_path,
     monkeypatch,
 ) -> None:
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
-    invalid = _snapshot(
+
+    invalid_start = _snapshot(
+        subjects,
+        completed,
+        start_overrides={"receipt_sha256": completed.start_receipt_sha256},
+    )
+    invalid_start = EffectExecutionReplaySnapshot(
+        dataclasses.replace(
+            invalid_start.start_receipt,
+            boundary_receipt_sha256="c" * 64,
+        ),
+        "COMPLETED",
+        invalid_start.terminal_receipt,
+    )
+    _install_snapshot(monkeypatch, invalid_start)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
+        match="start receipt digest is invalid",
+    ):
+        _verify(subjects, completed)
+
+    invalid_terminal = _snapshot(
         subjects,
         completed,
         terminal_overrides={"receipt_sha256": completed.terminal_receipt_sha256},
     )
-    invalid = EffectExecutionReplaySnapshot(
-        invalid.start_receipt,
+    invalid_terminal = EffectExecutionReplaySnapshot(
+        invalid_terminal.start_receipt,
         "COMPLETED",
         dataclasses.replace(
-            invalid.terminal_receipt,
+            invalid_terminal.terminal_receipt,
             finished_at="2026-08-05T08:03:00.000000+00:00",
         ),
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: invalid,
-    )
-
+    _install_snapshot(monkeypatch, invalid_terminal)
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
         match="terminal receipt digest is invalid",
@@ -363,20 +405,15 @@ def test_effect_terminal_evidence_refuses_internal_receipt_detachment(
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
     snapshot = _snapshot(subjects, completed)
-    detached_terminal = dataclasses.replace(
-        snapshot.terminal_receipt,
-        lease_sha256="f" * 64,
-    )
     detached = EffectExecutionReplaySnapshot(
         snapshot.start_receipt,
         "COMPLETED",
-        detached_terminal,
+        dataclasses.replace(
+            snapshot.terminal_receipt,
+            lease_sha256="f" * 64,
+        ),
     )
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: detached,
-    )
+    _install_snapshot(monkeypatch, detached)
 
     with pytest.raises(
         ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError,
@@ -427,11 +464,7 @@ def test_effect_terminal_evidence_refuses_store_identity_races(
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
     snapshot = _snapshot(subjects, completed)
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: snapshot,
-    )
+    _install_snapshot(monkeypatch, snapshot)
     original = terminal_module._effect_store_identity
     calls = 0
 
@@ -457,11 +490,7 @@ def test_effect_terminal_evidence_refuses_hard_linked_effect_store(
 ) -> None:
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: _snapshot(subjects, completed),
-    )
+    _install_snapshot(monkeypatch, _snapshot(subjects, completed))
     os.link(subjects.effect_store, tmp_path / "effect-store-alias.sqlite3")
 
     with pytest.raises(
@@ -477,11 +506,7 @@ def test_effect_terminal_evidence_refuses_subclasses_and_claim_escalation(
 ) -> None:
     subjects = _subjects(tmp_path)
     completed = _completed(subjects)
-    monkeypatch.setattr(
-        terminal_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: _snapshot(subjects, completed),
-    )
+    _install_snapshot(monkeypatch, _snapshot(subjects, completed))
 
     class CompletedSubclass(
         ProviderTargetReceiptRetentionCompletedEvidenceReceipt
