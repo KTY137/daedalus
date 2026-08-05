@@ -17,6 +17,8 @@ MODULE = Path(
 TESTS = (
     "tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py",
     "tests/runtimes/"
+    "test_provider_target_receipt_retention_completed_evidence_hardening.py",
+    "tests/runtimes/"
     "test_provider_target_receipt_retention_completed_evidence_review.py",
 )
 
@@ -35,6 +37,16 @@ MUTATIONS = (
         "artifact-hardlink-bypass",
         "        if info.st_nlink != 1:\n",
         "        if False:\n",
+    ),
+    (
+        "admission-live-identity-binding-bypass",
+        "        if expected[key] != observed[key]:\n",
+        "        if False:\n",
+    ),
+    (
+        "admission-root-containment-bypass",
+        "    if root_path not in event_path.parents or root_path not in cas_path.parents:\n",
+        "    if False:\n",
     ),
     (
         "completed-admission-bypass",
@@ -74,6 +86,11 @@ MUTATIONS = (
         "        or max_source_bytes < 1\n"
         "    ):\n",
         "    if False:\n",
+    ),
+    (
+        "admission-topology-claim-removal",
+        '            "admission_topology_bound": True,\n',
+        '            "admission_topology_bound": False,\n',
     ),
     (
         "stable-topology-claim-removal",
