@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -189,13 +190,21 @@ def _validate_topology(
 ) -> None:
     try:
         raw_primary = primary_checkout.absolute()
-        if _contains_symlink(raw_primary):
-            raise ProviderTargetReceiptRetentionBindingError(
-                "primary checkout path must not contain symlinks"
-            )
+        raw_store_root = source_store.root.absolute()
+        raw_event_store = spine.path.absolute()
+        for label, path in (
+            ("primary checkout", raw_primary),
+            ("receipt CAS", raw_store_root),
+            ("canonical Event Store", raw_event_store),
+        ):
+            if _contains_symlink(path):
+                raise ProviderTargetReceiptRetentionBindingError(
+                    f"{label} path must not contain symlinks"
+                )
         primary = raw_primary.resolve(strict=True)
-        store_root = source_store.root.resolve(strict=True)
-        event_store = spine.path.resolve(strict=True)
+        store_root = raw_store_root.resolve(strict=True)
+        event_store = raw_event_store.resolve(strict=True)
+        event_store_stat = event_store.stat()
     except ProviderTargetReceiptRetentionError:
         raise
     except (OSError, RuntimeError) as exc:
@@ -205,6 +214,18 @@ def _validate_topology(
     if not primary.is_dir():
         raise ProviderTargetReceiptRetentionBindingError(
             "primary checkout must be a real directory"
+        )
+    if not store_root.is_dir():
+        raise ProviderTargetReceiptRetentionBindingError(
+            "receipt CAS must be a real directory"
+        )
+    if not stat.S_ISREG(event_store_stat.st_mode):
+        raise ProviderTargetReceiptRetentionBindingError(
+            "canonical Event Store must be one real regular file"
+        )
+    if event_store_stat.st_nlink != 1:
+        raise ProviderTargetReceiptRetentionBindingError(
+            "canonical Event Store must have one filesystem identity"
         )
     if _paths_overlap(primary, store_root):
         raise ProviderTargetReceiptRetentionBindingError(
@@ -556,6 +577,7 @@ class ProviderTargetReceiptLedger:
         expected_intent = _intent_payload(receipt, artifact)
         key = _effect_key(receipt.digest)
         # Authentication and all pure local validation precede schema or data writes.
+        _validate_topology(self.primary_checkout, self.source_store, self.spine)
         self._install_single_receipt_invariant()
         existing = self._record_or_recover_intent(
             key=key,
