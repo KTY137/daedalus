@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -49,7 +50,18 @@ class _Request(_DigestSubject):
     entrypoint_id = RETENTION_ENTRYPOINT
 
 
-def _preflight() -> ProviderTargetReceiptRetentionPreflightReceipt:
+def _execution() -> EffectExecutionRequest:
+    return EffectExecutionRequest(
+        execution_id="retention-execution",
+        idempotency_key="retention-idempotency",
+        requested_effects=("filesystem_write",),
+        writable_paths=(EVENT_SCOPE, CAS_SCOPE),
+        kill_switch_ref="retention-kill-switch",
+        kill_switch_generation=3,
+    )
+
+
+def _preflight(execution: EffectExecutionRequest) -> ProviderTargetReceiptRetentionPreflightReceipt:
     return ProviderTargetReceiptRetentionPreflightReceipt(
         source_revision=REVISION,
         repository_head_receipt_sha256=DIGESTS[0],
@@ -60,7 +72,7 @@ def _preflight() -> ProviderTargetReceiptRetentionPreflightReceipt:
         retention_inventory_surface_count=7,
         retention_authority_sha256=DIGESTS[4],
         retention_subject_sha256=DIGESTS[5],
-        retention_execution_request_sha256=DIGESTS[6],
+        retention_execution_request_sha256=execution.digest,
         retention_effect_lease_sha256=DIGESTS[7],
         guard_contract=RETENTION_GUARD_CONTRACT,
         guard_evidence=(
@@ -69,19 +81,6 @@ def _preflight() -> ProviderTargetReceiptRetentionPreflightReceipt:
         event_store_scope_path=EVENT_SCOPE,
         receipt_cas_scope_path=CAS_SCOPE,
     )
-
-
-def _execution() -> EffectExecutionRequest:
-    execution = EffectExecutionRequest(
-        execution_id="retention-execution",
-        idempotency_key="retention-idempotency",
-        requested_effects=("filesystem_write",),
-        writable_paths=(EVENT_SCOPE, CAS_SCOPE),
-        kill_switch_ref="retention-kill-switch",
-        kill_switch_generation=3,
-    )
-    object.__setattr__(execution, "_test_digest", DIGESTS[6])
-    return execution
 
 
 def _subjects(tmp_path: Path):
@@ -101,88 +100,104 @@ def _subjects(tmp_path: Path):
     ledger.spine = SimpleNamespace(path=event)
     ledger.source_store = SimpleNamespace(root=cas)
 
-    preflight = _preflight()
+    execution = _execution()
+    preflight = _preflight(execution)
     receipt = _DigestSubject(preflight.provider_target_receipt_sha256)
     inventory = _DigestSubject(preflight.retention_inventory_sha256)
     authority = _DigestSubject(preflight.retention_authority_sha256)
-    execution = _execution()
-    # The production execution digest is deterministic; align the fixture by
-    # rebuilding the preflight below rather than weakening the implementation.
-    preflight = ProviderTargetReceiptRetentionPreflightReceipt(
-        **{
-            **preflight.__dict__,
-            "retention_execution_request_sha256": execution.digest,
-        }
-    )
-    receipt.digest = preflight.provider_target_receipt_sha256
-    inventory.digest = preflight.retention_inventory_sha256
-    authority.digest = preflight.retention_authority_sha256
 
     authorization = object.__new__(NonRuntimeEffectAuthorization)
-    authorization.lease = _Lease(preflight.retention_effect_lease_sha256)
-    authorization.request = _Request(DIGESTS[8])
-    authorization.policy_decision = _DigestSubject(DIGESTS[9])
-    authorization.effect_ledger = SimpleNamespace(path=effect_store)
-    authorization.guard_decisions = (
-        GuardDecision(
-            RETENTION_GUARD_CONTRACT,
-            True,
-            preflight.guard_evidence,
+    object.__setattr__(
+        authorization,
+        "lease",
+        _Lease(preflight.retention_effect_lease_sha256),
+    )
+    object.__setattr__(authorization, "request", _Request(DIGESTS[8]))
+    object.__setattr__(
+        authorization,
+        "policy_decision",
+        _DigestSubject(DIGESTS[9]),
+    )
+    object.__setattr__(
+        authorization,
+        "effect_ledger",
+        SimpleNamespace(path=effect_store),
+    )
+    object.__setattr__(
+        authorization,
+        "guard_decisions",
+        (
+            GuardDecision(
+                RETENTION_GUARD_CONTRACT,
+                True,
+                preflight.guard_evidence,
+            ),
         ),
     )
-    return (
-        repository,
-        retention_root,
-        ledger,
-        preflight,
-        receipt,
-        inventory,
-        authority,
-        execution,
-        authorization,
+    return SimpleNamespace(
+        repository=repository,
+        retention_root=retention_root,
+        event=event,
+        cas=cas,
+        effect_store=effect_store,
+        ledger=ledger,
+        preflight=preflight,
+        receipt=receipt,
+        inventory=inventory,
+        authority=authority,
+        execution=execution,
+        authorization=authorization,
     )
 
 
-def _verify(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replay=None):
-    values = _subjects(tmp_path)
-    (
-        repository,
-        retention_root,
-        ledger,
-        preflight,
-        receipt,
-        inventory,
-        authority,
-        execution,
-        authorization,
-    ) = values
+def _call(subjects, *, event_scope: str = EVENT_SCOPE, cas_scope: str = CAS_SCOPE):
+    return verify_provider_target_receipt_retention_admission(
+        subjects.repository,
+        subjects.retention_root,
+        object(),
+        subjects.receipt,
+        subjects.inventory,
+        subjects.authority,
+        subjects.execution,
+        subjects.authorization,
+        subjects.ledger,
+        expected_authority_id="retention-authority",
+        authority_keyring={"retention-key": b"x" * 32},
+        event_store_scope_path=event_scope,
+        receipt_cas_scope_path=cas_scope,
+        at=object(),
+    )
+
+
+def _verify(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replay=None,
+):
+    subjects = _subjects(tmp_path)
     monkeypatch.setattr(
         admission_module,
         "verify_provider_target_receipt_retention_preflight",
-        lambda *args, **kwargs: preflight,
+        lambda *args, **kwargs: subjects.preflight,
     )
     monkeypatch.setattr(
         admission_module,
         "inspect_effect_execution",
         lambda *args, **kwargs: replay,
     )
-    result = verify_provider_target_receipt_retention_admission(
-        repository,
-        retention_root,
-        object(),
-        receipt,
-        inventory,
-        authority,
-        execution,
-        authorization,
-        ledger,
-        expected_authority_id="retention-authority",
-        authority_keyring={"retention-key": b"x" * 32},
-        event_store_scope_path=EVENT_SCOPE,
-        receipt_cas_scope_path=CAS_SCOPE,
-        at=object(),
+    return _call(subjects), subjects
+
+
+def _start_receipt(execution: EffectExecutionRequest) -> LeasedEffectStartReceipt:
+    return LeasedEffectStartReceipt(
+        lease_sha256=DIGESTS[7],
+        execution_id=execution.execution_id,
+        idempotency_key=execution.idempotency_key,
+        execution_request_sha256=execution.digest,
+        boundary_receipt_sha256=DIGESTS[10],
+        started_at="2026-08-05T08:00:00.000000+00:00",
+        receipt_sha256=DIGESTS[11],
     )
-    return result, values
 
 
 def test_not_started_admission_round_trip_is_non_executing(
@@ -207,17 +222,23 @@ def test_started_replay_is_reported_without_terminal_or_reexecution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    start = LeasedEffectStartReceipt(
-        lease_sha256=DIGESTS[7],
-        execution_id="retention-execution",
-        idempotency_key="retention-idempotency",
-        execution_request_sha256=DIGESTS[6],
-        boundary_receipt_sha256=DIGESTS[10],
-        started_at="2026-08-05T08:00:00.000000+00:00",
-        receipt_sha256=DIGESTS[11],
+    subjects = _subjects(tmp_path)
+    replay = EffectExecutionReplaySnapshot(
+        _start_receipt(subjects.execution),
+        "STARTED",
+        None,
     )
-    replay = EffectExecutionReplaySnapshot(start, "STARTED", None)
-    result, _ = _verify(tmp_path, monkeypatch, replay)
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+    monkeypatch.setattr(
+        admission_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: replay,
+    )
+    result = _call(subjects)
 
     assert result.execution_state == "started"
     assert result.start_receipt_sha256 == DIGESTS[11]
@@ -231,18 +252,11 @@ def test_terminal_replay_retains_both_receipt_identities(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    start = LeasedEffectStartReceipt(
-        lease_sha256=DIGESTS[7],
-        execution_id="retention-execution",
-        idempotency_key="retention-idempotency",
-        execution_request_sha256=DIGESTS[6],
-        boundary_receipt_sha256=DIGESTS[10],
-        started_at="2026-08-05T08:00:00.000000+00:00",
-        receipt_sha256=DIGESTS[11],
-    )
+    subjects = _subjects(tmp_path)
+    start = _start_receipt(subjects.execution)
     terminal = EffectTerminalReceipt(
         lease_sha256=DIGESTS[7],
-        execution_id="retention-execution",
+        execution_id=subjects.execution.execution_id,
         start_receipt_sha256=DIGESTS[11],
         outcome="COMPLETED",
         output_digests=(),
@@ -251,7 +265,17 @@ def test_terminal_replay_retains_both_receipt_identities(
         receipt_sha256="a" * 64,
     )
     replay = EffectExecutionReplaySnapshot(start, "COMPLETED", terminal)
-    result, _ = _verify(tmp_path, monkeypatch, replay)
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+    monkeypatch.setattr(
+        admission_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: replay,
+    )
+    result = _call(subjects)
 
     assert result.execution_state == "COMPLETED"
     assert result.start_receipt_sha256 == DIGESTS[11]
@@ -263,7 +287,7 @@ def test_preflight_refusal_happens_before_topology_or_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    values = _subjects(tmp_path)
+    subjects = _subjects(tmp_path)
     calls: list[str] = []
 
     def refuse(*args, **kwargs):
@@ -280,81 +304,179 @@ def test_preflight_refusal_happens_before_topology_or_replay(
         refuse,
     )
     monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
-    (
-        repository,
-        retention_root,
-        ledger,
-        _,
-        receipt,
-        inventory,
-        authority,
-        execution,
-        authorization,
-    ) = values
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
         match="preflight did not reverify",
     ):
-        verify_provider_target_receipt_retention_admission(
-            repository,
-            retention_root,
-            object(),
-            receipt,
-            inventory,
-            authority,
-            execution,
-            authorization,
-            ledger,
-            expected_authority_id="retention-authority",
-            authority_keyring={"retention-key": b"x" * 32},
-            event_store_scope_path=EVENT_SCOPE,
-            receipt_cas_scope_path=CAS_SCOPE,
-            at=object(),
-        )
+        _call(subjects)
     assert calls == ["preflight"]
 
 
-def test_concrete_scope_substitution_refuses(
+def test_concrete_cas_scope_substitution_refuses(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    values = _subjects(tmp_path)
-    values[2].source_store.root = tmp_path / "foreign-cas"
-    values[2].source_store.root.mkdir()
-    preflight = values[3]
+    subjects = _subjects(tmp_path)
+    foreign_cas = tmp_path / "foreign-cas"
+    foreign_cas.mkdir()
+    subjects.ledger.source_store.root = foreign_cas
     monkeypatch.setattr(
         admission_module,
         "verify_provider_target_receipt_retention_preflight",
-        lambda *args, **kwargs: preflight,
+        lambda *args, **kwargs: subjects.preflight,
     )
     monkeypatch.setattr(
         admission_module,
         "inspect_effect_execution",
         lambda *args, **kwargs: None,
     )
+
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
-        match="scope_path does not bind the concrete receipt CAS",
+        match="receipt_cas_scope_path does not bind the concrete receipt CAS",
     ):
-        verify_provider_target_receipt_retention_admission(
-            values[0],
-            values[1],
-            object(),
-            values[4],
-            values[5],
-            values[6],
-            values[7],
-            values[8],
-            values[2],
-            expected_authority_id="retention-authority",
-            authority_keyring={"retention-key": b"x" * 32},
-            event_store_scope_path=EVENT_SCOPE,
-            receipt_cas_scope_path=CAS_SCOPE,
-            at=object(),
-        )
+        _call(subjects)
 
 
-def test_wire_claim_escalation_and_extra_fields_refuse(
+def test_noncanonical_scope_refuses_before_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+
+    def unexpected(*args, **kwargs):
+        calls.append("replay")
+        raise AssertionError("replay ran after malformed topology")
+
+    monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionShapeError,
+        match="canonical non-root repository-relative POSIX",
+    ):
+        _call(subjects, cas_scope="cas//receipts")
+    assert calls == []
+
+
+def test_guard_detachment_refuses_before_topology_or_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    object.__setattr__(
+        subjects.authorization,
+        "guard_decisions",
+        (GuardDecision(RETENTION_GUARD_CONTRACT, True, "detached"),),
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+
+    def unexpected(*args, **kwargs):
+        calls.append("replay")
+        raise AssertionError("replay ran after detached guard")
+
+    monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="guard is detached",
+    ):
+        _call(subjects)
+    assert calls == []
+
+
+def test_effect_store_hard_link_alias_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    alias = tmp_path / "effect-leases-alias.sqlite3"
+    try:
+        os.link(subjects.effect_store, alias)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+    monkeypatch.setattr(
+        admission_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: None,
+    )
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="Effect-Lease store must have one filesystem identity",
+    ):
+        _call(subjects)
+
+
+def test_retention_root_inside_primary_checkout_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    nested_root = subjects.repository / "retention"
+    nested_event = nested_root / EVENT_SCOPE
+    nested_event.parent.mkdir(parents=True)
+    nested_event.write_bytes(b"nested-event")
+    nested_cas = nested_root / CAS_SCOPE
+    nested_cas.mkdir(parents=True)
+    subjects.retention_root = nested_root
+    subjects.ledger.spine.path = nested_event
+    subjects.ledger.source_store.root = nested_cas
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+    monkeypatch.setattr(
+        admission_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: None,
+    )
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="retention_root must be outside the Primary Checkout",
+    ):
+        _call(subjects)
+
+
+def test_non_exact_replay_snapshot_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    monkeypatch.setattr(
+        admission_module,
+        "verify_provider_target_receipt_retention_preflight",
+        lambda *args, **kwargs: subjects.preflight,
+    )
+    monkeypatch.setattr(
+        admission_module,
+        "inspect_effect_execution",
+        lambda *args, **kwargs: SimpleNamespace(state="STARTED"),
+    )
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="non-exact snapshot",
+    ):
+        _call(subjects)
+
+
+def test_wire_claim_escalation_extra_fields_and_malformed_state_refuse(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -373,4 +495,9 @@ def test_wire_claim_escalation_and_extra_fields_refuse(
         ProviderTargetReceiptRetentionAdmissionShapeError,
         match="fields are not exact",
     ):
+        ProviderTargetReceiptRetentionAdmissionReceipt.from_dict(payload)
+
+    payload = result.to_dict()
+    payload["execution_state"] = []
+    with pytest.raises(ProviderTargetReceiptRetentionAdmissionShapeError):
         ProviderTargetReceiptRetentionAdmissionReceipt.from_dict(payload)
