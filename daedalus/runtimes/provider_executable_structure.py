@@ -1,19 +1,13 @@
 """Read-only structural verification for authenticated provider targets.
 
-The provider executable-target manifest authenticates *which* local Python
-objects and source digests belong to one invocation identity.  This module
-proves that both objects exist uniquely in the selected repository tree and
-retains the exact structural result in a deterministic receipt.
-
-Structural verification is deliberately weaker than executable admission.  No
-module is imported, no decorator is evaluated, and no provider or output
-materializer is called.  The receipt therefore cannot grant provider execution,
-start an effect, or substitute for a revision/HEAD binding or runtime
-conformance receipt.
+The target manifest authenticates which local Python objects and source digests
+belong to one provider invocation identity.  This module proves that both
+objects exist uniquely in the selected repository tree and retains that result
+in a deterministic receipt.  It never imports or executes repository code and
+cannot grant effect or provider-execution authority.
 """
 from __future__ import annotations
 
-import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -42,7 +36,7 @@ class ProviderExecutableStructureBindingError(ProviderExecutableStructureError):
     """Repository structure differs from the authenticated target subject."""
 
 
-def _strict_int(value: Any, label: str, *, minimum: int = 0) -> int:
+def _strict_int(value: Any, label: str, minimum: int = 0) -> int:
     if type(value) is not int or value < minimum:
         raise ProviderExecutableStructureShapeError(
             f"{label} must be a strict integer >= {minimum}"
@@ -53,9 +47,27 @@ def _strict_int(value: Any, label: str, *, minimum: int = 0) -> int:
 def _strict_role(value: Any) -> str:
     if value not in {"invoke", "output_digests"}:
         raise ProviderExecutableStructureShapeError(
-            "provider target role must be invoke or output_digests"
+            "target role must be invoke or output_digests"
         )
     return value
+
+
+def _target_subject(structure: PythonTargetStructure) -> dict[str, Any]:
+    return {
+        "target": structure.target,
+        "source_path": structure.source_path,
+        "source_sha256": structure.source_sha256,
+        "source_size": structure.source_size,
+        "definition_kind": structure.definition_kind,
+        "line": structure.line,
+        "column": structure.column,
+        "end_line": structure.end_line,
+        "end_column": structure.end_column,
+        "chain_kinds": list(structure.chain_kinds),
+        "structural_target_verified": True,
+        "behavior_verified": False,
+        "executed": False,
+    }
 
 
 @dataclass(frozen=True)
@@ -76,36 +88,36 @@ class VerifiedProviderExecutableTarget:
     structure_sha256: str
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "role", _strict_role(self.role))
         try:
-            object.__setattr__(self, "role", _strict_role(self.role))
             object.__setattr__(
-                self,
-                "source_sha256",
-                _sha256(self.source_sha256, "source_sha256"),
+                self, "source_sha256", _sha256(self.source_sha256, "source_sha256")
             )
             object.__setattr__(
                 self,
                 "structure_sha256",
                 _sha256(self.structure_sha256, "structure_sha256"),
             )
-            _strict_int(self.source_size, "source_size")
-            _strict_int(self.line, "line", minimum=1)
-            _strict_int(self.column, "column")
-            _strict_int(self.end_line, "end_line", minimum=1)
-            _strict_int(self.end_column, "end_column")
-        except ProviderExecutableStructureError:
-            raise
         except (TypeError, ValueError) as exc:
             raise ProviderExecutableStructureShapeError(
-                "verified provider target identity is malformed"
+                "verified target digest fields are malformed"
             ) from exc
+        for value, label, minimum in (
+            (self.source_size, "source_size", 0),
+            (self.line, "line", 1),
+            (self.column, "column", 0),
+            (self.end_line, "end_line", 1),
+            (self.end_column, "end_column", 0),
+        ):
+            _strict_int(value, label, minimum)
         if not isinstance(self.target, str) or not self.target:
             raise ProviderExecutableStructureShapeError("target must be non-empty")
         if not isinstance(self.source_path, str) or not self.source_path:
             raise ProviderExecutableStructureShapeError(
                 "source_path must be non-empty"
             )
-        if self.definition_kind not in {"function", "async_function", "class"}:
+        allowed = {"function", "async_function", "class"}
+        if self.definition_kind not in allowed:
             raise ProviderExecutableStructureShapeError(
                 "definition_kind is unsupported"
             )
@@ -113,27 +125,24 @@ class VerifiedProviderExecutableTarget:
             raise ProviderExecutableStructureShapeError(
                 "chain_kinds must be a non-empty exact tuple"
             )
-        if any(
-            kind not in {"function", "async_function", "class"}
-            for kind in self.chain_kinds
-        ):
+        if any(kind not in allowed for kind in self.chain_kinds):
             raise ProviderExecutableStructureShapeError(
-                "chain_kinds contains an unsupported definition kind"
+                "chain_kinds contains an unsupported kind"
             )
         if self.chain_kinds[-1] != self.definition_kind:
-            raise ProviderExecutableStructureShapeError(
+            raise ProviderExecutableStructureBindingError(
                 "definition_kind differs from the chain terminal"
             )
         if self.end_line < self.line:
-            raise ProviderExecutableStructureShapeError(
+            raise ProviderExecutableStructureBindingError(
                 "target definition end precedes its start"
             )
-        if self.structure_sha256 != canonical_sha(self._structure_subject()):
+        if self.structure_sha256 != canonical_sha(self._subject()):
             raise ProviderExecutableStructureBindingError(
                 "target structure digest differs from retained fields"
             )
 
-    def _structure_subject(self) -> dict[str, Any]:
+    def _subject(self) -> dict[str, Any]:
         return {
             "target": self.target,
             "source_path": self.source_path,
@@ -151,16 +160,11 @@ class VerifiedProviderExecutableTarget:
         }
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "role": self.role,
-            **self._structure_subject(),
-            "structure_sha256": self.structure_sha256,
-        }
+        return {"role": self.role, **self._subject(), "structure_sha256": self.structure_sha256}
 
     @classmethod
     def from_dict(
-        cls,
-        payload: Mapping[str, Any],
+        cls, payload: Mapping[str, Any]
     ) -> "VerifiedProviderExecutableTarget":
         expected = {
             "role",
@@ -185,18 +189,13 @@ class VerifiedProviderExecutableTarget:
             )
         if payload["structural_target_verified"] is not True:
             raise ProviderExecutableStructureShapeError(
-                "verified provider target must retain structural verification"
+                "target must retain structural verification"
             )
-        if payload["behavior_verified"] is not False:
+        if payload["behavior_verified"] is not False or payload["executed"] is not False:
             raise ProviderExecutableStructureShapeError(
-                "structural receipt cannot claim behavior verification"
+                "structural target cannot claim behavior or execution"
             )
-        if payload["executed"] is not False:
-            raise ProviderExecutableStructureShapeError(
-                "structural receipt cannot claim target execution"
-            )
-        chain = payload["chain_kinds"]
-        if not isinstance(chain, list):
+        if not isinstance(payload["chain_kinds"], list):
             raise ProviderExecutableStructureShapeError(
                 "chain_kinds must be a JSON list"
             )
@@ -212,7 +211,7 @@ class VerifiedProviderExecutableTarget:
                 column=payload["column"],
                 end_line=payload["end_line"],
                 end_column=payload["end_column"],
-                chain_kinds=tuple(chain),
+                chain_kinds=tuple(payload["chain_kinds"]),
                 structure_sha256=payload["structure_sha256"],
             )
         except ProviderExecutableStructureError:
@@ -250,9 +249,7 @@ class ProviderExecutableStructureReceipt:
                 "runtime_id",
             ):
                 object.__setattr__(
-                    self,
-                    field,
-                    _identifier(getattr(self, field), field),
+                    self, field, _identifier(getattr(self, field), field)
                 )
             object.__setattr__(
                 self,
@@ -266,29 +263,23 @@ class ProviderExecutableStructureReceipt:
                 "target_descriptor_sha256",
             ):
                 object.__setattr__(
-                    self,
-                    field,
-                    _sha256(getattr(self, field), field),
+                    self, field, _sha256(getattr(self, field), field)
                 )
         except (TypeError, ValueError) as exc:
             raise ProviderExecutableStructureShapeError(
-                "provider executable structure receipt identity is malformed"
+                "structure receipt identity is malformed"
             ) from exc
         if type(self.invoke) is not VerifiedProviderExecutableTarget:
             raise ProviderExecutableStructureShapeError(
-                "invoke target must be exact VerifiedProviderExecutableTarget"
+                "invoke must be an exact verified target"
             )
         if type(self.output_digests) is not VerifiedProviderExecutableTarget:
             raise ProviderExecutableStructureShapeError(
-                "output target must be exact VerifiedProviderExecutableTarget"
+                "output_digests must be an exact verified target"
             )
-        if self.invoke.role != "invoke":
+        if self.invoke.role != "invoke" or self.output_digests.role != "output_digests":
             raise ProviderExecutableStructureBindingError(
-                "invoke receipt has the wrong target role"
-            )
-        if self.output_digests.role != "output_digests":
-            raise ProviderExecutableStructureBindingError(
-                "output receipt has the wrong target role"
+                "verified targets have incorrect roles"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -314,10 +305,9 @@ class ProviderExecutableStructureReceipt:
 
     @classmethod
     def from_dict(
-        cls,
-        payload: Mapping[str, Any],
+        cls, payload: Mapping[str, Any]
     ) -> "ProviderExecutableStructureReceipt":
-        fields = {
+        expected = {
             "schema",
             "provider_id",
             "adapter_id",
@@ -336,29 +326,25 @@ class ProviderExecutableStructureReceipt:
             "provider_execution_allowed",
             "source_revision_verified_against_git_head",
         }
-        if not isinstance(payload, Mapping) or set(payload) != fields:
+        if not isinstance(payload, Mapping) or set(payload) != expected:
             raise ProviderExecutableStructureShapeError(
-                "provider executable structure receipt fields are not exact"
+                "structure receipt fields are not exact"
             )
         if payload["schema"] != "daedalus-provider-executable-structure-receipt/1":
             raise ProviderExecutableStructureShapeError(
-                "provider executable structure receipt schema does not match"
+                "structure receipt schema does not match"
             )
         if payload["targets_structurally_verified"] is not True:
             raise ProviderExecutableStructureShapeError(
-                "structure receipt must retain structural verification"
+                "structure receipt must retain target verification"
             )
-        if payload["repository_bytes_executed"] is not False:
+        if (
+            payload["repository_bytes_executed"] is not False
+            or payload["provider_execution_allowed"] is not False
+            or payload["source_revision_verified_against_git_head"] is not False
+        ):
             raise ProviderExecutableStructureShapeError(
-                "structure receipt cannot claim repository byte execution"
-            )
-        if payload["provider_execution_allowed"] is not False:
-            raise ProviderExecutableStructureShapeError(
-                "structure receipt cannot authorize provider execution"
-            )
-        if payload["source_revision_verified_against_git_head"] is not False:
-            raise ProviderExecutableStructureShapeError(
-                "structure receipt cannot claim Git HEAD verification"
+                "structure receipt contains an authority escalation"
             )
         try:
             return cls(
@@ -381,7 +367,7 @@ class ProviderExecutableStructureReceipt:
             raise
         except (TypeError, ValueError) as exc:
             raise ProviderExecutableStructureShapeError(
-                "provider executable structure receipt is malformed"
+                "structure receipt is malformed"
             ) from exc
 
     @property
@@ -389,29 +375,12 @@ class ProviderExecutableStructureReceipt:
         return canonical_sha(self.to_dict())
 
 
-def _retain_structure(
-    role: str,
-    structure: PythonTargetStructure,
-) -> VerifiedProviderExecutableTarget:
+def _retain(role: str, structure: PythonTargetStructure) -> VerifiedProviderExecutableTarget:
     if type(structure) is not PythonTargetStructure:
         raise ProviderExecutableStructureShapeError(
             "resolved target structure type is not exact"
         )
-    subject = {
-        "target": structure.target,
-        "source_path": structure.source_path,
-        "source_sha256": structure.source_sha256,
-        "source_size": structure.source_size,
-        "definition_kind": structure.definition_kind,
-        "line": structure.line,
-        "column": structure.column,
-        "end_line": structure.end_line,
-        "end_column": structure.end_column,
-        "chain_kinds": list(structure.chain_kinds),
-        "structural_target_verified": True,
-        "behavior_verified": False,
-        "executed": False,
-    }
+    subject = _target_subject(structure)
     return VerifiedProviderExecutableTarget(
         role=role,
         target=structure.target,
@@ -432,11 +401,11 @@ def verify_provider_executable_structure(
     repository_root: Path,
     projection: ProviderExecutableTargetProjection,
 ) -> ProviderExecutableStructureReceipt:
-    """Resolve both exact targets without importing or executing either module."""
+    """Resolve both targets without importing or executing repository code."""
 
-    if type(repository_root) is not Path:
+    if not isinstance(repository_root, Path):
         raise ProviderExecutableStructureShapeError(
-            "repository_root must be exact pathlib.Path"
+            "repository_root must be pathlib.Path"
         )
     if type(projection) is not ProviderExecutableTargetProjection:
         raise ProviderExecutableStructureShapeError(
@@ -457,8 +426,8 @@ def verify_provider_executable_structure(
         raise ProviderExecutableStructureBindingError(
             "provider executable target structure did not verify"
         ) from exc
-    retained_invoke = _retain_structure("invoke", invoke)
-    retained_output = _retain_structure("output_digests", output)
+    retained_invoke = _retain("invoke", invoke)
+    retained_output = _retain("output_digests", output)
     if retained_invoke.target != projection.invoke_target:
         raise ProviderExecutableStructureBindingError(
             "invoke target differs from authenticated projection"
@@ -496,7 +465,7 @@ def verify_provider_executable_structure_receipt(
     projection: ProviderExecutableTargetProjection,
     receipt: ProviderExecutableStructureReceipt,
 ) -> None:
-    """Rebuild the exact read-only receipt and refuse any detached field."""
+    """Rebuild the exact receipt and refuse every detached retained field."""
 
     if type(receipt) is not ProviderExecutableStructureReceipt:
         raise ProviderExecutableStructureShapeError(
@@ -505,7 +474,7 @@ def verify_provider_executable_structure_receipt(
     rebuilt = verify_provider_executable_structure(repository_root, projection)
     if rebuilt.to_dict() != receipt.to_dict():
         raise ProviderExecutableStructureBindingError(
-            "provider executable structure receipt differs from live structure"
+            "structure receipt differs from live repository structure"
         )
 
 
