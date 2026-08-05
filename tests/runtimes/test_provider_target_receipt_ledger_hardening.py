@@ -256,3 +256,24 @@ def test_late_event_store_hardlink_alias_refuses_before_schema_write(
         assert _rows(spine, receipt) == []
     finally:
         spine.close()
+
+
+def test_late_event_store_wal_alias_refuses_before_schema_write(tmp_path) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    primary, spine, ledger = _ledger(tmp_path, fixture)
+    wal_path = Path(f"{spine.path}-wal")
+    assert wal_path.is_file()
+    os.link(wal_path, primary / "spine.sqlite3-wal")
+    assert _index_sql(spine) is None
+
+    try:
+        with pytest.raises(
+            ProviderTargetReceiptRetentionBindingError,
+            match="one filesystem identity",
+        ):
+            _retain(ledger, receipt, fixture)
+        assert _index_sql(spine) is None
+        assert _rows(spine, receipt) == []
+    finally:
+        spine.close()
