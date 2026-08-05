@@ -9,6 +9,8 @@ inside the runtime broker.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import hmac
 import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
@@ -25,6 +27,7 @@ from daedalus.runtimes.provider_invocation_identity import (
 from daedalus.runtimes.provider_invocation_registry import (
     ProviderInvocationRegistryManifest,
 )
+from daedalus.runtimes.provider_observation import _normalize_keyring
 from daedalus.schemas import _identifier, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
@@ -40,11 +43,39 @@ class ProviderExecutableTargetError(RuntimeError):
 
 
 class ProviderExecutableTargetShapeError(ProviderExecutableTargetError):
-    """A descriptor, manifest, or projection is malformed."""
+    """A descriptor, manifest, authority, or projection is malformed."""
 
 
 class ProviderExecutableTargetBindingError(ProviderExecutableTargetError):
-    """An authenticated invocation identity does not match the manifest."""
+    """An authenticated invocation identity does not match the target binding."""
+
+
+class ProviderExecutableTargetSignatureError(ProviderExecutableTargetError):
+    """The executable-target authority signature did not authenticate."""
+
+
+def _secret_bytes(secret: bytes | str, label: str) -> bytes:
+    if isinstance(secret, str):
+        value = secret.encode("utf-8")
+    elif isinstance(secret, bytes):
+        value = secret
+    else:
+        raise ProviderExecutableTargetShapeError(
+            f"{label} must be bytes or str"
+        )
+    if len(value) < 32:
+        raise ProviderExecutableTargetShapeError(
+            f"{label} must contain at least 32 bytes"
+        )
+    return value
+
+
+def _signature(digest: str, secret: bytes | str, label: str) -> str:
+    return hmac.new(
+        _secret_bytes(secret, label),
+        digest.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _target(value: Any, label: str) -> str:
@@ -315,6 +346,107 @@ class ProviderExecutableTargetManifest:
 
 
 @dataclass(frozen=True)
+class ProviderExecutableTargetAuthority:
+    """Signed exact target-manifest binding rooted in invocation authority."""
+
+    authority_key_id: str
+    target_contract_id: str
+    invocation_authority_sha256: str
+    invocation_contract_sha256: str
+    invocation_identity_sha256: str
+    identity_registry_sha256: str
+    identity_descriptor_sha256: str
+    target_manifest_sha256: str
+    target_descriptor_sha256: str
+    provider_id: str
+    adapter_id: str
+    implementation_id: str
+    entrypoint_id: str
+    runtime_id: str
+    execution_id: str
+    idempotency_key: str
+    lease_sha256: str
+    source_revision: str
+    signature_sha256: str
+
+    def __post_init__(self) -> None:
+        try:
+            for field in (
+                "authority_key_id",
+                "target_contract_id",
+                "provider_id",
+                "adapter_id",
+                "implementation_id",
+                "entrypoint_id",
+                "runtime_id",
+                "execution_id",
+                "idempotency_key",
+            ):
+                object.__setattr__(
+                    self,
+                    field,
+                    _identifier(getattr(self, field), field),
+                )
+            object.__setattr__(
+                self,
+                "source_revision",
+                _revision(self.source_revision, "source_revision"),
+            )
+            for field in (
+                "invocation_authority_sha256",
+                "invocation_contract_sha256",
+                "invocation_identity_sha256",
+                "identity_registry_sha256",
+                "identity_descriptor_sha256",
+                "target_manifest_sha256",
+                "target_descriptor_sha256",
+                "lease_sha256",
+                "signature_sha256",
+            ):
+                object.__setattr__(
+                    self,
+                    field,
+                    _sha256(getattr(self, field), field),
+                )
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ProviderExecutableTargetShapeError(
+                "provider executable target authority is malformed"
+            ) from exc
+
+    def to_dict(self) -> dict[str, str]:
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(
+        cls,
+        payload: Mapping[str, Any],
+    ) -> "ProviderExecutableTargetAuthority":
+        expected = {field.name for field in dataclasses.fields(cls)}
+        if not isinstance(payload, Mapping) or set(payload) != expected:
+            raise ProviderExecutableTargetShapeError(
+                "provider executable target authority fields are not exact"
+            )
+        try:
+            return cls(**{field: payload[field] for field in expected})
+        except ProviderExecutableTargetError:
+            raise
+        except (TypeError, ValueError) as exc:
+            raise ProviderExecutableTargetShapeError(
+                "provider executable target authority is malformed"
+            ) from exc
+
+    @property
+    def signing_digest(self) -> str:
+        body = self.to_dict()
+        body["signature_sha256"] = "0" * 64
+        return canonical_sha(body)
+
+    @property
+    def digest(self) -> str:
+        return canonical_sha(self.to_dict())
+
+
+@dataclass(frozen=True)
 class ProviderExecutableTargetProjection:
     """Inert exact target metadata joined to one authenticated identity."""
 
@@ -471,7 +603,7 @@ def build_provider_executable_target_manifest(
     )
 
 
-def project_provider_executable_targets(
+def _identity_and_target_descriptor(
     authority: ProviderInvocationObservationAuthority,
     identity_registry: ProviderInvocationRegistryManifest,
     execution: EffectExecutionRequest,
@@ -481,9 +613,10 @@ def project_provider_executable_targets(
     authority_keyring: Mapping[str, bytes | str],
     observation_keyring: Mapping[str, bytes | str],
     at,
-) -> ProviderExecutableTargetProjection:
-    """Authenticate the invocation, then join exact inert target metadata."""
-
+) -> tuple[
+    ProviderInvocationIdentityProjection,
+    ProviderExecutableTargetDescriptor,
+]:
     if type(manifest) is not ProviderExecutableTargetManifest:
         raise ProviderExecutableTargetBindingError(
             "manifest must be exact ProviderExecutableTargetManifest"
@@ -549,6 +682,285 @@ def project_provider_executable_targets(
             "provider executable target descriptor differs from authenticated "
             "identity: " + ", ".join(mismatches)
         )
+    return identity, descriptor
+
+
+def _authority_values(
+    *,
+    authority: ProviderInvocationObservationAuthority,
+    identity: ProviderInvocationIdentityProjection,
+    manifest: ProviderExecutableTargetManifest,
+    descriptor: ProviderExecutableTargetDescriptor,
+    target_contract_id: str,
+) -> dict[str, str]:
+    try:
+        authority_key_id = _identifier(
+            authority.observation_authority.authority_key_id,
+            "authority_key_id",
+        )
+        contract_id = _identifier(
+            target_contract_id,
+            "target_contract_id",
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target authority subject is malformed"
+        ) from exc
+    return {
+        "authority_key_id": authority_key_id,
+        "target_contract_id": contract_id,
+        "invocation_authority_sha256": authority.digest,
+        "invocation_contract_sha256": authority.invocation_contract_sha256,
+        "invocation_identity_sha256": identity.digest,
+        "identity_registry_sha256": identity.registry_sha256,
+        "identity_descriptor_sha256": identity.descriptor_sha256,
+        "target_manifest_sha256": manifest.digest,
+        "target_descriptor_sha256": descriptor.digest,
+        "provider_id": identity.provider_id,
+        "adapter_id": identity.adapter_id,
+        "implementation_id": identity.implementation_id,
+        "entrypoint_id": identity.entrypoint_id,
+        "runtime_id": identity.runtime_id,
+        "execution_id": identity.execution_id,
+        "idempotency_key": identity.idempotency_key,
+        "lease_sha256": identity.lease_sha256,
+        "source_revision": identity.source_revision,
+    }
+
+
+def issue_provider_executable_target_authority(
+    authority: ProviderInvocationObservationAuthority,
+    identity_registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
+    *,
+    target_contract_id: str,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    authority_secret: bytes | str,
+    at,
+) -> ProviderExecutableTargetAuthority:
+    """Authenticate the invocation and sign its exact target manifest."""
+
+    identity, descriptor = _identity_and_target_descriptor(
+        authority,
+        identity_registry,
+        execution,
+        manifest,
+        authority_id=authority_id,
+        authority_keyring=authority_keyring,
+        observation_keyring=observation_keyring,
+        at=at,
+    )
+    values = _authority_values(
+        authority=authority,
+        identity=identity,
+        manifest=manifest,
+        descriptor=descriptor,
+        target_contract_id=target_contract_id,
+    )
+    placeholder = ProviderExecutableTargetAuthority(
+        **values,
+        signature_sha256="0" * 64,
+    )
+    return dataclasses.replace(
+        placeholder,
+        signature_sha256=_signature(
+            placeholder.signing_digest,
+            authority_secret,
+            "authority_secret",
+        ),
+    )
+
+
+def project_provider_executable_targets(
+    target_authority: ProviderExecutableTargetAuthority,
+    authority: ProviderInvocationObservationAuthority,
+    identity_registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
+    *,
+    target_contract_id: str,
+    authority_id: str,
+    authority_keyring: Mapping[str, bytes | str],
+    observation_keyring: Mapping[str, bytes | str],
+    at,
+) -> ProviderExecutableTargetProjection:
+    """Authenticate invocation and signed target binding, then project inertly."""
+
+    if type(target_authority) is not ProviderExecutableTargetAuthority:
+        raise ProviderExecutableTargetBindingError(
+            "target_authority must be exact ProviderExecutableTargetAuthority"
+        )
+    if type(manifest) is not ProviderExecutableTargetManifest:
+        raise ProviderExecutableTargetBindingError(
+            "manifest must be exact ProviderExecutableTargetManifest"
+        )
+    try:
+        identity = project_provider_invocation_identity(
+            authority,
+            identity_registry,
+            execution,
+            authority_id=authority_id,
+            authority_keyring=authority_keyring,
+            observation_keyring=observation_keyring,
+            at=at,
+        )
+    except ProviderInvocationIdentityError as exc:
+        raise ProviderExecutableTargetBindingError(
+            "provider invocation identity did not authenticate"
+        ) from exc
+    try:
+        keys = dict(
+            _normalize_keyring(
+                authority_keyring,
+                label="authority_keyring",
+            )
+        )
+        contract = _identifier(target_contract_id, "target_contract_id")
+    except (TypeError, ValueError) as exc:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target verification inputs are malformed"
+        ) from exc
+    secret = keys.get(target_authority.authority_key_id)
+    if secret is None:
+        raise ProviderExecutableTargetSignatureError(
+            "provider executable target authority key is unknown"
+        )
+    signature = _signature(
+        target_authority.signing_digest,
+        secret,
+        "authority_keyring secret",
+    )
+    if not hmac.compare_digest(target_authority.signature_sha256, signature):
+        raise ProviderExecutableTargetSignatureError(
+            "provider executable target authority signature mismatch"
+        )
+    early = {
+        "authority_key_id": (
+            target_authority.authority_key_id,
+            authority.observation_authority.authority_key_id,
+        ),
+        "target_contract_id": (
+            target_authority.target_contract_id,
+            contract,
+        ),
+        "invocation_authority_sha256": (
+            target_authority.invocation_authority_sha256,
+            authority.digest,
+        ),
+        "invocation_contract_sha256": (
+            target_authority.invocation_contract_sha256,
+            authority.invocation_contract_sha256,
+        ),
+        "invocation_identity_sha256": (
+            target_authority.invocation_identity_sha256,
+            identity.digest,
+        ),
+        "identity_registry_sha256": (
+            target_authority.identity_registry_sha256,
+            identity.registry_sha256,
+        ),
+        "identity_descriptor_sha256": (
+            target_authority.identity_descriptor_sha256,
+            identity.descriptor_sha256,
+        ),
+        "target_manifest_sha256": (
+            target_authority.target_manifest_sha256,
+            manifest.digest,
+        ),
+        "provider_id": (target_authority.provider_id, identity.provider_id),
+        "adapter_id": (target_authority.adapter_id, identity.adapter_id),
+        "implementation_id": (
+            target_authority.implementation_id,
+            identity.implementation_id,
+        ),
+        "entrypoint_id": (
+            target_authority.entrypoint_id,
+            identity.entrypoint_id,
+        ),
+        "runtime_id": (target_authority.runtime_id, identity.runtime_id),
+        "execution_id": (
+            target_authority.execution_id,
+            identity.execution_id,
+        ),
+        "idempotency_key": (
+            target_authority.idempotency_key,
+            identity.idempotency_key,
+        ),
+        "lease_sha256": (
+            target_authority.lease_sha256,
+            identity.lease_sha256,
+        ),
+        "source_revision": (
+            target_authority.source_revision,
+            identity.source_revision,
+        ),
+    }
+    early_mismatches = tuple(
+        sorted(
+            field
+            for field, (actual, required) in early.items()
+            if actual != required
+        )
+    )
+    if early_mismatches:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target authority binding mismatch before "
+            "target lookup: " + ", ".join(early_mismatches)
+        )
+    if manifest.source_revision != identity.source_revision:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target source revision mismatch"
+        )
+    if manifest.identity_registry_sha256 != identity.registry_sha256:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target identity registry mismatch"
+        )
+    descriptor = manifest.descriptor_for_provider(identity.provider_id)
+    descriptor_comparisons = {
+        "target_descriptor_sha256": (
+            target_authority.target_descriptor_sha256,
+            descriptor.digest,
+        ),
+        "provider_id": (descriptor.provider_id, identity.provider_id),
+        "adapter_id": (descriptor.adapter_id, identity.adapter_id),
+        "implementation_id": (
+            descriptor.implementation_id,
+            identity.implementation_id,
+        ),
+        "entrypoint_id": (descriptor.entrypoint_id, identity.entrypoint_id),
+        "runtime_id": (descriptor.runtime_id, identity.runtime_id),
+        "source_revision": (
+            descriptor.source_revision,
+            identity.source_revision,
+        ),
+        "identity_descriptor_sha256": (
+            descriptor.identity_descriptor_sha256,
+            identity.descriptor_sha256,
+        ),
+        "adapter_artifact_sha256": (
+            descriptor.adapter_artifact_sha256,
+            identity.adapter_artifact_sha256,
+        ),
+        "adapter_config_sha256": (
+            descriptor.adapter_config_sha256,
+            identity.adapter_config_sha256,
+        ),
+    }
+    mismatches = tuple(
+        sorted(
+            field
+            for field, (registered, authenticated) in descriptor_comparisons.items()
+            if registered != authenticated
+        )
+    )
+    if mismatches:
+        raise ProviderExecutableTargetBindingError(
+            "provider executable target descriptor differs from authenticated "
+            "authority or identity: " + ", ".join(mismatches)
+        )
     return ProviderExecutableTargetProjection(
         provider_id=identity.provider_id,
         adapter_id=identity.adapter_id,
@@ -571,12 +983,15 @@ def project_provider_executable_targets(
 
 
 __all__ = [
+    "ProviderExecutableTargetAuthority",
     "ProviderExecutableTargetBindingError",
     "ProviderExecutableTargetDescriptor",
     "ProviderExecutableTargetError",
     "ProviderExecutableTargetManifest",
     "ProviderExecutableTargetProjection",
     "ProviderExecutableTargetShapeError",
+    "ProviderExecutableTargetSignatureError",
     "build_provider_executable_target_manifest",
+    "issue_provider_executable_target_authority",
     "project_provider_executable_targets",
 ]

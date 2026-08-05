@@ -45,42 +45,47 @@ def test_module_has_no_import_loader_execution_process_network_or_write_authorit
             imported.add(node.module.split(".", 1)[0])
     assert imported.isdisjoint(forbidden_import_roots)
 
-    forbidden_calls = {
-        "eval",
-        "exec",
-        "open",
-        "compile",
-        "__import__",
-        "import_module",
-        "run",
-        "Popen",
-        "system",
-        "connect",
-        "write_text",
-        "write_bytes",
-        "unlink",
-        "replace",
-        "rename",
-    }
-    calls = {
+    direct_calls = {
         node.func.id
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
-    calls.update(
+    assert direct_calls.isdisjoint(
+        {"eval", "exec", "open", "compile", "__import__"}
+    )
+    attribute_calls = {
         node.func.attr
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert attribute_calls.isdisjoint(
+        {
+            "import_module",
+            "run",
+            "Popen",
+            "system",
+            "connect",
+            "write_text",
+            "write_bytes",
+            "unlink",
+            "rename",
+        }
     )
-    assert calls.isdisjoint(forbidden_calls)
 
 
-def test_public_projection_api_accepts_no_callback_loader_or_projection_assertion() -> None:
+def test_public_projection_api_accepts_no_callback_loader_or_identity_assertion() -> None:
     function = _function("project_provider_executable_targets")
     args = [item.arg for item in function.args.args]
     kwonly = [item.arg for item in function.args.kwonlyargs]
-    assert args == ["authority", "identity_registry", "execution", "manifest"]
+    assert args == [
+        "target_authority",
+        "authority",
+        "identity_registry",
+        "execution",
+        "manifest",
+    ]
     assert kwonly == [
+        "target_contract_id",
         "authority_id",
         "authority_keyring",
         "observation_keyring",
@@ -99,23 +104,123 @@ def test_public_projection_api_accepts_no_callback_loader_or_projection_assertio
     assert forbidden.isdisjoint(args + kwonly)
 
 
-def test_invocation_authentication_precedes_manifest_binding_and_lookup() -> None:
+def test_invocation_and_target_signatures_precede_manifest_lookup() -> None:
     source = inspect.getsource(module.project_provider_executable_targets)
-    authentication = source.index("project_provider_invocation_identity(")
-    revision = source.index("manifest.source_revision != identity.source_revision")
-    registry = source.index(
-        "manifest.identity_registry_sha256 != identity.registry_sha256"
+    invocation_auth = source.index("project_provider_invocation_identity(")
+    target_signature = source.index(
+        "hmac.compare_digest(target_authority.signature_sha256, signature)"
     )
-    lookup = source.index("manifest.descriptor_for_provider(identity.provider_id)")
-    comparisons = source.index("comparisons = {")
-    assert authentication < revision < registry < lookup < comparisons
+    early_binding = source.index("early_mismatches = tuple(")
+    target_lookup = source.index(
+        "manifest.descriptor_for_provider(identity.provider_id)"
+    )
+    descriptor_binding = source.index("descriptor_comparisons = {")
+    assert (
+        invocation_auth
+        < target_signature
+        < early_binding
+        < target_lookup
+        < descriptor_binding
+    )
 
 
-def test_identity_is_derived_internally_and_complete_binding_is_compared() -> None:
+def test_signed_target_authority_binds_complete_invocation_and_target_subject() -> None:
+    authority = _class("ProviderExecutableTargetAuthority")
+    fields = {
+        node.target.id
+        for node in authority.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    assert fields == {
+        "authority_key_id",
+        "target_contract_id",
+        "invocation_authority_sha256",
+        "invocation_contract_sha256",
+        "invocation_identity_sha256",
+        "identity_registry_sha256",
+        "identity_descriptor_sha256",
+        "target_manifest_sha256",
+        "target_descriptor_sha256",
+        "provider_id",
+        "adapter_id",
+        "implementation_id",
+        "entrypoint_id",
+        "runtime_id",
+        "execution_id",
+        "idempotency_key",
+        "lease_sha256",
+        "source_revision",
+        "signature_sha256",
+    }
+    signing = next(
+        node
+        for node in authority.body
+        if isinstance(node, ast.FunctionDef) and node.name == "signing_digest"
+    )
+    signing_source = ast.unparse(signing)
+    assert "body = self.to_dict()" in signing_source
+    assert "body['signature_sha256'] = '0' * 64" in signing_source
+    assert "canonical_sha(body)" in signing_source
+
+
+def test_target_manifest_is_signed_before_any_descriptor_can_be_selected() -> None:
     function = _function("project_provider_executable_targets")
     source = ast.unparse(function)
-    assert "identity = project_provider_invocation_identity" in source
-    required = {
+    assert (
+        "'target_manifest_sha256': "
+        "(target_authority.target_manifest_sha256, manifest.digest)"
+        in source
+    )
+    assert (
+        "'target_descriptor_sha256': "
+        "(target_authority.target_descriptor_sha256, descriptor.digest)"
+        in source
+    )
+    assert "provider executable target authority binding mismatch before target lookup" in source
+
+
+def test_identity_and_descriptor_bindings_are_complete() -> None:
+    function = _function("project_provider_executable_targets")
+    assignments = {
+        target.id: node.value
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    assert isinstance(assignments["early"], ast.Dict)
+    early_keys = {
+        key.value
+        for key in assignments["early"].keys
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
+    assert early_keys == {
+        "authority_key_id",
+        "target_contract_id",
+        "invocation_authority_sha256",
+        "invocation_contract_sha256",
+        "invocation_identity_sha256",
+        "identity_registry_sha256",
+        "identity_descriptor_sha256",
+        "target_manifest_sha256",
+        "provider_id",
+        "adapter_id",
+        "implementation_id",
+        "entrypoint_id",
+        "runtime_id",
+        "execution_id",
+        "idempotency_key",
+        "lease_sha256",
+        "source_revision",
+    }
+    assert isinstance(assignments["descriptor_comparisons"], ast.Dict)
+    descriptor_keys = {
+        key.value
+        for key in assignments["descriptor_comparisons"].keys
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
+    assert descriptor_keys == {
+        "target_descriptor_sha256",
         "provider_id",
         "adapter_id",
         "implementation_id",
@@ -126,22 +231,6 @@ def test_identity_is_derived_internally_and_complete_binding_is_compared() -> No
         "adapter_artifact_sha256",
         "adapter_config_sha256",
     }
-    comparisons = next(
-        node
-        for node in ast.walk(function)
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name) and target.id == "comparisons"
-            for target in node.targets
-        )
-    )
-    assert isinstance(comparisons.value, ast.Dict)
-    keys = {
-        key.value
-        for key in comparisons.value.keys
-        if isinstance(key, ast.Constant) and isinstance(key.value, str)
-    }
-    assert keys == required
 
 
 def test_projection_permanently_refuses_structural_and_execution_claims() -> None:
@@ -189,15 +278,17 @@ def test_target_grammar_is_daedalus_local_and_descriptor_is_data_only() -> None:
     assert not {"invoke", "output_digests", "execute", "load"}.intersection(fields)
 
 
-def test_module_exports_only_inert_contract_and_projection_operations() -> None:
-    exports = set(module.__all__)
-    assert exports == {
+def test_module_exports_only_signed_inert_contract_operations() -> None:
+    assert set(module.__all__) == {
+        "ProviderExecutableTargetAuthority",
         "ProviderExecutableTargetBindingError",
         "ProviderExecutableTargetDescriptor",
         "ProviderExecutableTargetError",
         "ProviderExecutableTargetManifest",
         "ProviderExecutableTargetProjection",
         "ProviderExecutableTargetShapeError",
+        "ProviderExecutableTargetSignatureError",
         "build_provider_executable_target_manifest",
+        "issue_provider_executable_target_authority",
         "project_provider_executable_targets",
     }

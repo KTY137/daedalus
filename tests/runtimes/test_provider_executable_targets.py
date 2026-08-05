@@ -7,12 +7,15 @@ import pytest
 
 from daedalus.kernel.effects import EffectExecutionRequest
 from daedalus.runtimes.provider_executable_targets import (
+    ProviderExecutableTargetAuthority,
     ProviderExecutableTargetBindingError,
     ProviderExecutableTargetDescriptor,
     ProviderExecutableTargetManifest,
     ProviderExecutableTargetProjection,
     ProviderExecutableTargetShapeError,
+    ProviderExecutableTargetSignatureError,
     build_provider_executable_target_manifest,
+    issue_provider_executable_target_authority,
     project_provider_executable_targets,
 )
 from daedalus.runtimes.provider_invocation import ProviderInvocationSubject
@@ -37,6 +40,7 @@ AUTHORITY_SECRET = b"provider-authority-secret-material-at-least-32-bytes"
 OBSERVATION_SECRET = b"provider-observation-secret-material-at-least-32-bytes"
 AUTHORITY_KEYRING = {"provider-authority-key": AUTHORITY_SECRET}
 OBSERVATION_KEYRING = {"provider-observation-key": OBSERVATION_SECRET}
+TARGET_CONTRACT_ID = "provider-executable-target-contract"
 
 
 def _execution() -> EffectExecutionRequest:
@@ -161,17 +165,44 @@ def _manifest(
     )
 
 
-def _project(
+def _target_authority(
     authority: ProviderInvocationObservationAuthority,
     registry: ProviderInvocationRegistryManifest,
     execution: EffectExecutionRequest,
     manifest: ProviderExecutableTargetManifest,
-) -> ProviderExecutableTargetProjection:
-    return project_provider_executable_targets(
+    *,
+    target_contract_id: str = TARGET_CONTRACT_ID,
+) -> ProviderExecutableTargetAuthority:
+    return issue_provider_executable_target_authority(
         authority,
         registry,
         execution,
         manifest,
+        target_contract_id=target_contract_id,
+        authority_id="authority.runtime-provider-observation",
+        authority_keyring=AUTHORITY_KEYRING,
+        observation_keyring=OBSERVATION_KEYRING,
+        authority_secret=AUTHORITY_SECRET,
+        at=NOW,
+    )
+
+
+def _project(
+    target_authority: ProviderExecutableTargetAuthority,
+    authority: ProviderInvocationObservationAuthority,
+    registry: ProviderInvocationRegistryManifest,
+    execution: EffectExecutionRequest,
+    manifest: ProviderExecutableTargetManifest,
+    *,
+    target_contract_id: str = TARGET_CONTRACT_ID,
+) -> ProviderExecutableTargetProjection:
+    return project_provider_executable_targets(
+        target_authority,
+        authority,
+        registry,
+        execution,
+        manifest,
+        target_contract_id=target_contract_id,
         authority_id="authority.runtime-provider-observation",
         authority_keyring=AUTHORITY_KEYRING,
         observation_keyring=OBSERVATION_KEYRING,
@@ -179,34 +210,63 @@ def _project(
     )
 
 
-def test_authenticated_target_projection_round_trips_without_execution_authority() -> None:
+def test_signed_target_authority_and_projection_round_trip_inertly() -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     manifest = _manifest(registry)
-    projection = _project(_authority(execution, registry), registry, execution, manifest)
+    target_authority = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+    restored_authority = ProviderExecutableTargetAuthority.from_dict(
+        target_authority.to_dict()
+    )
+    projection = _project(
+        target_authority,
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+    restored_projection = ProviderExecutableTargetProjection.from_dict(
+        projection.to_dict()
+    )
 
-    restored = ProviderExecutableTargetProjection.from_dict(projection.to_dict())
-
-    assert restored == projection
-    assert restored.digest == projection.digest
-    assert restored.identity_registry_sha256 == registry.digest
-    assert restored.identity_descriptor_sha256 == registry.descriptors[0].digest
-    assert restored.target_manifest_sha256 == manifest.digest
-    assert restored.target_descriptor_sha256 == manifest.descriptors[0].digest
-    assert restored.to_dict()["targets_structurally_verified"] is False
-    assert restored.to_dict()["provider_execution_allowed"] is False
-    assert not hasattr(restored, "invoke")
-    assert not hasattr(restored, "output_digests")
+    assert restored_authority == target_authority
+    assert restored_authority.digest == target_authority.digest
+    assert restored_authority.target_manifest_sha256 == manifest.digest
+    assert restored_authority.target_descriptor_sha256 == manifest.descriptors[0].digest
+    assert restored_authority.invocation_authority_sha256 == invocation_authority.digest
+    assert restored_projection == projection
+    assert restored_projection.digest == projection.digest
+    assert restored_projection.identity_registry_sha256 == registry.digest
+    assert restored_projection.identity_descriptor_sha256 == registry.descriptors[0].digest
+    assert restored_projection.target_manifest_sha256 == manifest.digest
+    assert restored_projection.target_descriptor_sha256 == manifest.descriptors[0].digest
+    assert restored_projection.to_dict()["targets_structurally_verified"] is False
+    assert restored_projection.to_dict()["provider_execution_allowed"] is False
+    assert not hasattr(restored_projection, "invoke")
+    assert not hasattr(restored_projection, "output_digests")
 
 
 def test_invalid_invocation_signature_refuses_before_target_lookup(monkeypatch) -> None:
     execution = _execution()
     registry = _identity_registry()
-    authority = dataclasses.replace(
-        _authority(execution, registry),
+    valid_invocation = _authority(execution, registry)
+    manifest = _manifest(registry)
+    target_authority = _target_authority(
+        valid_invocation,
+        registry,
+        execution,
+        manifest,
+    )
+    invalid_invocation = dataclasses.replace(
+        valid_invocation,
         signature_sha256="f" * 64,
     )
-    manifest = _manifest(registry)
 
     def forbidden_lookup(self, provider_id):
         raise AssertionError("target lookup ran before invocation authentication")
@@ -220,18 +280,75 @@ def test_invalid_invocation_signature_refuses_before_target_lookup(monkeypatch) 
         ProviderExecutableTargetBindingError,
         match="did not authenticate",
     ):
-        _project(authority, registry, execution, manifest)
+        _project(
+            target_authority,
+            invalid_invocation,
+            registry,
+            execution,
+            manifest,
+        )
 
 
-def test_target_manifest_registry_substitution_refuses_before_descriptor_lookup(
+def test_invalid_target_authority_signature_refuses_before_target_lookup(
     monkeypatch,
 ) -> None:
     execution = _execution()
     registry = _identity_registry()
-    manifest = _manifest(registry, identity_registry_sha256="9" * 64)
+    invocation_authority = _authority(execution, registry)
+    manifest = _manifest(registry)
+    target_authority = dataclasses.replace(
+        _target_authority(
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        ),
+        signature_sha256="f" * 64,
+    )
 
     def forbidden_lookup(self, provider_id):
-        raise AssertionError("target lookup ran before registry binding")
+        raise AssertionError("target lookup ran before target authority authentication")
+
+    monkeypatch.setattr(
+        ProviderExecutableTargetManifest,
+        "descriptor_for_provider",
+        forbidden_lookup,
+    )
+    with pytest.raises(
+        ProviderExecutableTargetSignatureError,
+        match="signature mismatch",
+    ):
+        _project(
+            target_authority,
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        )
+
+
+def test_unsigned_target_manifest_substitution_refuses_before_lookup(
+    monkeypatch,
+) -> None:
+    execution = _execution()
+    registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
+    manifest = _manifest(registry)
+    target_authority = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+    substituted = _manifest(
+        registry,
+        _target_descriptor(
+            invoke_target="daedalus.runtimes.adapters.fixture:FixtureAdapter.foreign"
+        ),
+    )
+
+    def forbidden_lookup(self, provider_id):
+        raise AssertionError("target lookup ran before signed manifest binding")
 
     monkeypatch.setattr(
         ProviderExecutableTargetManifest,
@@ -240,9 +357,49 @@ def test_target_manifest_registry_substitution_refuses_before_descriptor_lookup(
     )
     with pytest.raises(
         ProviderExecutableTargetBindingError,
-        match="identity registry mismatch",
+        match="binding mismatch before target lookup",
     ):
-        _project(_authority(execution, registry), registry, execution, manifest)
+        _project(
+            target_authority,
+            invocation_authority,
+            registry,
+            execution,
+            substituted,
+        )
+
+
+def test_signed_foreign_target_contract_refuses_before_lookup(monkeypatch) -> None:
+    execution = _execution()
+    registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
+    manifest = _manifest(registry)
+    foreign = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+        target_contract_id="provider-executable-target-foreign",
+    )
+
+    def forbidden_lookup(self, provider_id):
+        raise AssertionError("target lookup ran before target contract binding")
+
+    monkeypatch.setattr(
+        ProviderExecutableTargetManifest,
+        "descriptor_for_provider",
+        forbidden_lookup,
+    )
+    with pytest.raises(
+        ProviderExecutableTargetBindingError,
+        match="binding mismatch before target lookup",
+    ):
+        _project(
+            foreign,
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        )
 
 
 @pytest.mark.parametrize(
@@ -258,12 +415,13 @@ def test_target_manifest_registry_substitution_refuses_before_descriptor_lookup(
         ("adapter_config_sha256", "7" * 64),
     ],
 )
-def test_authenticated_identity_and_target_descriptor_substitution_refuses(
+def test_authority_issuance_refuses_identity_target_substitution(
     field: str,
     value: str,
 ) -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     descriptor = _target_descriptor(**{field: value})
     manifest = _manifest(registry, descriptor)
 
@@ -271,12 +429,18 @@ def test_authenticated_identity_and_target_descriptor_substitution_refuses(
         ProviderExecutableTargetBindingError,
         match="differs from authenticated identity",
     ):
-        _project(_authority(execution, registry), registry, execution, manifest)
+        _target_authority(
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        )
 
 
-def test_stale_target_revision_refuses_before_target_lookup(monkeypatch) -> None:
+def test_stale_target_revision_refuses_authority_issuance() -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     stale_revision = "a" * 40
     stale_descriptor = _target_descriptor(source_revision=stale_revision)
     manifest = _manifest(
@@ -285,19 +449,35 @@ def test_stale_target_revision_refuses_before_target_lookup(monkeypatch) -> None
         source_revision=stale_revision,
     )
 
-    def forbidden_lookup(self, provider_id):
-        raise AssertionError("target lookup ran before revision binding")
-
-    monkeypatch.setattr(
-        ProviderExecutableTargetManifest,
-        "descriptor_for_provider",
-        forbidden_lookup,
-    )
     with pytest.raises(
         ProviderExecutableTargetBindingError,
         match="source revision mismatch",
     ):
-        _project(_authority(execution, registry), registry, execution, manifest)
+        _target_authority(
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        )
+
+
+def test_malformed_target_contract_stays_in_target_error_domain() -> None:
+    execution = _execution()
+    registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
+    manifest = _manifest(registry)
+
+    with pytest.raises(
+        ProviderExecutableTargetBindingError,
+        match="authority subject is malformed",
+    ):
+        _target_authority(
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+            target_contract_id=" ",
+        )
 
 
 @pytest.mark.parametrize(
@@ -341,11 +521,29 @@ def test_manifest_refuses_duplicate_providers_and_descriptor_digests() -> None:
         )
 
 
-def test_manifest_and_projection_wire_fields_are_exact() -> None:
+def test_authority_manifest_and_projection_wire_fields_are_exact() -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     manifest = _manifest(registry)
-    projection = _project(_authority(execution, registry), registry, execution, manifest)
+    target_authority = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+    projection = _project(
+        target_authority,
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+
+    authority_payload = target_authority.to_dict()
+    authority_payload["extra"] = True
+    with pytest.raises(ProviderExecutableTargetShapeError, match="fields are not exact"):
+        ProviderExecutableTargetAuthority.from_dict(authority_payload)
 
     manifest_payload = manifest.to_dict()
     manifest_payload["extra"] = True
@@ -365,9 +563,17 @@ def test_manifest_and_projection_wire_fields_are_exact() -> None:
 def test_projection_wire_cannot_escalate_authority(field: str) -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     manifest = _manifest(registry)
+    target_authority = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
     payload = _project(
-        _authority(execution, registry),
+        target_authority,
+        invocation_authority,
         registry,
         execution,
         manifest,
@@ -378,15 +584,26 @@ def test_projection_wire_cannot_escalate_authority(field: str) -> None:
         ProviderExecutableTargetProjection.from_dict(payload)
 
 
-def test_exact_target_manifest_type_is_required() -> None:
+def test_exact_target_authority_and_manifest_types_are_required() -> None:
     execution = _execution()
     registry = _identity_registry()
+    invocation_authority = _authority(execution, registry)
     manifest = _manifest(registry)
+    target_authority = _target_authority(
+        invocation_authority,
+        registry,
+        execution,
+        manifest,
+    )
+
+    class AuthoritySubclass(ProviderExecutableTargetAuthority):
+        pass
 
     class ManifestSubclass(ProviderExecutableTargetManifest):
         pass
 
-    subclass = ManifestSubclass(
+    authority_subclass = AuthoritySubclass(**target_authority.to_dict())
+    manifest_subclass = ManifestSubclass(
         manifest_id=manifest.manifest_id,
         source_revision=manifest.source_revision,
         identity_registry_sha256=manifest.identity_registry_sha256,
@@ -394,6 +611,23 @@ def test_exact_target_manifest_type_is_required() -> None:
     )
     with pytest.raises(
         ProviderExecutableTargetBindingError,
+        match="target_authority must be exact",
+    ):
+        _project(
+            authority_subclass,
+            invocation_authority,
+            registry,
+            execution,
+            manifest,
+        )
+    with pytest.raises(
+        ProviderExecutableTargetBindingError,
         match="manifest must be exact",
     ):
-        _project(_authority(execution, registry), registry, execution, subclass)
+        _project(
+            target_authority,
+            invocation_authority,
+            registry,
+            execution,
+            manifest_subclass,
+        )

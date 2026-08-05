@@ -1,13 +1,13 @@
 {
   "schema": "daedalus-work-packet/1",
   "work_packet_id": "G0-RTC-07B",
-  "title": "Provider Executable Target Manifest",
+  "title": "Signed Provider Executable Target Manifest",
   "gate": 0,
   "classification": "ALIGNED",
   "parent_revision": "62be3829e44eebe2d07fe7fc578c8ed59bb0a710",
   "parent_branch": "g0/provider-invocation-exact-authority-integration-linear",
   "branch": "g0/provider-executable-target-manifest-linear",
-  "change_class": "read-only-provider-target-contract-preparation",
+  "change_class": "read-only-signed-provider-target-contract-preparation",
   "dependency_state": {
     "parent_static_reviewed": true,
     "parent_exact_head_ci_blocked_by_issue": 67,
@@ -16,12 +16,16 @@
   },
   "scope": {
     "adds_revision_bound_target_manifest": true,
+    "adds_signed_target_authority": true,
+    "roots_target_authority_in_signed_invocation_authority": true,
+    "binds_invocation_authority_and_contract_digests": true,
     "binds_signed_invocation_registry_digest": true,
     "binds_provider_adapter_implementation_descriptor": true,
     "binds_adapter_artifact_and_config_digests": true,
     "binds_invoke_and_output_evidence_targets": true,
     "binds_target_source_digests": true,
-    "authenticates_invocation_before_target_lookup": true,
+    "authenticates_invocation_before_target_signature_verification": true,
+    "verifies_target_signature_and_manifest_digest_before_target_lookup": true,
     "allows_external_module_targets": false,
     "imports_or_loads_targets": false,
     "executes_provider": false,
@@ -35,6 +39,7 @@
     "promotes_or_merges": false
   },
   "claims": {
+    "target_manifest_is_authenticated_by_signed_target_authority": true,
     "target_projection_is_inert": true,
     "target_projection_structurally_verified": false,
     "provider_execution_allowed": false,
@@ -43,24 +48,26 @@
     "gate_closed": false
   },
   "acceptance": {
-    "strict_manifest_and_projection_round_trip": true,
+    "strict_authority_manifest_and_projection_round_trip": true,
     "invalid_invocation_authentication_refuses_before_target_lookup": true,
-    "foreign_identity_registry_refuses_before_target_lookup": true,
+    "invalid_target_authority_signature_refuses_before_target_lookup": true,
+    "unsigned_target_manifest_substitution_refuses_before_target_lookup": true,
+    "foreign_signed_target_contract_refuses_before_target_lookup": true,
     "stale_revision_refuses": true,
     "provider_adapter_implementation_and_digest_substitution_refuses": true,
     "external_or_noncanonical_python_targets_refuse": true,
     "duplicate_provider_rows_refuse": true,
     "wire_authority_escalation_refuses": true,
-    "exact_manifest_type_required": true,
+    "exact_authority_and_manifest_types_required": true,
     "independent_no_loader_no_execution_source_review": true,
-    "bounded_mutation_campaign": 9
+    "bounded_mutation_campaign": 10
   },
   "verification": {
     "focused_builder_tests_prepared": true,
     "independent_ast_review_prepared": true,
     "malformed_input_tests_prepared": true,
     "stale_revision_tests_prepared": true,
-    "substitution_and_bypass_tests_prepared": true,
+    "signature_substitution_and_bypass_tests_prepared": true,
     "bounded_mutation_campaign_prepared": true,
     "predecessor_regressions_requested": true,
     "full_suite_requested": true,
@@ -73,16 +80,20 @@
       "windows-python-3.12"
     ],
     "author_side_execution": {
-      "status": "syntax-reviewed-only",
-      "reason": "the automation runtime cannot execute an exact private-repository checkout; local AST parsing is not product evidence"
+      "status": "syntax-and-synthetic-contract-reviewed-only",
+      "reason": "the automation runtime cannot execute an exact private-repository checkout; local AST and stub-contract checks are not product evidence"
     },
     "exact_head_execution": "pending-external-ci"
   },
+  "adversarial_correction": {
+    "finding": "the first draft authenticated the invocation identity but accepted an unsigned target manifest, allowing caller-selected local target metadata",
+    "repair": "a signed ProviderExecutableTargetAuthority now binds the invocation authority, invocation contract, identity, registry, manifest, selected descriptor, runtime effect subject and source revision; its signature and manifest digest are verified before target lookup"
+  },
   "remaining_blockers": [
     "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
-    "the target manifest names repository targets but does not structurally verify exact revision bytes or load them",
+    "the signed target manifest names repository targets but does not structurally verify exact revision bytes or load them",
     "the broker still accepts independently supplied invoke and output_digests callbacks",
-    "a later green dependent packet must add exact source-tree verification, a guarded loader/registry and broker consumption before begin_effect",
+    "a later green dependent packet must add exact source-tree verification, a retained verification receipt, guarded executable loading and broker consumption before begin_effect",
     "provider-observation persistence issue 189 and repository-write release binding issue 194 remain open",
     "Gate 0 still requires complete effect migration, live runtime and sandbox receipts, complete fault evidence, release closure and explicit owner decision"
   ]

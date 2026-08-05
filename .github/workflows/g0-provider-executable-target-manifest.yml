@@ -1,4 +1,4 @@
-name: Gate 0 Provider Executable Target Manifest
+name: Gate 0 Signed Provider Executable Target Manifest
 
 on:
   pull_request:
@@ -104,16 +104,20 @@ jobs:
         run: |
           /tmp/daedalus-provider-target-wheel/bin/python - <<'PY'
           from daedalus.runtimes.provider_executable_targets import (
+              ProviderExecutableTargetAuthority,
               ProviderExecutableTargetDescriptor,
               ProviderExecutableTargetManifest,
               ProviderExecutableTargetProjection,
               build_provider_executable_target_manifest,
+              issue_provider_executable_target_authority,
               project_provider_executable_targets,
           )
 
+          assert ProviderExecutableTargetAuthority is not None
           assert ProviderExecutableTargetDescriptor is not None
           assert ProviderExecutableTargetManifest is not None
           assert ProviderExecutableTargetProjection is not None
           assert callable(build_provider_executable_target_manifest)
+          assert callable(issue_provider_executable_target_authority)
           assert callable(project_provider_executable_targets)
           PY

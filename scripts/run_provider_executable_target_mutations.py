@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run bounded mutations over the provider executable-target contract."""
+"""Run bounded mutations over the signed provider executable-target contract."""
 from __future__ import annotations
 
 import os
@@ -14,49 +14,45 @@ BEHAVIOR = "tests/runtimes/test_provider_executable_targets.py"
 REVIEW = "tests/runtimes/test_provider_executable_targets_review.py"
 
 MUTATIONS = {
+    "accept-target-authority-subclass": (
+        "    if type(target_authority) is not ProviderExecutableTargetAuthority:\n",
+        "    if not isinstance(target_authority, ProviderExecutableTargetAuthority):\n",
+    ),
     "accept-target-manifest-subclass": (
-        "    if type(manifest) is not ProviderExecutableTargetManifest:\n",
-        "    if not isinstance(manifest, ProviderExecutableTargetManifest):\n",
+        "    if type(target_authority) is not ProviderExecutableTargetAuthority:\n        raise ProviderExecutableTargetBindingError(\n            \"target_authority must be exact ProviderExecutableTargetAuthority\"\n        )\n    if type(manifest) is not ProviderExecutableTargetManifest:\n",
+        "    if type(target_authority) is not ProviderExecutableTargetAuthority:\n        raise ProviderExecutableTargetBindingError(\n            \"target_authority must be exact ProviderExecutableTargetAuthority\"\n        )\n    if not isinstance(manifest, ProviderExecutableTargetManifest):\n",
     ),
-    "accept-stale-target-revision": (
-        "    if manifest.source_revision != identity.source_revision:\n",
-        "    if False and manifest.source_revision != identity.source_revision:\n",
+    "skip-target-authority-signature": (
+        "    if not hmac.compare_digest(target_authority.signature_sha256, signature):\n",
+        "    if False and not hmac.compare_digest(target_authority.signature_sha256, signature):\n",
     ),
-    "accept-foreign-identity-registry": (
-        "    if manifest.identity_registry_sha256 != identity.registry_sha256:\n",
-        "    if False and manifest.identity_registry_sha256 != identity.registry_sha256:\n",
+    "accept-unsigned-target-manifest": (
+        "        \"target_manifest_sha256\": (\n            target_authority.target_manifest_sha256,\n            manifest.digest,\n        ),\n",
+        "",
     ),
-    "accept-descriptor-substitution": (
-        "    if mismatches:\n        raise ProviderExecutableTargetBindingError(\n",
-        "    if False and mismatches:\n        raise ProviderExecutableTargetBindingError(\n",
+    "accept-foreign-target-contract": (
+        "        \"target_contract_id\": (\n            target_authority.target_contract_id,\n            contract,\n        ),\n",
+        "",
     ),
-    "accept-external-python-target": (
-        '    r"^daedalus(?:\\.[a-z][a-z0-9_]*)*:"\n',
-        '    r"^(?:daedalus|os)(?:\\.[a-z][a-z0-9_]*)*:"\n',
-    ),
-    "claim-targets-structurally-verified": (
-        '            "targets_structurally_verified": False,\n',
-        '            "targets_structurally_verified": True,\n',
-    ),
-    "claim-provider-execution-authority": (
-        '            "provider_execution_allowed": False,\n',
-        '            "provider_execution_allowed": True,\n',
-    ),
-    "detach-identity-descriptor": (
-        '''        "identity_descriptor_sha256": (
-            descriptor.identity_descriptor_sha256,
-            identity.descriptor_sha256,
-        ),
-''',
+    "detach-target-descriptor": (
+        "        \"target_descriptor_sha256\": (\n            target_authority.target_descriptor_sha256,\n            descriptor.digest,\n        ),\n",
         "",
     ),
     "detach-adapter-artifact": (
-        '''        "adapter_artifact_sha256": (
-            descriptor.adapter_artifact_sha256,
-            identity.adapter_artifact_sha256,
-        ),
-''',
-        "",
+        "    comparisons = {\n        \"provider_id\": (descriptor.provider_id, identity.provider_id),\n        \"adapter_id\": (descriptor.adapter_id, identity.adapter_id),\n        \"implementation_id\": (\n            descriptor.implementation_id,\n            identity.implementation_id,\n        ),\n        \"entrypoint_id\": (descriptor.entrypoint_id, identity.entrypoint_id),\n        \"runtime_id\": (descriptor.runtime_id, identity.runtime_id),\n        \"source_revision\": (\n            descriptor.source_revision,\n            identity.source_revision,\n        ),\n        \"identity_descriptor_sha256\": (\n            descriptor.identity_descriptor_sha256,\n            identity.descriptor_sha256,\n        ),\n        \"adapter_artifact_sha256\": (\n            descriptor.adapter_artifact_sha256,\n            identity.adapter_artifact_sha256,\n        ),\n",
+        "    comparisons = {\n        \"provider_id\": (descriptor.provider_id, identity.provider_id),\n        \"adapter_id\": (descriptor.adapter_id, identity.adapter_id),\n        \"implementation_id\": (\n            descriptor.implementation_id,\n            identity.implementation_id,\n        ),\n        \"entrypoint_id\": (descriptor.entrypoint_id, identity.entrypoint_id),\n        \"runtime_id\": (descriptor.runtime_id, identity.runtime_id),\n        \"source_revision\": (\n            descriptor.source_revision,\n            identity.source_revision,\n        ),\n        \"identity_descriptor_sha256\": (\n            descriptor.identity_descriptor_sha256,\n            identity.descriptor_sha256,\n        ),\n",
+    ),
+    "accept-external-python-target": (
+        "    r\"^daedalus(?:\\\\.[a-z][a-z0-9_]*)*:\"\n",
+        "    r\"^(?:daedalus|os)(?:\\\\.[a-z][a-z0-9_]*)*:\"\n",
+    ),
+    "claim-targets-structurally-verified": (
+        "            \"targets_structurally_verified\": False,\n",
+        "            \"targets_structurally_verified\": True,\n",
+    ),
+    "claim-provider-execution-authority": (
+        "            \"provider_execution_allowed\": False,\n",
+        "            \"provider_execution_allowed\": True,\n",
     ),
 }
 
@@ -117,7 +113,7 @@ def main() -> int:
         if timeouts:
             print("timed-out mutations: " + ", ".join(timeouts), file=sys.stderr)
         return 1
-    print(f"killed {len(MUTATIONS)} provider executable-target mutations")
+    print(f"killed {len(MUTATIONS)} signed provider target mutations")
     return 0
 
 

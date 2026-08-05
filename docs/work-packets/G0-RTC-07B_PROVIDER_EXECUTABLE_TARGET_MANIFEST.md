@@ -1,4 +1,4 @@
-# G0-RTC-07B — Provider Executable Target Manifest
+# G0-RTC-07B — Signed Provider Executable Target Manifest
 
 ## Exact parent and blocked dependency
 
@@ -13,7 +13,7 @@ independent preparatory contract work permitted by the adopted plan: it adds no
 loader, callback, provider client, effect transition, persistence or execution
 path.
 
-## Contract
+## Manifest and signed target authority
 
 `ProviderExecutableTargetManifest` gives each provider exactly one inert target
 descriptor for an exact source revision and signed provider-invocation registry
@@ -31,19 +31,35 @@ Only targets inside the `daedalus` package grammar are accepted. The manifest is
 canonically ordered, refuses duplicate provider and identity-descriptor rows,
 and requires every descriptor to share its exact source revision.
 
-## Authentication order
+The first draft authenticated the invocation identity but accepted the target
+manifest independently. That would have allowed a caller to substitute another
+local target manifest with matching provider metadata. The draft was corrected
+before review by adding `ProviderExecutableTargetAuthority`.
+
+The signed target authority binds the exact invocation authority and invocation
+contract digests, authenticated invocation identity, invocation registry and
+identity descriptor, target manifest and selected target descriptor, provider,
+adapter, implementation, entrypoint, runtime, execution, idempotency key, lease
+and source revision. It uses the same authenticated authority-key identity as
+the nested provider-observation authority.
+
+## Verification order
 
 `project_provider_executable_targets(...)` does not accept a caller-constructed
-identity projection. It receives the signed composite invocation authority,
-identity registry and exact execution request, then calls
-`project_provider_invocation_identity(...)` internally. Only after that
-authentication succeeds does it compare source revision and registry digest,
-look up the target descriptor, and compare provider, adapter, implementation,
-entrypoint, runtime, identity descriptor, artifact and configuration bindings.
+identity projection. It:
 
-This prevents a caller from pairing arbitrary target metadata with an
-unverified projection or using target lookup behavior before invocation
-authentication.
+1. authenticates the signed composite invocation authority and derives the
+   invocation identity internally;
+2. authenticates the target-authority signature;
+3. compares target contract, invocation authority/contract, identity, registry,
+   manifest and complete runtime-effect subject before any target lookup;
+4. resolves the selected descriptor from the signed manifest;
+5. compares its digest and provider/adapter/implementation/artifact/config
+   bindings with the authenticated identity.
+
+An invalid invocation signature, invalid target signature, unsigned manifest
+substitution or foreign signed target contract therefore refuses before a target
+can be selected.
 
 ## Inert output
 
@@ -60,17 +76,18 @@ network, SQLite, effect, recovery or promotion operation.
 
 ## Adversarial verification prepared
 
-Builder tests cover exact round-trip, invalid composite signature ordering,
-foreign identity-registry substitution, stale target revisions, provider,
-adapter, implementation, entrypoint, runtime, descriptor, artifact and config
-substitution, target grammar, duplicate rows, exact wire shapes, authority
-escalation and exact-type refusal.
+Builder tests cover exact authority/manifest/projection round-trip, invalid
+composite and target signatures, unsigned manifest and signed contract
+substitution, stale revisions, provider, adapter, implementation, entrypoint,
+runtime, descriptor, artifact and config substitution, target grammar,
+duplicate rows, malformed contracts, exact wire shapes, authority escalation and
+exact-type refusal.
 
 A separate AST/source review proves the module has no import-loader, execution,
-process, network or write primitive; no public callback/loader parameter; internal
-invocation authentication before manifest lookup; complete binding comparisons;
-and permanent false structural/execution claims. Nine bounded mutants target
-those properties.
+process, network or write primitive; no public callback/loader/identity-assertion
+parameter; invocation and target signatures before target lookup; complete
+signed subject and descriptor comparisons; and permanent false structural and
+execution claims. Ten bounded mutants target those properties.
 
 The requested CI matrix includes Ubuntu and Windows, Python 3.10 and 3.12, two
 hash seeds, predecessor invocation/broker regressions, full suite, package build
@@ -79,14 +96,16 @@ executed evidence.
 
 ## Remaining issue #188 path
 
-This packet intentionally does not close issue #188. It names exact repository
-targets but does not yet prove them against exact source-tree bytes or load them.
-The broker still accepts independent `invoke` and `output_digests` callbacks.
-After the blocked parent is green, the next dependent packets must:
+This packet intentionally does not close issue #188. It authenticates exact
+target metadata but does not yet prove the named targets against exact
+source-tree bytes or load them. The broker still accepts independent `invoke`
+and `output_digests` callbacks. After the blocked parent is green, the next
+dependent packets must:
 
-1. structurally resolve both targets against an exact source revision/tree and
-   source digest without importing arbitrary caller-selected code;
-2. produce a retained verification receipt bound to this target projection;
+1. structurally resolve both signed targets against an exact source revision,
+   tree and source digest without importing arbitrary caller-selected code;
+2. produce a retained verification receipt bound to this signed target
+   authority and projection;
 3. construct a guarded executable registry from that verified receipt;
 4. require the broker to consume the exact registry binding before
    `begin_effect`, with no loose callback production path.
