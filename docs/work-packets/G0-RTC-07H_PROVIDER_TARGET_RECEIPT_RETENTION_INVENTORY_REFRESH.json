@@ -1,0 +1,79 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07H_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY_REFRESH",
+  "gate": 0,
+  "status": "prepared-unverified",
+  "exact_parent": {
+    "branch": "g0/provider-target-receipt-retention-topology-hardening-linear",
+    "revision": "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
+  },
+  "branch": "g0/provider-target-receipt-retention-inventory-refresh-linear",
+  "source_identity": {
+    "path": "daedalus/runtimes/provider_target_receipt_ledger.py",
+    "git_blob_sha1": "a5e3d1321e257c9ce1d70e9a68e4079445c6985a",
+    "pre_hardening_revision": "b2bda280f8f98d6e977e092c5429da3c85427a33",
+    "topology_hardened_revision": "0df759d1fd9bc5d83e9fc72f1c850756afa93fe5"
+  },
+  "purpose": "Invalidate the stale pre-hardening receipt-retention inventory test binding and rebind scanner evidence to the exact topology-hardened ledger bytes without claiming central admission.",
+  "scope": {
+    "production_behavior_changed": false,
+    "inventory_scanner_changed": false,
+    "inventory_test_revision_refreshed": true,
+    "git_blob_identity_checked": true,
+    "canonical_effect_inventory_changed": false,
+    "guard_contract_changed": false,
+    "effect_lease_consumed": false,
+    "provider_execution_authorized": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false
+  },
+  "acceptance": {
+    "old_pre_hardening_revision_rejected_as_current_fixture_identity": true,
+    "exact_parent_revision_bound": true,
+    "exact_git_blob_identity_bound": true,
+    "scanner_sha256_recomputed_from_current_bytes": true,
+    "seven_effectful_surfaces_still_required": true,
+    "all_rows_inventory_only": true,
+    "all_rows_blocking": true,
+    "closed_hard_false": true,
+    "malformed_input_tests_retained": true,
+    "source_redirection_tests_retained": true,
+    "anchor_bypass_tests_retained": true,
+    "independent_static_review_prepared": true,
+    "supported_platform_matrix_requested": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_and_isolated_wheel_requested": true
+  },
+  "revision_authentication": {
+    "authenticated_git_head_receipt_consumed": false,
+    "caller_supplied_revision_runtime_refusal": false,
+    "reason": "The current scanner binds supplied revision text and exact source bytes but does not authenticate repository HEAD. This refresh binds its prepared fixture to the exact parent Git blob; a later central packet must compose the authenticated repository-HEAD receipt before production admission."
+  },
+  "verification": {
+    "hard_evidence_claimed": false,
+    "source_inspection_is_hard_evidence": false,
+    "llm_statement_is_hard_evidence": false,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute"
+  },
+  "known_boundaries": [
+    "The refreshed inventory remains discovery evidence only.",
+    "Every receipt-retention write remains inventory-only and blocking.",
+    "The scanner does not independently authenticate current Git HEAD.",
+    "Canonical entrypoint registration, persisted Effect-Lease consumption and atomic retention composition remain subsequent packets.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared checks are not represented as executed evidence."
+  ],
+  "forbidden_actions": [
+    "modify-main",
+    "modify-experimental",
+    "merge",
+    "automatic-promotion",
+    "fabricate-owner-approval",
+    "claim-gate-closure"
+  ]
+}
