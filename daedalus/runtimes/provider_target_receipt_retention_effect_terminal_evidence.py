@@ -3,8 +3,9 @@
 This module verifies that one exact completed provider-target receipt-retention
 evidence receipt is backed by the exact persisted ``COMPLETED`` Effect-Lease
 execution. It performs two query-only replay projections, fences the concrete
-Effect-Lease SQLite identity around both reads, and binds the terminal output to
-the retained receipt artifact.
+Effect-Lease SQLite identity around both reads, independently rebuilds the
+persisted receipt bindings, and binds the terminal output to the retained
+receipt artifact.
 
 The receipt emitted here is evidence only. It cannot start, repeat or finish an
 effect, register an entrypoint, promote a candidate, issue OwnerApproval, or
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
+from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
@@ -27,6 +29,8 @@ from daedalus.kernel.effect_replay import (
 )
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
+    EffectLeaseError,
+    EffectLeaseLedger,
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
 )
@@ -34,7 +38,10 @@ from daedalus.runtimes.provider_target_receipt_retention_completed_evidence impo
     ProviderTargetReceiptRetentionCompletedEvidenceError,
     ProviderTargetReceiptRetentionCompletedEvidenceReceipt,
 )
-from daedalus.schemas import _revision, _sha256
+from daedalus.runtimes.provider_target_receipt_retention_contract import (
+    RETENTION_ENTRYPOINT,
+)
+from daedalus.schemas import PolicyDecision, _revision, _sha256
 from daedalus.spine.envelope import canonical_sha
 
 _SCHEMA = "daedalus-provider-target-receipt-retention-effect-terminal-evidence/1"
@@ -190,8 +197,114 @@ def _canonical_completed(
     return payload, restored
 
 
+def _authority_snapshot(
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+    revision: str,
+) -> tuple[dict[str, str], Path]:
+    exact = (
+        (authorization.lease, EffectLease, "authorization.lease"),
+        (authorization.request, EffectLeaseRequest, "authorization.request"),
+        (
+            authorization.policy_decision,
+            PolicyDecision,
+            "authorization.policy_decision",
+        ),
+        (
+            authorization.effect_ledger,
+            EffectLeaseLedger,
+            "authorization.effect_ledger",
+        ),
+    )
+    for value, expected, label in exact:
+        if type(value) is not expected:
+            raise ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError(
+                f"{label} must be exact {expected.__name__}"
+            )
+
+    request = authorization.request
+    policy = authorization.policy_decision
+    lease = authorization.lease
+    if (
+        request.entrypoint_id != RETENTION_ENTRYPOINT
+        or lease.entrypoint_id != RETENTION_ENTRYPOINT
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect authority names the wrong retention entrypoint"
+        )
+    if (
+        lease.request_id != request.request_id
+        or lease.request_sha256 != request.digest
+        or lease.policy_decision_id != policy.decision_id
+        or lease.policy_decision_sha256 != policy.digest
+        or policy.subject_id != request.request_id
+        or policy.subject_sha256 != request.digest
+        or policy.verdict != "allow"
+        or lease.requested_effects != request.requested_effects
+        or lease.effect_scope != request.effect_scope
+        or policy.effect_scope != request.effect_scope
+        or lease.idempotency_namespace != request.idempotency_namespace
+        or lease.kill_switch_generation != request.kill_switch_generation
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect authority components are detached"
+        )
+    if (
+        request.runtime_manifest_sha256 is not None
+        or request.runtime_conformance_sha256 is not None
+        or lease.runtime_id
+        or lease.runtime_manifest_sha256 is not None
+        or lease.runtime_conformance_sha256 is not None
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "receipt retention requires a non-runtime Effect authority"
+        )
+
+    authority_revisions = {
+        request.provenance.source_revision,
+        policy.provenance.source_revision,
+        lease.provenance.source_revision,
+    }
+    if authority_revisions != {revision}:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "retention Effect authority belongs to a stale source revision"
+        )
+
+    if (
+        execution.requested_effects != lease.requested_effects
+        or execution.writable_paths != lease.effect_scope.writable_paths
+        or execution.egress_endpoints
+        or execution.tools
+        or execution.secret_refs
+        or execution.max_cost_microusd != 0
+        or execution.kill_switch_ref != lease.effect_scope.kill_switch_ref
+        or execution.kill_switch_generation != lease.kill_switch_generation
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "retention execution is detached from the exact leased effect scope"
+        )
+
+    try:
+        store_path = Path(authorization.effect_ledger.path)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError(
+            "retention Effect-Lease store path is malformed"
+        ) from exc
+    return (
+        {
+            "request_sha256": request.digest,
+            "policy_decision_sha256": policy.digest,
+            "lease_sha256": lease.digest,
+            "execution_request_sha256": execution.digest,
+        },
+        store_path,
+    )
+
+
 def _require_completed_snapshot(
     snapshot: EffectExecutionReplaySnapshot | None,
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
 ) -> tuple[LeasedEffectStartReceipt, EffectTerminalReceipt]:
     if type(snapshot) is not EffectExecutionReplaySnapshot:
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
@@ -209,11 +322,96 @@ def _require_completed_snapshot(
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
             "persisted Effect terminal receipt is absent or non-exact"
         )
-    if snapshot.terminal_receipt.outcome != "COMPLETED":
-        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
-            "persisted Effect terminal outcome is not COMPLETED"
+
+    start = snapshot.start_receipt
+    terminal = snapshot.terminal_receipt
+    try:
+        start_receipt_sha = _sha256(start.receipt_sha256, "start.receipt_sha256")
+        boundary_sha = _sha256(
+            start.boundary_receipt_sha256,
+            "start.boundary_receipt_sha256",
         )
-    return snapshot.start_receipt, snapshot.terminal_receipt
+        terminal_receipt_sha = _sha256(
+            terminal.receipt_sha256,
+            "terminal.receipt_sha256",
+        )
+        terminal_start_sha = _sha256(
+            terminal.start_receipt_sha256,
+            "terminal.start_receipt_sha256",
+        )
+        outputs = tuple(
+            _sha256(value, f"terminal.output_digests[{index}]")
+            for index, value in enumerate(terminal.output_digests)
+        )
+        detail = (
+            None
+            if terminal.detail_sha256 is None
+            else _sha256(terminal.detail_sha256, "terminal.detail_sha256")
+        )
+        started_at = _canonical_time(start.started_at, "start.started_at")
+        finished_at = _canonical_time(terminal.finished_at, "terminal.finished_at")
+    except (TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect receipts are malformed"
+        ) from exc
+
+    if tuple(sorted(set(outputs))) != outputs:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect terminal outputs are not sorted and unique"
+        )
+    if (
+        start.lease_sha256 != authorization.lease.digest
+        or start.execution_id != execution.execution_id
+        or start.idempotency_key != execution.idempotency_key
+        or start.execution_request_sha256 != execution.digest
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect start receipt is detached from authority or execution"
+        )
+    expected_start_sha = canonical_sha(
+        {
+            "lease_sha256": authorization.lease.digest,
+            "execution_id": execution.execution_id,
+            "idempotency_key": execution.idempotency_key,
+            "execution_request_sha256": execution.digest,
+            "boundary_receipt_sha256": boundary_sha,
+            "started_at": started_at,
+        }
+    )
+    if start_receipt_sha != expected_start_sha:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect start receipt digest is invalid"
+        )
+
+    if (
+        terminal.outcome != "COMPLETED"
+        or terminal.lease_sha256 != authorization.lease.digest
+        or terminal.execution_id != execution.execution_id
+        or terminal_start_sha != start_receipt_sha
+    ):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect terminal receipt is detached from its start"
+        )
+    if datetime.fromisoformat(finished_at) < datetime.fromisoformat(started_at):
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect terminal receipt precedes its start"
+        )
+    expected_terminal_sha = canonical_sha(
+        {
+            "lease_sha256": authorization.lease.digest,
+            "execution_id": execution.execution_id,
+            "start_receipt_sha256": start_receipt_sha,
+            "outcome": "COMPLETED",
+            "output_digests": list(outputs),
+            "detail_sha256": detail,
+            "finished_at": finished_at,
+        }
+    )
+    if terminal_receipt_sha != expected_terminal_sha:
+        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
+            "persisted Effect terminal receipt digest is invalid"
+        )
+    return start, terminal
 
 
 @dataclass(frozen=True)
@@ -390,26 +588,15 @@ def verify_provider_target_receipt_retention_effect_terminal_evidence(
             "completed retention evidence belongs to a stale source revision"
         )
 
-    try:
-        authority_revisions = {
-            authorization.request.provenance.source_revision,
-            authorization.policy_decision.provenance.source_revision,
-            authorization.lease.provenance.source_revision,
-        }
-        effect_store_path = Path(authorization.effect_ledger.path)
-    except (AttributeError, TypeError, ValueError) as exc:
-        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError(
-            "retention authorization is malformed"
-        ) from exc
-    if authority_revisions != {revision}:
-        raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
-            "retention Effect authority belongs to a stale source revision"
-        )
-
+    authority_before, effect_store_path = _authority_snapshot(
+        authorization,
+        execution,
+        revision,
+    )
     store_before = _effect_store_identity(effect_store_path)
     try:
         first = inspect_effect_execution(authorization, execution)
-    except EffectReplayProjectionError as exc:
+    except (EffectReplayProjectionError, EffectLeaseError, TypeError, ValueError) as exc:
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
             "persisted Effect execution did not verify"
         ) from exc
@@ -420,7 +607,7 @@ def verify_provider_target_receipt_retention_effect_terminal_evidence(
         )
     try:
         second = inspect_effect_execution(authorization, execution)
-    except EffectReplayProjectionError as exc:
+    except (EffectReplayProjectionError, EffectLeaseError, TypeError, ValueError) as exc:
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
             "persisted Effect execution did not verify on replay"
         ) from exc
@@ -434,7 +621,11 @@ def verify_provider_target_receipt_retention_effect_terminal_evidence(
             "persisted Effect execution changed between read-only projections"
         )
 
-    start, terminal = _require_completed_snapshot(second)
+    start, terminal = _require_completed_snapshot(
+        second,
+        authorization,
+        execution,
+    )
     if start.receipt_sha256 != completed_evidence.start_receipt_sha256:
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
             "persisted Effect start receipt is detached from completed evidence"
@@ -451,13 +642,20 @@ def verify_provider_target_receipt_retention_effect_terminal_evidence(
         )
 
     final_payload, final_restored = _canonical_completed(completed_evidence)
+    authority_after, final_effect_store_path = _authority_snapshot(
+        authorization,
+        execution,
+        revision,
+    )
     if (
         final_payload != completed_payload
         or final_restored != restored_completed
         or completed_evidence.digest != canonical_sha(completed_payload)
+        or authority_after != authority_before
+        or final_effect_store_path != effect_store_path
     ):
         raise ProviderTargetReceiptRetentionEffectTerminalEvidenceBindingError(
-            "completed retention evidence changed during Effect replay verification"
+            "completed evidence or Effect authority changed during replay verification"
         )
 
     execution_evidence = canonical_sha(
