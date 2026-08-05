@@ -111,7 +111,7 @@ def test_admission_has_no_writer_process_network_or_promotion_authority() -> Non
     )
 
 
-def test_preflight_and_identity_topology_are_double_fenced_around_replay() -> None:
+def test_preflight_topology_and_persisted_state_are_double_fenced() -> None:
     function = _function(
         _tree(),
         "verify_provider_target_receipt_retention_admission",
@@ -128,24 +128,30 @@ def test_preflight_and_identity_topology_are_double_fenced_around_replay() -> No
 
     assert len(positions["_replay_preflight"]) == 2
     assert len(positions["_verify_topology"]) == 2
-    assert len(positions["inspect_effect_execution"]) == 1
-    preflight_lines = sorted(positions["_replay_preflight"])
-    topology_lines = sorted(positions["_verify_topology"])
-    replay_line = positions["inspect_effect_execution"][0]
+    assert len(positions["_inspect_persisted_execution"]) == 2
+    assert len(positions["_verify_live_unstarted_authority"]) == 2
+    preflight = sorted(positions["_replay_preflight"])
+    topology = sorted(positions["_verify_topology"])
+    replay = sorted(positions["_inspect_persisted_execution"])
+    live = sorted(positions["_verify_live_unstarted_authority"])
     assert (
-        preflight_lines[0]
-        < topology_lines[0]
-        < replay_line
-        < topology_lines[1]
-        < preflight_lines[1]
+        preflight[0]
+        < topology[0]
+        < replay[0]
+        < live[0]
+        < topology[1]
+        < preflight[1]
+        < replay[1]
+        < live[1]
     )
     source = _source(function)
     assert "if final_topology != topology" in source
     assert "if final_preflight.digest != preflight.digest" in source
+    assert "if final_replay != replay" in source
     assert "if _exact_guard(authorization, final_preflight) != guard" in source
 
 
-def test_topology_snapshot_retains_path_device_inode_and_all_companions() -> None:
+def test_topology_snapshot_retains_all_concrete_filesystem_identities() -> None:
     tree = _tree()
     snapshot = _class(tree, "_TopologySnapshot")
     annotated = {
@@ -159,6 +165,7 @@ def test_topology_snapshot_retains_path_device_inode_and_all_companions() -> Non
         "retention_root",
         "event_store",
         "receipt_cas",
+        "receipt_cas_objects",
         "effect_store",
         "sqlite_companions",
     }
@@ -173,15 +180,21 @@ def test_topology_snapshot_retains_path_device_inode_and_all_companions() -> Non
     assert "stat.S_ISREG(info.st_mode)" in identity
     assert "info.st_nlink != 1" in identity
     assert "return _TopologySnapshot" in topology
+    assert "receipt_cas_objects=objects" in topology
     assert "sqlite_companions=tuple(companions)" in topology
     for suffix in ("-wal", "-shm", "-journal"):
         assert suffix in companions
 
 
-def test_topology_requires_exact_inner_ledgers_and_concrete_scope_bindings() -> None:
+def test_topology_binds_exact_writable_ledger_and_real_cas_object_target() -> None:
     source = _source(_function(_tree(), "_verify_topology"))
     assert "type(spine) is not SpineLedger" in source
     assert "type(source_store) is not SourceTreeStore" in source
+    assert "spine.read_only" in source
+    assert "retention_ledger.source_store.objects" in source
+    assert "expected_cas[0] / 'objects'" in source
+    assert "_same_identity(objects, expected_objects)" in source
+    assert "objects[0].parent != cas[0]" in source
     assert "_same_identity(primary, ledger_primary)" in source
     assert "_same_identity(event, expected_event)" in source
     assert "_same_identity(cas, expected_cas)" in source
@@ -211,7 +224,7 @@ def test_admission_requires_exact_persisted_authority_types_and_bindings() -> No
         assert required in verifier or required in shape
     assert "type(value) is not expected" in verifier
     assert "type(value) is not expected" in shape
-    assert "type(replay) is not EffectExecutionReplaySnapshot" in verifier
+    assert "authorization.effect_ledger.path must be pathlib.Path" in shape
     for binding in (
         "lease.request_id != request.request_id",
         "lease.request_sha256 != request.digest",
@@ -226,6 +239,18 @@ def test_admission_requires_exact_persisted_authority_types_and_bindings() -> No
         "lease.kill_switch_generation != request.kill_switch_generation",
     ):
         assert binding in shape
+
+
+def test_persisted_replay_is_exact_and_unstarted_authority_is_live() -> None:
+    tree = _tree()
+    inspect_source = _source(_function(tree, "_inspect_persisted_execution"))
+    live_source = _source(_function(tree, "_verify_live_unstarted_authority"))
+    assert "inspect_effect_execution(authorization, execution)" in inspect_source
+    assert "type(replay) is not EffectExecutionReplaySnapshot" in inspect_source
+    assert "except EffectReplayProjectionError" in inspect_source
+    assert "authorization.verify()" in live_source
+    assert "except (EffectLeaseError, TypeError, ValueError)" in live_source
+    assert "not live and authentic" in live_source
 
 
 def test_guard_is_one_exact_allowed_signed_preflight_decision() -> None:
