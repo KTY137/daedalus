@@ -80,6 +80,9 @@ def test_independent_review_confirms_exact_non_authority_wire_claims() -> None:
 def test_independent_review_confirms_separate_least_privilege_effect() -> None:
     source = inspect.getsource(contract._validate_retention_effect_scope)
     for required in (
+        "type(receipt) is not ProviderExecutableTargetVerificationReceipt",
+        "type(execution) is not EffectExecutionRequest",
+        "type(effect_lease) is not EffectLease",
         "RETENTION_ENTRYPOINT",
         '("filesystem_write",)',
         "execution.writable_paths",
@@ -87,8 +90,8 @@ def test_independent_review_confirms_separate_least_privilege_effect() -> None:
         "effect_lease.provenance.source_revision",
         "execution.kill_switch_generation",
         "effect_lease.kill_switch_generation",
-        "execution.kill_switch_ref",
-        "effect_lease.effect_scope.kill_switch_ref",
+        "not execution.kill_switch_ref",
+        "not effect_lease.effect_scope.kill_switch_ref",
         "effect_lease.digest == receipt.lease_sha256",
         "execution.execution_id == receipt.execution_id",
         "execution.idempotency_key == receipt.idempotency_key",
