@@ -1,0 +1,96 @@
+name: Gate 0 Provider Target Receipt Retention
+
+on:
+  pull_request:
+    paths:
+      - "daedalus/runtimes/provider_target_receipt_ledger.py"
+      - "tests/runtimes/test_provider_target_receipt_ledger.py"
+      - "tests/runtimes/test_provider_target_receipt_ledger_review.py"
+      - "scripts/run_provider_target_receipt_retention_mutations.py"
+      - "docs/work-packets/G0-RTC-07D_PROVIDER_TARGET_RECEIPT_RETENTION.*"
+      - ".github/workflows/g0-provider-target-receipt-retention.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests scripts
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_provider_target_receipt_ledger.py
+          tests/runtimes/test_provider_target_receipt_ledger_review.py
+          tests/runtimes/test_provider_target_verification.py
+          tests/runtimes/test_provider_target_verification_hardening.py
+          tests/runtimes/test_provider_target_verification_review.py
+          tests/kernel/test_source_trees.py
+          tests/kernel/test_attempt_ledger.py
+          tests/spine/test_ledger.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_target_receipt_retention_mutations.py
+      - run: git diff --exit-code
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - shell: bash
+        run: |
+          python -m venv wheel-smoke
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            wheel-smoke/Scripts/python -m pip install dist/*.whl
+            cd "$RUNNER_TEMP"
+            "$GITHUB_WORKSPACE/wheel-smoke/Scripts/python" -c "from daedalus.runtimes.provider_target_receipt_ledger import ProviderTargetReceiptLedger; print(ProviderTargetReceiptLedger.__name__)"
+          else
+            wheel-smoke/bin/python -m pip install dist/*.whl
+            cd "$RUNNER_TEMP"
+            "$GITHUB_WORKSPACE/wheel-smoke/bin/python" -c "from daedalus.runtimes.provider_target_receipt_ledger import ProviderTargetReceiptLedger; print(ProviderTargetReceiptLedger.__name__)"
+          fi
