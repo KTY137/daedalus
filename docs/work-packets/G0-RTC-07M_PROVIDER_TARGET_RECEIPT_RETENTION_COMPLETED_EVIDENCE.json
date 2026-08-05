@@ -32,22 +32,25 @@
     "exact ProviderTargetReceiptLedger, provider-target verification receipt, target and invocation authorities, identity registry, execution request, target manifest and source-tree ArtifactRef types",
     "exact lowercase 40-hex commit revision",
     "positive non-boolean max_source_bytes",
-    "admission, recovery, provider-target receipt and start/terminal receipt identities remain cross-bound"
+    "admission, recovery, provider-target receipt and start/terminal receipt identities remain cross-bound",
+    "absolute admission Primary Checkout, retention root, Event Store and receipt CAS paths resolve to the same concrete live identities used by the retention ledger"
   ],
   "verification_order": [
     "canonically reconstruct admission and recovery decision",
     "bind exact revision, completed state, recovery action, receipt identity and start/terminal receipt identities",
     "validate Primary Checkout, Event Store and receipt CAS topology and capture concrete filesystem identities",
+    "bind the live Primary Checkout, Event Store and receipt CAS identities to the admission paths and prove the admission retention root remains outside the Primary Checkout and contains both stores",
     "capture the retained receipt artifact file identity and refuse symlink or hard-link ambiguity",
     "authenticate the exact provider-target verification receipt and source tree",
-    "repeat topology and artifact identity checks before retained-state reads",
+    "repeat admission-bound topology and artifact identity checks before retained-state reads",
     "strictly read and validate the completed canonical Event-Store intent and CAS bytes",
-    "repeat topology, artifact and Event-Store/CAS validation",
+    "repeat admission-bound topology, artifact and Event-Store/CAS validation",
     "compare both reads and both identity fences",
     "reconstruct admission and recovery again before emitting non-authorizing evidence"
   ],
   "receipt_claims": {
     "admission_identity_bound": true,
+    "admission_topology_bound": true,
     "recovery_decision_bound": true,
     "provider_target_receipt_authenticated": true,
     "retention_intent_completed": true,
@@ -68,6 +71,8 @@
     "exact and subclass structured-subject refusal",
     "malformed generic 64-hex and stale 40-hex revision refusal",
     "non-completed and detached recovery/admission refusal",
+    "foreign and relative admission topology path refusal",
+    "retention-root containment refusal",
     "provider-target receipt digest substitution refusal",
     "retained CAS byte substitution refusal",
     "retained artifact hard-link ambiguity refusal",
@@ -77,7 +82,7 @@
     "two-read Event-Store state race refusal",
     "source-only no-writer and no-provider-execution review",
     "Draft 2020-12 exact JSON Schema and claim escalation refusal",
-    "twelve bounded mutations",
+    "fifteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
     "recovery, admission, preflight, effect replay, ledger and inventory regressions",
     "full suite, package build and isolated-wheel import"
