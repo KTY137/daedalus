@@ -27,7 +27,7 @@ MUTATIONS = (
     (
         "final-topology-fence-bypass",
         "    final_topology = _verify_topology(\n",
-        "    final_topology = topology or _verify_topology(\n",
+        "    final_topology = (lambda **kwargs: topology)(\n",
     ),
     (
         "guard-equality-bypass",
@@ -78,12 +78,12 @@ MUTATIONS = (
     ),
     (
         "automatic-reexecution-claim-escalation",
+        '            "retention_effect_terminal": terminal,\n'
         '            "retention_write_performed": False,\n'
-        '            "automatic_reexecution_allowed": False,\n'
-        '            "canonical_entrypoint_registered": False,\n',
+        '            "automatic_reexecution_allowed": False,\n',
+        '            "retention_effect_terminal": terminal,\n'
         '            "retention_write_performed": False,\n'
-        '            "automatic_reexecution_allowed": True,\n'
-        '            "canonical_entrypoint_registered": False,\n',
+        '            "automatic_reexecution_allowed": True,\n',
     ),
     (
         "closure-claim-escalation",
