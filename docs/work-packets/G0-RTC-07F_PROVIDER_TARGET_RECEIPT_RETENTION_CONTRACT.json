@@ -1,0 +1,89 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07F_PROVIDER_TARGET_RECEIPT_RETENTION_CONTRACT",
+  "gate": 0,
+  "status": "prepared-unverified",
+  "exact_parent": {
+    "branch": "g0/provider-target-receipt-retention-inventory-linear",
+    "revision": "bf678e837a374787c0198ba6047777001a991f41"
+  },
+  "branch": "g0/provider-target-receipt-retention-contract-linear",
+  "purpose": "Define one signed, short-lived and non-executing guard contract that binds exact receipt-retention authority to a separate local filesystem-write Effect Lease and exact Event-Store/CAS scope.",
+  "scope": {
+    "production_retention_changed": false,
+    "canonical_effect_inventory_changed": false,
+    "central_entrypoint_added": false,
+    "effect_lease_persisted_or_started": false,
+    "receipt_authenticated": false,
+    "inventory_artifact_verified": false,
+    "primary_checkout_disjointness_verified": false,
+    "provider_execution_authorized": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false
+  },
+  "contract": {
+    "operation": "retain-receipt",
+    "entrypoint_id": "provider.target-receipt.retain",
+    "guard_contract": "provider.target_receipt_retention",
+    "authority_ttl_minutes_max": 15,
+    "required_effects": [
+      "filesystem_write"
+    ],
+    "required_writable_targets": [
+      "canonical Event Store path",
+      "receipt CAS root"
+    ],
+    "provider_and_retention_leases_must_differ": true,
+    "provider_and_retention_execution_ids_must_differ": true,
+    "provider_and_retention_idempotency_keys_must_differ": true,
+    "kill_switch_required": true,
+    "runtime_bound_retention_lease_allowed": false,
+    "unrelated_egress_tools_secrets_or_cost_allowed": false
+  },
+  "acceptance": {
+    "exact_subject_round_trip": true,
+    "signed_authority_round_trip": true,
+    "receipt_inventory_execution_and_lease_digests_bound": true,
+    "separate_least_privilege_retention_lease": true,
+    "stale_revision_refusal": true,
+    "wrong_entrypoint_and_scope_refusal": true,
+    "overlapping_or_malformed_path_refusal": true,
+    "wire_claim_escalation_refusal": true,
+    "signature_unknown_key_expiry_and_subject_substitution_refusal": true,
+    "builder_tests_prepared": true,
+    "independent_source_review_prepared": true,
+    "bounded_mutation_count": 9,
+    "supported_platform_matrix_requested": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_and_isolated_wheel_requested": true
+  },
+  "verification": {
+    "hard_evidence_claimed": false,
+    "source_inspection_is_hard_evidence": false,
+    "llm_statement_is_hard_evidence": false,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute"
+  },
+  "known_boundaries": [
+    "The contract is inert and is not registered or wired to a production entrypoint.",
+    "The contract binds inventory digests but does not authenticate the inventory artifact.",
+    "The contract binds the receipt identity but does not authenticate the provider-target receipt.",
+    "The contract does not verify or begin the persisted Effect Lease.",
+    "The contract explicitly refuses to claim Primary-Checkout disjointness; a future central entrypoint must prove concrete target topology.",
+    "The contract cannot authorize provider execution, retention execution, promotion or Gate closure.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared tests are not represented as executed evidence."
+  ],
+  "forbidden_actions": [
+    "modify-main",
+    "modify-experimental",
+    "merge",
+    "automatic-promotion",
+    "fabricate-owner-approval",
+    "claim-gate-closure"
+  ]
+}
