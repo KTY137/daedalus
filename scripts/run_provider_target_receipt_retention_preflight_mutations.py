@@ -25,8 +25,21 @@ MUTATIONS = (
         "        decision = GuardDecision(\n",
     ),
     (
-        "repository-head-reverification-bypass",
+        "first-head-fence-bypass",
+        "    # First HEAD fence: the signed revision must be current before source reads.\n"
+        "    try:\n"
         "        verify_repository_head_revision_receipt(\n",
+        "    # First HEAD fence: the signed revision must be current before source reads.\n"
+        "    try:\n"
+        "        (lambda *args, **kwargs: None)(\n",
+    ),
+    (
+        "second-head-fence-bypass",
+        "    # Second HEAD fence: refuse a revision change during inventory reconstruction.\n"
+        "    try:\n"
+        "        verify_repository_head_revision_receipt(\n",
+        "    # Second HEAD fence: refuse a revision change during inventory reconstruction.\n"
+        "    try:\n"
         "        (lambda *args, **kwargs: None)(\n",
     ),
     (
@@ -36,13 +49,38 @@ MUTATIONS = (
     ),
     (
         "inventory-comparison-bypass",
-        "    if rebuilt_inventory != inventory or rebuilt_inventory.digest != inventory.digest:\n",
+        "    if rebuilt_inventory != inventory or rebuilt_inventory.digest != inventory_digest:\n",
         "    if False:\n",
     ),
     (
         "guard-evidence-comparison-bypass",
         "        or decision.evidence != expected_evidence\n",
         "        or False\n",
+    ),
+    (
+        "subject-digest-recheck-bypass",
+        "        _require_unchanged_digest(value, digest, label)\n",
+        "        pass\n",
+    ),
+    (
+        "revision-width-bypass",
+        '_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")\n',
+        '_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40,64}$")\n',
+    ),
+    (
+        "inventory-size-bound-bypass",
+        "        if source_size > _MAX_INVENTORY_SOURCE_BYTES:\n",
+        "        if False:\n",
+    ),
+    (
+        "surface-count-bound-bypass",
+        "        if surface_count != _EXPECTED_RETENTION_SURFACE_COUNT:\n",
+        "        if False:\n",
+    ),
+    (
+        "scope-overlap-bypass",
+        "        if _paths_overlap(\n",
+        "        if False and _paths_overlap(\n",
     ),
     (
         "persisted-lease-claim-escalation",
