@@ -1,0 +1,113 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-07L_PROVIDER_TARGET_RECEIPT_RETENTION_RECOVERY_DECISION",
+  "title": "Provider Target Receipt Retention Recovery Decision",
+  "gate": 0,
+  "status": "verification_requested",
+  "branch": "g0/provider-target-receipt-retention-recovery-decision-r3-linear",
+  "exact_parent_revision": "b6d274a5c3d77cef9f9bc9fc0c272ef2d72eccc8",
+  "frozen_parent_branch": "g0/provider-target-receipt-retention-admission-frozen-b6d274a",
+  "parent_pull_request": 222,
+  "pull_request": 223,
+  "scope": {
+    "kind": "additive_pure_recovery_projection",
+    "production_entrypoint_changed": false,
+    "canonical_registry_changed": false,
+    "persisted_state_read": false,
+    "persisted_state_reverified": false,
+    "effect_lease_granted": false,
+    "effect_lease_started": false,
+    "effect_lease_terminalized": false,
+    "provider_executed": false,
+    "receipt_retained": false,
+    "primary_checkout_mutated": false,
+    "owner_approval_issued": false,
+    "promotion_performed": false,
+    "gate_transition_requested": false
+  },
+  "input_contract": [
+    "exact ProviderTargetReceiptRetentionAdmissionReceipt type",
+    "exact 40-hex expected source revision",
+    "admission source revision equals the expected revision",
+    "admission wire form reconstructs canonically before projection",
+    "admission identity, state and revision remain unchanged through a second reconstruction fence"
+  ],
+  "state_decisions": {
+    "not_started": "request_fresh_start_authorization",
+    "started": "manual_reconciliation_required",
+    "COMPLETED": "verify_completed_retention_evidence",
+    "FAILED": "terminal_failure_refusal",
+    "CANCELLED": "terminal_cancellation_refusal"
+  },
+  "receipt_claims": {
+    "admission_identity_bound": true,
+    "persisted_state_reverified": false,
+    "manual_reconciliation_required": "derived_only_for_started",
+    "terminal_state_observed": "derived_only_for_terminal_states",
+    "automatic_reexecution_allowed": false,
+    "effect_start_authorized": false,
+    "retention_write_authorized": false,
+    "effect_terminalization_authorized": false,
+    "canonical_entrypoint_registered": false,
+    "gate_transition_authorized": false,
+    "closed": false
+  },
+  "ordering_contract": [
+    "reject non-exact admission input",
+    "validate and bind exact expected source revision",
+    "refuse stale admission revision",
+    "snapshot and canonically reconstruct the admission",
+    "derive the closed state-specific decision and receipt identities",
+    "repeat canonical reconstruction and compare snapshot, object, digest, revision and execution state",
+    "return a pure non-authorizing recovery decision"
+  ],
+  "adversarial_coverage_prepared": [
+    "all five exact persisted execution states",
+    "stale and malformed revision refusal",
+    "subclass and duck-typed admission refusal",
+    "frozen-dataclass mutation and inconsistent receipt-state bypass refusal",
+    "state-to-decision substitution refusal",
+    "start and terminal receipt substitution refusal",
+    "wire-field exactness and authority-claim escalation refusal",
+    "independent AST no-effect and no-callback review",
+    "Draft 2020-12 JSON Schema with five state-dependent branches",
+    "twelve bounded mutations",
+    "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
+    "admission and predecessor regressions, full suite, package build and isolated-wheel import"
+  ],
+  "frozen_dependent_boundary": [
+    "do not register or invoke the effectful receipt-retention entrypoint while the admission predecessor lacks executable CI evidence",
+    "do not begin or terminalize a retention Effect Lease",
+    "do not call ProviderTargetReceiptLedger.retain",
+    "do not reconcile a STARTED execution without independently authenticated provider and retention evidence",
+    "do not bind this decision projection into a Gate-0 closure claim"
+  ],
+  "remaining_dependent_boundary": [
+    "register the exact production receipt-retention entrypoint and implemented guard contract centrally",
+    "re-run exact admission immediately before the durable effect start",
+    "consume the exact persisted retention Effect Lease and respect inert replay",
+    "invoke retention only when begin_effect returns execute=true",
+    "reconcile STARTED state without automatic re-execution",
+    "bind retained CAS and Event-Store evidence into the exact Effect terminal receipt",
+    "cover all intent, CAS, Event-Store and Effect-Lease fault windows",
+    "bind verified semantic receipts into the canonical Gate-0 release report"
+  ],
+  "external_verification_blocker": {
+    "issue": 67,
+    "description": "Repository-hosted GitHub Actions terminates jobs before Step 1 with no logs or artifacts.",
+    "hard_product_evidence_available": false,
+    "zero_step_runs_count_as_product_evidence": false
+  },
+  "verification": {
+    "builder": "requested",
+    "independent_review": "requested",
+    "malformed_and_stale": "requested",
+    "bypass_and_mutation": "requested",
+    "full_suite": "requested",
+    "packaging": "requested",
+    "supported_platform_matrix": "requested"
+  },
+  "automatic_merge": false,
+  "automatic_promotion": false,
+  "owner_approval_fabricated": false
+}
