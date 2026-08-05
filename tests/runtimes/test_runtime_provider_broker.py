@@ -1,325 +1,343 @@
 from __future__ import annotations
 
+import dataclasses
+import importlib.util
+import sys
+from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from daedalus.kernel.effects import (
-    EffectExecutionRequest,
-    EffectStartResult,
-    EffectTerminalReceipt,
-    LeasedEffectStartReceipt,
-)
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.runtimes.broker import (
     RuntimeProviderBindingMismatch,
     RuntimeProviderReconciliationRequired,
     RuntimeProviderStateError,
     run_runtime_provider,
 )
-from daedalus.spine.effect_boundary import Effect, EntrypointSpec, Surface, Wiring
-from daedalus.spine.envelope import canonical_sha
+from daedalus.runtimes.provider_observation import (
+    ProviderObservationBindingLedger,
+    issue_provider_observation_authority,
+)
+from daedalus.spine.effect_boundary import Wiring
 
 
-ENTRYPOINT = "provider.fake"
-RUNTIME = "fake_runtime"
+ROOT = Path(__file__).resolve().parents[2]
+AUTHORITY_FIXTURE = ROOT / "tests/kernel/test_runtime_effect_replay_projection.py"
+AUTHORITY_KEY_ID = "broker-exact-authority-key"
+AUTHORITY_KEY = b"broker-exact-authority-key-material-at-least-32-bytes"
+OBSERVATION_KEY_ID = "broker-exact-observation-key"
+OBSERVATION_KEY = b"broker-exact-observation-key-material-at-least-32-bytes"
+RECORD_KEY = b"broker-exact-record-key-material-at-least-32-bytes"
 OUTPUT_SHA = "a" * 64
 
 
-def _spec(*, wiring: Wiring = Wiring.CENTRAL, runtime_id: str = RUNTIME) -> EntrypointSpec:
-    return EntrypointSpec(
-        id=ENTRYPOINT,
-        surface=Surface.PYTHON,
-        target="tests.fake_provider:run",
-        effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS),
-        guard_contracts=("runtime.adapter_profile",),
-        wiring=wiring,
-        runtime_id=runtime_id,
+def _load_authority_fixture():
+    name = "daedalus_test_runtime_provider_broker_exact_fixture"
+    spec = importlib.util.spec_from_file_location(name, AUTHORITY_FIXTURE)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+fixture = _load_authority_fixture()
+
+
+def _set_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "daedalus.kernel.runtime_effects._utc_now",
+        lambda: fixture.NOW,
+    )
+    monkeypatch.setattr(
+        "daedalus.kernel.effects._utc_now",
+        lambda: fixture.NOW + timedelta(seconds=3),
+    )
+    monkeypatch.setattr(
+        "daedalus.runtimes.broker._utc_now",
+        lambda: fixture.NOW + timedelta(seconds=2),
     )
 
 
-def _execution() -> EffectExecutionRequest:
-    return EffectExecutionRequest(
-        execution_id="runtime-execution-1",
-        idempotency_key="runtime-idempotency-1",
-        requested_effects=(
-            Effect.NETWORK_EGRESS.value,
-            Effect.PROCESS_SPAWN.value,
-        ),
-        egress_endpoints=("https://runtime.invalid",),
-        tools=("fake_runtime",),
-        kill_switch_ref="mission-kill",
-        kill_switch_generation=3,
+def _authority_bundle(tmp_path: Path, authorization, execution):
+    entrypoint_id = fixture._request().entrypoint_id
+    ledger = ProviderObservationBindingLedger(
+        tmp_path / "broker-provider-observation.sqlite3",
+        authority_id="authority.runtime-provider-observation",
+        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        record_secret=RECORD_KEY,
+    )
+    authority = issue_provider_observation_authority(
+        authority_id="authority.runtime-provider-observation",
+        authority_key_id=AUTHORITY_KEY_ID,
+        authority_secret=AUTHORITY_KEY,
+        binding_id="broker-exact-provider-binding",
+        provider_id="provider.external-runtime-fixture",
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        entrypoint_id=entrypoint_id,
+        runtime_id=authorization.capability.runtime_id,
+        execution=execution,
+        lease_sha256=authorization.capability.lease.digest,
+        source_revision=authorization.capability.source_revision,
+        issued_at=fixture.NOW - timedelta(minutes=1),
+        expires_at=fixture.NOW + timedelta(hours=1),
+    )
+    return authority, ledger
+
+
+def _subject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    authorization, _record = fixture._authorization(tmp_path, monkeypatch)
+    execution = fixture._execution()
+    authority, ledger = _authority_bundle(tmp_path, authorization, execution)
+    _set_clocks(monkeypatch)
+    return authorization, execution, authority, ledger
+
+
+def _run(
+    authorization,
+    execution,
+    authority,
+    ledger,
+    *,
+    invoke,
+    output_digests=lambda value: (OUTPUT_SHA,),
+    entrypoint_id: str | None = None,
+):
+    return run_runtime_provider(
+        entrypoint_id or fixture._request().entrypoint_id,
+        authorization=authorization,
+        execution=execution,
+        invoke=invoke,
+        output_digests=output_digests,
+        observation_authority=authority,
+        observation_binding_ledger=ledger,
     )
 
 
-def _start_receipt() -> LeasedEffectStartReceipt:
-    body = {
-        "lease_sha256": "1" * 64,
-        "execution_id": "runtime-execution-1",
-        "idempotency_key": "runtime-idempotency-1",
-        "execution_request_sha256": "2" * 64,
-        "boundary_receipt_sha256": "3" * 64,
-        "started_at": "2026-08-03T01:00:00+00:00",
-    }
-    return LeasedEffectStartReceipt(receipt_sha256=canonical_sha(body), **body)
-
-
-class FakeAuthorization:
-    def __init__(
-        self,
-        *,
-        entrypoint_id: str = ENTRYPOINT,
-        lease_entrypoint_id: str | None = None,
-        runtime_id: str = RUNTIME,
-        spec: EntrypointSpec | None = None,
-        replay: bool = False,
-    ) -> None:
-        self.request = SimpleNamespace(entrypoint_id=entrypoint_id)
-        self.capability = SimpleNamespace(
-            lease=SimpleNamespace(
-                entrypoint_id=lease_entrypoint_id or entrypoint_id,
-            ),
-            runtime_id=runtime_id,
-        )
-        row = spec or _spec(runtime_id=runtime_id)
-        self.registry = {row.id: row}
-        self.replay = replay
-        self.grant_calls = 0
-        self.begin_calls = 0
-        self.verify_calls = 0
-        self.finish_calls: list[dict[str, object]] = []
-        self.verify_error: BaseException | None = None
-        self.verify_error_at: int | None = None
-        self.finish_error: BaseException | None = None
-
-    def grant(self) -> None:
-        self.grant_calls += 1
-
-    def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
-        self.begin_calls += 1
-        assert execution.execution_id == "runtime-execution-1"
-        return EffectStartResult(
-            receipt=_start_receipt(),
-            execute=not self.replay,
-        )
-
-    def verify(self) -> object:
-        self.verify_calls += 1
-        if (
-            self.verify_error is not None
-            and (
-                self.verify_error_at is None
-                or self.verify_calls == self.verify_error_at
-            )
-        ):
-            raise self.verify_error
-        return object()
-
-    def finish_effect(
-        self,
-        start_receipt: LeasedEffectStartReceipt,
-        *,
-        outcome: str,
-        output_digests=(),
-        detail_sha256: str | None = None,
-    ) -> EffectTerminalReceipt:
-        if self.finish_error is not None:
-            raise self.finish_error
-        outputs = tuple(output_digests)
-        row = {
-            "outcome": outcome,
-            "output_digests": outputs,
-            "detail_sha256": detail_sha256,
-        }
-        self.finish_calls.append(row)
-        finished_at = "2026-08-03T01:00:01+00:00"
-        body = {
-            "lease_sha256": start_receipt.lease_sha256,
-            "execution_id": start_receipt.execution_id,
-            "start_receipt_sha256": start_receipt.receipt_sha256,
-            "outcome": outcome.upper(),
-            "output_digests": list(outputs),
-            "detail_sha256": detail_sha256,
-            "finished_at": finished_at,
-        }
-        return EffectTerminalReceipt(
-            lease_sha256=start_receipt.lease_sha256,
-            execution_id=start_receipt.execution_id,
-            start_receipt_sha256=start_receipt.receipt_sha256,
-            outcome=outcome.upper(),
-            output_digests=outputs,
-            detail_sha256=detail_sha256,
-            finished_at=finished_at,
-            receipt_sha256=canonical_sha(body),
-        )
-
-
-def _evidence(value) -> tuple[str, ...]:
-    return (OUTPUT_SHA,)
-
-
-def test_completed_provider_call_is_granted_started_rechecked_and_finished() -> None:
-    auth = FakeAuthorization()
+def test_completed_provider_call_uses_exact_persisted_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     calls: list[str] = []
-
-    result = run_runtime_provider(
-        ENTRYPOINT,
-        authorization=auth,  # type: ignore[arg-type]
-        execution=_execution(),
+    result = _run(
+        authorization,
+        execution,
+        authority,
+        ledger,
         invoke=lambda: calls.append("invoked") or {"answer": 42},
         output_digests=lambda value: ("b" * 64, OUTPUT_SHA),
     )
-
     assert calls == ["invoked"]
-    assert auth.grant_calls == 1
-    assert auth.begin_calls == 1
-    assert auth.verify_calls == 2
-    assert auth.finish_calls == [
-        {
-            "outcome": "completed",
-            "output_digests": (OUTPUT_SHA, "b" * 64),
-            "detail_sha256": None,
-        }
-    ]
     assert result.executed is True
-    assert result.runtime_id == RUNTIME
     assert result.value == {"answer": 42}
     assert result.terminal_receipt is not None
     assert result.terminal_receipt.outcome == "COMPLETED"
+    assert result.terminal_receipt.output_digests == (OUTPUT_SHA, "b" * 64)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "COMPLETED"
+    retained = ledger.load(execution.execution_id)
+    assert retained is not None
+    assert retained.authority == authority
+    assert retained.start_receipt == result.start_receipt
 
 
-def test_exact_replay_is_inert_and_has_no_second_terminal() -> None:
-    auth = FakeAuthorization(replay=True)
-    calls: list[str] = []
-    evidence_calls: list[str] = []
-
-    result = run_runtime_provider(
-        ENTRYPOINT,
-        authorization=auth,  # type: ignore[arg-type]
-        execution=_execution(),
-        invoke=lambda: calls.append("invoked"),
-        output_digests=lambda value: evidence_calls.append("evidence") or (OUTPUT_SHA,),
+def test_exact_replay_is_inert_and_reuses_retained_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
+    provider_calls: list[str] = []
+    first = _run(
+        authorization,
+        execution,
+        authority,
+        ledger,
+        invoke=lambda: provider_calls.append("first") or "output",
     )
-
-    assert result.executed is False
-    assert result.value is None
-    assert result.terminal_receipt is None
-    assert calls == []
+    evidence_calls: list[str] = []
+    replay = _run(
+        authorization,
+        execution,
+        authority,
+        ledger,
+        invoke=lambda: provider_calls.append("duplicate") or "duplicate",
+        output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
+    )
+    assert first.executed is True
+    assert replay.executed is False
+    assert replay.start_receipt == first.start_receipt
+    assert replay.terminal_receipt is None
+    assert replay.value is None
+    assert provider_calls == ["first"]
     assert evidence_calls == []
-    assert auth.grant_calls == 1
-    assert auth.begin_calls == 1
-    assert auth.verify_calls == 0
-    assert auth.finish_calls == []
+
+
+class _DuckAuthorization:
+    def __init__(self) -> None:
+        self.request = SimpleNamespace(entrypoint_id=fixture._request().entrypoint_id)
+        self.capability = SimpleNamespace(
+            lease=SimpleNamespace(entrypoint_id=fixture._request().entrypoint_id),
+            runtime_id="codex_cli",
+        )
+        self.registry = fixture._registry()
+        self.calls: list[str] = []
+
+    def grant(self) -> None:
+        self.calls.append("grant")
+
+    def begin_effect(self, execution):
+        self.calls.append("begin")
+        raise AssertionError("duck authorization reached effect start")
+
+
+class _AuthorizationSubclass(RuntimeBoundEffectAuthorization):
+    pass
+
+
+def test_duck_typed_and_subclassed_authority_cannot_bypass_exact_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exact, execution, authority, ledger = _subject(tmp_path, monkeypatch)
+    duck = _DuckAuthorization()
+    with pytest.raises(RuntimeProviderBindingMismatch, match="exact RuntimeBound"):
+        _run(duck, execution, authority, ledger, invoke=lambda: "forbidden")
+    assert duck.calls == []
+
+    subclass = _AuthorizationSubclass(
+        capability=exact.capability,
+        request=exact.request,
+        policy_decision=exact.policy_decision,
+        effect_ledger=exact.effect_ledger,
+        runtime_trust_ledger=exact.runtime_trust_ledger,
+        lease_keyring=exact.lease_keyring,
+        runtime_authority_keyring=exact.runtime_authority_keyring,
+        guard_decisions=exact.guard_decisions,
+        current_kill_switch_generation=exact.current_kill_switch_generation,
+        registry=exact.registry,
+    )
+    with pytest.raises(RuntimeProviderBindingMismatch, match="exact RuntimeBound"):
+        _run(subclass, execution, authority, ledger, invoke=lambda: "forbidden")
+    assert exact.effect_ledger.execution_state(execution.execution_id) is None
+
+
+@pytest.mark.parametrize("mutation", ["entrypoint", "noncentral", "runtime", "malformed"])
+def test_foreign_noncentral_or_malformed_binding_refuses_before_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
+    entrypoint_id = fixture._request().entrypoint_id
+    candidate = authorization
+    requested_entrypoint = entrypoint_id
+    if mutation == "entrypoint":
+        requested_entrypoint = "provider.foreign-runtime"
+    elif mutation == "noncentral":
+        spec = authorization.registry[entrypoint_id]
+        candidate = dataclasses.replace(
+            authorization,
+            registry={entrypoint_id: dataclasses.replace(spec, wiring=Wiring.INVENTORY_ONLY)},
+        )
+    elif mutation == "runtime":
+        spec = authorization.registry[entrypoint_id]
+        candidate = dataclasses.replace(
+            authorization,
+            registry={entrypoint_id: dataclasses.replace(spec, runtime_id="foreign-runtime")},
+        )
+    else:
+        candidate = dataclasses.replace(
+            authorization,
+            registry={entrypoint_id: object()},
+        )
+    called: list[str] = []
+    with pytest.raises(RuntimeProviderBindingMismatch):
+        _run(
+            candidate,
+            execution,
+            authority,
+            ledger,
+            entrypoint_id=requested_entrypoint,
+            invoke=lambda: called.append("invoked"),
+        )
+    assert called == []
+    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
 
 
 @pytest.mark.parametrize(
-    "auth",
-    [
-        FakeAuthorization(entrypoint_id="provider.other"),
-        FakeAuthorization(lease_entrypoint_id="provider.other"),
-        FakeAuthorization(spec=_spec(wiring=Wiring.INVENTORY_ONLY)),
-        FakeAuthorization(runtime_id="other_runtime", spec=_spec()),
-    ],
+    "error,outcome",
+    [(RuntimeError("provider fault"), "FAILED"), (KeyboardInterrupt(), "CANCELLED")],
 )
-def test_foreign_noncentral_or_runtime_mismatched_authority_refuses_before_effect(
-    auth: FakeAuthorization,
+def test_provider_exception_is_terminalized_before_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+    outcome: str,
 ) -> None:
-    called = False
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
 
-    def invoke() -> None:
-        nonlocal called
-        called = True
+    def invoke():
+        raise error
 
-    with pytest.raises(RuntimeProviderBindingMismatch):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
-            invoke=invoke,
-            output_digests=_evidence,
-        )
-
-    assert called is False
-    assert auth.grant_calls == 0
-    assert auth.begin_calls == 0
+    with pytest.raises(type(error)):
+        _run(authorization, execution, authority, ledger, invoke=invoke)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == outcome
 
 
-def test_provider_exception_is_failed_before_it_escapes() -> None:
-    auth = FakeAuthorization()
-
-    def invoke() -> None:
-        raise RuntimeError("secret provider message must not enter evidence")
-
-    with pytest.raises(RuntimeError, match="secret provider"):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
-            invoke=invoke,
-            output_digests=_evidence,
-        )
-
-    assert auth.finish_calls[0]["outcome"] == "failed"
-    detail = auth.finish_calls[0]["detail_sha256"]
-    assert isinstance(detail, str) and len(detail) == 64
-
-
-def test_keyboard_interrupt_is_cancelled_before_it_escapes() -> None:
-    auth = FakeAuthorization()
-
-    def invoke() -> None:
-        raise KeyboardInterrupt()
-
-    with pytest.raises(KeyboardInterrupt):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
-            invoke=invoke,
-            output_digests=_evidence,
-        )
-
-    assert auth.finish_calls[0]["outcome"] == "cancelled"
-
-
-def test_runtime_trust_loss_after_provider_call_withholds_output_and_cancels() -> None:
-    auth = FakeAuthorization()
-    auth.verify_error = RuntimeError("runtime quarantined")
-    auth.verify_error_at = 1
+def test_runtime_trust_loss_after_provider_withholds_evidence_and_cancels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     evidence_calls: list[str] = []
 
+    def fail_verify(self):
+        raise RuntimeError("runtime quarantined")
+
+    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "verify", fail_verify)
     with pytest.raises(RuntimeError, match="quarantined"):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
-            invoke=lambda: {"untrusted": "output"},
-            output_digests=lambda value: evidence_calls.append("evidence") or (OUTPUT_SHA,),
+        _run(
+            authorization,
+            execution,
+            authority,
+            ledger,
+            invoke=lambda: "untrusted-output",
+            output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
         )
-
-    assert auth.verify_calls == 1
     assert evidence_calls == []
-    assert auth.finish_calls[0]["outcome"] == "cancelled"
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "CANCELLED"
 
 
-def test_runtime_trust_loss_after_evidence_extraction_blocks_completion() -> None:
-    auth = FakeAuthorization()
-    auth.verify_error = RuntimeError("runtime rotated")
-    auth.verify_error_at = 2
+def test_runtime_trust_loss_after_evidence_blocks_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
+    original = RuntimeBoundEffectAuthorization.verify
+    calls = {"count": 0}
+
+    def fail_second(self):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise RuntimeError("runtime rotated")
+        return original(self)
+
+    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "verify", fail_second)
     evidence_calls: list[str] = []
-
     with pytest.raises(RuntimeError, match="rotated"):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
+        _run(
+            authorization,
+            execution,
+            authority,
+            ledger,
             invoke=lambda: "output",
             output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
         )
-
-    assert auth.verify_calls == 2
     assert evidence_calls == ["output"]
-    assert auth.finish_calls[0]["outcome"] == "cancelled"
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "CANCELLED"
 
 
 @pytest.mark.parametrize(
@@ -327,44 +345,49 @@ def test_runtime_trust_loss_after_evidence_extraction_blocks_completion() -> Non
     [
         (lambda value: (), ValueError),
         (lambda value: ("not-a-digest",), ValueError),
-        (lambda value: (_ for _ in ()).throw(RuntimeError("local digest crash")), RuntimeError),
+        (
+            lambda value: (_ for _ in ()).throw(RuntimeError("local digest crash")),
+            RuntimeError,
+        ),
     ],
 )
-def test_post_provider_output_evidence_failure_requires_reconciliation(
+def test_post_provider_evidence_failure_remains_started(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     output_digests,
     cause_type: type[BaseException],
 ) -> None:
-    auth = FakeAuthorization()
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     with pytest.raises(RuntimeProviderReconciliationRequired) as captured:
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
+        _run(
+            authorization,
+            execution,
+            authority,
+            ledger,
             invoke=lambda: "external-output",
             output_digests=output_digests,
         )
-
-    error = captured.value
-    assert error.entrypoint_id == ENTRYPOINT
-    assert error.runtime_id == RUNTIME
-    assert error.start_receipt == _start_receipt()
-    assert error.phase == "output-evidence"
-    assert len(error.cause_sha256) == 64
-    assert isinstance(error.__cause__, cause_type)
-    assert auth.verify_calls == 1
-    assert auth.finish_calls == []
-    assert not hasattr(error, "value")
+    assert isinstance(captured.value.__cause__, cause_type)
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
+    assert ledger.load(execution.execution_id) is not None
 
 
-def test_terminal_persistence_failure_is_a_broker_state_error() -> None:
-    auth = FakeAuthorization()
-    auth.finish_error = OSError("disk full")
+def test_terminal_persistence_failure_is_broker_state_error_and_stays_started(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
 
+    def fail_finish(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "finish_effect", fail_finish)
     with pytest.raises(RuntimeProviderStateError, match="terminal receipt"):
-        run_runtime_provider(
-            ENTRYPOINT,
-            authorization=auth,  # type: ignore[arg-type]
-            execution=_execution(),
+        _run(
+            authorization,
+            execution,
+            authority,
+            ledger,
             invoke=lambda: "output",
-            output_digests=_evidence,
         )
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"

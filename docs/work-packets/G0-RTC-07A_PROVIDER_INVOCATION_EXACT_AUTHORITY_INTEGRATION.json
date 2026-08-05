@@ -1,0 +1,94 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-07A",
+  "title": "Provider Invocation Exact Authority Controlled Integration",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "a758f8ce6c2d77477fc47818071675414dd5deab",
+  "parent_branch": "g0/provider-invocation-identity-admission-linear",
+  "branch": "g0/provider-invocation-exact-authority-integration-linear",
+  "change_class": "controlled-sibling-integration-and-public-broker-bypass-closure",
+  "source_packet": {
+    "pull_request": 192,
+    "source_revision": "8eca58799884890826b96655c41087d7031000ca",
+    "source_branch": "g0/provider-broker-exact-authority-linear",
+    "ported_git_blobs": {
+      "daedalus/runtimes/broker.py": "a0b07085bcb44b4149887b09275dc5675f685c01",
+      "scripts/run_provider_broker_exact_authority_mutations.py": "52d977b9b9d372aabfca702f3c328ad329d89bf2",
+      "tests/runtimes/test_runtime_provider_exact_authority_boundary.py": "97419b1d8140ca2621616c710e0b604a72a2784f",
+      "tests/runtimes/test_runtime_provider_broker.py": "316577e5a0bf471770b8b267675acec133f9e8d6",
+      "tests/runtimes/test_provider_observation_authority_review.py": "cdcb726a0e14b182e7fa6f1600d9aaff97bf71e6"
+    }
+  },
+  "scope": {
+    "requires_exact_runtime_bound_authorization": true,
+    "requires_exact_effect_execution_request": true,
+    "requires_exact_provider_observation_authority": true,
+    "requires_exact_provider_observation_binding_ledger": true,
+    "authority_validation_precedes_registry_validation": true,
+    "authority_validation_precedes_grant": true,
+    "allows_duck_typed_authorization": false,
+    "allows_authorization_subclasses": false,
+    "allows_observation_authority_subclasses": false,
+    "allows_binding_ledger_subclasses": false,
+    "preserves_exact_replay": true,
+    "preserves_public_import_path": true,
+    "integrates_provider_invocation_identity_predecessor": true,
+    "modifies_provider_invocation_identity_projection": false,
+    "removes_loose_provider_callback": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "issues_promotion_receipt": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "public_broker_rejects_overridable_authority_objects": true,
+    "missing_or_substituted_observation_authority_fails_before_grant": true,
+    "durable_observation_binding_precedes_provider_callback": true,
+    "exact_replay_requires_retained_binding_store": true,
+    "signed_invocation_identity_is_available_on_the_selected_line": true,
+    "signed_invocation_identity_is_consumed_by_the_broker": false,
+    "production_loose_callback_gap_closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_tests_requested": true,
+    "duck_type_bypass_test_prepared": true,
+    "subclass_bypass_tests_prepared": true,
+    "missing_authority_tests_prepared": true,
+    "substituted_replay_store_test_prepared": true,
+    "provider_failure_and_cancellation_tests_prepared": true,
+    "runtime_trust_loss_tests_prepared": true,
+    "unknown_outcome_tests_prepared": true,
+    "terminal_persistence_failure_test_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 8,
+    "provider_invocation_predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private checkout; source inspection and blob identity are not hard product evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "the broker still accepts invoke and output_digests callbacks independently of the authenticated ProviderInvocationIdentityProjection",
+    "a dependent packet must consume the signed invocation identity before begin_effect and resolve execution only through an exact guarded executable registry",
+    "provider observation persistence still requires controlled integration with the pre-provisioned store and durable one-use operation authority line",
+    "Gate 0 still requires complete caller migration, Docker sandbox evidence, Primary-Checkout mutation exclusion, complete fault evidence, release-chain composition and a closed exact-head report",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
