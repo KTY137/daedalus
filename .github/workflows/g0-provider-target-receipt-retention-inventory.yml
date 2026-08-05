@@ -1,0 +1,120 @@
+name: Gate 0 Provider Target Receipt Retention Inventory
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-target-receipt-retention-linear
+    paths:
+      - "daedalus/gates/provider_target_receipt_retention_inventory.py"
+      - "scripts/report_provider_target_receipt_retention_inventory.py"
+      - "scripts/run_provider_target_receipt_retention_inventory_mutations.py"
+      - "tests/gates/test_provider_target_receipt_retention_inventory*.py"
+      - "docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.*"
+      - ".github/workflows/g0-provider-target-receipt-retention-inventory.yml"
+  push:
+    branches:
+      - g0/provider-target-receipt-retention-inventory-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-provider-target-receipt-retention-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-07E_PROVIDER_TARGET_RECEIPT_RETENTION_INVENTORY.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_provider_target_receipt_retention_inventory.py
+          tests/gates/test_provider_target_receipt_retention_inventory_review.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_target_receipt_retention_inventory_mutations.py
+
+  retention-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_provider_target_receipt_ledger.py
+          tests/runtimes/test_provider_target_receipt_ledger_hardening.py
+          tests/runtimes/test_provider_target_receipt_ledger_review.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-retention-inventory-wheel
+      - run: /tmp/daedalus-retention-inventory-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-retention-inventory-wheel/bin/python - <<'PY'
+          from daedalus.gates.provider_target_receipt_retention_inventory import (
+              ProviderTargetReceiptRetentionInventory,
+              ProviderTargetReceiptRetentionInventoryError,
+              scan_provider_target_receipt_retention,
+          )
+
+          assert ProviderTargetReceiptRetentionInventory is not None
+          assert ProviderTargetReceiptRetentionInventoryError is not None
+          assert callable(scan_provider_target_receipt_retention)
+          PY
