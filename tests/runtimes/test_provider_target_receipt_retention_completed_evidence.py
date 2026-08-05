@@ -230,10 +230,7 @@ def test_completed_evidence_refuses_terminal_event_substitution(tmp_path) -> Non
     spine.close()
 
 
-def test_completed_evidence_refuses_topology_identity_race(
-    tmp_path,
-    monkeypatch,
-) -> None:
+def _topology_race_fixture(tmp_path):
     fixture = _fixture(tmp_path / "fixture")
     receipt = _issue(fixture)
     primary, spine, ledger = _ledger(tmp_path, fixture)
@@ -243,6 +240,16 @@ def test_completed_evidence_refuses_topology_identity_race(
         admission,
         expected_source_revision=receipt.source_revision,
     )
+    return fixture, receipt, spine, ledger, admission, recovery
+
+
+def test_completed_evidence_refuses_authentication_window_topology_race(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
+        tmp_path
+    )
     original = completed_module._topology_identity
     calls = 0
 
@@ -250,11 +257,8 @@ def test_completed_evidence_refuses_topology_identity_race(
         nonlocal calls
         calls += 1
         result = original(value)
-        if calls > 1:
-            result = {
-                key: dict(identity)
-                for key, identity in result.items()
-            }
+        if calls == 2:
+            result = {key: dict(identity) for key, identity in result.items()}
             result["event_store"]["inode"] += 1
         return result
 
@@ -262,7 +266,64 @@ def test_completed_evidence_refuses_topology_identity_race(
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
-        match="topology changed",
+        match="receipt authentication",
+    ):
+        _verify(admission, recovery, ledger, receipt, fixture)
+    spine.close()
+
+
+def test_completed_evidence_refuses_retained_read_window_topology_race(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
+        tmp_path
+    )
+    original = completed_module._topology_identity
+    calls = 0
+
+    def changing_topology(value):
+        nonlocal calls
+        calls += 1
+        result = original(value)
+        if calls == 3:
+            result = {key: dict(identity) for key, identity in result.items()}
+            result["receipt_cas"]["inode"] += 1
+        return result
+
+    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
+        match="completed-state verification",
+    ):
+        _verify(admission, recovery, ledger, receipt, fixture)
+    spine.close()
+
+
+def test_completed_evidence_refuses_event_state_race(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
+        tmp_path
+    )
+    original = completed_module._read_intent
+    calls = 0
+
+    def changing_intent(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        result = original(*args, **kwargs)
+        if calls == 2 and result is not None:
+            return dataclasses.replace(result, trace_id="substituted-trace")
+        return result
+
+    monkeypatch.setattr(completed_module, "_read_intent", changing_intent)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
+        match="state changed",
     ):
         _verify(admission, recovery, ledger, receipt, fixture)
     spine.close()
@@ -291,6 +352,19 @@ def test_completed_evidence_refuses_stale_and_non_completed_subjects(tmp_path) -
             receipt,
             fixture,
             expected_source_revision=stale,
+        )
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceShapeError,
+        match="exact 40-hex",
+    ):
+        _verify(
+            admission,
+            recovery,
+            ledger,
+            receipt,
+            fixture,
+            expected_source_revision="f" * 64,
         )
 
     failed_admission = dataclasses.replace(
