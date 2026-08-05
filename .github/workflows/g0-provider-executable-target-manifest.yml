@@ -1,0 +1,119 @@
+name: Gate 0 Provider Executable Target Manifest
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-invocation-exact-authority-integration-linear
+    paths:
+      - "daedalus/runtimes/provider_executable_targets.py"
+      - "tests/runtimes/test_provider_executable_targets.py"
+      - "tests/runtimes/test_provider_executable_targets_review.py"
+      - "scripts/run_provider_executable_target_mutations.py"
+      - "docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.*"
+      - ".github/workflows/g0-provider-executable-target-manifest.yml"
+  push:
+    branches:
+      - g0/provider-executable-target-manifest-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-provider-executable-target-manifest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-07B_PROVIDER_EXECUTABLE_TARGET_MANIFEST.json
+      - run: >-
+          python -m pytest -q
+          tests/runtimes/test_provider_executable_targets.py
+          tests/runtimes/test_provider_executable_targets_review.py
+          tests/runtimes/test_provider_invocation_identity.py
+          tests/runtimes/test_provider_invocation_identity_review.py
+          tests/runtimes/test_provider_invocation_registry.py
+          tests/runtimes/test_provider_invocation_registry_review.py
+          tests/runtimes/test_provider_invocation_authority.py
+          tests/runtimes/test_provider_invocation_authority_review.py
+          tests/runtimes/test_provider_observation_authority.py
+          tests/runtimes/test_provider_observation_authority_review.py
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_runtime_provider_exact_authority_boundary.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_provider_executable_target_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-provider-target-wheel
+      - run: /tmp/daedalus-provider-target-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-provider-target-wheel/bin/python - <<'PY'
+          from daedalus.runtimes.provider_executable_targets import (
+              ProviderExecutableTargetDescriptor,
+              ProviderExecutableTargetManifest,
+              ProviderExecutableTargetProjection,
+              build_provider_executable_target_manifest,
+              project_provider_executable_targets,
+          )
+
+          assert ProviderExecutableTargetDescriptor is not None
+          assert ProviderExecutableTargetManifest is not None
+          assert ProviderExecutableTargetProjection is not None
+          assert callable(build_provider_executable_target_manifest)
+          assert callable(project_provider_executable_targets)
+          PY
