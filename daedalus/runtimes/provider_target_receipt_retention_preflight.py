@@ -22,6 +22,7 @@ from typing import Any, Mapping
 from daedalus.gates.provider_target_receipt_retention_inventory import (
     ProviderTargetReceiptRetentionInventory,
     ProviderTargetReceiptRetentionInventoryError,
+    ProviderTargetReceiptRetentionSurface,
     scan_provider_target_receipt_retention,
 )
 from daedalus.gates.repository_head_revision import (
@@ -94,6 +95,10 @@ def _source_revision(value: Any) -> str:
 
 
 def _scope_path(value: Any, label: str) -> str:
+    if type(value) is not str:
+        raise ProviderTargetReceiptRetentionPreflightShapeError(
+            f"{label} must be an exact string"
+        )
     try:
         path = _repo_path(value, label)
     except (TypeError, ValueError) as exc:
@@ -103,6 +108,10 @@ def _scope_path(value: Any, label: str) -> str:
     if path == ".":
         raise ProviderTargetReceiptRetentionPreflightShapeError(
             f"{label} must not name the repository root"
+        )
+    if path != value:
+        raise ProviderTargetReceiptRetentionPreflightShapeError(
+            f"{label} must be canonical repository-relative POSIX"
         )
     return path
 
@@ -377,6 +386,16 @@ def verify_provider_target_receipt_retention_preflight(
             raise ProviderTargetReceiptRetentionPreflightShapeError(
                 f"{label} must be exact {expected_type.__name__}"
             )
+    if (
+        len(inventory.surfaces) != _EXPECTED_RETENTION_SURFACE_COUNT
+        or any(
+            type(row) is not ProviderTargetReceiptRetentionSurface
+            for row in inventory.surfaces
+        )
+    ):
+        raise ProviderTargetReceiptRetentionPreflightShapeError(
+            "inventory must contain the exact reviewed retention surfaces"
+        )
 
     source_revision = _source_revision(receipt.source_revision)
     head_receipt_digest = repository_head_receipt.digest
