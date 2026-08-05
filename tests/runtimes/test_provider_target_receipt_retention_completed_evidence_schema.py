@@ -33,8 +33,10 @@ def _payload() -> dict[str, object]:
         "retention_intent_id": 1,
         "retention_intent_payload_sha256": "6" * 64,
         "retention_event_evidence_sha256": "7" * 64,
-        "start_receipt_sha256": "8" * 64,
-        "terminal_receipt_sha256": "9" * 64,
+        "retention_topology_identity_sha256": "8" * 64,
+        "receipt_artifact_file_identity_sha256": "9" * 64,
+        "start_receipt_sha256": "a" * 64,
+        "terminal_receipt_sha256": "b" * 64,
         "event_store_path": "/tmp/retention/event.sqlite3",
         "receipt_cas_path": "/tmp/retention/cas",
         "admission_identity_bound": True,
@@ -43,6 +45,8 @@ def _payload() -> dict[str, object]:
         "retention_intent_completed": True,
         "retained_receipt_cas_verified": True,
         "primary_checkout_disjointness_verified": True,
+        "retention_topology_stable": True,
+        "receipt_artifact_identity_stable": True,
         "persisted_effect_terminal_verified": False,
         "automatic_reexecution_allowed": False,
         "effect_start_authorized": False,
@@ -68,6 +72,8 @@ def test_completed_evidence_schema_is_exact_and_non_authorizing() -> None:
         "retention_intent_completed",
         "retained_receipt_cas_verified",
         "primary_checkout_disjointness_verified",
+        "retention_topology_stable",
+        "receipt_artifact_identity_stable",
     ):
         assert properties[field]["const"] is True
     for field in (
@@ -92,6 +98,8 @@ def test_completed_evidence_schema_rejects_malformed_identity_and_paths() -> Non
         ("source_revision", "1" * 39),
         ("source_revision", "G" * 40),
         ("admission_sha256", "2" * 63),
+        ("retention_topology_identity_sha256", "8" * 63),
+        ("receipt_artifact_file_identity_sha256", "Z" * 64),
         ("retention_intent_id", 0),
         ("retention_intent_id", True),
         ("event_store_path", ""),
@@ -123,5 +131,14 @@ def test_completed_evidence_schema_rejects_claim_escalation_and_extras() -> None
     ):
         payload = copy.deepcopy(_payload())
         payload[field] = True
+        with pytest.raises(ValidationError):
+            validator.validate(payload)
+
+    for field in (
+        "retention_topology_stable",
+        "receipt_artifact_identity_stable",
+    ):
+        payload = copy.deepcopy(_payload())
+        payload[field] = False
         with pytest.raises(ValidationError):
             validator.validate(payload)
