@@ -25,17 +25,19 @@ The writer performs this ordered transition:
 2. verify the signed receipt against the exact target/invocation authorities,
    registry, execution request, target manifest, source-tree reference and
    independently re-read source bytes;
-3. derive the receipt artifact address from canonical receipt JSON;
-4. persist one canonical Event-Store intent keyed by that digest;
-5. publish the exact canonical receipt bytes to the existing CAS;
-6. re-read and rehash the published object;
+3. derive and validate the canonical receipt bytes and artifact address;
+4. install and re-read the exact partial uniqueness invariant;
+5. persist one canonical Event-Store intent keyed by the receipt digest;
+6. publish the exact canonical receipt bytes to the existing CAS;
 7. append one terminal Event-Store event binding the artifact digest;
 8. strictly re-read the Event-Store rows and CAS bytes before returning.
 
-A unique partial index on the canonical `intents` table serializes the exact
-receipt identity. It creates no receipt-specific table and no second database.
+Authentication and all pure local validation precede even the idempotent schema
+write. The partial unique index is checked through `sqlite_master`; a foreign
+same-name index is refused rather than trusted. No receipt-specific table or
+second database is created.
 
-## Restart and replay
+## Restart, unknown outcomes and replay
 
 A crash after the intent but before CAS publication leaves a visible pending
 intent. A crash after CAS publication but before terminal append leaves the same
@@ -44,10 +46,13 @@ signed subject may finish that same transition. A completed replay re-verifies
 the signed receipt and retained bytes, returns the original intent/artifact
 identity and performs no CAS write or terminal transition.
 
-A failed CAS call is not converted into a terminal failure because publication
-may have occurred before the caller observed the exception. The intent remains
-pending reconciliation. This preserves the unknown-outcome semantics rather
-than guessing that an external filesystem effect did not happen.
+An Event-Store exception is not treated as proof that a transaction failed. The
+writer re-reads the exact effect key after both intent and terminal write errors.
+A post-commit disconnect therefore recovers the persisted winner; a pre-commit
+terminal failure remains `INTENDED` and explicitly requires replay. Likewise, a
+failed CAS call is not converted into a terminal failure because publication may
+have occurred before the caller observed the exception. This preserves unknown-
+outcome semantics instead of guessing what an external write did.
 
 ## Protected topology
 
@@ -62,24 +67,30 @@ The focused tests cover:
 
 - exact retention followed by inert replay;
 - crash after CAS publication and restart completion;
-- invalid receipt signature before Event-Store or CAS writes;
+- intent post-commit disconnect recovery;
+- terminal pre-commit failure followed by replay;
+- terminal post-commit disconnect reconciliation;
+- invalid receipt signature before schema, Event-Store or CAS writes;
 - substituted retained CAS bytes;
-- noncanonical/tampered Event-Store rows;
+- noncanonical, duplicate-terminal and trace-substituted Event-Store state;
+- foreign same-name uniqueness index;
 - primary-checkout overlap;
 - subclass and duck-typed authority substitution;
-- source-order review proving authentication → intent → CAS → terminal order;
+- concurrent same-subject retention with one canonical identity;
+- independent source-order review proving validation → intent → CAS → terminal;
 - absence of provider loader, process, network, approval and promotion authority.
 
 A bounded mutation runner attacks pre-authentication writes, primary-checkout
 containment, publication-before-intent, CAS-readback removal and unique-index
 removal. The workflow requests Ubuntu and Windows on Python 3.10 and 3.12 with
-two hash seeds, predecessor regressions, full suite and isolated-wheel import.
+two hash seeds, predecessor regressions, the declared test dependency set, full
+suite and isolated-wheel import.
 
 ## Deliberate remaining boundary
 
 This packet is a migration step, not Gate-0 closure. The retention method is a
 new local filesystem-writing entrypoint. It is not production-admissible until a
-separate short packet classifies it in the canonical effect registry and then a
+separate short packet makes it visible to the canonical effect inventory and a
 dependent packet consumes a persisted Effect Lease before this method can
 become `CENTRAL`.
 
@@ -91,5 +102,5 @@ remain open in the parent broker and issue #188 remains unresolved.
 
 GitHub Actions issue #67 continues to terminate hosted jobs before Step 1. The
 workflow and tests in this packet are prepared evidence only until an exact-head
-run records real steps, logs and artifacts. No LLM/source assertion is treated
-as executable evidence.
+run records real steps, logs and artifacts. No LLM or static-review assertion is
+treated as executable evidence.
