@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -77,3 +78,22 @@ def test_preflight_schema_binds_revision_inventory_digests_and_guard() -> None:
     )
     assert "authority_sha256" in properties["guard_evidence"]["pattern"]
     assert "subject_sha256" in properties["guard_evidence"]["pattern"]
+
+
+def test_repository_path_definition_accepts_only_canonical_posix_paths() -> None:
+    document = _document()
+    pattern = document["$defs"]["repositoryPath"]["pattern"]
+
+    assert re.fullmatch(pattern, "attempt/cas/receipts") is not None
+    for value in (
+        ".",
+        "./attempt/cas",
+        "attempt/./cas",
+        "attempt//cas",
+        "../attempt/cas",
+        "attempt/../cas",
+        "/attempt/cas",
+        "C:/attempt/cas",
+        "attempt\\cas",
+    ):
+        assert re.fullmatch(pattern, value) is None
