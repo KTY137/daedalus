@@ -84,6 +84,7 @@
     "final-read topology identity race refusal",
     "two-read Event-Store state race refusal",
     "source-only no-writer and no-provider-execution review",
+    "mutation harness copies package and required tests into an isolated temporary root, removes the repository checkout from PYTHONPATH and probes the imported module origin before each mutant",
     "Draft 2020-12 exact JSON Schema and claim escalation refusal",
     "sixteen bounded mutations",
     "Ubuntu and Windows on Python 3.10 and 3.12 with two hash seeds",
