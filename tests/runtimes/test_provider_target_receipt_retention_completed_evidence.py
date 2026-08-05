@@ -158,6 +158,7 @@ def test_completed_retention_evidence_is_read_only_and_canonical(
     assert evidence.terminal_receipt_sha256 == admission.terminal_receipt_sha256
     assert len(evidence.retention_topology_identity_sha256) == 64
     assert len(evidence.receipt_artifact_file_identity_sha256) == 64
+    assert payload["admission_topology_bound"] is True
     assert payload["retained_receipt_cas_verified"] is True
     assert payload["retention_topology_stable"] is True
     assert payload["receipt_artifact_identity_stable"] is True
@@ -288,7 +289,7 @@ def test_completed_evidence_refuses_authentication_window_topology_race(
     spine.close()
 
 
-def test_completed_evidence_refuses_retained_read_window_topology_race(
+def test_completed_evidence_refuses_between_read_topology_race(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -311,7 +312,36 @@ def test_completed_evidence_refuses_retained_read_window_topology_race(
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
-        match="completed-state verification",
+        match="between completed-state reads",
+    ):
+        _verify(admission, recovery, ledger, receipt, fixture)
+    spine.close()
+
+
+def test_completed_evidence_refuses_final_read_topology_race(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
+        tmp_path
+    )
+    original = completed_module._topology_identity
+    calls = 0
+
+    def changing_topology(value):
+        nonlocal calls
+        calls += 1
+        result = original(value)
+        if calls == 4:
+            result = {key: dict(identity) for key, identity in result.items()}
+            result["event_store"]["inode"] += 1
+        return result
+
+    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
+        match="final completed-state read",
     ):
         _verify(admission, recovery, ledger, receipt, fixture)
     spine.close()
@@ -502,6 +532,7 @@ def test_completed_evidence_wire_claims_fail_closed(tmp_path) -> None:
             ProviderTargetReceiptRetentionCompletedEvidenceReceipt.from_dict(payload)
 
     for field in (
+        "admission_topology_bound",
         "retention_topology_stable",
         "receipt_artifact_identity_stable",
     ):
