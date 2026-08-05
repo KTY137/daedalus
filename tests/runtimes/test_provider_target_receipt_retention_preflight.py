@@ -8,6 +8,8 @@ import pytest
 
 import daedalus.runtimes.provider_target_receipt_retention_preflight as preflight_module
 from daedalus.gates.provider_target_receipt_retention_inventory import (
+    ProviderTargetReceiptRetentionInventory,
+    ProviderTargetReceiptRetentionSurface,
     scan_provider_target_receipt_retention,
 )
 from daedalus.gates.repository_head_revision import verify_repository_head_revision
@@ -182,6 +184,9 @@ def _call(
     inventory,
     authority,
     head_receipt,
+    *,
+    event_path: str = EVENT_PATH,
+    cas_path: str = CAS_PATH,
 ):
     return verify_provider_target_receipt_retention_preflight(
         root,
@@ -193,8 +198,8 @@ def _call(
         lease,
         expected_authority_id="authority.provider-target-receipt-retention",
         authority_keyring=KEYRING,
-        event_store_scope_path=EVENT_PATH,
-        receipt_cas_scope_path=CAS_PATH,
+        event_store_scope_path=event_path,
+        receipt_cas_scope_path=cas_path,
         at=NOW,
     )
 
@@ -379,6 +384,75 @@ def test_inventory_digest_substitution_refuses_signed_subject(tmp_path: Path) ->
         )
 
 
+def test_hostile_inventory_surface_subclasses_refuse_before_digest(
+    tmp_path: Path,
+) -> None:
+    root = _repository(tmp_path)
+    receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
+    calls: list[str] = []
+
+    class HostileSurface(ProviderTargetReceiptRetentionSurface):
+        def to_dict(self):
+            calls.append(self.function)
+            return super().to_dict()
+
+    hostile_surfaces = tuple(
+        HostileSurface(
+            function=row.function,
+            line=row.line,
+            column=row.column,
+            kind=row.kind,
+            callee=row.callee,
+            operation=row.operation,
+            externally_reachable_via=row.externally_reachable_via,
+        )
+        for row in inventory.surfaces
+    )
+    hostile_inventory = ProviderTargetReceiptRetentionInventory(
+        source_revision=inventory.source_revision,
+        source_sha256=inventory.source_sha256,
+        source_size=inventory.source_size,
+        surfaces=hostile_surfaces,
+    )
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionPreflightShapeError,
+        match="exact reviewed retention surfaces",
+    ):
+        _call(
+            root,
+            receipt,
+            execution,
+            lease,
+            hostile_inventory,
+            authority,
+            head_receipt,
+        )
+    assert calls == []
+
+
+def test_noncanonical_request_path_refuses_before_authority_comparison(
+    tmp_path: Path,
+) -> None:
+    root = _repository(tmp_path)
+    receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionPreflightShapeError,
+        match="canonical repository-relative POSIX",
+    ):
+        _call(
+            root,
+            receipt,
+            execution,
+            lease,
+            inventory,
+            authority,
+            head_receipt,
+            cas_path="attempt//cas/receipts",
+        )
+
+
 def test_wire_claim_escalation_and_non_exact_fields_refuse(tmp_path: Path) -> None:
     root = _repository(tmp_path)
     result, _ = _verify(root)
@@ -418,9 +492,14 @@ def test_guard_evidence_detachment_refuses_receipt(tmp_path: Path) -> None:
         ("retention_inventory_source_size", 2 * 1024 * 1024 + 1, "scanner bound"),
         ("retention_inventory_surface_count", 6, "exact reviewed set"),
         ("receipt_cas_scope_path", "attempt/state", "must be disjoint"),
+        (
+            "receipt_cas_scope_path",
+            "attempt//cas/receipts",
+            "canonical repository-relative POSIX",
+        ),
     ],
 )
-def test_malformed_revision_inventory_and_overlapping_scope_refuse(
+def test_malformed_revision_inventory_and_scope_refuse(
     tmp_path: Path,
     field: str,
     value: object,
