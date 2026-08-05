@@ -235,6 +235,17 @@ def test_subject_binds_receipt_inventory_and_separate_retention_lease() -> None:
             "unrelated effect scope",
         ),
         (
+            _execution(kill_switch_ref=""),
+            _lease(
+                effect_scope=EffectScope(
+                    read_only=False,
+                    writable_paths=(EVENT_PATH, CAS_PATH),
+                    kill_switch_ref="",
+                )
+            ),
+            "requires a kill switch",
+        ),
+        (
             _execution(execution_id="provider-execution"),
             _lease(),
             "distinct identities",
@@ -304,6 +315,39 @@ def test_malformed_or_overlapping_paths_refuse(event_path: str, cas_path: str) -
 def test_malformed_inventory_identity_refuses(value: object) -> None:
     with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
         _subject(inventory_sha256=value)  # type: ignore[arg-type]
+
+
+def test_exact_receipt_execution_and_lease_types_refuse() -> None:
+    with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
+        build_provider_target_receipt_retention_operation_subject(
+            receipt=object(),  # type: ignore[arg-type]
+            retention_inventory_sha256=INVENTORY_SHA256,
+            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
+            execution=_execution(),
+            effect_lease=_lease(),
+            event_store_scope_path=EVENT_PATH,
+            receipt_cas_scope_path=CAS_PATH,
+        )
+    with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
+        build_provider_target_receipt_retention_operation_subject(
+            receipt=_receipt(),
+            retention_inventory_sha256=INVENTORY_SHA256,
+            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
+            execution=object(),  # type: ignore[arg-type]
+            effect_lease=_lease(),
+            event_store_scope_path=EVENT_PATH,
+            receipt_cas_scope_path=CAS_PATH,
+        )
+    with pytest.raises(ProviderTargetReceiptRetentionContractBindingError):
+        build_provider_target_receipt_retention_operation_subject(
+            receipt=_receipt(),
+            retention_inventory_sha256=INVENTORY_SHA256,
+            retention_inventory_source_sha256=INVENTORY_SOURCE_SHA256,
+            execution=_execution(),
+            effect_lease=object(),  # type: ignore[arg-type]
+            event_store_scope_path=EVENT_PATH,
+            receipt_cas_scope_path=CAS_PATH,
+        )
 
 
 def test_wire_claim_escalation_refuses() -> None:
