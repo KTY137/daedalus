@@ -150,6 +150,26 @@ def test_preflight_rechecks_every_supplied_subject_digest() -> None:
     assert len(iterable.elts) == 7
 
 
+def test_exact_inventory_rows_and_paths_precede_digest_and_authority() -> None:
+    function = _function(
+        _tree(),
+        "verify_provider_target_receipt_retention_preflight",
+    )
+    source = ast.unparse(function)
+    surface_check = source.index(
+        "type(row) is not ProviderTargetReceiptRetentionSurface"
+    )
+    event_path_check = source.index(
+        "event_path = _scope_path(event_store_scope_path, 'event_store_scope_path')"
+    )
+    inventory_digest = source.index("inventory_digest = inventory.digest")
+    authority_call = source.index(
+        "decision = authorize_provider_target_receipt_retention_operation"
+    )
+    assert surface_check < inventory_digest < authority_call
+    assert event_path_check < inventory_digest < authority_call
+
+
 def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
     tree = _tree()
     classes = [
@@ -196,11 +216,13 @@ def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
         assert constants[field] is False
 
 
-def test_receipt_enforces_exact_revision_surface_bound_and_disjoint_paths() -> None:
+def test_receipt_enforces_exact_revision_inventory_and_disjoint_paths() -> None:
     source = MODULE.read_text(encoding="utf-8")
     assert '_SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")' in source
     assert "_EXPECTED_RETENTION_SURFACE_COUNT = 7" in source
     assert "source_size > _MAX_INVENTORY_SOURCE_BYTES" in source
+    assert "type(row) is not ProviderTargetReceiptRetentionSurface" in source
+    assert "if path != value:" in source
     assert "if _paths_overlap(" in source
 
 
