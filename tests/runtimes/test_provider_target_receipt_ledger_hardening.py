@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import runpy
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -8,10 +9,13 @@ from pathlib import Path
 
 import pytest
 
+from daedalus.kernel.source_trees import SourceTreeStore
 from daedalus.runtimes.provider_target_receipt_ledger import (
+    ProviderTargetReceiptLedger,
     ProviderTargetReceiptRetentionBindingError,
     ProviderTargetReceiptRetentionStateError,
 )
+from daedalus.spine.ledger import SpineLedger
 
 _HELPERS = runpy.run_path(
     str(Path(__file__).with_name("test_provider_target_receipt_ledger.py"))
@@ -208,3 +212,47 @@ def test_concurrent_same_subject_keeps_one_event_store_identity(tmp_path) -> Non
     assert len(rows) == 1
     assert rows[0].state == "COMPLETED"
     spine.close()
+
+
+def test_event_store_hardlink_alias_into_primary_refuses_at_construction(
+    tmp_path,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    source_store = SourceTreeStore(tmp_path / "cas")
+    spine = SpineLedger(tmp_path / "state" / "spine.sqlite3")
+    os.link(spine.path, primary / "spine.sqlite3")
+
+    try:
+        with pytest.raises(
+            ProviderTargetReceiptRetentionBindingError,
+            match="one filesystem identity",
+        ):
+            ProviderTargetReceiptLedger(
+                spine,
+                source_store,
+                primary_checkout=primary,
+            )
+    finally:
+        spine.close()
+
+
+def test_late_event_store_hardlink_alias_refuses_before_schema_write(
+    tmp_path,
+) -> None:
+    fixture = _fixture(tmp_path / "fixture")
+    receipt = _issue(fixture)
+    primary, spine, ledger = _ledger(tmp_path, fixture)
+    os.link(spine.path, primary / "spine.sqlite3")
+    assert _index_sql(spine) is None
+
+    try:
+        with pytest.raises(
+            ProviderTargetReceiptRetentionBindingError,
+            match="one filesystem identity",
+        ):
+            _retain(ledger, receipt, fixture)
+        assert _index_sql(spine) is None
+        assert _rows(spine, receipt) == []
+    finally:
+        spine.close()
