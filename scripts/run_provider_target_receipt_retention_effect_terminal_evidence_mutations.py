@@ -23,9 +23,19 @@ TESTS = (
 
 MUTATIONS = (
     (
-        "exact-subject-type-bypass",
-        "        if type(value) is not expected:\n",
-        "        if False:\n",
+        "exact-public-subject-type-bypass",
+        "    for value, expected, label in exact:\n"
+        "        if type(value) is not expected:\n"
+        "            raise ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError(\n"
+        "                f\"{label} must be exact {expected.__name__}\"\n"
+        "            )\n\n"
+        "    revision = _commit_revision(\n",
+        "    for value, expected, label in exact:\n"
+        "        if False:\n"
+        "            raise ProviderTargetReceiptRetentionEffectTerminalEvidenceShapeError(\n"
+        "                f\"{label} must be exact {expected.__name__}\"\n"
+        "            )\n\n"
+        "    revision = _commit_revision(\n",
     ),
     (
         "commit-revision-width-bypass",
@@ -43,8 +53,28 @@ MUTATIONS = (
         "    if False:\n",
     ),
     (
+        "authority-revision-bypass",
+        "    if authority_revisions != {revision}:\n",
+        "    if False:\n",
+    ),
+    (
         "completed-effect-state-bypass",
         '    if snapshot.state != "COMPLETED":\n',
+        "    if False:\n",
+    ),
+    (
+        "start-receipt-digest-bypass",
+        "    if start_receipt_sha != expected_start_sha:\n",
+        "    if False:\n",
+    ),
+    (
+        "terminal-start-binding-bypass",
+        "        or terminal.lease_sha256 != authorization.lease.digest\n",
+        "        or False\n",
+    ),
+    (
+        "terminal-receipt-digest-bypass",
+        "    if terminal_receipt_sha != expected_terminal_sha:\n",
         "    if False:\n",
     ),
     (
@@ -53,17 +83,22 @@ MUTATIONS = (
         "    if False:\n",
     ),
     (
+        "second-store-identity-fence-bypass",
+        "    if store_after != store_before:\n",
+        "    if False:\n",
+    ),
+    (
         "double-read-state-fence-bypass",
         "    if first != second:\n",
         "    if False:\n",
     ),
     (
-        "start-receipt-binding-bypass",
+        "start-receipt-evidence-binding-bypass",
         "    if start.receipt_sha256 != completed_evidence.start_receipt_sha256:\n",
         "    if False:\n",
     ),
     (
-        "terminal-receipt-binding-bypass",
+        "terminal-receipt-evidence-binding-bypass",
         "    if terminal.receipt_sha256 != completed_evidence.terminal_receipt_sha256:\n",
         "    if False:\n",
     ),
