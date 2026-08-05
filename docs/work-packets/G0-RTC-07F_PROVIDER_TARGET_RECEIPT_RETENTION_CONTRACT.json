@@ -8,7 +8,7 @@
     "revision": "bf678e837a374787c0198ba6047777001a991f41"
   },
   "branch": "g0/provider-target-receipt-retention-contract-linear",
-  "purpose": "Define one signed, short-lived and non-executing guard contract that binds exact receipt-retention authority to a separate local filesystem-write Effect Lease and exact Event-Store/CAS scope.",
+  "purpose": "Define one signed, short-lived and non-executing guard contract that binds exact receipt-retention authority to a separate local filesystem-write Effect Lease, a same-revision inventory identity and exact Event-Store/CAS scope.",
   "scope": {
     "production_retention_changed": false,
     "canonical_effect_inventory_changed": false,
@@ -33,6 +33,7 @@
       "canonical Event Store path",
       "receipt CAS root"
     ],
+    "inventory_source_revision_must_equal_receipt_revision": true,
     "provider_and_retention_leases_must_differ": true,
     "provider_and_retention_execution_ids_must_differ": true,
     "provider_and_retention_idempotency_keys_must_differ": true,
@@ -43,16 +44,18 @@
   "acceptance": {
     "exact_subject_round_trip": true,
     "signed_authority_round_trip": true,
-    "receipt_inventory_execution_and_lease_digests_bound": true,
+    "receipt_inventory_revision_execution_and_lease_digests_bound": true,
     "separate_least_privilege_retention_lease": true,
-    "stale_revision_refusal": true,
+    "stale_lease_revision_refusal": true,
+    "stale_inventory_revision_refusal": true,
+    "malformed_inventory_revision_refusal": true,
     "wrong_entrypoint_and_scope_refusal": true,
     "overlapping_or_malformed_path_refusal": true,
     "wire_claim_escalation_refusal": true,
     "signature_unknown_key_expiry_and_subject_substitution_refusal": true,
     "builder_tests_prepared": true,
     "independent_source_review_prepared": true,
-    "bounded_mutation_count": 9,
+    "bounded_mutation_count": 10,
     "supported_platform_matrix_requested": [
       "ubuntu-latest/python-3.10",
       "ubuntu-latest/python-3.12",
@@ -71,7 +74,7 @@
   },
   "known_boundaries": [
     "The contract is inert and is not registered or wired to a production entrypoint.",
-    "The contract binds inventory digests but does not authenticate the inventory artifact.",
+    "The contract binds the inventory report digest, source revision and source-byte digest but does not authenticate the inventory artifact.",
     "The contract binds the receipt identity but does not authenticate the provider-target receipt.",
     "The contract does not verify or begin the persisted Effect Lease.",
     "The contract explicitly refuses to claim Primary-Checkout disjointness; a future central entrypoint must prove concrete target topology.",
