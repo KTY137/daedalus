@@ -105,6 +105,22 @@ def test_authority_authenticates_before_repository_observation() -> None:
     assert authority_line < head_line < inventory_line
 
 
+def test_guard_decision_compares_exact_contract_allow_and_evidence() -> None:
+    function = _function(
+        _tree(),
+        "verify_provider_target_receipt_retention_preflight",
+    )
+    comparisons = {
+        ast.unparse(node)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Compare)
+    }
+    assert "type(decision) is not GuardDecision" in comparisons
+    assert "decision.contract != RETENTION_GUARD_CONTRACT" in comparisons
+    assert "decision.allowed is not True" in comparisons
+    assert "decision.evidence != expected_evidence" in comparisons
+
+
 def test_preflight_receipt_permanently_refuses_effect_and_gate_claims() -> None:
     tree = _tree()
     classes = [
