@@ -1,0 +1,92 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07I_REPOSITORY_HEAD_RECEIPT_INTEGRATION",
+  "gate": 0,
+  "status": "prepared-unverified",
+  "exact_parent": {
+    "branch": "g0/provider-target-receipt-retention-inventory-refresh-linear",
+    "revision": "c0e1a378ce560d25d2225c8ea67f9bb2122be3db"
+  },
+  "branch": "g0/provider-target-receipt-retention-head-receipt-integration-linear",
+  "source_transfer": {
+    "source_branch": "g0/repository-head-revision-receipt-linear",
+    "source_revision": "8171be198b4e14308b41abd002ea34e94eed7a88",
+    "ported_blobs": {
+      "configs/schemas/repository-head-revision-receipt.schema.json": "ef7eb06c0f64442449d7999c7f43fb3a50b7d7fc",
+      "daedalus/gates/repository_head_revision.py": "bbdb28084799ad7a1babbb9ea4ce8563f46f3f3c",
+      "scripts/run_repository_head_revision_mutations.py": "8637be139e686e4b69e4e181b9c6243bda1c0ca2",
+      "tests/gates/test_repository_head_revision.py": "91522b3cee7c3beb191f15a704b70e98f97c5c0d",
+      "tests/gates/test_repository_head_revision_review.py": "a6a274a99a3b889cb3ac9ed2f395c8c2b50e5c94",
+      "tests/gates/test_repository_head_revision_schema.py": "9171bd5ba5378f74e33cd17874040a7a82086d9c",
+      "tests/gates/test_repository_head_revision_wire.py": "88767051f85f6c7c07359c45dad92f744a7cbab2"
+    }
+  },
+  "purpose": "Port the previously reviewed process-free repository HEAD revision receipt onto the provider-target receipt-retention line as exact Git blobs, without composing it with retention authority or changing production behavior.",
+  "scope": {
+    "exact_blob_transfer_only": true,
+    "production_behavior_changed": false,
+    "repository_head_receipt_available_on_retention_line": true,
+    "receipt_composed_with_provider_target_verification": false,
+    "receipt_composed_with_retention_inventory": false,
+    "retention_entrypoint_wired": false,
+    "canonical_effect_inventory_changed": false,
+    "guard_contract_changed": false,
+    "effect_lease_consumed": false,
+    "provider_execution_authorized": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false
+  },
+  "acceptance": {
+    "all_ported_git_blobs_match_source_revision": true,
+    "detached_head_supported": true,
+    "single_loose_symbolic_ref_supported": true,
+    "single_packed_symbolic_ref_supported": true,
+    "gitfile_worktree_refused": true,
+    "nested_symbolic_ref_refused": true,
+    "malformed_and_multiline_head_refused": true,
+    "stale_revision_refused": true,
+    "duplicate_packed_ref_refused": true,
+    "symlinked_metadata_refused": true,
+    "changing_observation_refused": true,
+    "receipt_wire_claim_escalation_refused": true,
+    "process_network_and_write_authority_absent": true,
+    "independent_static_review_prepared": true,
+    "bounded_mutation_campaign_requested": true,
+    "supported_platform_matrix_requested": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "retention_predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_and_isolated_wheel_requested": true
+  },
+  "revision_authentication": {
+    "generic_head_receipt_available": true,
+    "provider_receipt_source_revision_composed": false,
+    "retention_inventory_source_revision_composed": false,
+    "reason": "This integration packet transfers the generic verifier unchanged. A subsequent central admission packet must live-reverify the receipt and require exact equality among authenticated HEAD, provider-target receipt and retention-inventory revisions before any Effect Lease transition or write."
+  },
+  "verification": {
+    "hard_evidence_claimed": false,
+    "source_inspection_is_hard_evidence": false,
+    "llm_statement_is_hard_evidence": false,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute"
+  },
+  "known_boundaries": [
+    "Git blob equality is transfer provenance, not executable evidence.",
+    "The generic receipt does not verify commit-object existence or worktree cleanliness.",
+    "The receipt is not yet composed with provider-target verification, retention inventory, the signed retention guard, persisted Effect-Lease state or the retention ledger.",
+    "Canonical entrypoint registration and atomic retention remain subsequent small packets.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared checks are not represented as executed evidence."
+  ],
+  "forbidden_actions": [
+    "modify-main",
+    "modify-experimental",
+    "merge",
+    "automatic-promotion",
+    "fabricate-owner-approval",
+    "claim-gate-closure"
+  ]
+}
