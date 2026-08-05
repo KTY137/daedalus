@@ -1,0 +1,110 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-07C",
+  "title": "Signed Provider Target Source-Tree Verification",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "824b1ec93b9c38c071613031be516facb0e6405b",
+  "parent_branch": "g0/provider-executable-target-manifest-linear",
+  "branch": "g0/provider-executable-target-verification-linear",
+  "change_class": "read-only-source-tree-structural-verification",
+  "dependency_state": {
+    "parent_static_reviewed": true,
+    "parent_exact_head_ci_blocked_by_issue": 67,
+    "dependent_executable_loader_and_broker_wiring_frozen": true,
+    "independent_read_only_verification_work_allowed": true
+  },
+  "responsibility_split": {
+    "contracts": "daedalus/runtimes/provider_target_verification_contracts.py",
+    "verifier": "daedalus/runtimes/provider_target_verification.py",
+    "canonical_source_tree_authority": "daedalus/kernel/source_trees.py",
+    "signed_target_authority": "daedalus/runtimes/provider_executable_targets.py"
+  },
+  "scope": {
+    "consumes_signed_target_authority": true,
+    "consumes_exact_source_tree_store_and_artifact_ref": true,
+    "authenticates_target_before_source_tree_read": true,
+    "verifies_source_tree_revision": true,
+    "verifies_module_path_without_import": true,
+    "verifies_exact_source_digest_and_rehashes_bytes": true,
+    "parses_strict_utf8_python_with_ast": true,
+    "requires_unique_module_file_or_package_init": true,
+    "requires_unique_function_or_method_definition": true,
+    "refuses_alias_and_class_targets": true,
+    "supports_sync_and_async_function_definitions": true,
+    "issues_signed_structural_verification_receipt": true,
+    "reverifies_receipt_against_exact_source_bytes": true,
+    "imports_or_executes_target": false,
+    "loads_provider_adapter": false,
+    "persists_receipt": false,
+    "starts_or_finishes_effect": false,
+    "modifies_broker": false,
+    "writes_source_tree_or_checkout": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "issues_promotion_receipt": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "signed_targets_structurally_verified_against_exact_cas_tree": true,
+    "receipt_authenticated": true,
+    "receipt_retained_by_runtime": false,
+    "provider_execution_allowed": false,
+    "guarded_executable_registry_available": false,
+    "arbitrary_callback_gap_closed": false,
+    "issue_188_closed": false,
+    "gate_closed": false
+  },
+  "acceptance": {
+    "exact_receipt_round_trip_and_reverification": true,
+    "invalid_target_authority_refuses_before_tree_read": true,
+    "invalid_or_unknown_receipt_key_refuses_before_tree_read": true,
+    "independent_blob_rehash": true,
+    "stale_revision_refuses": true,
+    "signed_source_digest_substitution_refuses": true,
+    "module_file_package_shadow_refuses": true,
+    "duplicate_definition_refuses": true,
+    "alias_class_and_nonclass_owner_targets_refuse": true,
+    "malformed_utf8_and_syntax_refuse": true,
+    "bounded_source_read": true,
+    "exact_store_ref_receipt_and_nested_target_types": true,
+    "receipt_claim_escalation_refuses": true,
+    "signed_receipt_source_tree_substitution_refuses": true,
+    "independent_no_loader_no_execution_source_review": true,
+    "bounded_mutation_campaign": 10
+  },
+  "verification": {
+    "focused_builder_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_revision_tests_prepared": true,
+    "signature_substitution_and_bypass_tests_prepared": true,
+    "source_store_method_substitution_test_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "syntax-and-static-review-only",
+      "reason": "the automation runtime has no executable exact private checkout; local AST parsing is not product evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "the signed structural receipt is returned but not durably retained",
+    "no guarded executable registry or loader consumes the signed structural receipt",
+    "the broker still accepts independently supplied invoke and output_digests callbacks",
+    "a later green dependent packet must persist the receipt, construct an exact guarded executable registry and require broker consumption before begin_effect",
+    "provider-observation persistence issue 189 and repository-write release binding issue 194 remain open",
+    "Gate 0 still requires complete effect migration, live runtime and sandbox receipts, complete fault evidence, release closure and explicit owner decision"
+  ]
+}
