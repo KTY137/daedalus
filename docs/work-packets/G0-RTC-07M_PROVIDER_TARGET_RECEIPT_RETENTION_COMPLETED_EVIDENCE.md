@@ -10,7 +10,7 @@ GitHub Actions issue #67 still prevents executable repository-hosted evidence: j
 
 The recovery decision introduced by the predecessor packet maps a retained `COMPLETED` execution to `verify_completed_retention_evidence`. This packet implements that read-only verification step without crossing into the effectful retention entrypoint.
 
-The verifier accepts the exact completed admission and recovery decision, reauthenticates the provider-target verification receipt against its signed authorities and exact source tree, and then verifies the canonical retention Event-Store row and receipt-CAS object twice. Concrete filesystem identities for the Primary Checkout, Event Store, CAS root and retained artifact are fenced around the reads so path replacement, symlink ambiguity, hard-link ambiguity and read-window races fail closed.
+The verifier accepts the exact completed admission and recovery decision, reauthenticates the provider-target verification receipt against its signed authorities and exact source tree, and verifies the canonical retention Event-Store row and receipt-CAS object twice. The live Primary Checkout, retention root, Event Store and receipt CAS must resolve to the exact concrete topology named by the admission. Concrete filesystem identities for that topology and the retained artifact are fenced before and after authentication, between both completed-state reads, and after the final read so path replacement, symlink ambiguity, hard-link ambiguity and each read-window race fail closed.
 
 ## Ordering contract
 
@@ -18,17 +18,20 @@ The verifier accepts the exact completed admission and recovery decision, reauth
 2. Canonically reconstruct the admission and recovery decision.
 3. Bind completed state, recovery action, admission digest, provider-target receipt digest and both Effect receipt identities.
 4. Validate the retention topology and capture concrete path/device/inode identities.
-5. Capture the retained receipt artifact file identity and require one regular-file identity.
-6. Authenticate the provider-target verification receipt and exact source tree.
-7. Repeat the topology and artifact identity fence.
-8. Strictly read and validate the completed Event-Store intent and retained CAS bytes.
-9. Repeat topology, artifact, Event-Store and CAS verification.
-10. Compare the two retained-state observations and reconstruct both input receipts again.
-11. Emit a strict non-authorizing evidence receipt.
+5. Bind the live Primary Checkout, Event Store and receipt CAS identities to the admission paths; prove the admission retention root remains outside the Primary Checkout and contains both stores.
+6. Capture the retained receipt artifact file identity and require one regular-file identity.
+7. Authenticate the provider-target verification receipt and exact source tree.
+8. Repeat the admission-bound topology and artifact identity fence before retained-state reads.
+9. Strictly read and validate the first completed Event-Store intent and retained CAS bytes.
+10. Repeat the admission-bound topology and artifact identity fence between the two completed-state reads.
+11. Strictly read and validate the second completed Event-Store intent and retained CAS bytes.
+12. Repeat the admission-bound topology and artifact identity fence after the final completed-state read.
+13. Compare both retained-state observations, all identity fences and reconstructed input receipts.
+14. Emit a strict non-authorizing evidence receipt.
 
 ## Evidence boundary
 
-The resulting receipt may claim that the exact provider-target receipt authenticated, the canonical retention intent is complete, the retained bytes are present and canonical, the Primary Checkout is disjoint, and the observed topology and artifact identities remained stable through verification.
+The resulting receipt may claim that the exact provider-target receipt authenticated, the admission topology remained bound, the canonical retention intent is complete, the retained bytes are present and canonical, the Primary Checkout is disjoint, and the observed topology and artifact identities remained stable through verification.
 
 It cannot claim that the persisted Effect terminal receipt was verified. It grants no Effect Lease, start, write, terminalization, replay, production registration, promotion, OwnerApproval, Gate transition or Gate closure authority.
 
@@ -38,7 +41,7 @@ The packet reuses the retention ledger's strict read-only helpers for effect-key
 
 ## Prepared adversarial review
 
-The batch includes malformed and stale revisions, exact-type/subclass refusal, detached admission/recovery identities, non-completed states, CAS substitution, terminal-detail substitution, artifact hard links, two independent topology race windows, a two-read Event-Store race, strict schema/claim tests, an independent AST/source review and twelve bounded mutations.
+The batch includes malformed and stale revisions, exact-type/subclass refusal, detached admission/recovery identities, foreign and relative admission topology paths, invalid retention-root containment, non-completed states, CAS substitution, terminal-detail substitution, artifact hard links, authentication-window, between-read and final-read topology races, a two-read Event-Store race, strict schema/claim tests, an independent AST/source review and sixteen bounded mutations.
 
 The dedicated workflow requests Ubuntu and Windows coverage on Python 3.10 and 3.12 with two hash seeds, predecessor regressions, the full suite, package build and isolated-wheel import. None of those checks may be marked verified until Actions records real steps and artifacts on the exact head.
 
