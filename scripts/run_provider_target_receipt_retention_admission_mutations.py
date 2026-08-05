@@ -30,6 +30,21 @@ MUTATIONS = (
         "    final_topology = (lambda **kwargs: topology)(\n",
     ),
     (
+        "second-persisted-replay-bypass",
+        "    final_replay = _inspect_persisted_execution(authorization, execution)\n",
+        "    final_replay = replay\n",
+    ),
+    (
+        "persisted-replay-equality-bypass",
+        "    if final_replay != replay:\n",
+        "    if False:\n",
+    ),
+    (
+        "live-unstarted-authentication-bypass",
+        "        authorization.verify()\n",
+        "        return\n",
+    ),
+    (
         "guard-equality-bypass",
         "    if guards[0] != expected:\n",
         "    if False:\n",
@@ -47,6 +62,16 @@ MUTATIONS = (
     (
         "concrete-cas-binding-bypass",
         "    if not _same_identity(cas, expected_cas):\n",
+        "    if False:\n",
+    ),
+    (
+        "cas-object-target-binding-bypass",
+        "    if not _same_identity(objects, expected_objects):\n",
+        "    if False:\n",
+    ),
+    (
+        "writable-spine-bypass",
+        '    if type(getattr(spine, "read_only", None)) is not bool or spine.read_only:\n',
         "    if False:\n",
     ),
     (
