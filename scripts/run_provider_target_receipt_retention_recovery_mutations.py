@@ -15,6 +15,7 @@ MODULE = Path(
 )
 TESTS = (
     "tests/runtimes/test_provider_target_receipt_retention_recovery.py",
+    "tests/runtimes/test_provider_target_receipt_retention_recovery_hardening.py",
     "tests/runtimes/test_provider_target_receipt_retention_recovery_review.py",
 )
 
@@ -22,6 +23,11 @@ MUTATIONS = (
     (
         "exact-admission-type-bypass",
         "    if type(admission) is not ProviderTargetReceiptRetentionAdmissionReceipt:\n",
+        "    if False:\n",
+    ),
+    (
+        "commit-revision-width-bypass",
+        "    if len(revision) != 40:\n",
         "    if False:\n",
     ),
     (
