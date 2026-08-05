@@ -1,9 +1,9 @@
 """Race-aware, process-free verification of a repository's exact Git HEAD.
 
 The verifier reads only ``.git/HEAD`` and the selected loose or packed ref
-through the shared repository-source reader.  It never invokes ``git`` or any
+through the shared repository-source reader. It never invokes ``git`` or any
 other process, never mutates Git metadata, and does not infer worktree
-cleanliness or commit-object validity.  The resulting receipt proves only that
+cleanliness or commit-object validity. The resulting receipt proves only that
 the selected expected revision matched a stable HEAD observation in a canonical
 non-worktree checkout.
 """
@@ -84,14 +84,20 @@ def _canonical_ref(value: Any) -> str:
         raise RepositoryHeadRevisionShapeError(
             "HEAD symbolic ref is not canonical"
         )
-    forbidden = set(" ~^:?*[")
-    if any(character in forbidden or ord(character) < 32 for character in value):
+    forbidden = set(" ~^:?*[]")
+    if any(
+        character in forbidden or ord(character) < 32 or ord(character) == 127
+        for character in value
+    ):
         raise RepositoryHeadRevisionShapeError(
             "HEAD symbolic ref contains a forbidden character"
         )
     parts = value.split("/")
     if len(parts) < 3 or any(
-        not part or part in {".", ".."} or part.startswith(".")
+        not part
+        or part in {".", ".."}
+        or part.startswith(".")
+        or part.endswith(".lock")
         for part in parts
     ):
         raise RepositoryHeadRevisionShapeError(
@@ -110,7 +116,12 @@ def _revision_value(value: Any, label: str) -> str:
 
 
 def _safe_optional_regular_file(root: Path, relative_path: str) -> bool:
-    path = normalize_repository_path(relative_path)
+    try:
+        path = normalize_repository_path(relative_path)
+    except RepositoryTreePathError as exc:
+        raise RepositoryHeadRevisionShapeError(
+            "repository metadata path is not canonical"
+        ) from exc
     current = root
     parts = Path(*path.split("/")).parts
     for index, part in enumerate(parts):
@@ -151,7 +162,10 @@ def _read_source(root: Path, path: str) -> RepositorySourceSnapshot:
         ) from exc
 
 
-def _parse_packed_revision(snapshot: RepositorySourceSnapshot, ref: str) -> str:
+def _parse_packed_revision(
+    snapshot: RepositorySourceSnapshot,
+    ref: str,
+) -> str:
     matches: list[str] = []
     try:
         text = snapshot.source.decode("utf-8", errors="strict")
@@ -164,7 +178,9 @@ def _parse_packed_revision(snapshot: RepositorySourceSnapshot, ref: str) -> str:
             continue
         revision, separator, name = line.partition(" ")
         if separator and name == ref:
-            matches.append(_revision_value(revision, "packed ref revision"))
+            matches.append(
+                _revision_value(revision, "packed ref revision")
+            )
     if len(matches) != 1:
         raise RepositoryHeadRevisionBindingError(
             "HEAD symbolic ref is not present exactly once in packed-refs"
@@ -231,7 +247,12 @@ class _HeadObservation:
             raise RepositoryHeadRevisionShapeError(
                 "symbolic HEAD reference_path is missing"
             )
-        normalize_repository_path(self.reference_path)
+        try:
+            normalize_repository_path(self.reference_path)
+        except RepositoryTreePathError as exc:
+            raise RepositoryHeadRevisionShapeError(
+                "symbolic HEAD reference_path is not canonical"
+            ) from exc
         try:
             object.__setattr__(
                 self,
@@ -353,7 +374,9 @@ class RepositoryHeadRevisionReceipt:
             raise RepositoryHeadRevisionShapeError(
                 "repository HEAD receipt fields are not exact"
             )
-        if payload["schema"] != "daedalus-repository-head-revision-receipt/1":
+        if payload["schema"] != (
+            "daedalus-repository-head-revision-receipt/1"
+        ):
             raise RepositoryHeadRevisionShapeError(
                 "repository HEAD receipt schema does not match"
             )
