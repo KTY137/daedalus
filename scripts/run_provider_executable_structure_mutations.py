@@ -11,31 +11,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = Path("daedalus/runtimes/provider_executable_structure.py")
-TESTS = (
-    "tests/runtimes/test_provider_executable_structure.py",
-    "tests/runtimes/test_provider_executable_structure_bypass.py",
-)
+TESTS = ("tests/runtimes/test_provider_executable_structure.py",)
 
 MUTATIONS = (
     (
-        "projection-exact-type-bypass",
-        "if type(projection) is not ProviderExecutableTargetProjection:\n",
-        "if False:\n",
+        "authority-subject-type-bypass",
+        "        if type(value) is not expected:\n",
+        "        if False:\n",
+    ),
+    (
+        "authenticated-projection-type-bypass",
+        "    if type(projection) is not ProviderExecutableTargetProjection:\n",
+        "    if False:\n",
     ),
     (
         "repository-root-shape-bypass",
-        "if not isinstance(repository_root, Path):\n",
-        "if False:\n",
+        "    if not isinstance(repository_root, Path):\n",
+        "    if False:\n",
     ),
     (
-        "output-target-substitution",
-        "            projection.output_digests_target,\n            expected_source_sha256=projection.output_digests_source_sha256,\n",
-        "            projection.invoke_target,\n            expected_source_sha256=projection.output_digests_source_sha256,\n",
-    ),
-    (
-        "projection-digest-detachment",
-        "        target_projection_sha256=projection.digest,\n",
-        "        target_projection_sha256=\"0\" * 64,\n",
+        "target-authority-digest-detachment",
+        "        target_authority_sha256=target_authority.digest,\n",
+        '        target_authority_sha256="0" * 64,\n',
     ),
     (
         "receipt-live-rebuild-bypass",
@@ -53,19 +50,19 @@ MUTATIONS = (
         "    if False:\n",
     ),
     (
+        "target-authority-claim-loss",
+        '            "target_authority_authenticated": True,\n',
+        '            "target_authority_authenticated": False,\n',
+    ),
+    (
         "provider-execution-claim-escalation",
-        "            \"repository_bytes_executed\": False,\n            \"provider_execution_allowed\": False,\n            \"source_revision_verified_against_git_head\": False,\n",
-        "            \"repository_bytes_executed\": False,\n            \"provider_execution_allowed\": True,\n            \"source_revision_verified_against_git_head\": False,\n",
+        '            "provider_execution_allowed": False,\n',
+        '            "provider_execution_allowed": True,\n',
     ),
     (
         "git-head-claim-escalation",
-        "            \"provider_execution_allowed\": False,\n            \"source_revision_verified_against_git_head\": False,\n",
-        "            \"provider_execution_allowed\": False,\n            \"source_revision_verified_against_git_head\": True,\n",
-    ),
-    (
-        "structural-verification-claim-loss",
-        "            \"output_digests\": self.output_digests.to_dict(),\n            \"targets_structurally_verified\": True,\n",
-        "            \"output_digests\": self.output_digests.to_dict(),\n            \"targets_structurally_verified\": False,\n",
+        '            "source_revision_verified_against_git_head": False,\n',
+        '            "source_revision_verified_against_git_head": True,\n',
     ),
 )
 
@@ -77,7 +74,9 @@ def _run(mutated_source: str, name: str) -> None:
         target = sandbox / MODULE
         target.write_text(mutated_source, encoding="utf-8")
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(sandbox) + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = (
+            str(sandbox) + os.pathsep + env.get("PYTHONPATH", "")
+        )
         env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", *TESTS],
@@ -100,7 +99,7 @@ def main() -> int:
                 f"mutation seam is not unique for {name}: {source.count(old)}"
             )
         _run(source.replace(old, new, 1), name)
-    print(f"killed {len(MUTATIONS)} provider executable structure mutants")
+    print(f"killed {len(MUTATIONS)} provider structure mutants")
     return 0
 
 
