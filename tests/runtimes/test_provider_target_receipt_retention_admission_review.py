@@ -46,6 +46,10 @@ def _class(tree: ast.Module, name: str) -> ast.ClassDef:
     return matches[0]
 
 
+def _source(node: ast.AST) -> str:
+    return ast.unparse(node)
+
+
 def test_admission_has_no_writer_process_network_or_promotion_authority() -> None:
     tree = _tree()
     imported_modules: set[str] = set()
@@ -107,7 +111,7 @@ def test_admission_has_no_writer_process_network_or_promotion_authority() -> Non
     )
 
 
-def test_preflight_and_topology_are_double_fenced_around_persisted_replay() -> None:
+def test_preflight_and_identity_topology_are_double_fenced_around_replay() -> None:
     function = _function(
         _tree(),
         "verify_provider_target_receipt_retention_admission",
@@ -135,14 +139,66 @@ def test_preflight_and_topology_are_double_fenced_around_persisted_replay() -> N
         < topology_lines[1]
         < preflight_lines[1]
     )
+    source = _source(function)
+    assert "if final_topology != topology" in source
+    assert "if final_preflight.digest != preflight.digest" in source
+    assert "if _exact_guard(authorization, final_preflight) != guard" in source
 
 
-def test_admission_requires_exact_persisted_authority_types() -> None:
-    function = _function(
-        _tree(),
-        "verify_provider_target_receipt_retention_admission",
+def test_topology_snapshot_retains_path_device_inode_and_all_companions() -> None:
+    tree = _tree()
+    snapshot = _class(tree, "_TopologySnapshot")
+    annotated = {
+        node.target.id
+        for node in snapshot.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+    }
+    assert annotated == {
+        "primary",
+        "retention_root",
+        "event_store",
+        "receipt_cas",
+        "effect_store",
+        "sqlite_companions",
+    }
+
+    identity = _source(_function(tree, "_identity"))
+    topology = _source(_function(tree, "_verify_topology"))
+    companions = _source(_function(tree, "_sqlite_companion_paths"))
+    assert "return (resolved, int(info.st_dev), int(info.st_ino))" in identity
+    assert "_contains_symlink(absolute)" in identity
+    assert "absolute.resolve(strict=True)" in identity
+    assert "stat.S_ISDIR(info.st_mode)" in identity
+    assert "stat.S_ISREG(info.st_mode)" in identity
+    assert "info.st_nlink != 1" in identity
+    assert "return _TopologySnapshot" in topology
+    assert "sqlite_companions=tuple(companions)" in topology
+    for suffix in ("-wal", "-shm", "-journal"):
+        assert suffix in companions
+
+
+def test_topology_requires_exact_inner_ledgers_and_concrete_scope_bindings() -> None:
+    source = _source(_function(_tree(), "_verify_topology"))
+    assert "type(spine) is not SpineLedger" in source
+    assert "type(source_store) is not SourceTreeStore" in source
+    assert "_same_identity(primary, ledger_primary)" in source
+    assert "_same_identity(event, expected_event)" in source
+    assert "_same_identity(cas, expected_cas)" in source
+    assert "_overlap(primary[0], root[0])" in source
+    assert "root[0] not in event[0].parents" in source
+    assert "root[0] not in cas[0].parents" in source
+    assert "_overlap(left[0], right[0]) or _same_identity(left, right)" in source
+    assert "identity_key in known_identities" in source
+    assert "_overlap(companion[0], path)" in source
+
+
+def test_admission_requires_exact_persisted_authority_types_and_bindings() -> None:
+    tree = _tree()
+    verifier = _source(
+        _function(tree, "verify_provider_target_receipt_retention_admission")
     )
-    source = ast.unparse(function)
+    shape = _source(_function(tree, "_verify_authorization_shape"))
     for required in (
         "EffectExecutionRequest",
         "NonRuntimeEffectAuthorization",
@@ -152,14 +208,28 @@ def test_admission_requires_exact_persisted_authority_types() -> None:
         "PolicyDecision",
         "EffectLeaseLedger",
     ):
-        assert required in source
-    assert "type(value) is not expected" in source
-    assert "type(replay) is not EffectExecutionReplaySnapshot" in source
+        assert required in verifier or required in shape
+    assert "type(value) is not expected" in verifier
+    assert "type(value) is not expected" in shape
+    assert "type(replay) is not EffectExecutionReplaySnapshot" in verifier
+    for binding in (
+        "lease.request_id != request.request_id",
+        "lease.request_sha256 != request.digest",
+        "lease.policy_decision_id != policy.decision_id",
+        "lease.policy_decision_sha256 != policy.digest",
+        "policy.subject_id != request.request_id",
+        "policy.subject_sha256 != request.digest",
+        "policy.verdict != 'allow'",
+        "lease.requested_effects != request.requested_effects",
+        "lease.effect_scope != request.effect_scope",
+        "policy.effect_scope != request.effect_scope",
+        "lease.kill_switch_generation != request.kill_switch_generation",
+    ):
+        assert binding in shape
 
 
 def test_guard_is_one_exact_allowed_signed_preflight_decision() -> None:
-    function = _function(_tree(), "_exact_guard")
-    source = ast.unparse(function)
+    source = _source(_function(_tree(), "_exact_guard"))
     assert "type(guards) is not tuple" in source
     assert "len(guards) != 1" in source
     assert "type(guards[0]) is not GuardDecision" in source
@@ -169,31 +239,22 @@ def test_guard_is_one_exact_allowed_signed_preflight_decision() -> None:
     assert "evidence=preflight.guard_evidence" in source
 
 
-def test_topology_binds_real_nonaliased_disjoint_paths_and_sqlite_companions() -> None:
-    tree = _tree()
-    identity = ast.unparse(_function(tree, "_identity"))
-    topology = ast.unparse(_function(tree, "_verify_topology"))
-    companions = ast.unparse(_function(tree, "_sqlite_companions"))
-
-    assert "_contains_symlink(absolute)" in identity
-    assert "resolved = absolute.resolve(strict=True)" in identity
-    assert "stat.S_ISDIR(info.st_mode)" in identity
-    assert "stat.S_ISREG(info.st_mode)" in identity
-    assert "info.st_nlink != 1" in identity
-    assert "_same_identity(primary, ledger_primary)" in topology
-    assert "_same_identity(event, expected_event)" in topology
-    assert "_same_identity(cas, expected_cas)" in topology
-    assert "_overlap(primary[0], root[0])" in topology
-    assert "_overlap(left[0], right[0]) or _same_identity(left, right)" in topology
-    assert "_sqlite_companions(store)" in topology
-    for suffix in ("-wal", "-shm", "-journal"):
-        assert suffix in companions
+def test_replayed_preflight_binds_all_live_subject_digests() -> None:
+    source = _source(_function(_tree(), "_replay_preflight"))
+    for comparison in (
+        "preflight.retention_execution_request_sha256 != execution.digest",
+        "preflight.retention_effect_lease_sha256 != effect_lease.digest",
+        "preflight.provider_target_receipt_sha256 != receipt.digest",
+        "preflight.retention_inventory_sha256 != inventory.digest",
+        "preflight.retention_authority_sha256 != authority.digest",
+    ):
+        assert comparison in source
+    assert "type(preflight) is not ProviderTargetReceiptRetentionPreflightReceipt" in source
 
 
-def test_admission_receipt_permanently_refuses_write_reexecution_and_gate_claims() -> None:
-    tree = _tree()
+def test_receipt_permanently_refuses_write_reexecution_registry_and_gate_claims() -> None:
     receipt_class = _class(
-        tree,
+        _tree(),
         "ProviderTargetReceiptRetentionAdmissionReceipt",
     )
     methods = {
@@ -227,22 +288,32 @@ def test_admission_receipt_permanently_refuses_write_reexecution_and_gate_claims
     ):
         assert constants[field] is False
 
-
-def test_replay_preflight_binds_all_live_subject_digests() -> None:
-    function = _function(_tree(), "_replay_preflight")
-    source = ast.unparse(function)
-    for comparison in (
-        "preflight.retention_execution_request_sha256 != execution.digest",
-        "preflight.retention_effect_lease_sha256 != effect_lease.digest",
-        "preflight.provider_target_receipt_sha256 != receipt.digest",
-        "preflight.retention_inventory_sha256 != inventory.digest",
-        "preflight.retention_authority_sha256 != authority.digest",
-    ):
-        assert comparison in source
-    assert "type(preflight) is not ProviderTargetReceiptRetentionPreflightReceipt" in source
+    from_dict = _source(methods["from_dict"])
+    assert "payload[field] is not expected" in from_dict
+    assert "state not in _EXECUTION_STATES" in from_dict
 
 
-def test_public_api_accepts_no_callback_provider_or_promotion_authority() -> None:
+def test_receipt_shape_is_bounded_and_revision_is_exact_commit_sha() -> None:
+    receipt_class = _class(
+        _tree(),
+        "ProviderTargetReceiptRetentionAdmissionReceipt",
+    )
+    post_init = next(
+        node
+        for node in receipt_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__post_init__"
+    )
+    source = _source(post_init)
+    assert "_REVISION_40.fullmatch(revision) is None" in source
+    assert "_GUARD_EVIDENCE.fullmatch(self.guard_evidence) is None" in source
+    assert "len(value) > 4096" in source
+    assert "'\\x00' in value" in source
+    assert "'\\r' in value" in source
+    assert "'\\n' in value" in source
+    assert "state and execution receipts disagree" in source
+
+
+def test_public_api_accepts_no_callback_writer_provider_or_promotion_authority() -> None:
     function = _function(
         _tree(),
         "verify_provider_target_receipt_retention_admission",
