@@ -1,0 +1,88 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "packet_id": "G0-RTC-07G_PROVIDER_TARGET_RECEIPT_RETENTION_TOPOLOGY_HARDENING",
+  "gate": 0,
+  "status": "prepared-unverified",
+  "exact_parent": {
+    "branch": "g0/provider-target-receipt-retention-contract-linear",
+    "revision": "dc800f931f1a90be4b3c7b846d3650d4b3091fd8"
+  },
+  "branch": "g0/provider-target-receipt-retention-topology-hardening-linear",
+  "purpose": "Refuse canonical Event-Store filesystem aliases that could expose retention writes inside the Primary Checkout, and revalidate topology after receipt authentication immediately before the first schema or data mutation.",
+  "finding": {
+    "class": "primary-checkout-mutation-alias",
+    "mechanism": "A hard link inside the Primary Checkout can name the same inode as the checkout-external SQLite Event Store while all resolved path-overlap checks remain disjoint.",
+    "source_review_only": true,
+    "executed_exploit_claimed": false
+  },
+  "scope": {
+    "production_retention_changed": true,
+    "canonical_effect_inventory_changed": false,
+    "central_entrypoint_added": false,
+    "effect_lease_persisted_or_started": false,
+    "receipt_authentication_changed": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false,
+    "main_or_experimental_modified": false
+  },
+  "topology_contract": {
+    "primary_checkout_symlink_components_allowed": false,
+    "receipt_cas_symlink_components_allowed": false,
+    "event_store_symlink_components_allowed": false,
+    "event_store_must_be_regular_file": true,
+    "event_store_link_count_must_equal": 1,
+    "constructor_preflight_required": true,
+    "post_authentication_prewrite_revalidation_required": true,
+    "resolved_path_disjointness_required": [
+      "primary-checkout:receipt-cas",
+      "primary-checkout:event-store",
+      "receipt-cas:event-store"
+    ]
+  },
+  "acceptance": {
+    "constructor_hardlink_alias_refusal_prepared": true,
+    "late_hardlink_alias_refusal_prepared": true,
+    "late_alias_refuses_before_schema_write": true,
+    "late_alias_leaves_no_retention_intent": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_count": 7,
+    "hardlink_check_removal_mutation_prepared": true,
+    "prewrite_revalidation_removal_mutation_prepared": true,
+    "supported_platform_matrix_requested": [
+      "ubuntu-latest/python-3.10",
+      "ubuntu-latest/python-3.12",
+      "windows-latest/python-3.10",
+      "windows-latest/python-3.12"
+    ],
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_and_isolated_wheel_requested": true
+  },
+  "inventory_impact": {
+    "retention_source_bytes_changed": true,
+    "prior_inventory_report_remains_current": false,
+    "dependent_centralization_must_regenerate_inventory": true,
+    "gate_closure_claim_allowed": false
+  },
+  "verification": {
+    "hard_evidence_claimed": false,
+    "source_inspection_is_hard_evidence": false,
+    "llm_statement_is_hard_evidence": false,
+    "exact_head_execution": "blocked-by-issue-67-until-workflow-steps-execute"
+  },
+  "residual_boundaries": [
+    "This packet does not register or centralize the retention entrypoint.",
+    "This packet does not authenticate the inventory artifact or begin the persisted Effect Lease.",
+    "A hostile process with concurrent filesystem authority can still create an alias after the last userspace preflight; the future sandbox and leased target boundary must remove that ambient authority.",
+    "The changed source bytes invalidate the predecessor inventory report for any later exact-head closure claim.",
+    "GitHub hosted Actions currently fail before Step 1 under issue #67; prepared tests are not represented as executed evidence."
+  ],
+  "forbidden_actions": [
+    "modify-main",
+    "modify-experimental",
+    "merge",
+    "automatic-promotion",
+    "fabricate-owner-approval",
+    "claim-gate-closure"
+  ]
+}
