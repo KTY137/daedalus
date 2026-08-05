@@ -81,17 +81,36 @@ def test_public_verifier_exactly_types_every_structured_subject() -> None:
     assert "isinstance(max_source_bytes, bool)" in source
 
 
+def test_admission_topology_is_exactly_bound_to_live_ledger_identities() -> None:
+    source = inspect.getsource(completed._bind_admission_topology)
+
+    for field in (
+        "primary_checkout_path",
+        "retention_root_path",
+        "event_store_path",
+        "receipt_cas_path",
+    ):
+        assert f'"{field}",' in source
+    assert "Path(getattr(admission, field)).is_absolute()" in source
+    assert "expected[key] != observed[key]" in source
+    assert "root_path == primary_path" in source
+    assert "root_path in primary_path.parents" in source
+    assert "primary_path in root_path.parents" in source
+    assert "root_path not in event_path.parents" in source
+    assert "root_path not in cas_path.parents" in source
+
+
 def test_authentication_and_retained_reads_are_surrounded_by_identity_fences() -> None:
     source = inspect.getsource(
         completed.verify_provider_target_receipt_retention_completed_evidence
     )
 
-    topology_before = source.index("topology_before = _topology_identity")
+    topology_before = source.index("topology_before = _bind_admission_topology")
     artifact_before = source.index("artifact_identity_before = _artifact_file_identity")
     authenticate = source.index("verify_provider_target_verification_receipt(")
-    topology_mid = source.index("topology_mid = _topology_identity")
+    topology_mid = source.index("topology_mid = _bind_admission_topology")
     first_read = source.index("intent = _read_intent(")
-    topology_after = source.index("topology_after = _topology_identity")
+    topology_after = source.index("topology_after = _bind_admission_topology")
     second_read = source.index("final_intent = _read_intent(")
     final_subjects = source.index("final_subjects = _canonical_subjects")
 
@@ -105,6 +124,7 @@ def test_authentication_and_retained_reads_are_surrounded_by_identity_fences() -
         < second_read
         < final_subjects
     )
+    assert source.count("_bind_admission_topology(") == 3
     assert "topology_mid != topology_before" in source
     assert "artifact_identity_mid != artifact_identity_before" in source
     assert "topology_after != topology_before" in source
@@ -139,6 +159,7 @@ def test_evidence_receipt_cannot_claim_effect_or_gate_authority() -> None:
         '"closed"',
     ):
         assert claim in inspect.getsource(completed)
+    assert '"admission_topology_bound": True' in source
     assert "**{field: False for field in _FALSE_CLAIMS}" in source
     assert "Callable" not in inspect.getsource(completed)
     assert "OwnerApproval" not in inspect.getsource(completed)
