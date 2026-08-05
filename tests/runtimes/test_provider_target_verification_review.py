@@ -153,6 +153,11 @@ def test_source_tree_store_ref_receipt_and_nested_targets_require_exact_types() 
     structural = inspect.getsource(verifier._structural_projection)
     assert "type(source_store) is not SourceTreeStore" in structural
     assert "type(source_tree_ref) is not ArtifactRef" in structural
+    assert "type(source_manifest) is not SourceTreeManifest" in structural
+    assert (
+        "\n    if source_manifest.digest != source_tree_ref.sha256:\n"
+        in structural
+    )
 
     verification = inspect.getsource(
         verifier.verify_provider_target_verification_receipt
@@ -174,6 +179,17 @@ def test_source_tree_store_ref_receipt_and_nested_targets_require_exact_types() 
     rendered = ast.unparse(post_init)
     assert "type(self.invoke) is not VerifiedPythonTarget" in rendered
     assert "type(self.output_digests) is not VerifiedPythonTarget" in rendered
+
+    target = _class(contracts, "VerifiedPythonTarget")
+    target_post_init = next(
+        node
+        for node in target.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__post_init__"
+    )
+    target_source = ast.unparse(target_post_init)
+    assert "self.repository_path not in" in target_source
+    assert "self.qualified_name != qualified" in target_source
+    assert "self.source_size < 1" in target_source
 
 
 def test_receipt_claims_are_fixed_and_wire_parser_refuses_escalation() -> None:

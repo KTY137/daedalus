@@ -22,6 +22,11 @@ MUTATIONS = {
         "    if type(source_store) is not SourceTreeStore:\n",
         "    if not isinstance(source_store, SourceTreeStore):\n",
     ),
+    "trust-store-loaded-manifest-without-rehash": (
+        VERIFIER,
+        "    if source_manifest.digest != source_tree_ref.sha256:\n",
+        "    if False and source_manifest.digest != source_tree_ref.sha256:\n",
+    ),
     "accept-stale-source-revision": (
         VERIFIER,
         "    if source_manifest.source_revision != projection.source_revision:\n",

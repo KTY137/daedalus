@@ -42,7 +42,8 @@ The verifier then:
    `module.py` or `module/__init__.py`, never both;
 3. requires the selected manifest entry digest to equal the signed target
    source digest;
-4. reads the bounded CAS object and independently recomputes SHA-256;
+4. independently rechecks the loaded manifest digest against its ArtifactRef,
+   then reads the bounded CAS object and recomputes the blob SHA-256;
 5. decodes strict UTF-8 and parses with `ast.parse` without import or compile;
 6. resolves every qualified owner as an exact class and the final symbol as one
    unique sync or async function definition;
@@ -95,7 +96,7 @@ A separate AST/source review forbids dynamic loading, execution, process,
 network, SQLite, filesystem writes, CAS writes and materialization. It verifies
 authentication/read ordering, independent byte hashing, exact module and symbol
 cardinality, complete receipt signing and fixed structural/execution claims.
-Ten bounded mutants target those properties.
+Eleven bounded mutants target those properties.
 
 The requested CI matrix contains Ubuntu and Windows, Python 3.10 and 3.12, two
 hash seeds, predecessor source-tree/target-authority regressions, full suite,

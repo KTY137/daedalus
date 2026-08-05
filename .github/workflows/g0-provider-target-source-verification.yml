@@ -8,6 +8,7 @@ on:
       - "daedalus/runtimes/provider_target_verification.py"
       - "daedalus/runtimes/provider_target_verification_contracts.py"
       - "tests/runtimes/test_provider_target_verification.py"
+      - "tests/runtimes/test_provider_target_verification_hardening.py"
       - "tests/runtimes/test_provider_target_verification_review.py"
       - "scripts/run_provider_target_verification_mutations.py"
       - "docs/work-packets/G0-RTC-07C_PROVIDER_TARGET_SOURCE_VERIFICATION.*"
@@ -52,6 +53,7 @@ jobs:
       - run: >-
           python -m pytest -q
           tests/runtimes/test_provider_target_verification.py
+          tests/runtimes/test_provider_target_verification_hardening.py
           tests/runtimes/test_provider_target_verification_review.py
           tests/runtimes/test_provider_executable_targets.py
           tests/runtimes/test_provider_executable_targets_review.py

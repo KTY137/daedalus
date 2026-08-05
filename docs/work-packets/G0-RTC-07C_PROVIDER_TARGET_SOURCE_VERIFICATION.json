@@ -60,7 +60,7 @@
     "exact_receipt_round_trip_and_reverification": true,
     "invalid_target_authority_refuses_before_tree_read": true,
     "invalid_or_unknown_receipt_key_refuses_before_tree_read": true,
-    "independent_blob_rehash": true,
+    "independent_manifest_and_blob_rehash": true,
     "stale_revision_refuses": true,
     "signed_source_digest_substitution_refuses": true,
     "module_file_package_shadow_refuses": true,
@@ -72,7 +72,7 @@
     "receipt_claim_escalation_refuses": true,
     "signed_receipt_source_tree_substitution_refuses": true,
     "independent_no_loader_no_execution_source_review": true,
-    "bounded_mutation_campaign": 10
+    "bounded_mutation_campaign": 11
   },
   "verification": {
     "focused_builder_tests_prepared": true,

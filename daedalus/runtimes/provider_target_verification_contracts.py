@@ -109,6 +109,19 @@ class VerifiedPythonTarget:
             raise ProviderTargetVerificationBindingError(
                 "verified target repository_path must name a Python source file"
             )
+        module, qualified = self.target.split(":", 1)
+        module_path = module.replace(".", "/")
+        if self.repository_path not in {
+            f"{module_path}.py",
+            f"{module_path}/__init__.py",
+        }:
+            raise ProviderTargetVerificationBindingError(
+                "verified target repository_path does not match its module"
+            )
+        if self.qualified_name != qualified:
+            raise ProviderTargetVerificationBindingError(
+                "verified target qualified_name does not match its target"
+            )
         if (
             not isinstance(self.qualified_name, str)
             or not self.qualified_name
@@ -135,6 +148,10 @@ class VerifiedPythonTarget:
                 raise ProviderTargetVerificationBindingError(
                     f"{name} must be a non-negative integer"
                 )
+        if self.source_size < 1:
+            raise ProviderTargetVerificationBindingError(
+                "verified target source_size must be positive"
+            )
         if self.line < 1 or self.end_line < self.line:
             raise ProviderTargetVerificationBindingError(
                 "verified target line range is invalid"

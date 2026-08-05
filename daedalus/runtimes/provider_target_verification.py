@@ -266,6 +266,14 @@ def _structural_projection(
         raise ProviderTargetVerificationSourceError(
             "source tree manifest is unavailable or corrupt"
         ) from exc
+    if type(source_manifest) is not SourceTreeManifest:
+        raise ProviderTargetVerificationSourceError(
+            "source tree store returned a non-exact manifest"
+        )
+    if source_manifest.digest != source_tree_ref.sha256:
+        raise ProviderTargetVerificationSourceError(
+            "source tree manifest differs from its exact content address"
+        )
     if source_manifest.source_revision != projection.source_revision:
         raise ProviderTargetVerificationBindingError(
             "source tree revision differs from signed provider target"
