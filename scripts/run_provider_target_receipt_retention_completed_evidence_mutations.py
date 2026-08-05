@@ -14,6 +14,9 @@ MODULE = Path(
     "daedalus/runtimes/"
     "provider_target_receipt_retention_completed_evidence.py"
 )
+SCRIPT = Path(
+    "scripts/run_provider_target_receipt_retention_completed_evidence_mutations.py"
+)
 TESTS = (
     Path("tests/runtimes/test_provider_target_receipt_retention_completed_evidence.py"),
     Path(
@@ -118,7 +121,7 @@ MUTATIONS = (
 )
 
 
-def _copy_test(relative: Path, sandbox: Path) -> None:
+def _copy_file(relative: Path, sandbox: Path) -> None:
     source = ROOT / relative
     target = sandbox / relative
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -129,11 +132,11 @@ def _run(mutated_source: str, name: str) -> None:
     with tempfile.TemporaryDirectory(prefix=f"daedalus-{name}-") as directory:
         sandbox = Path(directory).resolve()
         shutil.copytree(ROOT / "daedalus", sandbox / "daedalus")
-        for relative in (*TESTS, *SUPPORT_TESTS):
-            _copy_test(relative, sandbox)
+        for relative in (*TESTS, *SUPPORT_TESTS, SCRIPT):
+            _copy_file(relative, sandbox)
         conftest = ROOT / "tests" / "conftest.py"
         if conftest.is_file():
-            _copy_test(Path("tests/conftest.py"), sandbox)
+            _copy_file(Path("tests/conftest.py"), sandbox)
 
         target = sandbox / MODULE
         target.write_text(mutated_source, encoding="utf-8")
