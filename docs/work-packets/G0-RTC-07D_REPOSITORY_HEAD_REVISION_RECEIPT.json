@@ -54,6 +54,8 @@
     "packed_ref_round_trip": true,
     "stale_expected_revision_refuses": true,
     "malformed_head_and_ref_refuse": true,
+    "malformed_wire_reference_path_stays_in_error_domain": true,
+    "wire_expected_and_resolved_revision_must_match": true,
     "nested_symbolic_ref_refuses_conservatively": true,
     "missing_ref_refuses": true,
     "duplicate_packed_ref_refuses": true,
@@ -90,7 +92,20 @@
       "status": "not-executed",
       "reason": "the automation runtime has no executable private checkout; source inspection and LLM review are not hard evidence"
     },
-    "exact_head_execution": "pending-external-ci"
+    "external_ci_attempt": {
+      "head_revision": "ef2a1b6f71717b2558b58c04248bf73560fb7e9a",
+      "workflow_run_id": 30966974176,
+      "iron_plan_run_id": 30966974185,
+      "rerun_requested": true,
+      "jobs_requested": 12,
+      "jobs_reaching_step_1": 0,
+      "all_jobs_steps_null": true,
+      "all_jobs_logs_null": true,
+      "classification": "external-infrastructure-blocker",
+      "accepted_as_product_failure": false,
+      "accepted_as_verification_evidence": false
+    },
+    "exact_head_execution": "blocked-before-step-1"
   },
   "remaining_blockers": [
     "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1 even after explicit rerun",
