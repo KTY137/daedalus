@@ -22,6 +22,7 @@
     "event_store_scope_path",
     "receipt_cas_scope_path",
     "repository_head_reverified",
+    "repository_head_stable_across_inventory",
     "retention_inventory_rebuilt",
     "retention_authority_authenticated",
     "guard_decision_allowed",
@@ -47,11 +48,12 @@
     "retention_inventory_source_sha256": { "$ref": "#/$defs/sha256" },
     "retention_inventory_source_size": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "maximum": 2097152
     },
     "retention_inventory_surface_count": {
       "type": "integer",
-      "minimum": 1
+      "const": 7
     },
     "retention_authority_sha256": { "$ref": "#/$defs/sha256" },
     "retention_subject_sha256": { "$ref": "#/$defs/sha256" },
@@ -67,6 +69,7 @@
     "event_store_scope_path": { "$ref": "#/$defs/repositoryPath" },
     "receipt_cas_scope_path": { "$ref": "#/$defs/repositoryPath" },
     "repository_head_reverified": { "const": true },
+    "repository_head_stable_across_inventory": { "const": true },
     "retention_inventory_rebuilt": { "const": true },
     "retention_authority_authenticated": { "const": true },
     "guard_decision_allowed": { "const": true },
