@@ -35,7 +35,7 @@ MUTANTS = {
     ),
     "reuse_provider_lease": (
         "if effect_lease.digest == receipt.lease_sha256:",
-        "if False and effect_lease.digest == receipt.lease_sha256:",
+        "if False:",
     ),
     "ignore_subject_substitution": (
         '"subject": (authority.subject, expected_subject),',
