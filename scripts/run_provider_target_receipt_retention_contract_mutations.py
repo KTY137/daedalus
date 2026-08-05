@@ -37,6 +37,10 @@ MUTANTS = {
         "if effect_lease.digest == receipt.lease_sha256:",
         "if False:",
     ),
+    "ignore_inventory_revision": (
+        "if inventory_revision != receipt.source_revision:",
+        "if False and inventory_revision != receipt.source_revision:",
+    ),
     "ignore_subject_substitution": (
         '"subject": (authority.subject, expected_subject),',
         '"subject": (expected_subject, expected_subject),',
