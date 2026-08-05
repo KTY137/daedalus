@@ -1,0 +1,132 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-GOV-25_EXECUTION_PROJECTION_R3_FROZEN_RETENTION_PREFLIGHT",
+  "title": "Revision-3 Execution Projection on Frozen Retention Preflight",
+  "gate": 0,
+  "status": "prepared_external_ci_blocked",
+  "branch": "g0/execution-projection-r3-retention-preflight-frozen-linear",
+  "exact_parent_branch": "g0/provider-target-receipt-retention-preflight-frozen-1636a72",
+  "exact_parent_revision": "1636a72ebf0da87ad84c7fb95c5e7fd79e5edab7",
+  "source_pull_request": 218,
+  "pull_request": 221,
+  "scope": {
+    "kind": "documentation_only_revision_bound_projection",
+    "production_code_changed": false,
+    "canonical_registry_changed": false,
+    "guard_contract_changed": false,
+    "effect_lease_state_changed": false,
+    "runtime_state_changed": false,
+    "provider_executed": false,
+    "receipt_retained": false,
+    "primary_checkout_mutated": false,
+    "owner_approval_issued": false,
+    "promotion_receipt_issued": false,
+    "merge_performed": false,
+    "promotion_performed": false,
+    "gate_transition_requested": false
+  },
+  "projection_claims": {
+    "master_plan_revision": 3,
+    "projection_revision_bound": true,
+    "parent_explicitly_frozen": true,
+    "parent_claimed_as_latest_future_head": false,
+    "strangler_responsibility_boundaries": [
+      "kernel",
+      "runtimes",
+      "orchestration",
+      "twin",
+      "evolution"
+    ],
+    "compatibility_imports_required_during_migration": true,
+    "big_bang_rename_allowed": false,
+    "polyglot_incomplete_semantics": "partial",
+    "polyglot_trusted_claim_allowed_when_incomplete": false,
+    "gate0_closed": false,
+    "gate1_closed": false,
+    "gate2_closed": false
+  },
+  "gate1_projection": {
+    "mission": "Event.voltage to bias_voltage across Python, Markdown, and CSV",
+    "typed_work_item_count": 2,
+    "isolated_attempts_required": true,
+    "restart_replay_required": true,
+    "candidate_source_tree_in_cas_required": true,
+    "candidate_fourfold_snapshot_required": true,
+    "graph_delta_required": true,
+    "round_trip_report_required": true,
+    "behavior_schema_and_link_checks_required": true,
+    "evidence_packet_required": true,
+    "manual_owner_promotion_required": true,
+    "automatic_promotion_allowed": false
+  },
+  "gate2_projection": {
+    "atomic_planes": [
+      "code",
+      "type",
+      "data",
+      "knowledge"
+    ],
+    "one_exact_revision_required": true,
+    "conservative_forest_adapter_required": true,
+    "repository_bound_compiler_required": true,
+    "tree_sitter_scip_oriented_frontends_required": true,
+    "data_plane_adapters_required": true,
+    "evidence_bound_knowledge_claims_required": true,
+    "cross_plane_lifecycle_required": true,
+    "graph_delta_and_round_trip_apis_required": true,
+    "regenerable_projections_required": true,
+    "license_audited_revision_pinned_corpus_required": true,
+    "deterministic_rebuild_and_provenance_required": true
+  },
+  "frozen_parent_boundary": {
+    "preflight_is_capability": false,
+    "persisted_effect_lease_verified": false,
+    "retention_effect_started": false,
+    "retention_write_performed": false,
+    "canonical_entrypoint_registered": false,
+    "primary_checkout_disjointness_verified": false,
+    "gate_transition_authorized": false,
+    "closed": false
+  },
+  "remaining_dependent_boundary": [
+    "authenticate and consume the persisted retention Effect Lease immediately before mutation",
+    "rerun the exact retention preflight immediately before admission",
+    "prove concrete Event Store and receipt CAS targets outside the Primary Checkout",
+    "durably begin the retention effect before any retention write",
+    "register and use one exact central production entrypoint",
+    "reconcile intent, CAS, and terminal fault windows without automatic re-execution",
+    "bind semantic receipts into the canonical Gate-0 release report"
+  ],
+  "external_verification_blocker": {
+    "issue": 67,
+    "description": "Hosted GitHub Actions jobs terminate before Step 1 with steps=null and no logs or artifacts.",
+    "hard_product_evidence_available": false,
+    "zero_step_runs_count_as_product_evidence": false,
+    "dependent_production_wiring_frozen": true,
+    "independent_documentation_preparation_allowed": true
+  },
+  "adversarial_review_focus": [
+    "frozen-parent versus latest-head confusion",
+    "stale Master Plan revision",
+    "zero-step evidence laundering",
+    "inventory or preflight escalation into a capability",
+    "partial Polyglot semantics escalated to trusted",
+    "direct mutation of main or experimental",
+    "big-bang migration authorization",
+    "false Gate closure",
+    "fabricated OwnerApproval",
+    "automatic merge or promotion"
+  ],
+  "verification": {
+    "builder": "not_executed_external_ci_blocked",
+    "independent_review": "prepared_not_hard_evidence",
+    "malformed_and_stale": "not_applicable_to_documentation_behavior_but_revision_binding_review_required",
+    "bypass_and_mutation": "not_executed_external_ci_blocked",
+    "full_suite": "not_executed_external_ci_blocked",
+    "packaging": "not_executed_external_ci_blocked",
+    "supported_platform_matrix": "not_executed_external_ci_blocked"
+  },
+  "automatic_merge": false,
+  "automatic_promotion": false,
+  "owner_approval_fabricated": false
+}
