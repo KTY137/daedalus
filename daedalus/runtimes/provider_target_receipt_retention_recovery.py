@@ -54,6 +54,20 @@ class ProviderTargetReceiptRetentionRecoveryBindingError(
     """The exact admission identity, revision, or state binding disagrees."""
 
 
+def _commit_revision(value: Any, label: str) -> str:
+    try:
+        revision = _revision(value, label)
+    except (TypeError, ValueError) as exc:
+        raise ProviderTargetReceiptRetentionRecoveryShapeError(
+            f"{label} is malformed"
+        ) from exc
+    if len(revision) != 40:
+        raise ProviderTargetReceiptRetentionRecoveryShapeError(
+            f"{label} must be an exact 40-hex commit revision"
+        )
+    return revision
+
+
 @dataclass(frozen=True)
 class ProviderTargetReceiptRetentionRecoveryDecision:
     """Canonical non-authorizing decision for one persisted retention state."""
@@ -70,7 +84,7 @@ class ProviderTargetReceiptRetentionRecoveryDecision:
             object.__setattr__(
                 self,
                 "source_revision",
-                _revision(self.source_revision, "source_revision"),
+                _commit_revision(self.source_revision, "source_revision"),
             )
             object.__setattr__(
                 self,
@@ -81,6 +95,8 @@ class ProviderTargetReceiptRetentionRecoveryDecision:
                 value = getattr(self, field)
                 if value is not None:
                     object.__setattr__(self, field, _sha256(value, field))
+        except ProviderTargetReceiptRetentionRecoveryError:
+            raise
         except (TypeError, ValueError) as exc:
             raise ProviderTargetReceiptRetentionRecoveryShapeError(
                 "retention recovery decision is malformed"
@@ -236,12 +252,10 @@ def decide_provider_target_receipt_retention_recovery(
         raise ProviderTargetReceiptRetentionRecoveryShapeError(
             "admission must be exact ProviderTargetReceiptRetentionAdmissionReceipt"
         )
-    try:
-        revision = _revision(expected_source_revision, "expected_source_revision")
-    except (TypeError, ValueError) as exc:
-        raise ProviderTargetReceiptRetentionRecoveryShapeError(
-            "expected_source_revision is malformed"
-        ) from exc
+    revision = _commit_revision(
+        expected_source_revision,
+        "expected_source_revision",
+    )
     if admission.source_revision != revision:
         raise ProviderTargetReceiptRetentionRecoveryBindingError(
             "retention admission belongs to a stale source revision"
