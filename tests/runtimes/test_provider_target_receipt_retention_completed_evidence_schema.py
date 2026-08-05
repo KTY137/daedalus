@@ -40,6 +40,7 @@ def _payload() -> dict[str, object]:
         "event_store_path": "/tmp/retention/event.sqlite3",
         "receipt_cas_path": "/tmp/retention/cas",
         "admission_identity_bound": True,
+        "admission_topology_bound": True,
         "recovery_decision_bound": True,
         "provider_target_receipt_authenticated": True,
         "retention_intent_completed": True,
@@ -67,6 +68,7 @@ def test_completed_evidence_schema_is_exact_and_non_authorizing() -> None:
     properties = document["properties"]
     for field in (
         "admission_identity_bound",
+        "admission_topology_bound",
         "recovery_decision_bound",
         "provider_target_receipt_authenticated",
         "retention_intent_completed",
@@ -135,6 +137,7 @@ def test_completed_evidence_schema_rejects_claim_escalation_and_extras() -> None
             validator.validate(payload)
 
     for field in (
+        "admission_topology_bound",
         "retention_topology_stable",
         "receipt_artifact_identity_stable",
     ):
