@@ -1,0 +1,43 @@
+{
+  "schema": "daedalus-work-packet-status/1",
+  "work_packet": "G0-PRM-21",
+  "title": "Promotion Execution Raw Projection",
+  "gate": 0,
+  "base_revision": "b4670c9c6c0cfb08da52d4a4db05c47bead2df93",
+  "branch": "g0/promotion-execution-raw-projection-linear",
+  "authority": {
+    "writer": "daedalus.spine.ledger.SpineLedger",
+    "core_lifecycle": "daedalus.kernel.promotion_execution.PromotionExecutionLedger",
+    "read_projection": "daedalus.kernel.promotion_execution_reader.read_promotion_execution_intents"
+  },
+  "implemented": [
+    "strict-read-only-raw-event-store-projection",
+    "duplicate-key-and-nonfinite-json-refusal",
+    "canonical-ascii-json-byte-equality",
+    "raw-payload-digest-and-start-event-binding",
+    "bounded-two-event-lifecycle",
+    "reserved-effect-key-collision-refusal",
+    "resolved-row-reconciliation-visibility",
+    "exact-index-sql-origin-column-and-predicate-verification"
+  ],
+  "verification_commands": [
+    "python -m pytest -q tests/kernel/test_promotion_execution.py tests/kernel/test_promotion_execution_adversarial.py tests/kernel/test_promotion_execution_reader.py tests/kernel/test_promotion_execution_reader_integrity.py tests/kernel/test_promotion_execution_index_contract.py tests/kernel/test_promotion_execution_review.py tests/kernel/test_promotion_execution_reader_review.py tests/kernel/test_promotion_execution_index_review.py",
+    "python scripts/run_promotion_execution_mutations.py",
+    "python scripts/run_promotion_execution_reader_mutations.py",
+    "python -m pytest -q",
+    "python -m build"
+  ],
+  "verification_state": "pending-exact-head-execution",
+  "production_wiring": false,
+  "gate_closed": false,
+  "owner_approval_issued": false,
+  "automatic_promotion": false,
+  "remaining_blockers": [
+    "execute-focused-and-mutation-checks-on-exact-head",
+    "execute-full-suite-platform-and-packaging-checks-on-exact-head",
+    "independent-human-review",
+    "wire-promotion-execution-lifecycle-into-live-seam",
+    "complete-all-other-gate0-release-report-blockers"
+  ],
+  "external_observation": "GitHub Actions issue #67 prevents jobs from recording Step 1; such runs are not evidence."
+}

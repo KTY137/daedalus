@@ -1,0 +1,114 @@
+name: Gate 0 Promotion Execution Raw Projection
+
+on:
+  pull_request:
+    branches:
+      - g0/promotion-execution-event-spine-linear
+    paths:
+      - "daedalus/kernel/promotion_execution.py"
+      - "daedalus/kernel/promotion_execution_reader.py"
+      - "tests/kernel/test_promotion_execution_reader.py"
+      - "tests/kernel/test_promotion_execution_reader_integrity.py"
+      - "tests/kernel/test_promotion_execution_index_contract.py"
+      - "tests/kernel/test_promotion_execution_reader_review.py"
+      - "tests/kernel/test_promotion_execution_index_review.py"
+      - "scripts/run_promotion_execution_mutations.py"
+      - "scripts/run_promotion_execution_reader_mutations.py"
+      - "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.md"
+      - "docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.json"
+      - ".github/workflows/g0-promotion-execution-raw-projection.yml"
+  push:
+    branches:
+      - g0/promotion-execution-raw-projection-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-promotion-execution-raw-projection-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts tools
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-PRM-21_PROMOTION_EXECUTION_RAW_PROJECTION.json
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_execution.py
+          tests/kernel/test_promotion_execution_adversarial.py
+          tests/kernel/test_promotion_execution_reader.py
+          tests/kernel/test_promotion_execution_reader_integrity.py
+          tests/kernel/test_promotion_execution_index_contract.py
+          tests/kernel/test_promotion_execution_review.py
+          tests/kernel/test_promotion_execution_reader_review.py
+          tests/kernel/test_promotion_execution_index_review.py
+          tests/kernel/test_persisted_promotion_authorization.py
+          tests/kernel/test_persisted_promotion_authorization_review.py
+          tests/kernel/test_live_promotion_seam.py
+          tests/kernel/test_live_promotion_seam_review.py
+          tests/kernel/test_promotion_material_review.py
+          tests/kernel/test_sealed_promotion.py
+          tests/kernel/test_primary_checkout_fingerprint.py
+          tests/kernel/test_isolated_attempt_lifecycle.py
+          tests/test_spine_gate0_writer_factory.py
+          tests/test_spine_gate0_durability.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_execution_mutations.py
+      - if: ${{ matrix.os == 'ubuntu-latest' && matrix.python == '3.12' && matrix.seed == '0' }}
+        run: python scripts/run_promotion_execution_reader_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-promotion-reader-wheel
+      - run: /tmp/daedalus-promotion-reader-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-promotion-reader-wheel/bin/python - <<'PY'
+          from daedalus.kernel import PromotionExecutionLedger
+          from daedalus.kernel.promotion_execution_reader import (
+              PromotionExecutionReadError,
+              read_promotion_execution_intents,
+          )
+
+          assert PromotionExecutionLedger.__module__ == "daedalus.kernel.promotion_execution"
+          assert PromotionExecutionReadError.__module__ == "daedalus.kernel.promotion_execution_reader"
+          assert callable(read_promotion_execution_intents)
+          PY

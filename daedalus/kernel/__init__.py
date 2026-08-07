@@ -104,6 +104,17 @@ from .promotion import (
     candidate_batch_sha256,
     resolve_live_target_revision,
 )
+from .promotion_execution import (
+    PromotionExecutionBeginResult,
+    PromotionExecutionBindingMismatch,
+    PromotionExecutionCompletion,
+    PromotionExecutionError,
+    PromotionExecutionLedger,
+    PromotionExecutionReceipt,
+    PromotionExecutionReplay,
+    PromotionExecutionStart,
+    PromotionExecutionStateError,
+)
 from .runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
@@ -149,6 +160,15 @@ __all__ += [
     "authorize_promotion",
     "candidate_batch_sha256",
     "resolve_live_target_revision",
+    "PromotionExecutionBeginResult",
+    "PromotionExecutionBindingMismatch",
+    "PromotionExecutionCompletion",
+    "PromotionExecutionError",
+    "PromotionExecutionLedger",
+    "PromotionExecutionReceipt",
+    "PromotionExecutionReplay",
+    "PromotionExecutionStart",
+    "PromotionExecutionStateError",
     "RecordedObservation",
     "RuntimeConformanceError",
     "assemble_recorded_conformance",
