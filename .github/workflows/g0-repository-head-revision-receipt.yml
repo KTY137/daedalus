@@ -1,0 +1,117 @@
+name: Gate 0 Repository HEAD Revision Receipt
+
+on:
+  pull_request:
+    branches:
+      - g0/provider-executable-structure-receipt-r2-linear
+    paths:
+      - "daedalus/gates/repository_head_revision.py"
+      - "configs/schemas/repository-head-revision-receipt.schema.json"
+      - "tests/gates/test_repository_head_revision*.py"
+      - "scripts/run_repository_head_revision_mutations.py"
+      - "docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.*"
+      - ".github/workflows/g0-repository-head-revision-receipt.yml"
+  push:
+    branches:
+      - g0/repository-head-revision-receipt-linear
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-repository-head-revision-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m compileall -q daedalus tests scripts
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m json.tool docs/work-packets/G0-RTC-07D_REPOSITORY_HEAD_REVISION_RECEIPT.json
+      - run: python -m json.tool configs/schemas/repository-head-revision-receipt.schema.json
+      - run: >-
+          python -m pytest -q
+          tests/gates/test_repository_head_revision.py
+          tests/gates/test_repository_head_revision_wire.py
+          tests/gates/test_repository_head_revision_review.py
+          tests/gates/test_repository_head_revision_schema.py
+          tests/gates/test_repository_tree.py
+          tests/gates/test_repository_tree_review.py
+          tests/gates/test_python_target_structure.py
+          tests/gates/test_python_target_structure_review.py
+          tests/runtimes/test_provider_executable_structure.py
+          tests/runtimes/test_provider_executable_structure_review.py
+          tests/runtimes/test_provider_executable_structure_schema.py
+          tests/runtimes/test_provider_executable_targets.py
+          tests/runtimes/test_provider_invocation_identity.py
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+      - run: python scripts/run_repository_head_revision_mutations.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-repository-head-wheel
+      - run: /tmp/daedalus-repository-head-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        shell: bash
+        run: |
+          /tmp/daedalus-repository-head-wheel/bin/python - <<'PY'
+          from daedalus.gates.repository_head_revision import (
+              RepositoryHeadRevisionReceipt,
+              verify_repository_head_revision,
+              verify_repository_head_revision_receipt,
+          )
+
+          assert RepositoryHeadRevisionReceipt is not None
+          assert callable(verify_repository_head_revision)
+          assert callable(verify_repository_head_revision_receipt)
+          PY

@@ -1,0 +1,111 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-07C",
+  "title": "Provider Executable Structure Receipt",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "824b1ec93b9c38c071613031be516facb0e6405b",
+  "parent_branch": "g0/provider-executable-target-manifest-linear",
+  "branch": "g0/provider-executable-structure-receipt-r2-linear",
+  "change_class": "authenticated-read-only-provider-target-structure-verification",
+  "dependency_state": {
+    "parent_static_reviewed": true,
+    "parent_exact_head_ci_blocked_by_issue": 67,
+    "dependent_broker_wiring_frozen": true,
+    "independent_read_only_structure_work_allowed": true
+  },
+  "scope": {
+    "consumes_signed_target_authority": true,
+    "replays_complete_target_projection_authentication": true,
+    "accepts_loose_target_projection": false,
+    "uses_shared_race_aware_repository_reader": true,
+    "uses_conservative_python_ast_target_resolver": true,
+    "verifies_invoke_target_structure": true,
+    "verifies_output_digests_target_structure": true,
+    "binds_exact_source_digests_and_positions": true,
+    "retains_target_and_invocation_authority_chain": true,
+    "retains_execution_id_idempotency_and_lease": true,
+    "retains_deterministic_structure_receipt_schema_v2": true,
+    "imports_or_loads_repository_targets": false,
+    "executes_repository_bytes": false,
+    "verifies_behavior": false,
+    "verifies_source_revision_against_git_head": false,
+    "authorizes_provider_execution": false,
+    "starts_or_finishes_effect": false,
+    "modifies_broker": false,
+    "persists_runtime_state": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "issues_promotion_receipt": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "target_authority_authenticated_before_repository_read": true,
+    "target_source_digests_structurally_verified": true,
+    "targets_uniquely_resolved_by_python_ast": true,
+    "repository_bytes_executed": false,
+    "provider_execution_allowed": false,
+    "source_revision_verified_against_git_head": false,
+    "arbitrary_callback_gap_closed": false,
+    "issue_188_closed": false,
+    "gate_closed": false
+  },
+  "adversarial_review": {
+    "finding": "an exact caller-constructed projection did not prove signed target-authority replay",
+    "disposition": "corrected_in_same_batch_before_dependency_use",
+    "public_projection_parameter_removed": true,
+    "signed_authority_replayed_before_repository_read": true,
+    "receipt_schema_revision": 2
+  },
+  "acceptance": {
+    "both_targets_resolve_without_import": true,
+    "strict_receipt_round_trip": true,
+    "authenticated_live_receipt_reverification": true,
+    "invalid_target_signature_refuses_before_repository_read": true,
+    "manifest_substitution_refuses_before_repository_read": true,
+    "loose_projection_substitution_refuses": true,
+    "nonexact_projected_result_refuses": true,
+    "changed_source_refuses": true,
+    "missing_target_refuses": true,
+    "resolver_target_substitution_refuses": true,
+    "resolver_source_digest_detachment_refuses": true,
+    "retained_authority_digest_detachment_refuses": true,
+    "wire_authority_escalation_refuses": true,
+    "git_head_claim_escalation_refuses": true,
+    "strict_schema_review": true,
+    "independent_no_loader_no_execution_ast_review": true,
+    "bounded_mutation_campaign": 10
+  },
+  "verification": {
+    "focused_builder_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "malformed_input_tests_prepared": true,
+    "stale_source_tests_prepared": true,
+    "authority_substitution_and_bypass_tests_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "predecessor_regressions_requested": true,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has no executable private checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "remaining_blockers": [
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "the receipt authenticates target authority and exact source bytes but does not authenticate repository Git HEAD for source_revision",
+    "the broker still accepts independently supplied invoke and output_digests callbacks",
+    "a later green dependent packet must retain an authenticated Git revision binding, resolve guarded callables from the verified receipt, and consume them before begin_effect",
+    "provider-observation persistence issue 189 and repository-write release binding issue 194 remain open",
+    "Gate 0 still requires complete effect migration, live runtime and Docker sandbox receipts, complete fault evidence, release closure and an explicit owner decision"
+  ]
+}
