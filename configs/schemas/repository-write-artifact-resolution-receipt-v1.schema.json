@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.invalid/schemas/repository-write-artifact-resolution-receipt-v1.schema.json",
+  "title": "Daedalus Repository-Write Artifact Resolution Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_type",
+    "contract_version",
+    "resolution_id",
+    "source_revision",
+    "source_tree_revision",
+    "artifact_evidence_sha256",
+    "locator",
+    "artifact_content_sha256",
+    "cas_root_sha256",
+    "relative_path",
+    "file_device",
+    "file_inode",
+    "file_size",
+    "file_mtime_ns",
+    "resolved_at",
+    "checks",
+    "provenance"
+  ],
+  "properties": {
+    "contract_type": {
+      "const": "daedalus-repository-write-artifact-resolution-receipt/1"
+    },
+    "contract_version": {
+      "const": "1.0.0"
+    },
+    "resolution_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "source_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "source_tree_revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "artifact_evidence_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "locator": {
+      "type": "string",
+      "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$",
+      "maxLength": 1000
+    },
+    "artifact_content_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cas_root_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "relative_path": {
+      "type": "string",
+      "pattern": "^sha256/[0-9a-f]{2}/[0-9a-f]{62}$",
+      "maxLength": 500
+    },
+    "file_device": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "file_inode": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "file_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16777216
+    },
+    "file_mtime_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "checks": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "bounded-read"
+        },
+        {
+          "const": "content-digest"
+        },
+        {
+          "const": "exact-cas-path"
+        },
+        {
+          "const": "file-identity"
+        },
+        {
+          "const": "primary-checkout-disjoint"
+        },
+        {
+          "const": "read-only-open"
+        }
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "source_revision",
+        "created_at",
+        "input_digests",
+        "trace_id"
+      ],
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "input_digests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "trace_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
