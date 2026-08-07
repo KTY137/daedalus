@@ -1,0 +1,103 @@
+name: Gate 0 Promotion Receipt Authority
+
+on:
+  pull_request:
+    branches:
+      - g0/live-promotion-seam-linear
+    paths:
+      - "daedalus/schemas.py"
+      - "daedalus/kernel/**"
+      - "tests/kernel/test_promotion_receipt_authority.py"
+      - "scripts/run_promotion_receipt_authority_mutations.py"
+      - "docs/adr/ADR-0002-PROMOTION-RECEIPT-AUTHORITY.md"
+      - "docs/work-packets/G0-PRM-12C_PROMOTION_RECEIPT_AUTHORITY.md"
+      - ".github/workflows/g0-promotion-receipt-authority.yml"
+  push:
+    branches:
+      - g0/promotion-receipt-authority-linear
+  workflow_dispatch:
+
+concurrency:
+  group: g0-promotion-receipt-authority-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        hashseed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      PYTHONHASHSEED: ${{ matrix.hashseed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install . pytest
+      - run: python -m compileall -q daedalus tests/kernel/test_promotion_receipt_authority.py
+      - run: >-
+          python -m pytest -q
+          tests/kernel/test_promotion_receipt_authority.py
+          tests/kernel/test_promotion_material_review.py
+          tests/kernel/test_live_promotion_seam_review.py
+
+  mutations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install . pytest
+      - run: python scripts/run_promotion_receipt_authority_mutations.py
+      - run: git diff --exit-code
+
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[test,yaml]" pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Install and inspect outside checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/daedalus-promotion-authority-wheel
+          /tmp/daedalus-promotion-authority-wheel/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/daedalus-promotion-authority-wheel/bin/python - <<'PY'
+          import daedalus.kernel as kernel
+          from daedalus.schemas import PromotionReceipt
+
+          assert PromotionReceipt.CONTRACT_TYPE == "daedalus.promotion"
+          exported = getattr(kernel, "PromotionReceipt", PromotionReceipt)
+          assert exported is PromotionReceipt
+          print(PromotionReceipt.CONTRACT_TYPE)
+          PY
