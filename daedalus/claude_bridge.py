@@ -1,24 +1,38 @@
+"""Structured Claude CLI adapter with a broker-only public execution path.
+
+Prompt construction and output parsing are pure helpers.  The only subprocess
+implementation is private and is invoked by :class:`ClaudeCLIProvider` after
+the runtime broker has persisted an exact grant and start receipt.  The legacy
+``ask_claude`` name remains import-compatible, but now requires the same
+runtime/effect authority and isolated-workspace grant instead of invoking from
+ambient process authority.
+"""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .fallback import fallback_decision
 from .router import route_task
 from .schemas import REPORT_KEYS, validate_report
 from .token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
 
+if TYPE_CHECKING:
+    from .kernel.effects import EffectExecutionRequest
+    from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
+    from .providers.claude_cli import ClaudeWorkspaceGrant
 
-ROOT = Path(__file__).resolve().parents[1]
-RUN_DIR = ROOT / "runs"
 
 REPORT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "status": {"type": "string", "enum": ["done", "blocked", "needs_review", "failed"]},
+        "status": {
+            "type": "string",
+            "enum": ["done", "blocked", "needs_review", "failed"],
+        },
         "summary": {"type": "string", "maxLength": MAX_SUMMARY_CHARS},
         "files_changed": {"type": "array", "items": {"type": "string"}},
         "tests_run": {"type": "array", "items": {"type": "string"}},
@@ -31,7 +45,12 @@ REPORT_SCHEMA: dict[str, Any] = {
 }
 
 
-def build_prompt(objective: str, repo_root: str, paths: list[str], agent: dict[str, Any]) -> str:
+def build_prompt(
+    objective: str,
+    repo_root: str,
+    paths: list[str],
+    agent: dict[str, Any],
+) -> str:
     paths = trim_paths(paths)
     return f"""{STATIC_PROMPT_PREFIX}
 
@@ -70,7 +89,11 @@ def _extract_json(output: str) -> dict[str, Any]:
             raise
         payload = json.loads(output[start : end + 1])
 
-    if isinstance(payload, dict) and "result" in payload and isinstance(payload["result"], str):
+    if (
+        isinstance(payload, dict)
+        and "result" in payload
+        and isinstance(payload["result"], str)
+    ):
         return _extract_json(payload["result"])
     if not isinstance(payload, dict):
         raise ValueError("Claude output did not decode to a JSON object")
@@ -101,20 +124,34 @@ def _blocked_report_from_wrapper(output: str) -> dict[str, Any] | None:
     }
 
 
-def ask_claude(
+def _canonical_digest(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _invoke_claude_cli(
+    *,
     objective: str,
     repo_root: str,
     paths: list[str],
+    agent: dict[str, Any],
     model: str = "sonnet",
     timeout_s: int = 300,
 ) -> dict[str, Any]:
-    agent = route_task(objective, paths)
+    """Private subprocess implementation consumed only by the brokered provider.
+
+    Prompt/report files are no longer written into the Daedalus checkout from
+    this layer.  Their exact canonical digests are returned and become broker
+    output evidence; a later CAS packet may retain the bytes explicitly.
+    """
+
     paths = trim_paths(paths)
     prompt = build_prompt(objective, repo_root, paths, agent)
-    RUN_DIR.mkdir(parents=True, exist_ok=True)
-    prompt_path = RUN_DIR / "last_claude_prompt.md"
-    prompt_path.write_text(prompt, encoding="utf-8")
-
     cmd = [
         "claude",
         "-p",
@@ -124,7 +161,7 @@ def ask_claude(
         "--output-format",
         "json",
         "--json-schema",
-        json.dumps(REPORT_SCHEMA),
+        json.dumps(REPORT_SCHEMA, sort_keys=True, separators=(",", ":")),
         "--permission-mode",
         "dontAsk",
         "--add-dir",
@@ -142,51 +179,95 @@ def ask_claude(
     )
     if completed.returncode != 0:
         report = _blocked_report_from_wrapper(completed.stdout)
-        if report is not None:
-            report_path = RUN_DIR / "last_claude_report.json"
-            report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-            return {
-                "agent": agent["name"],
-                "prompt_path": str(prompt_path),
-                "report_path": str(report_path),
-                "report": report,
-            }
-        raise RuntimeError(
-            "Claude failed with exit code "
-            f"{completed.returncode}\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+        if report is None:
+            raise RuntimeError(
+                "Claude failed with exit code "
+                f"{completed.returncode}; stdout_sha256="
+                f"{hashlib.sha256(completed.stdout.encode('utf-8', 'replace')).hexdigest()}; "
+                "stderr_sha256="
+                f"{hashlib.sha256(completed.stderr.encode('utf-8', 'replace')).hexdigest()}"
+            )
+    else:
+        report = _extract_json(completed.stdout)
+        errors = validate_report(report)
+        if errors:
+            raise ValueError("Invalid Claude report: " + "; ".join(errors))
+
+    return {
+        "agent": agent["name"],
+        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "report_sha256": _canonical_digest(report),
+        "report": report,
+    }
+
+
+def ask_claude(
+    objective: str,
+    repo_root: str,
+    paths: list[str],
+    model: str = "sonnet",
+    timeout_s: int = 300,
+    *,
+    runtime_authorization: "RuntimeBoundEffectAuthorization | None" = None,
+    effect_execution: "EffectExecutionRequest | None" = None,
+    workspace_grant: "ClaudeWorkspaceGrant | None" = None,
+) -> dict[str, Any]:
+    """Compatibility adapter that now delegates to the brokered provider.
+
+    Existing callers keep the import path, but a call without explicit
+    persisted authority fails before subprocess creation.  The caller must
+    supply an attempt-owned worktree; direct Primary Checkout execution is not
+    a compatibility feature.
+    """
+
+    from .providers.claude_cli import (
+        ClaudeCLIProvider,
+        ClaudeProviderAuthorizationRequired,
+    )
+
+    if runtime_authorization is None or effect_execution is None or workspace_grant is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "ask_claude requires runtime authorization, effect execution, and workspace grant"
         )
-
-    report = _extract_json(completed.stdout)
-    errors = validate_report(report)
-    if errors:
-        raise ValueError("Invalid Claude report: " + "; ".join(errors))
-
-    report_path = RUN_DIR / "last_claude_report.json"
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return {"agent": agent["name"], "prompt_path": str(prompt_path), "report_path": str(report_path), "report": report}
+    agent = route_task(objective, paths)
+    return ClaudeCLIProvider().run(
+        objective=objective,
+        repo_root=repo_root,
+        paths=paths,
+        agent=agent,
+        model=model,
+        timeout_s=timeout_s,
+        runtime_authorization=runtime_authorization,
+        effect_execution=effect_execution,
+        workspace_grant=workspace_grant,
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ask Claude for a structured specialist report.")
+    parser = argparse.ArgumentParser(
+        description="Claude execution is available only through the runtime broker."
+    )
     parser.add_argument("objective")
     parser.add_argument("--repo-root", required=True)
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--model", default="sonnet")
     parser.add_argument("--timeout-s", type=int, default=300)
-    args = parser.parse_args()
-    result = ask_claude(args.objective, args.repo_root, args.paths, args.model, args.timeout_s)
-    print(json.dumps(result, indent=2))
+    parser.parse_args()
+    parser.error(
+        "direct CLI execution cannot carry the in-memory runtime capability; "
+        "use the brokered provider/attempt path"
+    )
 
 
 if __name__ == "__main__":
-    # The ceiling is installed per PROCESS, in cli.py, and this module has its
-    # own entry point -- so `python -m daedalus.claude_bridge` spawned the
-    # Anthropic CLI with no cap at all. budget.BILLABLE_SITES has carried this
-    # site as ``explicit: False`` since the register was written: that field is
-    # the register ADMITTING a hole, not certifying a safe one. Installed here
-    # for the same reason cli.py gives -- a cap you must remember to install is
-    # missing exactly where somebody forgot.
-    from .budget import install_process_guard
-
-    install_process_guard()
+    # The module entrypoint intentionally performs no external effect.  It is
+    # retained only as a fail-closed compatibility surface.
     main()
+
+
+__all__ = [
+    "REPORT_SCHEMA",
+    "ask_claude",
+    "build_prompt",
+    "main",
+]

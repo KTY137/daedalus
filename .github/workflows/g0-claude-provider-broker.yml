@@ -1,0 +1,91 @@
+name: Gate 0 Claude Provider Broker
+
+on:
+  pull_request:
+    branches:
+      - g0/runtime-terminal-fence
+      - g0/runtime-provider-broker
+    paths:
+      - "daedalus/claude_bridge.py"
+      - "daedalus/providers/claude_cli.py"
+      - "daedalus/runtimes/**"
+      - "daedalus/kernel/runtime_effects.py"
+      - "daedalus/kernel/effects.py"
+      - "daedalus/primary_tree.py"
+      - "tests/providers/test_claude_runtime_broker.py"
+      - "tests/providers/test_claude_bypass_inventory.py"
+      - "tests/runtimes/**"
+      - "tests/kernel/test_runtime_effects.py"
+      - "tests/test_effect_boundary.py"
+      - "docs/work-packets/G0-RTC-06F_CLAUDE_PROVIDER_BROKER.md"
+      - ".github/workflows/g0-claude-provider-broker.yml"
+  push:
+    branches:
+      - g0/claude-provider-broker
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g0-claude-provider-broker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+        seed: ["0", "123456"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONHASHSEED: ${{ matrix.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python tools/iron_plan_guard.py verify
+      - run: python -m compileall -q daedalus tests
+      - run: >-
+          python -m pytest -q
+          tests/providers/test_claude_runtime_broker.py
+          tests/providers/test_claude_bypass_inventory.py
+          tests/runtimes/test_runtime_provider_broker.py
+          tests/runtimes/test_runtime_terminal_fence.py
+          tests/runtimes/test_runtime_terminal_fence_release.py
+          tests/kernel/test_runtime_effects.py
+          tests/test_effect_boundary.py
+
+  full-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  isolated-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m venv /tmp/daedalus-wheel
+      - run: /tmp/daedalus-wheel/bin/pip install dist/*.whl
+      - working-directory: /tmp
+        run: >-
+          /tmp/daedalus-wheel/bin/python -c
+          "from daedalus.claude_bridge import ask_claude;
+          from daedalus.providers.claude_cli import
+          ClaudeCLIProvider, ClaudeWorkspaceGrant"
