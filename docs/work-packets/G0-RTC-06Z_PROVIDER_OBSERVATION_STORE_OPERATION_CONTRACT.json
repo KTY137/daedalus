@@ -1,0 +1,91 @@
+{
+  "schema": "daedalus-work-packet/1",
+  "work_packet_id": "G0-RTC-06Z",
+  "title": "Provider Observation Store Operation Guard Contract",
+  "gate": 0,
+  "classification": "ALIGNED",
+  "parent_revision": "4e105dc5b976aa4d3b1c8601592c5a4d08895b18",
+  "parent_branch": "g0/provider-observation-preprovisioned-store-linear",
+  "branch": "g0/provider-observation-store-operation-contract-linear",
+  "primary_finding": "issue-189",
+  "change_class": "additive-nonexecuting-signed-guard-contract",
+  "authority": "short-lived-store-operation-authority",
+  "scope": {
+    "defines_initialize_store_operation": true,
+    "defines_bind_provider_start_operation": true,
+    "binds_operation_to_exact_entrypoint": true,
+    "binds_store_target_digest_and_source_revision": true,
+    "derives_store_scope_path_from_attempt_root": true,
+    "binds_store_scope_path_to_execution_and_effect_lease": true,
+    "binds_store_execution_and_effect_lease_digests": true,
+    "binds_provider_observation_and_start_receipt_for_bind": true,
+    "binds_runtime_manifest_and_conformance_digests_for_bind": true,
+    "emits_guard_decision_after_signature_time_and_subject_verification": true,
+    "verifies_effect_lease_signature_or_persistence": false,
+    "begins_or_finishes_effect": false,
+    "opens_or_mutates_sqlite": false,
+    "registers_canonical_entrypoints": false,
+    "migrates_production_callers": false,
+    "changes_main": false,
+    "changes_experimental": false,
+    "issues_owner_approval": false,
+    "promotes_or_merges": false
+  },
+  "claims": {
+    "guard_contract_implementation_exists": true,
+    "operation_authority_is_signed_and_short_lived": true,
+    "operation_authority_is_single_use_persisted": false,
+    "isolated_target_path_is_mechanically_bound": true,
+    "store_write_scope_rejects_unrelated_effects": true,
+    "provider_start_receipt_digest_is_recomputed": true,
+    "provider_start_receipt_and_observation_subjects_are_cross_checked": true,
+    "canonical_registry_integration_complete": false,
+    "effect_lease_begin_integration_complete": false,
+    "production_store_write_paths_guarded": false,
+    "issue_189_closed": false,
+    "closed": false,
+    "gate_closed": false
+  },
+  "verification": {
+    "builder_tests_prepared": true,
+    "initialize_and_bind_round_trip_tests_prepared": true,
+    "stale_revision_and_wrong_entrypoint_tests_prepared": true,
+    "isolated_target_path_scope_tests_prepared": true,
+    "dataclass_validation_bypass_test_prepared": true,
+    "provider_start_digest_and_subject_tests_prepared": true,
+    "signature_expiry_and_subject_substitution_tests_prepared": true,
+    "malformed_shape_keyring_and_ttl_tests_prepared": true,
+    "independent_ast_review_prepared": true,
+    "bounded_mutation_campaign_prepared": true,
+    "bounded_mutants": 9,
+    "full_suite_requested": true,
+    "packaging_requested": true,
+    "isolated_wheel_import_requested": true,
+    "platform_matrix": [
+      "ubuntu-python-3.10",
+      "ubuntu-python-3.12",
+      "windows-python-3.10",
+      "windows-python-3.12"
+    ],
+    "author_side_execution": {
+      "status": "not-executed",
+      "reason": "the automation runtime has repository mutation access but no executable exact private-repository checkout; source inspection and LLM review are not hard evidence"
+    },
+    "exact_head_execution": "pending-external-ci"
+  },
+  "adversarial_corrections": [
+    "the first contract draft bound target, execution and lease digests but did not mechanically require the target-relative path to be the sole writable path in both execution and Effect Lease scope; store_scope_path is now derived from target.path relative to attempt_root and compared exactly",
+    "the unrelated-scope builder test originally attempted to construct a schema-invalid request and would have failed before reaching the contract; it now mutates a frozen exact request through object.__setattr__ to exercise the contract's defense against validation bypass"
+  ],
+  "remaining_blockers": [
+    "the canonical effect entrypoint registry does not yet contain the initialize and bind-start operations",
+    "the central execution path must verify and begin the persisted Effect Lease before consuming this GuardDecision",
+    "the operation authority has no durable one-use consumption ledger",
+    "the pre-provisioned initializer and binding ledger are not yet invoked only through the guarded entrypoints",
+    "runtime manifest and RuntimeConformanceReceipt objects are represented only by bound digests in this preparatory contract",
+    "the complete SQLite open, begin, select, insert, commit, rollback and close fault matrix remains pending guarded integration",
+    "the historical auto-initializing ledger remains a production inventory blocker",
+    "GitHub Actions issue 67 prevents exact-head jobs from reaching Step 1",
+    "this packet does not issue OwnerApproval, PromotionReceipt, merge authority or a Gate transition"
+  ]
+}
