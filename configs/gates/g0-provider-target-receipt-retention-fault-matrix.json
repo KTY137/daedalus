@@ -1,0 +1,303 @@
+{
+  "schema": "daedalus-fault-matrix-manifest/1",
+  "matrix_id": "g0.provider-target-receipt-retention.v1",
+  "gate": 0,
+  "source_revision": "e12bd7467db6a6f64c405d5877e37f7f2c7e24fd",
+  "subject_entrypoint_id": "provider.target-receipt.retain",
+  "injection_fingerprint_algorithm": "daedalus-fault-injection-fingerprint/1",
+  "scenarios": [
+    {
+      "scenario_id": "retention_after_cas_before_event_kill",
+      "injection_point": "retention.after-cas.before-event",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.event.canonical",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [
+        "effect.terminal",
+        "retention.event"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_after_effect_start_before_intent_kill",
+      "injection_point": "retention.after-effect-start.before-intent",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "effect.start"
+      ],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_after_effect_terminal_before_return_kill",
+      "injection_point": "retention.after-effect-terminal.before-return",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "terminal_success_replay",
+      "expected_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [],
+      "restart_policy": "replay_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_after_event_before_effect_terminal_kill",
+      "injection_point": "retention.after-event.before-effect-terminal",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.event.canonical",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "retention.event",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [
+        "effect.terminal"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_after_intent_before_cas_kill",
+      "injection_point": "retention.after-intent.before-cas",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.cas.atomic",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "effect.start",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.terminal",
+        "retention.event"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_before_effect_start_kill",
+      "injection_point": "retention.before-effect-start",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "revision.bound"
+      ],
+      "expected_outcome": "blocked_before_effect",
+      "expected_durable_markers": [],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "restart_policy": "manual_retry",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_cas_atomic_replace_kill",
+      "injection_point": "retention.cas.atomic-replace",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.cas.atomic",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "effect.start",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.terminal",
+        "retention.event"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_event_commit_kill",
+      "injection_point": "retention.event.before-commit",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "retention.event.canonical",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [
+        "effect.terminal",
+        "retention.event"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": true,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_primary_checkout_mutation_attempt",
+      "injection_point": "retention.primary-checkout.mutation-attempt",
+      "targeted_invariants": [
+        "primary.checkout.immutable",
+        "revision.bound"
+      ],
+      "expected_outcome": "blocked_before_effect",
+      "expected_durable_markers": [],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "restart_policy": "no_retry",
+      "process_termination": false,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_stale_revision_before_effect_start",
+      "injection_point": "retention.stale-revision.before-effect-start",
+      "targeted_invariants": [
+        "primary.checkout.immutable",
+        "revision.bound"
+      ],
+      "expected_outcome": "blocked_before_effect",
+      "expected_durable_markers": [],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "restart_policy": "no_retry",
+      "process_termination": false,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_started_replay_no_auto_reexecute",
+      "injection_point": "retention.replay.started",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "reexecution.manual",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "reconcile_only",
+      "expected_durable_markers": [
+        "effect.start"
+      ],
+      "forbidden_durable_markers": [
+        "cas.object",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "restart_policy": "reconcile_only",
+      "process_termination": false,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    },
+    {
+      "scenario_id": "retention_terminal_replay_idempotent",
+      "injection_point": "retention.replay.terminal",
+      "targeted_invariants": [
+        "effect.exactly-once",
+        "primary.checkout.immutable",
+        "reexecution.manual",
+        "retention.restart.safe"
+      ],
+      "expected_outcome": "terminal_success_replay",
+      "expected_durable_markers": [
+        "cas.object",
+        "effect.start",
+        "effect.terminal",
+        "retention.event",
+        "retention.intent"
+      ],
+      "forbidden_durable_markers": [],
+      "restart_policy": "replay_only",
+      "process_termination": false,
+      "automatic_reexecution_allowed": false,
+      "primary_checkout_mutation_allowed": false,
+      "llm_evidence_allowed": false
+    }
+  ],
+  "scenario_count": 12,
+  "inventory_complete_claimed": false,
+  "faults_executed": false,
+  "gate_transition_authorized": false,
+  "closed": false
+}

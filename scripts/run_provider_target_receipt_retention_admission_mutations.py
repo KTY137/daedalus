@@ -30,6 +30,21 @@ MUTATIONS = (
         "    final_topology = (lambda **kwargs: topology)(\n",
     ),
     (
+        "second-persisted-replay-bypass",
+        "    final_replay = _inspect_persisted_execution(authorization, execution)\n",
+        "    final_replay = replay\n",
+    ),
+    (
+        "persisted-replay-equality-bypass",
+        "    if final_replay != replay:\n",
+        "    if False:\n",
+    ),
+    (
+        "live-unstarted-authentication-bypass",
+        "        authorization.verify()\n",
+        "        return\n",
+    ),
+    (
         "guard-equality-bypass",
         "    if guards[0] != expected:\n",
         "    if False:\n",
@@ -45,8 +60,33 @@ MUTATIONS = (
         "        if False:\n",
     ),
     (
+        "exact-live-spine-connection-bypass",
+        "    if type(connection) is not sqlite3.Connection:\n",
+        "    if False:\n",
+    ),
+    (
+        "live-spine-sql-write-escalation",
+        '            rows = connection.execute("PRAGMA database_list").fetchall()\n',
+        '            rows = connection.execute("PRAGMA journal_mode=WAL").fetchall()\n',
+    ),
+    (
+        "live-spine-database-identity-bypass",
+        "    if not _same_identity(event, connected_event):\n",
+        "    if False:\n",
+    ),
+    (
         "concrete-cas-binding-bypass",
         "    if not _same_identity(cas, expected_cas):\n",
+        "    if False:\n",
+    ),
+    (
+        "cas-object-target-binding-bypass",
+        "    if not _same_identity(objects, expected_objects):\n",
+        "    if False:\n",
+    ),
+    (
+        "writable-spine-bypass",
+        '    if type(getattr(spine, "read_only", None)) is not bool or spine.read_only:\n',
         "    if False:\n",
     ),
     (

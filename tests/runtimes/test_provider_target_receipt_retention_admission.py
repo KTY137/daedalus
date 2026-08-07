@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Callable
 
 import pytest
 
@@ -13,6 +14,7 @@ from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effect_replay import EffectExecutionReplaySnapshot
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
+    EffectLeaseError,
     EffectLeaseLedger,
     EffectTerminalReceipt,
     LeasedEffectStartReceipt,
@@ -42,11 +44,25 @@ EVENT_SCOPE = "state/spine.sqlite3"
 CAS_SCOPE = "cas/receipts"
 DIGESTS = tuple(f"{index:x}" * 64 for index in range(1, 13))
 NOW = datetime(2026, 8, 5, 8, 0, tzinfo=timezone.utc)
+_OPEN_SPINES: list[SpineLedger] = []
+
+
+@pytest.fixture(autouse=True)
+def _close_spines_after_test():
+    yield
+    while _OPEN_SPINES:
+        _OPEN_SPINES.pop().close()
 
 
 class _DigestSubject:
     def __init__(self, digest: str) -> None:
         self.digest = digest
+
+
+def _new_spine(path: Path) -> SpineLedger:
+    spine = SpineLedger(path)
+    _OPEN_SPINES.append(spine)
+    return spine
 
 
 def _execution() -> EffectExecutionRequest:
@@ -161,21 +177,16 @@ def _preflight(
 
 
 def _subjects(tmp_path: Path) -> SimpleNamespace:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     repository = tmp_path / "repository"
     repository.mkdir()
     retention_root = tmp_path / "retention"
-    event = retention_root / "state" / "spine.sqlite3"
+    event = retention_root / EVENT_SCOPE
     event.parent.mkdir(parents=True)
-    event.write_bytes(b"event-store")
-    cas = retention_root / "cas" / "receipts"
-    cas.mkdir(parents=True)
-    effect_store = tmp_path / "effect-leases.sqlite3"
-    effect_store.write_bytes(b"effect-store")
+    spine = _new_spine(event)
+    source_store = SourceTreeStore(retention_root / CAS_SCOPE)
+    effect_ledger = EffectLeaseLedger(tmp_path / "effect-leases.sqlite3")
 
-    spine = object.__new__(SpineLedger)
-    spine.path = event
-    source_store = object.__new__(SourceTreeStore)
-    source_store.root = cas
     ledger = object.__new__(ProviderTargetReceiptLedger)
     ledger.primary_checkout = repository
     ledger.spine = spine
@@ -184,12 +195,6 @@ def _subjects(tmp_path: Path) -> SimpleNamespace:
     execution = _execution()
     request, policy, lease = _lease_subjects()
     preflight = _preflight(execution, lease)
-    receipt = _DigestSubject(preflight.provider_target_receipt_sha256)
-    inventory = _DigestSubject(preflight.retention_inventory_sha256)
-    authority = _DigestSubject(preflight.retention_authority_sha256)
-
-    effect_ledger = object.__new__(EffectLeaseLedger)
-    effect_ledger.path = effect_store
     authorization = NonRuntimeEffectAuthorization(
         lease=lease,
         request=request,
@@ -210,29 +215,40 @@ def _subjects(tmp_path: Path) -> SimpleNamespace:
         repository=repository,
         retention_root=retention_root,
         event=event,
-        cas=cas,
-        effect_store=effect_store,
+        cas=source_store.root,
+        objects=source_store.objects,
+        effect_store=effect_ledger.path,
         spine=spine,
         source_store=source_store,
         ledger=ledger,
         preflight=preflight,
-        receipt=receipt,
-        inventory=inventory,
-        authority=authority,
+        receipt=_DigestSubject(preflight.provider_target_receipt_sha256),
+        inventory=_DigestSubject(preflight.retention_inventory_sha256),
+        authority=_DigestSubject(preflight.retention_authority_sha256),
         execution=execution,
         authorization=authorization,
     )
 
 
-def _install_preflight(
+def _install(
     monkeypatch: pytest.MonkeyPatch,
     subjects: SimpleNamespace,
+    *,
+    replay: EffectExecutionReplaySnapshot | None | Callable[..., object] = None,
+    verify: Callable[[NonRuntimeEffectAuthorization], None] | None = None,
 ) -> None:
     monkeypatch.setattr(
         admission_module,
         "verify_provider_target_receipt_retention_preflight",
         lambda *args, **kwargs: subjects.preflight,
     )
+    monkeypatch.setattr(
+        NonRuntimeEffectAuthorization,
+        "verify",
+        verify or (lambda self: None),
+    )
+    replay_call = replay if callable(replay) else (lambda *args, **kwargs: replay)
+    monkeypatch.setattr(admission_module, "inspect_effect_execution", replay_call)
 
 
 def _call(
@@ -259,22 +275,7 @@ def _call(
     )
 
 
-def _verify(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    replay: EffectExecutionReplaySnapshot | None = None,
-) -> tuple[ProviderTargetReceiptRetentionAdmissionReceipt, SimpleNamespace]:
-    subjects = _subjects(tmp_path)
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: replay,
-    )
-    return _call(subjects), subjects
-
-
-def _start_receipt(subjects: SimpleNamespace) -> LeasedEffectStartReceipt:
+def _start(subjects: SimpleNamespace) -> LeasedEffectStartReceipt:
     return LeasedEffectStartReceipt(
         lease_sha256=subjects.authorization.lease.digest,
         execution_id=subjects.execution.execution_id,
@@ -286,59 +287,79 @@ def _start_receipt(subjects: SimpleNamespace) -> LeasedEffectStartReceipt:
     )
 
 
-def test_not_started_admission_round_trip_is_non_executing(
+def test_not_started_is_double_read_live_verified_and_non_authorizing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    result, subjects = _verify(tmp_path, monkeypatch)
+    subjects = _subjects(tmp_path)
+    calls = {"verify": 0, "replay": 0}
+
+    def verify(self) -> None:
+        calls["verify"] += 1
+
+    def replay(*args, **kwargs):
+        calls["replay"] += 1
+        return None
+
+    _install(monkeypatch, subjects, replay=replay, verify=verify)
+    result = _call(subjects)
     payload = result.to_dict()
 
+    assert calls == {"verify": 2, "replay": 2}
     assert result.execution_state == "not_started"
-    assert result.primary_checkout_path == os.fspath(subjects.repository.resolve())
-    assert result.retention_root_path == os.fspath(subjects.retention_root.resolve())
+    assert result.event_store_path == os.fspath(subjects.event.resolve())
     assert payload["persisted_effect_lease_verified"] is True
     assert payload["primary_checkout_disjointness_verified"] is True
     assert payload["retention_effect_started"] is False
-    assert payload["retention_write_performed"] is False
-    assert payload["automatic_reexecution_allowed"] is False
-    assert payload["canonical_entrypoint_registered"] is False
-    assert payload["gate_transition_authorized"] is False
-    assert payload["closed"] is False
+    for field in (
+        "retention_write_performed",
+        "automatic_reexecution_allowed",
+        "canonical_entrypoint_registered",
+        "gate_transition_authorized",
+        "closed",
+    ):
+        assert payload[field] is False
     assert ProviderTargetReceiptRetentionAdmissionReceipt.from_dict(payload) == result
 
 
-def test_started_replay_is_reported_without_terminal_or_reexecution(
+def test_unstarted_live_authority_refusal_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     subjects = _subjects(tmp_path)
-    replay = EffectExecutionReplaySnapshot(_start_receipt(subjects), "STARTED", None)
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: replay,
-    )
 
-    result = _call(subjects)
+    def refuse(self) -> None:
+        raise EffectLeaseError("expired")
 
+    _install(monkeypatch, subjects, verify=refuse)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="not live and authentic",
+    ):
+        _call(subjects)
+
+
+def test_started_and_terminal_replay_do_not_use_current_lease_validity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started_subjects = _subjects(tmp_path / "started")
+    started = EffectExecutionReplaySnapshot(_start(started_subjects), "STARTED", None)
+
+    def unexpected(self) -> None:
+        raise AssertionError("historical replay used live lease verification")
+
+    _install(monkeypatch, started_subjects, replay=started, verify=unexpected)
+    result = _call(started_subjects)
     assert result.execution_state == "started"
     assert result.start_receipt_sha256 == DIGESTS[11]
     assert result.terminal_receipt_sha256 is None
-    assert result.to_dict()["retention_effect_started"] is True
-    assert result.to_dict()["retention_effect_terminal"] is False
-    assert result.to_dict()["automatic_reexecution_allowed"] is False
 
-
-def test_terminal_replay_retains_both_receipt_identities(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
-    start = _start_receipt(subjects)
+    terminal_subjects = _subjects(tmp_path / "terminal")
+    start = _start(terminal_subjects)
     terminal = EffectTerminalReceipt(
-        lease_sha256=subjects.authorization.lease.digest,
-        execution_id=subjects.execution.execution_id,
+        lease_sha256=terminal_subjects.authorization.lease.digest,
+        execution_id=terminal_subjects.execution.execution_id,
         start_receipt_sha256=DIGESTS[11],
         outcome="COMPLETED",
         output_digests=(),
@@ -346,44 +367,38 @@ def test_terminal_replay_retains_both_receipt_identities(
         finished_at="2026-08-05T08:01:00.000000+00:00",
         receipt_sha256="a" * 64,
     )
-    replay = EffectExecutionReplaySnapshot(start, "COMPLETED", terminal)
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: replay,
+    _install(
+        monkeypatch,
+        terminal_subjects,
+        replay=EffectExecutionReplaySnapshot(start, "COMPLETED", terminal),
+        verify=unexpected,
     )
-
-    result = _call(subjects)
-
+    result = _call(terminal_subjects)
     assert result.execution_state == "COMPLETED"
-    assert result.start_receipt_sha256 == DIGESTS[11]
     assert result.terminal_receipt_sha256 == "a" * 64
-    assert result.to_dict()["retention_effect_terminal"] is True
 
 
-def test_preflight_refusal_happens_before_topology_or_replay(
+def test_initial_and_final_stale_preflight_refuse_at_ordered_boundaries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = _subjects(tmp_path)
+    subjects = _subjects(tmp_path / "initial")
     calls: list[str] = []
 
-    def refuse(*args, **kwargs):
+    def initial_refusal(*args, **kwargs):
         calls.append("preflight")
         raise ProviderTargetReceiptRetentionPreflightBindingError("stale revision")
 
     def unexpected(*args, **kwargs):
         calls.append("replay")
-        raise AssertionError("replay ran after failed preflight")
+        raise AssertionError("replay ran after stale preflight")
 
     monkeypatch.setattr(
         admission_module,
         "verify_provider_target_receipt_retention_preflight",
-        refuse,
+        initial_refusal,
     )
     monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
-
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
         match="preflight did not reverify",
@@ -391,37 +406,47 @@ def test_preflight_refusal_happens_before_topology_or_replay(
         _call(subjects)
     assert calls == ["preflight"]
 
+    subjects = _subjects(tmp_path / "final")
+    counts = {"preflight": 0, "replay": 0}
 
-def test_final_preflight_refusal_fences_stale_revision_after_replay(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
-    calls = {"preflight": 0, "replay": 0}
-
-    def preflight(*args, **kwargs):
-        calls["preflight"] += 1
-        if calls["preflight"] == 2:
+    def final_refusal(*args, **kwargs):
+        counts["preflight"] += 1
+        if counts["preflight"] == 2:
             raise ProviderTargetReceiptRetentionPreflightBindingError("HEAD moved")
         return subjects.preflight
 
     def replay(*args, **kwargs):
-        calls["replay"] += 1
+        counts["replay"] += 1
         return None
 
+    monkeypatch.setattr(NonRuntimeEffectAuthorization, "verify", lambda self: None)
     monkeypatch.setattr(
         admission_module,
         "verify_provider_target_receipt_retention_preflight",
-        preflight,
+        final_refusal,
     )
     monkeypatch.setattr(admission_module, "inspect_effect_execution", replay)
-
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
         match="preflight did not reverify",
     ):
         _call(subjects)
-    assert calls == {"preflight": 2, "replay": 1}
+    assert counts == {"preflight": 2, "replay": 1}
+
+
+def test_persisted_execution_change_between_reads_refuses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subjects = _subjects(tmp_path)
+    values = iter((None, EffectExecutionReplaySnapshot(_start(subjects), "STARTED", None)))
+    _install(monkeypatch, subjects, replay=lambda *args, **kwargs: next(values))
+
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="execution changed during admission",
+    ):
+        _call(subjects)
 
 
 def test_same_path_cas_identity_replacement_during_replay_refuses(
@@ -429,20 +454,14 @@ def test_same_path_cas_identity_replacement_during_replay_refuses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     subjects = _subjects(tmp_path)
-    _install_preflight(monkeypatch, subjects)
     displaced = tmp_path / "displaced-cas"
 
     def replace_identity(*args, **kwargs):
         subjects.cas.rename(displaced)
-        subjects.cas.mkdir()
+        subjects.objects.mkdir(parents=True)
         return None
 
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        replace_identity,
-    )
-
+    _install(monkeypatch, subjects, replay=replace_identity)
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
         match="topology identity changed during persisted replay",
@@ -450,148 +469,64 @@ def test_same_path_cas_identity_replacement_during_replay_refuses(
         _call(subjects)
 
 
-def test_concrete_cas_scope_substitution_refuses(
+def test_spine_declared_path_must_match_live_sqlite_connection(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = _subjects(tmp_path)
-    foreign_cas = tmp_path / "foreign-cas"
-    foreign_cas.mkdir()
-    subjects.source_store.root = foreign_cas
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: None,
-    )
+    subjects = _subjects(tmp_path / "subjects")
+    foreign = _new_spine(tmp_path / "foreign" / "spine.sqlite3")
+    subjects.spine.path = foreign.path
+    _install(monkeypatch, subjects)
 
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
-        match="receipt_cas_scope_path does not bind the concrete receipt CAS",
+        match="detached from its live SQLite connection",
     ):
         _call(subjects)
 
 
-def test_noncanonical_scope_refuses_before_replay(
+def test_cas_scope_object_target_spine_mode_and_primary_overlap_refuse(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = _subjects(tmp_path)
-    calls: list[str] = []
-    _install_preflight(monkeypatch, subjects)
+    subjects = _subjects(tmp_path / "scope")
+    foreign_store = SourceTreeStore(tmp_path / "foreign-cas")
+    subjects.ledger.source_store = foreign_store
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="receipt_cas_scope_path does not bind",
+    ):
+        _call(subjects)
 
-    def unexpected(*args, **kwargs):
-        calls.append("replay")
-        raise AssertionError("replay ran after malformed topology")
+    subjects = _subjects(tmp_path / "objects")
+    subjects.source_store.objects = SourceTreeStore(
+        tmp_path / "detached-object-store"
+    ).objects
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="objects are detached",
+    ):
+        _call(subjects)
 
-    monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
-
+    subjects = _subjects(tmp_path / "readonly")
+    subjects.spine.read_only = True
+    _install(monkeypatch, subjects)
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionShapeError,
-        match="canonical non-root repository-relative POSIX",
-    ):
-        _call(subjects, cas_scope="cas//receipts")
-    assert calls == []
-
-
-def test_guard_detachment_refuses_before_topology_or_replay(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
-    object.__setattr__(
-        subjects.authorization,
-        "guard_decisions",
-        (GuardDecision(RETENTION_GUARD_CONTRACT, True, "detached"),),
-    )
-    calls: list[str] = []
-    _install_preflight(monkeypatch, subjects)
-
-    def unexpected(*args, **kwargs):
-        calls.append("replay")
-        raise AssertionError("replay ran after detached guard")
-
-    monkeypatch.setattr(admission_module, "inspect_effect_execution", unexpected)
-
-    with pytest.raises(
-        ProviderTargetReceiptRetentionAdmissionBindingError,
-        match="guard is detached",
-    ):
-        _call(subjects)
-    assert calls == []
-
-
-def test_detached_lease_request_refuses_before_preflight(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
-    object.__setattr__(subjects.authorization.lease, "request_id", "foreign-request")
-    calls: list[str] = []
-
-    def unexpected(*args, **kwargs):
-        calls.append("preflight")
-        raise AssertionError("preflight ran after detached lease request")
-
-    monkeypatch.setattr(
-        admission_module,
-        "verify_provider_target_receipt_retention_preflight",
-        unexpected,
-    )
-
-    with pytest.raises(
-        ProviderTargetReceiptRetentionAdmissionBindingError,
-        match="authority components are detached",
-    ):
-        _call(subjects)
-    assert calls == []
-
-
-def test_effect_store_hard_link_alias_refuses(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
-    alias = tmp_path / "effect-leases-alias.sqlite3"
-    try:
-        os.link(subjects.effect_store, alias)
-    except OSError as exc:
-        pytest.skip(f"hard links unavailable: {exc}")
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: None,
-    )
-
-    with pytest.raises(
-        ProviderTargetReceiptRetentionAdmissionBindingError,
-        match="Effect-Lease store must have one filesystem identity",
+        match="spine must be writable",
     ):
         _call(subjects)
 
-
-def test_retention_root_inside_primary_checkout_refuses(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    subjects = _subjects(tmp_path)
+    subjects = _subjects(tmp_path / "overlap")
     nested_root = subjects.repository / "retention"
-    nested_event = nested_root / EVENT_SCOPE
-    nested_event.parent.mkdir(parents=True)
-    nested_event.write_bytes(b"nested-event")
-    nested_cas = nested_root / CAS_SCOPE
-    nested_cas.mkdir(parents=True)
+    nested_spine = _new_spine(nested_root / EVENT_SCOPE)
+    nested_store = SourceTreeStore(nested_root / CAS_SCOPE)
     subjects.retention_root = nested_root
-    subjects.spine.path = nested_event
-    subjects.source_store.root = nested_cas
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: None,
-    )
-
+    subjects.ledger.spine = nested_spine
+    subjects.ledger.source_store = nested_store
+    _install(monkeypatch, subjects)
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
         match="retention_root must be outside the Primary Checkout",
@@ -599,25 +534,67 @@ def test_retention_root_inside_primary_checkout_refuses(
         _call(subjects)
 
 
-def test_non_exact_inner_ledger_and_replay_types_refuse(
+def test_hardlink_noncanonical_guard_authority_and_exact_type_bypasses_refuse(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    subjects = _subjects(tmp_path)
+    subjects = _subjects(tmp_path / "hardlink")
+    alias = tmp_path / "effect-leases-alias.sqlite3"
+    try:
+        os.link(subjects.effect_store, alias)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="Effect-Lease store must have one filesystem identity",
+    ):
+        _call(subjects)
+
+    subjects = _subjects(tmp_path / "scope-path")
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionShapeError,
+        match="canonical non-root repository-relative POSIX",
+    ):
+        _call(subjects, cas_scope="cas//receipts")
+
+    subjects = _subjects(tmp_path / "guard")
+    object.__setattr__(
+        subjects.authorization,
+        "guard_decisions",
+        (GuardDecision(RETENTION_GUARD_CONTRACT, True, "detached"),),
+    )
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="guard is detached",
+    ):
+        _call(subjects)
+
+    subjects = _subjects(tmp_path / "authority")
+    object.__setattr__(subjects.authorization.lease, "request_id", "foreign-request")
+    _install(monkeypatch, subjects)
+    with pytest.raises(
+        ProviderTargetReceiptRetentionAdmissionBindingError,
+        match="authority components are detached",
+    ):
+        _call(subjects)
+
+    subjects = _subjects(tmp_path / "inner")
     subjects.ledger.spine = SimpleNamespace(path=subjects.event)
-    _install_preflight(monkeypatch, subjects)
+    _install(monkeypatch, subjects)
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionShapeError,
         match="spine must be exact SpineLedger",
     ):
         _call(subjects)
 
-    subjects = _subjects(tmp_path / "second")
-    _install_preflight(monkeypatch, subjects)
-    monkeypatch.setattr(
-        admission_module,
-        "inspect_effect_execution",
-        lambda *args, **kwargs: SimpleNamespace(state="STARTED"),
+    subjects = _subjects(tmp_path / "replay")
+    _install(
+        monkeypatch,
+        subjects,
+        replay=lambda *args, **kwargs: SimpleNamespace(state="STARTED"),
     )
     with pytest.raises(
         ProviderTargetReceiptRetentionAdmissionBindingError,
@@ -630,7 +607,9 @@ def test_wire_claim_escalation_extra_fields_and_malformed_values_refuse(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    result, _ = _verify(tmp_path, monkeypatch)
+    subjects = _subjects(tmp_path)
+    _install(monkeypatch, subjects)
+    result = _call(subjects)
 
     for field in (
         "retention_write_performed",
