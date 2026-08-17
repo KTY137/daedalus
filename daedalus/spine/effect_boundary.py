@@ -22,6 +22,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Iterable, Mapping, Sequence
@@ -1343,6 +1344,17 @@ def _name(node: ast.AST, aliases: Mapping[str, str]) -> str:
 #: exclusion is documented here rather than silent.
 SCAN_PACKAGES: tuple[str, ...] = ("daedalus", "tools", "runs")
 
+#: Dev-harness directories the conformance pass reads and CLASSIFIES without
+#: policing them as production surface.  Measured 2026-08-17: 74 mutation-run
+#: scripts and 17 test fixtures are effectful entrypoints.  Leaving them
+#: unscanned would repeat the blind-spot mistake documented above; promoting
+#: them to blockers would turn the gate off rather than close it (nobody
+#: registers 91 dev runners honestly in one sitting).  So every discovered,
+#: unregistered entrypoint here becomes an explicit ``entrypoint.harness``
+#: review finding: named, counted, and outside Gate-0 wiring by declaration
+#: rather than by silence.
+HARNESS_PACKAGES: tuple[str, ...] = ("scripts", "tests")
+
 
 def _models(
     root: Path, packages: Sequence[str] = SCAN_PACKAGES,
@@ -1559,6 +1571,7 @@ def discover_entrypoints(
     _preloaded: tuple[
         list[_ModuleModel], list[ConformanceFinding]
     ] | None = None,
+    _console_scripts: bool = True,
 ) -> tuple[
     tuple[DiscoveredEntrypoint, ...], tuple[ConformanceFinding, ...]
 ]:
@@ -1662,6 +1675,9 @@ def discover_entrypoints(
     # supported and has no tomllib, so parse only this deliberately tiny TOML
     # table instead of adding a runtime dependency.  Unexpected syntax inside
     # the table is a blocker rather than a silently ignored line.
+    if not _console_scripts:
+        return tuple(sorted(rows.values(), key=lambda row: row.target)), tuple(findings)
+
     pyproject = root_path / "pyproject.toml"
     try:
         scripts = _project_scripts(pyproject.read_text(encoding="utf-8"))
@@ -1755,6 +1771,36 @@ def _called_names(
 ) -> set[str]:
     _effects, _evidence, calls = _direct_effects(node, aliases)
     return calls
+
+
+@lru_cache(maxsize=8)
+def _harness_scan(
+    root: str,
+) -> tuple[tuple[DiscoveredEntrypoint, ...], tuple[ConformanceFinding, ...]]:
+    """Read HARNESS_PACKAGES once per process and root.
+
+    The harness population (~550 files) dominates conformance wall time, and
+    a test session calls :func:`check_conformance` many times against the same
+    tree.  The cache is per-process only: the CLI and CI pay the scan exactly
+    once per invocation, so drift detection across runs is unaffected.  Within
+    one long-lived process a harness file edited after the first scan is seen
+    only after ``_harness_scan.cache_clear()`` -- an accepted, stated bound,
+    not a silent one.  Production packages are never cached.
+    """
+    root_path = Path(root)
+    models, findings = _models(root_path, HARNESS_PACKAGES)
+    downgraded = tuple(
+        ConformanceFinding(
+            "scan.harness_source_unreadable", "review", row.subject, row.detail
+        )
+        for row in findings
+        if row.code != "scan.package_missing"
+        # a repo without harness dirs has nothing to classify
+    )
+    rows, _scan_findings = discover_entrypoints(
+        root_path, _preloaded=(models, []), _console_scripts=False
+    )
+    return rows, downgraded
 
 
 def check_conformance(
@@ -1955,6 +2001,29 @@ def check_conformance(
                     f"{row.target} is {row.wiring.value}; Gate 0 is not closed",
                 )
             )
+
+    # Dev-harness classification: read the harness directories with the same
+    # discovery, but emit review findings instead of blockers.  A harness
+    # entrypoint is out of Gate-0 wiring scope by DECLARATION; silence would
+    # be the old blind spot and blockers would just get the gate disabled.
+    harness_rows, harness_findings = _harness_scan(str(root_path))
+    findings.extend(harness_findings)
+    for row in harness_rows:
+        if row.target in targets:
+            continue
+        findings.append(
+            ConformanceFinding(
+                "entrypoint.harness",
+                "review",
+                row.target,
+                (
+                    "dev-harness entrypoint ("
+                    + ", ".join(effect.value for effect in row.effects)
+                    + ") outside the production registry; explicitly classified "
+                    "out-of-scope for Gate-0 wiring, not silently unscanned"
+                ),
+            )
+        )
 
     findings.append(
         ConformanceFinding(

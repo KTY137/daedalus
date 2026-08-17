@@ -605,3 +605,52 @@ def test_runs_package_is_scanned_and_its_billable_doors_are_registered() -> None
     }
     assert report.structurally_conformant is True
     assert report.gate0_closed is False
+
+
+def test_harness_entrypoints_are_classified_not_silent_and_never_blockers(
+    tmp_path: Path,
+) -> None:
+    """Tier 5 of the inventory: classify the dev harness, do not migrate it.
+
+    The mutation-run scripts and test fixtures are effectful Python.  Leaving
+    them unscanned repeats the measured blind-spot mistake (a scan that never
+    reads a directory answers "no drift" for it); promoting them to blockers
+    would disable the gate rather than close it.  So the conformance pass
+    reads HARNESS_PACKAGES and names every unregistered entrypoint there as an
+    ``entrypoint.harness`` REVIEW finding -- counted, inspectable, and out of
+    Gate-0 wiring scope by declaration.  This test pins both halves: the
+    classification exists, and it can never quietly escalate or degrade
+    structural conformance.
+    """
+    from daedalus.spine.effect_boundary import HARNESS_PACKAGES
+
+    assert HARNESS_PACKAGES == ("scripts", "tests")
+
+    report = check_conformance(ROOT)
+    harness = [row for row in report.findings if row.code == "entrypoint.harness"]
+    assert harness, "the harness population vanished; the scan stopped reading it"
+    assert all(row.severity == "review" for row in harness)
+    assert {row.subject.split(".")[0] for row in harness} <= {"scripts", "tests"}
+    assert report.structurally_conformant is True
+
+    # mechanism check on a minimal repo: a harness dir gets classified, and
+    # the same effectful code inside the production package stays a blocker
+    root = _minimal_repo(tmp_path, "def inspect():\n    return 1\n")
+    scripts = root / "scripts"
+    scripts.mkdir()
+    (scripts / "runner.py").write_text(
+        "import subprocess\n\ndef main():\n    subprocess.run(['x'])\n",
+        encoding="utf-8",
+    )
+    fixture_report = check_conformance(root, registry=())
+    assert any(
+        row.code == "entrypoint.harness"
+        and row.subject == "scripts.runner:main"
+        and row.severity == "review"
+        for row in fixture_report.findings
+    )
+    assert not any(
+        row.code == "entrypoint.unregistered"
+        and row.subject.startswith("scripts.")
+        for row in fixture_report.findings
+    )
