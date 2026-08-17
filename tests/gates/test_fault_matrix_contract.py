@@ -381,6 +381,26 @@ def test_every_exact_observation_binding_is_required() -> None:
         assert result.failure_count == 1
 
 
+def test_verifier_rechecks_forbidden_observations_without_trusting_the_type() -> None:
+    # The receipt constructor already refuses these observations, so the
+    # verifier's own re-check is defense in depth: it must fail a receipt
+    # object whose invariants were violated past the constructor, not trust
+    # the type. Forge via object.__setattr__ to simulate exactly that.
+    manifest = _manifest()
+    spec = manifest.scenarios[0]
+
+    for field in ("automatic_reexecution_performed", "llm_evidence_used"):
+        receipts = list(_receipts(manifest))
+        forged = receipts[0]
+        object.__setattr__(forged, field, True)
+
+        result = _verify(manifest, (forged, *receipts[1:]))
+
+        assert result.status == "failed"
+        assert result.failed_scenario_ids == (spec.scenario_id,)
+        assert result.failure_count == 1
+
+
 def test_expected_subject_arguments_are_exact_and_stale_revision_refuses() -> None:
     manifest = _manifest()
     receipts = _receipts(manifest)
