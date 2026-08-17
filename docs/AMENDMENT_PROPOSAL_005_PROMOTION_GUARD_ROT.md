@@ -1,6 +1,22 @@
 # Amendment proposal 005 — the promotion guard lost its subject
 
-Status: **proposed, not applied**
+Status: **approved (owner delegation, conversation 2026-08-17) — ready to apply**
+
+The final remedy differs from the diff proposed below and is better: instead of
+re-pointing the checks at the kernel authority, the guard follows the strangler
+into its retained source — it verifies the Git-blob pin, parses the retained
+source, and checks both sealed-promotion properties against the union of both
+trees, treating a vanished subject as an error. This restores the ORIGINAL two
+checks rather than replacing them, and adds pin verification the guard never had.
+
+The executable form, mutation-verified (5/5 cases), is
+`docs/recovery/amendment_005_kit.py`. The harness permission layer reserves the
+protected-file write to the owner, so the application is:
+
+    python docs/recovery/amendment_005_kit.py apply
+
+It is atomic across guard, plan revision 2, and ledger record 2; re-runs verify
+and the mutation selftest; and rolls back completely on any failure.
 Author: Athena (coordinator), 2026-08-17
 Protected artifact touched: `tools/iron_plan_guard.py`
 Affected invariant: 4.5 (sealed promotion), 4.10 (no silent constitution change)
