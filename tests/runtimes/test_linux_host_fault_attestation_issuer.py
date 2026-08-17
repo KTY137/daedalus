@@ -22,6 +22,7 @@ from daedalus.runtimes.fault_attestation_issuer import (
     build_matrix_from_run_directory,
     issue_run_directory,
     load_linux_host_fault_run,
+    main as issuer_main,
 )
 from daedalus.runtimes.fault_attestations import (
     RuntimeFaultAttestationSignatureError,
@@ -304,6 +305,93 @@ def test_a_failed_row_is_attested_but_still_blocks(tmp_path: Path) -> None:
     # Authenticity was granted; the verdict is unchanged.
     assert f"fault.untrusted-observation:{scenario.scenario_id}" not in verification.blockers
     assert f"fault.failed:{scenario.scenario_id}" in verification.blockers
+
+
+def test_signature_grants_authenticity_never_verdict_through_the_cli(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Council CHECK (b): the issuer contract, pinned end to end through the CLI.
+
+    A refusal-free bundle that contains signed *failed* and *blocked*
+    observations must issue with exit 0 -- the signature authenticates the
+    record, honest bad news included. The subsequent ``verify`` must then carry
+    ``fault.failed`` / ``fault.blocked`` blockers for exactly those rows and
+    exit 1. Signature = authenticity, never verdict: if signing implied
+    passing, honest failures could not enter the trust set, and if a signed
+    failure could close the matrix, the trust set would be a rubber stamp.
+    """
+
+    directory = tmp_path / "run"
+    directory.mkdir()
+    failed_scenario, blocked_scenario, *passing = LINUX_SCENARIOS
+    _publish(
+        directory,
+        _forge_run(
+            failed_scenario,
+            status="failed",
+            outcome="failed",
+            detail_code="executor-error",
+            raw=b"raw-failed",
+        ),
+    )
+    _publish(
+        directory,
+        _forge_run(
+            blocked_scenario,
+            status="blocked",
+            detail_code="docker-cli-unavailable",
+            raw=b"raw-blocked",
+        ),
+    )
+    for scenario in passing:
+        _publish(
+            directory,
+            _forge_run(scenario, raw=b"raw-" + scenario.scenario_id.encode()),
+        )
+
+    monkeypatch.setenv("DAEDALUS_COUNCIL_FAULT_KEY", SECRET.decode("utf-8"))
+    bundle_path = tmp_path / "bundle.json"
+
+    issue_exit = issuer_main(
+        [
+            "issue",
+            "--run-dir", str(directory),
+            "--source-revision", REVISION,
+            "--issuer-id", "host-runner",
+            "--key-id", "host-key-1",
+            "--key-env", "DAEDALUS_COUNCIL_FAULT_KEY",
+            "--key-class", "development",
+            "--output", str(bundle_path),
+        ]
+    )
+    issue_summary = json.loads(capsys.readouterr().out.strip())
+    assert issue_exit == 0
+    assert issue_summary["refused"] == 0
+    assert issue_summary["refusals"] == []
+    assert issue_summary["attested"] == len(LINUX_SCENARIOS)
+
+    verify_exit = issuer_main(
+        [
+            "verify",
+            "--run-dir", str(directory),
+            "--bundle", str(bundle_path),
+            "--source-revision", REVISION,
+            "--key-env", "DAEDALUS_COUNCIL_FAULT_KEY",
+        ]
+    )
+    verdict = json.loads(capsys.readouterr().out.strip())
+    assert verify_exit == 1
+    blockers = verdict["fault_verification"]["blockers"]
+    assert f"fault.failed:{failed_scenario.scenario_id}" in blockers
+    assert f"fault.blocked:{blocked_scenario.scenario_id}" in blockers
+    # Authenticity was granted to both rows: neither is untrusted, the verdict
+    # blockers come from the observed statuses alone.
+    assert f"fault.untrusted-observation:{failed_scenario.scenario_id}" not in blockers
+    assert f"fault.untrusted-observation:{blocked_scenario.scenario_id}" not in blockers
+    assert verdict["closed"] is False
+    assert verdict["fault_verification"]["closed"] is False
 
 
 def test_an_attestation_predating_its_observation_is_refused() -> None:
