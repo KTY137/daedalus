@@ -1,0 +1,48 @@
+{
+  "schema": "daedalus-linux-host-fault-attestation-receipt/1",
+  "what_this_is": "One real issuance run over runs/gate0-linux-container-fault/, retained as a measurement record.",
+  "source_revision": "0d281c0316d74af7aceae2dc5b126945ec252c2d",
+  "head_revision_of_this_worktree": "5482e19bafd4f339f356e8de93f8b8197e08bf02",
+  "revision_note": "The retained container run was produced at 0d281c03, not at this worktree's HEAD. Verification therefore used the run's own revision as expected_source_revision. Under a true exact-head policy every row would additionally carry fault.stale-revision and the matrix fault.matrix-stale-revision. Closing Gate 0 on this axis requires re-running the driver at the exact head being claimed.",
+  "key_provenance": {
+    "key_class": "development",
+    "issuer_id": "dev-host-runner",
+    "key_id": "dev-ephemeral-key-1",
+    "origin": "secrets.token_hex(32), generated inside the measuring shell",
+    "retained": false,
+    "consequence": "The key was never written to disk and no longer exists. The retained bundle is therefore NOT re-verifiable by anyone and must never be mistaken for production trust. It records that the boundary worked, nothing more.",
+    "owner_action_required": "Production issuer keys and the issuer-to-authority policy are owner-provisioned. Nothing in this repository provisions them."
+  },
+  "verdict_before_attestation": {
+    "trusted_observations": 0,
+    "blockers_total": 30,
+    "blockers_by_class": {
+      "fault.untrusted-observation": 9,
+      "fault.missing": 15,
+      "fault.blocked": 4,
+      "fault.failed": 2
+    }
+  },
+  "verdict_after_attestation": {
+    "trusted_observations": 9,
+    "blockers_total": 21,
+    "blockers_by_class": {
+      "fault.untrusted-observation": 0,
+      "fault.missing": 15,
+      "fault.blocked": 4,
+      "fault.failed": 2
+    }
+  },
+  "what_changed": "Only the authenticity question. All nine retained Linux-host observations entered the trust set; every substantive blocker stayed exactly where it was. Two failed rows, four rows blocked on an unavailable Docker CLI, and fifteen rows with no observation at all remain open.",
+  "what_did_not_change": "Signing an observation grants authenticity, never a verdict. The two failed and four blocked rows were attested and still block.",
+  "remaining_for_a_whole-matrix_verdict": [
+    "The fifteen fault.missing rows are thirteen deterministic-fixture rows and two live-runtime rows. No collector emits RuntimeFaultObservation records for either authority; the deterministic-fixture rows name pytest node ids in scenario.executor but nothing maps a pytest result to an observation.",
+    "daedalus/gates/fault_matrix.py is a separate manifest/receipt subsystem with its own verdict and does not feed daedalus/runtimes/fault_matrix.py. The Windows-side pass count comes from that other path and is not currently merged into this matrix.",
+    "The four Docker-blocked rows need a run on a host with a reachable Linux Docker engine.",
+    "Both remaining columns need their own issuer identity and authority policy before their observations can be trusted."
+  ],
+  "commands": [
+    "daedalus fault-attestation issue --run-dir runs/gate0-linux-container-fault --source-revision <rev> --issuer-id <id> --key-id <id> --key-env <VAR> --key-class production|development --output <path>",
+    "daedalus fault-attestation verify --run-dir runs/gate0-linux-container-fault --bundle <path> --source-revision <rev> --key-env <VAR>"
+  ]
+}
