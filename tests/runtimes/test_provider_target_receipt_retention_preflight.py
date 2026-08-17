@@ -41,10 +41,21 @@ EVENT_PATH = "attempt/state/spine.sqlite3"
 CAS_PATH = "attempt/cas/receipts"
 
 
+def _write_head(root: Path, revision: str) -> None:
+    """Write ``.git/HEAD`` byte-exactly.
+
+    Git writes ``.git/HEAD`` with a single LF on every platform, and the
+    revision fence refuses a CR. ``Path.write_text`` opens in text mode and
+    translates ``\\n`` to ``os.linesep``, so on Windows it would emit CRLF and
+    make the fixture -- not the guard -- the thing under test.
+    """
+    (root / ".git" / "HEAD").write_bytes((revision + "\n").encode("ascii"))
+
+
 def _repository(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
     (root / ".git").mkdir(parents=True)
-    (root / ".git" / "HEAD").write_text(REVISION + "\n", encoding="ascii")
+    _write_head(root, REVISION)
     source = (
         Path(__file__).resolve().parents[2]
         / "daedalus"
@@ -293,7 +304,7 @@ def test_stale_repository_head_refuses_after_authority_authentication(
 ) -> None:
     root = _repository(tmp_path)
     receipt, execution, lease, inventory, _, authority, head_receipt = _subjects(root)
-    (root / ".git" / "HEAD").write_text("0" * 40 + "\n", encoding="ascii")
+    _write_head(root, "0" * 40)
 
     with pytest.raises(
         ProviderTargetReceiptRetentionPreflightBindingError,
@@ -320,7 +331,7 @@ def test_head_change_during_inventory_rebuild_refuses(
 
     def scan_then_move_head(*args, **kwargs):
         rebuilt = real_scan(*args, **kwargs)
-        (root / ".git" / "HEAD").write_text("0" * 40 + "\n", encoding="ascii")
+        _write_head(root, "0" * 40)
         return rebuilt
 
     monkeypatch.setattr(

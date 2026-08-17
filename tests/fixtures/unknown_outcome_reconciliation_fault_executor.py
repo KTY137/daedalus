@@ -126,7 +126,11 @@ def _authority(*, root: Path, source_revision: str, now: datetime):
     )
     registry = {spec.id: spec}
     scope = EffectScope(
-        read_only=False,
+        # The entrypoint declares PROCESS_SPAWN + SPEND only: no FILESYSTEM_WRITE
+        # and no REPOSITORY_MUTATION. A write-capable scope here would grant
+        # authority the execution can never exercise, so the scope stays
+        # read-only and names no writable roots.
+        read_only=True,
         tools=("python",),
         max_cost_microusd=100,
         max_concurrency=1,
@@ -142,6 +146,10 @@ def _authority(*, root: Path, source_revision: str, now: datetime):
         effect_scope=scope,
         idempotency_namespace="unknown-outcome-attempt",
         kill_switch_generation=7,
+        # The spec declares no runtime_id, so issue_effect_lease refuses any
+        # attached runtime conformance; both digests must stay absent together.
+        runtime_manifest_sha256=None,
+        runtime_conformance_sha256=None,
         provenance=ContractProvenance(
             origin="tests.unknown-outcome",
             source_revision=source_revision,

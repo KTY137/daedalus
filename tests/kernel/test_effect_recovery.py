@@ -154,7 +154,26 @@ def test_signed_predating_observation_is_refused_at_verification(tmp_path: Path)
 def test_signature_unknown_key_future_and_stale_refuse(tmp_path: Path) -> None:
     _, _, execution, start = _started(tmp_path)
     observation = _observation(execution, start)
-    tampered = dataclasses.replace(observation, acknowledgement_sha256="3" * 64)
+    # The contract now binds provenance.input_digests to exactly the retained
+    # evidence, so a tamper must re-bind them to be constructible at all.  The
+    # signature still covers the original digests, which is what this asserts.
+    tampered_ack = "3" * 64
+    tampered = dataclasses.replace(
+        observation,
+        acknowledgement_sha256=tampered_ack,
+        provenance=dataclasses.replace(
+            observation.provenance,
+            input_digests=tuple(
+                sorted(
+                    {
+                        observation.start_receipt_sha256,
+                        tampered_ack,
+                        *observation.output_digests,
+                    }
+                )
+            ),
+        ),
+    )
     with pytest.raises(EffectRecoverySignatureError, match="signature"):
         _verify(tampered, execution, start)
     with pytest.raises(EffectRecoverySignatureError, match="unknown"):

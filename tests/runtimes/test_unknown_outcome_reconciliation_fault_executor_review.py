@@ -26,6 +26,27 @@ def _class(tree: ast.Module, name: str) -> ast.ClassDef:
     raise AssertionError(f"missing class {name}")
 
 
+def _raises_with_message(node: ast.AST, error_name: str, message: str) -> bool:
+    """Report whether ``node`` raises ``error_name`` with exactly ``message``.
+
+    Asserted on the AST rather than on source text so that reformatting the
+    raise across several lines cannot silently drop the assertion.
+    """
+
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Raise) or not isinstance(child.exc, ast.Call):
+            continue
+        func = child.exc.func
+        if not isinstance(func, ast.Name) or func.id != error_name:
+            continue
+        if any(
+            isinstance(arg, ast.Constant) and arg.value == message
+            for arg in child.exc.args
+        ):
+            return True
+    return False
+
+
 def test_crash_worker_commits_one_unique_ack_then_exits_without_terminal_access() -> None:
     worker = ast.get_source_segment(SOURCE, _function(TREE, "_crash_worker")) or ""
     required = (
@@ -88,13 +109,15 @@ def test_observation_is_hmac_authenticated_and_exactly_bound() -> None:
         assert expression in text
     assert "issubset" not in text
 
-    verify = ast.get_source_segment(
-        RECOVERY_SOURCE,
-        _function(RECOVERY_TREE, "verify_external_effect_observation"),
-    ) or ""
+    verify_node = _function(RECOVERY_TREE, "verify_external_effect_observation")
+    verify = ast.get_source_segment(RECOVERY_SOURCE, verify_node) or ""
+    assert _raises_with_message(
+        verify_node,
+        "EffectRecoverySignatureError",
+        "recovery observation signature mismatch",
+    )
     for expression in (
         "hmac.compare_digest",
-        'raise EffectRecoverySignatureError("recovery observation signature mismatch")',
         '"provider_id"',
         '"execution_id"',
         '"idempotency_key"',

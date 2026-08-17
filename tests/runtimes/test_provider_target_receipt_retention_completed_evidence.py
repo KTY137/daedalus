@@ -260,6 +260,41 @@ def _topology_race_fixture(tmp_path):
     return fixture, receipt, spine, ledger, admission, recovery
 
 
+def _rotate_topology_at(monkeypatch, spine, ledger, *, observation, key):
+    """Rotate one retention path starting at the observation-th topology read.
+
+    A real rotation is visible to *every* stat of that path, so the observed
+    topology and the admission-derived expectation move together and
+    ``_bind_admission_topology`` still binds -- which is what leaves the drift
+    fence as the thing under test. Shifting only the observed side models a
+    filesystem that cannot exist: the binding check re-stats the admission
+    path itself, so it refuses first and the drift fence is never reached.
+    """
+    target = {
+        "event_store": Path(spine.path).resolve(),
+        "receipt_cas": Path(ledger.source_store.root).resolve(),
+    }[key]
+    original_topology = completed_module._topology_identity
+    original_identity = completed_module._path_identity
+    state = {"reads": 0, "rotated": False}
+
+    def rotating_identity(path, label, *, directory):
+        identity = original_identity(path, label, directory=directory)
+        if state["rotated"] and Path(identity["path"]) == target:
+            identity = dict(identity)
+            identity["inode"] += 1
+        return identity
+
+    def counting_topology(value):
+        state["reads"] += 1
+        if state["reads"] == observation:
+            state["rotated"] = True
+        return original_topology(value)
+
+    monkeypatch.setattr(completed_module, "_path_identity", rotating_identity)
+    monkeypatch.setattr(completed_module, "_topology_identity", counting_topology)
+
+
 def test_completed_evidence_refuses_authentication_window_topology_race(
     tmp_path,
     monkeypatch,
@@ -267,19 +302,13 @@ def test_completed_evidence_refuses_authentication_window_topology_race(
     fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
         tmp_path
     )
-    original = completed_module._topology_identity
-    calls = 0
-
-    def changing_topology(value):
-        nonlocal calls
-        calls += 1
-        result = original(value)
-        if calls == 2:
-            result = {key: dict(identity) for key, identity in result.items()}
-            result["event_store"]["inode"] += 1
-        return result
-
-    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+    _rotate_topology_at(
+        monkeypatch,
+        spine,
+        ledger,
+        observation=2,
+        key="event_store",
+    )
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
@@ -296,19 +325,13 @@ def test_completed_evidence_refuses_between_read_topology_race(
     fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
         tmp_path
     )
-    original = completed_module._topology_identity
-    calls = 0
-
-    def changing_topology(value):
-        nonlocal calls
-        calls += 1
-        result = original(value)
-        if calls == 3:
-            result = {key: dict(identity) for key, identity in result.items()}
-            result["receipt_cas"]["inode"] += 1
-        return result
-
-    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+    _rotate_topology_at(
+        monkeypatch,
+        spine,
+        ledger,
+        observation=3,
+        key="receipt_cas",
+    )
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,
@@ -325,19 +348,13 @@ def test_completed_evidence_refuses_final_read_topology_race(
     fixture, receipt, spine, ledger, admission, recovery = _topology_race_fixture(
         tmp_path
     )
-    original = completed_module._topology_identity
-    calls = 0
-
-    def changing_topology(value):
-        nonlocal calls
-        calls += 1
-        result = original(value)
-        if calls == 4:
-            result = {key: dict(identity) for key, identity in result.items()}
-            result["event_store"]["inode"] += 1
-        return result
-
-    monkeypatch.setattr(completed_module, "_topology_identity", changing_topology)
+    _rotate_topology_at(
+        monkeypatch,
+        spine,
+        ledger,
+        observation=4,
+        key="event_store",
+    )
 
     with pytest.raises(
         ProviderTargetReceiptRetentionCompletedEvidenceBindingError,

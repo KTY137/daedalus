@@ -221,7 +221,7 @@ def test_missing_file_describe_is_present_false_and_safe_true(tmp_path):
 # every key .env can inject is pinned in the suite's conftest
 # ===========================================================================
 
-def test_every_example_key_is_cleared_by_the_suite_conftest():
+def test_every_example_key_is_cleared_by_the_suite_conftest(pytestconfig):
     """``cli.main`` loads ``.env`` into ``os.environ`` for real, in-process --
     deliberately, because the spend guard's own config lives there. The suite
     survives that only because ``tests/conftest.py`` re-clears every key the
@@ -236,7 +236,28 @@ def test_every_example_key_is_cleared_by_the_suite_conftest():
     import re
     from pathlib import Path
 
-    import conftest
+    # NOT `import conftest`. Both conftests in this tree are module-named
+    # `conftest`, so the second one imported EVICTS the first from
+    # `sys.modules`. That worked while tests/conftest.py was the only one;
+    # tests/kernel/conftest.py now exists, and MEASURED 2026-08-17 the bare
+    # import bound to the kernel one and raised AttributeError on
+    # `_OPERATOR_DECLARATIONS` the moment tests/kernel was collected in the
+    # same run -- green alone, red in the suite, which is precisely the
+    # order-dependent failure mode this test exists to abolish.
+    #
+    # pytest's own plugin manager keeps EVERY conftest it loaded, keyed by full
+    # path, so ask it. That also makes this check the honest one: it inspects
+    # the conftest actually in effect for this run, not a re-import of the file.
+    suite_conftest_path = Path(__file__).resolve().parent / "conftest.py"
+    conftest = next(
+        (plugin for _name, plugin in pytestconfig.pluginmanager.list_name_plugin()
+         if getattr(plugin, "__file__", None)
+         and Path(plugin.__file__).resolve() == suite_conftest_path),
+        None)
+    assert conftest is not None, (
+        f"pytest did not load {suite_conftest_path} as a conftest plugin; the "
+        "suite conftest is what clears the operator declarations, and a run "
+        "without it leaks the developer's .env into every test")
 
     example = Path(__file__).resolve().parents[1] / ".env.example"
     keys = re.findall(r"^([A-Z][A-Z0-9_]*)=", example.read_text(encoding="utf-8"),

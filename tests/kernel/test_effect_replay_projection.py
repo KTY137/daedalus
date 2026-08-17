@@ -68,6 +68,7 @@ def build_authorization(tmp_path):
         read_only=False,
         writable_paths=("integration-worktrees", "state"),
         tools=("git",),
+        max_cost_microusd=0,
         timeout_s=300,
         max_concurrency=1,
         kill_switch_ref="promotion-kill",

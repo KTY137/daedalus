@@ -106,10 +106,14 @@ def _release_index(index, report: GateReport):
             | {"gate-report", "effect-inventory"}
         )
     )
+    # The index provenance must keep binding every component the base index
+    # already bound (plan, registry, workflows, runtimes, fault matrices,
+    # reviews, owner decision) and additionally bind the enlarged artifact
+    # set. Rebuilding it from the artifacts alone drops the rest and
+    # GateEvidenceIndex refuses it.
     provenance = fixture._provenance(
         "tests.gate-evidence-index",
-        fixture.PLAN,
-        index.registry_sha256,
+        *index.provenance.input_digests,
         *(item.digest for item in artifacts),
     )
     return dataclasses.replace(
@@ -309,7 +313,11 @@ def test_open_report_and_missing_owner_evidence_refuse_release(
         tmp_path / "no-owner",
         owner_present=False,
     )
-    with pytest.raises(ValueError, match="owner-decision:missing"):
+    # The release boundary re-raises the index's ValueError as its own typed
+    # Gate0ReleaseBlocked (a Gate0ReleaseError/RuntimeError), exactly as the
+    # security_boundary_claimed path above. The underlying reason is preserved
+    # in the message and by exception chaining.
+    with pytest.raises(Gate0ReleaseBlocked, match="owner-decision:missing"):
         _issue(
             no_owner_report,
             no_owner_index,

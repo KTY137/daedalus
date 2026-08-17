@@ -57,6 +57,7 @@ def scope() -> EffectScope:
         read_only=False,
         writable_paths=("workspace",),
         tools=("python",),
+        max_cost_microusd=0,
         timeout_s=60,
         max_concurrency=1,
         kill_switch_ref="mission-kill",

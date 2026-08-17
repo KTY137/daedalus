@@ -6,6 +6,15 @@ import inspect
 from daedalus.runtimes import provider_target_receipt_retention_contract as contract
 
 
+def _unwrapped(text: str) -> str:
+    """Collapse line wrapping so a prose check survives a docstring reflow.
+
+    The declared boundary is wrapped as ``...receipt and\\ninventory...``, so a
+    literal substring search for the phrase never matches.
+    """
+    return " ".join(text.split())
+
+
 def _names(tree: ast.AST) -> set[str]:
     values: set[str] = set()
     for node in ast.walk(tree):
@@ -112,7 +121,7 @@ def test_independent_review_confirms_inventory_revision_is_bound_not_trusted() -
     assert "inventory_revision != receipt.source_revision" in builder
     assert "retention_inventory_source_revision != self.source_revision" in subject
     assert "provider_target_receipt_retention_inventory" not in source
-    assert "authenticate the receipt and inventory" in source
+    assert "authenticate the receipt and inventory" in _unwrapped(source)
 
 
 def test_public_authorization_api_only_returns_guard_evidence() -> None:

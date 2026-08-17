@@ -180,12 +180,32 @@ def test_profile_raises_when_atomic_readback_does_not_confirm_full(
 
 
 def test_closed_connection_errors_are_normalized(tmp_path) -> None:
+    """Both entry points must turn a dead connection into the module's own
+    error type, never let a raw ``sqlite3.ProgrammingError`` escape.
+
+    The enforce half used to expect "could not be applied" -- the generic
+    wrapper at the bottom of ``enforce_gate0_durability``. That wrapper never
+    fires for this input and cannot: the first statement inside the lock is
+    ``_read_connection_status``, which catches ``sqlite3.Error`` itself and
+    raises the READBACK message, and the wrapper re-raises an existing
+    ``Gate0DurabilityError`` untouched. Both functions are unchanged since
+    332ede9 introduced them, so the old regex was never green rather than
+    describing behaviour that has since drifted. The readback message is also
+    the more accurate one -- the failure genuinely is a readback failure -- so
+    the expectation moves to it, and the chained cause is asserted so
+    "normalized" keeps meaning WRAPPED rather than swallowed.
+    """
     ledger = SpineLedger(tmp_path / "spine.sqlite3")
     ledger.close()
-    with pytest.raises(Gate0DurabilityError, match="complete durability readback"):
-        inspect_gate0_durability(ledger)
-    with pytest.raises(Gate0DurabilityError, match="could not be applied"):
-        enforce_gate0_durability(ledger)
+    for entry_point in (inspect_gate0_durability, enforce_gate0_durability):
+        with pytest.raises(
+            Gate0DurabilityError, match="complete durability readback"
+        ) as caught:
+            entry_point(ledger)
+        assert isinstance(caught.value.__cause__, sqlite3.Error), (
+            f"{entry_point.__name__} reported a durability failure without "
+            "chaining the underlying sqlite3 error; a normalized error that "
+            "drops its cause is not diagnosable")
 
 
 _KILL_AFTER_COMMIT = r"""

@@ -62,6 +62,42 @@ def _provenance(
     )
 
 
+def _artifact(
+    artifact_id: str,
+    artifact_kind: str,
+    *,
+    content: str,
+    locator: str,
+    revision: str = REVISION,
+    tree: str = TREE,
+    built_at: datetime = NOW,
+) -> ArtifactEvidence:
+    """Build one ArtifactEvidence from bare content/locator digests.
+
+    ``locator`` is the digest carried by the content-addressed
+    ``artifact-locator:sha256:<digest>`` URI; it is kept separate from
+    ``content`` so a caller can express a locator that does not bind the
+    content it claims. Provenance binds both digests, which is what
+    ``ArtifactEvidence.__post_init__`` requires.
+    """
+    return ArtifactEvidence(
+        artifact_id=artifact_id,
+        artifact_kind=artifact_kind,
+        source_revision=revision,
+        source_tree_revision=tree,
+        content_sha256=content,
+        locator=f"artifact-locator:sha256:{locator}",
+        built_at=built_at.isoformat(),
+        provenance=_provenance(
+            "tests.artifact",
+            content,
+            locator,
+            created_at=built_at,
+            revision=revision,
+        ),
+    )
+
+
 def _index(
     *,
     revision: str = REVISION,
@@ -88,19 +124,13 @@ def _index(
         ),
     )
     artifact_digest = "5" * 64
-    artifact = ArtifactEvidence(
-        artifact_id="gate0-wheel",
-        artifact_kind="wheel",
-        source_revision=revision,
-        source_tree_revision=tree,
-        content_sha256=artifact_digest,
-        locator=f"artifact-locator:sha256:{artifact_digest}",
-        built_at=NOW.isoformat(),
-        provenance=_provenance(
-            "tests.artifact",
-            artifact_digest,
-            revision=revision,
-        ),
+    artifact = _artifact(
+        "gate0-wheel",
+        "wheel",
+        content=artifact_digest,
+        locator=artifact_digest,
+        revision=revision,
+        tree=tree,
     )
     runtime_digest = "6" * 64
     runtime = RuntimeEnvelopeEvidence(

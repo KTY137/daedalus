@@ -86,6 +86,7 @@ def _authorization(tmp_path):
     scope = EffectScope(
         read_only=False,
         writable_paths=("candidate",),
+        max_cost_microusd=0,
         timeout_s=60,
         max_concurrency=1,
         kill_switch_ref="fixture-kill",

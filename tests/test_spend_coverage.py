@@ -176,7 +176,10 @@ def runnable_spend_entrypoints(root: Path) -> dict[str, bool]:
 #     runs/council/summarize.py    CLI + ollama summarisers over the transcript
 #     runs/ab/run_arm.py           MEASURED $1.43-$1.85 per arm, the most
 #                                  expensive single call this repo ever made
-#     daedalus/claude_bridge.py    ask_claude() has a __main__
+#     daedalus/claude_bridge.py    ask_claude() has a __main__ -- and has since
+#                                  RE-ENTERED the ledger below, not as a hole
+#                                  but as a NOT BILLABLE entry: 448969d sealed
+#                                  the __main__ instead of capping it
 #
 # `run_arm.py` needed a `sys.path.insert` before the import would resolve at
 # all: its only existing one lives inside `distilled_context()`, so importing
@@ -220,6 +223,35 @@ KNOWN_UNGUARDED_ENTRYPOINTS = {
         "NOT BILLABLE: spawns only `git` (ls-files, config, rev-parse, show, "
         "diff) with a hardcoded argv[0]; the `claude`/`codex` tokens are hook "
         "PLATFORM names and the `.claude/` path prefix, never an executable",
+    # Was an INSTALLER until commit 448969d, "refactor(g0): seal direct Claude
+    # bridge bypass", which deleted the `install_process_guard()` from its
+    # `__main__` -- correctly, because the same commit deleted the SPEND from
+    # that `__main__`. MEASURED 2026-08-17 on this trunk, both invocation forms:
+    #
+    #     python daedalus/claude_bridge.py obj --repo-root .
+    #         -> ImportError (relative import, no parent package), exit 1
+    #     python -m daedalus.claude_bridge obj --repo-root .
+    #         -> argparse error "direct CLI execution cannot carry the
+    #            in-memory runtime capability", exit 2
+    #
+    # Neither reaches a vendor. `main()` parses argv and then calls
+    # `parser.error(...)`, which exits before any effect; `ask_claude` raises
+    # ClaudeProviderAuthorizationRequired unless handed a persisted runtime
+    # authorization, effect execution and workspace grant; and the one
+    # `subprocess.run(["claude", ...])` site is the private `_invoke_claude_cli`,
+    # reachable only through ClaudeCLIProvider after the broker has persisted a
+    # grant. The scan still flags the file because a private spawn, a vendor
+    # token and a `__main__` all live in it.
+    #
+    # A ledger entry rather than a re-added guard, on purpose: installing a
+    # spend ceiling in a process that provably cannot spend is dead code that
+    # READS as coverage. The ceiling that matters for this vendor is the one in
+    # whichever guarded process drives the broker.
+    "daedalus/claude_bridge.py":
+        "NOT BILLABLE since 448969d: the `__main__` fail-closes via "
+        "parser.error before any effect, and the subprocess site is private "
+        "and reachable only through the brokered provider under persisted "
+        "runtime authority",
 }
 
 # Test modules are excluded from the entry-point scan, and this is the reason,
@@ -322,10 +354,20 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         # this test found the ceiling installed in exactly ONE function and
         # named five directly-runnable spend entry points that bypassed it;
         # those five now install it themselves. The pin is updated rather than
-        # relaxed to a `>=` so that the SIXTH addition still has to be a
+        # relaxed to a `>=` so that the next addition still has to be a
         # deliberate edit here -- an assertion that only ever grows stops
         # being able to notice anything.
-        "daedalus/claude_bridge.py",
+        #
+        # NARROWED 2026-08-17, from seven sites to six: commit 448969d
+        # ("refactor(g0): seal direct Claude bridge bypass") removed
+        # `daedalus/claude_bridge.py` from this set. That is the one direction
+        # this pin must never be edited in casually, so state the check that
+        # was actually run: the guard was not deleted from a process that still
+        # spends, the SPEND was deleted. Its `__main__` now calls
+        # `parser.error(...)` and exits 2 before any effect (measured, both
+        # invocation forms -- see KNOWN_UNGUARDED_ENTRYPOINTS above), and its
+        # only vendor spawn moved behind the broker. A guard removal whose
+        # entry point can still reach a vendor belongs in review, not here.
         "runs/ab/run_arm.py",
         "runs/council/room.py",
         "runs/council/room_server.py",
