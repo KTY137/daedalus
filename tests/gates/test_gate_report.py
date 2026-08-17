@@ -159,6 +159,13 @@ def test_legacy_v1_report_loads_but_cannot_claim_current_closure() -> None:
 
 
 def test_gate_report_accepts_bound_fault_results() -> None:
+    """Caller-supplied rows supplement the bound matrix verdict; they never replace it.
+
+    ``fault_results`` used to be the only source of this field, so an empty map
+    read as "no fault findings".  The whole-matrix binding now always runs, so a
+    caller can add rows but cannot subtract the verdict's own.
+    """
+
     root = Path(__file__).resolve().parents[2]
     report = build_gate0_report(
         root,
@@ -168,9 +175,19 @@ def test_gate_report_accepts_bound_fault_results() -> None:
     )
     assert report.security_boundary_claimed is True
     assert report.owner_approval_enforced is True
-    assert report.fault_injection_failures == ("target-head-race",)
+    assert "target-head-race" in report.fault_injection_failures
+    assert "approval-replay" not in report.fault_injection_failures
     assert report.event_store_writer_inventory_sha256 is not None
     assert report.closed is False
+
+    laundered = build_gate0_report(
+        root,
+        source_revision=REVISION,
+        fault_results={},
+        security_boundary_claimed=True,
+    )
+    assert laundered.fault_injection_failures != ()
+    assert laundered.closed is False
 
 
 def test_missing_writer_inventory_digest_is_always_a_blocker() -> None:
