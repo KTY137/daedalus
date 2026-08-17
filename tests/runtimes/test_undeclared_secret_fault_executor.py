@@ -400,9 +400,18 @@ def test_unexpected_sandbox_exception_still_restores_host_environment(
         raise RuntimeError("synthetic sandbox failure")
 
     monkeypatch.setattr(executor, "run_in_docker_sandbox", explode)
-    with pytest.raises(RuntimeError, match="synthetic"):
-        executor.run_undeclared_secret(source_revision=REVISION)
+    run = executor.run_undeclared_secret(source_revision=REVISION)
+
+    # The collector converts an unexpected executor exception into an explicit
+    # non-passing observation instead of letting it escape; the canary must not
+    # survive that path, and the failure must not be laundered into a pass.
     assert executor._SECRET_NAME not in os.environ
+    assert run.observation.status == "failed"
+    assert run.observation.detail_code == "executor-error"
+    assert {row.name: row.value for row in run.evidence.facts}[
+        "exception-type"
+    ] == "RuntimeError"
+    assert CANARY not in run.raw_evidence.decode("utf-8")
 
 
 def test_timeout_cannot_be_laundered_as_isolation(
