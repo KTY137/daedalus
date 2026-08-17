@@ -291,7 +291,7 @@ def test_marker_without_start_cannot_pass(tmp_path: Path, monkeypatch) -> None:
     assert run.observation.status == "failed"
 
 
-@pytest.mark.parametrize("returncode", [0, 1, 73, 75, 77, 78, 125, 137])
+@pytest.mark.parametrize("returncode", [0, 1, 73, 75, 77, 78, 137])
 def test_other_completed_results_cannot_pass(
     tmp_path: Path,
     monkeypatch,
@@ -305,6 +305,18 @@ def test_other_completed_results_cannot_pass(
         marker_payload=_valid_marker(),
     )
     assert run.observation.status == "failed"
+
+
+def test_returncode_125_cannot_be_declared_a_completed_attempt() -> None:
+    """Exit 125 is intrinsically pre-start; no caller may relabel it as completed.
+
+    The scenario is therefore not reachable through ``_simulate`` at all: the
+    receipt contract refuses to construct it. The reachable form of 125 is
+    covered by ``test_sandbox_prestart_refusal_is_blocked_not_isolation``.
+    """
+
+    with pytest.raises(ValueError, match="125 cannot be a completed attempt"):
+        _receipt(launch_state="completed", returncode=125)
 
 
 def test_secret_namespace_inspection_unavailability_is_exact_block(
