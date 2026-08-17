@@ -4,3 +4,7 @@
 .obsidian/cache/
 .obsidian/plugins/
 .trash/
+
+# Junction auf die autoritative Ablage -- eine Quelle, keine Kopie.
+# git darf durch die Junction nichts doppelt tracken.
+docs/
