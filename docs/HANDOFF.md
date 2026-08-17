@@ -1,8 +1,164 @@
-# Daedalus — Current Claude Handoff (2026-07-29, session 8 — READ THIS FIRST)
+# Daedalus — Current Claude Handoff (2026-08-17 — READ THIS FIRST)
 
-This section supersedes everything below it, including the session-7 block.
-The rest of the file is history; do not treat its arc claims, test counts or
-open items as current.
+This section supersedes everything below it, including the session-8 block.
+Everything below is history: its branch, test counts, and open items describe a
+tree that is no longer where the work happens.
+
+**The one thing to know first: this repository is not the truth anymore.**
+
+| | path | branch | commit |
+| --- | --- | --- | --- |
+| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env_g0` | `work/g0-trunk-20260817` | `7c88f72` |
+| docs + vault (you are here) | `C:/Users/nukei/Desktop/agent_env` | `checkpoint/2026-07-20-session` | — |
+
+Read from the trunk checkout; write docs here. [MEASURED 2026-08-17 16:40+02:00,
+Penelope: `git -C agent_env_g0 rev-parse HEAD` → `7c88f72b120f…`, `git branch
+--show-current` → `work/g0-trunk-20260817`.]
+
+## The trap: this workspace announces a constitution two amendments old
+
+The SubagentStart hook in *this* checkout announces "revision 1, sha256
+`a47d84ee…26d4`". The trunk enforces revision 4. Both sides, cited:
+
+- `docs/IKARUS_ARIADNE_MASTER_PLAN.md:4-5` (checkpoint, here) — `Revision: 1`, `Version: 1.0.0`
+- `docs/IKARUS_ARIADNE_MASTER_PLAN.md:4-5` (trunk `7c88f72`) — `Revision: 4`, `Version: 1.2.1`
+
+[MEASURED 2026-08-17, Penelope: `sed -n '1,12p'` on both files.] An agent that
+trusts this workspace's hook is reasoning against a superseded constitution.
+When a rule matters, read the plan at the trunk.
+
+## Amendment 005 — landed
+
+- Commit `900665e` on `work/g0-trunk-20260817`: sealed-promotion guard checks
+  follow the strangler into the retained source.
+- Chain record: `sequence: 4`, `base_revision: 3` → `result_revision: 4`,
+  `result_plan_sha256: 9329de665ba9…aa00`, `approval_ref:
+  conversation-2026-08-17-owner-ran-amendment-005-kit`, accepted
+  `2026-08-17T14:47:32+02:00`.
+- Naming caution: the kit file is `docs/recovery/amendment_005_kit.py` ("005"),
+  but the amendment-chain entry is **sequence 4** and produces **revision 4**.
+  The "005" and the 4 are the same event; do not reconcile them by inventing a
+  fifth amendment.
+
+[MEASURED 2026-08-17, Penelope: tail of
+`docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl` at trunk; `git log --oneline`.]
+
+## The landing: one precursor + four waves
+
+The sources say "four waves" but list five commits. The commit messages settle
+it — `05eb06f` is not labelled a wave:
+
+| commit | role |
+| --- | --- |
+| `05eb06f` | precursor: fixtures stop writing CRLF into byte-exact files |
+| `0f2fb00` | wave 1 — six review-cleared test-only lanes |
+| `e98758d` | wave 2 — five review-cleared production lanes |
+| `2a25d95` | wave 3 — a verified fault-matrix run can become gate evidence |
+| `7c88f72` | wave 4 — the true effect-boundary inventory |
+
+[MEASURED 2026-08-17, Penelope: `git log --oneline -12` at trunk.] Reconciles
+`vault/Sessions/2026-08-17.md:29` (five commits called four waves) with
+`vault/Gates/Gate-Status.md:37`.
+
+## Where the suite stands
+
+**35 failed / 6428 passed / 51 skipped**, run time 19:57, on committed trunk
+`7c88f72`.
+
+[INHERITED — Athena's run, recorded at `vault/Gates/Gate-Status.md:39`. Penelope
+did **not** re-run this suite; it is not hers to stamp MEASURED.] Day arc
+265 → 199 → 35, same source. The 265 baseline is corroborated by
+`docs/GATE0_TRUNK_FAILURE_TAXONOMY.md` (measured at `60b2bfe`, pre-amendment:
+265 failed / 6186 passed / 51 skipped in 30:20) — that document is **superseded
+for counts** but still the best map of failure *shape*.
+
+Flag on the provenance, not the number: the Gate-Status entry is labelled
+"17:31", but the wall clock here reads 16:40+02:00 on the same day
+[MEASURED, Penelope]. A 19:57-minute run cannot have finished at a future time.
+The label is unreliable; the balance is Athena's and stands until re-run.
+
+### Failure clusters
+
+| cluster | count | disposition |
+| --- | --- | --- |
+| v3-report family | — | **owner decision**: scanner identity |
+| blob-pin integration review | 13 tests | **owner decision**: re-pin |
+| `claude_runtime_broker` | 4 | undiagnosed at the time of writing |
+| release-cli subprocess | 3 | dispatched |
+| kernel/runtime/gates review tail | ~24 | 27 modules, mostly 1 failure each |
+
+[INHERITED: `vault/Gates/Gate-Status.md:39` for the clusters and the "27 modules,
+mostly one failure" shape; `vault/Sessions/2026-08-17.md:45` for the blob-pin 13.]
+[ASSUMED: the "~24" tail figure. No source states it; it is the residual after
+broker (4) and release-cli (3) come off 35. Treat as an estimate, not a count.]
+
+## The eight grind lanes
+
+Eight `grind/*` lanes are checked out as siblings on the Desktop
+(`C:/Users/nukei/Desktop/gw_*`). **All eight sit at `7c88f72` with no
+lane-local commits** — every lane's work, where it exists, is uncommitted.
+
+| lane | dir | working tree |
+| --- | --- | --- |
+| `grind/claude-broker` | `gw_claude-broker` | clean |
+| `grind/v3-scanner-owner-prep` | `gw_v3-scanner-owner-prep` | clean |
+| `grind/release-cli` | `gw_release-cli` | dirty |
+| `grind/adoption-baseline` | `gw_adoption-baseline` | dirty |
+| `grind/ledger-writes` | `gw_ledger-writes` | dirty |
+| `grind/receipt-binding` | `gw_receipt-binding` | dirty |
+| `grind/secrets-modeling` | `gw_secrets-modeling` | dirty |
+| `grind/tools-registration` | `gw_tools-registration` | dirty |
+
+[MEASURED 2026-08-17 16:40+02:00, Penelope: `git status --porcelain` and
+`git log --oneline -3` per lane. Snapshot only — crew agents were live in these
+lanes as this was written, so re-check before acting.]
+
+**Correction to the dispatch brief.** The brief said broker *and* release-cli
+carry inherited uncommitted work. Measured: `gw_claude-broker` is **clean**;
+`gw_release-cli` is dirty (`tests/gates/test_gate0_release_cli.py` modified,
+`scripts/gate0_release.py` and `tests/gates/_headcheck_release_cli.py`
+untracked). Four further lanes carry uncommitted work nobody flagged —
+`adoption-baseline`, `ledger-writes`, `receipt-binding`, `secrets-modeling`,
+`tools-registration` all have modified or added files, several under
+`daedalus/spine/` and `daedalus/gates/`. That work is unreviewed and uncommitted.
+
+## Open owner decisions
+
+From `vault/Sessions/2026-08-17.md:43-46` [INHERITED]:
+
+- [ ] Blob-pin fixtures (13 tests) — re-pin.
+- [ ] v3-scanner identity.
+- [ ] CENTRAL predicate.
+- [ ] K1–K13 rebase against the revision-4 text.
+- [ ] Run the `SETUP` steps (install Obsidian, open the vault).
+- [ ] Copy `docs/recovery/settings_beast.json` over user settings, restart the
+      session (enables statusline, serena-first, PreCompact audit, toasts).
+- [ ] Athena: remove the `wt_*` worktrees. (Full-suite balance: now recorded.)
+
+## Navigation gotcha: the Gate-0 docs are split across two branches
+
+`vault/Gates/Gate-Status.md:27-30` links four artifacts; they do not all live in
+one place [MEASURED 2026-08-17, Penelope: existence checks in both checkouts]:
+
+- **Trunk `7c88f72` only** — `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md`
+- **Both** — `docs/GATE0_SEALED_OWNER_APPROVAL.md`
+- **Checkpoint branch only** — `docs/GATE0_RECON_20260817_FINDINGS.md`,
+  `docs/GATE0_TRUNK_FAILURE_TAXONOMY.md`,
+  `docs/GATE0_PROMOTION_TRUST_ROOT_CONFLICT.md`
+
+The analysis lives here; the inventory and the code live at the trunk. A reader
+who opens only one checkout will conclude three of these documents were lost.
+
+## Gate 0 remains open
+
+Exit still requires a fault-injection matrix demonstrating fail-closed protected
+effects and fail-open read-only inspection. Remaining work per
+`vault/Gates/Gate-Status.md:38` [INHERITED]: the migration grind (165 targets /
+114 unregistered, MEASURED floor) plus a Linux fault run.
+
+---
+
+Everything from here down is history. Retained for evidence, not for status.
 
 ## SESSION 8 — FEATURE HARVEST (Mnemosyne, 2026-07-29)
 
