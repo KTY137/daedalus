@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,22 @@ def _repository(tmp_path: Path, source: str) -> Path:
     return root
 
 
+def _env() -> dict[str, str]:
+    """Pin the subprocess to the checkout under test.
+
+    Running a script puts the script's own directory on sys.path, not the cwd,
+    so `daedalus` would otherwise resolve against whatever copy happens to be
+    installed in site-packages rather than this tree.
+    """
+
+    environment = dict(os.environ)
+    inherited = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = (
+        f"{ROOT}{os.pathsep}{inherited}" if inherited else str(ROOT)
+    )
+    return environment
+
+
 def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -40,6 +57,7 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
             *extra,
         ],
         cwd=ROOT,
+        env=_env(),
         text=True,
         capture_output=True,
         check=False,
@@ -47,9 +65,12 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_cli_emits_one_canonical_open_delta(tmp_path: Path) -> None:
+    # gzip/bz2/lzma/tarfile openers are owned by the canonical scanner now, so
+    # they no longer reach the additive delta.  zipfile is the archive family
+    # the base scanner still misses, which is exactly what the delta reports.
     repository = _repository(
         tmp_path,
-        "import gzip\ngzip.open('state.gz', 'wb')\n",
+        "import zipfile\nzipfile.ZipFile('state.zip', 'w')\n",
     )
 
     result = _run(repository)

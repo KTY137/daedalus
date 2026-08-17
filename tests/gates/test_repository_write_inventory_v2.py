@@ -61,10 +61,20 @@ def test_generation_two_merges_base_and_stdlib_delta(tmp_path: Path) -> None:
         "base_v1",
         "stdlib_delta_v1",
     }
-    assert {surface["callee"] for surface in material["surfaces"]} >= {
-        "pathlib.Path.write_text",
-        "os.write",
-    }
+    # The canonical scanner does not guess an unresolved receiver type: the
+    # `Path('state')` receiver is a call expression, so the surface is named
+    # `<expression>.write_text` rather than claiming `pathlib.Path.write_text`.
+    # It stays a blocking base surface either way.
+    write_text = next(
+        surface
+        for surface in material["surfaces"]
+        if surface["operation"] == "write_text"
+    )
+    assert write_text["origin"] == "base_v1"
+    assert write_text["kind"] == "path_mutation"
+    assert write_text["callee"] == "<expression>.write_text"
+    assert write_text["blocking"] is True
+    assert "os.write" in {surface["callee"] for surface in material["surfaces"]}
     os_write = next(
         surface
         for surface in material["surfaces"]

@@ -411,6 +411,8 @@ def _write_tree(root: Path) -> None:
 def _trust_ledger(
     root: Path,
     subject: RuntimeConformanceSubject,
+    *,
+    expires_at: datetime | None = None,
 ) -> RuntimeTrustLedger:
     ledger = RuntimeTrustLedger(
         root / "runtime-trust.sqlite",
@@ -423,7 +425,7 @@ def _trust_ledger(
         subject.manifest,
         trusted_envelope_sha256s=(subject.envelope.digest,),
         admitted_at=ISSUED + timedelta(minutes=1),
-        expires_at=ISSUED + timedelta(days=1),
+        expires_at=expires_at or (ISSUED + timedelta(days=1)),
     )
     return ledger
 
@@ -748,7 +750,15 @@ def test_unadmitted_quarantined_and_expired_trust_fail(tmp_path: Path) -> None:
             tmp_path,
         )
 
-    fresh = _trust_ledger(tmp_path / "fresh-ledger", subject)
+    # The origin attestations expire at ISSUED+1h and are checked earlier, so a
+    # trust record that outlives them can never reach the trust-expiry check.
+    # Expire the trust record first and evaluate while the attestation is still
+    # valid, so this case really exercises the trust binding.
+    fresh = _trust_ledger(
+        tmp_path / "fresh-ledger",
+        subject,
+        expires_at=ISSUED + timedelta(minutes=30),
+    )
     with pytest.raises(
         RepositoryWriteRuntimeConformanceBindingError,
         match="trust record is expired",
@@ -761,7 +771,7 @@ def test_unadmitted_quarantined_and_expired_trust_fail(tmp_path: Path) -> None:
             {subject.receipt.digest: subject},
             {RUNTIME_ID: fresh},
             tmp_path,
-            now=ISSUED + timedelta(days=1),
+            now=ISSUED + timedelta(minutes=45),
         )
 
 

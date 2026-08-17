@@ -38,6 +38,9 @@ OBSERVATION_KEYRING = {"provider-observation-key": OBSERVATION_SECRET}
 RUNTIME_MANIFEST_SHA256 = "8" * 64
 RUNTIME_CONFORMANCE_SHA256 = "9" * 64
 PROVIDER_LEASE_SHA256 = "a" * 64
+# The guarded scope path is the store path relative to the attempt root, so it
+# carries no "attempt/" prefix of its own.
+STORE_SCOPE_PATH = "state/provider-observation.sqlite3"
 
 
 def _target(tmp_path: Path) -> ProviderObservationStoreTarget:
@@ -59,7 +62,7 @@ def _execution(operation: str) -> EffectExecutionRequest:
         execution_id=f"provider-store-{operation}",
         idempotency_key=f"provider-store-{operation}-idempotency",
         requested_effects=("filesystem_write",),
-        writable_paths=("attempt/state/provider-observation.sqlite3",),
+        writable_paths=(STORE_SCOPE_PATH,),
         kill_switch_ref="provider-store-kill-switch",
         kill_switch_generation=17,
     )
@@ -84,7 +87,7 @@ def _lease(operation: str, **changes) -> EffectLease:
         "requested_effects": ("filesystem_write",),
         "effect_scope": EffectScope(
             read_only=False,
-            writable_paths=("attempt/state/provider-observation.sqlite3",),
+            writable_paths=(STORE_SCOPE_PATH,),
             kill_switch_ref="provider-store-kill-switch",
         ),
         "idempotency_namespace": f"provider-store-{operation}",

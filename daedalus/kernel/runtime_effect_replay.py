@@ -17,11 +17,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.effect_replay import (
     EffectExecutionReplaySnapshot,
     EffectReplayProjectionError,
-    inspect_effect_execution,
+    PersistedEffectLeaseSubject,
+    _project_persisted_execution,
 )
 from daedalus.kernel.effects import EffectExecutionRequest, _parse_utc
 from daedalus.kernel.runtime_effects import (
@@ -84,24 +84,22 @@ def inspect_runtime_effect_execution(
             "runtime effect replay requires EffectExecutionRequest"
         )
 
-    # Reuse the strict read-only persisted EffectLease projection. The adapter
-    # carries the exact inner lease subject but its generation reader is never
-    # called by inspect_effect_execution; historical verification is evaluated
-    # at the retained start instant and generation.
-    inner = NonRuntimeEffectAuthorization(
+    # Reuse the strict read-only persisted EffectLease projection. The subject
+    # carries the exact inner lease but no capability: a runtime-bearing lease
+    # must never be rewrapped as a NonRuntimeEffectAuthorization, because that
+    # facade exists precisely to refuse runtime leases. No live kill-switch
+    # reader is needed either; historical verification is evaluated at the
+    # retained start instant and the generation recorded in the lease.
+    inner = PersistedEffectLeaseSubject(
         lease=authorization.capability.lease,
         request=authorization.request,
         policy_decision=authorization.policy_decision,
         effect_ledger=authorization.effect_ledger,
         lease_keyring=authorization.lease_keyring,
-        guard_decisions=authorization.guard_decisions,
-        kill_switch_generation_reader=(
-            lambda: authorization.capability.lease.kill_switch_generation
-        ),
         registry=authorization.registry,
     )
     try:
-        effect_snapshot = inspect_effect_execution(inner, execution)
+        effect_snapshot = _project_persisted_execution(inner, execution)
     except EffectReplayProjectionError as exc:
         raise RuntimeEffectReplayProjectionError(
             "inner Effect-Lease replay failed"

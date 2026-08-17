@@ -163,9 +163,12 @@ def test_artifact_failure_count_must_match_verified_inventory() -> None:
     artifact, report, raw = _subjects()
     contradictory = dataclasses.replace(artifact, failure_count=1)
     assert contradictory.failure_set_sha256 == artifact.failure_set_sha256
+    # The contradiction is refused by the artifact/GateReport-v3 cross-binding
+    # layer, which emits a stable machine-readable blocker code; the deeper
+    # inventory-level failure-count check stays as defence in depth.
     with pytest.raises(
         RepositoryWriteArtifactVerificationError,
-        match="failure count contradicts evidence",
+        match="repository-write-artifact:failure-count-mismatch",
     ):
         _verify(contradictory, report, raw)
 

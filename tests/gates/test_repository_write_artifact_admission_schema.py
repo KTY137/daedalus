@@ -63,7 +63,10 @@ def test_schema_exactly_tracks_contract_fields_and_constants() -> None:
     )
     assert schema["properties"]["contract_version"]["const"] == "1.0.0"
     checks = schema["properties"]["checks"]
-    assert tuple(item["const"] for item in checks["prefixItems"]) == payload["checks"]
+    # to_dict() emits JSON types, so the check roster arrives as a list.
+    assert [item["const"] for item in checks["prefixItems"]] == list(
+        payload["checks"]
+    )
     assert checks["items"] is False
     assert checks["minItems"] == checks["maxItems"] == len(payload["checks"])
 

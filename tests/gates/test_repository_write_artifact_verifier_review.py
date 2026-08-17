@@ -7,8 +7,38 @@ import inspect
 import daedalus.gates.repository_write_artifact_verifier as verifier
 
 
+def _source_without_docstrings(module) -> str:
+    """Module source with docstring prose stripped.
+
+    A docstring may legitimately *deny* an authority by name ("does not issue
+    OwnerApproval"); only executable code proves the module actually holds it.
+    """
+
+    source = inspect.getsource(module)
+    tree = ast.parse(source)
+    drop: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(
+            node,
+            (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+        ):
+            continue
+        if ast.get_docstring(node, clean=False) is None:
+            continue
+        literal = node.body[0]
+        drop.update(
+            range(literal.lineno, (literal.end_lineno or literal.lineno) + 1)
+        )
+    return "".join(
+        line
+        for number, line in enumerate(source.splitlines(keepends=True), 1)
+        if number not in drop
+    )
+
+
 def test_verifier_has_no_locator_resolution_release_or_effect_authority() -> None:
     source = inspect.getsource(verifier)
+    code = _source_without_docstrings(verifier)
     tree = ast.parse(source)
     imported: set[str] = set()
     called: set[str] = set()
@@ -43,12 +73,12 @@ def test_verifier_has_no_locator_resolution_release_or_effect_authority() -> Non
         "replace",
     }.isdisjoint(called)
     assert {"exec", "eval", "compile", "system", "popen"}.isdisjoint(called)
-    assert "OwnerApproval" not in source
-    assert "PromotionReceipt" not in source
-    assert "Gate0ReleaseReceipt" not in source
-    assert "begin_effect" not in source
-    assert "resolve_locator" not in source
-    assert "verify_signature" not in source
+    assert "OwnerApproval" not in code
+    assert "PromotionReceipt" not in code
+    assert "Gate0ReleaseReceipt" not in code
+    assert "begin_effect" not in code
+    assert "resolve_locator" not in code
+    assert "verify_signature" not in code
 
 
 def test_verifier_rejects_non_exact_subjects_and_bytes_before_hashing() -> None:
@@ -76,7 +106,13 @@ def test_strict_parser_reconstructs_and_compares_canonical_inventory() -> None:
     assert "set(row) != _SURFACE_FIELDS" in source
     assert "RepositoryWriteSurface(**row)" in source
     assert "RepositoryWriteInventoryV2(" in source
-    assert "payload != inventory.to_dict()" in source
+    # The canonical payload is bound to a local so the same value also fences
+    # the raw bytes; both comparisons must survive.
+    assert "canonical_payload = inventory.to_dict()" in source
+    assert "payload != canonical_payload" in source
+    assert (
+        'exact != canonical_json(canonical_payload).encode("ascii")' in source
+    )
 
 
 def test_verifier_checks_every_artifact_inventory_binding() -> None:

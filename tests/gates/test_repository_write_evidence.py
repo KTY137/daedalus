@@ -187,6 +187,9 @@ def test_binding_requires_exact_v3_report() -> None:
         gate=0,
         source_revision=REVISION,
         registry_sha256="a" * 64,
+        # GateReport requires an explicit security-boundary claim; there is no
+        # default, so a legacy report must still state it.
+        security_boundary_claimed=False,
     )
     with pytest.raises(RepositoryWriteArtifactEvidenceError, match="exact GateReportV3"):
         artifact.report_binding_blockers(legacy)  # type: ignore[arg-type]

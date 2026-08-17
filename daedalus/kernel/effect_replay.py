@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
+from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
 from daedalus.kernel.effects import (
     EffectExecutionRequest,
     EffectLeaseBindingMismatch,
@@ -31,7 +33,8 @@ from daedalus.kernel.effects import (
     _parse_utc,
     verify_effect_lease,
 )
-from daedalus.schemas import _identifier, _sha256
+from daedalus.schemas import PolicyDecision, _identifier, _sha256
+from daedalus.spine.effect_boundary import REGISTRY_BY_ID, EntrypointSpec
 from daedalus.spine.envelope import canonical_json, canonical_sha
 from daedalus.spine.ledger import _uri_path
 
@@ -302,28 +305,60 @@ def _terminal_receipt(
     return receipt
 
 
-def inspect_effect_execution(
-    authorization: NonRuntimeEffectAuthorization,
-    execution: EffectExecutionRequest,
-) -> EffectExecutionReplaySnapshot | None:
-    """Project one exact persisted effect execution without changing its state.
+@dataclass(frozen=True)
+class PersistedEffectLeaseSubject:
+    """The exact lease subject one read-only replay projection reads.
 
-    ``None`` means the signed lease is persisted but the exact execution has no
-    start. A returned snapshot is either ``STARTED`` and pending reconciliation
-    or contains one strictly validated terminal receipt. Historical signature
-    and scope verification is evaluated at the retained start instant; no stale
-    lease or kill switch can thereby regain authority to execute.
+    This is deliberately *not* a capability. It carries no guard decisions, no
+    kill-switch authority and no grant/begin/finish methods, so holding one can
+    never authorize an effect. Both the non-runtime and the runtime-bound
+    projections describe their subject with it; a runtime-bearing lease is
+    therefore never downgraded through a non-runtime capability facade to be
+    read.
     """
 
-    if not isinstance(authorization, NonRuntimeEffectAuthorization):
-        raise TypeError(
-            "effect replay inspection requires NonRuntimeEffectAuthorization"
+    lease: EffectLease
+    request: EffectLeaseRequest
+    policy_decision: PolicyDecision
+    effect_ledger: EffectLeaseLedger
+    lease_keyring: Mapping[str, bytes | str] = field(repr=False)
+    registry: Mapping[str, EntrypointSpec] | Sequence[EntrypointSpec] = field(
+        default=REGISTRY_BY_ID,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.lease, EffectLease):
+            raise TypeError("effect replay subject requires an EffectLease")
+        if not isinstance(self.effect_ledger, EffectLeaseLedger):
+            raise TypeError("effect replay inspection requires EffectLeaseLedger")
+        if self.lease.request_sha256 != self.request.digest:
+            raise EffectLeaseBindingMismatch(
+                "effect replay subject request does not match its lease"
+            )
+        if self.lease.policy_decision_sha256 != self.policy_decision.digest:
+            raise EffectLeaseBindingMismatch(
+                "effect replay subject policy does not match its lease"
+            )
+        object.__setattr__(
+            self,
+            "lease_keyring",
+            MappingProxyType(dict(self.lease_keyring)),
         )
-    if not isinstance(execution, EffectExecutionRequest):
-        raise TypeError("effect replay inspection requires EffectExecutionRequest")
+
+
+def _project_persisted_execution(
+    authorization: PersistedEffectLeaseSubject,
+    execution: EffectExecutionRequest,
+) -> EffectExecutionReplaySnapshot | None:
+    """Read one persisted execution for one exact signed lease subject.
+
+    Shared read-only reader behind every replay projection. It opens the ledger
+    read-only, never writes, and grants no execute authority; each public
+    projection remains responsible for its own capability-class verification.
+    """
+
     ledger = authorization.effect_ledger
-    if not isinstance(ledger, EffectLeaseLedger):
-        raise TypeError("effect replay inspection requires EffectLeaseLedger")
 
     connection: sqlite3.Connection | None = None
     try:
@@ -537,6 +572,38 @@ def inspect_effect_execution(
     finally:
         if connection is not None:
             connection.close()
+
+
+def inspect_effect_execution(
+    authorization: NonRuntimeEffectAuthorization,
+    execution: EffectExecutionRequest,
+) -> EffectExecutionReplaySnapshot | None:
+    """Project one exact persisted effect execution without changing its state.
+
+    ``None`` means the signed lease is persisted but the exact execution has no
+    start. A returned snapshot is either ``STARTED`` and pending reconciliation
+    or contains one strictly validated terminal receipt. Historical signature
+    and scope verification is evaluated at the retained start instant; no stale
+    lease or kill switch can thereby regain authority to execute.
+    """
+
+    if not isinstance(authorization, NonRuntimeEffectAuthorization):
+        raise TypeError(
+            "effect replay inspection requires NonRuntimeEffectAuthorization"
+        )
+    if not isinstance(execution, EffectExecutionRequest):
+        raise TypeError("effect replay inspection requires EffectExecutionRequest")
+    return _project_persisted_execution(
+        PersistedEffectLeaseSubject(
+            lease=authorization.lease,
+            request=authorization.request,
+            policy_decision=authorization.policy_decision,
+            effect_ledger=authorization.effect_ledger,
+            lease_keyring=authorization.lease_keyring,
+            registry=authorization.registry,
+        ),
+        execution,
+    )
 
 
 __all__ = [

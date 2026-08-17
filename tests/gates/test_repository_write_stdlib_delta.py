@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from daedalus.gates.repository_write_inventory_v2 import (
+    scan_repository_write_surfaces_v2,
+)
 from daedalus.gates.repository_write_stdlib_delta import (
     RepositoryWriteStdlibDeltaError,
     scan_repository_write_stdlib_delta,
@@ -29,12 +32,7 @@ def _findings(tmp_path: Path, source: str):
     ).findings
 
 
-def test_compressed_and_archive_writers_are_not_laundered_as_path_open(
-    tmp_path: Path,
-) -> None:
-    findings = _findings(
-        tmp_path,
-        """
+COMPRESSED_AND_ARCHIVE_SOURCE = """
 import bz2
 import gzip as compression
 import lzma
@@ -49,24 +47,44 @@ zipfile.ZipFile('a.zip', mode='x')
 compression.open('read.gz', 'rb')
 tarfile.open('read.tar')
 zipfile.ZipFile('read.zip')
-""",
-    )
+"""
 
-    assert [finding.callee for finding in findings] == [
-        "gzip.open",
-        "bz2.open",
-        "lzma.open",
-        "tarfile.open",
-        "zipfile.ZipFile",
-    ]
-    assert [finding.kind for finding in findings] == [
-        "archive_or_compressed_write",
-        "archive_or_compressed_write",
-        "ambiguous_archive_or_compressed_mode",
-        "archive_or_compressed_write",
-        "archive_or_compressed_write",
-    ]
+
+def test_compressed_and_archive_writers_are_not_laundered_as_path_open(
+    tmp_path: Path,
+) -> None:
+    findings = _findings(tmp_path, COMPRESSED_AND_ARCHIVE_SOURCE)
+
+    # The canonical scanner has absorbed the compressed/archive opener family,
+    # so the additive delta must no longer double-report those positions.  Only
+    # the family the base scanner still misses stays in the delta.
+    assert [finding.callee for finding in findings] == ["zipfile.ZipFile"]
+    assert [finding.kind for finding in findings] == ["archive_or_compressed_write"]
     assert all(finding.to_dict()["blocking"] is True for finding in findings)
+
+    # The anti-laundering property itself is now proven on the merged v2
+    # inventory: every writer keeps a precise callee and stays blocking, and
+    # none of them is downgraded to a generic path-open surface.
+    inventory = scan_repository_write_surfaces_v2(
+        _repository(tmp_path / "merged", COMPRESSED_AND_ARCHIVE_SOURCE),
+        source_revision=REVISION,
+    )
+    writers = {
+        (surface.callee, surface.kind)
+        for surface in inventory.surfaces
+        if surface.blocking
+    }
+    assert ("gzip.open", "write_mode_open") in writers
+    assert ("bz2.open", "write_mode_open") in writers
+    assert ("lzma.open", "write_mode_open") in writers
+    assert ("tarfile.open", "write_mode_open") in writers
+    assert ("zipfile.ZipFile", "archive_or_compressed_write") in writers
+    assert not any(
+        surface.kind == "path-open"
+        for surface in inventory.surfaces
+        if surface.callee
+        in {"gzip.open", "bz2.open", "lzma.open", "tarfile.open", "zipfile.ZipFile"}
+    )
 
 
 def test_fd_temp_archive_and_stream_sinks_are_blocking(tmp_path: Path) -> None:
@@ -141,10 +159,7 @@ futures.ProcessPoolExecutor()
     )
 
 
-def test_aliases_and_rebindings_fail_closed(tmp_path: Path) -> None:
-    findings = _findings(
-        tmp_path,
-        """
+ALIAS_AND_REBINDING_SOURCE = """
 from gzip import open as compressed_open
 from os import write
 
@@ -153,14 +168,34 @@ write(fd, b'x')
 
 def use(write):
     write(fd, b'x')
-""",
-    )
+"""
 
+
+def test_aliases_and_rebindings_fail_closed(tmp_path: Path) -> None:
+    findings = _findings(tmp_path, ALIAS_AND_REBINDING_SOURCE)
+
+    # The aliased `from gzip import open as compressed_open` callsite is now
+    # owned by the canonical scanner, so only the rebound `write` names are
+    # left for the additive delta to report.
     assert [finding.kind for finding in findings] == [
-        "archive_or_compressed_write",
         "ambiguous_stdlib_binding",
         "ambiguous_stdlib_binding",
     ]
+
+    # Fail-closed is the property under test: no aliased or rebound name may
+    # escape the merged inventory, and every one of them stays blocking.
+    inventory = scan_repository_write_surfaces_v2(
+        _repository(tmp_path / "merged", ALIAS_AND_REBINDING_SOURCE),
+        source_revision=REVISION,
+    )
+    assert [
+        (surface.line, surface.callee, surface.kind) for surface in inventory.surfaces
+    ] == [
+        (5, "gzip.open", "ambiguous_binding"),
+        (6, "write", "ambiguous_stdlib_binding"),
+        (9, "write", "ambiguous_stdlib_binding"),
+    ]
+    assert len(inventory.blockers) == 3
 
 
 def test_delta_is_bound_to_base_inventory_and_all_production_bytes(

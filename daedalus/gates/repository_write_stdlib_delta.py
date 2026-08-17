@@ -11,7 +11,7 @@ import ast
 import hashlib
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 from daedalus.gates.repository_write_inventory import (
@@ -213,7 +213,10 @@ class RepositoryWriteStdlibDelta:
 def _safe_relative_posix(value: object) -> bool:
     if not isinstance(value, str) or not value or "\\" in value:
         return False
-    path = Path(value)
+    # PurePosixPath, not Path: on Windows a rooted-but-driveless value such as
+    # "/daedalus/a.py" is not reported as absolute, so the platform-dependent
+    # Path would let an absolute POSIX path pass as repository-relative.
+    path = PurePosixPath(value)
     return (
         not path.is_absolute()
         and all(part not in {"", ".", ".."} for part in path.parts)

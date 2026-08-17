@@ -79,7 +79,7 @@ def _authorization(tmp_path):
             surface=Surface.PYTHON,
             target="daedalus.fixture:write",
             effects=(Effect.FILESYSTEM_WRITE,),
-            guard_contracts=("fixture.guard",),
+            guard_contracts=("containment.attempt",),
             wiring=Wiring.CENTRAL,
         )
     }
@@ -145,7 +145,7 @@ def _authorization(tmp_path):
         lease_keyring={"repository-write-effect-key": SECRET},
         guard_decisions=(
             GuardDecision(
-                "fixture.guard",
+                "containment.attempt",
                 True,
                 "artifact:sha256:" + "f" * 64,
             ),
@@ -227,11 +227,11 @@ def _classification(
         (
             EvidenceKind.GUARD_CONTRACT,
             {
-                "contract": "fixture.guard",
+                "contract": "containment.attempt",
                 "implementation_target": "daedalus.fixture:guard",
                 "implementation_sha256": "2" * 64,
             },
-            "fixture.guard",
+            "containment.attempt",
         ),
         (
             EvidenceKind.EFFECT_LEASE_RECEIPT,
@@ -277,7 +277,7 @@ def _classification(
         target=TargetDisposition.CHECKOUT_EXTERNAL,
         guard=GuardDisposition.CENTRAL,
         production_reachable=True,
-        guard_contracts=("fixture.guard",),
+        guard_contracts=("containment.attempt",),
         evidence=tuple(sorted(bindings, key=EvidenceBinding.sort_key)),
         notes="effect replay fixture",
     )

@@ -113,8 +113,22 @@ def test_public_verifier_reauthenticates_before_payload_projection() -> None:
     assert chain[0] < payload[0] < structure[0]
 
 
-def test_complete_cross_layer_digest_chain_is_rechecked() -> None:
+def _function_source(name: str) -> str:
     source = TARGET.read_text(encoding="utf-8")
+    matches = [
+        node
+        for node in _tree().body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == name
+    ]
+    assert len(matches) == 1
+    return ast.get_source_segment(source, matches[0]) or ""
+
+
+def test_complete_cross_layer_digest_chain_is_rechecked() -> None:
+    # Scope the count to the chain verifier: several of these keys are also
+    # legitimate receipt fields and to_dict() keys elsewhere in the module.
+    source = _function_source("_verify_chain")
     required = {
         '"materialization_revision"',
         '"materialization_classification"',

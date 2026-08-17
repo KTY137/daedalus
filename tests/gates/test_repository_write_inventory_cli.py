@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,22 @@ from pathlib import Path
 REVISION = "c" * 40
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "report_repository_write_inventory.py"
+
+
+def _env() -> dict[str, str]:
+    """Pin the subprocess to the checkout under test.
+
+    Running a script puts the script's own directory on sys.path, not the cwd,
+    so `daedalus` would otherwise resolve against whatever copy happens to be
+    installed in site-packages rather than this tree.
+    """
+
+    environment = dict(os.environ)
+    inherited = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = (
+        f"{ROOT}{os.pathsep}{inherited}" if inherited else str(ROOT)
+    )
+    return environment
 
 
 def _repository(tmp_path: Path, source: str) -> Path:
@@ -21,9 +38,13 @@ def _repository(tmp_path: Path, source: str) -> Path:
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
+    # Both repair lanes fixed the same hermeticity hole; _env() is the shared
+    # helper form (PYTHONPATH pinned to this tree so the script imports THIS
+    # daedalus, not whatever the ambient environment installed).
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         cwd=ROOT,
+        env=_env(),
         text=True,
         capture_output=True,
         check=False,

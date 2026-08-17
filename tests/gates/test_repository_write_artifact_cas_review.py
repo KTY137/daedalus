@@ -82,12 +82,21 @@ def test_only_os_open_is_explicitly_read_only() -> None:
     assert len(calls) == 1
     call = calls[0]
     assert len(call.args) >= 2
-    flags = ast.unparse(call.args[1])
+
+    # The flag word is assembled in a local before the call, so when the
+    # argument is just that local's name, review the whole reader function.
+    argument = ast.unparse(call.args[1])
+    flags = (
+        ast.unparse(_function("_read_exact_file"))
+        if argument.isidentifier()
+        else argument
+    )
     assert "os.O_RDONLY" in flags
     assert "O_WRONLY" not in flags
     assert "O_RDWR" not in flags
     assert "O_CREAT" not in flags
     assert "O_TRUNC" not in flags
+    assert "O_APPEND" not in flags
 
 
 def test_locator_derivation_is_closed_and_digest_only() -> None:

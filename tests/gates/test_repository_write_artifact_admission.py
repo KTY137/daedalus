@@ -33,8 +33,11 @@ from daedalus.spine.envelope import canonical_json, canonical_sha
 
 REVISION = "1" * 40
 TREE_REVISION = "2" * 40
-BUILT_AT = "2026-08-05T00:00:00+00:00"
-ADMITTED_AT = "2026-08-05T00:01:00+00:00"
+# Canonical form: _utc_timestamp normalises every contract timestamp to
+# microsecond precision, so these fixtures are written in that form to
+# round-trip identically through the emitted receipts.
+BUILT_AT = "2026-08-05T00:00:00.000000+00:00"
+ADMITTED_AT = "2026-08-05T00:01:00.000000+00:00"
 
 
 def _inventory() -> RepositoryWriteInventoryV2:

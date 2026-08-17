@@ -51,11 +51,22 @@ def test_projection_has_no_write_or_external_effect_authority() -> None:
         if isinstance(node, ast.Call)
     }
     required = {
-        "NonRuntimeEffectAuthorization",
-        "inspect_effect_execution",
+        "PersistedEffectLeaseSubject",
+        "_project_persisted_execution",
         "verify_runtime_bound_effect_lease",
     }
     assert required.issubset(calls)
+    # The runtime-bearing lease must never be downgraded through the
+    # non-runtime capability facade, whose own guard refuses runtime leases.
+    # Checked on the AST, so prose may still name it.
+    imported_names = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+    assert "NonRuntimeEffectAuthorization" not in calls
+    assert "NonRuntimeEffectAuthorization" not in imported_names
     for forbidden in (
         "grant",
         "begin",
@@ -86,7 +97,7 @@ def test_public_projection_accepts_only_authorization_and_execution() -> None:
 def test_inner_persisted_projection_precedes_runtime_capability_replay() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     inner_index = source.index(
-        "effect_snapshot = inspect_effect_execution(inner, execution)"
+        "effect_snapshot = _project_persisted_execution(inner, execution)"
     )
     missing_index = source.index("if effect_snapshot is None:")
     time_index = source.index("start_instant = _parse_utc(")
@@ -126,11 +137,19 @@ def test_adapter_carries_exact_inner_effect_subject() -> None:
         "policy_decision=authorization.policy_decision",
         "effect_ledger=authorization.effect_ledger",
         "lease_keyring=authorization.lease_keyring",
-        "guard_decisions=authorization.guard_decisions",
         "registry=authorization.registry",
     )
     for fragment in required:
         assert fragment in source
+    # The read-only subject deliberately carries no guard decisions and no
+    # kill-switch authority: it must not be constructible into a capability.
+    # Non-empty guard decisions remain enforced upstream by
+    # RuntimeBoundEffectAuthorization, which this projection requires by type.
+    assert "guard_decisions" not in source
+    assert "kill_switch_generation_reader" not in source
+    assert (
+        "isinstance(authorization, RuntimeBoundEffectAuthorization)" in source
+    )
 
 
 def test_snapshot_exposes_state_and_trust_but_no_execution_method() -> None:
