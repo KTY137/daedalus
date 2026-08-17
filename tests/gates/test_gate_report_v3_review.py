@@ -69,7 +69,8 @@ def test_v3_module_has_no_release_promotion_or_execution_authority() -> None:
     source = inspect.getsource(report_v3)
     tree = ast.parse(source)
     imported: set[str] = set()
-    called: set[str] = set()
+    called_names: set[str] = set()
+    called_attrs: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(alias.name.split(".")[0] for alias in node.names)
@@ -77,14 +78,20 @@ def test_v3_module_has_no_release_promotion_or_execution_authority() -> None:
             imported.add(node.module.split(".")[0])
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
-                called.add(node.func.id)
+                called_names.add(node.func.id)
             elif isinstance(node.func, ast.Attribute):
-                called.add(node.func.attr)
+                called_attrs.add(node.func.attr)
     assert imported.isdisjoint(
         {"subprocess", "socket", "requests", "httpx", "urllib", "sqlite3"}
     )
-    assert {"write_text", "write_bytes", "mkdir", "unlink", "replace"}.isdisjoint(called)
-    assert {"exec", "eval", "compile", "system", "popen"}.isdisjoint(called)
+    # Write authority is exercised through methods on a path object.
+    assert {"write_text", "write_bytes", "mkdir", "unlink", "replace"}.isdisjoint(
+        called_attrs
+    )
+    # Execution authority is the bare builtin; `re.compile` is an attribute on a
+    # module and is not code execution.
+    assert {"exec", "eval", "compile"}.isdisjoint(called_names)
+    assert {"system", "popen", "spawn", "fork", "execv"}.isdisjoint(called_attrs)
     assert "OwnerApproval" not in source
     assert "PromotionReceipt" not in source
     assert "Gate0ReleaseReceipt" not in source
