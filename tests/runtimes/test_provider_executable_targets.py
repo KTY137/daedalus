@@ -402,6 +402,24 @@ def test_signed_foreign_target_contract_refuses_before_lookup(monkeypatch) -> No
         )
 
 
+_IDENTITY_MISMATCH = "differs from authenticated identity"
+# provider_id is the one field that cannot reach the comparison above it.
+# The descriptor is selected out of the manifest BY the authenticated
+# provider_id, so substituting it means the manifest no longer registers a
+# descriptor for the caller at all, and the registration guard refuses
+# first. The substitution is still refused; it is refused earlier, by a
+# narrower check. Pinning the message per field is what keeps that visible
+# -- if provider_id ever started reporting a field mismatch instead, the
+# lookup would be matching something other than the authenticated identity.
+_NOT_REGISTERED = "is not registered exactly once"
+
+
+# Kept out of the parametrisation on purpose: the node ids of these cases
+# are referenced from outside this file, so the expected message is looked
+# up here rather than added as a third parameter.
+_EXPECTED_REFUSAL = {"provider_id": _NOT_REGISTERED}
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -427,7 +445,7 @@ def test_authority_issuance_refuses_identity_target_substitution(
 
     with pytest.raises(
         ProviderExecutableTargetBindingError,
-        match="differs from authenticated identity",
+        match=_EXPECTED_REFUSAL.get(field, _IDENTITY_MISMATCH),
     ):
         _target_authority(
             invocation_authority,
