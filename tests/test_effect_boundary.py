@@ -57,49 +57,54 @@ def _minimal_repo(tmp_path: Path, source: str, *, module: str = "rogue") -> Path
     return tmp_path
 
 
-def test_inventory_covers_the_package_but_not_yet_the_tools_it_now_sees() -> None:
-    """The daedalus side is inventoried; tools/ is the gap the scan just found.
+def test_inventory_covers_package_and_tools_and_the_scan_reach_stays_pinned() -> None:
+    """Both scanned packages are fully inventoried; the reach itself is pinned.
 
-    This test used to assert the inventory was COMPLETE, and that was true only
-    while the scan globbed ``root/"daedalus"`` and nothing else. MEASURED
-    2026-07-30 by adding an effectful entrypoint under tools/ and watching the
-    matrix not move: 18 of 19 python files there spawn processes, write files,
-    mutate the repository or spend money -- `audit_swarm.py`, which has billed
-    roughly 750 external calls, among them.
+    History, kept because each state was measured: this test first asserted
+    completeness while the scan globbed ``root/"daedalus"`` only (true about
+    the scope, not the tree -- 18 of 19 python files under tools/ were
+    effectful and invisible, MEASURED 2026-07-30).  Then it asserted the
+    tools/ gap was non-empty while the 15 unregistered entrypoints were being
+    migrated.  Since 2026-08-17 every discovered target in both packages has a
+    registry row, so the previous assertion ("unregistered tools rows exist")
+    would now re-pin a red state that no longer exists.
 
-    Widening the scan did not create these findings. It stopped hiding them,
-    and a test asserting completeness over a scope that excluded the gap was
-    reporting the scope, not the truth. So the assertion is split: the package
-    is covered, the tools are not, and Gate 0 stays red for a reason that is
-    now named rather than unseen.
+    What must never regress silently: the scan still REACHES tools/ -- proven
+    by discoveries, not by blockers, because a scan that stopped reading the
+    directory would also report zero blockers there.  And structural
+    conformance does not mean Gate 0 is closed: the rows are inventory-bound,
+    not centrally wired, and the report says so.
     """
     report = check_conformance(ROOT)
     blocker_codes = {(row.code, row.subject) for row in report.findings
                      if row.severity == "blocker"}
 
-    # the package's own entrypoints are all declared
-    assert ("entrypoint.unregistered", "daedalus.offload:offload") not in blocker_codes
-    assert ("entrypoint.unregistered",
-            "daedalus.kairos.gated_writes:promote_candidates") not in blocker_codes
-    assert not any(code == "entrypoint.unregistered" and subject.startswith("daedalus.")
-                   for code, subject in blocker_codes), (
-        "a daedalus entrypoint stopped being declared")
+    # every discovered entrypoint in both scanned packages is declared
+    assert not any(code == "entrypoint.unregistered"
+                   for code, _subject in blocker_codes), (
+        "an effectful entrypoint fell out of the canonical registry")
 
-    # Promotion and offload now have mechanically anchored central starts.
+    # the scan's reach into tools/ is pinned via what it READ, not via what
+    # it flagged -- a silently narrowed scan reports no tools blockers too
+    assert any(row.target.startswith("tools.") for row in report.discoveries), (
+        "the discovery scan no longer reaches tools/; a whole directory of "
+        "effectful entrypoints would be invisible to the drift detector")
+
+    # Promotion and offload keep their mechanically anchored starts.
     assert ("gate0.unguarded_entrypoint", "python.offload") not in blocker_codes
     assert ("gate0.unguarded_entrypoint", "python.promote_candidates") not in blocker_codes
     assert next(row for row in ENTRYPOINTS if row.id == "python.offload").wiring is Wiring.CENTRAL
 
-    # and the newly visible gap is real, named, and not silently tolerated
-    unregistered_tools = {subject for code, subject in blocker_codes
-                          if code == "entrypoint.unregistered"
-                          and subject.startswith("tools.")}
-    assert unregistered_tools, (
-        "the scan no longer reaches tools/; a directory of effectful "
-        "entrypoints would be invisible to the drift detector again")
+    # the two hand-registered invisible doors stay named review findings, so
+    # their statically unverifiable rows cannot rot without a trace
+    review_subjects = {row.subject for row in report.findings
+                       if row.code == "entrypoint.not_rediscovered"}
+    assert "tools.guarded_call:main" in review_subjects
+    assert "tools.system_check:main" in review_subjects
 
-    assert report.structurally_conformant is False
-    assert report.gate0_closed is False
+    assert report.structurally_conformant is True
+    assert report.gate0_closed is False, (
+        "inventory_only rows are a named Gate-0 gap, not conformance")
     assert report.to_dict()["security_boundary_claimed"] is False
 
 
@@ -348,7 +353,17 @@ def test_broken_console_target_fails_closed(tmp_path: Path) -> None:
     assert any(row.code == "scan.console_target_missing" for row in findings)
 
 
-def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
+def test_cli_is_conformant_but_still_refuses_to_call_gate0_closed() -> None:
+    """The CLI's two failure modes stay distinct and honest.
+
+    Structural conformance (no drift blockers) now passes, so the plain run
+    exits 0.  Gate-0 closure is a strictly stronger claim -- every row wired
+    through the central start -- and ``--require-gate0`` must keep failing
+    with its own exit code while the rows are inventory-bound.  A CLI that
+    conflated the two would report a closed gate the moment the registry
+    stopped drifting, which is exactly the euphemism the wiring enum exists
+    to prevent.
+    """
     completed = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "effect_boundary_check.py"), "--json"],
         cwd=ROOT,
@@ -363,27 +378,36 @@ def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
         for row in payload["findings"]
         if row["severity"] == "blocker"
     }
-    assert completed.returncode == 2
-    # Promotion and offload are centrally wired; the CLI remains red for the
-    # still-unregistered tool entrypoints, not for either protected Python path.
-    assert "python.offload" not in blockers
-    assert "python.promote_candidates" not in blockers
-    assert any(subject.startswith("tools.") for subject in blockers)
+    assert completed.returncode == 0
+    assert not blockers
+    assert payload["structurally_conformant"] is True
     assert payload["gate0_closed"] is False
     assert payload["security_boundary_claimed"] is False
 
-    # And the scan now reaches tools/. MEASURED 2026-07-30: it globbed
-    # root/"daedalus" only, so a newly added effectful entrypoint under tools/
-    # changed nothing in the matrix -- verified by adding one. 18 of 19 python
-    # files there spawn processes, write files, mutate the repo or spend money,
-    # `audit_swarm.py` among them. The registry documents its blind spots
-    # (dynamic imports, native code, shell, external clients); this directory
-    # was not one of them, and an undocumented gap answers "no drift" for code
-    # it never read. Pinned so the scope cannot quietly narrow again.
-    subjects = {row["subject"] for row in payload["findings"]}
-    assert any(s.startswith("tools.") for s in subjects), (
+    # Scan reach into tools/ is pinned via discoveries (MEASURED 2026-07-30:
+    # the scan once globbed root/"daedalus" only and answered "no drift" for a
+    # directory of effectful code it never read).  Blockers cannot pin this
+    # anymore -- zero blockers is also what a silently narrowed scan reports.
+    discovered = {row["target"] for row in payload["discoveries"]}
+    assert any(t.startswith("tools.") for t in discovered), (
         "the discovery scan no longer reaches tools/; a whole directory of "
         "effectful entrypoints would be invisible to the drift detector")
+
+    gated = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "effect_boundary_check.py"),
+            "--require-gate0",
+        ],
+        cwd=ROOT,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert gated.returncode == 3, (
+        "--require-gate0 must keep failing while any row is not centrally wired"
+    )
 
 
 def test_promotion_row_is_owner_guarded_before_any_worktree() -> None:
@@ -493,3 +517,44 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
         "tools.gui_check:main",
     ):
         assert target not in unregistered, target
+
+
+def test_remaining_tools_rows_and_the_invisible_system_check_are_registered() -> None:
+    """Final tools/ batch: write/spawn-only rows plus the dispatch-table door.
+
+    ``tools/system_check.py`` dispatches through its CHECKS table, so no static
+    sink resolves and every effect on its row is hand-declared -- including
+    repository_mutation (it clones the working tree).  The stale
+    ``cli.claude_bridge`` row is gone: its target is a fail-closed stub, and a
+    row declaring effects the code cannot perform was the registry's one
+    staleness finding.
+    """
+    by_id = {row.id: row for row in ENTRYPOINTS}
+
+    for row_id, effect in (
+        ("tools.mutation_score", Effect.FILESYSTEM_WRITE),
+        ("tools.audit_triage", Effect.FILESYSTEM_WRITE),
+        ("tools.agent_findings", Effect.FILESYSTEM_WRITE),
+        ("tools.lane_invariants", Effect.FILESYSTEM_WRITE),
+        ("tools.funnel_report", Effect.PROCESS_SPAWN),
+        ("tools.run_gate_checks", Effect.PROCESS_SPAWN),
+        ("tools.iron_plan_hook_runner", Effect.PROCESS_SPAWN),
+    ):
+        row = by_id[row_id]
+        assert row.surface is Surface.CLI
+        assert effect in row.effects
+        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    system_check = by_id["tools.system_check"]
+    assert {
+        Effect.FILESYSTEM_WRITE,
+        Effect.PROCESS_SPAWN,
+        Effect.NETWORK_EGRESS,
+        Effect.PROCESS_CONTROL,
+        Effect.REPOSITORY_MUTATION,
+    } <= set(system_check.effects)
+
+    assert "cli.claude_bridge" not in by_id
+    assert not any(
+        row.target == "daedalus.claude_bridge:main" for row in ENTRYPOINTS
+    )

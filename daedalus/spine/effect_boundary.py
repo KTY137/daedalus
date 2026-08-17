@@ -650,6 +650,93 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         wiring=Wiring.INVENTORY_ONLY,
         notes="Spawns node/playwright, binds and kills a local dev server.",
     ),
+    # Write-only / spawn-only tool entrypoints; effects as discovered.
+    EntrypointSpec(
+        id="tools.mutation_score",
+        surface=Surface.CLI,
+        target="tools.mutation_score:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Scores mutation runs and writes the report.",
+    ),
+    EntrypointSpec(
+        id="tools.audit_triage",
+        surface=Surface.CLI,
+        target="tools.audit_triage:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Triages audit findings into a written worklist.",
+    ),
+    EntrypointSpec(
+        id="tools.agent_findings",
+        surface=Surface.CLI,
+        target="tools.agent_findings:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Collects agent findings and writes the digest.",
+    ),
+    EntrypointSpec(
+        id="tools.lane_invariants",
+        surface=Surface.CLI,
+        target="tools.lane_invariants:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Checks lane invariants and writes the result file.",
+    ),
+    EntrypointSpec(
+        id="tools.funnel_report",
+        surface=Surface.CLI,
+        target="tools.funnel_report:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Reads a finished funnel run directory; the fan_out mention in its source is docstring only.",
+    ),
+    EntrypointSpec(
+        id="tools.run_gate_checks",
+        surface=Surface.CLI,
+        target="tools.run_gate_checks:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Runs the canonical gate verification profiles via subprocess pytest.",
+    ),
+    EntrypointSpec(
+        id="tools.iron_plan_hook_runner",
+        surface=Surface.CLI,
+        target="tools.iron_plan_hook_runner:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Hook shim that re-executes the plan guard. Protected policy "
+            "artifact -- this row inventories it without touching the target."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.system_check",
+        surface=Surface.CLI,
+        target="tools.system_check:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_CONTROL,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "End-to-end acceptance probe: clones the working tree, spawns "
+            "servers, opens sockets and writes probe files. Dispatch goes "
+            "through the CHECKS table, so the static scanner cannot classify "
+            "it -- every effect here is hand-declared."
+        ),
+    ),
 )
 
 # Additional currently advertised/direct Python starts found by the static
@@ -690,13 +777,11 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
         Wiring.INVENTORY_ONLY,
     ),
-    (
-        "cli.claude_bridge",
-        Surface.CLI,
-        "daedalus.claude_bridge:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
+    # cli.claude_bridge was deleted from this inventory 2026-08-17: the target
+    # is now a fail-closed stub (parser.error, no effect), so its row declared
+    # effects the code cannot perform and produced the registry's only
+    # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
+    # effectful body the scanner will rediscover it as an unregistered blocker.
     (
         "cli.dctx",
         Surface.CLI,
