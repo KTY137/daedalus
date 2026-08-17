@@ -30,6 +30,23 @@ def _load_fixture():
 
 fixture = _load_fixture()
 
+# The bundle under test is signed by the trust-bundle fixture's collector
+# key; derive the CLI argument from that chain instead of repeating the
+# secret material as a literal that can go stale.  A stale literal does not
+# fail loudly here: the CLI still refuses, but for a signature mismatch
+# rather than the condition under test, so the assertion on the refusal
+# reason is what keeps these tests honest.
+COLLECTOR_ID, COLLECTOR_KEY_ID = fixture.fixture.COLLECTOR_KEY
+COLLECTOR_KEY_ARG = ":".join(
+    (COLLECTOR_ID, COLLECTOR_KEY_ID, fixture.fixture.SECRET.decode("ascii"))
+)
+
+# The release verifier keyring is owned by the assessment fixture; derive it
+# from the same chain for the same reason.
+VERIFIER_ID, VERIFIER_KEY_ID = fixture.VERIFIER_KEY
+VERIFIER_SECRET = fixture.RELEASE_SECRET.decode("ascii")
+VERIFIER_KEY_ARG = ":".join((VERIFIER_ID, VERIFIER_KEY_ID, VERIFIER_SECRET))
+
 
 def _write_json(path: Path, payload: dict) -> None:
     path.write_text(
@@ -62,7 +79,7 @@ def _dump_inputs(tmp_path: Path):
     _write_json(report_path, report.to_dict())
     _write_json(index_path, index.to_dict())
     _write_json(bundle_path, bundle.to_dict())
-    workflow_path = root / fixture.WORKFLOW_PATH
+    workflow_path = root / fixture.fixture.WORKFLOW_PATH
     return root, report_path, index_path, bundle_path, workflow_path
 
 
@@ -85,12 +102,9 @@ def _common_issue_args(
         "--repo-root",
         str(root),
         "--collector-key",
-        (
-            "external-release-collector:collector-key-1:"
-            "collector-test-secret-material-must-be-at-least-32-bytes"
-        ),
+        COLLECTOR_KEY_ARG,
         "--expected-collector-id",
-        "external-release-collector",
+        COLLECTOR_ID,
         "--expected-workflow",
         f"gate0-contracts:{workflow_path}",
         "--current-revision",
@@ -100,9 +114,9 @@ def _common_issue_args(
         "--receipt-id",
         "gate0-release-receipt-1",
         "--verifier-id",
-        "external-gate0-release-verifier",
+        VERIFIER_ID,
         "--verifier-key-id",
-        "release-key-1",
+        VERIFIER_KEY_ID,
         "--verified-at",
         (fixture.fixture.NOW + fixture.timedelta(minutes=2)).isoformat(),
         "--output",
@@ -115,11 +129,7 @@ def test_issue_and_verify_cli_round_trip_with_external_keys(tmp_path: Path) -> N
         tmp_path
     )
     output = tmp_path / "release-receipt.json"
-    issue_env = {
-        "DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET": (
-            "external-release-verifier-secret-material-32-bytes"
-        )
-    }
+    issue_env = {"DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET": VERIFIER_SECRET}
     issued = _run(
         *_common_issue_args(
             root,
@@ -150,21 +160,15 @@ def test_issue_and_verify_cli_round_trip_with_external_keys(tmp_path: Path) -> N
         "--repo-root",
         str(root),
         "--collector-key",
-        (
-            "external-release-collector:collector-key-1:"
-            "collector-test-secret-material-must-be-at-least-32-bytes"
-        ),
+        COLLECTOR_KEY_ARG,
         "--expected-collector-id",
-        "external-release-collector",
+        COLLECTOR_ID,
         "--expected-workflow",
         f"gate0-contracts:{workflow_path}",
         "--verifier-key",
-        (
-            "external-gate0-release-verifier:release-key-1:"
-            "external-release-verifier-secret-material-32-bytes"
-        ),
+        VERIFIER_KEY_ARG,
         "--expected-verifier-id",
-        "external-gate0-release-verifier",
+        VERIFIER_ID,
         "--current-revision",
         fixture.fixture.REVISION,
         "--current-tree-revision",
@@ -226,15 +230,44 @@ def test_issue_cli_refuses_open_report_and_preserves_output(
             root / fixture.fixture.WORKFLOW_PATH,
             output,
         ),
-        env={
-            "DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET": (
-                "external-release-verifier-secret-material-32-bytes"
-            )
-        },
+        env={"DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET": VERIFIER_SECRET},
     )
     assert result.returncode == 1
     assert output.read_text(encoding="utf-8") == "sentinel\n"
     assert "security_boundary_claimed:false" in result.stderr
+
+
+def test_issue_cli_refuses_malformed_collector_key_without_writing_receipt(
+    tmp_path: Path,
+) -> None:
+    # Argument-shape refusals must fail closed on the same terms as evidence
+    # refusals: exit 1, nothing on stdout, no receipt written, and no secret
+    # material echoed back into the error stream.
+    root, report_path, index_path, bundle_path, workflow_path = _dump_inputs(
+        tmp_path
+    )
+    output = tmp_path / "release-receipt.json"
+    args = list(
+        _common_issue_args(
+            root,
+            report_path,
+            index_path,
+            bundle_path,
+            workflow_path,
+            output,
+        )
+    )
+    args[args.index(COLLECTOR_KEY_ARG)] = f"{COLLECTOR_ID}:{COLLECTOR_KEY_ID}"
+
+    result = _run(
+        *args,
+        env={"DAEDALUS_GATE0_RELEASE_VERIFIER_SECRET": VERIFIER_SECRET},
+    )
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert not output.exists()
+    assert "--collector-key must use OWNER_ID:KEY_ID:SECRET" in result.stderr
+    assert VERIFIER_SECRET not in result.stderr
 
 
 def test_cli_loaders_preserve_exact_index_and_bundle_contracts(
