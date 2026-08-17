@@ -131,8 +131,18 @@ from daedalus.primary_tree import (
     assert_write_allowed,
     nearest_existing,
     overlap_reason as _overlap_reason,
+    write_blocked_reason,
 )
 from daedalus.schemas import ContractProvenance
+# THE CENTRAL START PATH. `effect_boundary` imports nothing from `daedalus`, so
+# this cannot become an import cycle no matter what the kernel grows later.
+from daedalus.spine.effect_boundary import (
+    Effect,
+    EffectBoundaryError,
+    EffectStartReceipt,
+    GuardDecision,
+    begin_effect,
+)
 from daedalus.spine.envelope import current_trace_id
 from daedalus.spine.ledger import SpineLedger, canonical_json
 from daedalus.storage import (
@@ -718,6 +728,12 @@ class AttemptResult:
     runner_detail: Any = None
     reaped: tuple = ()
     reap_error: str | None = None
+    #: ``receipt_sha256`` of the Gate-0 effect-start receipt, or ``None`` if the
+    #: attempt ended before the boundary was reached (storage, cancel, ledger)
+    #: or was refused by it. Present on a result means: this attempt's effects
+    #: were admitted by :func:`daedalus.spine.effect_boundary.begin_effect`
+    #: against the registry sha the receipt names.
+    boundary_receipt: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -753,6 +769,7 @@ class AttemptResult:
             "runner_detail": _jsonable(self.runner_detail),
             "reaped": _jsonable(list(self.reaped)),
             "reap_error": self.reap_error,
+            "boundary_receipt": self.boundary_receipt,
         }
 
 
@@ -1152,6 +1169,10 @@ class TaskAttempt:
         # invoked. None until then, and None afterwards for a worktree whose
         # `.git` was not the expected pointer file.
         self._admin_dir: Path | None = None
+        # Set by _begin_effect_boundary once the central start is admitted, and
+        # read by run()'s `finish` at CALL time so every result -- including the
+        # failure states -- carries the receipt the effects were admitted under.
+        self._boundary_receipt: str | None = None
 
     # -- entry point -------------------------------------------------------- #
     def run(self) -> AttemptResult:
@@ -1168,7 +1189,8 @@ class TaskAttempt:
             return AttemptResult(
                 state=state, task_id=self.task.task_id, started_ts=started_ts,
                 finished_ts=_now_iso(), duration_s=time.monotonic() - started,
-                effect_key=self.effect_key, branch=self.branch, **kw)
+                effect_key=self.effect_key, branch=self.branch,
+                boundary_receipt=self._boundary_receipt, **kw)
 
         # 1. storage, fail closed and BEFORE anything is recorded or created.
         try:
@@ -1250,6 +1272,66 @@ class TaskAttempt:
                             reap_error=f"{type(e).__name__}: {e}")
         return _replace(result, reaped=tuple(report))
 
+    # -- the central effect boundary ---------------------------------------- #
+    def _begin_effect_boundary(self, intent_id: int) -> EffectStartReceipt:
+        """Admit this attempt's effects at the canonical Gate-0 boundary.
+
+        Raises :class:`EffectBoundaryError` if the start is refused, and the
+        caller turns that into a state -- so a refusal cannot become an effect.
+
+        WHY HERE, AND NOT EARLIER OR LATER. The boundary needs both of the
+        row's guard contracts to be answered with evidence rather than with a
+        claim, and the two want opposite placements:
+
+        * ``spine.intent_ledger`` is only TRUE once the intent is committed, so
+          the call must come after ``record_intent``. Calling it before would
+          mean answering "the intent is recorded" while it is not -- the model
+          assertion the boundary's own docstring rejects.
+        * ``containment.attempt`` must be decided before anything is created,
+          so the call must come before ``create_worktree``.
+
+        The gap between those two lines is the only place both hold, and it is
+        exactly the seam this module was already built around.
+
+        The containment answer is NOT a restatement of the four structural
+        properties in the module docstring -- those are compile-time facts and
+        would make this a comment. It is the one runtime input those properties
+        depend on: WHERE the manager was pointed. A worktree root inside the
+        primary checkout defeats all four at once, and it is caller-supplied
+        (``DAEDALUS_WORKTREE_ROOT``), so it is the part that can actually be
+        wrong today. ``write_blocked_reason`` is the right question of the two
+        the fence offers: the root is a write target that usually does not
+        exist yet, so it needs the probing, one-directional form -- refusing a
+        directory that merely CONTAINS the checkout would fence off the whole
+        parent for no gain (see its docstring).
+        """
+        worktree_root = self._manager.worktree_root
+        blocked = write_blocked_reason(worktree_root, self.repo_root)
+        decisions = (
+            GuardDecision(
+                contract="spine.intent_ledger",
+                allowed=True,
+                evidence=f"intent={intent_id} effect_key={self.effect_key}",
+            ),
+            GuardDecision(
+                contract="containment.attempt",
+                allowed=blocked is None,
+                evidence=(
+                    blocked
+                    or f"worktree root outside the primary checkout: {worktree_root}"
+                ),
+            ),
+        )
+        return begin_effect(
+            "python.attempt",
+            (
+                Effect.FILESYSTEM_WRITE,
+                Effect.PROCESS_SPAWN,
+                Effect.REPOSITORY_MUTATION,
+            ),
+            decisions,
+        )
+
     # -- the recorded part -------------------------------------------------- #
     def _run_with_ledger(self, ledger: SpineLedger, base_revision: str,
                          finish: Callable[..., AttemptResult]) -> AttemptResult:
@@ -1267,6 +1349,19 @@ class TaskAttempt:
         except Exception as e:
             return finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
                           error=f"could not record intent: {e}")
+
+        # 2b. THE CENTRAL EFFECT BOUNDARY -- the last thing before the first
+        # external effect. A refusal here resolves the intent FAILED and returns
+        # a state, so the ledger never keeps an OPEN intent for an effect that
+        # was not permitted to happen. See _begin_effect_boundary for why the
+        # call sits AFTER the intent rather than before it.
+        try:
+            self._boundary_receipt = self._begin_effect_boundary(intent.id).receipt_sha256
+        except EffectBoundaryError as e:
+            return self._resolve_and_finish(
+                ledger, intent.id, finish, STATE_WORKTREE_FAILED,
+                artifact=None, base_revision=base_revision,
+                error=f"effect boundary refused the start: {e}")
 
         # 3. isolated worktree (already outside the repo by construction).
         try:
