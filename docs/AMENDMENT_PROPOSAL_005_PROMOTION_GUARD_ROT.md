@@ -42,12 +42,34 @@ if _literal_assignment(gated_tree, "AUTO_PROMOTE_LEVELS") != ("never",):
     errors.append("daedalus/kairos/gated_writes.py exposes automatic promotion")
 ```
 
-The constant does not exist anywhere in the repository except in this check:
+**Correction (2026-08-17, after independent review).** An earlier revision of this
+document claimed the constant "does not exist anywhere in the repository except in
+this check", citing:
 
 ```
 $ grep -rn "AUTO_PROMOTE_LEVELS" --include=*.py .
 ./tools/iron_plan_guard.py:711
 ```
+
+That grep was wrong: `--include=*.py` excludes the retained blob. The constant
+does exist, and it holds the sealed value:
+
+```
+daedalus/kairos/_gated_writes_legacy.py.src:1048:  AUTO_PROMOTE_LEVELS = ("never",)
+daedalus/kairos/_gated_writes_legacy.py.src:1081:  def run_write_wave(...)
+daedalus/kairos/_gated_writes_legacy.py.src:1130:  if auto_promote not in AUTO_PROMOTE_LEVELS:
+```
+
+At runtime:
+
+```
+AUTO_PROMOTE_LEVELS at runtime: ('never',)
+run_write_wave present: True
+```
+
+**Nothing is unsealed.** The invariant holds at runtime; only the static check is
+dead. This correction matters because it changes which remedy is right — see the
+rejected alternatives below.
 
 AST of the module's top level:
 
@@ -161,10 +183,19 @@ repository that promotion must consume an owner approval, and it removes it at
 exactly the moment we learned the statement had stopped being enforced. The
 failure mode this guards against is silent.
 
-**Add `AUTO_PROMOTE_LEVELS = ("never",)` back to `gated_writes.py`** to satisfy
-the existing check. Rejected: it is a decorative constant that nothing reads.
-Making a guard pass by feeding it a token is worse than the guard being red,
-because the red at least told the truth.
+**Re-declare `AUTO_PROMOTE_LEVELS = ("never",)` literally in `gated_writes.py`**
+so the existing check parses it. This is the cheapest fix and an independent
+review recommended it. Rejected here, on reflection, for a reason the correction
+above makes visible: the constant is *not* decorative — it is read at
+`_gated_writes_legacy.py.src:1130` to gate the actual write wave. Declaring a
+second copy in the outer module creates two sources for one policy value, and the
+guard would then verify the copy while the blob keeps the one that decides. That
+is a worse failure mode than a red guard: it reads green while watching the wrong
+variable. It also does nothing for the `run_write_wave` check, which stays vacuous.
+
+If the owner wants the trunk committable *today* and accepts that cost, the
+re-declaration is a legitimate stopgap — but it should be labelled as one, with
+this proposal still open behind it.
 
 **Suppress the error and keep the check.** Rejected for the same reason —
 a warning nobody can act on trains everyone to ignore the guard.
