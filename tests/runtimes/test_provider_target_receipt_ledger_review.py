@@ -28,6 +28,31 @@ def _method(class_name: str, method_name: str) -> ast.FunctionDef:
     )
 
 
+def _code_outside_module_docstring(source: str, tree: ast.Module) -> str:
+    """Blank the module docstring, keeping every other byte and line number.
+
+    The ledger names the authorities it refuses in its own docstring, which
+    is why the textual scan below skips exactly that one region. Two facts
+    make the exclusion safe rather than convenient. The module is pinned
+    byte-exact by the retention inventory, so its prose must not be reworded
+    to satisfy a grep. And a string in this module cannot become code: the
+    same review forbids eval, exec and compile, so there is no path from a
+    docstring to an effect. Every other string, comment and line stays in
+    the scanned text, and the structural check covers the whole module.
+    """
+    lines = source.splitlines(keepends=True)
+    first = tree.body[0] if tree.body else None
+    if (
+        isinstance(first, ast.Expr)
+        and isinstance(first.value, ast.Constant)
+        and isinstance(first.value.value, str)
+        and first.end_lineno is not None
+    ):
+        for index in range(first.lineno - 1, first.end_lineno):
+            lines[index] = "\n"
+    return "".join(lines)
+
+
 def test_retention_has_no_loader_provider_process_network_or_promotion_authority() -> None:
     source = inspect.getsource(ledger)
     tree = ast.parse(source)
@@ -46,13 +71,29 @@ def test_retention_has_no_loader_provider_process_network_or_promotion_authority
         "httpx",
     }
     assert not {name.split(".")[0] for name in imported} & forbidden_import_roots
-    assert "OwnerApproval" not in source
-    assert "PromotionReceipt" not in source
-    assert "promote_candidates" not in source
-    assert "provider_execution_allowed\": True" not in source
-    assert "eval(" not in source
-    assert "exec(" not in source
-    assert "compile(" not in source
+
+    forbidden_symbols = ("OwnerApproval", "PromotionReceipt", "promote_candidates")
+    code = _code_outside_module_docstring(source, tree)
+    for symbol in forbidden_symbols:
+        assert symbol not in code, f"retention must not carry {symbol}"
+    assert "provider_execution_allowed\": True" not in code
+    assert "eval(" not in code
+    assert "exec(" not in code
+    assert "compile(" not in code
+
+    # The textual scan skips the module docstring, so this structural check
+    # is what covers the module end to end: no forbidden symbol may appear
+    # as an identifier, an attribute, or an imported name anywhere, however
+    # the surrounding text happens to be spelled.
+    referenced: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            referenced.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            referenced.add(node.attr)
+        elif isinstance(node, ast.alias):
+            referenced.add(node.asname or node.name.split(".")[-1])
+    assert referenced.isdisjoint(forbidden_symbols)
 
 
 def test_authentication_and_validation_precede_intent_then_cas_then_terminal() -> None:

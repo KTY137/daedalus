@@ -67,6 +67,34 @@ def test_untrusted_file_loaders_are_bounded_and_reject_duplicate_keys() -> None:
     assert "evidence root must be an object" in source
 
 
+def _forbidden_call_sites(
+    tree: ast.Module,
+    forbidden: set[str],
+) -> list[str]:
+    """Every call whose callee name is forbidden, as its exact source text.
+
+    Matching on the bare callee name alone cannot tell ``str.replace`` from
+    ``Path.replace``, so the reviews below compare the full call expression
+    against a pinned list of sites that were read and cleared by hand. A new
+    call with a forbidden name fails because it is absent from that list, and
+    an existing site fails as soon as its arguments or receiver change, which
+    is exactly when it needs looking at again.
+    """
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+        elif isinstance(node.func, ast.Name):
+            name = node.func.id
+        else:
+            continue
+        if name in forbidden:
+            sites.append(ast.unparse(node))
+    return sorted(sites)
+
+
 def test_baseline_module_does_not_perform_git_network_or_repository_writes() -> None:
     tree = ast.parse(inspect.getsource(baseline_module))
     forbidden_calls = {
@@ -83,15 +111,10 @@ def test_baseline_module_does_not_perform_git_network_or_repository_writes() -> 
         "urlopen",
         "request",
     }
-    observed: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if isinstance(node.func, ast.Attribute):
-            observed.add(node.func.attr)
-        elif isinstance(node.func, ast.Name):
-            observed.add(node.func.id)
-    assert forbidden_calls.isdisjoint(observed)
+    # str.replace normalising an ISO-8601 "Z" suffix before parsing. It is
+    # not Path.replace, and it touches no filesystem entry.
+    reviewed_sites = ["value.replace('Z', '+00:00')"]
+    assert _forbidden_call_sites(tree, forbidden_calls) == reviewed_sites
 
 
 def test_no_baseline_path_can_create_owner_approval_or_gate_closure() -> None:

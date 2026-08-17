@@ -102,7 +102,18 @@ def test_provider_broker_cannot_supply_historical_verification_time() -> None:
 
 
 def test_counter_review_does_not_claim_operational_or_owner_authority() -> None:
+    # Each forbidden claim is joined from separate words at runtime so this
+    # counter-review can name what it refuses to claim without the contiguous
+    # phrase appearing in the very file it scans. A claim spelled out anywhere
+    # in this file -- prose, comment, docstring or string literal -- still fails.
+    forbidden_claims = tuple(
+        " ".join(words)
+        for words in (
+            ("approved", "by", "owner"),
+            ("human", "review", "passed"),
+            ("gate", "0", "closed"),
+        )
+    )
     source = Path(__file__).read_text(encoding="utf-8").lower()
-    assert "approved by owner" not in source
-    assert "human review passed" not in source
-    assert "gate 0 closed" not in source
+    for claim in forbidden_claims:
+        assert claim not in source, f"counter-review must not claim: {claim}"

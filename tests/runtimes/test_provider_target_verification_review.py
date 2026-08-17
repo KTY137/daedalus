@@ -46,36 +46,55 @@ def test_verifier_has_no_loader_execution_process_network_or_write_primitives() 
             imported.add(node.module.split(".", 1)[0])
     assert imported.isdisjoint(forbidden_import_roots)
 
-    direct_calls = {
-        node.func.id
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    # One pinned list covers direct and attribute calls alike, so a forbidden
+    # name is caught whichever way it is reached. Matching the bare callee
+    # name cannot tell str.replace or dataclasses.replace from Path.replace,
+    # so the full call expression is compared against the sites that were read
+    # and cleared by hand. A new forbidden call fails because it is not on the
+    # list; a cleared site fails as soon as its receiver or arguments change.
+    forbidden_callees = {
+        "eval",
+        "exec",
+        "open",
+        "compile",
+        "__import__",
+        "import_module",
+        "run",
+        "Popen",
+        "system",
+        "connect",
+        "put_bytes",
+        "capture_tree",
+        "materialize_tree",
+        "write_text",
+        "write_bytes",
+        "unlink",
+        "rename",
+        "replace",
     }
-    assert direct_calls.isdisjoint(
-        {"eval", "exec", "open", "compile", "__import__"}
-    )
-    attribute_calls = {
-        node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert attribute_calls.isdisjoint(
-        {
-            "import_module",
-            "run",
-            "Popen",
-            "system",
-            "connect",
-            "put_bytes",
-            "capture_tree",
-            "materialize_tree",
-            "write_text",
-            "write_bytes",
-            "unlink",
-            "rename",
-            "replace",
-        }
-    )
+    reviewed_sites = [
+        # A frozen-dataclass copy that carries the computed signature. No
+        # filesystem entry is renamed or replaced.
+        "dataclasses.replace(placeholder, signature_sha256="
+        "_verification_signature(placeholder.signing_digest, secret, "
+        "'verifier_keyring secret'))",
+        # str.replace turning a dotted module name into a relative path
+        # fragment. The result is compared as text and never opened.
+        "module.replace('.', '/')",
+    ]
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute):
+            callee = node.func.attr
+        elif isinstance(node.func, ast.Name):
+            callee = node.func.id
+        else:
+            continue
+        if callee in forbidden_callees:
+            sites.append(ast.unparse(node))
+    assert sorted(sites) == sorted(reviewed_sites)
 
 
 def test_public_apis_accept_no_callback_loader_or_raw_verifier_secret() -> None:
