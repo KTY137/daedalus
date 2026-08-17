@@ -558,3 +558,50 @@ def test_remaining_tools_rows_and_the_invisible_system_check_are_registered() ->
     assert not any(
         row.target == "daedalus.claude_bridge:main" for row in ENTRYPOINTS
     )
+
+
+def test_runs_package_is_scanned_and_its_billable_doors_are_registered() -> None:
+    """The scan reaches runs/ and its money doors carry hand-declared spend.
+
+    ``runs`` was the one unscanned directory unambiguously in Gate-0 scope:
+    ``daedalus.budget.BILLABLE_SITES`` prices five of its functions, yet the
+    boundary scan never opened the directory.  The room server additionally
+    proves the subclass evasion: it binds through a ``ThreadingHTTPServer``
+    subclass the literal-name sink match cannot see, so its ``listen_socket``
+    can only exist in the registry by hand -- pinned here so it cannot be
+    "simplified" away as undiscoverable.
+    """
+    from daedalus.spine.effect_boundary import SCAN_PACKAGES
+
+    assert "runs" in SCAN_PACKAGES
+    # deliberate, documented exclusions -- widening them requires an explicit
+    # harness classification first, not a silent one-line change
+    assert "scripts" not in SCAN_PACKAGES
+    assert "tests" not in SCAN_PACKAGES
+
+    by_id = {row.id: row for row in ENTRYPOINTS}
+    for row_id in ("runs.council.room", "runs.council.summarize", "runs.ab.run_arm"):
+        row = by_id[row_id]
+        assert Effect.SPEND in row.effects, f"{row_id} is billable and must say so"
+        assert "budget.process_guard" in row.guard_contracts
+        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    assert Effect.SECRETS in by_id["runs.council.room"].effects
+    assert Effect.REPOSITORY_MUTATION in by_id["runs.ab.run_arm"].effects
+    assert Effect.LISTEN_SOCKET in by_id["runs.council.room_server"].effects
+
+    report = check_conformance(ROOT)
+    assert any(row.target.startswith("runs.") for row in report.discoveries), (
+        "the discovery scan no longer reaches runs/")
+    assert not any(
+        row.code == "entrypoint.unregistered" and row.severity == "blocker"
+        for row in report.findings
+    ), "widening the scan may not leave unregistered blockers behind"
+    # the subclass-evading server stays a named review finding, not silence
+    assert "runs.council.room_server:main" in {
+        row.subject
+        for row in report.findings
+        if row.code == "entrypoint.not_rediscovered"
+    }
+    assert report.structurally_conformant is True
+    assert report.gate0_closed is False

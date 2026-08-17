@@ -737,6 +737,130 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "it -- every effect here is hand-declared."
         ),
     ),
+    # runs/ -- production-capable entrypoints that spend money; five of these
+    # functions appear in daedalus.budget.BILLABLE_SITES.  spend/secrets/
+    # repository_mutation are hand-declared (section-5 limits of the scanner).
+    EntrypointSpec(
+        id="runs.council.room",
+        surface=Surface.CLI,
+        target="runs.council.room:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Cross-vendor room: five billable vendors including ssh; every "
+            "ask_* site is priced in BILLABLE_SITES but no canonical effect "
+            "start exists."
+        ),
+    ),
+    EntrypointSpec(
+        id="runs.council.summarize",
+        surface=Surface.CLI,
+        target="runs.council.summarize:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Billable summarisers (cli/ollama); found by the budget drift detector after a hand audit missed it.",
+    ),
+    EntrypointSpec(
+        id="runs.council.room_server",
+        surface=Surface.CLI,
+        target="runs.council.room_server:main",
+        effects=(
+            Effect.LISTEN_SOCKET,
+            Effect.FILESYSTEM_WRITE,
+            Effect.SPEND,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Binds a loopback HTTP server through a ThreadingHTTPServer "
+            "SUBCLASS, which defeats the scanner's literal-name sink match -- "
+            "listen_socket is hand-declared. Drives the paid room."
+        ),
+    ),
+    EntrypointSpec(
+        id="runs.council.room_server.post",
+        surface=Surface.WEB_API,
+        target="runs.council.room_server:Handler.do_POST",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Room-server mutation handler; loopback bind, no request-level effect start.",
+    ),
+    EntrypointSpec(
+        id="runs.council.stream_hook",
+        surface=Surface.CLI,
+        target="runs.council.stream_hook:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Streams room events into the transcript.",
+    ),
+    EntrypointSpec(
+        id="runs.council.dead_letter_replay",
+        surface=Surface.CLI,
+        target="runs.council.dead_letter_replay:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Replays dead-lettered room messages into the transcript.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.run_arm",
+        surface=Surface.CLI,
+        target="runs.ab.run_arm:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Billable A/B arm (call_claude in BILLABLE_SITES); mutates its arm worktree.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.score",
+        surface=Surface.CLI,
+        target="runs.ab.score:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Scores A/B arms; touches git state while scoring.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.oracle_check",
+        surface=Surface.CLI,
+        target="runs.ab.oracle_check:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Runs the oracle over finished arms and writes the verdict.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.blind",
+        surface=Surface.CLI,
+        target="runs.ab.blind:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Writes the blinded comparison sheet.",
+    ),
 )
 
 # Additional currently advertised/direct Python starts found by the static
@@ -1208,7 +1332,16 @@ def _name(node: ast.AST, aliases: Mapping[str, str]) -> str:
 #: Python that the scan never opens was not among them, and an undocumented
 #: blind spot is worse than a documented one: the honest gaps invite scrutiny
 #: while this one quietly answered "no drift" for code it had never read.
-SCAN_PACKAGES: tuple[str, ...] = ("daedalus", "tools")
+#: Widened 2026-08-17: ``runs`` is production-capable and spends money --
+#: ``daedalus.budget.BILLABLE_SITES`` lists five of its functions as billable
+#: (council room vendors, summarisers, ab run_arm) -- yet the scan never
+#: opened the directory.  Same lesson as ``tools`` above: an unscanned
+#: directory of effectful Python is an undocumented blind spot that quietly
+#: answers "no drift".  ``scripts`` and ``tests`` remain outside the scan
+#: deliberately until an explicit harness classification exists, so widening
+#: does not turn ~90 dev-harness entrypoints into blockers overnight; that
+#: exclusion is documented here rather than silent.
+SCAN_PACKAGES: tuple[str, ...] = ("daedalus", "tools", "runs")
 
 
 def _models(
