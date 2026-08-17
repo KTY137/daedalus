@@ -144,6 +144,19 @@ am beanspruchten HEAD (Exact-Head-Policy). Danach: eines der beiden
 Subsysteme zur Projektion des anderen erklären oder stilllegen — das ist
 die Owner-Review-Frage.
 
+## 9. Council-Infrastruktur: vier gemessene Betriebsblocker (Nacht-Council 2026-08-18)
+
+MEASURED (degraded quorum 1/4, Bus `runs/council/council-20260817T220729Z-…`):
+(1) Der Secret-Floor verweigert Evidenz mit Dev-Key-Literalen in
+Test-Fixtures — 5580f57s Testdatei ist damit nicht voll councilbar;
+Entscheidung: Evidenzweg freigeben ODER Dev-Keys aus Testtexten in
+Fixtures/Env verlagern. (2) Der claude-Seat braucht ein größeres
+Per-Call-Budget (180s-Cap führte zu Timeout in beiden Runden). (3) Das
+lokale Ollama beantwortet unter Lanes-Last kein /api/chat (Version-Endpoint
+ok — Inference tot). (4) agy weiter ohne Bench-Login, Bench zudem offline.
+Die drei inhaltlichen Council-CHECKs laufen bereits als deterministische
+Test-Lane (`grind/council-checks`).
+
 ## Zusatz: Amendment-005-Kit — ERLEDIGT, kein Owner-Run mehr nötig
 
 KORREKTUR (17:10): Eine frühere Fassung dieses Abschnitts empfahl einen
