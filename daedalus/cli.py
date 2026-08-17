@@ -76,6 +76,10 @@
                                         the fault driver never calls it, so
                                         producing evidence is not a way to
                                         produce trust
+    daedalus fixture-fault-collect --run-dir D --source-revision SHA
+                                        run each deterministic-fixture runtime
+                                        fault row in its own pytest process and
+                                        retain bounded evidence; signs nothing
     daedalus fixture-fault-attestation issue|verify
                                         the same operator step for the
                                         deterministic-fixture column, with its
@@ -1174,6 +1178,11 @@ def main() -> None:
         # a retained observation into a trusted one, so a candidate that can
         # write evidence still cannot write trust.
         from .runtimes.fault_attestation_issuer import main as m
+        raise SystemExit(m(rest))
+    elif cmd == "fixture-fault-collect":
+        # Produces evidence and holds no key. Kept separate from the issuer so
+        # that being able to write evidence is never a way to write trust.
+        from .runtimes.fixture_fault_collector import main as m
         raise SystemExit(m(rest))
     elif cmd == "fixture-fault-attestation":
         # The sibling operator command for the deterministic-fixture column.

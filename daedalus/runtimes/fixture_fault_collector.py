@@ -943,6 +943,79 @@ def run_fixture_fault_catalog(
     )
 
 
+def retain_fixture_fault_run(directory: Path, run: FixtureFaultRun) -> None:
+    """Write one artifact triple in the layout the issuer expects."""
+
+    base = Path(directory)
+    base.mkdir(parents=True, exist_ok=True)
+    scenario_id = run.observation.scenario_id
+    (base / f"{scenario_id}.evidence.json").write_text(
+        canonical_json(run.evidence.to_dict()) + "\n", encoding="utf-8"
+    )
+    (base / f"{scenario_id}.observation.json").write_text(
+        canonical_json(run.observation.to_dict()) + "\n", encoding="utf-8"
+    )
+    (base / f"{scenario_id}.raw").write_bytes(run.raw_evidence)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Collect the deterministic-fixture column and retain its evidence.
+
+    This entrypoint produces evidence and nothing else. It holds no signing key
+    and cannot place an observation into a trust set; that is the separate
+    ``fixture-fault-attestation`` operator step. Keeping the two apart is what
+    makes "a candidate can write evidence" different from "a candidate can
+    write trust".
+    """
+
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run every deterministic-fixture runtime fault row in its own pytest "
+            "process and retain bounded, content-addressed evidence. Produces no "
+            "signatures and grants no trust."
+        )
+    )
+    parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--source-revision", required=True)
+    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--timeout-seconds", type=int, default=_DEFAULT_TIMEOUT_SECONDS)
+    args = parser.parse_args(argv)
+
+    from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
+
+    runs = run_fixture_fault_catalog(
+        catalog=RUNTIME_FAULT_CATALOG,
+        source_revision=args.source_revision,
+        runner=subprocess_pytest_runner(
+            repo_root=args.repo_root, timeout_seconds=args.timeout_seconds
+        ),
+        repo_root=args.repo_root,
+    )
+    for run in runs:
+        retain_fixture_fault_run(args.run_dir, run)
+    summary = {
+        "collected": len(runs),
+        "passed": sum(1 for row in runs if row.observation.status == "passed"),
+        "failed": sum(1 for row in runs if row.observation.status == "failed"),
+        "blocked": sum(1 for row in runs if row.observation.status == "blocked"),
+        "rows": [
+            {
+                "scenario_id": row.observation.scenario_id,
+                "status": row.observation.status,
+                "observed_outcome": row.observation.observed_outcome,
+                "detail_code": row.observation.detail_code,
+            }
+            for row in runs
+        ],
+    }
+    print(canonical_json(summary))
+    # Exit non-zero when anything did not cleanly pass. Retaining the evidence
+    # is still the point, so the artifacts are written either way.
+    return 0 if summary["passed"] == summary["collected"] else 1
+
+
 __all__ = [
     "FixtureFaultBindingMismatch",
     "FixtureFaultClockError",
@@ -956,10 +1029,16 @@ __all__ = [
     "classify_pytest_invocation",
     "derive_terminal_outcome",
     "load_fixture_fault_evidence_json",
+    "main",
     "parse_pytest_junit",
+    "retain_fixture_fault_run",
     "report_runtime_fault_outcome",
     "run_fixture_fault",
     "run_fixture_fault_catalog",
     "scenario_node_id",
     "subprocess_pytest_runner",
 ]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
