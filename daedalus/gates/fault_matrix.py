@@ -761,7 +761,7 @@ class FaultMatrixVerificationReceipt:
             )
         if payload["schema"] != "daedalus-fault-matrix-verification/1":
             raise FaultMatrixShapeError("fault matrix verification schema is wrong")
-        claim_fields = (
+        bool_fields = (
             "inventory_complete",
             "fingerprints_verified",
             "restart_policies_verified",
@@ -774,7 +774,7 @@ class FaultMatrixVerificationReceipt:
             "gate_transition_authorized",
             "closed",
         )
-        if any(type(payload[field]) is not bool for field in claim_fields):
+        if any(type(payload[field]) is not bool for field in bool_fields):
             raise FaultMatrixShapeError(
                 "fault matrix verification claims must be exact bools"
             )
