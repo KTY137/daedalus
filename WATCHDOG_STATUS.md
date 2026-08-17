@@ -243,3 +243,27 @@ wären genau das, was §2.1 beseitigen soll.
 
 `python -m pytest tests/gates/ tests/kernel/ tests/runtimes/test_runtime_conformance_profiles.py -q`
 → RAW: `1221 passed, 2 skipped in 1030.91s (0:17:10)`, exit 0.
+
+## Slice 5 — Phase 5: Forest-v2-Experiment-Fortsetzung (e4734dd7)
+
+Im deklarierten Experiment-Rahmen (read-only, stdlib-AST, kein Repo-Import,
+kein Spend, Budget ≤2h, gleiche Zählregel): zweite Sonde
+probe_cross_module_resolution.py misst, was Import-Binding-Auflösung über
+den Same-Module-Fixpunkt hinaus attribuiert. Baseline an diesem HEAD neu
+gemessen (44,115 Sites, 15.5%). Ergebnis: Attribution 15.5% → 30.3%
+(2,413 repo-verifiziert + 4,098 extern attribuiert); alle drei gemessenen
+Invisibility-Klassen mechanisch detektierbar — room_server-Subclass-Basen
+lösen nach http.server auf, system_check-Registry-Decorator (@check→CHECKS,
+18 Funktionen) strukturell gefunden, und guarded_call ist entgegen der
+Pre-Study-Erwartung attributierbar (Sink-Importe sind function-level,
+Zeilen 62/68): "statically invisible" heißt gemessen nur "invisible für den
+Same-Module-Fixpunkt". Korrektur im Experiment-README festgehalten;
+Inventory-Pin-Revision ist Gate-2-Produktionsarbeit, nicht Sache dieses
+Experiments. Keine Produktionsverdrahtung.
+RAW: Sonde druckt ein JSON (attributed_pct 30.3, cross_module_repo 2413).
+
+## Abschlussverifikation (nach e4734dd7)
+
+Plan-Guard verify → `Iron Plan OK: revision 5, Gate 0 … ce4335e1…`, exit 0.
+`python -m pytest tests/test_effect_boundary.py -q` → RAW:
+`26 passed in 115.65s (0:01:55)` (experiments/-Zugang bleibt boundary-sauber).
