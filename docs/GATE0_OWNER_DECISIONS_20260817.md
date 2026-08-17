@@ -129,6 +129,21 @@ drei Mutationen in-place ausgeführt: 3/3 killed — die Guards selbst tragen.
 Fix läuft als eigene Lane (`grind/fault-harness`); der dort geparkte Stash
 enthält einen Kandidaten-Fix (+4 Zeilen je Skript) aus der ersten Welle.
 
+## 8. Zwei Fault-Matrix-Subsysteme — Rekonziliation nötig (Architektur, Owner-Review)
+
+MEASURED (Issuer-Lane, 2026-08-17 spät): `daedalus/gates/fault_matrix.py`
+(Manifest/Receipt, 12 Szenarien, eigenes Verdikt `status`/`failure_count`)
+und `daedalus/runtimes/fault_matrix.py` (kanonischer Katalog, 24 Szenarien:
+13 deterministic-fixture + 9 linux-host + 2 live-runtime) haben KEINEN
+Draht zwischen ihren Verdikten — zwei Autoritäten für „die Fault-Matrix"
+ist genau der Parallelzustand, den die Verfassung verbietet (§12). Für den
+Gate-0-Exit braucht die runtimes-Matrix noch: den deterministic-fixture-
+Collector (13 Zeilen — Lane läuft), einen live-runtime-Collector (2
+Zeilen), je Spalte eine eigene Issuer-Identität, und einen Driver-Re-Run
+am beanspruchten HEAD (Exact-Head-Policy). Danach: eines der beiden
+Subsysteme zur Projektion des anderen erklären oder stilllegen — das ist
+die Owner-Review-Frage.
+
 ## Zusatz: Amendment-005-Kit — ERLEDIGT, kein Owner-Run mehr nötig
 
 KORREKTUR (17:10): Eine frühere Fassung dieses Abschnitts empfahl einen
