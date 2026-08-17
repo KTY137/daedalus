@@ -161,7 +161,7 @@ def test_verifier_requires_exact_inventory_subjects_and_run_metadata() -> None:
     assert "receipt.observed_outcome == spec.expected_outcome" in source
     assert "receipt.observed_restart_policy == spec.restart_policy" in source
     assert "receipt.process_termination_observed is spec.process_termination" in source
-    assert "set(spec.expected_durable_markers).issubset(observed_markers)" in source
+    assert "receipt.durable_markers == spec.expected_durable_markers" in source
     assert "set(spec.forbidden_durable_markers).isdisjoint(observed_markers)" in source
     assert "receipt.primary_checkout_before_sha256 == receipt.primary_checkout_after_sha256" in source
     assert "receipt.automatic_reexecution_performed is False" in source
@@ -177,8 +177,25 @@ def test_projection_reverifies_the_exact_run_before_gate_evidence() -> None:
     assert "if exact != self" in source
     assert "self.status != 'passed'" in source
     assert "status='passed'" in source
-    assert "failure_count=0" in source
     assert "item.scenario_id for item in manifest.scenarios" in source
+    # The evidence is content addressed to the exact verified run, never to a
+    # caller-supplied digest and never to the manifest plan alone.
+    assert "matrix_sha256 = self.digest" in source
+    assert "matrix_sha256=matrix_sha256" in source
+    # The projection may not invent a clock; the timestamp is an argument that
+    # the provenance record must agree with.
+    assert "executed_at: str" in source
+    assert "executed = _exact_timestamp(executed_at, 'executed_at')" in source
+    assert "executed_at=executed" in source
+    assert "created_at=executed" in source
+    # Provenance binds the projected digest plus every verifier input.
+    assert "provenance=ContractProvenance(" in source
+    assert "origin=EVIDENCE_PROJECTION_ORIGIN" in source
+    assert "source_revision=self.source_revision" in source
+    assert (
+        "input_digests=(matrix_sha256, self.manifest_sha256, "
+        "*self.scenario_receipt_sha256s)"
+    ) in source
 
 
 def test_verification_wire_never_authorizes_gate_or_closure() -> None:
@@ -192,6 +209,7 @@ def test_verification_wire_never_authorizes_gate_or_closure() -> None:
         "fingerprints_verified",
         "restart_policies_verified",
         "process_termination_verified",
+        "exact_durable_states_verified",
         "runtime_toolchain_verified",
         "primary_checkout_unchanged",
         "automatic_reexecution_absent",

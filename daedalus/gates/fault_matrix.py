@@ -12,10 +12,17 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from daedalus.gates.evidence import FaultMatrixEvidence
-from daedalus.schemas import _identifier, _revision, _sha256
+from daedalus.schemas import (
+    ContractProvenance,
+    _identifier,
+    _revision,
+    _sha256,
+    _utc_timestamp,
+)
 from daedalus.spine.envelope import canonical_sha
 
 FINGERPRINT_ALGORITHM = "daedalus-fault-injection-fingerprint/1"
+EVIDENCE_PROJECTION_ORIGIN = "daedalus.gates.fault_matrix.verify_fault_matrix_run"
 _REVISION_40 = re.compile(r"^[0-9a-f]{40}$")
 _OUTCOMES = frozenset(
     {
@@ -69,6 +76,15 @@ def _exact_identifier(value: Any, label: str) -> str:
 def _exact_digest(value: Any, label: str) -> str:
     try:
         return _sha256(value, label)
+    except (TypeError, ValueError) as exc:
+        raise FaultMatrixShapeError(f"{label} is malformed") from exc
+
+
+def _exact_timestamp(value: Any, label: str) -> str:
+    if type(value) is not str:
+        raise FaultMatrixShapeError(f"{label} must be an exact string")
+    try:
+        return _utc_timestamp(value, label)
     except (TypeError, ValueError) as exc:
         raise FaultMatrixShapeError(f"{label} is malformed") from exc
 
@@ -689,6 +705,7 @@ class FaultMatrixVerificationReceipt:
             "fingerprints_verified": passed,
             "restart_policies_verified": passed,
             "process_termination_verified": passed,
+            "exact_durable_states_verified": passed,
             "runtime_toolchain_verified": passed,
             "primary_checkout_unchanged": passed,
             "automatic_reexecution_absent": passed,
@@ -721,6 +738,7 @@ class FaultMatrixVerificationReceipt:
             "fingerprints_verified",
             "restart_policies_verified",
             "process_termination_verified",
+            "exact_durable_states_verified",
             "runtime_toolchain_verified",
             "primary_checkout_unchanged",
             "automatic_reexecution_absent",
@@ -780,7 +798,9 @@ class FaultMatrixVerificationReceipt:
         expected_harness_revision: str,
         expected_harness_runtime_sha256: str,
         expected_toolchain_manifest_sha256: str,
+        executed_at: str,
     ) -> FaultMatrixEvidence:
+        executed = _exact_timestamp(executed_at, "executed_at")
         exact = verify_fault_matrix_run(
             manifest,
             receipts,
@@ -799,12 +819,24 @@ class FaultMatrixVerificationReceipt:
             raise FaultMatrixBindingError(
                 "failed fault matrix cannot become passing Gate evidence"
             )
+        matrix_sha256 = self.digest
         return FaultMatrixEvidence(
             matrix_id=self.matrix_id,
             status="passed",
             scenario_ids=tuple(item.scenario_id for item in manifest.scenarios),
-            failure_count=0,
+            matrix_sha256=matrix_sha256,
             source_revision=self.source_revision,
+            executed_at=executed,
+            provenance=ContractProvenance(
+                origin=EVIDENCE_PROJECTION_ORIGIN,
+                source_revision=self.source_revision,
+                created_at=executed,
+                input_digests=(
+                    matrix_sha256,
+                    self.manifest_sha256,
+                    *self.scenario_receipt_sha256s,
+                ),
+            ),
         )
 
     @property
@@ -889,7 +921,7 @@ def verify_fault_matrix_run(
             and receipt.observed_restart_policy == spec.restart_policy
             and receipt.process_termination_observed
             is spec.process_termination
-            and set(spec.expected_durable_markers).issubset(observed_markers)
+            and receipt.durable_markers == spec.expected_durable_markers
             and set(spec.forbidden_durable_markers).isdisjoint(
                 observed_markers
             )
@@ -920,6 +952,7 @@ def verify_fault_matrix_run(
 
 
 __all__ = [
+    "EVIDENCE_PROJECTION_ORIGIN",
     "FINGERPRINT_ALGORITHM",
     "FaultMatrixBindingError",
     "FaultMatrixContractError",
