@@ -1,0 +1,6 @@
+# Obsidian-Laufzeitzustand gehört nicht ins Repo
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/plugins/
+.trash/
