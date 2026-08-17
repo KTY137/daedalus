@@ -2,11 +2,13 @@
 
 The public provider method cannot invoke Claude from ambient authority. It
 requires one exact :class:`RuntimeBoundEffectAuthorization`, one narrowed
-:class:`EffectExecutionRequest`, and an isolated-workspace binding tied to the
-same request, execution, attempt, source revision, and invocation payload. The
-generic broker persists grant/start state, suppresses exact replay, rechecks
-runtime trust, retains output identities, and commits terminal state before a
-provider value is released.
+:class:`EffectExecutionRequest`, an isolated-workspace binding tied to the
+same request, execution, attempt, source revision, and invocation payload,
+plus the exact signed :class:`ProviderObservationAuthority` and its
+:class:`ProviderObservationBindingLedger` that the broker authenticates and
+persists before external code runs. The generic broker persists grant/start
+state, suppresses exact replay, rechecks runtime trust, retains output
+identities, and commits terminal state before a provider value is released.
 
 The subprocess implementation remains private in :mod:`daedalus.claude_bridge`.
 Calling that helper directly is not a supported production entrypoint.
@@ -23,6 +25,10 @@ from ..kernel.effects import EffectExecutionRequest
 from ..kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from ..primary_tree import assert_write_allowed
 from ..runtimes.broker import RuntimeInvocationResult, run_runtime_provider
+from ..runtimes.provider_observation import (
+    ProviderObservationAuthority,
+    ProviderObservationBindingLedger,
+)
 from ..spine.effect_boundary import Effect
 from ..spine.envelope import canonical_sha
 from .base import Provider, ProviderCapabilities
@@ -327,6 +333,8 @@ class ClaudeCLIProvider(Provider):
         runtime_authorization: RuntimeBoundEffectAuthorization | None = None,
         effect_execution: EffectExecutionRequest | None = None,
         workspace_grant: ClaudeWorkspaceGrant | None = None,
+        observation_authority: ProviderObservationAuthority | None = None,
+        observation_binding_ledger: ProviderObservationBindingLedger | None = None,
     ) -> dict[str, Any]:
         del policy
         if runtime_authorization is None or effect_execution is None:
@@ -336,6 +344,11 @@ class ClaudeCLIProvider(Provider):
         if workspace_grant is None:
             raise ClaudeProviderAuthorizationRequired(
                 "Claude live execution requires an exact isolated-workspace binding"
+            )
+        if observation_authority is None or observation_binding_ledger is None:
+            raise ClaudeProviderAuthorizationRequired(
+                "Claude live execution requires the signed provider-observation "
+                "authority and its binding ledger"
             )
         normalized_paths = _validate_execution_shape(effect_execution, paths)
         workspace = _resolve_workspace(
@@ -378,6 +391,8 @@ class ClaudeCLIProvider(Provider):
                 value,
                 invocation_sha256=invocation_sha256,
             ),
+            observation_authority=observation_authority,
+            observation_binding_ledger=observation_binding_ledger,
         )
         runtime_receipt = {
             "executed": invocation.executed,
