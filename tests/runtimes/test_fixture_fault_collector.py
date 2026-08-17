@@ -415,12 +415,7 @@ def test_reporting_helper_records_the_property_the_collector_reads() -> None:
 UNRESOLVED_FIXTURE_LOCATORS = frozenset(
     {
         "runtime.broker.cancellation",
-        "runtime.broker.exact-replay-inert",
-        "runtime.broker.foreign-authority",
         "runtime.broker.malformed-output-evidence",
-        "runtime.broker.provider-exception",
-        "runtime.broker.trust-loss-after-evidence",
-        "runtime.broker.trust-loss-after-invoke",
         "runtime.effect-terminal.disk-full",
     }
 )

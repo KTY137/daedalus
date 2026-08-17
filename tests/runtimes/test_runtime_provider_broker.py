@@ -16,6 +16,7 @@ from daedalus.runtimes.broker import (
     RuntimeProviderStateError,
     run_runtime_provider,
 )
+from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
@@ -147,6 +148,7 @@ def test_completed_provider_call_uses_exact_persisted_authority(
 def test_exact_replay_is_inert_and_reuses_retained_binding(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     provider_calls: list[str] = []
@@ -173,6 +175,15 @@ def test_exact_replay_is_inert_and_reuses_retained_binding(
     assert replay.value is None
     assert provider_calls == ["first"]
     assert evidence_calls == []
+    # The replay attempt is the injected fault: it reached no provider effect and
+    # produced no terminal of its own. Deriving the token from the replay receipt
+    # keeps the report red the moment a second terminal ever appears.
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=(
+            None if replay.terminal_receipt is None else replay.terminal_receipt.outcome
+        ),
+    )
 
 
 class _DuckAuthorization:
@@ -229,6 +240,7 @@ def test_foreign_noncentral_or_malformed_binding_refuses_before_effect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mutation: str,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     entrypoint_id = fixture._request().entrypoint_id
@@ -264,7 +276,11 @@ def test_foreign_noncentral_or_malformed_binding_refuses_before_effect(
             invoke=lambda: called.append("invoked"),
         )
     assert called == []
-    assert authorization.effect_ledger.execution_state(execution.execution_id) is None
+    state = authorization.effect_ledger.execution_state(execution.execution_id)
+    assert state is None
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=None, execution_state=state
+    )
 
 
 @pytest.mark.parametrize(
@@ -276,6 +292,7 @@ def test_provider_exception_is_terminalized_before_escape(
     monkeypatch: pytest.MonkeyPatch,
     error: BaseException,
     outcome: str,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
 
@@ -284,12 +301,17 @@ def test_provider_exception_is_terminalized_before_escape(
 
     with pytest.raises(type(error)):
         _run(authorization, execution, authority, ledger, invoke=invoke)
-    assert authorization.effect_ledger.execution_state(execution.execution_id) == outcome
+    state = authorization.effect_ledger.execution_state(execution.execution_id)
+    assert state == outcome
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=state, execution_state=state
+    )
 
 
 def test_runtime_trust_loss_after_provider_withholds_evidence_and_cancels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     evidence_calls: list[str] = []
@@ -308,12 +330,17 @@ def test_runtime_trust_loss_after_provider_withholds_evidence_and_cancels(
             output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
         )
     assert evidence_calls == []
-    assert authorization.effect_ledger.execution_state(execution.execution_id) == "CANCELLED"
+    state = authorization.effect_ledger.execution_state(execution.execution_id)
+    assert state == "CANCELLED"
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=state, execution_state=state
+    )
 
 
 def test_runtime_trust_loss_after_evidence_blocks_completion(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     original = RuntimeBoundEffectAuthorization.verify
@@ -337,7 +364,11 @@ def test_runtime_trust_loss_after_evidence_blocks_completion(
             output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
         )
     assert evidence_calls == ["output"]
-    assert authorization.effect_ledger.execution_state(execution.execution_id) == "CANCELLED"
+    state = authorization.effect_ledger.execution_state(execution.execution_id)
+    assert state == "CANCELLED"
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=state, execution_state=state
+    )
 
 
 @pytest.mark.parametrize(
