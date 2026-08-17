@@ -13,6 +13,7 @@ from daedalus.kernel.promotion import (
     PromotionAuthorizationError,
     authorize_persisted_promotion,
 )
+from daedalus.schemas import _utc_timestamp
 from daedalus.spine.envelope import canonical_sha
 
 NOW = datetime(2026, 8, 3, 18, 30, tzinfo=timezone.utc)
@@ -40,11 +41,17 @@ def _verified(*, approval_id: str) -> VerifiedOwnerApproval:
 
 def _consumed(*, approval_id: str, promotion_id: str) -> ConsumedOwnerApproval:
     verified = _verified(approval_id=approval_id)
+    # ConsumedOwnerApproval normalizes consumed_at before it digests its own
+    # payload, so the fixture has to digest the normalized form. Reuse the
+    # contract's normalizer rather than hand-formatting, so this cannot drift
+    # apart from the contract again.
     payload = {
         "verified": verified.to_dict(),
         "expectation_sha256": "9" * 64,
         "promotion_id": promotion_id,
-        "consumed_at": (NOW + timedelta(seconds=1)).isoformat(),
+        "consumed_at": _utc_timestamp(
+            (NOW + timedelta(seconds=1)).isoformat(), "consumed_at"
+        ),
     }
     return ConsumedOwnerApproval(
         verified=verified,
