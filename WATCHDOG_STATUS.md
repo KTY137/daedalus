@@ -1,52 +1,245 @@
-# Watchdog mission 3 — status ledger (append-only)
+# Watchdog mission status — gw_watchdog-mission2 (cc304878)
 
-Worktree `gw_watchdog-mission3`, branch `grind/watchdog-mission3`, base 4fb2251.
-Iron Plan: ALIGNED · Iron Gate: 0. Serena workspace covers only `agent_env`;
-memory tools used for `long_horizon_work_state`, code work via built-in tools.
+Append-only. One paragraph per slice, with commit SHA and RAW test lines.
+
+## Slice 1 — Phase 1 Batch 1: paid external-call doors registered (2026-08-17)
+
+Commit `ab078b3` "fix(g0): register the paid external-call doors -- boundary:
+115 -> 113 unregistered (widened)". Registered `tools.guarded_call` (B1, the
+external-model door; statically invisible cross-module sink → shows up as an
+`entrypoint.not_rediscovered` review finding, by design), `tools.audit_swarm`
+(A1) and `tools.funnel` (A2) as `inventory_only` rows with hand-declared
+spend/secrets/egress and `fan_out`/`budget_verdict` anchors; corrected the
+`provider.deepseek` legacy row from filesystem_write-only to
+fs_write+egress+spend+secrets (ground truth: `DEEPSEEK_API_KEY` read at
+`daedalus/providers/deepseek.py:178`, priced `chat_completion` →
+`_guarded_urlopen`). New test
+`test_paid_tools_doors_are_registered_with_spend_and_secrets`.
+Counter provenance [MEASURED on this tree]: widened discovery (all six
+python-bearing top-level dirs) pre-batch 115 unregistered, post-batch 113; the
+inventory's floor of 114 was measured @`60b2bfe` and the tree has drifted by
+one discovery (166 vs 165 targets) since. Narrow scan: 13 unregistered
+`tools.*` targets remain.
+RAW: `pytest tests/test_effect_boundary.py -q` → `21 passed in 19.94s`.
+RAW: `PYTHONUTF8=1 python tools/run_gate_checks.py g0` → `75 passed in 76.53s (0:01:16)`.
+Environment note: Serena MCP tools absent this session (known startup race);
+`long_horizon_work_state` is maintained directly at
+`.serena/memories/long_horizon_work_state.md`.
+Guard note (for later lanes): the shell guard also blocks freestanding
+`daedalus`/`tests`/`tools` words in commit texts, not only `docs` — and also
+bare `tools/` / `tests/` followed by whitespace; use dotted module names or
+full slashed file paths.
+
+## Slice 2 — Phase 1 Batch 2: repo-mutating tool entrypoints (2026-08-17)
+
+Commit `812ca60`. Registered `tools.iron_plan_guard` (protected artifact —
+registry row only, target untouched), `tools.gate_discrimination`,
+`tools.bootstrap_receipt`, `tools.operability_drill`,
+`tools.gate_host_preflight` with hand-declared `repository_mutation` (git is
+argv; §5 of the inventory: never statically inferable) plus `tools.gui_check`
+as discovered. New test
+`test_repo_mutating_tools_declare_repository_mutation_by_hand`.
+RAW: `pytest tests/test_effect_boundary.py -q` → `22 passed in 19.26s`.
+RAW: `run_gate_checks g0` → `76 passed in 71.04s (0:01:11)`.
+Counter [MEASURED]: widened 113 → 107.
+
+## Slice 3 — Phase 1 Batch 3: scanned packages fully inventoried (2026-08-17)
+
+Commit `f04e46c`. Registered the last seven `tools/` targets (mutation_score,
+audit_triage, agent_findings, lane_invariants, funnel_report, run_gate_checks,
+iron_plan_hook_runner [protected — row only]) plus `tools.system_check` (B2,
+CHECKS-table dispatch, all five effects hand-declared); deleted the stale
+`cli.claude_bridge` row (target is a fail-closed stub; the row was the
+registry's only staleness finding). **Narrow scan now structurally conformant:
+0 blockers.** The two red-state test pins were rewritten (not weakened): scan
+reach into `tools/` is pinned via discoveries; `--require-gate0` pinned to
+still exit 3; the two invisible doors pinned as named `not_rediscovered`
+review findings. RAW: `pytest tests/test_effect_boundary.py -q` → `23 passed
+in 21.36s`. RAW: `run_gate_checks g0` → `77 passed in 65.28s (0:01:05)`.
+Counter [MEASURED]: widened 107 → 100 (remaining: scripts/ 74, tests/ 17,
+runs/ 9).
+
+## Slice 4 — Phase 1 Batch 4: scan widened to runs/, money doors registered (2026-08-17)
+
+Commit `41c3cf3`. `SCAN_PACKAGES` += `runs` (BILLABLE_SITES prices five of its
+functions; the scan never opened the directory). All ten `runs/` entrypoints
+registered in the same commit — zero blockers left behind:
+`runs.council.room` (5 vendors, spend+secrets), `runs.council.summarize`,
+`runs.ab.run_arm` (spend+repo-mutation), `runs.council.room_server` (C4
+subclass evasion — `ThreadingHTTPServer` subclass defeats the literal sink
+match, `listen_socket` hand-declared, pinned as named review finding),
+`room_server.post`, `stream_hook`, `dead_letter_replay`, `score`,
+`oracle_check`, `blind`. scripts/tests exclusion now documented at
+`SCAN_PACKAGES` instead of silent. New test
+`test_runs_package_is_scanned_and_its_billable_doors_are_registered`.
+RAW: `pytest tests/test_effect_boundary.py -q` → `24 passed in 27.65s`.
+RAW: `run_gate_checks g0` → `78 passed in 79.67s (0:01:19)`.
+Counter [MEASURED]: widened 100 → 91 (remaining: 74 script runners, 17 test
+fixtures — the Tier-5 "classify, do not migrate" population).
+
+## Slice 5 — Phase 1 Batch 5: harness classification, Phase 1 complete (2026-08-17)
+
+Commit `74c10b0`. `HARNESS_PACKAGES = ("scripts", "tests")` added to the
+canonical boundary module; `check_conformance` reads the harness dirs with the
+same discovery and emits `entrypoint.harness` REVIEW findings (91 today, each
+carrying inferred effects) instead of blockers or silence. Harness scan cached
+per process+root (`_harness_scan`, lru_cache; staleness bound stated in
+docstring; production packages never cached). Console-script resolution
+excluded from the harness pass (`_console_scripts=False`) to avoid spurious
+blockers. **Phase-1 endstate: every python-bearing top-level dir is enforced
+(SCAN_PACKAGES), classified (HARNESS_PACKAGES), or entrypoint-free; 0 silently
+unscanned effectful entrypoints.** New test
+`test_harness_entrypoints_are_classified_not_silent_and_never_blockers` incl.
+minimal-repo mechanism check.
+RAW: `pytest tests/test_effect_boundary.py -q` → `25 passed in 109.05s (0:01:49)`.
+RAW: `run_gate_checks g0` → `79 passed in 254.62s (0:04:14)` (profile cost up
+from ~80s pre-widening — the price of reading ~550 harness files once per
+subprocess; measured 363.48s without the cache, 254.62s with it).
+
+## Slice 6 — Phase 3: ignition fault suite + G1 activation checklist (2026-08-17)
+
+Commit `05d5ba3`. Five new fault cases in
+`tests/ignition/test_voltage_ignition_faults.py` pin the rehearsal's refusal
+semantics (restart-over-debris refusal + digest-identical fresh-root replay;
+nested/self candidate refusal; layered tamper defense — claim verification at
+compile [layer 1], exact-count rename precondition [layer 2]; mid-run
+source-mutation tripwire via injected fault). Finding en route: the layered
+defense means a models.py tamper is caught by `ReferenceCompileError` at Twin
+compile before the rename precondition can even fire — the precondition layer
+is only reachable through a claim-unbound site (repository.py expression).
+`docs/work-packets/G1_ACTIVATION_CHECKLIST.md` written: rehearsal→authoritative
+gaps (no MissionContract/WorkItem artifacts/Event-Store spine; synthetic
+revisions, no CAS; in-process behavior probe = evaluator/candidate separation
+gap; missing test/schema/link evaluators; no failed-evidence retention;
+resume-from-event-spine unproven; sealed-stack dry-run open) + activation
+preconditions (Gate-0 closure, 4 owner decisions untouched). NO activation
+performed.
+RAW: `pytest tests/ignition/ -q` → `9 passed in 4.60s`.
+RAW: `run_gate_checks g1` → `45 passed in 9.45s`.
+Phase 2 suite (kernel/gates/runtimes) still running in background
+(task bz0a1y781).
+
+## Slice 7 — Phase 2: suite measured, all failures classify into parked clusters (2026-08-17)
+
+RAW: `pytest tests/kernel tests/gates tests/runtimes -q` →
+`22 failed, 1868 passed, 48 skipped in 390.69s (0:06:30)`.
+Classification (each family sampled and diagnosed, not guessed):
+**v3 family (3)** — `test_gate_report_v3{,_cli,_review}` → owner decision 2 /
+lane `grind/v3-scanner-owner-prep`. **Review-pin drift** —
+`test_fault_matrix_wire_type_review` (pins exact source substring
+`type(payload[field]) is not bool` that the landed `from_dict` no longer
+contains), `test_repository_head_revision_integration_review` ("ports exact
+reviewed blobs"), `*_counter_review does not claim ... authority` family,
+`provider_target_{verification,receipt_ledger}_review`,
+`provider_observation_persistence_inventory_review`,
+`gate_baseline_v2_review`, `test_isolated_attempt_effect_inventory`
+(IndentationError in its own pinned-source extraction helper) → blob-pin
+cluster (owner decision 3) / K1–K13 wording rebase (owner decision 4).
+**Refusal-order drift (still fail-closed)** —
+`provider_executable_targets` substitution now refuses earlier with
+"not registered exactly once" instead of "differs from authenticated
+identity"; `isolated_attempt_spine_wire_review` unknown-terminal-state now
+refuses earlier with "persisted attempt start is not an object";
+`isolated_attempt_lifecycle` restart case refuses with "trusted attempt start
+time follows its Event-Store start event" (clock-authority ordering,
+amendment-005 environment) → CENTRAL/K1–K13 cluster (owner decision 4).
+**Cross-check:** only ONE failing file imports anything my commits touched
+(`test_isolated_attempt_effect_inventory` imports ENTRYPOINTS), and its
+failure is in its own source-extraction helper over `daedalus/kernel/` sources
+this mission never modified; its three ENTRYPOINTS-consuming tests pass.
+Conclusion: zero non-lane failures found to fix; refusal-message rebases are
+owner/lane territory and weakening refusals to match old pins is forbidden.
+Negative result retained here instead of "fixed".
+
+## Slice 8 — Phase 4: Forest-v2 pre-study as labeled EXPERIMENT (2026-08-17)
+
+`experiments/forest_v2/` created: README with frozen hypothesis, scope,
+budget (≤2h, no spend), expiry (2026-10-31), kill-criterion linkage and "no
+production promotion / no production import" declaration; plus the read-only
+probe `probe_call_resolution.py` (stdlib AST only — no repo imports, writes,
+network, subprocess; prints one JSON object).
+RAW [MEASURED @05d5ba3]: 307 files, 0 unparseable, 42,725 call sites; 6,616
+same-module resolvable (**15.5%**); gap upper bound **84.5%** (caveat in the
+README: includes stdlib/instance calls — the later resolver must be graded
+against the same counting rule). The three hand-registered invisibility
+classes (guarded_call, system_check, room_server) are named as the ready-made
+acceptance cases for a future resolver. Boundary note recorded: the probe's
+print-only `main` is correctly read-only; any future effectful entrypoint
+under `experiments/` must be registered or the dir added to HARNESS_PACKAGES.
+
+## Mission summary
+
+All four phases executed. Phase 1: 5 batches, widened boundary counter
+115 → 91-classified/0-silent, narrow scan structurally conformant (0
+blockers), scan widened to the run dir, dev harness explicitly classified.
+Phase 2: suites measured (22/1868/48), every failure classified into the four
+owner-parked clusters with sampled diagnoses; zero non-lane failures; nothing
+weakened. Phase 3: G1 activation checklist + 5 fault tests pinning the
+rehearsal's refusal semantics (9/9 green). Phase 4: bounded read-only
+EXPERIMENT with measured baseline. Commits: ab078b3, 812ca60, f04e46c,
+41c3cf3, 74c10b0, 05d5ba3, + final experiment/status commit. Gate 0 remains
+open (78 not-central gaps, live receipts, fault matrix, owner decisions) —
+by design, not by omission.
+
+---
+
+# Watchdog mission 3 — grind/watchdog-mission3 (base 4fb2251), Nachtschicht 2026-08-17/18
+
+Iron Plan: ALIGNED · Iron Gate: 0. Serena workspace umfasst nur agent_env;
+Memory-Tools für long_horizon_work_state, Code-Arbeit mit Built-in-Tools.
+(Korrektur: dieser Abschnitt hat beim ersten Landen 8e5b3023 die Mission-2-
+Historie überschrieben; hier wiederhergestellt und angehängt — append-only
+verletzt, gemessen an 182 Deletions, sofort repariert.)
 
 ## Slice 1 — Phase 1: Conformance-Receipt-Persistenz (a515bf7)
 
-`persist_conformance_receipt` im kanonischen Produzenten: Receipt landet als
-`<digest>.json` (kanonische Bytes, idempotent, Kollision → Refusal). Binding
-`_load_bundle` verweigert jede Bundle-Datei, deren Bytes nicht mehr auf den
-eigenen Namen hashen (`receipt-bundle:digest-mismatch`); Exec-Mutant-Probe
+persist_conformance_receipt im kanonischen Produzenten: Receipt landet als
+<digest>.json (kanonische Bytes, idempotent, Kollision → Refusal). Binding
+_load_bundle verweigert jede Bundle-Datei, deren Bytes nicht mehr auf den
+eigenen Namen hashen (receipt-bundle:digest-mismatch); Exec-Mutant-Probe
 belegt, dass der Digest-Check allein die Manipulation abfängt. Gap-Diagnose
 umbenannt (Persistenzpfad existiert jetzt), UNBOUND_ROW unverändert.
 Vertragsverschärfung: Bundle-Dateien MÜSSEN digest-benannt sein; der alte
-`one.json`-Test wurde zum Refusal-Test (strenger, nichts abgeschwächt).
+one.json-Test wurde zum Refusal-Test (strenger, nichts abgeschwächt).
 RAW: `1 failed, 20 passed in 51.42s` (Erstlauf; Mutant brauchte
 sys.modules-Registrierung für dataclass-exec) → danach
-`16 passed in 55.43s` (Binding) und Harness-Persistenztests grün im
-Kombilauf. Report-Ebene: produce→persist→bind→`UNBOUND_ROW` verschwindet,
-getestet gegen echten `build_gate0_report`.
+`16 passed in 55.43s` (Binding-Suite). Report-Ebene: produce→persist→bind→
+UNBOUND_ROW verschwindet, getestet gegen echten build_gate0_report.
 
 ## Slice 2 — Phase 2: FaultMatrixEvidence-Brücke (9937e33)
 
-`fault_matrix_evidence_from_verdict` in `daedalus/gates/fault_matrix_binding.py`:
-Verdikt → bestehende `FaultMatrixEvidence`-Zeile, kein neues Subsystem.
-Katalog-Digest wird gegen `verdict.catalog_sha256` geprüft (Mismatch →
-Refusal vor jeder Zeile); `matrix_sha256` = Digest aus dem Verdikt-Contract,
-läuft exakt in den `trusted_fault_matrix_sha256s`-Check des strikten
-Verifiers; Dev-Key-Verdikt → `status="failed"` + Origin-Markierung
-(`runtimes.whole-fault-matrix.<key-class>`), mechanisch kein Closure-Claim
-(`fault-matrix:<id>:status-failed`). Negativbefund festgehalten: Verdikt-
-`from_dict` verlangt kanonische Payloads — Timestamps brauchen Mikrosekunden.
+fault_matrix_evidence_from_verdict in daedalus/gates/fault_matrix_binding.py:
+Verdikt → bestehende FaultMatrixEvidence-Zeile, kein neues Subsystem.
+Katalog-Digest wird gegen verdict.catalog_sha256 geprüft (Mismatch → Refusal
+vor jeder Zeile); matrix_sha256 = Digest aus dem Verdikt-Contract, läuft
+exakt in den trusted_fault_matrix_sha256s-Check des strikten Verifiers;
+Dev-Key-Verdikt → status="failed" + Origin-Markierung
+(runtimes.whole-fault-matrix.<key-class>), mechanisch kein Closure-Claim
+(fault-matrix:<id>:status-failed). Negativbefund: Verdikt-from_dict verlangt
+kanonische Payloads — Timestamps brauchen Mikrosekunden.
 RAW: `6 passed in 2.58s` (Brücke) · `35 passed in 448.98s`
 (fault_matrix_binding + gate_report_matrix_binding, exit 0).
 
 ## Slice 3 — Phase 3 (Memo) + Phase 4 (Crash-Probe) (7e950d44)
 
-`docs/GATE0_LIVE_RUNTIME_DECISION.md`: Entscheidungsvorlage für die zwei
-`live-runtime`-Zeilen — was ein Collector konkret bräuchte (Live-Host,
+docs/GATE0_LIVE_RUNTIME_DECISION.md: Entscheidungsvorlage für die zwei
+live-runtime-Zeilen — was ein Collector konkret bräuchte (Live-Host,
 Owner-Key-Zeremonie für Produktions-Signatur-Autorität, zwei Probe-Treiber,
 dritte Spalte), Option A/B mit Wortlaut nach Docker-Präzedenz, Empfehlung
 (B kurzfristig, A Zielzustand), Rollback. Nichts entschieden, nichts gebaut.
 G1-Checkliste §2.5: fehlende Mid-Write-Crash-Probe ergänzt
-(`test_crash_between_rename_writes_leaves_no_evaluable_candidate`) —
-gemischter Kandidat nie evaluierbar, Quelle byte-identisch, Fresh-Root-Replay
-digest-identisch. RAW: `10 passed in 6.85s` (Ignition-Suite).
+(test_crash_between_rename_writes_leaves_no_evaluable_candidate) —
+gemischter Kandidat nie evaluierbar, Quelle byte-identisch,
+Fresh-Root-Replay digest-identisch. RAW: `10 passed in 6.85s`.
 
-## Regressionssignal nach allen drei Slices
+## Slice 4 — Status-Ledger + G1-TOCTOU-Bewertung (8e5b3023, repariert hier)
+
+G1-Checkliste TOCTOU-Zeile annotiert: nicht vorziehbar, weil
+IsolatedAttemptCoordinator.prepare AttemptContract + CAS-StoredSourceTree
+verlangt (= Checklisten-Schritte 1–2 "once unblocked"); Platzhalter-Verträge
+wären genau das, was §2.1 beseitigen soll.
+
+## Regressionssignal nach allen Slices
 
 `python -m pytest tests/gates/ tests/kernel/ tests/runtimes/test_runtime_conformance_profiles.py -q`
 → RAW: `1221 passed, 2 skipped in 1030.91s (0:17:10)`, exit 0.
