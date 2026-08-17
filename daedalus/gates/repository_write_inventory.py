@@ -586,6 +586,22 @@ def _indirect_aliases(
     return frozenset(indirect)
 
 
+def _matches_pathlib_replace(call: ast.Call) -> bool:
+    """`Path.replace(target)` takes exactly one positional argument.
+
+    `str.replace(old, new[, count])` takes two or three; `dataclasses.replace`
+    and `datetime.replace` take keywords. The scanner has no types, but this
+    arity is decidable from the syntax alone, and it is the only shape that can
+    be an atomic rename.
+    """
+
+    return (
+        len(call.args) == 1
+        and not call.keywords
+        and not any(isinstance(arg, ast.Starred) for arg in call.args)
+    )
+
+
 def _classify_call(
     call: ast.Call,
     *,
@@ -598,6 +614,12 @@ def _classify_call(
     terminal = raw.rsplit(".", 1)[-1]
     root = raw.partition(".")[0]
     resolved_terminal = (resolved or "").rsplit(".", 1)[-1]
+    if (
+        terminal == "replace"
+        and resolved not in _FILESYSTEM_FUNCTIONS
+        and not _matches_pathlib_replace(call)
+    ):
+        return None
     if raw in indirect or terminal in indirect:
         return ("ambiguous_binding", raw, "indirect-call-alias")
     if ambiguous and (
