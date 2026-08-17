@@ -169,7 +169,15 @@ def test_snapshot_exposes_state_and_trust_but_no_execution_method() -> None:
 
 
 def test_conservative_current_trust_boundary_is_documented() -> None:
-    source = SOURCE.read_text(encoding="utf-8")
-    assert "must still be active and authenticated" in source
-    assert "refuses historical runtime capability replay after trust expiry or quarantine" in source
-    assert "append-only runtime trust history" in source
+    # Prose assertions are checked on whitespace-normalized source: the claim
+    # that must hold is the wording of the documented boundary, not the column
+    # the docstring happens to wrap at. Matched on the raw text, the middle
+    # phrase could never pass, because the docstring wraps between "historical"
+    # and "runtime".
+    prose = " ".join(SOURCE.read_text(encoding="utf-8").split())
+    assert "must still be active and authenticated" in prose
+    assert (
+        "refuses historical runtime capability replay after trust expiry "
+        "or quarantine" in prose
+    )
+    assert "append-only runtime trust history" in prose

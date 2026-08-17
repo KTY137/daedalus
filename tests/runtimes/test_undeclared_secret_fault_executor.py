@@ -291,7 +291,7 @@ def test_marker_without_start_cannot_pass(tmp_path: Path, monkeypatch) -> None:
     assert run.observation.status == "failed"
 
 
-@pytest.mark.parametrize("returncode", [0, 1, 73, 75, 77, 78, 125, 137])
+@pytest.mark.parametrize("returncode", [0, 1, 73, 75, 77, 78, 137])
 def test_other_completed_results_cannot_pass(
     tmp_path: Path,
     monkeypatch,
@@ -305,6 +305,18 @@ def test_other_completed_results_cannot_pass(
         marker_payload=_valid_marker(),
     )
     assert run.observation.status == "failed"
+
+
+def test_returncode_125_cannot_be_declared_a_completed_attempt() -> None:
+    """Exit 125 is intrinsically pre-start; no caller may relabel it as completed.
+
+    The scenario is therefore not reachable through ``_simulate`` at all: the
+    receipt contract refuses to construct it. The reachable form of 125 is
+    covered by ``test_sandbox_prestart_refusal_is_blocked_not_isolation``.
+    """
+
+    with pytest.raises(ValueError, match="125 cannot be a completed attempt"):
+        _receipt(launch_state="completed", returncode=125)
 
 
 def test_secret_namespace_inspection_unavailability_is_exact_block(
@@ -388,9 +400,18 @@ def test_unexpected_sandbox_exception_still_restores_host_environment(
         raise RuntimeError("synthetic sandbox failure")
 
     monkeypatch.setattr(executor, "run_in_docker_sandbox", explode)
-    with pytest.raises(RuntimeError, match="synthetic"):
-        executor.run_undeclared_secret(source_revision=REVISION)
+    run = executor.run_undeclared_secret(source_revision=REVISION)
+
+    # The collector converts an unexpected executor exception into an explicit
+    # non-passing observation instead of letting it escape; the canary must not
+    # survive that path, and the failure must not be laundered into a pass.
     assert executor._SECRET_NAME not in os.environ
+    assert run.observation.status == "failed"
+    assert run.observation.detail_code == "executor-error"
+    assert {row.name: row.value for row in run.evidence.facts}[
+        "exception-type"
+    ] == "RuntimeError"
+    assert CANARY not in run.raw_evidence.decode("utf-8")
 
 
 def test_timeout_cannot_be_laundered_as_isolation(
