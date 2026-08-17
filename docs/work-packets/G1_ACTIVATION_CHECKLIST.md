@@ -119,6 +119,10 @@ Still unproven:
   `copytree`); harmless for a test fixture, a real race for an authoritative
   workspace. The attempt-workspace path already owns this concern; the
   checklist item is: route ignition through it.
+  *Assessed 2026-08-18: not machine-doable ahead of order — 
+  `IsolatedAttemptCoordinator.prepare` requires an `AttemptContract` and a
+  CAS `StoredSourceTree`, i.e. §4 steps 1–2. Routing now would mean
+  inventing placeholder contracts, which §2.1 exists to eliminate.*
 
 ### 2.6 Approval and sealing (invariant 5)
 
