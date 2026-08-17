@@ -72,6 +72,25 @@ Beide aus dem Amendment-005-Umfeld übernommen (Session-Journal 2026-08-17,
 Revision-4-Plantext rebased werden muss — Textabgleich an geschützten
 Artefakten, daher Owner.
 
+## 5. CRLF-Schutz für die gepinnte Retained Source (.gitattributes, Owner)
+
+MEASURED 2026-08-17 abends: Ein frisch angelegter Windows-Worktree checkt
+`daedalus/kairos/_gated_writes_legacy.py.src` mit CRLF aus
+(`git ls-files --eol` → `i/lf w/crlf`), der On-Disk-Blob-Hash weicht dann vom
+Pin in `gated_writes.py` ab und `iron_plan_guard.py verify` bricht mit 3
+Fehlern (eine Ursache). Fail-closed hat gehalten: weder die Watchdog-Session
+noch die Koordinatorin durften die Datei normalisieren.
+
+Workaround (agentenseitig, angewendet): Worktree mit
+`git -c core.autocrlf=false worktree add …` anlegen — Blob dann byte-exakt
+`e31d24ec67f7…`, verify Exit 0 (MEASURED, `gw_watchdog-mission2`).
+
+Dauerhafter Fix (Owner, da `.gitattributes` protected): Zeile
+`*.py.src -text` (oder die konkrete Datei) in `.gitattributes` aufnehmen,
+damit jede Checkout-Übersetzung für Pin-Subjekte abgeschaltet ist. Gleiche
+Fehlerfamilie wie Wave 1 („fixtures stop writing CRLF into byte-exact
+files") — dritter Auftritt des CRLF-Dämons heute.
+
 ## Zusatz: Amendment-005-Kit — ERLEDIGT, kein Owner-Run mehr nötig
 
 KORREKTUR (17:10): Eine frühere Fassung dieses Abschnitts empfahl einen
