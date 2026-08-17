@@ -6,26 +6,55 @@ import inspect
 import daedalus.gates.provider_observation_persistence_inventory as inventory
 
 
+def _forbidden_call_sites(
+    tree: ast.Module,
+    forbidden: set[str],
+) -> list[str]:
+    """Every call whose callee name is forbidden, as its exact source text.
+
+    Matching on the bare callee name alone cannot tell ``re.compile`` from
+    the ``compile`` builtin, so this review compares the full call expression
+    against a pinned list of sites that were read and cleared by hand. A new
+    call with a forbidden name fails because it is absent from that list, and
+    an existing site fails as soon as its arguments or receiver change.
+    """
+    sites: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+        elif isinstance(node.func, ast.Name):
+            name = node.func.id
+        else:
+            continue
+        if name in forbidden:
+            sites.append(ast.unparse(node))
+    return sorted(sites)
+
+
 def test_inventory_module_has_read_only_discovery_authority() -> None:
     source = inspect.getsource(inventory)
     tree = ast.parse(source)
     imported: set[str] = set()
-    called: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(alias.name.split(".")[0] for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                called.add(node.func.id)
-            elif isinstance(node.func, ast.Attribute):
-                called.add(node.func.attr)
     assert imported.isdisjoint(
         {"sqlite3", "subprocess", "socket", "requests", "httpx", "urllib"}
     )
-    assert {"write_text", "write_bytes", "mkdir", "unlink", "replace"}.isdisjoint(called)
-    assert {"exec", "eval", "compile", "system", "popen"}.isdisjoint(called)
+    assert _forbidden_call_sites(
+        tree,
+        {"write_text", "write_bytes", "mkdir", "unlink", "replace"},
+    ) == []
+    # re.compile building the source-revision pattern. It is the regex
+    # compiler, not the builtin that turns text into executable code.
+    assert _forbidden_call_sites(
+        tree,
+        {"exec", "eval", "compile", "system", "popen"},
+    ) == ["re.compile('^[0-9a-f]{40}$')"]
     assert "OwnerApproval" not in source
     assert "PromotionReceipt" not in source
     assert "begin_effect" not in source
