@@ -10,6 +10,7 @@ and neither may become ``passed``.
 from __future__ import annotations
 
 import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -23,7 +24,9 @@ from daedalus.runtimes.fixture_fault_collector import (
     FixtureFaultRun,
     PytestInvocation,
     classify_pytest_invocation,
+    derive_terminal_outcome,
     parse_pytest_junit,
+    report_runtime_fault_outcome,
     run_fixture_fault,
     run_fixture_fault_catalog,
     scenario_node_id,
@@ -366,6 +369,102 @@ def test_blocked_evidence_cannot_invent_an_outcome() -> None:
             raw_evidence_sha256="b" * 64,
             facts=(),
         )
+
+
+def test_derived_outcomes_cover_the_terminal_vocabulary() -> None:
+    assert derive_terminal_outcome(terminal_outcome=None) == "refused-before-start"
+    assert (
+        derive_terminal_outcome(terminal_outcome="cancelled", execution_state="CANCELLED")
+        == "cancelled"
+    )
+    assert (
+        derive_terminal_outcome(terminal_outcome="COMPLETED", execution_state="completed")
+        == "completed-before-quarantine"
+    )
+    assert derive_terminal_outcome(terminal_outcome="failed") == "failed"
+
+
+def test_derivation_refuses_contradictions_and_unknown_terminals() -> None:
+    """The node cannot report an outcome its own observations do not support."""
+
+    with pytest.raises(ValueError):
+        derive_terminal_outcome(terminal_outcome=None, execution_state="COMPLETED")
+    with pytest.raises(ValueError):
+        derive_terminal_outcome(terminal_outcome="completed", execution_state="CANCELLED")
+    with pytest.raises(ValueError):
+        derive_terminal_outcome(terminal_outcome="in-flight")
+
+
+def test_reporting_helper_records_the_property_the_collector_reads() -> None:
+    recorded: list[tuple[str, str]] = []
+    outcome = report_runtime_fault_outcome(
+        lambda name, value: recorded.append((name, value)),
+        terminal_outcome="cancelled",
+        execution_state="CANCELLED",
+    )
+    assert outcome == "cancelled"
+    assert recorded == [("runtime_fault_observed_outcome", "cancelled")]
+
+
+# Executor locators that do not resolve at this revision. Every entry is a
+# catalog row whose pytest node id names a test that no longer exists, so the
+# row can only ever be blocked as node-missing. The set is pinned rather than
+# merely observed: reconciling the catalog, renaming a test, or writing one of
+# the two genuinely absent scenarios must turn this test red and force the
+# inventory to be updated in the same beat.
+UNRESOLVED_FIXTURE_LOCATORS = frozenset(
+    {
+        "runtime.broker.cancellation",
+        "runtime.broker.exact-replay-inert",
+        "runtime.broker.foreign-authority",
+        "runtime.broker.malformed-output-evidence",
+        "runtime.broker.provider-exception",
+        "runtime.broker.trust-loss-after-evidence",
+        "runtime.broker.trust-loss-after-invoke",
+        "runtime.effect-terminal.disk-full",
+    }
+)
+
+
+def _collected_node_ids(relative_paths: set[str]) -> set[str]:
+    import subprocess
+    import sys
+
+    environment = dict(os.environ)
+    environment["PYTHONUTF8"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-m", "pytest", *sorted(relative_paths), "--collect-only", "-q"],
+        cwd=str(REPO_ROOT),
+        env=environment,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return {
+        line.strip().replace("\\", "/")
+        for line in completed.stdout.splitlines()
+        if "::" in line
+    }
+
+
+def test_fixture_locator_resolution_matches_the_pinned_inventory() -> None:
+    scenarios = [
+        row
+        for row in RUNTIME_FAULT_CATALOG.scenarios
+        if row.authority == "deterministic-fixture"
+    ]
+    node_ids = {row.scenario_id: scenario_node_id(row) for row in scenarios}
+    collected = _collected_node_ids(
+        {node.split("::", 1)[0] for node in node_ids.values()}
+    )
+    unresolved = {
+        scenario_id
+        for scenario_id, node in node_ids.items()
+        if node.replace("\\", "/") not in collected
+    }
+    assert unresolved == UNRESOLVED_FIXTURE_LOCATORS
 
 
 def test_junit_parsing_reports_verdicts_and_properties() -> None:

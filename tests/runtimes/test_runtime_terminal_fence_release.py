@@ -26,6 +26,7 @@ from daedalus.kernel.runtime_effects import (
     issue_runtime_bound_effect_lease,
 )
 from daedalus.runtimes.broker import run_runtime_provider
+from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
@@ -332,6 +333,7 @@ def _trust_rows(path: Path) -> list[tuple]:
 def test_read_only_trust_fence_does_not_commit_after_effect_completion(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     _set_clocks(monkeypatch)
     trust_ledger = _trust_ledger(tmp_path, monkeypatch)
@@ -362,3 +364,6 @@ def test_read_only_trust_fence_does_not_commit_after_effect_completion(
     # The tripwire proves no explicit COMMIT reached the trust store, and the
     # byte-identical rows prove the fence changed nothing durable there.
     assert _trust_rows(trust_db) == rows_before
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=result.terminal_receipt.outcome
+    )

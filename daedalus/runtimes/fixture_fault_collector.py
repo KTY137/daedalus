@@ -193,6 +193,67 @@ def scenario_node_id(scenario: RuntimeFaultScenario) -> str:
     return node
 
 
+def derive_terminal_outcome(
+    *,
+    terminal_outcome: str | None,
+    execution_state: str | None = None,
+) -> str:
+    """Translate a durable broker terminal into the catalog's outcome vocabulary.
+
+    This exists so that a fixture node never writes an outcome literal. The node
+    passes the terminal state it just asserted on, and this shared rule names it.
+    Anything unmappable raises, which surfaces as a red or errored node rather
+    than as a quietly wrong pass.
+
+    A durable ``COMPLETED`` terminal inside a fault scenario means the effect
+    became durable before the competing quarantine could interleave; the catalog
+    calls that ``completed-before-quarantine``. There is deliberately no plain
+    "completed" outcome: an uncontested success is not a fault observation.
+    """
+
+    state = None if execution_state is None else str(execution_state).strip().lower()
+    if terminal_outcome is None:
+        if state is not None:
+            raise ValueError(
+                "a durable execution state without a terminal is not a clean refusal: "
+                f"{execution_state!r}"
+            )
+        return "refused-before-start"
+    terminal = str(terminal_outcome).strip().lower()
+    if state is not None and state != terminal:
+        raise ValueError(
+            f"terminal {terminal!r} contradicts execution state {state!r}"
+        )
+    mapping = {
+        "completed": "completed-before-quarantine",
+        "cancelled": "cancelled",
+        "failed": "failed",
+    }
+    if terminal not in mapping:
+        raise ValueError(f"unmappable terminal outcome: {terminal_outcome!r}")
+    return mapping[terminal]
+
+
+def report_runtime_fault_outcome(
+    record_property: Callable[[str, str], Any],
+    *,
+    terminal_outcome: str | None,
+    execution_state: str | None = None,
+) -> str:
+    """Record the derived outcome so the collector can read it out of JUnit XML.
+
+    The pytest node is the executor of the deterministic-fixture column. Like a
+    Linux-host executor, it reports what it observed; the collector cross-checks
+    that report against the catalog instead of assuming it.
+    """
+
+    outcome = derive_terminal_outcome(
+        terminal_outcome=terminal_outcome, execution_state=execution_state
+    )
+    record_property(_OUTCOME_PROPERTY, outcome)
+    return outcome
+
+
 @dataclass(frozen=True)
 class PytestInvocation:
     """Bounded, untrusted result of running exactly one pytest node id."""
@@ -858,7 +919,9 @@ __all__ = [
     "PytestInvocation",
     "PytestNodeReport",
     "classify_pytest_invocation",
+    "derive_terminal_outcome",
     "parse_pytest_junit",
+    "report_runtime_fault_outcome",
     "run_fixture_fault",
     "run_fixture_fault_catalog",
     "scenario_node_id",
