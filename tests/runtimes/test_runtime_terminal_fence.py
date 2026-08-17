@@ -17,6 +17,7 @@ from daedalus.runtimes.broker import (
     RuntimeProviderTrustFenceError,
     run_runtime_provider,
 )
+from daedalus.runtimes.fixture_fault_collector import report_runtime_fault_outcome
 from daedalus.runtimes.provider_observation import (
     ProviderObservationBindingLedger,
     issue_provider_observation_authority,
@@ -182,6 +183,7 @@ def _record_state(ledger, runtime_id: str) -> str:
 def test_runtime_trust_and_effect_ledgers_must_be_distinct(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     shared = dataclasses.replace(
@@ -197,11 +199,17 @@ def test_runtime_trust_and_effect_ledgers_must_be_distinct(
     assert verifications["count"] == 0
     assert terminals == []
     assert shared.effect_ledger.execution_state(execution.execution_id) is None
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=terminals[0] if terminals else None,
+        execution_state=shared.effect_ledger.execution_state(execution.execution_id),
+    )
 
 
 def test_quarantine_waits_until_completed_receipt_is_durable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     trust = authorization.runtime_trust_ledger
@@ -289,6 +297,13 @@ def test_quarantine_waits_until_completed_receipt_is_durable(
     )
     assert quarantine_done.is_set()
     assert _record_state(trust, capability.runtime_id) == "QUARANTINED"
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=terminals[0],
+        execution_state=authorization.effect_ledger.execution_state(
+            execution.execution_id
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -297,12 +312,19 @@ def test_quarantine_waits_until_completed_receipt_is_durable(
         ("quarantine", "quarantined before terminal completion"),
         ("replace-record", "changed before terminal completion: record_sha256"),
     ],
+    # The canonical fault catalog addresses these two rows as
+    # ...fence[quarantine] and ...fence[replace-record]. Without explicit ids
+    # pytest folds the expected *message* into the node id, so the catalog's
+    # executor locator silently stops resolving whenever that wording is
+    # edited. Pinning the ids makes the identity the contract, not the prose.
+    ids=("quarantine", "replace-record"),
 )
 def test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mutation: str,
     expected: str,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
     trust = authorization.runtime_trust_ledger
@@ -338,4 +360,11 @@ def test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence(
     assert (
         authorization.effect_ledger.execution_state(execution.execution_id)
         == "CANCELLED"
+    )
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=terminals[0],
+        execution_state=authorization.effect_ledger.execution_state(
+            execution.execution_id
+        ),
     )
