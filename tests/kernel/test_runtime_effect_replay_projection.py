@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import daedalus.kernel.runtime_effect_replay as runtime_effect_replay
+import daedalus.kernel.runtime_effects as runtime_effects
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
 from daedalus.kernel.runtime_effect_replay import (
@@ -38,6 +39,7 @@ ENVELOPE_SHA = "6" * 64
 TRUST_KEY = b"runtime-replay-trust-integrity-key-material-32-bytes"
 LEASE_KEY = b"runtime-replay-effect-lease-secret-material-32-bytes"
 AUTHORITY_KEY = b"runtime-replay-authority-key-material-at-least-32-bytes"
+FORGED_TRUST_SHA = "f" * 64
 
 
 def _registry():
@@ -368,9 +370,49 @@ def test_inner_execution_substitution_is_wrapped_in_runtime_domain(
         inspect_runtime_effect_execution(authorization, substituted)
 
 
+def _forge_trust_digest(capability, *, resign: bool):
+    """Swap the bound trust-record digest without tripping the constructor.
+
+    ``RuntimeBoundEffectLease.__post_init__`` requires the provenance to bind
+    every referenced digest, so a bare ``dataclasses.replace`` of the digest is
+    unconstructible. The forgery therefore rebinds provenance too, which is what
+    a real attacker would have to do.
+    """
+
+    provenance = dataclasses.replace(
+        capability.provenance,
+        input_digests=tuple(
+            sorted(set(capability.provenance.input_digests) | {FORGED_TRUST_SHA})
+        ),
+    )
+    forged = dataclasses.replace(
+        capability,
+        runtime_trust_record_sha256=FORGED_TRUST_SHA,
+        provenance=provenance,
+    )
+    if not resign:
+        return forged
+    return dataclasses.replace(
+        forged,
+        signature_sha256=runtime_effects._signature(
+            forged.signing_digest, AUTHORITY_KEY
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("resign", "cause"),
+    [
+        (False, "runtime-bound effect lease signature mismatch"),
+        (True, "runtime trust record identity changed after capability issuance"),
+    ],
+    ids=["stale-signature", "resigned"],
+)
 def test_runtime_trust_record_digest_must_equal_signed_capability(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
+    resign: bool,
+    cause: str,
 ) -> None:
     authorization, _record = _authorization(tmp_path, monkeypatch)
     _set_runtime_clock(
@@ -381,16 +423,18 @@ def test_runtime_trust_record_digest_must_equal_signed_capability(
     )
     authorization.grant()
     authorization.begin_effect(_execution())
-    capability = dataclasses.replace(
-        authorization.capability,
-        runtime_trust_record_sha256="f" * 64,
+    forged = dataclasses.replace(
+        authorization,
+        capability=_forge_trust_digest(authorization.capability, resign=resign),
     )
-    forged = dataclasses.replace(authorization, capability=capability)
     with pytest.raises(
         RuntimeEffectReplayProjectionError,
         match="historical start verification",
-    ):
+    ) as raised:
         inspect_runtime_effect_execution(forged, _execution())
+    # Each forgery must be stopped by its own guard: the stale-signature variant
+    # by authentication, the resigned variant by the ledger identity comparison.
+    assert str(raised.value.__cause__) == cause
 
 
 def test_verified_runtime_trust_digest_cannot_be_detached(
