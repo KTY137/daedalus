@@ -21,6 +21,31 @@ PORTED_BLOBS = {
     "tests/gates/test_repository_head_revision_wire.py": "88767051f85f6c7c07359c45dad92f744a7cbab2",
 }
 
+# PORTED_BLOBS records what the transfer moved and must keep matching the
+# work packet, so it is never refreshed to whatever happens to be on disk.
+# A ported file may still need fixing afterwards, and each time one does the
+# new blob is recorded here with the commit that changed it and why. Drift
+# that nobody wrote down is what this review is for.
+POST_PORT_REVISIONS = {
+    "tests/gates/test_repository_head_revision.py": (
+        "c78ddcd7355bbc6701bb4f6f797c9dfd3d89f6fb",
+        "05eb06f: Path.write_text opens in text mode, so these hand-built git "
+        "plumbing fixtures were written with CRLF on Windows and the strict "
+        "single-line reader rightly refused them; the writes now pin "
+        "newline='\\n'. Fixtures only, no production behaviour.",
+    ),
+    "tests/gates/test_repository_head_revision_wire.py": (
+        "7ef1ff7091605376a67e79064be1a2d516f620a0",
+        "05eb06f: the same newline pinning in the three wire fixtures. "
+        "Fixtures only, no production behaviour.",
+    ),
+}
+
+CURRENT_BLOBS = {
+    **PORTED_BLOBS,
+    **{path: blob for path, (blob, _) in POST_PORT_REVISIONS.items()},
+}
+
 
 def _git_blob_sha1(payload: bytes) -> str:
     header = f"blob {len(payload)}\0".encode("ascii")
@@ -32,7 +57,16 @@ def test_integration_ports_exact_reviewed_blobs() -> None:
         path: _git_blob_sha1((REPOSITORY_ROOT / path).read_bytes())
         for path in PORTED_BLOBS
     }
-    assert observed == PORTED_BLOBS
+    assert observed == CURRENT_BLOBS
+
+    # Whatever differs from the transfer record has to be one of the changes
+    # written down above -- no more, and no fewer. A file that quietly moved
+    # fails here, and so does a stale entry left behind after a revert.
+    drifted = {
+        path for path, blob in observed.items() if blob != PORTED_BLOBS[path]
+    }
+    assert drifted == set(POST_PORT_REVISIONS)
+    assert all(reason.strip() for _, reason in POST_PORT_REVISIONS.values())
 
 
 def test_packet_records_transfer_as_provenance_not_execution_evidence() -> None:
