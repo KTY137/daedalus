@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import textwrap
 from pathlib import Path
 
 from daedalus.kernel import AttemptLedger, IsolatedAttemptCoordinator
@@ -34,7 +35,10 @@ EXPECTED = {
 
 
 def _called_names(function) -> set[str]:
-    tree = ast.parse(inspect.getsource(function))
+    # Every inventory target is a method, so inspect.getsource returns it at
+    # class-body indentation and a bare ast.parse raises IndentationError
+    # before a single anchor is ever inspected.
+    tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
     names: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):

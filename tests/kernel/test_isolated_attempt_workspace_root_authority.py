@@ -129,7 +129,43 @@ def test_parent_replacement_after_admission_is_refused_before_use(
         backup.rename(workspace)
         pytest.skip("directory symlink creation is unavailable")
 
-    with pytest.raises(AttemptWorkspaceError, match="primary checkout|identity changed"):
+    # 30be67a put an explicit symlink refusal in front of the disjointness and
+    # identity guards, so a symlinked replacement is now caught one layer
+    # earlier and more strictly than before. The refusal is what matters, but
+    # name the guard that fires so a silently reordered check is still visible.
+    with pytest.raises(
+        AttemptWorkspaceError, match="workspace parent must not be a symlink"
+    ):
+        coordinator._require_stable_workspace_parent()
+    assert _tree_paths(primary) == ("tracked.py",)
+
+
+def test_parent_replaced_by_a_fresh_directory_is_refused_by_identity(
+    tmp_path: Path,
+) -> None:
+    """The identity guard the symlink case above no longer reaches.
+
+    A replacement that is a real directory at the admitted path passes the
+    symlink, existence, directory and disjointness checks, so only the
+    retained device/inode identity can still refuse it.
+    """
+    primary, store, ledger = _roots(tmp_path)
+    workspace = tmp_path / "external-workspaces"
+    workspace.mkdir()
+    coordinator = IsolatedAttemptCoordinator(
+        primary_checkout=primary,
+        workspace_parent=workspace,
+        source_store=store,
+        ledger=ledger,
+    )
+    coordinator._require_stable_workspace_parent()
+
+    workspace.rename(tmp_path / "external-workspaces-original")
+    workspace.mkdir()
+
+    with pytest.raises(
+        AttemptWorkspaceError, match="identity changed after admission"
+    ):
         coordinator._require_stable_workspace_parent()
     assert _tree_paths(primary) == ("tracked.py",)
 
