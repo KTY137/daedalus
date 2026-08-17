@@ -10,6 +10,7 @@ from daedalus.kernel.runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
     assemble_recorded_conformance,
+    persist_conformance_receipt,
     verify_current_conformance,
 )
 from daedalus.schemas import (
@@ -117,3 +118,43 @@ def test_partial_failed_and_stale_runtime_evidence_refuses(tmp_path: Path) -> No
     )
     with pytest.raises(RuntimeConformanceError, match="stale"):
         verify_current_conformance(passed, manifest, now=NOW + timedelta(days=8))
+
+
+def test_persisted_receipt_is_content_addressed_and_idempotent(tmp_path: Path) -> None:
+    receipt = assemble_recorded_conformance(
+        _manifest(),
+        observations=_observations(),
+        artifact_root=tmp_path / "cas",
+        receipt_id="runtime-fixture-001",
+        started_at=NOW.isoformat(),
+        finished_at=(NOW + timedelta(seconds=1)).isoformat(),
+    )
+    bundle = tmp_path / "receipts"
+    path = persist_conformance_receipt(receipt, bundle)
+    assert path == bundle / f"{receipt.digest}.json"
+    raw = path.read_bytes()
+    assert raw == receipt.to_json().encode("utf-8")
+    again = persist_conformance_receipt(receipt, bundle)
+    assert again == path
+    assert path.read_bytes() == raw
+
+
+def test_persisting_over_a_colliding_artifact_refuses(tmp_path: Path) -> None:
+    receipt = assemble_recorded_conformance(
+        _manifest(),
+        observations=_observations(),
+        artifact_root=tmp_path / "cas",
+        receipt_id="runtime-fixture-001",
+        started_at=NOW.isoformat(),
+        finished_at=(NOW + timedelta(seconds=1)).isoformat(),
+    )
+    bundle = tmp_path / "receipts"
+    path = persist_conformance_receipt(receipt, bundle)
+    path.write_text("{}", encoding="utf-8")
+    with pytest.raises(RuntimeConformanceError, match="collision"):
+        persist_conformance_receipt(receipt, bundle)
+
+
+def test_persisting_a_non_receipt_refuses(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeConformanceError, match="exact RuntimeConformanceReceipt"):
+        persist_conformance_receipt("not-a-receipt", tmp_path)  # type: ignore[arg-type]

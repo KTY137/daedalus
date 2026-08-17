@@ -122,6 +122,35 @@ def assemble_recorded_conformance(
     )
 
 
+def persist_conformance_receipt(
+    receipt: RuntimeConformanceReceipt,
+    receipt_dir: str | Path,
+) -> Path:
+    """Persist a receipt as a content-addressed bundle artifact.
+
+    The filename is the receipt's canonical digest, so a reader can refuse any
+    persisted byte that no longer hashes to its own name. Same-content writes
+    are idempotent; a same-name different-content write is a collision and is
+    refused instead of overwritten.
+    """
+    if not isinstance(receipt, RuntimeConformanceReceipt):
+        raise RuntimeConformanceError(
+            "only an exact RuntimeConformanceReceipt can be persisted"
+        )
+    raw = receipt.to_json().encode("utf-8")
+    directory = Path(receipt_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{receipt.digest}.json"
+    if path.exists():
+        if path.read_bytes() != raw:
+            raise RuntimeConformanceError(
+                "content-addressed receipt collision"
+            )
+    else:
+        path.write_bytes(raw)
+    return path
+
+
 def verify_current_conformance(
     receipt: RuntimeConformanceReceipt,
     manifest: RuntimeManifest,
@@ -148,5 +177,6 @@ __all__ = [
     "RecordedObservation",
     "RuntimeConformanceError",
     "assemble_recorded_conformance",
+    "persist_conformance_receipt",
     "verify_current_conformance",
 ]

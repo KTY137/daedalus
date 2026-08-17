@@ -1,17 +1,19 @@
 """Bind runtime-conformance receipts into the Gate-0 report, or say why not.
 
 The canonical producer of a :class:`RuntimeConformanceReceipt` is
-``daedalus.kernel.runtime_conformance.assemble_recorded_conformance``.  At this
-revision that producer is exercised only in-process (tests and the fixture CI
-job) and the trust ledger retains nothing but each receipt's digest, so no
-persisted receipt bundle exists that a report could cite at a source revision.
+``daedalus.kernel.runtime_conformance.assemble_recorded_conformance`` and its
+persistence companion is
+``daedalus.kernel.runtime_conformance.persist_conformance_receipt``, which
+writes each receipt as a content-addressed bundle artifact named by the
+receipt's own canonical digest.
 
 This module therefore does two things and refuses to invent a third.  It binds
 receipts when a caller actually has them — in memory or as a persisted bundle
-directory — and it verifies more than the old placeholder did: the status, the
-uniqueness of receipt ids, and revision atomicity against the report's own
-revision.  When there are none it emits a blocker naming the exact missing link
-rather than a placeholder, so the gap is legible instead of merely unbound.
+directory — and it verifies the status, the uniqueness of receipt ids,
+revision atomicity against the report's own revision, and for persisted
+receipts that every byte still hashes to its own filename.  When there are
+none it emits a blocker naming the exact missing link rather than a
+placeholder, so the gap is legible instead of merely unbound.
 """
 from __future__ import annotations
 
@@ -22,10 +24,14 @@ from pathlib import Path
 from typing import Sequence
 
 from daedalus.schemas import RuntimeConformanceReceipt
+from daedalus.spine.envelope import canonical_sha
 
 
 CANONICAL_PRODUCER = (
     "daedalus.kernel.runtime_conformance.assemble_recorded_conformance"
+)
+CANONICAL_PERSISTENCE = (
+    "daedalus.kernel.runtime_conformance.persist_conformance_receipt"
 )
 UNBOUND_ROW = "runtime-conformance-receipts:unbound:no-persisted-receipt-bundle"
 _MAX_RECEIPT_BYTES = 4 * 1024 * 1024
@@ -79,9 +85,15 @@ def _load_bundle(
             failures.append(f"receipt-bundle:malformed:{_safe(path.name)}")
             continue
         try:
-            receipts.append(RuntimeConformanceReceipt.from_dict(payload))
+            receipt = RuntimeConformanceReceipt.from_dict(payload)
         except (TypeError, ValueError):
             failures.append(f"receipt-bundle:not-a-conformance-receipt:{_safe(path.name)}")
+            continue
+        digest = canonical_sha(payload)
+        if digest != path.stem or digest != receipt.digest:
+            failures.append(f"receipt-bundle:digest-mismatch:{_safe(path.name)}")
+            continue
+        receipts.append(receipt)
     return tuple(receipts), tuple(failures)
 
 
@@ -109,8 +121,9 @@ def bind_runtime_conformance_receipts(
             diagnostics=(
                 "blocker:runtime_conformance_receipts:unbound",
                 f"info:runtime_conformance.canonical_producer:{CANONICAL_PRODUCER}",
+                f"info:runtime_conformance.canonical_persistence:{CANONICAL_PERSISTENCE}",
                 "info:runtime_conformance.gap:"
-                "the-producer-runs-in-process-and-persists-no-receipt-artifact",
+                "no-persisted-receipt-bundle-was-supplied-to-this-report",
             ),
         )
 
@@ -138,6 +151,7 @@ def bind_runtime_conformance_receipts(
 
 
 __all__ = [
+    "CANONICAL_PERSISTENCE",
     "CANONICAL_PRODUCER",
     "RuntimeConformanceBinding",
     "UNBOUND_ROW",

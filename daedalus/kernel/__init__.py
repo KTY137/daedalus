@@ -119,6 +119,7 @@ from .runtime_conformance import (
     RecordedObservation,
     RuntimeConformanceError,
     assemble_recorded_conformance,
+    persist_conformance_receipt,
     verify_current_conformance,
 )
 from .sandbox import (
@@ -172,6 +173,7 @@ __all__ += [
     "RecordedObservation",
     "RuntimeConformanceError",
     "assemble_recorded_conformance",
+    "persist_conformance_receipt",
     "verify_current_conformance",
     "DockerSandboxPolicy",
     "SandboxExecutionReceipt",
