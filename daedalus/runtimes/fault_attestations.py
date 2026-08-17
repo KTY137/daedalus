@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
 from daedalus.runtimes.fault_matrix import (
+    RECONCILIATION_DEADLINE_SECONDS,
     RuntimeFaultCatalog,
     RuntimeFaultMatrix,
     RuntimeFaultObservation,
@@ -368,6 +369,7 @@ def verify_attested_runtime_fault_matrix(
     keyring: Mapping[tuple[str, str], bytes],
     issuer_authorities: Mapping[str, Sequence[str]],
     now: datetime,
+    reconciliation_deadline_seconds: int | float = RECONCILIATION_DEADLINE_SECONDS,
 ) -> AttestedRuntimeFaultVerification:
     current = _normalize_now(now)
     if isinstance(attestations, (str, bytes)):
@@ -412,6 +414,8 @@ def verify_attested_runtime_fault_matrix(
         catalog=catalog,
         expected_source_revision=expected_source_revision,
         trusted_observation_digests=tuple(trusted),
+        now=current,
+        reconciliation_deadline_seconds=reconciliation_deadline_seconds,
     )
     return AttestedRuntimeFaultVerification(
         fault_verification=fault_verification,

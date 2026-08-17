@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, fields
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
 from daedalus.schemas import ContractProvenance
@@ -44,6 +44,17 @@ _OUTCOMES = frozenset(
 # external idempotency key, while this one claims only that the durable start was
 # retained so recovery *can*. Naming the two apart is the point -- collapsing them
 # would let "we never resolved this" read as "we resolved this".
+#
+# Retention is honest only while somebody still intends to reconcile. An
+# observation whose evidence timestamp shows the durable start has been waiting
+# longer than the declared reconciliation deadline becomes its own verification
+# blocker, ``fault.reconciliation-overdue:<scenario_id>``. The blocker never
+# touches the durable STARTED state -- inventing a terminal here would be exactly
+# the lie the token exists to prevent -- it only refuses to let the matrix close
+# over a reconciliation debt that has silently aged out. The default matches the
+# issuers' default attestation validity: one day.
+RECONCILIATION_DEADLINE_SECONDS = 24 * 60 * 60
+_UNRECONCILED_OUTCOME = "started-unreconciled"
 _BOUNDARIES = frozenset(
     {
         "broker",
@@ -429,16 +440,41 @@ def build_runtime_fault_matrix(
     )
 
 
+def _reconciliation_deadline(value: Any) -> timedelta:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("reconciliation_deadline_seconds must be a number")
+    if not value > 0 or value != value or value == float("inf"):
+        raise ValueError("reconciliation_deadline_seconds must be a positive finite number")
+    return timedelta(seconds=value)
+
+
+def _verification_now(value: datetime | str | None) -> datetime:
+    if value is None:
+        # Fail closed: a caller that does not pin the verification clock gets the
+        # wall clock, so an aged-out reconciliation debt cannot hide behind a
+        # forgotten argument.
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+        return value.astimezone(timezone.utc)
+    return datetime.fromisoformat(_timestamp(value, "now"))
+
+
 def verify_runtime_fault_matrix(
     matrix: RuntimeFaultMatrix,
     *,
     catalog: RuntimeFaultCatalog,
     expected_source_revision: str,
     trusted_observation_digests: Sequence[str],
+    now: datetime | str | None = None,
+    reconciliation_deadline_seconds: int | float = RECONCILIATION_DEADLINE_SECONDS,
 ) -> RuntimeFaultVerification:
     revision = _revision(expected_source_revision, "expected_source_revision")
     trusted = _trusted_digests(trusted_observation_digests)
     trusted_set = frozenset(trusted)
+    deadline = _reconciliation_deadline(reconciliation_deadline_seconds)
+    current = _verification_now(now)
     blockers: set[str] = set()
     if matrix.catalog_sha256 != catalog.digest:
         blockers.add("fault.catalog-mismatch")
@@ -471,6 +507,12 @@ def verify_runtime_fault_matrix(
             blockers.add(f"fault.blocked:{scenario.scenario_id}")
         elif observation.observed_outcome != scenario.expected_outcome:
             blockers.add(f"fault.outcome-mismatch:{scenario.scenario_id}")
+        if observation.observed_outcome == _UNRECONCILED_OUTCOME:
+            observed = datetime.fromisoformat(observation.observed_at)
+            if current - observed > deadline:
+                # The durable STARTED state is untouched; only the matrix refuses
+                # to close over a reconciliation debt older than the deadline.
+                blockers.add(f"fault.reconciliation-overdue:{scenario.scenario_id}")
 
     return RuntimeFaultVerification(
         matrix_sha256=matrix.digest,
@@ -514,6 +556,7 @@ RUNTIME_FAULT_CATALOG = RuntimeFaultCatalog(
 )
 
 __all__ = [
+    "RECONCILIATION_DEADLINE_SECONDS",
     "RUNTIME_FAULT_CATALOG",
     "RuntimeFaultCatalog",
     "RuntimeFaultMatrix",
