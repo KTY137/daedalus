@@ -264,23 +264,35 @@ def apply(root: Path) -> int:
         return 1
 
     plan_src = originals[plan_path].decode("utf-8")
-    if "Revision: 1" not in plan_src or "Version: 1.0.0" not in plan_src:
-        print("ABORT: plan header does not read Revision: 1 / Version: 1.0.0")
+    rev_match = re.search(r"^Revision: (\d+)\s*$", plan_src, re.MULTILINE)
+    ver_match = re.search(r"^Version: (\d+)\.(\d+)\.(\d+)\s*$", plan_src, re.MULTILINE)
+    if not rev_match or not ver_match:
+        print("ABORT: plan header lacks parseable Revision/Version lines")
         return 1
+    revision = int(rev_match.group(1))
+    major, minor, patch = (int(g) for g in ver_match.groups())
+    old_version = f"{major}.{minor}.{patch}"
+    new_version = f"{major}.{minor}.{patch + 1}"
 
     guard = _load_guard(root)
     records = [json.loads(line) for line in
                originals[ledger_path].decode("utf-8").splitlines() if line.strip()]
-    if len(records) != 1 or records[0].get("result_revision") != 1:
-        print("ABORT: ledger does not contain exactly the adoption record")
+    if not records:
+        print("ABORT: amendment ledger is empty")
+        return 1
+    last = records[-1]
+    if last.get("result_revision") != revision:
+        print(f"ABORT: plan header Revision: {revision} does not match the "
+              f"ledger's last result_revision {last.get('result_revision')}")
         return 1
 
     try:
         # 1. guard
         guard_path.write_bytes(guard_src.replace(OLD_BLOCK, NEW_BLOCK).encode("utf-8"))
-        # 2. plan header
-        new_plan = plan_src.replace("Revision: 1", "Revision: 2", 1).replace(
-            "Version: 1.0.0", "Version: 1.0.1", 1)
+        # 2. plan header — bump the parsed revision and patch version once each
+        new_plan = plan_src.replace(
+            f"Revision: {revision}", f"Revision: {revision + 1}", 1
+        ).replace(f"Version: {old_version}", f"Version: {new_version}", 1)
         plan_path.write_bytes(new_plan.encode("utf-8"))
         # 3. ledger record — try the digest functions the guard itself accepts
         digest_candidates = []
@@ -293,23 +305,23 @@ def apply(root: Path) -> int:
             record = {
                 "accepted_at": datetime.datetime.now(datetime.timezone.utc)
                     .astimezone().isoformat(timespec="seconds"),
-                "approval_ref": "conversation-2026-08-17-owner-delegated-amendment-005",
-                "base_plan_sha256": records[0]["result_plan_sha256"],
-                "base_revision": 1,
+                "approval_ref": "conversation-2026-08-17-owner-ran-amendment-005-kit",
+                "base_plan_sha256": last["result_plan_sha256"],
+                "base_revision": revision,
                 "owner": "repository-owner",
                 "plan_id": "daedalus-master-plan",
-                "previous_record_sha256": records[0]["record_sha256"],
+                "previous_record_sha256": last["record_sha256"],
                 "result_plan_sha256": digest,
-                "result_revision": 2,
+                "result_revision": revision + 1,
                 "schema": "daedalus-master-plan-amendment/1",
                 "scope": ["governance"],
-                "sequence": 2,
+                "sequence": last["sequence"] + 1,
                 "status": "accepted",
                 "summary": ("Repair the sealed-promotion guard checks: verify the "
                             "retained-source blob pin and parse the retained source, "
                             "so both checks observe the code that runs and fail when "
                             "their subject vanishes."),
-                "version": "1.0.1",
+                "version": new_version,
             }
             record["record_sha256"] = guard.canonical_record_sha256(record)
             payload = originals[ledger_path].decode("utf-8").rstrip("\n")
@@ -341,7 +353,7 @@ def apply(root: Path) -> int:
         print(f"ABORT: {exc}; rolled back")
         return 1
 
-    token = records[0]["result_plan_sha256"]
+    token = last["result_plan_sha256"]
     print("\nAMENDMENT APPLIED AND VERIFIED. To commit:")
     print(f'  cd {root}')
     print(f'  DAEDALUS_IRON_PLAN_AMENDMENT={token} git add '
