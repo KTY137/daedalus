@@ -104,6 +104,31 @@ damit jede Checkout-Übersetzung für Pin-Subjekte abgeschaltet ist. Gleiche
 Fehlerfamilie wie Wave 1 („fixtures stop writing CRLF into byte-exact
 files") — dritter Auftritt des CRLF-Dämons heute.
 
+## 6. Zweiter CRLF-Byte-Pin-Rotfall (Retention-Inventar)
+
+MEASURED (Review-Singles-Lane, 2026-08-17 abends):
+`tests/gates/test_provider_target_receipt_retention_inventory.py::`
+`test_inventory_is_rebound_to_topology_hardened_parent` ist auf JEDEM
+Windows-Checkout rot — das Inventar hasht Working-Tree-Bytes eines Moduls,
+das mit 678 CRLF ausgecheckt wird, während der Pin auf LF berechnet wurde.
+Gleiche Familie wie Punkt 5; der `.gitattributes`-Fix dort sollte beide
+Pin-Subjekte abdecken (Liste der Byte-Pin-Subjekte vor dem Amendment
+erheben). Positiv: Der Pin hat in der Lane einen Prosa-Edit an einem
+gepinnten Modul korrekt verhindert.
+
+## 7. Evidenz-Integrität: Fault-Matrix-Mutationsskripte messen auf Windows nichts
+
+MEASURED (Review-Singles-Lane): `scripts/run_fault_matrix_wire_type_mutations.py`
+sandboxt per PYTHONPATH, aber `python -m pytest` stellt cwd (Repo-Root) vor
+den Sandbox-Pfad — die mutierte Kopie wird nie importiert, jeder Mutant
+„überlebt" unabhängig vom Guard. Drei Schwester-Skripte teilen das Muster
+(`run_fault_matrix_contract_mutations.py`, `…_contract_exact_mutations.py`,
+`…_exact_durable_mutations.py`). Jede „mutants killed"-Evidenz aus diesen
+Skripten auf Windows ist suspekt und muss neu erhoben werden. Dieselben
+drei Mutationen in-place ausgeführt: 3/3 killed — die Guards selbst tragen.
+Fix läuft als eigene Lane (`grind/fault-harness`); der dort geparkte Stash
+enthält einen Kandidaten-Fix (+4 Zeilen je Skript) aus der ersten Welle.
+
 ## Zusatz: Amendment-005-Kit — ERLEDIGT, kein Owner-Run mehr nötig
 
 KORREKTUR (17:10): Eine frühere Fassung dieses Abschnitts empfahl einen
