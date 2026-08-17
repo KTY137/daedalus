@@ -1,0 +1,8 @@
+{
+  "alwaysUpdateLinks": true,
+  "useMarkdownLinks": false,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "Findings",
+  "attachmentFolderPath": "Attachments",
+  "showUnsupportedFiles": true
+}

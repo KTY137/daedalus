@@ -24,6 +24,14 @@
     "shadcn": {
       "command": "npx",
       "args": ["-y", "shadcn@latest", "mcp"]
+    },
+    "obsidian-vault": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:/Users/nukei/Desktop/agent_env/vault"
+      ]
     }
   }
 }
