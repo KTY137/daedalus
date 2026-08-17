@@ -20,6 +20,9 @@ from daedalus.spine.writer_inventory import (
     scan_event_store_writers,
 )
 
+from .fault_matrix_binding import bind_fault_matrix_evidence
+from .runtime_conformance_binding import bind_runtime_conformance_receipts
+
 _SCHEMA = "daedalus-gate-report/2"
 _LEGACY_SCHEMA = "daedalus-gate-report/1"
 _SUPPORTED_SCHEMAS = frozenset({_SCHEMA, _LEGACY_SCHEMA})
@@ -431,6 +434,8 @@ def build_gate0_report(
     fault_results: Mapping[str, bool] | None = None,
     primary_checkout_mutations: Iterable[str] = (),
     security_boundary_claimed: bool = False,
+    fault_matrix_evidence_dir: Path | None = None,
+    runtime_conformance_receipt_dir: Path | None = None,
 ) -> GateReport:
     root = repo_root.resolve()
     conformance = check_conformance(root)
@@ -457,22 +462,30 @@ def build_gate0_report(
         f"{finding.severity}:{finding.code}:{finding.subject}"
         for finding in conformance.findings
     ]
-    if runtime_receipts:
-        runtime_failures = tuple(
-            sorted(
-                f"{receipt.receipt_id}:{receipt.status}"
-                for receipt in runtime_receipts
-                if receipt.status != "passed"
-            )
-        )
-    else:
-        runtime_failures = ("runtime-conformance-receipts:not-yet-bound",)
-    if fault_results is None:
-        fault_failures = ("fault-matrix:not-yet-bound",)
-    else:
-        fault_failures = tuple(
-            sorted(name for name, passed in fault_results.items() if not passed)
-        )
+    receipt_binding = bind_runtime_conformance_receipts(
+        tuple(runtime_receipts),
+        source_revision=source_revision,
+        receipt_dir=runtime_conformance_receipt_dir,
+    )
+    runtime_failures = receipt_binding.failures
+    diagnostics.extend(receipt_binding.diagnostics)
+
+    # The whole-matrix binding always runs, so "no evidence" can never become
+    # "no finding".  ``fault_results`` remains a legacy supplement: its failing
+    # rows are added, never substituted for the bound verdict.
+    matrix = bind_fault_matrix_evidence(
+        root,
+        source_revision=source_revision,
+        evidence_dir=fault_matrix_evidence_dir,
+        security_boundary_claimed=security_boundary_claimed,
+    )
+    supplied_failures = (
+        ()
+        if fault_results is None
+        else tuple(name for name, passed in fault_results.items() if not passed)
+    )
+    fault_failures = tuple(sorted(set(matrix.failures) | set(supplied_failures)))
+    diagnostics.extend(matrix.diagnostics)
 
     writer_digest, writer_failures, writer_diagnostics = _writer_inventory_evidence(
         root,

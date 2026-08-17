@@ -373,6 +373,8 @@ def _build_base_report(
     fault_results: Mapping[str, bool] | None,
     primary_checkout_mutations: tuple[str, ...],
     security_boundary_claimed: bool,
+    fault_matrix_evidence_dir: Path | None = None,
+    runtime_conformance_receipt_dir: Path | None = None,
 ) -> GateReport:
     report = build_gate0_report(
         root,
@@ -381,6 +383,8 @@ def _build_base_report(
         fault_results=fault_results,
         primary_checkout_mutations=primary_checkout_mutations,
         security_boundary_claimed=security_boundary_claimed,
+        fault_matrix_evidence_dir=fault_matrix_evidence_dir,
+        runtime_conformance_receipt_dir=runtime_conformance_receipt_dir,
     )
     if type(report) is not GateReport:
         raise GateReportV3Error(
@@ -397,6 +401,8 @@ def build_gate0_report_v3(
     fault_results: Mapping[str, bool] | None = None,
     primary_checkout_mutations: Iterable[str] = (),
     security_boundary_claimed: bool = False,
+    fault_matrix_evidence_dir: Path | None = None,
+    runtime_conformance_receipt_dir: Path | None = None,
 ) -> GateReportV3:
     """Build v2 and repository-write evidence under a repeated drift fence."""
 
@@ -412,6 +418,8 @@ def build_gate0_report_v3(
         fault_results=fault_rows,
         primary_checkout_mutations=mutation_rows,
         security_boundary_claimed=security_boundary_claimed,
+        fault_matrix_evidence_dir=fault_matrix_evidence_dir,
+        runtime_conformance_receipt_dir=runtime_conformance_receipt_dir,
     )
     inventory_before = _repository_write_evidence(
         root,
@@ -424,6 +432,8 @@ def build_gate0_report_v3(
         fault_results=fault_rows,
         primary_checkout_mutations=mutation_rows,
         security_boundary_claimed=security_boundary_claimed,
+        fault_matrix_evidence_dir=fault_matrix_evidence_dir,
+        runtime_conformance_receipt_dir=runtime_conformance_receipt_dir,
     )
     inventory_after = _repository_write_evidence(
         root,
