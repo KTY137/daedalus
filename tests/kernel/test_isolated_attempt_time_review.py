@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import time
+from datetime import datetime, timedelta, timezone
 
 from daedalus.kernel.attempt_clock import AttemptLifecycleClock
 from daedalus.kernel.attempt_contracts import (
@@ -16,6 +18,57 @@ def test_clock_has_monotonic_and_persisted_minimum_floors() -> None:
     assert "if current <= minimum_value" in source
     assert "if current <= self._last" in source
     assert "self._last + timedelta(microseconds=1)" in source
+    # The wall-clock clamp must stay, and must stay ahead of both floors so it
+    # can never undo the anti-rollback guarantees they provide.
+    assert "if wall_now < current" in source
+    assert source.index("if wall_now < current") < source.index(
+        "if current <= minimum_value"
+    )
+
+
+_ONE_HOUR_NS = 3_600_000_000_000
+
+
+def test_observation_never_runs_ahead_of_the_event_store_wall_clock(
+    monkeypatch,
+) -> None:
+    """A lifecycle time may never follow the Event-Store row that records it.
+
+    The Event Store stamps ``created_ts``/``ts`` from ``datetime.now``.  When
+    the monotonic projection outran that clock, ``AttemptLedger.begin`` failed
+    closed on its own trusted start time.
+    """
+    clock = AttemptLifecycleClock()
+    ahead = time.monotonic_ns() + _ONE_HOUR_NS
+    monkeypatch.setattr(time, "monotonic_ns", lambda: ahead)
+
+    before = datetime.now(timezone.utc)
+    observed = datetime.fromisoformat(clock.now())
+    after = datetime.now(timezone.utc)
+
+    assert observed <= after, "observation followed the Event-Store wall clock"
+    assert observed >= before
+
+
+def test_clamped_observations_are_still_strictly_nondecreasing(monkeypatch) -> None:
+    clock = AttemptLifecycleClock()
+    frozen = time.monotonic_ns() + _ONE_HOUR_NS
+    monkeypatch.setattr(time, "monotonic_ns", lambda: frozen)
+
+    stamps = [clock.now() for _ in range(50)]
+
+    assert stamps == sorted(stamps)
+    assert len(set(stamps)) == 50
+
+
+def test_persisted_minimum_still_outranks_the_wall_clock_clamp() -> None:
+    """Clamping must not reopen the backwards-wall-clock hole it sits next to."""
+    clock = AttemptLifecycleClock()
+    future = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    observed = datetime.fromisoformat(clock.now(minimum=future.isoformat()))
+
+    assert observed > future
 
 
 def test_contract_provenance_time_is_exactly_the_trusted_lifecycle_time() -> None:

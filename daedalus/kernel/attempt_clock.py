@@ -15,6 +15,17 @@ class AttemptLifecycleClock:
     then advanced from ``time.monotonic_ns``.  A minimum persisted timestamp may
     be supplied after restart so a terminal observation cannot predate its
     start even if the host wall clock moved backwards.
+
+    The projection is additionally clamped to the live wall clock.  The
+    canonical Event Store stamps its own rows from ``datetime.now`` while this
+    clock advances a wall anchor that the host timer quantized when it was
+    sampled, so the monotonic projection drifts *ahead* of the Event Store by
+    up to one timer tick plus accumulated rate skew.  An observation ahead of
+    the row that records it makes a lifecycle record time follow its own
+    Event-Store transition, which the Attempt guards correctly refuse.  The
+    clamp only ever moves an observation backwards toward the wall clock; the
+    ``minimum`` and last-observation floors are applied afterwards, so the
+    anti-rollback guarantee above still wins.
     """
 
     def __init__(self) -> None:
@@ -32,6 +43,9 @@ class AttemptLifecycleClock:
         with self._lock:
             elapsed_ns = max(0, time.monotonic_ns() - self._monotonic_anchor_ns)
             current = self._wall_anchor + timedelta(microseconds=elapsed_ns // 1000)
+            wall_now = datetime.now(timezone.utc)
+            if wall_now < current:
+                current = wall_now
             if minimum is not None:
                 minimum_value = self._parse(minimum)
                 if current <= minimum_value:
