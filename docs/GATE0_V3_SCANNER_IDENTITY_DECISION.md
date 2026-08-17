@@ -1,6 +1,9 @@
 # Gate 0 — v3 scanner identity: owner decision packet
 
-Status: DECISION PENDING — owner input required
+Status: PARTIALLY RESOLVED — options B+D applied and landed
+(`ee45877` in the lane, `aafd2a1` on the trunk, 46 passed across the
+7-file family); **only option A (inventory schema /1 → /2) and the
+`report_v3.py:344` exception-conflation note still await the owner.**
 Prepared: 2026-08-17
 Worktree: `grind/v3-scanner-owner-prep`
 Base commit: `7c88f72b120f6a36c2ce5d21ea1733ddf3524322` [MEASURED, `git rev-parse HEAD`]
@@ -8,7 +11,8 @@ Iron Plan guard: `Iron Plan OK: revision 4, Gate 0 — Canonical Kernel,
 sha256 9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00`
 [MEASURED, `python tools/iron_plan_guard.py verify`]
 
-Nothing in this document is applied. Every code block is a proposal. No
+At preparation time nothing in this document was applied; the status line
+above records what has landed since. Every code block below is the original
 `daedalus/` source file, no test, and no schema was edited to produce it; the
 one end-to-end verification below was performed by an in-process monkeypatch in
 a scratch directory outside the repository.
