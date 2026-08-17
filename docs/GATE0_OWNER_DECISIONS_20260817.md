@@ -52,11 +52,24 @@ Strangler-Pattern vertretbar, evtl. sogar erwünscht ist.
 **Rollback beider Optionen:** Diff revertieren; der Test fällt exakt auf das
 heutige Fehlerbild zurück.
 
-## 2. v3-Scanner-Identität
+## 2. v3-Scanner-Identität — verkleinert auf Option A (Schema-Bump)
 
-Blockiert die v3-Report-Familie (3 Failures). Entscheidungsvorlage mit
-Optionen + Diffs entsteht in Lane `grind/v3-scanner-owner-prep`
-(`docs/GATE0_V3_SCANNER_IDENTITY_DECISION.md`), Diagnose läuft.
+Diagnose abgeschlossen (MEASURED, siehe
+`docs/GATE0_V3_SCANNER_IDENTITY_DECISION.md`): Die vermeintliche
+Identitäts-Policy-Frage war ein Scanner-Defekt — `.replace`-Klassifikation
+kollidiert per Namensvergleich (0 von 197 `.replace`-Calls im Baum sind
+echte `Path.replace`-Renames), plus ein Review-Test, der Builtin- und
+Attribut-Calls in ein Set mischt. Optionen B (Arity-Gate, ~16 Zeilen, kein
+Schema-/Record-Bruch, end-to-end verifiziert) und D (test-only, strikt
+stärker) werden als gewöhnliche ALIGNED-Fixes gelandet.
+
+**Beim Owner verbleibt nur Option A:** End-Position-Diskriminator gegen die
+Mechanismus-Wurzel (Positions-Identität nicht injektiv bei Call-Ketten) —
+erzwingt `daedalus-gate0-repository-write-inventory/1 → /2` über 3 Module
+inkl. gepinnter Konstante: ein Artefakt-Identitätswechsel, der ein eigenes
+reviewtes Commit verdient. Zusätzlich notiert, nicht entschieden: die
+Exception-Vermischung in `report_v3.py:344` (Scanner-kaputt vs.
+Repo-hat-Blocker unterscheiden sich nur durch die entkommende Exception).
 
 ## 3. Blob-Pin-Fixtures (13 Tests)
 
