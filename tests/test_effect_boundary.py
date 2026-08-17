@@ -607,6 +607,71 @@ def test_runs_package_is_scanned_and_its_billable_doors_are_registered() -> None
     assert report.gate0_closed is False
 
 
+def test_runtime_fault_drivers_declare_their_statically_invisible_effects() -> None:
+    """The three fault-matrix drivers: every real effect is hand-declared.
+
+    All three discover as ``filesystem_write`` ONLY (MEASURED 2026-08-17), and
+    each hides a different effect behind a seam the literal-name sink match
+    cannot follow: the container driver spawns through a cross-module
+    ``run_in_docker_sandbox``, the fixture collector spawns pytest from inside a
+    closure, and the attestation issuer reads a signing key from the
+    environment.  A row that declared only what the scanner sees would stay
+    green while spawning containers and handling a key -- the exact failure the
+    hand-declared columns exist to prevent.  The anchors are the other half:
+    they pin the containment call and the runner seam so the rows cannot
+    quietly rot into raw spawns.
+    """
+    by_id = {row.id: row for row in ENTRYPOINTS}
+
+    driver = by_id["runtimes.container_fault_driver"]
+    collector = by_id["runtimes.fixture_fault_collector"]
+    issuer = by_id["runtimes.fault_attestation_issuer"]
+
+    for row in (driver, collector, issuer):
+        assert row.surface is Surface.CLI
+        assert Effect.FILESYSTEM_WRITE in row.effects
+        # inventory_only is the honest wiring: no canonical effect start exists
+        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    # the container driver's spawn is real but lives in daedalus.kernel.sandbox
+    assert {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL} <= set(driver.effects)
+    assert "containment.attempt" in driver.guard_contracts
+    assert any(a.call == "run_in_docker_sandbox" for a in driver.anchors), (
+        "the containment call is the only thing keeping this row from being a "
+        "raw docker spawn; it must stay mechanically anchored"
+    )
+
+    # the collector's subprocess.run (and its timeout) sit inside a closure
+    assert {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL} <= set(collector.effects)
+    assert any(a.call == "subprocess_pytest_runner" for a in collector.anchors)
+
+    # the issuer holds a signing key; no static sink can ever infer that
+    assert Effect.SECRETS in issuer.effects, (
+        "the issuer reads its signing key from the environment"
+    )
+    # ...and it must not claim the authority it deliberately does not have
+    assert Effect.SPEND not in issuer.effects
+
+    # the dated whole-matrix verifier reads BOTH issuer keys
+    matrix = by_id["runs.gate0_matrix.verify_whole_matrix"]
+    assert Effect.SECRETS in matrix.effects
+    assert matrix.wiring is Wiring.INVENTORY_ONLY
+
+    report = check_conformance(ROOT)
+    unregistered = {
+        row.subject
+        for row in report.findings
+        if row.code == "entrypoint.unregistered" and row.severity == "blocker"
+    }
+    for target in (
+        "daedalus.runtimes.container_fault_driver:main",
+        "daedalus.runtimes.fixture_fault_collector:main",
+        "daedalus.runtimes.fault_attestation_issuer:main",
+        "runs.gate0-matrix-2026-08-17.verify_whole_matrix:main",
+    ):
+        assert target not in unregistered, target
+
+
 def test_harness_entrypoints_are_classified_not_silent_and_never_blockers(
     tmp_path: Path,
 ) -> None:
