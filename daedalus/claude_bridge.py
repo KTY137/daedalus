@@ -24,6 +24,10 @@ if TYPE_CHECKING:
     from .kernel.effects import EffectExecutionRequest
     from .kernel.runtime_effects import RuntimeBoundEffectAuthorization
     from .providers.claude_cli import ClaudeWorkspaceGrant
+    from .runtimes.provider_observation import (
+        ProviderObservationAuthority,
+        ProviderObservationBindingLedger,
+    )
 
 
 REPORT_SCHEMA: dict[str, Any] = {
@@ -211,6 +215,8 @@ def ask_claude(
     runtime_authorization: "RuntimeBoundEffectAuthorization | None" = None,
     effect_execution: "EffectExecutionRequest | None" = None,
     workspace_grant: "ClaudeWorkspaceGrant | None" = None,
+    observation_authority: "ProviderObservationAuthority | None" = None,
+    observation_binding_ledger: "ProviderObservationBindingLedger | None" = None,
 ) -> dict[str, Any]:
     """Compatibility adapter that now delegates to the brokered provider.
 
@@ -229,6 +235,11 @@ def ask_claude(
         raise ClaudeProviderAuthorizationRequired(
             "ask_claude requires runtime authorization, effect execution, and workspace grant"
         )
+    if observation_authority is None or observation_binding_ledger is None:
+        raise ClaudeProviderAuthorizationRequired(
+            "ask_claude requires the signed provider-observation authority "
+            "and its binding ledger"
+        )
     agent = route_task(objective, paths)
     return ClaudeCLIProvider().run(
         objective=objective,
@@ -240,6 +251,8 @@ def ask_claude(
         runtime_authorization=runtime_authorization,
         effect_execution=effect_execution,
         workspace_grant=workspace_grant,
+        observation_authority=observation_authority,
+        observation_binding_ledger=observation_binding_ledger,
     )
 
 
