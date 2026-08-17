@@ -66,6 +66,7 @@ _OUTCOMES = frozenset(
         "cancelled",
         "completed-before-quarantine",
         "unknown-reconciled",
+        "started-unreconciled",
     }
 )
 _MAX_RAW_EVIDENCE_BYTES = 1024 * 1024
@@ -212,6 +213,7 @@ def derive_terminal_outcome(
     *,
     terminal_outcome: str | None,
     execution_state: str | None = None,
+    reconciliation_pending: bool = False,
 ) -> str:
     """Translate a durable broker terminal into the catalog's outcome vocabulary.
 
@@ -224,9 +226,27 @@ def derive_terminal_outcome(
     became durable before the competing quarantine could interleave; the catalog
     calls that ``completed-before-quarantine``. There is deliberately no plain
     "completed" outcome: an uncontested success is not a fault observation.
+
+    ``reconciliation_pending`` names the one shape that has no terminal at all and
+    is still not a refusal: the effect is durably ``STARTED``, the external call
+    already happened, and the boundary refused to invent a terminal for it. The
+    flag must be passed explicitly and is accepted only together with that exact
+    pair, so a node cannot drift into the token by omitting an argument.
     """
 
     state = None if execution_state is None else str(execution_state).strip().lower()
+    if reconciliation_pending:
+        if terminal_outcome is not None:
+            raise ValueError(
+                "a durable terminal is not pending reconciliation: "
+                f"{terminal_outcome!r}"
+            )
+        if state != "started":
+            raise ValueError(
+                "reconciliation is pending only for a durable STARTED effect: "
+                f"{execution_state!r}"
+            )
+        return "started-unreconciled"
     if terminal_outcome is None:
         if state is not None:
             raise ValueError(
@@ -254,6 +274,7 @@ def report_runtime_fault_outcome(
     *,
     terminal_outcome: str | None,
     execution_state: str | None = None,
+    reconciliation_pending: bool = False,
 ) -> str:
     """Record the derived outcome so the collector can read it out of JUnit XML.
 
@@ -263,7 +284,9 @@ def report_runtime_fault_outcome(
     """
 
     outcome = derive_terminal_outcome(
-        terminal_outcome=terminal_outcome, execution_state=execution_state
+        terminal_outcome=terminal_outcome,
+        execution_state=execution_state,
+        reconciliation_pending=reconciliation_pending,
     )
     record_property(_OUTCOME_PROPERTY, outcome)
     return outcome
