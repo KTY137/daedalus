@@ -30,6 +30,7 @@ evidence keeps them apart.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -70,6 +71,7 @@ _OUTCOMES = frozenset(
 _MAX_RAW_EVIDENCE_BYTES = 1024 * 1024
 _MAX_FACTS = 64
 _MAX_JUNIT_BYTES = 4 * 1024 * 1024
+_MAX_WIRE_BYTES = 2 * 1024 * 1024
 _MAX_STDOUT_CHARS = 8000
 _DEFAULT_TIMEOUT_SECONDS = 600
 
@@ -141,6 +143,19 @@ def _strict_payload(payload: Mapping[str, Any], cls: type, name: str) -> dict[st
     if missing or extra:
         raise ValueError(f"{name} fields mismatch; missing={missing}, extra={extra}")
     return dict(payload)
+
+
+def _object_pairs_no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant is not allowed: {value}")
 
 
 def _sequence(value: Any, name: str) -> tuple[Any, ...]:
@@ -463,6 +478,26 @@ class FixtureFaultEvidence:
             HostFaultFact.from_dict(row) for row in _sequence(body["facts"], "facts")
         )
         return cls(**body)
+
+
+def load_fixture_fault_evidence_json(text: str) -> FixtureFaultEvidence:
+    """Parse one untrusted evidence document without JSON ambiguity."""
+
+    if not isinstance(text, str):
+        raise ValueError("fixture fault evidence JSON must be text")
+    if len(text.encode("utf-8")) > _MAX_WIRE_BYTES:
+        raise ValueError("fixture fault evidence JSON exceeds two MiB")
+    try:
+        payload = json.loads(
+            text,
+            object_pairs_hook=_object_pairs_no_duplicates,
+            parse_constant=_reject_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError("fixture fault evidence JSON is malformed") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("fixture fault evidence JSON root must be an object")
+    return FixtureFaultEvidence.from_dict(payload)
 
 
 @dataclass(frozen=True)
@@ -920,6 +955,7 @@ __all__ = [
     "PytestNodeReport",
     "classify_pytest_invocation",
     "derive_terminal_outcome",
+    "load_fixture_fault_evidence_json",
     "parse_pytest_junit",
     "report_runtime_fault_outcome",
     "run_fixture_fault",
