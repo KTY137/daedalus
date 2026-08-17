@@ -69,6 +69,13 @@
                                         operability drill, each with its own state
                                         and provenance; exits non-zero when
                                         promotion is refused
+    daedalus fault-attestation issue|verify
+                                        operator step that signs retained
+                                        Linux-host runtime-fault observations
+                                        into the trust set, or checks a bundle;
+                                        the fault driver never calls it, so
+                                        producing evidence is not a way to
+                                        produce trust
     daedalus improve [--once] [--dry-run] [--limit N]
                                         rank the repo's own work by measurement;
                                         --once attempts the top item in an isolated
@@ -1156,6 +1163,13 @@ def main() -> None:
         _init(rest)
     elif cmd == "governance":
         raise SystemExit(_governance(rest))
+    elif cmd == "fault-attestation":
+        # Deliberately an operator command and nothing else. The fault driver
+        # produces evidence; only this separate, explicitly invoked step turns
+        # a retained observation into a trusted one, so a candidate that can
+        # write evidence still cannot write trust.
+        from .runtimes.fault_attestation_issuer import main as m
+        raise SystemExit(m(rest))
     else:
         print(f"unknown command '{cmd}'\n")
         print(_USAGE)
