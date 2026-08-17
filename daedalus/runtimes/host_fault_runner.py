@@ -41,6 +41,7 @@ _OUTCOMES = frozenset(
         "cancelled",
         "completed-before-quarantine",
         "unknown-reconciled",
+        "started-unreconciled",
     }
 )
 _MAX_RAW_EVIDENCE_BYTES = 1024 * 1024

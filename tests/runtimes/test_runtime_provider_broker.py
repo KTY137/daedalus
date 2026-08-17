@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.util
+import json
+import sqlite3
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -116,6 +118,27 @@ def _run(
         observation_authority=authority,
         observation_binding_ledger=ledger,
     )
+
+
+def _durable_execution_row(tmp_path: Path, execution_id: str) -> tuple[str, str | None]:
+    """Read the effect ledger's own row instead of the in-process view of it.
+
+    ``execution_state`` is a convenience reader on the same object under test. For
+    a fault row the durable bytes are the evidence, so the state and the terminal
+    receipt are read straight out of the SQLite file the ledger wrote.
+    """
+
+    connection = sqlite3.connect(str(tmp_path / "effect-leases.sqlite3"))
+    try:
+        row = connection.execute(
+            "SELECT state, terminal_receipt_json FROM effect_executions "
+            "WHERE execution_id=?",
+            (execution_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+    assert row is not None, "the effect must have reached a durable start"
+    return str(row[0]), row[1]
 
 
 def test_completed_provider_call_uses_exact_persisted_authority(
@@ -406,6 +429,7 @@ def test_post_provider_evidence_failure_remains_started(
 def test_terminal_persistence_failure_is_broker_state_error_and_stays_started(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    record_property,
 ) -> None:
     authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
 
@@ -421,4 +445,110 @@ def test_terminal_persistence_failure_is_broker_state_error_and_stays_started(
             ledger,
             invoke=lambda: "output",
         )
-    assert authorization.effect_ledger.execution_state(execution.execution_id) == "STARTED"
+    # The I/O error hit terminal persistence itself, so the honest durable record
+    # is the retained start: no terminal was invented for an external call that
+    # already happened, and no success was reported to the caller.
+    state, terminal_json = _durable_execution_row(tmp_path, execution.execution_id)
+    assert state == "STARTED"
+    assert terminal_json is None
+    assert authorization.effect_ledger.execution_state(execution.execution_id) == state
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=None,
+        execution_state=state,
+        reconciliation_pending=True,
+    )
+
+
+def test_keyboard_interrupt_is_cancelled_and_withholds_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_property,
+) -> None:
+    """Cancellation during the provider call must be fail-closed, not partial.
+
+    A KeyboardInterrupt is not an ordinary provider fault: it can arrive at any
+    point of the call and it must never leave a half-finished effect that a later
+    reader can mistake for a success.
+    """
+
+    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
+    evidence_calls: list[str] = []
+
+    def invoke():
+        raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        _run(
+            authorization,
+            execution,
+            authority,
+            ledger,
+            invoke=invoke,
+            output_digests=lambda value: evidence_calls.append(value) or (OUTPUT_SHA,),
+        )
+
+    # Three independent guarantees, checked separately so a regression in one of
+    # them cannot hide behind another: output evidence is never even requested,
+    # the durable terminal is CANCELLED rather than COMPLETED, and the receipt the
+    # ledger actually persisted carries no output digests at all.
+    assert evidence_calls == []
+    state, terminal_json = _durable_execution_row(tmp_path, execution.execution_id)
+    assert state == "CANCELLED"
+    assert terminal_json is not None
+    terminal = json.loads(terminal_json)
+    assert terminal["outcome"] == "CANCELLED"
+    assert terminal["output_digests"] == []
+    report_runtime_fault_outcome(
+        record_property, terminal_outcome=state, execution_state=state
+    )
+
+
+def test_missing_malformed_or_duplicate_output_digests_withhold_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_property,
+) -> None:
+    """Every unusable output-evidence shape must reach the same fail-closed state.
+
+    This is one node rather than four parametrized ones on purpose: the catalog
+    row names all of these injections together, and a matrix locator must resolve
+    to exactly one test case.
+    """
+
+    shapes = {
+        "duplicate": lambda value: (OUTPUT_SHA, OUTPUT_SHA),
+        "malformed": lambda value: ("not-a-digest",),
+        "missing": lambda value: (),
+        "uppercase": lambda value: (OUTPUT_SHA.upper(),),
+        "wrong-type": lambda value: (42,),
+    }
+    for name, digests in sorted(shapes.items()):
+        case = tmp_path / name
+        case.mkdir()
+        authorization, execution, authority, ledger = _subject(case, monkeypatch)
+        with pytest.raises(RuntimeProviderReconciliationRequired) as captured:
+            _run(
+                authorization,
+                execution,
+                authority,
+                ledger,
+                invoke=lambda: "external-output",
+                output_digests=digests,
+            )
+        assert captured.value.phase == "output-evidence", name
+        assert isinstance(captured.value.__cause__, ValueError), name
+        # The provider call already reached the outside world, so claiming FAILED
+        # would be as untrue as claiming COMPLETED. The boundary claims neither.
+        state, terminal_json = _durable_execution_row(case, execution.execution_id)
+        assert state == "STARTED", name
+        assert terminal_json is None, name
+        # The retained binding is what makes the start reconcilable later.
+        assert ledger.load(execution.execution_id) is not None, name
+
+    report_runtime_fault_outcome(
+        record_property,
+        terminal_outcome=None,
+        execution_state="STARTED",
+        reconciliation_pending=True,
+    )

@@ -395,6 +395,36 @@ def test_derivation_refuses_contradictions_and_unknown_terminals() -> None:
         derive_terminal_outcome(terminal_outcome="in-flight")
 
 
+def test_pending_reconciliation_is_named_only_for_a_durable_started_effect() -> None:
+    assert (
+        derive_terminal_outcome(
+            terminal_outcome=None,
+            execution_state="STARTED",
+            reconciliation_pending=True,
+        )
+        == "started-unreconciled"
+    )
+    # Without the explicit flag the same pair is still refused, so a node cannot
+    # slide into the token by forgetting an argument.
+    with pytest.raises(ValueError):
+        derive_terminal_outcome(terminal_outcome=None, execution_state="STARTED")
+    # And the flag cannot launder a state that did reach a terminal, or one that
+    # never became durable at all.
+    for state in ("COMPLETED", "CANCELLED", "FAILED", None):
+        with pytest.raises(ValueError):
+            derive_terminal_outcome(
+                terminal_outcome=None,
+                execution_state=state,
+                reconciliation_pending=True,
+            )
+    with pytest.raises(ValueError):
+        derive_terminal_outcome(
+            terminal_outcome="failed",
+            execution_state="STARTED",
+            reconciliation_pending=True,
+        )
+
+
 def test_reporting_helper_records_the_property_the_collector_reads() -> None:
     recorded: list[tuple[str, str]] = []
     outcome = report_runtime_fault_outcome(
@@ -406,19 +436,13 @@ def test_reporting_helper_records_the_property_the_collector_reads() -> None:
     assert recorded == [("runtime_fault_observed_outcome", "cancelled")]
 
 
-# Executor locators that do not resolve at this revision. Every entry is a
-# catalog row whose pytest node id names a test that no longer exists, so the
-# row can only ever be blocked as node-missing. The set is pinned rather than
-# merely observed: reconciling the catalog, renaming a test, or writing one of
-# the two genuinely absent scenarios must turn this test red and force the
-# inventory to be updated in the same beat.
-UNRESOLVED_FIXTURE_LOCATORS = frozenset(
-    {
-        "runtime.broker.cancellation",
-        "runtime.broker.malformed-output-evidence",
-        "runtime.effect-terminal.disk-full",
-    }
-)
+# Executor locators that do not resolve at this revision. Every entry would be a
+# catalog row whose pytest node id names a test that does not exist, so the row
+# could only ever be blocked as node-missing. The set is empty at this revision
+# and stays pinned rather than merely observed: renaming or deleting a named node
+# must turn this test red and force the inventory to be updated in the same beat,
+# instead of quietly degrading a matrix row into a block.
+UNRESOLVED_FIXTURE_LOCATORS: frozenset[str] = frozenset()
 
 
 def _collected_node_ids(relative_paths: set[str]) -> set[str]:
