@@ -564,6 +564,92 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "fan_out callee; no canonical effect start exists yet."
         ),
     ),
+    # Repository-mutation tier of the effect-boundary inventory.  The scanner
+    # can never infer repository_mutation (git argv), so it is hand-declared
+    # here; the discovered fs-write/spawn effects stay declared alongside.
+    EntrypointSpec(
+        id="tools.iron_plan_guard",
+        surface=Surface.CLI,
+        target="tools.iron_plan_guard:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "The plan guard itself: runs git plumbing and installs/serves the "
+            "commit hooks. Protected policy artifact -- this row inventories it "
+            "without touching the target."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.gate_discrimination",
+        surface=Surface.CLI,
+        target="tools.gate_discrimination:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Mutates a tree, runs the corpus, writes a receipt.",
+    ),
+    EntrypointSpec(
+        id="tools.bootstrap_receipt",
+        surface=Surface.CLI,
+        target="tools.bootstrap_receipt:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Bootstrap evidence run that touches git state while producing its receipt.",
+    ),
+    EntrypointSpec(
+        id="tools.operability_drill",
+        surface=Surface.CLI,
+        target="tools.operability_drill:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Operability drill that exercises git-touching recovery paths.",
+    ),
+    EntrypointSpec(
+        id="tools.gate_host_preflight",
+        surface=Surface.CLI,
+        target="tools.gate_host_preflight:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Host preflight that probes git and workspace state before gate runs.",
+    ),
+    EntrypointSpec(
+        id="tools.gui_check",
+        surface=Surface.CLI,
+        target="tools.gui_check:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_CONTROL,
+            Effect.PROCESS_SPAWN,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Spawns node/playwright, binds and kills a local dev server.",
+    ),
 )
 
 # Additional currently advertised/direct Python starts found by the static

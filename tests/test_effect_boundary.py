@@ -440,3 +440,56 @@ def test_paid_tools_doors_are_registered_with_spend_and_secrets() -> None:
     assert "tools.guarded_call:main" not in unregistered
     assert "tools.audit_swarm:main" not in unregistered
     assert "tools.funnel:main" not in unregistered
+
+
+def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
+    """Tier 2 of the inventory: git leaves no statically inferable sink.
+
+    Section 5 measured that ``repository_mutation`` can NEVER enter the
+    registry from a discovered sink -- git is argv, not an API call.  So the
+    five git-touching tool entrypoints (including the plan guard itself, whose
+    source is a protected artifact this registry row inventories without
+    touching) must declare it by hand, on top of the fs-write/spawn effects the
+    scanner does see; otherwise a row that starts rewriting history stays green
+    forever.
+    """
+    by_id = {row.id: row for row in ENTRYPOINTS}
+
+    for row_id in (
+        "tools.iron_plan_guard",
+        "tools.gate_discrimination",
+        "tools.bootstrap_receipt",
+        "tools.operability_drill",
+        "tools.gate_host_preflight",
+    ):
+        row = by_id[row_id]
+        assert row.surface is Surface.CLI
+        assert Effect.REPOSITORY_MUTATION in row.effects, (
+            f"{row_id} touches git; repository_mutation is hand-maintained"
+        )
+        assert {Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN} <= set(row.effects)
+        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    gui = by_id["tools.gui_check"]
+    assert {
+        Effect.FILESYSTEM_WRITE,
+        Effect.NETWORK_EGRESS,
+        Effect.PROCESS_CONTROL,
+        Effect.PROCESS_SPAWN,
+    } <= set(gui.effects)
+
+    report = check_conformance(ROOT)
+    unregistered = {
+        row.subject
+        for row in report.findings
+        if row.code == "entrypoint.unregistered" and row.severity == "blocker"
+    }
+    for target in (
+        "tools.iron_plan_guard:main",
+        "tools.gate_discrimination:main",
+        "tools.bootstrap_receipt:main",
+        "tools.operability_drill:main",
+        "tools.gate_host_preflight:main",
+        "tools.gui_check:main",
+    ):
+        assert target not in unregistered, target
