@@ -738,6 +738,77 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "it -- every effect here is hand-declared."
         ),
     ),
+    # daedalus/runtimes/ -- the runtime fault-matrix drivers.  All three are
+    # discovered as filesystem_write only: their spawn, containment and secret
+    # effects live behind a cross-module callee or a closure the literal-name
+    # sink match cannot follow, so those effects are hand-declared here.
+    EntrypointSpec(
+        id="runtimes.container_fault_driver",
+        surface=Surface.CLI,
+        target="daedalus.runtimes.container_fault_driver:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=("containment.attempt",),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(
+            GuardAnchor(
+                "daedalus.runtimes.container_fault_driver:"
+                "ContainerFaultDriver._run_script",
+                "run_in_docker_sandbox",
+            ),
+        ),
+        notes=(
+            "Drives the linux-host fault scenarios into a Docker container. It "
+            "never invokes docker itself -- the spawn and the bounded-effect "
+            "policy (read-only root, network=none, dropped caps, timeout_s) "
+            "both live in daedalus.kernel.sandbox.run_in_docker_sandbox, which "
+            "the scanner cannot see across the module edge. The anchor pins "
+            "that containment call so the row cannot rot into a raw spawn."
+        ),
+    ),
+    EntrypointSpec(
+        id="runtimes.fixture_fault_collector",
+        surface=Surface.CLI,
+        target="daedalus.runtimes.fixture_fault_collector:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(
+            GuardAnchor(
+                "daedalus.runtimes.fixture_fault_collector:main",
+                "subprocess_pytest_runner",
+            ),
+        ),
+        notes=(
+            "Spawns one pytest subprocess per fixture fault row and retains "
+            "the evidence. The subprocess.run (with its timeout, hence "
+            "process_control) sits in a closure returned by "
+            "subprocess_pytest_runner, which the scanner does not enter; the "
+            "anchor pins main's use of that runner seam instead."
+        ),
+    ),
+    EntrypointSpec(
+        id="runtimes.fault_attestation_issuer",
+        surface=Surface.CLI,
+        target="daedalus.runtimes.fault_attestation_issuer:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.SECRETS),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Signs retained linux-host fault observations into an attestation "
+            "bundle. It reads the signing key from the environment "
+            "(_secret_from_env), so secrets is hand-declared: a signing door "
+            "that stayed green while handling a key is exactly the row this "
+            "inventory exists to name. It grants authenticity, never a verdict."
+        ),
+    ),
     # runs/ -- production-capable entrypoints that spend money; five of these
     # functions appear in daedalus.budget.BILLABLE_SITES.  spend/secrets/
     # repository_mutation are hand-declared (section-5 limits of the scanner).
@@ -861,6 +932,24 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=(),
         wiring=Wiring.INVENTORY_ONLY,
         notes="Writes the blinded comparison sheet.",
+    ),
+    EntrypointSpec(
+        id="runs.gate0_matrix.verify_whole_matrix",
+        surface=Surface.CLI,
+        target="runs.gate0-matrix-2026-08-17.verify_whole_matrix:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.SECRETS),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Assembles both collector columns into one matrix and writes the "
+            "whole-matrix verdict. It reads BOTH issuer keys from the "
+            "environment, so secrets is hand-declared. KNOWN FRAGILITY, named "
+            "rather than hidden: the target carries a dated run directory, so "
+            "the next matrix run mints a fresh unregistered blocker and this "
+            "row goes stale the day its evidence folder is pruned. Moving the "
+            "verifier to a stable path is an owner decision -- the script is "
+            "deliberately retained beside the evidence it produced."
+        ),
     ),
 )
 
