@@ -22,6 +22,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Iterable, Mapping, Sequence
@@ -506,6 +507,361 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes="Daedalus inventories/vets MCP config but does not implement an MCP runtime boundary.",
         discoverable=False,
     ),
+    EntrypointSpec(
+        id="tools.guarded_call",
+        surface=Surface.CLI,
+        target="tools.guarded_call:main",
+        effects=(Effect.NETWORK_EGRESS, Effect.SPEND, Effect.SECRETS),
+        guard_contracts=("budget.process_guard", "provider.egress_policy"),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(GuardAnchor("tools.guarded_call:main", "run"),),
+        notes=(
+            "Process-boundary door for external-environment callers; budget and "
+            "secret-floor refusals live in DeepSeekProvider.run (the anchored "
+            "delegated call). The static scanner cannot see this cross-module "
+            "sink, so spend/secrets here are hand-declared."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.audit_swarm",
+        surface=Surface.CLI,
+        target="tools.audit_swarm:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(GuardAnchor("tools.audit_swarm:main", "fan_out"),),
+        notes=(
+            "Paid fan-out. The spend guard is installed fail-closed inside the "
+            "anchored fan_out callee (daedalus.lanes.fanout), not by this "
+            "entrypoint itself; no canonical effect start exists yet."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.funnel",
+        surface=Surface.CLI,
+        target="tools.funnel:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(
+            GuardAnchor("tools.funnel:main", "fan_out"),
+            GuardAnchor("tools.funnel:main", "budget_verdict"),
+        ),
+        notes=(
+            "Paid tiered fan-out. Local budget verdict runs before dispatch and "
+            "the spend guard is installed fail-closed inside the anchored "
+            "fan_out callee; no canonical effect start exists yet."
+        ),
+    ),
+    # Repository-mutation tier of the effect-boundary inventory.  The scanner
+    # can never infer repository_mutation (git argv), so it is hand-declared
+    # here; the discovered fs-write/spawn effects stay declared alongside.
+    EntrypointSpec(
+        id="tools.iron_plan_guard",
+        surface=Surface.CLI,
+        target="tools.iron_plan_guard:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "The plan guard itself: runs git plumbing and installs/serves the "
+            "commit hooks. Protected policy artifact -- this row inventories it "
+            "without touching the target."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.gate_discrimination",
+        surface=Surface.CLI,
+        target="tools.gate_discrimination:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Mutates a tree, runs the corpus, writes a receipt.",
+    ),
+    EntrypointSpec(
+        id="tools.bootstrap_receipt",
+        surface=Surface.CLI,
+        target="tools.bootstrap_receipt:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Bootstrap evidence run that touches git state while producing its receipt.",
+    ),
+    EntrypointSpec(
+        id="tools.operability_drill",
+        surface=Surface.CLI,
+        target="tools.operability_drill:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Operability drill that exercises git-touching recovery paths.",
+    ),
+    EntrypointSpec(
+        id="tools.gate_host_preflight",
+        surface=Surface.CLI,
+        target="tools.gate_host_preflight:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Host preflight that probes git and workspace state before gate runs.",
+    ),
+    EntrypointSpec(
+        id="tools.gui_check",
+        surface=Surface.CLI,
+        target="tools.gui_check:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_CONTROL,
+            Effect.PROCESS_SPAWN,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Spawns node/playwright, binds and kills a local dev server.",
+    ),
+    # Write-only / spawn-only tool entrypoints; effects as discovered.
+    EntrypointSpec(
+        id="tools.mutation_score",
+        surface=Surface.CLI,
+        target="tools.mutation_score:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Scores mutation runs and writes the report.",
+    ),
+    EntrypointSpec(
+        id="tools.audit_triage",
+        surface=Surface.CLI,
+        target="tools.audit_triage:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Triages audit findings into a written worklist.",
+    ),
+    EntrypointSpec(
+        id="tools.agent_findings",
+        surface=Surface.CLI,
+        target="tools.agent_findings:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Collects agent findings and writes the digest.",
+    ),
+    EntrypointSpec(
+        id="tools.lane_invariants",
+        surface=Surface.CLI,
+        target="tools.lane_invariants:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Checks lane invariants and writes the result file.",
+    ),
+    EntrypointSpec(
+        id="tools.funnel_report",
+        surface=Surface.CLI,
+        target="tools.funnel_report:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Reads a finished funnel run directory; the fan_out mention in its source is docstring only.",
+    ),
+    EntrypointSpec(
+        id="tools.run_gate_checks",
+        surface=Surface.CLI,
+        target="tools.run_gate_checks:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Runs the canonical gate verification profiles via subprocess pytest.",
+    ),
+    EntrypointSpec(
+        id="tools.iron_plan_hook_runner",
+        surface=Surface.CLI,
+        target="tools.iron_plan_hook_runner:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Hook shim that re-executes the plan guard. Protected policy "
+            "artifact -- this row inventories it without touching the target."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.system_check",
+        surface=Surface.CLI,
+        target="tools.system_check:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_CONTROL,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "End-to-end acceptance probe: clones the working tree, spawns "
+            "servers, opens sockets and writes probe files. Dispatch goes "
+            "through the CHECKS table, so the static scanner cannot classify "
+            "it -- every effect here is hand-declared."
+        ),
+    ),
+    # runs/ -- production-capable entrypoints that spend money; five of these
+    # functions appear in daedalus.budget.BILLABLE_SITES.  spend/secrets/
+    # repository_mutation are hand-declared (section-5 limits of the scanner).
+    EntrypointSpec(
+        id="runs.council.room",
+        surface=Surface.CLI,
+        target="runs.council.room:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Cross-vendor room: five billable vendors including ssh; every "
+            "ask_* site is priced in BILLABLE_SITES but no canonical effect "
+            "start exists."
+        ),
+    ),
+    EntrypointSpec(
+        id="runs.council.summarize",
+        surface=Surface.CLI,
+        target="runs.council.summarize:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Billable summarisers (cli/ollama); found by the budget drift detector after a hand audit missed it.",
+    ),
+    EntrypointSpec(
+        id="runs.council.room_server",
+        surface=Surface.CLI,
+        target="runs.council.room_server:main",
+        effects=(
+            Effect.LISTEN_SOCKET,
+            Effect.FILESYSTEM_WRITE,
+            Effect.SPEND,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Binds a loopback HTTP server through a ThreadingHTTPServer "
+            "SUBCLASS, which defeats the scanner's literal-name sink match -- "
+            "listen_socket is hand-declared. Drives the paid room."
+        ),
+    ),
+    EntrypointSpec(
+        id="runs.council.room_server.post",
+        surface=Surface.WEB_API,
+        target="runs.council.room_server:Handler.do_POST",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Room-server mutation handler; loopback bind, no request-level effect start.",
+    ),
+    EntrypointSpec(
+        id="runs.council.stream_hook",
+        surface=Surface.CLI,
+        target="runs.council.stream_hook:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Streams room events into the transcript.",
+    ),
+    EntrypointSpec(
+        id="runs.council.dead_letter_replay",
+        surface=Surface.CLI,
+        target="runs.council.dead_letter_replay:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Replays dead-lettered room messages into the transcript.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.run_arm",
+        surface=Surface.CLI,
+        target="runs.ab.run_arm:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Billable A/B arm (call_claude in BILLABLE_SITES); mutates its arm worktree.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.score",
+        surface=Surface.CLI,
+        target="runs.ab.score:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Scores A/B arms; touches git state while scoring.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.oracle_check",
+        surface=Surface.CLI,
+        target="runs.ab.oracle_check:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Runs the oracle over finished arms and writes the verdict.",
+    ),
+    EntrypointSpec(
+        id="runs.ab.blind",
+        surface=Surface.CLI,
+        target="runs.ab.blind:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Writes the blinded comparison sheet.",
+    ),
 )
 
 # Additional currently advertised/direct Python starts found by the static
@@ -546,13 +902,11 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
         Wiring.INVENTORY_ONLY,
     ),
-    (
-        "cli.claude_bridge",
-        Surface.CLI,
-        "daedalus.claude_bridge:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
+    # cli.claude_bridge was deleted from this inventory 2026-08-17: the target
+    # is now a fail-closed stub (parser.error, no effect), so its row declared
+    # effects the code cannot perform and produced the registry's only
+    # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
+    # effectful body the scanner will rediscover it as an unregistered blocker.
     (
         "cli.dctx",
         Surface.CLI,
@@ -634,10 +988,19 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
     ),
     ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
     (
+        # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:
+        # run reads DEEPSEEK_API_KEY, and chat_completion is priced through
+        # daedalus.budget._guarded_urlopen, so the busiest paid lane declares
+        # spend/egress/secrets instead of filesystem_write alone.
         "provider.deepseek",
         Surface.PYTHON,
         "daedalus.providers.deepseek:DeepSeekProvider.run",
-        (Effect.FILESYSTEM_WRITE,),
+        (
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
         Wiring.INVENTORY_ONLY,
     ),
     (
@@ -970,7 +1333,27 @@ def _name(node: ast.AST, aliases: Mapping[str, str]) -> str:
 #: Python that the scan never opens was not among them, and an undocumented
 #: blind spot is worse than a documented one: the honest gaps invite scrutiny
 #: while this one quietly answered "no drift" for code it had never read.
-SCAN_PACKAGES: tuple[str, ...] = ("daedalus", "tools")
+#: Widened 2026-08-17: ``runs`` is production-capable and spends money --
+#: ``daedalus.budget.BILLABLE_SITES`` lists five of its functions as billable
+#: (council room vendors, summarisers, ab run_arm) -- yet the scan never
+#: opened the directory.  Same lesson as ``tools`` above: an unscanned
+#: directory of effectful Python is an undocumented blind spot that quietly
+#: answers "no drift".  ``scripts`` and ``tests`` remain outside the scan
+#: deliberately until an explicit harness classification exists, so widening
+#: does not turn ~90 dev-harness entrypoints into blockers overnight; that
+#: exclusion is documented here rather than silent.
+SCAN_PACKAGES: tuple[str, ...] = ("daedalus", "tools", "runs")
+
+#: Dev-harness directories the conformance pass reads and CLASSIFIES without
+#: policing them as production surface.  Measured 2026-08-17: 74 mutation-run
+#: scripts and 17 test fixtures are effectful entrypoints.  Leaving them
+#: unscanned would repeat the blind-spot mistake documented above; promoting
+#: them to blockers would turn the gate off rather than close it (nobody
+#: registers 91 dev runners honestly in one sitting).  So every discovered,
+#: unregistered entrypoint here becomes an explicit ``entrypoint.harness``
+#: review finding: named, counted, and outside Gate-0 wiring by declaration
+#: rather than by silence.
+HARNESS_PACKAGES: tuple[str, ...] = ("scripts", "tests")
 
 
 def _models(
@@ -1188,6 +1571,7 @@ def discover_entrypoints(
     _preloaded: tuple[
         list[_ModuleModel], list[ConformanceFinding]
     ] | None = None,
+    _console_scripts: bool = True,
 ) -> tuple[
     tuple[DiscoveredEntrypoint, ...], tuple[ConformanceFinding, ...]
 ]:
@@ -1291,6 +1675,9 @@ def discover_entrypoints(
     # supported and has no tomllib, so parse only this deliberately tiny TOML
     # table instead of adding a runtime dependency.  Unexpected syntax inside
     # the table is a blocker rather than a silently ignored line.
+    if not _console_scripts:
+        return tuple(sorted(rows.values(), key=lambda row: row.target)), tuple(findings)
+
     pyproject = root_path / "pyproject.toml"
     try:
         scripts = _project_scripts(pyproject.read_text(encoding="utf-8"))
@@ -1384,6 +1771,36 @@ def _called_names(
 ) -> set[str]:
     _effects, _evidence, calls = _direct_effects(node, aliases)
     return calls
+
+
+@lru_cache(maxsize=8)
+def _harness_scan(
+    root: str,
+) -> tuple[tuple[DiscoveredEntrypoint, ...], tuple[ConformanceFinding, ...]]:
+    """Read HARNESS_PACKAGES once per process and root.
+
+    The harness population (~550 files) dominates conformance wall time, and
+    a test session calls :func:`check_conformance` many times against the same
+    tree.  The cache is per-process only: the CLI and CI pay the scan exactly
+    once per invocation, so drift detection across runs is unaffected.  Within
+    one long-lived process a harness file edited after the first scan is seen
+    only after ``_harness_scan.cache_clear()`` -- an accepted, stated bound,
+    not a silent one.  Production packages are never cached.
+    """
+    root_path = Path(root)
+    models, findings = _models(root_path, HARNESS_PACKAGES)
+    downgraded = tuple(
+        ConformanceFinding(
+            "scan.harness_source_unreadable", "review", row.subject, row.detail
+        )
+        for row in findings
+        if row.code != "scan.package_missing"
+        # a repo without harness dirs has nothing to classify
+    )
+    rows, _scan_findings = discover_entrypoints(
+        root_path, _preloaded=(models, []), _console_scripts=False
+    )
+    return rows, downgraded
 
 
 def check_conformance(
@@ -1584,6 +2001,29 @@ def check_conformance(
                     f"{row.target} is {row.wiring.value}; Gate 0 is not closed",
                 )
             )
+
+    # Dev-harness classification: read the harness directories with the same
+    # discovery, but emit review findings instead of blockers.  A harness
+    # entrypoint is out of Gate-0 wiring scope by DECLARATION; silence would
+    # be the old blind spot and blockers would just get the gate disabled.
+    harness_rows, harness_findings = _harness_scan(str(root_path))
+    findings.extend(harness_findings)
+    for row in harness_rows:
+        if row.target in targets:
+            continue
+        findings.append(
+            ConformanceFinding(
+                "entrypoint.harness",
+                "review",
+                row.target,
+                (
+                    "dev-harness entrypoint ("
+                    + ", ".join(effect.value for effect in row.effects)
+                    + ") outside the production registry; explicitly classified "
+                    "out-of-scope for Gate-0 wiring, not silently unscanned"
+                ),
+            )
+        )
 
     findings.append(
         ConformanceFinding(
