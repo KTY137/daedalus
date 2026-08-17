@@ -394,3 +394,49 @@ def test_promotion_row_is_owner_guarded_before_any_worktree() -> None:
         "authorize_promotion",
         "resolve_live_target_revision",
     }
+
+
+def test_paid_tools_doors_are_registered_with_spend_and_secrets() -> None:
+    """Tier-0 of the effect-boundary inventory: money and keys leave the machine.
+
+    ``tools/guarded_call.py`` is the deliberate external-model door (its only
+    sink is a cross-module ``DeepSeekProvider.run`` call the scanner can never
+    see), and ``audit_swarm``/``funnel`` are the paid fan-outs. These three and
+    the ``provider.deepseek`` lane they ride on must declare ``spend`` and
+    ``secrets`` by hand, because section 5 of the inventory measured that no
+    static sink can ever infer either effect -- an unregistered or
+    under-declared row here stays green while it spends.
+    """
+    by_id = {row.id: row for row in ENTRYPOINTS}
+
+    for row_id in ("tools.guarded_call", "tools.audit_swarm", "tools.funnel"):
+        row = by_id[row_id]
+        assert row.surface is Surface.CLI
+        assert Effect.SPEND in row.effects, f"{row_id} must declare spend"
+        assert Effect.SECRETS in row.effects, f"{row_id} must declare secrets"
+        assert Effect.NETWORK_EGRESS in row.effects
+        assert "budget.process_guard" in row.guard_contracts
+        # inventory_only is the honest wiring: the guards live in callees and
+        # no canonical effect start exists yet.  central would be a lie.
+        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    # the fan-outs stay anchored to the callee that installs the spend guard
+    assert any(a.call == "fan_out" for a in by_id["tools.audit_swarm"].anchors)
+    assert any(a.call == "fan_out" for a in by_id["tools.funnel"].anchors)
+
+    deepseek = by_id["provider.deepseek"]
+    assert {Effect.SPEND, Effect.SECRETS, Effect.NETWORK_EGRESS} <= set(
+        deepseek.effects
+    ), "the busiest paid lane must not be declared filesystem_write-only"
+
+    # and the registry rows are live: none of the three tools targets is an
+    # unregistered blocker anymore, without silencing the rest of tools/
+    report = check_conformance(ROOT)
+    unregistered = {
+        row.subject
+        for row in report.findings
+        if row.code == "entrypoint.unregistered" and row.severity == "blocker"
+    }
+    assert "tools.guarded_call:main" not in unregistered
+    assert "tools.audit_swarm:main" not in unregistered
+    assert "tools.funnel:main" not in unregistered

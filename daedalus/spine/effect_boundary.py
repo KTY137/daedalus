@@ -506,6 +506,64 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes="Daedalus inventories/vets MCP config but does not implement an MCP runtime boundary.",
         discoverable=False,
     ),
+    EntrypointSpec(
+        id="tools.guarded_call",
+        surface=Surface.CLI,
+        target="tools.guarded_call:main",
+        effects=(Effect.NETWORK_EGRESS, Effect.SPEND, Effect.SECRETS),
+        guard_contracts=("budget.process_guard", "provider.egress_policy"),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(GuardAnchor("tools.guarded_call:main", "run"),),
+        notes=(
+            "Process-boundary door for external-environment callers; budget and "
+            "secret-floor refusals live in DeepSeekProvider.run (the anchored "
+            "delegated call). The static scanner cannot see this cross-module "
+            "sink, so spend/secrets here are hand-declared."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.audit_swarm",
+        surface=Surface.CLI,
+        target="tools.audit_swarm:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(GuardAnchor("tools.audit_swarm:main", "fan_out"),),
+        notes=(
+            "Paid fan-out. The spend guard is installed fail-closed inside the "
+            "anchored fan_out callee (daedalus.lanes.fanout), not by this "
+            "entrypoint itself; no canonical effect start exists yet."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.funnel",
+        surface=Surface.CLI,
+        target="tools.funnel:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.INVENTORY_ONLY,
+        anchors=(
+            GuardAnchor("tools.funnel:main", "fan_out"),
+            GuardAnchor("tools.funnel:main", "budget_verdict"),
+        ),
+        notes=(
+            "Paid tiered fan-out. Local budget verdict runs before dispatch and "
+            "the spend guard is installed fail-closed inside the anchored "
+            "fan_out callee; no canonical effect start exists yet."
+        ),
+    ),
 )
 
 # Additional currently advertised/direct Python starts found by the static
@@ -634,10 +692,19 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
     ),
     ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
     (
+        # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:
+        # run reads DEEPSEEK_API_KEY, and chat_completion is priced through
+        # daedalus.budget._guarded_urlopen, so the busiest paid lane declares
+        # spend/egress/secrets instead of filesystem_write alone.
         "provider.deepseek",
         Surface.PYTHON,
         "daedalus.providers.deepseek:DeepSeekProvider.run",
-        (Effect.FILESYSTEM_WRITE,),
+        (
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
         Wiring.INVENTORY_ONLY,
     ),
     (
