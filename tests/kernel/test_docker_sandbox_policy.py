@@ -31,9 +31,59 @@ def test_docker_policy_builds_non_root_offline_bounded_argv(tmp_path: Path) -> N
     assert "--network none" in joined
     assert "--cap-drop ALL" in joined
     assert "no-new-privileges:true" in joined
-    assert f"src={workspace.resolve()},dst=/workspace,rw" in joined
+    assert f"src={workspace.resolve()},dst=/workspace" in joined
     assert f"src={reference.resolve()},dst=/reference,ro" in joined
     assert "--memory" in argv and "--cpus" in argv and "--pids-limit" in argv
+
+
+# Docker's --mount parser accepts only these bare (valueless) fields. A bare
+# "rw" is rejected with exit 125, which run_in_docker_sandbox classifies as
+# refused-before-start -- so an invalid spelling here silently degrades every
+# sandboxed attempt into a refusal that never runs the container at all.
+_BARE_MOUNT_FIELDS = frozenset({"readonly", "ro"})
+_KEYED_MOUNT_FIELDS = frozenset(
+    {
+        "type",
+        "source",
+        "src",
+        "destination",
+        "dst",
+        "target",
+        "readonly",
+        "ro",
+        "bind-propagation",
+        "consistency",
+        "volume-nocopy",
+        "volume-driver",
+        "tmpfs-size",
+        "tmpfs-mode",
+    }
+)
+
+
+def test_every_mount_spec_uses_only_fields_the_docker_cli_accepts(tmp_path: Path) -> None:
+    workspace = tmp_path / "candidate"
+    reference = tmp_path / "reference"
+    workspace.mkdir()
+    reference.mkdir()
+    policy = DockerSandboxPolicy(
+        image=IMAGE,
+        candidate_workspace=workspace,
+        reference_mounts=(SandboxMount(reference, "/reference", True),),
+    )
+    argv = policy.argv(("python", "-m", "fixture"))
+    specs = [argv[index + 1] for index, part in enumerate(argv) if part == "--mount"]
+    assert len(specs) == 2
+    for spec in specs:
+        for field in spec.split(","):
+            if "=" in field:
+                key = field.split("=", 1)[0]
+                assert key in _KEYED_MOUNT_FIELDS, f"invalid --mount key {key!r} in {spec!r}"
+            else:
+                assert field in _BARE_MOUNT_FIELDS, (
+                    f"invalid bare --mount field {field!r} in {spec!r}; "
+                    "the Docker CLI rejects it with exit 125"
+                )
 
 
 def test_docker_policy_refuses_unpinned_root_network_and_unsafe_mounts(tmp_path: Path) -> None:

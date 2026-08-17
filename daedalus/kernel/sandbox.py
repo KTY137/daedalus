@@ -104,13 +104,15 @@ class DockerSandboxPolicy:
             "--user", self.user,
             "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges:true",
-            "--mount", f"type=bind,src={self.candidate_workspace},dst=/workspace,rw",
+            "--mount", f"type=bind,src={self.candidate_workspace},dst=/workspace",
             "--tmpfs", f"/tmp:rw,noexec,nosuid,size={self.tmpfs_size}",
             "--workdir", "/workspace",
         ]
         for mount in sorted(self.reference_mounts, key=lambda item: item.target):
-            mode = "ro" if mount.read_only else "rw"
-            argv.extend(["--mount", f"type=bind,src={mount.source},dst={mount.target},{mode}"])
+            spec = f"type=bind,src={mount.source},dst={mount.target}"
+            if mount.read_only:
+                spec += ",ro"
+            argv.extend(["--mount", spec])
         argv.append(self.image)
         argv.extend(cmd)
         return tuple(argv)
