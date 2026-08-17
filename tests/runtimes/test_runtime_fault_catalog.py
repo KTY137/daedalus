@@ -81,12 +81,19 @@ def _trusted(observations) -> tuple[str, ...]:
     return tuple(row.digest for row in observations)
 
 
-def _verify(matrix: RuntimeFaultMatrix, trusted=(), *, revision: str = REVISION):
+def _verify(
+    matrix: RuntimeFaultMatrix,
+    trusted=(),
+    *,
+    revision: str = REVISION,
+    now: str = NOW,
+):
     return verify_runtime_fault_matrix(
         matrix,
         catalog=RUNTIME_FAULT_CATALOG,
         expected_source_revision=revision,
         trusted_observation_digests=tuple(trusted),
+        now=now,
     )
 
 

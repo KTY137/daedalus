@@ -5,6 +5,7 @@ responsibility is explicit while existing imports remain stable during the
 strangler migration.
 """
 from .fault_matrix import (
+    RECONCILIATION_DEADLINE_SECONDS,
     RUNTIME_FAULT_CATALOG,
     RuntimeFaultCatalog,
     RuntimeFaultMatrix,
@@ -16,6 +17,7 @@ from .fault_matrix import (
 )
 
 __all__ = [
+    "RECONCILIATION_DEADLINE_SECONDS",
     "RUNTIME_FAULT_CATALOG",
     "RuntimeFaultCatalog",
     "RuntimeFaultMatrix",
