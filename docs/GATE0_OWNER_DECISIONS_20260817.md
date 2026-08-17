@@ -72,16 +72,21 @@ Beide aus dem Amendment-005-Umfeld übernommen (Session-Journal 2026-08-17,
 Revision-4-Plantext rebased werden muss — Textabgleich an geschützten
 Artefakten, daher Owner.
 
-## Zusatz: Checkpoint-Branch hängt zwei Amendments zurück
+## Zusatz: Amendment-005-Kit — ERLEDIGT, kein Owner-Run mehr nötig
 
-`docs/recovery/amendment_005_kit.py apply` auf dem Checkpoint-Branch ist
-vorbereitet und selftest-grün; der Harness-Classifier blockiert die Ausführung
-durch Agenten (erwartetes Verhalten, dokumentierte Grenze). Owner-Einzeiler:
+KORREKTUR (17:10): Eine frühere Fassung dieses Abschnitts empfahl einen
+Owner-Einzeiler. Das war falsch. Das Kit zielt per `--root`-Default auf den
+Trunk (`DEFAULT_ROOT = agent_env_g0`, Kit Zeile 35), und dort ist Amendment
+005 seit heute Nachmittag vollzogen (`900665e`, Trunk-Verfassung Revision 4,
+verify Exit 0). Die ABORTs bei erneuten Läufen ("expected guard block not
+found exactly once") sind die Idempotenz-Sicherung des Kits — MEASURED
+17:08 durch den Owner-Lauf selbst; der Trunk-Guard trägt den neuen Block
+(`_RETAINED_SOURCE_GIT_BLOB_SHA1` vorhanden).
 
-```powershell
-cd C:\Users\nukei\Desktop\agent_env
-python docs/recovery/amendment_005_kit.py apply
-```
-
-Danach die zwei vom Kit ausgedruckten Commit-Zeilen ausführen (Token wird
-mit ausgegeben).
+Offen bleibt nur die getrennte Frage, ob der historische Checkpoint-Branch
+(Verfassung Revision 1, zwei Amendments hinter dem Trunk) nachgezogen werden
+soll. Dafür passt das Kit NICHT (sein OLD_BLOCK stammt aus dem
+Trunk-Guard-Text nach der Promotion-Versiegelung; im Rev-1-Guard kommt er
+nicht vor). Empfehlung: nicht nachziehen — der Trunk ist die Vorwärtslinie;
+wenn doch gewünscht, braucht es ein checkpoint-spezifisches Kit als eigene
+Owner-Entscheidung.
