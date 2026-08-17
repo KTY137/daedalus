@@ -31,7 +31,7 @@ def _legacy_writer(root: Path) -> None:
     (root / "daedalus" / "legacy_writer.py").write_text(
         "from daedalus.spine import SpineLedger\n"
         "SpineLedger('state.sqlite3')\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
 
 

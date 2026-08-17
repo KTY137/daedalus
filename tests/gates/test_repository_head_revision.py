@@ -29,27 +29,27 @@ def _git_dir(tmp_path: Path) -> Path:
 
 def _detached(tmp_path: Path, revision: str = REVISION) -> Path:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text(revision + "\n", encoding="utf-8")
+    (git / "HEAD").write_text(revision + "\n", encoding="utf-8", newline="\n")
     return tmp_path
 
 
 def _symbolic_loose(tmp_path: Path, revision: str = REVISION) -> Path:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     ref = git / "refs" / "heads" / "main"
     ref.parent.mkdir(parents=True)
-    ref.write_text(revision + "\n", encoding="utf-8")
+    ref.write_text(revision + "\n", encoding="utf-8", newline="\n")
     return tmp_path
 
 
 def _symbolic_packed(tmp_path: Path, revision: str = REVISION) -> Path:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     (git / "packed-refs").write_text(
         "# pack-refs with: peeled fully-peeled sorted\n"
         f"{revision} refs/heads/main\n"
         f"{OTHER_REVISION} refs/tags/example\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     return tmp_path
 
@@ -126,7 +126,7 @@ def test_stale_expected_revision_refuses(tmp_path: Path) -> None:
 )
 def test_malformed_head_refuses(tmp_path: Path, head: str) -> None:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text(head, encoding="utf-8")
+    (git / "HEAD").write_text(head, encoding="utf-8", newline="\n")
 
     with pytest.raises(RepositoryHeadRevisionShapeError):
         verify_repository_head_revision(tmp_path, REVISION)
@@ -134,10 +134,10 @@ def test_malformed_head_refuses(tmp_path: Path, head: str) -> None:
 
 def test_nested_symbolic_ref_refuses_conservatively(tmp_path: Path) -> None:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/alias\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/alias\n", encoding="utf-8", newline="\n")
     ref = git / "refs" / "heads" / "alias"
     ref.parent.mkdir(parents=True)
-    ref.write_text("ref: refs/heads/main\n", encoding="utf-8")
+    ref.write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(
         RepositoryHeadRevisionShapeError,
@@ -148,7 +148,7 @@ def test_nested_symbolic_ref_refuses_conservatively(tmp_path: Path) -> None:
 
 def test_missing_symbolic_ref_and_packed_refs_refuses(tmp_path: Path) -> None:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(RepositoryHeadRevisionShapeError):
         verify_repository_head_revision(tmp_path, REVISION)
@@ -156,11 +156,11 @@ def test_missing_symbolic_ref_and_packed_refs_refuses(tmp_path: Path) -> None:
 
 def test_duplicate_packed_ref_refuses(tmp_path: Path) -> None:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     (git / "packed-refs").write_text(
         f"{REVISION} refs/heads/main\n"
         f"{REVISION} refs/heads/main\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
 
     with pytest.raises(
@@ -173,7 +173,7 @@ def test_duplicate_packed_ref_refuses(tmp_path: Path) -> None:
 def test_worktree_gitfile_is_not_misrepresented_as_verified(tmp_path: Path) -> None:
     (tmp_path / ".git").write_text(
         "gitdir: ../metadata/worktrees/example\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
 
     with pytest.raises(
@@ -187,7 +187,7 @@ def test_worktree_gitfile_is_not_misrepresented_as_verified(tmp_path: Path) -> N
 def test_git_directory_symlink_refuses(tmp_path: Path) -> None:
     target = tmp_path / "metadata"
     target.mkdir()
-    (target / "HEAD").write_text(REVISION + "\n", encoding="utf-8")
+    (target / "HEAD").write_text(REVISION + "\n", encoding="utf-8", newline="\n")
     (tmp_path / ".git").symlink_to(target, target_is_directory=True)
 
     with pytest.raises(RepositoryHeadRevisionShapeError):
@@ -197,15 +197,15 @@ def test_git_directory_symlink_refuses(tmp_path: Path) -> None:
 @pytest.mark.skipif(os.name == "nt", reason="symlink creation is not portable")
 def test_loose_ref_symlink_cannot_fall_back_to_packed_refs(tmp_path: Path) -> None:
     git = _git_dir(tmp_path)
-    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8", newline="\n")
     outside = tmp_path / "outside-ref"
-    outside.write_text(REVISION + "\n", encoding="utf-8")
+    outside.write_text(REVISION + "\n", encoding="utf-8", newline="\n")
     ref = git / "refs" / "heads" / "main"
     ref.parent.mkdir(parents=True)
     ref.symlink_to(outside)
     (git / "packed-refs").write_text(
         f"{REVISION} refs/heads/main\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
 
     with pytest.raises(
@@ -231,7 +231,7 @@ def test_head_change_between_observations_refuses_as_race(
             if calls == 1:
                 (root / ".git" / "HEAD").write_text(
                     OTHER_REVISION + "\n",
-                    encoding="utf-8",
+                    encoding="utf-8", newline="\n",
                 )
         return snapshot
 

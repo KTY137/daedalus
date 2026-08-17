@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from daedalus.gates.evidence import load_gate_evidence_index
+from daedalus.gates import load_gate_evidence_index
 from daedalus.gates.release import load_gate0_release_receipt
 from daedalus.gates.trust_bundle import load_evidence_trust_bundle
 

@@ -227,7 +227,7 @@ def _repo(tmp_path: Path) -> Path:
     workflow.parent.mkdir(parents=True)
     workflow.write_text(
         "name: Gate 0 contracts\non: [workflow_dispatch]\njobs: {}\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     return root
 
@@ -334,7 +334,7 @@ def test_signed_bundle_round_trip_and_strict_verification(tmp_path: Path) -> Non
     )
 
     path = tmp_path / "bundle.json"
-    path.write_text(json.dumps(bundle.to_dict()), encoding="utf-8")
+    path.write_text(json.dumps(bundle.to_dict()), encoding="utf-8", newline="\n")
     assert load_evidence_trust_bundle(path) == bundle
 
 
@@ -379,14 +379,14 @@ def test_workflow_bytes_revision_and_tree_are_rechecked(
 
     (root / WORKFLOW_PATH).write_text(
         "name: changed\non: [push]\njobs: {}\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(EvidenceTrustBundleBindingError, match="definition"):
         _verify(bundle, index, root)
 
     (root / WORKFLOW_PATH).write_text(
         "name: Gate 0 contracts\non: [workflow_dispatch]\njobs: {}\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(EvidenceTrustBundleBindingError, match="repository path"):
         _verify(
@@ -475,7 +475,7 @@ def test_workflow_path_membership_scope_and_symlink_refuse(
     outside_workflows.mkdir(parents=True)
     (outside_workflows / "gate.yml").write_text(
         "name: foreign\non: [push]\njobs: {}\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     try:
         (parent_root / ".github").symlink_to(outside, target_is_directory=True)
@@ -595,7 +595,7 @@ def test_strict_wire_rejects_duplicate_keys_string_arrays_and_non_objects(
     duplicate = tmp_path / "duplicate.json"
     duplicate.write_text(
         '{"contract_type":"x","contract_type":"y"}',
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_evidence_trust_bundle(duplicate)

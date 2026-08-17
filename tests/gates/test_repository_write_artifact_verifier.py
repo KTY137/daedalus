@@ -42,7 +42,7 @@ def _inventory(**changes) -> RepositoryWriteInventoryV2:
                 path="daedalus/example.py",
                 line=7,
                 column=4,
-                origin="project",
+                origin="base_v1",
                 kind="path-write",
                 callee="Path.write_text",
                 operation="write_text",

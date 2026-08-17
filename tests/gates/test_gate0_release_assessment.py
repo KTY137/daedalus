@@ -49,7 +49,7 @@ fixture = _load_fixture()
 def _install_production_package(root: Path) -> None:
     package = root / "daedalus"
     package.mkdir(exist_ok=True)
-    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "__init__.py").write_text("", encoding="utf-8", newline="\n")
 
 
 def _report(root: Path, **changes) -> GateReport:
@@ -238,7 +238,7 @@ def test_release_receipt_round_trip_signature_and_exact_bindings(
     _verify(receipt, report, index, bundle, root)
 
     path = tmp_path / "release-receipt.json"
-    path.write_text(json.dumps(receipt.to_dict()), encoding="utf-8")
+    path.write_text(json.dumps(receipt.to_dict()), encoding="utf-8", newline="\n")
     assert load_gate0_release_receipt(path) == receipt
 
 
@@ -288,7 +288,7 @@ def test_strict_gate_report_loader_rejects_coercion_and_derived_field_forgery(
     duplicate = tmp_path / "duplicate-report.json"
     duplicate.write_text(
         '{"schema":"daedalus-gate-report/2","schema":"foreign"}',
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_strict_gate_report(duplicate)
@@ -353,7 +353,7 @@ def test_live_writer_inventory_is_recomputed_before_release(tmp_path: Path) -> N
     (root / "daedalus" / "legacy_writer.py").write_text(
         "from daedalus.spine import SpineLedger\n"
         "SpineLedger('state.sqlite3')\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(
         Gate0ReleaseBindingError,
@@ -386,7 +386,7 @@ def test_workflow_drift_is_rechecked_before_receipt_issue_and_replay(
     receipt = _issue(report, index, bundle, root)
     (root / fixture.WORKFLOW_PATH).write_text(
         "name: replaced\non: [push]\njobs: {}\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(Exception, match="definition digest mismatch"):
         _verify(receipt, report, index, bundle, root)
@@ -488,7 +488,7 @@ def test_receipt_wire_rejects_extra_fields_duplicate_keys_and_non_objects(
     duplicate = tmp_path / "duplicate-receipt.json"
     duplicate.write_text(
         '{"contract_type":"x","contract_type":"y"}',
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_gate0_release_receipt(duplicate)

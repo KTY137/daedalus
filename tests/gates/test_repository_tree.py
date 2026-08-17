@@ -69,7 +69,7 @@ def test_root_must_be_a_real_directory(tmp_path: Path) -> None:
     with pytest.raises(RepositoryTreePathError, match="pathlib.Path"):
         resolve_repository_root(str(tmp_path))
     file_root = tmp_path / "file-root"
-    file_root.write_text("not a directory", encoding="utf-8")
+    file_root.write_text("not a directory", encoding="utf-8", newline="\n")
     with pytest.raises(RepositoryTreePathError, match="real directory"):
         resolve_repository_root(file_root)
 

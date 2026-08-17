@@ -22,9 +22,9 @@ def _symbolic_receipt(tmp_path: Path) -> RepositoryHeadRevisionReceipt:
     ref.parent.mkdir(parents=True)
     (git / "HEAD").write_text(
         "ref: refs/heads/main\n",
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
-    ref.write_text(REVISION + "\n", encoding="utf-8")
+    ref.write_text(REVISION + "\n", encoding="utf-8", newline="\n")
     return verify_repository_head_revision(tmp_path, REVISION)
 
 
@@ -66,7 +66,7 @@ def test_conservative_forbidden_ref_forms_refuse(
 ) -> None:
     git = tmp_path / ".git"
     git.mkdir()
-    (git / "HEAD").write_text(f"ref: {ref}\n", encoding="utf-8")
+    (git / "HEAD").write_text(f"ref: {ref}\n", encoding="utf-8", newline="\n")
 
     with pytest.raises(RepositoryHeadRevisionShapeError):
         verify_repository_head_revision(tmp_path, REVISION)

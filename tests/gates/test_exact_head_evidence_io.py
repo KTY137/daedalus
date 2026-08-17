@@ -32,7 +32,7 @@ def test_duplicate_json_keys_are_refused_before_contract_parsing(tmp_path: Path)
     path = tmp_path / "duplicate.json"
     path.write_text(
         '{"contract_type":"one","contract_type":"two"}',
-        encoding="utf-8",
+        encoding="utf-8", newline="\n",
     )
     with pytest.raises(ValueError, match="duplicate JSON key"):
         load_gate_evidence_index(path)
@@ -40,6 +40,6 @@ def test_duplicate_json_keys_are_refused_before_contract_parsing(tmp_path: Path)
 
 def test_non_object_json_root_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "array.json"
-    path.write_text("[]", encoding="utf-8")
+    path.write_text("[]", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="must be an object"):
         load_gate_evidence_index(path)
