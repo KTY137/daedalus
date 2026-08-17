@@ -1,0 +1,197 @@
+diff --git a/daedalus/gates/repository_write_stdlib_delta.py b/daedalus/gates/repository_write_stdlib_delta.py
+index c93c779..8ec4902 100644
+--- a/daedalus/gates/repository_write_stdlib_delta.py
++++ b/daedalus/gates/repository_write_stdlib_delta.py
+@@ -11,7 +11,7 @@ import ast
+ import hashlib
+ import re
+ from dataclasses import dataclass
+-from pathlib import Path
++from pathlib import Path, PurePosixPath, PureWindowsPath
+ from typing import Any, Iterable, Mapping
+ 
+ from daedalus.gates.repository_write_inventory import (
+@@ -213,9 +213,13 @@ class RepositoryWriteStdlibDelta:
+ def _safe_relative_posix(value: object) -> bool:
+     if not isinstance(value, str) or not value or "\\" in value:
+         return False
+-    path = Path(value)
++    path = PurePosixPath(value)
++    windows = PureWindowsPath(value)
+     return (
+         not path.is_absolute()
++        and not windows.is_absolute()
++        and not windows.drive
++        and not windows.root
+         and all(part not in {"", ".", ".."} for part in path.parts)
+         and path.as_posix() == value
+     )
+diff --git a/tests/gates/test_repository_write_stdlib_delta.py b/tests/gates/test_repository_write_stdlib_delta.py
+index 9aa319a..4b12f1f 100644
+--- a/tests/gates/test_repository_write_stdlib_delta.py
++++ b/tests/gates/test_repository_write_stdlib_delta.py
+@@ -4,8 +4,12 @@ from pathlib import Path
+ 
+ import pytest
+ 
++from daedalus.gates.repository_write_inventory import (
++    scan_repository_write_surfaces,
++)
+ from daedalus.gates.repository_write_stdlib_delta import (
+     RepositoryWriteStdlibDeltaError,
++    _findings_for_file,
+     scan_repository_write_stdlib_delta,
+ )
+ 
+@@ -29,10 +33,34 @@ def _findings(tmp_path: Path, source: str):
+     ).findings
+ 
+ 
++def _positions(items) -> set[tuple[str, int, int]]:
++    return {(item.path, item.line, item.column) for item in items}
++
++
++def _classified_and_delta(tmp_path: Path, source: str):
++    """Return (classification, additive delta, base-inventory positions).
++
++    The delta is deliberately additive: a callsite the canonical inventory
++    already reports at the same position is not a false negative, so it is
++    suppressed.  Classification correctness therefore has to be observed on
++    the unsuppressed classifier, and the additive contract separately.
++    """
++
++    root = _repository(tmp_path, source)
++    resolved = root.resolve()
++    classified = _findings_for_file(
++        resolved,
++        (resolved / "daedalus" / "surface.py"),
++    )
++    delta = scan_repository_write_stdlib_delta(root, source_revision=REVISION)
++    base = scan_repository_write_surfaces(root, source_revision=REVISION)
++    return classified, delta.findings, _positions(base.callsites)
++
++
+ def test_compressed_and_archive_writers_are_not_laundered_as_path_open(
+     tmp_path: Path,
+ ) -> None:
+-    findings = _findings(
++    classified, findings, base_positions = _classified_and_delta(
+         tmp_path,
+         """
+ import bz2
+@@ -52,21 +80,34 @@ zipfile.ZipFile('read.zip')
+ """,
+     )
+ 
+-    assert [finding.callee for finding in findings] == [
++    assert [finding.callee for finding in classified] == [
+         "gzip.open",
+         "bz2.open",
+         "lzma.open",
+         "tarfile.open",
+         "zipfile.ZipFile",
+     ]
+-    assert [finding.kind for finding in findings] == [
++    assert [finding.kind for finding in classified] == [
+         "archive_or_compressed_write",
+         "archive_or_compressed_write",
+         "ambiguous_archive_or_compressed_mode",
+         "archive_or_compressed_write",
+         "archive_or_compressed_write",
+     ]
+-    assert all(finding.to_dict()["blocking"] is True for finding in findings)
++    assert all(finding.to_dict()["blocking"] is True for finding in classified)
++
++    # Read-mode archive opens are never classified as writes.
++    assert len(classified) == 5
++
++    # Every classified write surface stays visible: it is either reported by
++    # the additive delta or already reported by the canonical inventory at the
++    # same position.  Nothing is laundered away by the subtraction.
++    assert _positions(classified) <= _positions(findings) | base_positions
++    assert not _positions(findings) & base_positions
++
++    # zipfile.ZipFile is the family the canonical inventory misses entirely:
++    # its terminal is not `open`, so no path-open rule ever sees it.
++    assert "zipfile.ZipFile" in [finding.callee for finding in findings]
+ 
+ 
+ def test_fd_temp_archive_and_stream_sinks_are_blocking(tmp_path: Path) -> None:
+@@ -142,7 +183,7 @@ futures.ProcessPoolExecutor()
+ 
+ 
+ def test_aliases_and_rebindings_fail_closed(tmp_path: Path) -> None:
+-    findings = _findings(
++    classified, findings, base_positions = _classified_and_delta(
+         tmp_path,
+         """
+ from gzip import open as compressed_open
+@@ -156,12 +197,22 @@ def use(write):
+ """,
+     )
+ 
+-    assert [finding.kind for finding in findings] == [
++    assert [finding.kind for finding in classified] == [
+         "archive_or_compressed_write",
+         "ambiguous_stdlib_binding",
+         "ambiguous_stdlib_binding",
+     ]
+ 
++    # The aliased archive open is already reported by the canonical inventory
++    # (as an unresolved tracked terminal), so the additive delta suppresses it
++    # and keeps only the surfaces the base misses.  Nothing disappears.
++    assert _positions(classified) <= _positions(findings) | base_positions
++    assert not _positions(findings) & base_positions
++    assert [finding.kind for finding in findings] == [
++        "ambiguous_stdlib_binding",
++        "ambiguous_stdlib_binding",
++    ]
++
+ 
+ def test_delta_is_bound_to_base_inventory_and_all_production_bytes(
+     tmp_path: Path,
+diff --git a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+index 12382ee..93ef68d 100644
+--- a/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
++++ b/tests/gates/test_repository_write_stdlib_delta_cli_schema.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import json
++import os
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -29,6 +30,10 @@ def _repository(tmp_path: Path, source: str) -> Path:
+ 
+ 
+ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
++    # The script is executed as a file, so sys.path[0] is scripts/ and the
++    # checkout under test is not importable.  Pin PYTHONPATH to ROOT so the
++    # subprocess exercises this checkout instead of whatever `daedalus`
++    # distribution happens to be installed in the ambient environment.
+     return subprocess.run(
+         [
+             sys.executable,
+@@ -40,6 +45,7 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+             *extra,
+         ],
+         cwd=ROOT,
++        env={**os.environ, "PYTHONPATH": str(ROOT)},
+         text=True,
+         capture_output=True,
+         check=False,
+@@ -47,9 +53,12 @@ def _run(repository: Path, *extra: str) -> subprocess.CompletedProcess[str]:
+ 
+ 
+ def test_cli_emits_one_canonical_open_delta(tmp_path: Path) -> None:
++    # `zipfile.ZipFile` is an archive-open surface the canonical inventory
++    # misses outright (its terminal is not `open`), so it survives the
++    # delta's positional subtraction against the base inventory.
+     repository = _repository(
+         tmp_path,
+-        "import gzip\ngzip.open('state.gz', 'wb')\n",
++        "import zipfile\nzipfile.ZipFile('state.zip', 'w')\n",
+     )
+ 
+     result = _run(repository)

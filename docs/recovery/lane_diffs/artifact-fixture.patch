@@ -1,0 +1,108 @@
+diff --git a/tests/gates/test_evidence_trust_bundle.py b/tests/gates/test_evidence_trust_bundle.py
+index 8b453a9..71367d7 100644
+--- a/tests/gates/test_evidence_trust_bundle.py
++++ b/tests/gates/test_evidence_trust_bundle.py
+@@ -62,6 +62,42 @@ def _provenance(
+     )
+ 
+ 
++def _artifact(
++    artifact_id: str,
++    artifact_kind: str,
++    *,
++    content: str,
++    locator: str,
++    revision: str = REVISION,
++    tree: str = TREE,
++    built_at: datetime = NOW,
++) -> ArtifactEvidence:
++    """Build one ArtifactEvidence from bare content/locator digests.
++
++    ``locator`` is the digest carried by the content-addressed
++    ``artifact-locator:sha256:<digest>`` URI; it is kept separate from
++    ``content`` so a caller can express a locator that does not bind the
++    content it claims. Provenance binds both digests, which is what
++    ``ArtifactEvidence.__post_init__`` requires.
++    """
++    return ArtifactEvidence(
++        artifact_id=artifact_id,
++        artifact_kind=artifact_kind,
++        source_revision=revision,
++        source_tree_revision=tree,
++        content_sha256=content,
++        locator=f"artifact-locator:sha256:{locator}",
++        built_at=built_at.isoformat(),
++        provenance=_provenance(
++            "tests.artifact",
++            content,
++            locator,
++            created_at=built_at,
++            revision=revision,
++        ),
++    )
++
++
+ def _index(
+     *,
+     revision: str = REVISION,
+@@ -88,19 +124,13 @@ def _index(
+         ),
+     )
+     artifact_digest = "5" * 64
+-    artifact = ArtifactEvidence(
+-        artifact_id="gate0-wheel",
+-        artifact_kind="wheel",
+-        source_revision=revision,
+-        source_tree_revision=tree,
+-        content_sha256=artifact_digest,
+-        locator=f"artifact-locator:sha256:{artifact_digest}",
+-        built_at=NOW.isoformat(),
+-        provenance=_provenance(
+-            "tests.artifact",
+-            artifact_digest,
+-            revision=revision,
+-        ),
++    artifact = _artifact(
++        "gate0-wheel",
++        "wheel",
++        content=artifact_digest,
++        locator=artifact_digest,
++        revision=revision,
++        tree=tree,
+     )
+     runtime_digest = "6" * 64
+     runtime = RuntimeEnvelopeEvidence(
+diff --git a/tests/gates/test_gate0_release_assessment.py b/tests/gates/test_gate0_release_assessment.py
+index 85013b5..1ac018d 100644
+--- a/tests/gates/test_gate0_release_assessment.py
++++ b/tests/gates/test_gate0_release_assessment.py
+@@ -106,10 +106,14 @@ def _release_index(index, report: GateReport):
+             | {"gate-report", "effect-inventory"}
+         )
+     )
++    # The index provenance must keep binding every component the base index
++    # already bound (plan, registry, workflows, runtimes, fault matrices,
++    # reviews, owner decision) and additionally bind the enlarged artifact
++    # set. Rebuilding it from the artifacts alone drops the rest and
++    # GateEvidenceIndex refuses it.
+     provenance = fixture._provenance(
+         "tests.gate-evidence-index",
+-        fixture.PLAN,
+-        index.registry_sha256,
++        *index.provenance.input_digests,
+         *(item.digest for item in artifacts),
+     )
+     return dataclasses.replace(
+@@ -309,7 +313,11 @@ def test_open_report_and_missing_owner_evidence_refuse_release(
+         tmp_path / "no-owner",
+         owner_present=False,
+     )
+-    with pytest.raises(ValueError, match="owner-decision:missing"):
++    # The release boundary re-raises the index's ValueError as its own typed
++    # Gate0ReleaseBlocked (a Gate0ReleaseError/RuntimeError), exactly as the
++    # security_boundary_claimed path above. The underlying reason is preserved
++    # in the message and by exception chaining.
++    with pytest.raises(Gate0ReleaseBlocked, match="owner-decision:missing"):
+         _issue(
+             no_owner_report,
+             no_owner_index,

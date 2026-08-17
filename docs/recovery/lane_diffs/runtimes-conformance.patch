@@ -1,0 +1,747 @@
+diff --git a/tests/runtimes/test_runtime_conformance_profiles.py b/tests/runtimes/test_runtime_conformance_profiles.py
+index fc3d38d..31e2237 100644
+--- a/tests/runtimes/test_runtime_conformance_profiles.py
++++ b/tests/runtimes/test_runtime_conformance_profiles.py
+@@ -54,6 +54,33 @@ def _adapter_sha256(module_name: str) -> str:
+     return _file_sha256(Path(spec.origin))
+ 
+ 
++def _interpreter_path() -> Path:
++    """Return a readable path to the running interpreter binary.
++
++    On a Windows Store Python install ``sys.executable`` is a zero-byte
++    app-execution alias: it can be executed but never opened, so hashing it
++    raises ``OSError``. The real binary under ``sys.base_exec_prefix`` carries
++    the same interpreter identity and is readable. Venvs keep their own real
++    ``sys.executable``, so that stays the first choice and the fallback only
++    engages when the primary path genuinely cannot be read.
++    """
++
++    executable = Path(sys.executable)
++    base = Path(sys.base_exec_prefix)
++    candidates = (
++        executable,
++        base / executable.name,
++        base / "bin" / executable.name,
++    )
++    for candidate in candidates:
++        try:
++            with candidate.open("rb"):
++                return candidate
++        except OSError:
++            continue
++    raise OSError(f"no readable interpreter binary for {sys.executable!r}")
++
++
+ def _environment_sha256() -> str:
+     return canonical_sha(
+         {
+@@ -80,6 +107,35 @@ def _terminate_group(process: subprocess.Popen[str]) -> None:
+         process.kill()
+ 
+ 
++_WINDOWS_QUERY_LIMITED_INFORMATION = 0x1000
++_WINDOWS_STILL_ACTIVE = 259
++_WINDOWS_ACCESS_DENIED = 5
++
++
++def _windows_pid_alive(pid: int) -> bool:
++    """Report liveness without ``os.kill``, which terminates on Windows."""
++
++    import ctypes
++    from ctypes import wintypes
++
++    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
++    kernel32.OpenProcess.restype = wintypes.HANDLE
++    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
++    handle = kernel32.OpenProcess(
++        _WINDOWS_QUERY_LIMITED_INFORMATION, False, pid
++    )
++    if not handle:
++        # A live process owned by another principal is still a live process.
++        return ctypes.get_last_error() == _WINDOWS_ACCESS_DENIED
++    try:
++        code = wintypes.DWORD()
++        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
++            return False
++        return code.value == _WINDOWS_STILL_ACTIVE
++    finally:
++        kernel32.CloseHandle(handle)
++
++
+ def _pid_alive(pid: int) -> bool:
+     if os.name == "posix":
+         stat_path = Path(f"/proc/{pid}/stat")
+@@ -97,9 +153,32 @@ def _pid_alive(pid: int) -> bool:
+         except PermissionError:
+             return True
+         return True
++    if os.name == "nt":
++        return _windows_pid_alive(pid)
+     return False
+ 
+ 
++def _cancel_process_tree(process: subprocess.Popen[str]) -> bool:
++    """Cancel a process and every descendant it spawned.
++
++    POSIX signals the new session's process group. Windows has no process
++    groups with these semantics, so the equivalent whole-tree cancellation is
++    ``taskkill /T``, which walks the recorded parent/child relationships.
++    """
++
++    if os.name == "posix":
++        os.killpg(process.pid, signal.SIGTERM)
++        return True
++    completed = subprocess.run(
++        ["taskkill", "/F", "/T", "/PID", str(process.pid)],
++        check=False,
++        capture_output=True,
++        text=True,
++        timeout=15,
++    )
++    return completed.returncode == 0
++
++
+ def _protocol_observations(
+     tmp_path: Path, *, probe_identity_sha256: str
+ ) -> dict[str, RecordedObservation]:
+@@ -134,7 +213,7 @@ def _protocol_observations(
+         _terminate_group(timeout_process)
+         timeout_process.wait(timeout=5)
+ 
+-    cancellation_supported = os.name == "posix"
++    cancellation_supported = os.name in {"posix", "nt"}
+     tree_terminated = False
+     if cancellation_supported:
+         cancellation = subprocess.Popen(
+@@ -144,13 +223,14 @@ def _protocol_observations(
+             stderr=subprocess.PIPE,
+             text=True,
+             encoding="utf-8",
+-            start_new_session=True,
++            start_new_session=(os.name == "posix"),
+             bufsize=1,
+         )
+         assert cancellation.stdout is not None
+         child_event = json.loads(cancellation.stdout.readline())
+         child_pid = int(child_event["pid"])
+-        os.killpg(cancellation.pid, signal.SIGTERM)
++        assert _pid_alive(child_pid), "fixture child must be observed alive first"
++        _cancel_process_tree(cancellation)
+         try:
+             cancellation.wait(timeout=5)
+         except subprocess.TimeoutExpired:
+@@ -277,7 +357,7 @@ def _protocol_observations(
+         "cancellation": observation(
+             "cancellation",
+             cancellation_supported and tree_terminated,
+-            "fixture cancellation terminates the complete POSIX process group",
++            "fixture cancellation terminates the complete spawned process tree",
+             {
+                 "platform_supported": cancellation_supported,
+                 "process_tree_terminated": tree_terminated,
+@@ -316,7 +396,7 @@ def _offline_bundle(tmp_path: Path, runtime_id: str):
+     profiles = load_runtime_profiles(CATALOG)
+     profile = profiles[runtime_id]
+     adapter_sha = _adapter_sha256(profile.adapter_module)
+-    executable_sha = _file_sha256(Path(sys.executable))
++    executable_sha = _file_sha256(_interpreter_path())
+     environment_sha = _environment_sha256()
+     fixture_sha = _file_sha256(FIXTURE)
+     manifest = materialize_runtime_manifest(
+diff --git a/tests/runtimes/test_runtime_terminal_fence.py b/tests/runtimes/test_runtime_terminal_fence.py
+index 8a5742b..917b492 100644
+--- a/tests/runtimes/test_runtime_terminal_fence.py
++++ b/tests/runtimes/test_runtime_terminal_fence.py
+@@ -1,282 +1,268 @@
+ from __future__ import annotations
+ 
+-import sqlite3
++import dataclasses
++import importlib.util
++import sys
+ import threading
+-from datetime import datetime, timedelta, timezone
++from datetime import timedelta
+ from pathlib import Path
+-from types import SimpleNamespace
+ 
+ import pytest
+ 
+-from daedalus.kernel.effects import (
+-    EffectExecutionRequest,
+-    EffectStartResult,
+-    EffectTerminalReceipt,
+-    LeasedEffectStartReceipt,
+-)
++from daedalus.kernel.effects import EffectLeaseLedger
++from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
++from daedalus.runtimes import trust_store
+ from daedalus.runtimes.broker import (
+     RuntimeProviderBindingMismatch,
+     RuntimeProviderTrustFenceError,
+     run_runtime_provider,
+ )
+-from daedalus.spine.effect_boundary import Effect, EntrypointSpec, Surface, Wiring
+-from daedalus.spine.envelope import canonical_sha
+-
+-ENTRYPOINT = "provider.fenced"
+-RUNTIME = "fenced_runtime"
+-ENVELOPE_SHA = "1" * 64
+-RECORD_SHA = "2" * 64
+-MANIFEST_SHA = "3" * 64
+-RECEIPT_SHA = "4" * 64
+-REVISION = "5" * 40
++from daedalus.runtimes.provider_observation import (
++    ProviderObservationBindingLedger,
++    issue_provider_observation_authority,
++)
++
++ROOT = Path(__file__).resolve().parents[2]
++AUTHORITY_FIXTURE = ROOT / "tests/kernel/test_runtime_effect_replay_projection.py"
++AUTHORITY_KEY_ID = "fence-exact-authority-key"
++AUTHORITY_KEY = b"fence-exact-authority-key-material-at-least-32-bytes"
++OBSERVATION_KEY_ID = "fence-exact-observation-key"
++OBSERVATION_KEY = b"fence-exact-observation-key-material-at-least-32-bytes"
++RECORD_KEY = b"fence-exact-record-key-material-at-least-32-bytes"
+ OUTPUT_SHA = "6" * 64
+ 
+ 
+-def _spec() -> EntrypointSpec:
+-    return EntrypointSpec(
+-        id=ENTRYPOINT,
+-        surface=Surface.PYTHON,
+-        target="tests.fake_fenced_provider:run",
+-        effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS),
+-        guard_contracts=("runtime.adapter_profile",),
+-        wiring=Wiring.CENTRAL,
+-        runtime_id=RUNTIME,
++def _load_authority_fixture():
++    name = "daedalus_test_runtime_terminal_fence_exact_fixture"
++    spec = importlib.util.spec_from_file_location(name, AUTHORITY_FIXTURE)
++    assert spec is not None and spec.loader is not None
++    module = importlib.util.module_from_spec(spec)
++    sys.modules[name] = module
++    spec.loader.exec_module(module)
++    return module
++
++
++fixture = _load_authority_fixture()
++
++
++def _set_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setattr(
++        "daedalus.kernel.runtime_effects._utc_now",
++        lambda: fixture.NOW,
++    )
++    monkeypatch.setattr(
++        "daedalus.kernel.effects._utc_now",
++        lambda: fixture.NOW + timedelta(seconds=3),
++    )
++    monkeypatch.setattr(
++        "daedalus.runtimes.broker._utc_now",
++        lambda: fixture.NOW + timedelta(seconds=2),
+     )
+ 
+ 
+-def _execution() -> EffectExecutionRequest:
+-    return EffectExecutionRequest(
+-        execution_id="fenced-execution-1",
+-        idempotency_key="fenced-idempotency-1",
+-        requested_effects=(
+-            Effect.NETWORK_EGRESS.value,
+-            Effect.PROCESS_SPAWN.value,
+-        ),
+-        egress_endpoints=("https://runtime.invalid",),
+-        tools=("fenced_runtime",),
+-        kill_switch_ref="mission-kill",
+-        kill_switch_generation=1,
++def _authority_bundle(tmp_path: Path, authorization, execution):
++    ledger = ProviderObservationBindingLedger(
++        tmp_path / "fence-provider-observation.sqlite3",
++        authority_id="authority.runtime-provider-observation",
++        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
++        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
++        record_secret=RECORD_KEY,
++    )
++    authority = issue_provider_observation_authority(
++        authority_id="authority.runtime-provider-observation",
++        authority_key_id=AUTHORITY_KEY_ID,
++        authority_secret=AUTHORITY_KEY,
++        binding_id="fence-exact-provider-binding",
++        provider_id="provider.external-runtime-fixture",
++        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
++        entrypoint_id=fixture._request().entrypoint_id,
++        runtime_id=authorization.capability.runtime_id,
++        execution=execution,
++        lease_sha256=authorization.capability.lease.digest,
++        source_revision=authorization.capability.source_revision,
++        issued_at=fixture.NOW - timedelta(minutes=1),
++        expires_at=fixture.NOW + timedelta(hours=1),
++    )
++    return authority, ledger
++
++
++def _subject(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
++    authorization, _record = fixture._authorization(tmp_path, monkeypatch)
++    execution = fixture._execution()
++    authority, ledger = _authority_bundle(tmp_path, authorization, execution)
++    _set_clocks(monkeypatch)
++    return authorization, execution, authority, ledger
++
++
++def _run(authorization, execution, authority, ledger, *, invoke):
++    return run_runtime_provider(
++        fixture._request().entrypoint_id,
++        authorization=authorization,
++        execution=execution,
++        invoke=invoke,
++        output_digests=lambda value: (OUTPUT_SHA,),
++        observation_authority=authority,
++        observation_binding_ledger=ledger,
+     )
+ 
+ 
+-def _start_receipt() -> LeasedEffectStartReceipt:
+-    body = {
+-        "lease_sha256": "7" * 64,
+-        "execution_id": "fenced-execution-1",
+-        "idempotency_key": "fenced-idempotency-1",
+-        "execution_request_sha256": "8" * 64,
+-        "boundary_receipt_sha256": "9" * 64,
+-        "started_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+-    }
+-    return LeasedEffectStartReceipt(receipt_sha256=canonical_sha(body), **body)
+-
+-
+-class FenceLedger:
+-    """Minimal real SQLite authority with the same writer-lock contract."""
+-
+-    def __init__(self, path: Path) -> None:
+-        self.path = path
+-        with self._connect() as connection:
+-            connection.execute(
+-                """
+-                CREATE TABLE runtime_trust_records (
+-                    runtime_id TEXT NOT NULL,
+-                    envelope_sha256 TEXT PRIMARY KEY,
+-                    state TEXT NOT NULL,
+-                    expires_at TEXT NOT NULL,
+-                    record_sha256 TEXT NOT NULL,
+-                    runtime_manifest_sha256 TEXT NOT NULL,
+-                    conformance_receipt_sha256 TEXT NOT NULL,
+-                    source_revision TEXT NOT NULL
+-                )
+-                """
+-            )
+-            connection.execute(
+-                "INSERT INTO runtime_trust_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+-                (
+-                    RUNTIME,
+-                    ENVELOPE_SHA,
+-                    "ACTIVE",
+-                    (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(
+-                        timespec="microseconds"
+-                    ),
+-                    RECORD_SHA,
+-                    MANIFEST_SHA,
+-                    RECEIPT_SHA,
+-                    REVISION,
+-                ),
+-            )
++def _trace_terminals(monkeypatch: pytest.MonkeyPatch) -> list[str]:
++    """Record every terminal outcome without altering terminal behaviour."""
+ 
+-    def _connect(self) -> sqlite3.Connection:
+-        connection = sqlite3.connect(
+-            str(self.path),
+-            isolation_level=None,
+-            timeout=5,
+-            check_same_thread=False,
+-        )
+-        connection.row_factory = sqlite3.Row
+-        connection.execute("PRAGMA journal_mode=WAL")
+-        connection.execute("PRAGMA synchronous=FULL")
+-        connection.execute("PRAGMA busy_timeout=5000")
+-        return connection
+-
+-    @staticmethod
+-    def _from_row(row: sqlite3.Row):
+-        return SimpleNamespace(**dict(row))
+-
+-    def quarantine(self) -> None:
+-        with self._connect() as connection:
+-            connection.execute("BEGIN IMMEDIATE")
+-            connection.execute(
+-                "UPDATE runtime_trust_records SET state='QUARANTINED' "
+-                "WHERE runtime_id=? AND envelope_sha256=?",
+-                (RUNTIME, ENVELOPE_SHA),
+-            )
+-            connection.execute("COMMIT")
+-
+-    def replace_record_identity(self) -> None:
+-        with self._connect() as connection:
+-            connection.execute("BEGIN IMMEDIATE")
+-            connection.execute(
+-                "UPDATE runtime_trust_records SET record_sha256=? "
+-                "WHERE runtime_id=? AND envelope_sha256=?",
+-                ("a" * 64, RUNTIME, ENVELOPE_SHA),
+-            )
+-            connection.execute("COMMIT")
+-
+-    def state(self) -> str:
+-        with self._connect() as connection:
+-            row = connection.execute(
+-                "SELECT state FROM runtime_trust_records WHERE envelope_sha256=?",
+-                (ENVELOPE_SHA,),
+-            ).fetchone()
+-        assert row is not None
+-        return str(row["state"])
+-
+-
+-class FenceAuthorization:
+-    def __init__(self, ledger: FenceLedger) -> None:
+-        self.runtime_trust_ledger = ledger
+-        self.effect_ledger = SimpleNamespace(
+-            path=ledger.path.with_name("effect-leases.sqlite3")
+-        )
+-        self.request = SimpleNamespace(entrypoint_id=ENTRYPOINT)
+-        self.capability = SimpleNamespace(
+-            lease=SimpleNamespace(entrypoint_id=ENTRYPOINT),
+-            runtime_id=RUNTIME,
+-            runtime_envelope_sha256=ENVELOPE_SHA,
+-            runtime_trust_record_sha256=RECORD_SHA,
+-            runtime_manifest_sha256=MANIFEST_SHA,
+-            runtime_conformance_sha256=RECEIPT_SHA,
+-            source_revision=REVISION,
+-        )
+-        spec = _spec()
+-        self.registry = {spec.id: spec}
+-        self.verify_calls = 0
+-        self.finish_calls: list[str] = []
+-        self.finish_entered: threading.Event | None = None
+-        self.finish_release: threading.Event | None = None
+-        self.mutate_after_verify: str | None = None
+-
+-    def grant(self) -> None:
+-        return None
+-
+-    def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
+-        assert execution.execution_id == "fenced-execution-1"
+-        return EffectStartResult(receipt=_start_receipt(), execute=True)
+-
+-    def verify(self, *, now: datetime) -> object:
+-        assert now.tzinfo is not None
+-        self.verify_calls += 1
+-        if self.verify_calls == 2:
+-            if self.mutate_after_verify == "quarantine":
+-                self.runtime_trust_ledger.quarantine()
+-            elif self.mutate_after_verify == "replace-record":
+-                self.runtime_trust_ledger.replace_record_identity()
+-        return object()
+-
+-    def finish_effect(
+-        self,
+-        start_receipt: LeasedEffectStartReceipt,
+-        *,
+-        outcome: str,
+-        output_digests=(),
+-        detail_sha256: str | None = None,
+-    ) -> EffectTerminalReceipt:
+-        if outcome == "completed" and self.finish_entered is not None:
+-            self.finish_entered.set()
+-            assert self.finish_release is not None
+-            assert self.finish_release.wait(timeout=5)
+-        self.finish_calls.append(outcome)
+-        outputs = tuple(output_digests)
+-        finished_at = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+-        body = {
+-            "lease_sha256": start_receipt.lease_sha256,
+-            "execution_id": start_receipt.execution_id,
+-            "start_receipt_sha256": start_receipt.receipt_sha256,
+-            "outcome": outcome.upper(),
+-            "output_digests": list(outputs),
+-            "detail_sha256": detail_sha256,
+-            "finished_at": finished_at,
+-        }
+-        return EffectTerminalReceipt(
+-            lease_sha256=start_receipt.lease_sha256,
+-            execution_id=start_receipt.execution_id,
+-            start_receipt_sha256=start_receipt.receipt_sha256,
+-            outcome=outcome.upper(),
+-            output_digests=outputs,
++    original = RuntimeBoundEffectAuthorization.finish_effect
++    outcomes: list[str] = []
++
++    def traced(self, start_receipt, *, outcome, output_digests=(), detail_sha256=None):
++        outcomes.append(outcome)
++        return original(
++            self,
++            start_receipt,
++            outcome=outcome,
++            output_digests=output_digests,
+             detail_sha256=detail_sha256,
+-            finished_at=finished_at,
+-            receipt_sha256=canonical_sha(body),
+         )
+ 
++    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "finish_effect", traced)
++    return outcomes
++
++
++def _count_verifications(monkeypatch: pytest.MonkeyPatch, *, after_second=None):
++    """Count facade verifications and optionally mutate trust after the last one."""
++
++    original = RuntimeBoundEffectAuthorization.verify
++    calls = {"count": 0}
++
++    def counted(self):
++        calls["count"] += 1
++        record = original(self)
++        if calls["count"] == 2 and after_second is not None:
++            after_second(self, record)
++        return record
++
++    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "verify", counted)
++    return calls
++
++
++def _rotate_record_identity(ledger, record) -> None:
++    """Replace the ACTIVE record with an equally authentic, differently identified one.
++
++    This is the rotation the terminal fence must catch: the persisted row still
++    authenticates under the ledger's integrity key and is still ACTIVE, but its
++    ``record_sha256`` no longer equals the digest sealed into the capability.
++    """
++
++    rotated = trust_store._make_record(
++        integrity_key=ledger._integrity_key,
++        runtime_id=record.runtime_id,
++        envelope_sha256=record.envelope_sha256,
++        probe_identity_sha256=record.probe_identity_sha256,
++        conformance_receipt_sha256=record.conformance_receipt_sha256,
++        runtime_manifest_sha256=record.runtime_manifest_sha256,
++        source_revision=record.source_revision,
++        observed_at=record.observed_at,
++        admitted_at=record.admitted_at,
++        expires_at=record.expires_at,
++        state=record.state,
++        state_changed_at=trust_store._timestamp(fixture.NOW - timedelta(minutes=5)),
++        reason="",
++    )
++    assert rotated.record_sha256 != record.record_sha256
++    with ledger._connect() as connection:
++        connection.execute("BEGIN IMMEDIATE")
++        ledger._replace(connection, rotated)
++        connection.execute("COMMIT")
++
++
++def _record_state(ledger, runtime_id: str) -> str:
++    records = ledger.records(runtime_id)
++    assert len(records) == 1
++    return records[0].state
++
+ 
+-def test_runtime_trust_and_effect_ledgers_must_be_distinct(tmp_path: Path) -> None:
+-    ledger = FenceLedger(tmp_path / "shared.sqlite3")
+-    authorization = FenceAuthorization(ledger)
+-    authorization.effect_ledger.path = ledger.path
++def test_runtime_trust_and_effect_ledgers_must_be_distinct(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
++    shared = dataclasses.replace(
++        authorization,
++        effect_ledger=EffectLeaseLedger(authorization.runtime_trust_ledger.path),
++    )
++    verifications = _count_verifications(monkeypatch)
++    terminals = _trace_terminals(monkeypatch)
+ 
+     with pytest.raises(RuntimeProviderBindingMismatch, match="distinct SQLite"):
+-        run_runtime_provider(
+-            ENTRYPOINT,
+-            authorization=authorization,  # type: ignore[arg-type]
+-            execution=_execution(),
+-            invoke=lambda: {"must": "not run"},
+-            output_digests=lambda value: (OUTPUT_SHA,),
+-        )
++        _run(shared, execution, authority, ledger, invoke=lambda: {"must": "not run"})
++
++    assert verifications["count"] == 0
++    assert terminals == []
++    assert shared.effect_ledger.execution_state(execution.execution_id) is None
+ 
+-    assert authorization.verify_calls == 0
+-    assert authorization.finish_calls == []
+ 
++def test_quarantine_waits_until_completed_receipt_is_durable(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
++    trust = authorization.runtime_trust_ledger
++    capability = authorization.capability
++
++    original_finish = RuntimeBoundEffectAuthorization.finish_effect
++    terminals: list[str] = []
++    finish_entered = threading.Event()
++    finish_release = threading.Event()
++
++    def blocking_finish(
++        self, start_receipt, *, outcome, output_digests=(), detail_sha256=None
++    ):
++        if outcome == "completed":
++            finish_entered.set()
++            assert finish_release.wait(timeout=5)
++        terminals.append(outcome)
++        return original_finish(
++            self,
++            start_receipt,
++            outcome=outcome,
++            output_digests=output_digests,
++            detail_sha256=detail_sha256,
++        )
++
++    monkeypatch.setattr(
++        RuntimeBoundEffectAuthorization, "finish_effect", blocking_finish
++    )
+ 
+-def test_quarantine_waits_until_completed_receipt_is_durable(tmp_path: Path) -> None:
+-    ledger = FenceLedger(tmp_path / "runtime-trust.sqlite3")
+-    authorization = FenceAuthorization(ledger)
+-    authorization.finish_entered = threading.Event()
+-    authorization.finish_release = threading.Event()
+     result_box: dict[str, object] = {}
+     error_box: list[BaseException] = []
+ 
+     def invoke_broker() -> None:
+         try:
+-            result_box["result"] = run_runtime_provider(
+-                ENTRYPOINT,
+-                authorization=authorization,  # type: ignore[arg-type]
+-                execution=_execution(),
++            result_box["result"] = _run(
++                authorization,
++                execution,
++                authority,
++                ledger,
+                 invoke=lambda: {"answer": 42},
+-                output_digests=lambda value: (OUTPUT_SHA,),
+             )
+-        except BaseException as exc:
++        except BaseException as exc:  # pragma: no cover - surfaced by assertion
+             error_box.append(exc)
+ 
+     broker_thread = threading.Thread(target=invoke_broker)
+     broker_thread.start()
+-    assert authorization.finish_entered.wait(timeout=5)
++    assert finish_entered.wait(timeout=5)
+ 
+     quarantine_done = threading.Event()
++    quarantine_error: list[BaseException] = []
+ 
+     def quarantine() -> None:
+-        ledger.quarantine()
++        try:
++            trust.quarantine(
++                runtime_id=capability.runtime_id,
++                envelope_sha256=capability.runtime_envelope_sha256,
++                reason="terminal-fence-serialization-probe",
++                quarantined_at=fixture.NOW,
++            )
++        except BaseException as exc:  # pragma: no cover - surfaced by assertion
++            quarantine_error.append(exc)
+         quarantine_done.set()
+ 
+     quarantine_thread = threading.Thread(target=quarantine)
+@@ -285,40 +271,71 @@ def test_quarantine_waits_until_completed_receipt_is_durable(tmp_path: Path) ->
+     # The terminal fence owns BEGIN IMMEDIATE while the effect receipt is being
+     # persisted, so a concurrent quarantine cannot commit in the middle.
+     assert quarantine_done.wait(timeout=0.1) is False
+-    authorization.finish_release.set()
+-    broker_thread.join(timeout=5)
+-    quarantine_thread.join(timeout=5)
++    finish_release.set()
++    broker_thread.join(timeout=10)
++    quarantine_thread.join(timeout=10)
+ 
+     assert not broker_thread.is_alive()
+     assert not quarantine_thread.is_alive()
+     assert not error_box
++    assert not quarantine_error
+     result = result_box["result"]
+     assert result.executed is True  # type: ignore[union-attr]
+     assert result.terminal_receipt.outcome == "COMPLETED"  # type: ignore[union-attr]
+-    assert authorization.finish_calls == ["completed"]
++    assert terminals == ["completed"]
++    assert (
++        authorization.effect_ledger.execution_state(execution.execution_id)
++        == "COMPLETED"
++    )
+     assert quarantine_done.is_set()
+-    assert ledger.state() == "QUARANTINED"
++    assert _record_state(trust, capability.runtime_id) == "QUARANTINED"
+ 
+ 
+-@pytest.mark.parametrize("mutation", ["quarantine", "replace-record"])
++@pytest.mark.parametrize(
++    "mutation,expected",
++    [
++        ("quarantine", "quarantined before terminal completion"),
++        ("replace-record", "changed before terminal completion: record_sha256"),
++    ],
++)
+ def test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence(
+     tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
+     mutation: str,
++    expected: str,
+ ) -> None:
+-    ledger = FenceLedger(tmp_path / "runtime-trust.sqlite3")
+-    authorization = FenceAuthorization(ledger)
+-    authorization.mutate_after_verify = mutation
+-
+-    with pytest.raises(RuntimeProviderTrustFenceError):
+-        run_runtime_provider(
+-            ENTRYPOINT,
+-            authorization=authorization,  # type: ignore[arg-type]
+-            execution=_execution(),
++    authorization, execution, authority, ledger = _subject(tmp_path, monkeypatch)
++    trust = authorization.runtime_trust_ledger
++    capability = authorization.capability
++
++    def mutate(_self, record) -> None:
++        if mutation == "quarantine":
++            trust.quarantine(
++                runtime_id=capability.runtime_id,
++                envelope_sha256=capability.runtime_envelope_sha256,
++                reason="rotated-after-last-plain-verify",
++                quarantined_at=fixture.NOW,
++            )
++        else:
++            _rotate_record_identity(trust, record)
++
++    verifications = _count_verifications(monkeypatch, after_second=mutate)
++    terminals = _trace_terminals(monkeypatch)
++
++    with pytest.raises(RuntimeProviderTrustFenceError, match=expected):
++        _run(
++            authorization,
++            execution,
++            authority,
++            ledger,
+             invoke=lambda: {"must": "not be released"},
+-            output_digests=lambda value: (OUTPUT_SHA,),
+         )
+ 
+     # The provider already ran, but the broker withheld its value and converted
+     # the durable execution to CANCELLED rather than publishing COMPLETED.
+-    assert authorization.verify_calls == 2
+-    assert authorization.finish_calls == ["cancelled"]
++    assert verifications["count"] == 2
++    assert terminals == ["cancelled"]
++    assert (
++        authorization.effect_ledger.execution_state(execution.execution_id)
++        == "CANCELLED"
++    )
