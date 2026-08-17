@@ -702,17 +702,87 @@ def verify(root_value: str | Path | None = None) -> list[str]:
         if not isinstance(starter, dict) or starter.get("write_wave_policy") != "never":
             errors.append("daedalus/config.py STARTER must disable auto-promotion")
 
-    gated_tree = _python_tree(
-        root / "daedalus/kairos/gated_writes.py",
-        "daedalus/kairos/gated_writes.py",
-        errors,
-    )
+    gated_rel = "daedalus/kairos/gated_writes.py"
+    gated_tree = _python_tree(root / gated_rel, gated_rel, errors)
+    retained_rel = "daedalus/kairos/_gated_writes_legacy.py.src"
+    retained_tree = None
     if gated_tree is not None:
-        if _literal_assignment(gated_tree, "AUTO_PROMOTE_LEVELS") != ("never",):
+        # The strangler materialises its implementation by exec()-ing a
+        # retained source pinned to an exact Git blob, so an AST parse of the
+        # outer module cannot see the sealed-promotion symbols. Verify the pin
+        # and parse the retained source too, so the checks below observe the
+        # code that actually runs.
+        pinned_blob = _literal_assignment(
+            gated_tree, "_RETAINED_SOURCE_GIT_BLOB_SHA1"
+        )
+        retained_path = root / retained_rel
+        if not isinstance(pinned_blob, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", pinned_blob
+        ):
+            errors.append(
+                f"{gated_rel} no longer pins its retained source to a Git blob"
+            )
+        elif not retained_path.is_file():
+            errors.append(f"{retained_rel} is missing while {gated_rel} pins it")
+        else:
+            try:
+                payload = retained_path.read_bytes()
+            except OSError as exc:
+                errors.append(f"{retained_rel} is unreadable: {exc}")
+            else:
+                actual_blob = hashlib.sha1(
+                    b"blob %d\x00" % len(payload) + payload
+                ).hexdigest()
+                if actual_blob != pinned_blob:
+                    errors.append(
+                        f"{retained_rel} does not match the pinned Git blob"
+                    )
+                else:
+                    retained_tree = _python_tree(
+                        retained_path, retained_rel, errors
+                    )
+    if gated_tree is not None:
+        # Verify against the union of both trees, and refuse when a symbol
+        # exists in neither: a check with no subject passes vacuously, which
+        # is exactly how this seal went unenforced after the strangler
+        # refactor.
+        trees = [tree for tree in (gated_tree, retained_tree) if tree is not None]
+        declared_levels = [
+            value
+            for value in (
+                _literal_assignment(tree, "AUTO_PROMOTE_LEVELS") for tree in trees
+            )
+            if value is not None
+        ]
+        if not declared_levels:
+            errors.append(
+                "AUTO_PROMOTE_LEVELS is declared in neither the promotion "
+                "strangler nor its retained source; the sealed-promotion "
+                "check has no subject"
+            )
+        elif any(value != ("never",) for value in declared_levels):
             errors.append(
                 "daedalus/kairos/gated_writes.py exposes automatic promotion"
             )
-        if _function_calls_name(gated_tree, "run_write_wave", "promote_candidates"):
+        wave_trees = [
+            tree
+            for tree in trees
+            if any(
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == "run_write_wave"
+                for node in tree.body
+            )
+        ]
+        if not wave_trees:
+            errors.append(
+                "run_write_wave is defined in neither the promotion strangler "
+                "nor its retained source; the sealed-promotion check has no "
+                "subject"
+            )
+        elif any(
+            _function_calls_name(tree, "run_write_wave", "promote_candidates")
+            for tree in wave_trees
+        ):
             errors.append(
                 "run_write_wave must not call promote_candidates automatically"
             )
