@@ -31,6 +31,11 @@ from daedalus.spine.attempt import (
     command_gate,
     pytest_gate_argv,
 )
+from daedalus.spine.durability import (
+    Gate0DurabilityError,
+    inspect_gate0_durability,
+    open_gate0_spine_writer,
+)
 from daedalus.spine.ledger import STATE_COMPLETED, STATE_FAILED, SpineLedger
 from daedalus.storage import ArtifactStore, StorageUnavailable
 
@@ -979,4 +984,86 @@ def test_artifact_is_persisted_only_when_a_directory_is_given(
     assert persisted_result["persist_error"] is None
     assert repo.resolve() not in written.resolve().parents
 
+    assert_primary_untouched(repo, head)
+
+
+# --------------------------------------------------------------------------- #
+# gate-0 durability seam (owned ledger)                                        #
+# --------------------------------------------------------------------------- #
+def test_owned_ledger_is_opened_by_the_gate0_factory_at_full_durability(
+        repo, tmp_path):
+    """When no ledger is injected, ``_get_ledger`` must return the hardened
+    Gate-0 writer: WAL + ``synchronous=FULL`` confirmed by machine readback.
+
+    ``synchronous == 2`` is the discriminating bit: a bare ``SpineLedger()``
+    opens at ``synchronous=1``, so this passes only through the factory.
+    """
+    attempt = TaskAttempt(spec(), runner=writing_runner({}),
+                          gate=passing_gate(), repo_root=repo,
+                          ledger_path=tmp_path / "state" / "spine.sqlite3")
+    led = attempt._get_ledger()
+    try:
+        assert isinstance(led, SpineLedger)
+        status = inspect_gate0_durability(led)
+        assert status.satisfied is True
+        assert status.synchronous == 2  # SQLite FULL
+        assert status.journal_mode == "wal"
+        assert attempt._get_ledger() is led  # still cached, opened once
+    finally:
+        led.close()
+
+
+def test_gate0_durability_refusal_is_absorbed_before_any_effect(
+        repo, worktree_root, tmp_path):
+    """A genuine ``Gate0DurabilityError`` from the factory is absorbed by
+    run()'s existing "spine ledger unavailable" fail-closed branch.
+
+    This is the previously unproven claim: no raise out of ``run()``, no
+    worktree, no runner or gate call, no artifact, no intent -- because no
+    durable record is possible, no effect may be performed.
+    """
+    head = head_of(repo)
+    bad_path = tmp_path / "not-a-db"
+    bad_path.mkdir()  # a directory can never open as the SQLite Event Store
+
+    # The seam itself really raises the Gate-0 type for this path...
+    with pytest.raises(Gate0DurabilityError):
+        open_gate0_spine_writer(bad_path)
+
+    # ...and run() absorbs exactly that failure, fail-closed.
+    runner = writing_runner({"widget.txt": "hello\n"})
+    gate = passing_gate()
+    result = TaskAttempt(spec(), runner=runner, gate=gate, repo_root=repo,
+                         ledger_path=bad_path).run()
+
+    assert result.state == STATE_WORKTREE_FAILED
+    assert "spine ledger unavailable" in result.error
+    assert "Gate-0 Event-Store writer could not be opened" in result.error
+    assert runner.calls == []
+    assert gate.calls == []
+    assert result.artifact is None
+    assert result.intent_id is None
+    assert not worktree_root.exists()
+    assert_primary_untouched(repo, head)
+
+
+def test_injected_gate0_durability_error_hits_the_failclose_branch(
+        repo, worktree_root, monkeypatch):
+    """Any ``Gate0DurabilityError`` -- not just an open failure -- lands in the
+    fail-closed branch, including on the default-path route (no ledger_path)."""
+    head = head_of(repo)
+
+    def refuse(path=None, **kwargs):
+        raise Gate0DurabilityError("injected durability refusal")
+
+    monkeypatch.setattr(attempt_mod, "open_gate0_spine_writer", refuse)
+    runner = writing_runner({"widget.txt": "hello\n"})
+    result = TaskAttempt(spec(), runner=runner, gate=passing_gate(),
+                         repo_root=repo).run()
+
+    assert result.state == STATE_WORKTREE_FAILED
+    assert "spine ledger unavailable" in result.error
+    assert "injected durability refusal" in result.error
+    assert runner.calls == []
+    assert not worktree_root.exists()
     assert_primary_untouched(repo, head)

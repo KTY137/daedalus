@@ -133,6 +133,7 @@ from daedalus.primary_tree import (
     overlap_reason as _overlap_reason,
 )
 from daedalus.schemas import ContractProvenance
+from daedalus.spine.durability import open_gate0_spine_writer
 from daedalus.spine.envelope import current_trace_id
 from daedalus.spine.ledger import SpineLedger, canonical_json
 from daedalus.storage import (
@@ -1657,9 +1658,13 @@ class TaskAttempt:
 
     def _get_ledger(self) -> SpineLedger:
         if self._ledger is None:
-            self._ledger = (
-                SpineLedger(self._ledger_path)
-                if self._ledger_path is not None else SpineLedger())
+            # Gate-0 writer seam: the durability factory is the only sanctioned
+            # way to OPEN a writable Event Store (WAL + synchronous=FULL with a
+            # machine readback, fail-closed). ``None`` resolves to the same
+            # default path a bare ``SpineLedger()`` used. A raised
+            # Gate0DurabilityError is absorbed by run()'s existing "spine
+            # ledger unavailable" fail-closed branch before any effect.
+            self._ledger = open_gate0_spine_writer(self._ledger_path)
         return self._ledger
 
 

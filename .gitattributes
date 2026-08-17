@@ -1,1 +1,3 @@
 .githooks/* text eol=lf
+daedalus/kairos/_gated_writes_legacy.py.src -text
+daedalus/runtimes/provider_target_receipt_ledger.py -text

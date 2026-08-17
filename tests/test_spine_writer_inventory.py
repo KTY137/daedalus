@@ -297,3 +297,25 @@ def test_current_repository_scan_is_revision_bound_and_finds_selected_factory() 
     assert "scan_input_sha256" in encoded
     assert "source_revision" in encoded
     assert os.path.isabs(str(ROOT))
+
+
+def test_current_repository_task_attempt_writer_is_factory_admitted() -> None:
+    """``TaskAttempt._get_ledger`` belongs to the Gate-0 writer inventory.
+
+    It opens the production Event Store when no ledger is injected, so the
+    repository scan must see it route through ``open_gate0_spine_writer`` and
+    must find no blocking construction site left in the production package.
+    This is the assertion the gate report's ``event_store_writer_failures``
+    field depends on.
+    """
+    report = scan_event_store_writers(ROOT, source_revision=REVISION)
+    attempt_sites = [
+        site
+        for site in report.callsites
+        if site.path == "daedalus/spine/attempt.py"
+    ]
+    assert attempt_sites, "TaskAttempt ledger opening is invisible to the scan"
+    assert any(site.kind == "gate0_factory" for site in attempt_sites)
+    assert [site for site in attempt_sites if site.blocking] == []
+    assert report.blockers == ()
+    assert report.closed is True

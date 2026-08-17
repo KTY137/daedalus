@@ -709,6 +709,11 @@ class IronPlanContractTests(unittest.TestCase):
                     destination.write_text(historical + "\n", encoding="utf-8")
                 else:
                     shutil.copy2(ROOT / rel, destination)
+            # Amendment 006: the sealed-promotion checks read the retained
+            # source the strangler pins; a real adopting repo carries it with
+            # the tree, so the synthetic adoption repo must carry it too.
+            retained = Path("daedalus/kairos/_gated_writes_legacy.py.src")
+            shutil.copy2(ROOT / retained, repo / retained)
             run_git(repo, "add", "-A")
             run_git(
                 repo,

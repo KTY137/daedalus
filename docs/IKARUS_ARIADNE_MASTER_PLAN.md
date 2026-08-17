@@ -1,8 +1,8 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 4
-Version: 1.2.1
+Revision: 5
+Version: 1.2.2
 Status: adopted  
 Date: 2026-08-02
 Owner: repository owner  
