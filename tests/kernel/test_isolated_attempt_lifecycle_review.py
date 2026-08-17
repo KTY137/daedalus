@@ -94,15 +94,40 @@ def test_terminal_resolution_uses_the_same_spine_and_is_once_only() -> None:
     assert "return existing" in source
 
 
-def test_workspace_topology_is_checked_before_and_after_creation() -> None:
-    source = inspect.getsource(workspace_impl._prepare_workspace_parent)
+def test_workspace_topology_is_checked_before_and_after_strict_resolution() -> None:
+    """3d3699c replaced creation with admission of a pre-provisioned root.
+
+    The coordinator used to mkdir the caller-selected root between a
+    prospective and a post-create topology check, which left the TOCTOU window
+    that commit closed. The bracketing contract survives the redesign, but it
+    now brackets the strict resolution rather than a creation.
+    """
+    function = ast.parse(
+        inspect.getsource(workspace_impl._resolve_workspace_parent)
+    ).body[0]
+    # Compare against the code alone: the docstring names the mkdir this
+    # redesign removed, and would otherwise satisfy the check below.
+    if ast.get_docstring(function) is not None:
+        function.body = function.body[1:]
+    source = ast.unparse(function)
+
+    # The coordinator must never create the workspace root itself; that is
+    # what reopens the window an ancestor swap drives through.
+    assert "mkdir" not in source
+
+    strict_resolve = source.index("raw_parent.resolve(strict=True)")
     first_primary_check = source.index("workspace parent and primary checkout")
-    mkdir = source.index("raw_parent.mkdir")
     second_primary_check = source.rindex("workspace parent and primary checkout")
-    assert first_primary_check < mkdir < second_primary_check
+    assert first_primary_check < strict_resolve < second_primary_check
     assert source.count("workspace parent and source-tree store") == 2
     assert source.count("_assert_disjoint") == 4
-    assert source.index("raw_parent.is_symlink") < mkdir
+
+    # A symlinked root is refused both before the prospective resolve and
+    # again after the identity the coordinator retains has been resolved.
+    assert source.count("raw_parent.is_symlink") == 2
+    assert source.index("raw_parent.is_symlink") < strict_resolve
+    assert source.rindex("raw_parent.is_symlink") > strict_resolve
+    assert "workspace parent must already exist" in source
 
 
 def test_caller_timestamps_are_compatibility_only_and_never_authoritative() -> None:
