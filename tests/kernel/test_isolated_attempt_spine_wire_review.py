@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import sqlite3
+from datetime import datetime, timezone
 
 import pytest
 
@@ -19,9 +20,14 @@ EFFECT_KEY = "attempt-lifecycle:attempt-wire-review"
 def _spine(tmp_path):
     path = tmp_path / "state" / "spine.sqlite3"
     spine = SpineLedger(path)
+    # The reader binds a lifecycle record time to the Event-Store transition
+    # that retained it, so a lifecycle payload must carry a start block. Take
+    # the time immediately before recording, exactly as AttemptLedger.begin
+    # does, so the intent row is stamped at or after it.
+    started_at = datetime.now(timezone.utc).isoformat()
     intent = spine.record_intent(
         "attempt.lifecycle",
-        {"schema": "wire-review/1"},
+        {"schema": "wire-review/1", "start": {"started_at": started_at}},
         effect_key=EFFECT_KEY,
         trace_id="attempt-wire-review",
     )
