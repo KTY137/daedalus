@@ -1,15 +1,54 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTOR_PATH = ROOT / "tests" / "fixtures" / "effect_ledger_contention_fault_executor.py"
+REVISION = "c" * 40
 
 
 def _source_and_tree():
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     return source, ast.parse(source, filename=str(EXECUTOR_PATH))
+
+
+def _load():
+    name = "daedalus_test_effect_ledger_contention_review_module"
+    spec = importlib.util.spec_from_file_location(name, EXECUTOR_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_authority_builds_against_the_current_kernel_contracts() -> None:
+    """Contract drift must fail here, on every platform, not only on Linux.
+
+    The fault body itself is Linux-host evidence, but the authority it leases
+    is pure in-memory kernel contract construction.  Building it here is what
+    catches a renamed or newly required contract field on a Windows checkout,
+    where the platform gate would otherwise short-circuit before the executor
+    ever touched ``EffectLeaseRequest``.
+    """
+
+    module = _load()
+    registry, request, policy, lease, execution, guards = module._authority(REVISION)
+
+    assert request.entrypoint_id in registry
+    # The entrypoint declares no runtime_id, so the kernel requires both runtime
+    # digests to be absent together; supplying either would be refused.
+    assert request.runtime_manifest_sha256 is None
+    assert request.runtime_conformance_sha256 is None
+    assert lease.request_sha256 == request.digest
+    assert lease.policy_decision_sha256 == policy.digest
+    assert lease.runtime_manifest_sha256 is None
+    assert lease.runtime_conformance_sha256 is None
+    assert execution.kill_switch_generation == request.kill_switch_generation
+    assert guards and guards[0].contract in registry[request.entrypoint_id].guard_contracts
 
 
 def test_fixture_has_no_provider_or_process_effect_boundary() -> None:

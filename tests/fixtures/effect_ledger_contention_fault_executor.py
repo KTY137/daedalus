@@ -181,6 +181,10 @@ def _authority(source_revision: str):
         effect_scope=scope,
         idempotency_namespace="contention-attempt",
         kill_switch_generation=7,
+        # The spec declares no runtime_id, so issue_effect_lease refuses any
+        # attached runtime conformance; both digests must be absent together.
+        runtime_manifest_sha256=None,
+        runtime_conformance_sha256=None,
         provenance=ContractProvenance(
             origin="tests.effect-ledger-contention",
             source_revision=source_revision,

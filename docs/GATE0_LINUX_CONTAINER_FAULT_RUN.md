@@ -109,3 +109,43 @@ declared expected outcomes.
    Git stores the file LF-normalized. The working copy was normalized locally to
    run the guard; the durable fix is an attribute pinning `eol=lf`, or
    normalizing before hashing. Not attempted here — the file is protected.
+
+## Addendum — open end 2 is closed [MEASURED]
+
+Status: STATUS (revision-bound measurement, not a timeless claim)  
+Date: 2026-08-17  
+Revision: `b00c35aef2a9977736a099608dc824fbbd16f262` (branch
+`grind/stale-executors`)  
+Evidence: `runs/gate0-linux-container-fault-20260817-repaired/`
+
+Both stale executors were lifted onto the current contracts and the catalog was
+driven a second time through the same driver, image and policy path. The
+measurements above are left exactly as they were recorded.
+
+| Status | Count | Change |
+| --- | --- | --- |
+| passed | 5 | `runtime.effect-ledger.lock-contention` and `runtime.trust-ledger.lock-contention` joined the three earlier passes |
+| failed | 0 | — |
+| blocked | 4 | unchanged; still needs a Linux host with a reachable daemon |
+
+The two repairs were contract drift only; neither scenario was weakened.
+
+- `runtime.effect-ledger.lock-contention` — the fixture now supplies the
+  `runtime_manifest_sha256`/`runtime_conformance_sha256` pair that
+  `EffectLeaseRequest` has required since the runtime-conformance wave. The
+  entrypoint declares no `runtime_id`, so both are absent together, which is the
+  only shape `issue_effect_lease` accepts. Observed `passed`,
+  `refused-before-start`.
+- `runtime.trust-ledger.lock-contention` — the delegating authorization object
+  is gone; the exact `RuntimeBoundEffectAuthorization` reaches the broker, the
+  signed provider-observation authority and its binding ledger are supplied for
+  both the fault and the replay, and the competing writer is armed on the trust
+  ledger's own connection seam at the moment the terminal fence begins its
+  transaction. Observed `passed`, `cancelled`, with `plain_verify_calls` 2,
+  `writer_lock_held` true, `contention_observed` true, terminal `CANCELLED`
+  with zero released outputs, the trust record still `ACTIVE` and the replay
+  inert.
+
+Open ends 1, 3, 4 and 5 are unchanged. This run is still unsigned: `trusted`,
+`attested` and `gate_closure_claimed` are all false, so it contributes nothing
+to Gate 0 exit until an independent issuer signs the observations.
