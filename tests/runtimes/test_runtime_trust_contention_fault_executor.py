@@ -96,6 +96,11 @@ def test_binding_is_catalog_exact_and_binds_production_sources() -> None:
                     executor.effects_module, "effect ledger"
                 ).read_bytes()
             ).hexdigest(),
+            "provider_observation_sha256": hashlib.sha256(
+                executor._module_path(
+                    executor.provider_observation_module, "provider observation"
+                ).read_bytes()
+            ).hexdigest(),
             "busy_timeout_ms": executor._BUSY_TIMEOUT_MS,
             "timeout_tolerance_ms": executor._TIMEOUT_TOLERANCE_MS,
         }

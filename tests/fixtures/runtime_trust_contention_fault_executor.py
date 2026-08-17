@@ -18,6 +18,7 @@ from typing import Any, Sequence
 import daedalus.kernel.effects as effects_module
 import daedalus.kernel.runtime_effects as runtime_effects_module
 import daedalus.runtimes.broker as broker_module
+import daedalus.runtimes.provider_observation as provider_observation_module
 import daedalus.runtimes.trust_store as trust_store_module
 from daedalus.kernel.contracts import EffectLeaseRequest
 from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseLedger
@@ -27,6 +28,10 @@ from daedalus.kernel.runtime_effects import (
 )
 from daedalus.runtimes.broker import RuntimeProviderTrustFenceError, run_runtime_provider
 from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
+from daedalus.runtimes.provider_observation import (
+    ProviderObservationBindingLedger,
+    issue_provider_observation_authority,
+)
 from daedalus.runtimes.host_fault_runner import (
     HostFaultFact,
     HostFaultResult,
@@ -54,6 +59,14 @@ _ENTRYPOINT_ID = "provider.trust-contention"
 _TRUST_KEY = b"runtime-trust-contention-integrity-key-material-32-bytes"
 _LEASE_KEY = b"runtime-trust-contention-effect-lease-key-material-32-bytes"
 _AUTHORITY_KEY = b"runtime-trust-contention-authority-key-material-32-bytes"
+_OBS_AUTHORITY_ID = "authority.trust-contention-observation"
+_OBS_AUTHORITY_KEY_ID = "trust-contention-observation-authority-key"
+_OBS_AUTHORITY_KEY = b"runtime-trust-contention-observation-authority-key-material"
+_OBS_KEY_ID = "trust-contention-observation-issuer-key"
+_OBS_KEY = b"runtime-trust-contention-observation-issuer-key-material"
+_OBS_RECORD_KEY = b"runtime-trust-contention-observation-record-key-material"
+_OBS_BINDING_ID = "trust-contention-observation-binding"
+_OBS_PROVIDER_ID = "provider.trust-contention-runtime"
 _POLICY_SHA256 = "b" * 64
 _MANIFEST_SHA256 = "3" * 64
 _PROBE_SHA256 = "4" * 64
@@ -94,6 +107,9 @@ def implementation_sha256() -> str:
             ),
             "effect_ledger_sha256": _file_sha256(
                 _module_path(effects_module, "effect ledger")
+            ),
+            "provider_observation_sha256": _file_sha256(
+                _module_path(provider_observation_module, "provider observation")
             ),
             "busy_timeout_ms": _BUSY_TIMEOUT_MS,
             "timeout_tolerance_ms": _TIMEOUT_TOLERANCE_MS,
@@ -158,6 +174,117 @@ class BoundedRuntimeTrustLedger(RuntimeTrustLedger):
             raise
 
 
+class _FenceArmingConnection:
+    """Trust-store connection proxy that arms the competing writer in place.
+
+    Every trust-store operation except the terminal fence opens its connection
+    inside a ``with`` block; the fence alone keeps a bare connection and drives
+    ``BEGIN IMMEDIATE`` on it directly.  Arming on that exact shape puts the
+    competing writer into the fence's own window without a sleep or a race, and
+    if the broker ever stopped opening the fence that way the tripwire would
+    simply never fire and the scenario would report ``failed`` -- never a pass.
+    """
+
+    def __init__(self, connection: sqlite3.Connection, arm) -> None:
+        self._connection = connection
+        self._arm = arm
+        self._entered = False
+
+    def execute(self, statement: str, parameters=()):
+        if not self._entered and statement.strip().upper().startswith("BEGIN"):
+            self._arm()
+        return self._connection.execute(statement, parameters)
+
+    def __enter__(self) -> "_FenceArmingConnection":
+        self._entered = True
+        self._connection.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._connection.__exit__(exc_type, exc, tb)
+
+    def __getattr__(self, name: str):
+        return getattr(self._connection, name)
+
+
+class TerminalFenceContentionTrustLedger(BoundedRuntimeTrustLedger):
+    """Bounded trust ledger that injects one competing writer at the fence.
+
+    Since G0-RTC-07A the broker accepts only an exact
+    ``RuntimeBoundEffectAuthorization``, so the writer can no longer be armed
+    from a wrapper around the authority.  It is armed on the persisted seam the
+    fence itself uses instead, and only once the two post-invoke plain verifies
+    have already completed -- the same instant the old wrapper chose, now
+    measured on the production ledger rather than on a stand-in object.
+    """
+
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        integrity_key: bytes | str,
+        busy_timeout_ms: int,
+    ) -> None:
+        self._invoked = False
+        self._plain_verify_calls = 0
+        self._writer: sqlite3.Connection | None = None
+        self._armed = False
+        super().__init__(
+            path,
+            integrity_key=integrity_key,
+            busy_timeout_ms=busy_timeout_ms,
+        )
+
+    def _connect(self) -> sqlite3.Connection:
+        return _FenceArmingConnection(super()._connect(), self._arm_writer)
+
+    def require_active(self, **kwargs):
+        record = super().require_active(**kwargs)
+        if self._invoked:
+            self._plain_verify_calls += 1
+        return record
+
+    def mark_invoked(self) -> None:
+        self._invoked = True
+
+    def _arm_writer(self) -> None:
+        if self._armed or self._plain_verify_calls < 2:
+            return
+        self._armed = True
+        writer = sqlite3.connect(str(self.path), isolation_level=None, timeout=1)
+        try:
+            writer.execute("PRAGMA journal_mode=WAL")
+            writer.execute("PRAGMA busy_timeout=1000")
+            writer.execute("BEGIN IMMEDIATE")
+            if not writer.in_transaction:
+                raise RuntimeTrustContentionFaultError(
+                    "runtime-trust writer did not become active"
+                )
+        except BaseException:
+            writer.close()
+            raise
+        self._writer = writer
+
+    @property
+    def plain_verify_calls(self) -> int:
+        return self._plain_verify_calls
+
+    @property
+    def writer_active(self) -> bool:
+        return self._writer is not None and self._writer.in_transaction
+
+    def release_writer(self) -> None:
+        writer = self._writer
+        self._writer = None
+        if writer is None:
+            return
+        try:
+            if writer.in_transaction:
+                writer.execute("ROLLBACK")
+        finally:
+            writer.close()
+
+
 def _timestamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat(timespec="microseconds")
 
@@ -204,7 +331,7 @@ def _spec() -> EntrypointSpec:
 
 
 def _authority(*, root: Path, source_revision: str, now: datetime):
-    trust = BoundedRuntimeTrustLedger(
+    trust = TerminalFenceContentionTrustLedger(
         root / "runtime-trust.sqlite3",
         integrity_key=_TRUST_KEY,
         busy_timeout_ms=_BUSY_TIMEOUT_MS,
@@ -300,72 +427,39 @@ def _authority(*, root: Path, source_revision: str, now: datetime):
         kill_switch_ref="mission-kill",
         kill_switch_generation=7,
     )
-    return trust, trust_record, effects, authorization, execution
-
-
-class TerminalFenceLockAuthorization:
-    """Delegate real authority and lock only after the last plain verify."""
-
-    def __init__(self, inner: RuntimeBoundEffectAuthorization) -> None:
-        self._inner = inner
-        self.request = inner.request
-        self.capability = inner.capability
-        self.registry = inner.registry
-        self.effect_ledger = inner.effect_ledger
-        self.runtime_trust_ledger = inner.runtime_trust_ledger
-        self._plain_verify_calls = 0
-        self._writer: sqlite3.Connection | None = None
-
-    def grant(self) -> None:
-        self._inner.grant()
-
-    def begin_effect(self, execution: EffectExecutionRequest):
-        return self._inner.begin_effect(execution)
-
-    def finish_effect(self, start_receipt, **kwargs):
-        return self._inner.finish_effect(start_receipt, **kwargs)
-
-    def verify(self, *, now: datetime):
-        record = self._inner.verify(now=now)
-        self._plain_verify_calls += 1
-        if self._plain_verify_calls == 2:
-            writer = sqlite3.connect(
-                str(self.runtime_trust_ledger.path),
-                isolation_level=None,
-                timeout=1,
-            )
-            try:
-                writer.execute("PRAGMA journal_mode=WAL")
-                writer.execute("PRAGMA busy_timeout=1000")
-                writer.execute("BEGIN IMMEDIATE")
-                if not writer.in_transaction:
-                    raise RuntimeTrustContentionFaultError(
-                        "runtime-trust writer did not become active"
-                    )
-            except BaseException:
-                writer.close()
-                raise
-            self._writer = writer
-        return record
-
-    @property
-    def plain_verify_calls(self) -> int:
-        return self._plain_verify_calls
-
-    @property
-    def writer_active(self) -> bool:
-        return self._writer is not None and self._writer.in_transaction
-
-    def release_writer(self) -> None:
-        writer = self._writer
-        self._writer = None
-        if writer is None:
-            return
-        try:
-            if writer.in_transaction:
-                writer.execute("ROLLBACK")
-        finally:
-            writer.close()
+    # Since G0-RTC-07A the broker also refuses to run without the exact signed
+    # provider-observation authority and its binding ledger.
+    observation_ledger = ProviderObservationBindingLedger(
+        root / "provider-observation.sqlite3",
+        authority_id=_OBS_AUTHORITY_ID,
+        authority_keyring={_OBS_AUTHORITY_KEY_ID: _OBS_AUTHORITY_KEY},
+        observation_keyring={_OBS_KEY_ID: _OBS_KEY},
+        record_secret=_OBS_RECORD_KEY,
+    )
+    observation_authority = issue_provider_observation_authority(
+        authority_id=_OBS_AUTHORITY_ID,
+        authority_key_id=_OBS_AUTHORITY_KEY_ID,
+        authority_secret=_OBS_AUTHORITY_KEY,
+        binding_id=_OBS_BINDING_ID,
+        provider_id=_OBS_PROVIDER_ID,
+        observation_keyring={_OBS_KEY_ID: _OBS_KEY},
+        entrypoint_id=_ENTRYPOINT_ID,
+        runtime_id=_RUNTIME_ID,
+        execution=execution,
+        lease_sha256=capability.lease.digest,
+        source_revision=source_revision,
+        issued_at=now - timedelta(seconds=20),
+        expires_at=now + timedelta(minutes=10),
+    )
+    return (
+        trust,
+        trust_record,
+        effects,
+        authorization,
+        execution,
+        observation_authority,
+        observation_ledger,
+    )
 
 
 def _sqlite_code(exc: sqlite3.OperationalError) -> int | None:
@@ -419,12 +513,19 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
     with tempfile.TemporaryDirectory(prefix="daedalus-trust-contention-") as text:
         root = Path(text)
         now = datetime.now(timezone.utc)
-        trust, trust_record, effects, inner, execution = _authority(
+        (
+            trust,
+            trust_record,
+            effects,
+            authorization,
+            execution,
+            observation_authority,
+            observation_ledger,
+        ) = _authority(
             root=root,
             source_revision=authority_revision or value.digest,
             now=now,
         )
-        authorization = TerminalFenceLockAuthorization(inner)
         provider_output = secrets.token_hex(32)
         provider_called = False
         output_called = False
@@ -434,6 +535,9 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
         def invoke() -> str:
             nonlocal provider_called
             provider_called = True
+            # From here on the trust ledger counts the broker's plain verifies
+            # and arms the competing writer once the last one has passed.
+            trust.mark_invoked()
             return provider_output
 
         def outputs(result: str) -> tuple[str, ...]:
@@ -452,14 +556,19 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
                     execution=execution,
                     invoke=invoke,
                     output_digests=outputs,
+                    observation_authority=observation_authority,
+                    observation_binding_ledger=observation_ledger,
                 )
                 released = True
             except RuntimeProviderTrustFenceError as exc:
                 observed = exc
         finally:
             elapsed_ms = int((time.monotonic() - started) * 1000)
-            lock_held = authorization.writer_active
-            authorization.release_writer()
+            lock_held = trust.writer_active
+            # Snapshot before the replay run, whose own grant/begin verifies
+            # must not be counted as broker plain verifies.
+            plain_verify_calls = trust.plain_verify_calls
+            trust.release_writer()
 
         cause = observed.__cause__ if observed is not None else None
         contention = isinstance(cause, sqlite3.OperationalError) and _is_contention(cause)
@@ -497,6 +606,8 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
             execution=execution,
             invoke=replay_invoke,
             output_digests=replay_digest,
+            observation_authority=observation_authority,
+            observation_binding_ledger=observation_ledger,
         )
         replay_inert = (
             replay.executed is False
@@ -514,11 +625,14 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
             "broker_sha256": _file_sha256(_module_path(broker_module, "broker")),
             "trust_store_sha256": _file_sha256(_module_path(trust_store_module, "trust store")),
             "effect_ledger_sha256": _file_sha256(_module_path(effects_module, "effect ledger")),
+            "provider_observation_sha256": _file_sha256(
+                _module_path(provider_observation_module, "provider observation")
+            ),
             "trust_database_path_sha256": hashlib.sha256(str(trust.path).encode()).hexdigest(),
             "effect_database_path_sha256": hashlib.sha256(str(effects.path).encode()).hexdigest(),
             "busy_timeout_ms": _BUSY_TIMEOUT_MS,
             "elapsed_ms": elapsed_ms,
-            "plain_verify_calls": authorization.plain_verify_calls,
+            "plain_verify_calls": plain_verify_calls,
             "writer_lock_held": lock_held,
             "contention_observed": contention,
             "exception_type": type(observed).__qualname__ if observed else None,
@@ -536,7 +650,7 @@ def _execute(value, *, authority_revision: str | None = None) -> HostFaultResult
         }
         raw = canonical_json(payload).encode("utf-8")
         passed = (
-            authorization.plain_verify_calls == 2
+            plain_verify_calls == 2
             and lock_held
             and contention
             and isinstance(observed, RuntimeProviderTrustFenceError)
