@@ -198,8 +198,20 @@ def _enclosing(defs: list[_Def], line: int) -> _Def | None:
     return best
 
 
+def _posix(rel: object) -> str:
+    """Separator normalisation, done on both sides of the join or on neither."""
+    return str(rel).replace("\\", "/")
+
+
 def _node_id(rel: str, kind: str, qualname: str) -> str:
-    return f"code://{rel}#{kind}:{qualname}"
+    """Mint a code-plane id the way ``node_cards.node_id`` mints it.
+
+    ``kind`` must be a **node** kind (``node_cards.CODE_NODE_KINDS``), never
+    an s01 resolution bucket, and the separator is normalised here exactly as
+    ``node_cards.node_id`` normalises it — an edge minted on a Windows ``rel``
+    would otherwise miss every card on the other side of the join.
+    """
+    return f"code://{_posix(rel)}#{kind}:{qualname}"
 
 
 @dataclass
@@ -231,67 +243,131 @@ class Upstream:
         return out
 
 
-def _s01_code_records(root: Path, s01_path: Path) -> tuple[list[dict], dict]:
-    """Build code-plane records from s01's index and resolver.  Read-only."""
-    s01_index, s01_resolver = _import_s01(s01_path)
+def _s01_code_records(
+    root: Path, s01_path: Path | None = None, *, s01: tuple | None = None
+) -> tuple[list[dict], dict]:
+    """Build code-plane records from s01's index and resolver.  Read-only.
+
+    ``s01`` injects an already-imported ``(index_module, resolver_module)``
+    pair.  It exists so the record/edge join can be checked against a known
+    edge set **without** the sibling worktree — a check that depends on
+    another lane's HEAD is not a check this slice can run.
+    """
+    s01_index, s01_resolver = s01 if s01 is not None else _import_s01(s01_path)
     index = s01_index.build_index(root)
 
-    records: list[dict] = []
     counts = {
         "modules": 0,
         "unparseable": len(index.unparseable),
         "calls_total": 0,
         "calls_verified": 0,
+        "calls_verified_joined": 0,
+        "calls_verified_no_card": 0,
         "calls_external": 0,
         "calls_unresolved": 0,
         "bases_total": 0,
         "bases_repo": 0,
+        "calls_by_resolution": {"verified": {}, "external": {}},
     }
 
+    # ---- pass 1: read and parse ----------------------------------------
+    # A module that cannot be read produces no records, so it must also not
+    # appear in the join key below.  Deriving both from one list is what keeps
+    # the two sides of the join describing the same set of modules.
+    parsed: list[tuple] = []
     for info in index.modules.values():
         try:
             source = info.path.read_text(encoding="utf-8")
         except (OSError, UnicodeError):
             continue
-        lines = source.splitlines(keepends=True)
-        digest = file_digest(source)
         counts["modules"] += 1
+        parsed.append(
+            (
+                info,
+                source,
+                source.splitlines(keepends=True),
+                file_digest(source),
+                _walk_defs(info.name, info.tree),
+            )
+        )
 
-        defs = _walk_defs(info.name, info.tree)
+    # ---- the join key ---------------------------------------------------
+    # ``(rel, qualname) -> the node kind this build cards that node under``.
+    # It is derived from the records that will actually be emitted, so a
+    # target this slice does not card is *absent* from the map rather than
+    # guessed at.  That absence is what makes ``calls_verified_no_card`` a
+    # measurement instead of an estimate.
+    kind_of: dict[tuple[str, str], str] = {}
+    for info, _source, _lines, _digest, defs in parsed:
+        rel = _posix(info.rel)
+        kind_of[(rel, info.name)] = "module"
+        for item in defs:
+            kind_of[(rel, item.qualname)] = item.kind
+
+    records: list[dict] = []
+    for info, source, lines, digest, defs in parsed:
+        rel = _posix(info.rel)
         edges: dict[str, list[dict]] = {}
 
         # ---- call edges, attributed to the enclosing definition ----------
         for _call, res in s01_resolver.resolve_module(index, info):
             counts["calls_total"] += 1
+            bucket = str(res.kind)
             if res.status == "verified":
                 counts["calls_verified"] += 1
-                target_id = f"code://{res.target_rel}#{res.kind}:{res.target}"
+                counts["calls_by_resolution"]["verified"][bucket] = (
+                    counts["calls_by_resolution"]["verified"].get(bucket, 0) + 1
+                )
+                # THE JOIN.  ``res.kind`` is s01's resolution bucket -- how the
+                # call site was resolved -- and minting the target id from it
+                # made 13,124 verified edges address cards that cannot exist.
+                # The target's own node kind is the canonical side, because
+                # that is what ``node_cards.node_id`` mints from a record.
+                target_kind = kind_of.get((_posix(res.target_rel), res.target))
+                if target_kind is None:
+                    # s01 verified the definition and s06 has no card for it
+                    # (a def nested inside a function, say).  Declining is the
+                    # honest move: shipping the edge would leave a pointer into
+                    # nothing, the exact failure this join guards against.
+                    counts["calls_verified_no_card"] += 1
+                    continue
+                counts["calls_verified_joined"] += 1
+                target_id = _node_id(res.target_rel, target_kind, res.target)
+                edge_kind = target_kind
             elif res.status == "external":
                 counts["calls_external"] += 1
-                target_id = f"code://external#{res.kind}:{res.target}"
+                counts["calls_by_resolution"]["external"][bucket] = (
+                    counts["calls_by_resolution"]["external"].get(bucket, 0) + 1
+                )
+                # An external symbol has no card, and no node kind this slice
+                # can know, so the kind slot says ``symbol`` rather than
+                # smuggling the route in.  Measured: 386 distinct external
+                # targets under 386 ids either way, so this collapses nothing.
+                target_id = f"code://external#symbol:{res.target}"
+                edge_kind = "symbol"
             else:
                 # Declined, not guessed.  Counted so the drop is visible.
                 counts["calls_unresolved"] += 1
                 continue
             holder = _enclosing(defs, res.site_line)
             owner_id = (
-                _node_id(info.rel, holder.kind, holder.qualname)
+                _node_id(rel, holder.kind, holder.qualname)
                 if holder
-                else _node_id(info.rel, "module", info.name)
+                else _node_id(rel, "module", info.name)
             )
             edges.setdefault(owner_id, []).append(
                 {
                     "relation": "calls",
                     "direction": "out",
                     "node_id": target_id,
-                    "kind": res.kind,
+                    "kind": edge_kind,
                     "name": res.target.rsplit(".", 1)[-1],
                 }
             )
 
         # ---- base-class edges, resolved through s01 where possible -------
         for cls_name, cls in info.classes.items():
-            owner_id = _node_id(info.rel, "class", f"{info.name}.{cls_name}")
+            owner_id = _node_id(rel, "class", f"{info.name}.{cls_name}")
             for base in cls.bases:
                 counts["bases_total"] += 1
                 resolved = index.class_of(info.name, base)
@@ -299,20 +375,22 @@ def _s01_code_records(root: Path, s01_path: Path) -> tuple[list[dict], dict]:
                     counts["bases_repo"] += 1
                     target_mod = index.modules.get(resolved.module)
                     target_rel = target_mod.rel if target_mod else ""
-                    target_id = f"code://{target_rel}#class:{resolved.qualname}"
+                    target_id = _node_id(target_rel, "class", resolved.qualname)
+                    base_kind = "class"
                 else:
-                    target_id = f"code://external#class:{base}"
+                    target_id = f"code://external#symbol:{base}"
+                    base_kind = "symbol"
                 edges.setdefault(owner_id, []).append(
                     {
                         "relation": "derives_from",
                         "direction": "out",
                         "node_id": target_id,
-                        "kind": "class",
+                        "kind": base_kind,
                         "name": base.rsplit(".", 1)[-1],
                     }
                 )
 
-        module_id = _node_id(info.rel, "module", info.name)
+        module_id = _node_id(rel, "module", info.name)
         module_edges = list(edges.get(module_id, ()))
         for item in defs:
             if item.parent_kind == "module":
@@ -320,7 +398,7 @@ def _s01_code_records(root: Path, s01_path: Path) -> tuple[list[dict], dict]:
                     {
                         "relation": "defines",
                         "direction": "out",
-                        "node_id": _node_id(info.rel, item.kind, item.qualname),
+                        "node_id": _node_id(rel, item.kind, item.qualname),
                         "kind": item.kind,
                         "name": item.name,
                     }
@@ -342,14 +420,14 @@ def _s01_code_records(root: Path, s01_path: Path) -> tuple[list[dict], dict]:
         )
 
         for item in defs:
-            own_id = _node_id(info.rel, item.kind, item.qualname)
+            own_id = _node_id(rel, item.kind, item.qualname)
             neighbors = list(edges.get(own_id, ()))
             neighbors.append(
                 {
                     "relation": "defined_in",
                     "direction": "in",
                     "node_id": _node_id(
-                        info.rel,
+                        rel,
                         item.parent_kind or "module",
                         item.parent or info.name,
                     ),
@@ -364,7 +442,7 @@ def _s01_code_records(root: Path, s01_path: Path) -> tuple[list[dict], dict]:
                             {
                                 "relation": "defines",
                                 "direction": "out",
-                                "node_id": _node_id(info.rel, sub.kind, sub.qualname),
+                                "node_id": _node_id(rel, sub.kind, sub.qualname),
                                 "kind": sub.kind,
                                 "name": sub.name,
                             }

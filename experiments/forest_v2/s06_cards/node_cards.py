@@ -67,6 +67,19 @@ RECORD_SCHEMA = "forest-v2-node-record/1"
 #: Planes the card contract accepts (master plan §5).  There is no fifth one.
 PLANES = ("code", "type", "data", "knowledge")
 
+#: The code-plane node kinds this slice cards, and therefore the only kinds a
+#: ``code://`` ``node_id`` may carry.
+#:
+#: This tuple is the **interface between s01 and s06**.  s01's ``Resolution``
+#: carries a different vocabulary — ``local_function``, ``import_repo``,
+#: ``self_attr_method`` and seven more — which names *how a call site was
+#: resolved*, not *what the target is*.  Minting a target id from that
+#: vocabulary gave one target as many identities as it had callers, and
+#: 13,124 verified call edges addressed cards that could not exist.  The node
+#: kind is canonical because ``node_id`` is a pure function of a record: a
+#: card must be able to mint the identity another slice points at.
+CODE_NODE_KINDS = ("module", "class", "function", "method")
+
 REQUIRED_RECORD_FIELDS = ("plane", "kind", "path", "qualname", "start_line", "end_line")
 REQUIRED_CARD_FIELDS = (
     "schema",
