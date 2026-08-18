@@ -218,6 +218,13 @@ def bind_fault_matrix_evidence(
         if not candidates:
             return _unbound("no-verdict-artifact")
         if len(candidates) > 1:
+            # Evidence folders accumulate forever by design, so several
+            # discovered verdicts are the normal case, not a defect.  The
+            # disambiguation is deterministic: the one verdict observed at the
+            # cited revision wins.  Zero matches is not ambiguity -- it is a
+            # miss, and the blocker names every considered candidate so the
+            # finding stays actionable.  Two or more verdicts claiming the
+            # same revision is genuine ambiguity and stays fail-closed.
             matching = []
             for candidate in candidates:
                 try:
@@ -226,8 +233,16 @@ def bind_fault_matrix_evidence(
                     continue
                 if parsed.source_revision == source_revision:
                     matching.append(candidate)
-            if len(matching) != 1:
-                return _unbound(f"ambiguous-evidence:{len(candidates)}")
+            if not matching:
+                named = ",".join(
+                    _safe(candidate.parent.name, maximum=64)
+                    for candidate in candidates
+                )
+                return _unbound(
+                    f"no-verdict-at-cited-revision:candidates={named}"
+                )
+            if len(matching) > 1:
+                return _unbound(f"ambiguous-evidence:{len(matching)}")
             verdict_path = matching[0]
         else:
             verdict_path = candidates[0]

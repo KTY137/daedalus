@@ -29,7 +29,13 @@ MISSING_ROWS = (
 
 
 def test_the_report_binds_the_landed_verdict_at_this_repository() -> None:
-    report = build_gate0_report(ROOT, source_revision=REVISION)
+    # The landed bundle is cited explicitly: evidence folders accumulate
+    # forever by design, so a repo-wide discovery would stop being unique the
+    # moment the next dated run lands.  Discovery over the accumulated set is
+    # covered by test_discovery_over_accumulated_evidence_names_every_candidate.
+    report = build_gate0_report(
+        ROOT, source_revision=REVISION, fault_matrix_evidence_dir=LANDED_DIR
+    )
     assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
     assert not set(BLOCKED_ROWS) & set(report.fault_injection_failures)
     assert (
@@ -44,7 +50,9 @@ def test_the_report_binds_the_landed_verdict_at_this_repository() -> None:
 
 
 def test_every_bound_fault_row_reaches_the_blocker_list() -> None:
-    report = build_gate0_report(ROOT, source_revision=REVISION)
+    report = build_gate0_report(
+        ROOT, source_revision=REVISION, fault_matrix_evidence_dir=LANDED_DIR
+    )
     for row in report.fault_injection_failures:
         assert f"fault_injection_failures:{row}" in report.blockers
 
@@ -93,6 +101,7 @@ def test_legacy_fault_results_supplement_the_binding_and_cannot_replace_it() -> 
     report = build_gate0_report(
         ROOT,
         source_revision=REVISION,
+        fault_matrix_evidence_dir=LANDED_DIR,
         fault_results={"approval-replay": True, "target-head-race": False},
     )
     assert "target-head-race" in report.fault_injection_failures
@@ -100,7 +109,12 @@ def test_legacy_fault_results_supplement_the_binding_and_cannot_replace_it() -> 
 
 
 def test_an_empty_fault_results_map_cannot_launder_the_matrix_away() -> None:
-    report = build_gate0_report(ROOT, source_revision=REVISION, fault_results={})
+    report = build_gate0_report(
+        ROOT,
+        source_revision=REVISION,
+        fault_matrix_evidence_dir=LANDED_DIR,
+        fault_results={},
+    )
     assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
 
 
@@ -119,7 +133,9 @@ def test_the_conformance_blocker_names_the_missing_producer_link() -> None:
 
 
 def test_report_v3_carries_the_same_bound_rows() -> None:
-    report = build_gate0_report_v3(ROOT, source_revision=REVISION)
+    report = build_gate0_report_v3(
+        ROOT, source_revision=REVISION, fault_matrix_evidence_dir=LANDED_DIR
+    )
     assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
     assert not set(BLOCKED_ROWS) & set(report.fault_injection_failures)
     assert report.runtime_conformance_failures == (
@@ -130,6 +146,32 @@ def test_report_v3_carries_the_same_bound_rows() -> None:
 
 
 def test_the_report_stays_deterministic_with_the_binding_wired() -> None:
-    first = build_gate0_report(ROOT, source_revision=REVISION)
-    second = build_gate0_report(ROOT, source_revision=REVISION)
+    first = build_gate0_report(
+        ROOT, source_revision=REVISION, fault_matrix_evidence_dir=LANDED_DIR
+    )
+    second = build_gate0_report(
+        ROOT, source_revision=REVISION, fault_matrix_evidence_dir=LANDED_DIR
+    )
     assert first.to_dict() == second.to_dict()
+
+
+def test_discovery_over_accumulated_evidence_names_every_candidate() -> None:
+    """Repo-wide discovery at a revision no verdict owns must name, not count.
+
+    This binds against the real, forever-growing runs/ evidence set, so it
+    asserts membership of the landed bundle rather than the exact candidate
+    list: the next dated run must not break it.
+    """
+
+    report = build_gate0_report(ROOT, source_revision=REVISION)
+    named = [
+        row
+        for row in report.fault_injection_failures
+        if row.startswith("whole-matrix:unbound:no-verdict-at-cited-revision:candidates=")
+    ]
+    assert len(named) == 1
+    assert LANDED_DIR.name in named[0]
+    assert "whole-matrix:unbound:ambiguous-evidence:4" not in (
+        report.fault_injection_failures
+    )
+    assert f"fault_injection_failures:{named[0]}" in report.blockers
