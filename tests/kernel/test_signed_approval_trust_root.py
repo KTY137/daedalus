@@ -11,6 +11,7 @@ import ast
 import hashlib
 import inspect
 import json
+import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -693,8 +694,114 @@ def test_lazy_fetch_is_disabled_for_every_git_call() -> None:
     env = module._git_env()
     assert env["GIT_NO_LAZY_FETCH"] == "1"
     assert env["GIT_CONFIG_NOSYSTEM"] == "1"
-    for scrubbed in ("GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL", "GIT_SSH_COMMAND"):
+    for scrubbed in ("GIT_CONFIG_PARAMETERS", "GIT_SSH_COMMAND"):
         assert scrubbed not in env
+    # NOT "GIT_CONFIG_GLOBAL not in env". Popping it restores the real
+    # ~/.gitconfig; the canonical environment points it at os.devnull, which is
+    # what actually removes the per-user config from the lookup. The previous
+    # assertion here asserted the weaker of the two behaviours.
+    assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+
+
+def test_the_git_environment_is_the_canonical_one_not_a_second_copy() -> None:
+    """F1: two answers to "what is a safe git environment" is one too many.
+
+    The spine's ``_git_env`` is the canonical answer and carries its own proof
+    suite. This module may add to it and may never weaken it.
+    """
+    import daedalus.kernel.signed_approval as module
+    from daedalus.spine.attempt import _git_env as canonical
+
+    base = canonical()
+    env = module._git_env()
+    for name, value in base.items():
+        assert env.get(name) == value, f"{name} was weakened to {env.get(name)!r}"
+    for leaky in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                  "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                  "GIT_EXTERNAL_DIFF", "GIT_ASKPASS", "GIT_PROXY_COMMAND",
+                  "GIT_CONFIG", "GIT_CONFIG_COUNT"):
+        assert leaky not in env, f"{leaky} survives into the verifier"
+
+
+def test_an_inherited_GIT_DIR_cannot_redirect_the_verifier(
+    signing_repo: dict[str, object], tmp_path: Path, monkeypatch
+) -> None:
+    """Cerberus' F1 attack, rebuilt: a foreign object store answers everything.
+
+    With ``GIT_DIR`` inherited from the environment, every git call this module
+    makes -- rev-parse, the signers blob, cat-file, verify-tag -- resolves
+    inside the attacker's repository instead of the one being promoted. All the
+    pins then agree with each other, because they all came from the same
+    foreign store, and the result is "Good signature", exit 0, authenticated.
+    """
+    repo = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    trust_root = resolve_trust_root(repo)
+    tag = approval_tag_for(CANDIDATE)
+    sign_tag(tag, _body_json(trust_root.digest))
+
+    # A wholly separate repository the caller controls.
+    rogue = tmp_path / "rogue"
+    rogue.mkdir()
+    assert _git(rogue, "init", "-q", "-b", "main").returncode == 0
+
+    monkeypatch.setenv("GIT_DIR", str(rogue / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(rogue))
+
+    # The honest repository still verifies: the hostile variables are dropped.
+    verified = verify_signed_approval(repo, tag, expectation=_expectation())
+    assert verified.trust_root_commit_oid == trust_root.commit_oid
+    assert verified.trust_root_blob_oid == trust_root.blob_oid
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX shell")
+def test_a_substituted_ssh_verifier_cannot_forge_a_good_signature(
+    signing_repo: dict[str, object], tmp_path: Path
+) -> None:
+    """F1b, MEASURED: gpg.ssh.program in the repo's own config forges a pass.
+
+    Probe 2026-08-18, git 2.38.1.windows.1: an attacker-signed tag verified
+    with exit 0 when gpg.ssh.program pointed at a wrapper that rewrote the
+    allowed-signers path to one naming the attacker. GIT_CONFIG_NOSYSTEM and
+    GIT_CONFIG_GLOBAL=devnull do NOT close the repository-local config -- only
+    the command-line pin does. So this is driven through the real product path
+    rather than asserted against its source text.
+    """
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    attacker_key: Path = signing_repo["attacker_key"]  # type: ignore[assignment]
+    trust_root = resolve_trust_root(repo)
+    tag = approval_tag_for(CANDIDATE)
+
+    # A tag signed by a key the committed root does not name.
+    assert _git(
+        repo, "-c", "gpg.format=ssh", "-c", f"user.signingkey={attacker_key}",
+        "tag", "-s", "-m", _body_json(trust_root.digest), tag,
+    ).returncode == 0
+
+    rogue_signers = tmp_path / "rogue-allowed-signers"
+    rogue_signers.write_text(
+        f"owner@daedalus {attacker_key.with_suffix('.pub').read_text().strip()}\n",
+        encoding="utf-8",
+    )
+    swap = tmp_path / "swap.sh"
+    swap.write_text(
+        "#!/bin/sh\n"
+        'new=""\nskip=0\nfor a in "$@"; do\n'
+        '  if [ "$skip" = "1" ]; then skip=0; continue; fi\n'
+        '  if [ "$a" = "-f" ]; then\n'
+        f'    new="$new -f {rogue_signers.as_posix()}"\n'
+        "    skip=1\n    continue\n  fi\n"
+        '  new="$new $a"\ndone\nexec ssh-keygen $new\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    os.chmod(swap, 0o755)
+
+    # The vector: the repository's OWN config, which no env var removes.
+    assert _git(repo, "config", "gpg.ssh.program", swap.as_posix()).returncode == 0
+
+    with pytest.raises(SignedApprovalSignatureError):
+        verify_signed_approval(repo, tag, expectation=_expectation())
 
 
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:

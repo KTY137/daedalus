@@ -49,6 +49,7 @@ from typing import Any, Mapping
 
 from daedalus.kernel.approvals import ApprovalExpectation, _parse_utc
 from daedalus.schemas import _identifier, _revision, _sha256
+from daedalus.spine.attempt import _git_env as _canonical_git_env
 
 # The trust root. Both are module constants and neither is a parameter of any
 # public function in this module: the allowed-signers path is exactly as
@@ -77,19 +78,17 @@ APPROVAL_BODY_FIELDS = (
 
 _GIT_TIMEOUT_S = 30.0
 
-# Git reads its configuration from several places a hostile process could
-# reach. Command-line ``-c`` wins over config files, but GIT_CONFIG_PARAMETERS
-# is appended after it, so the environment is scrubbed rather than trusted.
-_SCRUBBED_GIT_ENV = (
+# Additions this verifier needs on top of the canonical environment. They are
+# additions only: nothing here re-enables anything the canonical env removed.
+# ``_git_env`` asserts that, so the overlay cannot quietly become a second and
+# weaker answer to "what is a safe environment to run git in".
+_EXTRA_SCRUBBED_GIT_ENV = (
+    # Command-line ``-c`` was measured to win over both of these on git 2.38.1
+    # (probe, 2026-08-18), so this is defence in depth rather than the thing
+    # that holds. It is kept because the precedence is a git implementation
+    # detail and this module's pins are load-bearing.
     "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_SYSTEM",
-    "GIT_CONFIG",
     "GIT_ALLOW_PROTOCOL",
-    "GIT_SSH",
-    "GIT_SSH_COMMAND",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 )
 
 
@@ -313,16 +312,39 @@ def canonical_approval_body(
 
 
 def _git_env() -> dict[str, str]:
-    env = dict(os.environ)
-    for name in _SCRUBBED_GIT_ENV:
+    """The canonical hardened git environment, plus this module's additions.
+
+    The environment is NOT reinvented here. It comes from
+    :func:`daedalus.spine.attempt._git_env`, which has its own proof suite in
+    ``tests/test_git_is_a_process_launcher.py``. An earlier version of this
+    module grew a second, weaker copy that failed to drop ``GIT_DIR``,
+    ``GIT_WORK_TREE`` and ``GIT_INDEX_FILE``, and that *popped*
+    ``GIT_CONFIG_GLOBAL`` instead of pointing it at ``os.devnull`` -- popping
+    restores the real per-user config rather than removing it. An inherited
+    ``GIT_DIR`` then redirected every call in this module into an attacker's
+    object store, where all eight pins agreed with each other because they came
+    from the same foreign repository.
+
+    Only additions are permitted on top, and the assertion below enforces it.
+    """
+    env = _canonical_git_env()
+    baseline = dict(env)
+
+    for name in _EXTRA_SCRUBBED_GIT_ENV:
         env.pop(name, None)
-    env["GIT_CONFIG_NOSYSTEM"] = "1"
-    env["GIT_TERMINAL_PROMPT"] = "0"
     # A shallow or partial clone must fail closed rather than reach out for the
     # object it is missing. Lazy fetching would turn "this repository cannot
     # show me the signed bytes" into a network call whose answer an attacker
     # may control.
     env["GIT_NO_LAZY_FETCH"] = "1"
+
+    # The overlay may remove more and pin more; it may never restore a variable
+    # the canonical environment removed, nor change one it set.
+    for name, value in baseline.items():
+        assert env.get(name) == value, (
+            f"the signed-approval git environment weakened {name}: "
+            f"canonical {value!r} became {env.get(name)!r}"
+        )
     return env
 
 
@@ -505,6 +527,14 @@ def verify_signed_approval(
                 "gpg.format=ssh",
                 "-c",
                 f"gpg.ssh.allowedSignersFile={signers_path}",
+                # The verifier itself is pinned. MEASURED 2026-08-18: with
+                # gpg.ssh.program set in a config git still reads, an
+                # attacker-signed tag verifies "Good signature" and exit 0,
+                # because the substituted program decides the answer. The
+                # repository's OWN config is such a place, and no environment
+                # variable closes it -- only this pin does.
+                "-c",
+                "gpg.ssh.program=ssh-keygen",
                 "verify-tag",
                 "--raw",
                 tag_name,
