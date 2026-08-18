@@ -101,6 +101,138 @@ sees top-level `FunctionDef`s; the baseline's generous last-segment
 same-module rule is kept unchanged for comparability, so the cross-module
 buckets only ever split the baseline's cross_module_or_dynamic mass.
 
+## Slice s10 (2026-08-18): the kill-criteria evaluator
+
+`experiments/forest_v2/s10_kill/` turns the master plan's kill criteria into
+code, so that stopping a research track becomes a computed proposal with a
+stated uncertainty instead of a judgement call made under sunk cost.
+
+**Section numbering:** the kill criteria are **section 14** in plan revision 5.
+They were section 13 in earlier revisions; section 13 is now "Forbidden
+default directions". The code cites the live numbering.
+
+### Frozen specification
+
+- **Hypothesis (falsifiable):** the mechanically checkable part of section 14
+  can be decided from a retrieval result set alone, and an evaluator that
+  applies it will withhold judgement exactly where the plan's own honesty
+  rules demand it (too few cases, unequal budgets, equivalence that was never
+  actually tested). Refuted if a constructed kill fails to fire, a constructed
+  pass fires anything, or a guard has to be bypassed to get a usable verdict.
+- **Contract of the outputs:** the evaluator reads `forest_v2.s10.kill-input/1`
+  JSON (`schema.py`) and emits, per criterion, one of `KEEP` / `KILL` /
+  `INCONCLUSIVE` / `NOT_EVALUABLE` with its comparison intervals, plus a
+  per-prior rollup. Text and `--json` renderings carry the same content.
+  **Advisory: it gates nothing, promotes nothing, blocks nothing, writes
+  nothing.** A `KILL` is a proposal to open an amendment (plan section 15).
+  Its exit code says whether the evaluation ran, never what it found.
+- **Scope:** pure stdlib, read-only, no repository imports, no network, no
+  subprocess, no writes. Consumes serialised results, so it never imports the
+  harness it grades.
+- **Budget:** one package, ~1.9k lines of implementation plus ~0.5k of
+  self-check, re-runnable in seconds. No model calls, no spend.
+- **Expiry: 2026-09-15.** After that, re-derive the criteria from the live
+  plan revision before trusting a verdict -- the plan's own section numbering
+  has already moved once, and a stale kill list is worse than none.
+
+### What it decides, and what it refuses to
+
+Nine of the plan's fifteen kill criteria are decidable from a retrieval result
+set. Six are not, and are reported as `NOT_EVALUABLE` **with the reason and
+counted in a coverage line**, because shipping nine checks under the name "the
+kill criteria" would be the dishonest version.
+
+| decided from retrieval results | needs evidence this format does not carry |
+| --- | --- |
+| 14.1 full beats code-only / BM25 | 14.5 graph movement predicts behaviour |
+| 14.2 rewired cross-plane control | 14.10 revision-atomic snapshot cost |
+| 14.3 four indices vs fusion | 14.11 embedding precision after verification |
+| 14.4 per-plane ablation | 14.13 motif composition vs direct generation |
+| 14.6 graph-conditioned prioritization | 14.14 Genesis round-trip conformance |
+| 14.7 gain survives leakage scrubbing | 14.15 orchestration transfer |
+| 14.8 extra tokens explain the gain | |
+| 14.9 quality/cost frontier | |
+| 14.12 held-out transfer | |
+
+Three design decisions carry the honesty of the whole slice:
+
+1. **Absence of a difference is not evidence of equivalence.** Four criteria
+   fire on *equivalence*. Implemented as "the difference was not significant",
+   they would kill a prior faster the less you measured. So equivalence is a
+   separate test against a declared practical margin (default +/-0.02): the
+   whole interval must lie inside the band. A wide interval is `INCONCLUSIVE`,
+   which is a real answer and never a soft pass.
+2. **A win bought with a larger budget is not a win.** Unequal budgets
+   downgrade the verdict they flatter and leave standing the verdict they
+   argue against -- a loss on fewer tokens is starvation, not refutation.
+3. **The metric is declared in the input, before the numbers are seen.** The
+   evaluator reads that one metric and cannot shop for a friendlier cutoff.
+
+### Self-test result (2026-08-18, synthetic ground truth) [MEASURED]
+
+`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **44 passed in 7.84s**.
+
+Nine scenarios with constructed ground truth, all scores drawn at runtime from
+a seeded PRNG (no fixture tables). Default config: CI95 percentile bootstrap,
+10,000 resamples, margin +/-0.02, `min_cases` 10.
+
+| scenario | cases | decidable | KEEP | KILL | INCONCLUSIVE | fired | sec |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| surviving_prior | 40 | 9 | 9 | 0 | 0 | - | 2.68 |
+| no_gain | 40 | 2 | 1 | 1 | 0 | 14.1 | 0.50 |
+| rewire_kill | 40 | 3 | 2 | 1 | 0 | 14.2 | 0.82 |
+| leakage_kill | 40 | 3 | 2 | 1 | 0 | 14.7 | 1.06 |
+| cost_kill | 40 | 2 | 0 | 2 | 0 | 14.1, 14.9 | 0.47 |
+| held_out_kill | 60 | 3 | 2 | 1 | 0 | 14.12 | 0.89 |
+| tiny_win | 80 | 2 | 1 | 1 | 0 | 14.1 | 0.91 |
+| underpowered | 5 | 2 | 0 | 0 | 2 | - | 0.14 |
+| budget_bought_win | 40 | 2 | 0 | 0 | 2 | - | 0.47 |
+
+Every constructed kill fired its own criterion; the constructed pass fired
+nothing. The headline comparison (14.1, full vs code-only) shows the guards
+doing the work:
+
+| scenario | verdict | mean diff | CI95 | n | state |
+| --- | --- | ---: | --- | ---: | --- |
+| surviving_prior | KEEP | +0.1503 | [+0.1430, +0.1581] | 40 | SUPERIOR |
+| no_gain | KILL | +0.0012 | [-0.0028, +0.0052] | 40 | EQUIVALENT |
+| tiny_win | KILL | +0.0035 | [+0.0020, +0.0051] | 80 | EQUIVALENT(but +) |
+| underpowered | INCONCLUSIVE | +0.2065 | [-0.1500, +0.4489] | 5 | INCONCLUSIVE |
+| budget_bought_win | INCONCLUSIVE | +0.1504 | [+0.1432, +0.1578] | 40 | SUPERIOR |
+
+The last three rows are the point of the slice. `underpowered` holds a real
++0.21 effect and decides nothing, because five noisy cases cannot decide.
+`budget_bought_win` shows a clean, significant win and is still withheld,
+because the winner held 2.50x the tokens. `tiny_win` is a *statistically*
+unambiguous win (CI entirely above zero) that is killed anyway for being
+smaller than the practical margin -- with a warning saying exactly that.
+
+Prior rollups are asymmetric on purpose: one fired criterion outranks any
+number of passes, since the plan stops the track on any single one.
+`rewire_kill` rolls up to `four_plane_project_twin = KILL (3/9 decidable)`
+on 14.2 alone, while `surviving_prior` reaches `KEEP (7/9)` only because
+every decidable criterion passed.
+
+### Honest caveats
+
+- **Every number above is synthetic.** This slice measures the *evaluator*,
+  not the Project Twin. It has never seen a real Forest result; the first real
+  input will come from the s09 harness, and nothing here should be read as
+  evidence about the priors themselves.
+- **The margin is a judgement, not a measurement.** +/-0.02 absolute on a 0..1
+  metric decides the difference between `tiny_win` being a KILL and a KEEP. It
+  should be pre-registered per campaign, not defaulted.
+- **The input contract is s10's, not s09's.** s09 was still in flight when this
+  was written, so the two were never wired end to end. The roles, budget and
+  cost fields are shape-matched to s09's `contract.py` (arms, per-case scores,
+  raw/scrubbed variants, cutoff metrics) but the adapter that emits this schema
+  from an s09 run does not exist yet.
+- **Bootstrap CIs on 40 paired cases are not a substitute for seeds.** The
+  evaluator warns below 5 declared seeds; it cannot manufacture the repetitions
+  the plan asks for.
+- **The `NOT_EVALUABLE` six are not "fine".** They are unmeasured. A prior whose
+  only decidable criteria pass is a prior that survived a partial exam.
+
 ## Boundary note
 
 This directory currently contains no effectful entrypoint (the probe's
