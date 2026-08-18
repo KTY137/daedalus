@@ -308,6 +308,24 @@ def test_a_verdict_from_another_revision_binds_but_blocks(tmp_path: Path) -> Non
 
 
 def test_ambiguous_evidence_refuses_rather_than_picking_one(tmp_path: Path) -> None:
+    """Two verdicts claiming the same revision are genuine ambiguity."""
+
+    root = _repo(tmp_path, receipt=_receipt_payload())
+    second = root / "runs" / "gate0-matrix-2026-08-18"
+    second.mkdir(parents=True)
+    (second / "whole-matrix-verdict.json").write_text(
+        canonical_json(_verdict_payload()) + "\n", encoding="utf-8"
+    )
+    binding = bind_fault_matrix_evidence(root, source_revision=REVISION)
+    assert binding.bound is False
+    assert binding.failures == ("whole-matrix:unbound:ambiguous-evidence:2",)
+
+
+def test_no_candidate_at_the_cited_revision_names_the_candidates(
+    tmp_path: Path,
+) -> None:
+    """Accumulated evidence with zero revision matches is a miss, not a count."""
+
     root = _repo(tmp_path, receipt=_receipt_payload())
     second = root / "runs" / "gate0-matrix-2026-08-18"
     second.mkdir(parents=True)
@@ -316,7 +334,10 @@ def test_ambiguous_evidence_refuses_rather_than_picking_one(tmp_path: Path) -> N
     )
     binding = bind_fault_matrix_evidence(root, source_revision=OTHER_REVISION)
     assert binding.bound is False
-    assert binding.failures == ("whole-matrix:unbound:ambiguous-evidence:2",)
+    assert binding.failures == (
+        "whole-matrix:unbound:no-verdict-at-cited-revision:"
+        "candidates=gate0-matrix-2026-08-17,gate0-matrix-2026-08-18",
+    )
 
 
 def test_ambiguity_resolves_when_exactly_one_bundle_owns_this_revision(

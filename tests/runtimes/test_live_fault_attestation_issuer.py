@@ -47,9 +47,15 @@ LIVE_ROW = "runtime.live-envelope.expiry"
 
 
 def _live_run_dir(tmp_path: Path) -> Path:
+    # The clock is frozen at NOW: the issuer rightly refuses an attestation
+    # issued before its observation, so a fixture observed at wall-clock time
+    # but issued at a pinned NOW would rot the moment real time passes NOW.
     run_dir = tmp_path / "live"
     for run in run_live_fault_catalog(
-        catalog=RUNTIME_FAULT_CATALOG, source_revision=REVISION, executors={}
+        catalog=RUNTIME_FAULT_CATALOG,
+        source_revision=REVISION,
+        executors={},
+        clock=lambda: NOW,
     ):
         retain_live_fault_run(run_dir, run)
     return run_dir
