@@ -216,6 +216,23 @@ def build_contamination_maps(root: Path, config: IndexConfig) -> dict[str, Conta
     }
 
 
+def _legacy_under_evidence_map(
+    quote_only: Mapping[str, frozenset[str]],
+) -> dict[str, frozenset[str]]:
+    """The three legacy documents, withheld only from the queries they quote.
+
+    This is the middle term that separates the two ways the retracted blanket
+    rule was wrong.  Compared against ``blanket_postfilter`` it isolates
+    OVER-exclusion (withholding a document from a query it never contaminated);
+    compared against the full evidence rule it isolates the carriers the
+    blanket rule MISSED.  By construction it is a subset of both the blanket
+    map and the C1 map, which is what the self-test pins.
+    """
+    return {
+        query: frozenset(quote_only[query]) & LEGACY_QUERY_CARRIERS for query, _ in QUERY_SET
+    }
+
+
 def _delta(subject: dict, reference: dict) -> dict:
     """Filtered minus unfiltered, on the numbers anyone would quote."""
     return {
@@ -263,6 +280,20 @@ def run(root: Path) -> dict:
     # ---- the retracted arm, reproduced by its own mechanism ------------
     legacy = BM25Index.build(root, _corpus_config(DEFAULT_EXTENSIONS, 3, LEGACY_QUERY_CARRIERS))
     record("blanket.legacy_rebuild", legacy, "RETRACTED blanket (build-time)", None, True)
+
+    # ---- what the over-exclusion alone was worth ----------------------
+    # The same three legacy documents, withheld only from the queries they
+    # actually carry.  ``blanket.postfilter`` minus this arm is the price of
+    # withholding them from the queries they do NOT carry -- the defect on
+    # its own, with the missed-carrier effect held out.
+    legacy_evidence_only = _legacy_under_evidence_map(quote_only)
+    record(
+        "blanket.legacy_files_under_evidence_rule",
+        primary,
+        "evidence_rule (C1), restricted to the three legacy documents",
+        legacy_evidence_only,
+        False,
+    )
 
     # ---- corpus and path-weight arms, filtered and unfiltered ----------
     for name, extensions, path_weight in (
@@ -313,6 +344,12 @@ def run(root: Path) -> dict:
         "blanket_minus_evidence_rule": _delta(
             results["full_corpus.pw3.blanket_postfilter"],
             results["full_corpus.pw3.evidence_rule"],
+        ),
+        # The defect, isolated: what the blanket rule bought by withholding
+        # documents from queries they never carried.
+        "over_exclusion_alone": _delta(
+            results["full_corpus.pw3.blanket_postfilter"],
+            results["blanket.legacy_files_under_evidence_rule"],
         ),
         "arms": arms,
     }

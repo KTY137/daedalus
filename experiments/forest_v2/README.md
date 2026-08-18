@@ -254,12 +254,104 @@ Two further asymmetries worth stating out loud:
   but the `leaky_control` row *is* affected by it, so that row's exact value is
   only meaningful next to the README revision it was measured against.
 
+### Anchored against the s09 task set (2026-08-18)
+
+The limit stated directly above — "Gate 3 needs a frozen task set produced by
+someone other than the retriever's author" — is now measured rather than only
+admitted. `s09_anchor.py` scores the *same* `BM25Index` against the task set
+slice s09 froze in commit `4000f77a`, before any retriever was measured against
+it: queries are commit subjects, gold is the commit's changed files, and the
+candidate universe is the tree at the commit's **parent**.
+
+All numbers below are [MEASURED] on this tree, 20 cases / 35 gold files:
+
+| variant | filter | MRR | macro R@1 | cases with any hit | median first-hit rank |
+| --- | --- | ---: | ---: | ---: | ---: |
+| raw | **unfiltered (the honest number)** | **0.1383** | 0.0125 | 6/20 | 3 |
+| raw | evidence rule (C1+C2) | 0.1889 | 0.0625 | 6/20 | 3 |
+| raw | C1 only | 0.1383 | 0.0125 | 6/20 | 3 |
+| scrubbed | **unfiltered (the honest number)** | **0.1167** | 0.0125 | 5/20 | 3 |
+| scrubbed | evidence rule (C1+C2) | 0.1500 | 0.0375 | 5/20 | 2 |
+| scrubbed | C1 only | 0.1167 | 0.0125 | 5/20 | 3 |
+
+What this costs the slice's headline:
+
+1. **The author-written query set is roughly four times easier.** Same
+   retriever, same corpus rule, same machine: 0.5336 MRR on the 12 hand-written
+   queries against 0.1383 on the frozen set. The hand-written number measures
+   the queries at least as much as the retriever. Quote the anchored number
+   when comparing against anything.
+2. **The filter lifts the anchored score too, and it is still a defect.** The
+   evidence rule buys +0.0506 MRR raw and +0.0333 scrubbed — and every bit of
+   it comes from C2 (gold-path citation), because C1 withholds **zero** pairs
+   here: commit subjects are not quoted verbatim inside the parent tree. A
+   document that cites `daedalus/budget.py` is a legitimate competitor, not
+   contamination; withholding it deletes a rival and inflates the score. The
+   unfiltered row is the one to quote.
+3. **The universes reconstruct exactly.** `universe_size` from the frozen
+   record matches the universe rebuilt here for all 20 of 20 cases, so the two
+   lanes are scoring the same candidate sets and a difference between them is
+   the ranker, not the corpus.
+
+**Why this is not circular.** The task set is a byte copy of s09's frozen file
+(sha256 `fe05b1c1…7260c`, pinned by a self-test, re-verified against its own
+digest on every run). Case selection is `sha256(commit_sha)` ordering — no
+retriever score enters it. The anchor commit `d849c2a9` predates both s09's
+freeze and every commit of this slice, and only one of the twenty parent trees
+contains any `experiments/forest_v2/` path at all (`README.md` and
+`probe_call_resolution.py`) — none contains `s07_bm25/`. The retriever is
+therefore not being scored on a corpus containing its own write-up. Residual,
+named: the queries still come from this repository's history, and the ranker's
+constants were chosen against the hand-written set from the same repository.
+The anchored score being four times worse is evidence that no tuning advantage
+carried over, not proof that none could.
+
+### Declared scope change: read-only git plumbing
+
+The **Scope** clause above freezes this slice as "no subprocess".
+`s09_anchor.py` needs historical trees, and reconstructing those without git
+would mean reimplementing its object database. The clause is therefore relaxed
+for that module only, and only to: **read-only git plumbing** (`rev-parse`,
+`cat-file`, `ls-tree`), no writes, no network, no other executable.
+`bm25_index.py`, `contamination.py` and `measure_bm25.py` remain
+subprocess-free. Recorded here because a frozen spec that is relaxed silently
+was never frozen.
+
+### Retained negative result: the retracted blanket rule was wrong the *other* way
+
+Commit `dc65b488` retracted the blanket exclusion on the stated reasoning that
+"withholding a document from a query it never contaminated deletes a competitor
+and lifts the score". That reasoning is now measured, and **it is wrong for
+this corpus**. Decomposing the blanket rule against the three legacy documents:
+
+| arm | MRR@10 | h@1 |
+| --- | ---: | ---: |
+| unfiltered | 0.5336 | 4 |
+| retracted blanket (36 pairs withheld) | 0.6030 | 5 |
+| the same 3 documents under C1 only (16 pairs withheld) | 0.6030 | 5 |
+| full evidence rule (495 pairs withheld) | 0.6701 | 6 |
+
+`over_exclusion_alone` = **0.0000** on MRR@10, h@1, h@3 and h@10. The 20 pairs
+the blanket over-excluded bought exactly nothing: two of them do rank inside
+the k=10 window, but both sit *below* the gold (rank 8 against gold 3, rank 2
+against gold 1), and removing a document ranked below the gold cannot move
+first-hit rank or reciprocal rank. The blanket rule's real error was
+**under**-exclusion — it missed 459 of the 495 contaminated pairs the evidence
+rule catches, worth −0.0671 MRR and one h@1. The retraction was still correct;
+the reason given for it was not.
+
 ### Reproduce
 
 ```text
-python -m pytest experiments/forest_v2/s07_bm25/test_bm25_index.py -q   # 27 passed, 2.4 s
+python -m pytest experiments/forest_v2/s07_bm25/ -q                     # 60 passed
 python experiments/forest_v2/s07_bm25/measure_bm25.py --root .          # the table above
+python experiments/forest_v2/s07_bm25/s09_anchor.py --root .            # the anchored table
 ```
+
+No wall-clock figure from the anchoring run is quoted here: it was measured on
+a box running other lanes (CPU 74 %, 407 processes), which makes a timing wrong
+rather than merely noisy. The rankings and every metric above are
+deterministic and unaffected.
 
 ## Boundary note
 

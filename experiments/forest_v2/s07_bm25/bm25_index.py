@@ -341,9 +341,37 @@ class BM25Index:
         index.report.build_seconds = time.perf_counter() - started
         return index
 
+    @classmethod
+    def from_counted_documents(
+        cls,
+        documents: Mapping[str, Counter],
+        config: IndexConfig | None = None,
+    ) -> "BM25Index":
+        """Index pre-tokenised content counts (``path -> Counter`` of content terms).
+
+        The path boost is still applied here, so the caller may reuse one
+        content Counter for a blob that appears at several paths.  This exists
+        for the s09 anchoring run, which scores twenty overlapping historical
+        trees: tokenising each unique blob once instead of once per tree is the
+        difference between a minute and a quarter of an hour, and it cannot
+        change a ranking because the counts are identical either way (a test
+        pins that against ``from_documents``).
+        """
+        index = cls(config)
+        started = time.perf_counter()
+        for path in sorted(documents):
+            index._add_counts(path, documents[path])
+            index.report.files_seen += 1
+            index.report.files_indexed += 1
+        index.report.build_seconds = time.perf_counter() - started
+        return index
+
     def _add(self, rel_path: str, text: str) -> None:
+        self._add_counts(rel_path, token_counts(text, min_token_len=self.config.min_token_len))
+
+    def _add_counts(self, rel_path: str, content_counts: Mapping[str, int]) -> None:
         cfg = self.config
-        counts = token_counts(text, min_token_len=cfg.min_token_len)
+        counts = Counter(content_counts)
         if cfg.path_weight > 0:
             for term, freq in token_counts(rel_path, min_token_len=cfg.min_token_len).items():
                 counts[term] += freq * cfg.path_weight
