@@ -16,11 +16,28 @@ property of a placeholder, never evidence about Gate-2 extraction.
 Determinism rules every extractor here obeys, because the digest depends on
 them: sorted file walk, posix relative locators, no mtime, no absolute path,
 no wall clock, no set iteration leaking into output order.
+
+Source evidence
+---------------
+Every extractor reads through the single function :func:`read_source_text` and
+records ``{relative posix path: digest of the text it got}`` as its witness.
+The witness is a by-product of the read that feeds extraction, never a second
+read -- a second read could observe a different tree state, which is exactly
+the hole contract ``/1`` had.  :func:`scan_scope` uses the same reader, so a
+witness entry and a scope entry are comparable by construction.
+
+The digest covers the DECODED text (utf-8, universal newlines, replacement on
+undecodable bytes), not the raw bytes.  A CRLF and an LF checkout of the same
+file are therefore one revision, which is the line-ending rule this slice
+already committed to.  The cost is stated plainly: two files that differ only
+in bytes that decode identically witness identically.
 """
 from __future__ import annotations
 
 import ast
 import csv
+import hashlib
+import io
 import json
 import os
 import sys
@@ -28,14 +45,23 @@ from pathlib import Path
 from typing import Any, Iterable
 
 try:  # flat experiment directory: sibling import without a package
-    from snapshot import CONTRACT
+    from snapshot import CONTRACT, build_snapshot
 except ImportError:  # pragma: no cover - depends on caller's sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from snapshot import CONTRACT
+    from snapshot import CONTRACT, build_snapshot
 
 CODE_ROOTS = ("daedalus",)
 DATA_ROOTS = ("configs", "catalogue", "examples")
 KNOWLEDGE_ROOTS = ("docs",)
+
+#: The declared snapshot scope: the union of the plane roots, and the suffixes
+#: any plane may consume.  Declared up front rather than derived from what the
+#: extractors happened to read -- a scope defined by its readers proves nothing,
+#: and an extractor reading outside it is refused as ``witness_outside_scope``.
+SCOPE_ROOTS = tuple(sorted(set(CODE_ROOTS + DATA_ROOTS + KNOWLEDGE_ROOTS)))
+SCOPE_SUFFIXES = (".py", ".json", ".csv", ".md")
+
+WITNESS_DOMAIN = "forest-v2-witness/1"
 
 _SKIP_DIRS = frozenset({"__pycache__", ".git", "node_modules", ".venv", "venv", ".mypy_cache"})
 #: bound on how many list elements the data extractor unions keys over
@@ -61,7 +87,46 @@ def _rel(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
-def _document(plane: str, revision: str, producer: str, nodes: list, edges: list) -> dict[str, Any]:
+def text_digest(text: str) -> str:
+    """Domain-separated digest of decoded source text."""
+    payload = (WITNESS_DOMAIN + "\n" + text).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def read_source_text(root: Path, path: Path, witness: dict[str, str] | None = None) -> str:
+    """The ONE read every extractor and the scope scanner goes through.
+
+    When ``witness`` is given, the digest recorded is the digest of the very
+    string returned here.  There is no second read and therefore no window in
+    which the file could change between "what became nodes" and "what was
+    witnessed".
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if witness is not None:
+        witness[_rel(root, path)] = text_digest(text)
+    return text
+
+
+def scan_scope(
+    root: Path,
+    roots: Iterable[str] = SCOPE_ROOTS,
+    suffixes: tuple[str, ...] = SCOPE_SUFFIXES,
+) -> dict[str, str]:
+    """One bracket reading of the declared scope: ``{relative path: digest}``."""
+    state: dict[str, str] = {}
+    for path in _walk(root, roots, suffixes):
+        read_source_text(root, path, state)
+    return state
+
+
+def _document(
+    plane: str,
+    revision: str,
+    producer: str,
+    nodes: list,
+    edges: list,
+    witness: dict[str, str],
+) -> dict[str, Any]:
     return {
         "schema": CONTRACT,
         "plane": plane,
@@ -69,6 +134,7 @@ def _document(plane: str, revision: str, producer: str, nodes: list, edges: list
         "producer": producer,
         "nodes": nodes,
         "edges": edges,
+        "witness": dict(witness),
     }
 
 
@@ -85,9 +151,10 @@ def _edge(src: str, dst: str, kind: str) -> dict[str, Any]:
     return {"src": src, "dst": dst, "kind": kind, "attrs": {}}
 
 
-def _parse_python(path: Path) -> ast.Module | None:
+def _parse_python(root: Path, path: Path, witness: dict[str, str]) -> ast.Module | None:
+    text = read_source_text(root, path, witness)
     try:
-        return ast.parse(path.read_text(encoding="utf-8", errors="replace"), filename=str(path))
+        return ast.parse(text, filename=str(path))
     except SyntaxError:
         return None
 
@@ -106,9 +173,10 @@ def _span(node: ast.AST) -> tuple[int, int]:
 def extract_code(root: Path, revision: str, roots: Iterable[str] = CODE_ROOTS) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
+    witness: dict[str, str] = {}
     for path in _walk(root, roots, (".py",)):
         rel = _rel(root, path)
-        tree = _parse_python(path)
+        tree = _parse_python(root, path, witness)
         module_id = f"code:module:{rel}"
         nodes.append(_node(module_id, "module", rel, 0, 0, parsed=tree is not None))
         if tree is None:
@@ -125,7 +193,9 @@ def extract_code(root: Path, revision: str, roots: Iterable[str] = CODE_ROOTS) -
             nodes.append(_node(node_id, kind, rel, start, end, name=item.name))
             edges.append(_edge(node_id, module_id, "defined_in"))
     nodes = _dedupe(nodes)
-    return _document("code", revision, "s05_snapshot.reference_planes.extract_code", nodes, edges)
+    return _document(
+        "code", revision, "s05_snapshot.reference_planes.extract_code", nodes, edges, witness
+    )
 
 
 def _dedupe(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -157,10 +227,11 @@ def _annotation_text(node: ast.AST | None) -> str | None:
 def extract_type(root: Path, revision: str, roots: Iterable[str] = CODE_ROOTS) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
+    witness: dict[str, str] = {}
     annotation_ids: set[str] = set()
     for path in _walk(root, roots, (".py",)):
         rel = _rel(root, path)
-        tree = _parse_python(path)
+        tree = _parse_python(root, path, witness)
         if tree is None:
             continue
         for item in tree.body:
@@ -197,7 +268,14 @@ def extract_type(root: Path, revision: str, roots: Iterable[str] = CODE_ROOTS) -
                     annotation_ids.add(ann_id)
                     nodes.append(_node(ann_id, "annotation", rel, 0, 0, text=text))
                 edges.append(_edge(ann_id, sig_id, f"annotates:{slot}"))
-    return _document("type", revision, "s05_snapshot.reference_planes.extract_type", _dedupe(nodes), edges)
+    return _document(
+        "type",
+        revision,
+        "s05_snapshot.reference_planes.extract_type",
+        _dedupe(nodes),
+        edges,
+        witness,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -205,10 +283,10 @@ def extract_type(root: Path, revision: str, roots: Iterable[str] = CODE_ROOTS) -
 # --------------------------------------------------------------------------
 
 
-def _json_fields(path: Path) -> tuple[list[str], bool]:
+def _json_fields(text: str) -> tuple[list[str], bool]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (ValueError, OSError):
+        payload = json.loads(text)
+    except ValueError:
         return [], False
     if isinstance(payload, dict):
         return sorted(str(k) for k in payload), False
@@ -222,26 +300,26 @@ def _json_fields(path: Path) -> tuple[list[str], bool]:
     return [], False
 
 
-def _csv_fields(path: Path) -> list[str]:
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace", newline="") as handle:
-            for row in csv.reader(handle):
-                return [c.strip() for c in row if c.strip()]
-    except OSError:  # pragma: no cover - unreadable file
-        return []
+def _csv_fields(text: str) -> list[str]:
+    # ``newline=""`` keeps csv's own line handling intact; the text arriving
+    # here has already been universal-newline decoded by the witnessed read.
+    for row in csv.reader(io.StringIO(text, newline="")):
+        return [c.strip() for c in row if c.strip()]
     return []
 
 
 def extract_data(root: Path, revision: str, roots: Iterable[str] = DATA_ROOTS) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
+    witness: dict[str, str] = {}
     for path in _walk(root, roots, (".json", ".csv")):
         rel = _rel(root, path)
+        text = read_source_text(root, path, witness)
         if path.suffix == ".csv":
-            fields, truncated = _csv_fields(path), False
+            fields, truncated = _csv_fields(text), False
             fmt = "csv"
         else:
-            fields, truncated = _json_fields(path)
+            fields, truncated = _json_fields(text)
             fmt = "json"
         file_id = f"data:file:{rel}"
         nodes.append(
@@ -251,7 +329,14 @@ def extract_data(root: Path, revision: str, roots: Iterable[str] = DATA_ROOTS) -
             field_id = f"data:field:{rel}:{field}"
             nodes.append(_node(field_id, "field", rel, 0, 0, name=field))
             edges.append(_edge(field_id, file_id, "field_of"))
-    return _document("data", revision, "s05_snapshot.reference_planes.extract_data", _dedupe(nodes), edges)
+    return _document(
+        "data",
+        revision,
+        "s05_snapshot.reference_planes.extract_data",
+        _dedupe(nodes),
+        edges,
+        witness,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -262,9 +347,10 @@ def extract_data(root: Path, revision: str, roots: Iterable[str] = DATA_ROOTS) -
 def extract_knowledge(root: Path, revision: str, roots: Iterable[str] = KNOWLEDGE_ROOTS) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
+    witness: dict[str, str] = {}
     for path in _walk(root, roots, (".md",)):
         rel = _rel(root, path)
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = read_source_text(root, path, witness)
         lines = text.splitlines()
         doc_id = f"knowledge:document:{rel}"
         nodes.append(_node(doc_id, "document", rel, 0, len(lines), lines=len(lines)))
@@ -293,7 +379,12 @@ def extract_knowledge(root: Path, revision: str, roots: Iterable[str] = KNOWLEDG
             edges.append(_edge(heading_id, parent, "under"))
             stack.append((level, heading_id))
     return _document(
-        "knowledge", revision, "s05_snapshot.reference_planes.extract_knowledge", _dedupe(nodes), edges
+        "knowledge",
+        revision,
+        "s05_snapshot.reference_planes.extract_knowledge",
+        _dedupe(nodes),
+        edges,
+        witness,
     )
 
 
@@ -376,6 +467,40 @@ EXTRACTORS = {
 }
 
 
-def extract_all(root: Path, revision: str) -> list[dict[str, Any]]:
+PLANE_ORDER = ("code", "type", "data", "knowledge")
+
+
+def extract_all(
+    root: Path, revision: str, plane_roots: dict[str, Iterable[str]] | None = None
+) -> list[dict[str, Any]]:
     """Run the four placeholder extractors against one revision of ``root``."""
-    return [EXTRACTORS[plane](root, revision) for plane in ("code", "type", "data", "knowledge")]
+    overrides = plane_roots or {}
+    documents = []
+    for plane in PLANE_ORDER:
+        extractor = EXTRACTORS[plane]
+        roots = overrides.get(plane)
+        documents.append(
+            extractor(root, revision) if roots is None else extractor(root, revision, roots=roots)
+        )
+    return documents
+
+
+def build_atomic_snapshot(
+    root: Path,
+    revision: str,
+    plane_roots: dict[str, Iterable[str]] | None = None,
+    scope_roots: Iterable[str] = SCOPE_ROOTS,
+    scope_suffixes: tuple[str, ...] = SCOPE_SUFFIXES,
+) -> dict[str, Any]:
+    """Scan, extract, scan again, build.  The bracket is what makes it atomic.
+
+    The opening scan MUST precede the first extraction and the closing scan MUST
+    follow the last one; that ordering is the whole guarantee, so it lives here
+    in one function rather than in four call sites that can each get it wrong.
+    """
+    scope_roots = tuple(scope_roots)
+    opened = scan_scope(root, scope_roots, scope_suffixes)
+    documents = extract_all(root, revision, plane_roots)
+    closed = scan_scope(root, scope_roots, scope_suffixes)
+    scope = {"roots": list(scope_roots), "opened": opened, "closed": closed}
+    return build_snapshot(documents, scope)

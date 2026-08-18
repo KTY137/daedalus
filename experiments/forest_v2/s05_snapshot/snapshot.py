@@ -7,20 +7,60 @@ this module; it is Gate-2 prework, not a production path.
 
 What it does
 ------------
-It takes four plane extractions that each claim the SAME source revision,
-refuses the build if the set is not complete and consistent, and reduces the
-result to one content-addressed digest.  Master plan invariant 6 ("atomic
-revisions"): partial graph states must not masquerade as a revision.  Here the
-refusal is mechanical, not a review convention.
+It takes four plane extractions of ONE source revision, refuses the build if
+the set is not complete, not consistent, or not backed by matching source
+evidence, and reduces the result to one content-addressed digest.  Master plan
+invariant 6 ("atomic revisions"): partial graph states must not masquerade as a
+revision.  Here the refusal is mechanical, not a review convention.
+
+Why revision identity is not a string
+-------------------------------------
+Contract ``/1`` bound the four planes together by STRING EQUALITY of their
+``revision`` field.  That was refuted on 2026-08-18: a worktree mutated BETWEEN
+two plane extractions still digested as one "atomic" revision, because a label
+is a claim, not evidence.  Contract ``/2`` replaces the claim with evidence in
+two independent layers:
+
+1. **Per-plane witness.**  Every extractor records ``{source path: digest of
+   the exact text it consumed}``.  The witness is produced BY the read that fed
+   extraction, not by a second read, so there is no window between "the bytes
+   that became nodes" and "the bytes that were witnessed".  Two planes that
+   read the same file must witness the same digest (``witness_conflict``), and
+   every node locator must point at a file its own plane witnessed
+   (``unwitnessed_locator``).
+2. **Scope bracket.**  The caller scans the declared snapshot scope before the
+   first extraction and again after the last, and hands both to the builder.
+   Opening and closing state must be equal (``scope_drift``), and every witness
+   entry must equal the bracketed state of that file
+   (``witness_scope_mismatch``).
+
+Layer 1 alone misses a file only one plane reads; layer 2 alone misses a
+mutation that is reverted before the closing scan.  Together they refuse both:
+what survives is a set of planes that provably read one tree state.  What is
+NOT covered, stated plainly: a file mutated and reverted inside the window
+while no plane read the mutated bytes -- in that case no plane's content
+depends on the transient state, so the snapshot is still a function of the
+bracketed tree.
 
 Digest algebra (domain-separated, order-independent, path-independent)::
 
     node_digest     = sha256( canonical(node) )
     edge_digest     = sha256( canonical(edge) )
-    plane_digest    = sha256( "forest-v2-plane/1" | plane | revision
-                              | sorted(node_digests) | sorted(edge_digests) )
-    snapshot_digest = sha256( "forest-v2-snapshot/1" | contract | revision
+    plane_digest    = sha256( "forest-v2-plane/2" | plane | revision
+                              | sorted(node_digests) | sorted(edge_digests)
+                              | sorted("path=witness_digest") )
+    snapshot_digest = sha256( "forest-v2-snapshot/2" | contract | revision
                               | "plane=plane_digest" for the four fixed planes )
+
+The witness is inside the plane digest on purpose.  Without it the digest is a
+function of the extracted *view* only, so a source change no extractor happens
+to look at (a function body, when the extractor sees only names and spans)
+leaves the digest of a "revision-atomic snapshot" unmoved.  With it, the digest
+commits to the bytes each plane read.
+
+The scope bracket is deliberately NOT in the digest: it is evidence about the
+build, not content of the snapshot.  A file inside the scope that no plane
+reads must not change the identity of what was extracted.
 
 Only contract keys enter a digest.  An unknown key is a refusal, not a silently
 ignored field -- otherwise a producer could smuggle a wall clock or an absolute
@@ -29,6 +69,10 @@ path into the digested content and replay identity would quietly die.
 Honest caveat: ``attrs`` is free-form per plane, so this module cannot *prove*
 a producer put nothing nondeterministic in there.  It can only expose it -- the
 double-build check in ``probe_replay_identity.py`` is what actually catches it.
+Second honest caveat: witnesses and scope entries are self-reported by the
+producer.  They defeat a racing writer, not a lying extractor; a forged
+document can forge its own evidence.  Sealing that needs a trusted reader
+outside the producer, which this experiment does not build.
 """
 from __future__ import annotations
 
@@ -36,18 +80,26 @@ import hashlib
 import json
 from typing import Any, Iterable, Mapping
 
-CONTRACT = "forest-v2-plane-extraction/1"
-SNAPSHOT_SCHEMA = "forest-v2-snapshot/1"
-PLANE_DIGEST_DOMAIN = "forest-v2-plane/1"
-SNAPSHOT_DIGEST_DOMAIN = "forest-v2-snapshot/1"
+CONTRACT = "forest-v2-plane-extraction/2"
+SNAPSHOT_SCHEMA = "forest-v2-snapshot/2"
+PLANE_DIGEST_DOMAIN = "forest-v2-plane/2"
+SNAPSHOT_DIGEST_DOMAIN = "forest-v2-snapshot/2"
+SCOPE_SCHEMA = "forest-v2-scope/1"
 
 #: The four planes of master plan section 5, in fixed digest order.
 PLANES = ("code", "type", "data", "knowledge")
 
-_DOC_KEYS = frozenset({"schema", "plane", "revision", "producer", "nodes", "edges"})
+_DOC_KEYS = frozenset(
+    {"schema", "plane", "revision", "producer", "nodes", "edges", "witness"}
+)
 _NODE_KEYS = ("id", "kind", "locator", "attrs")
 _EDGE_KEYS = ("src", "dst", "kind", "attrs")
 _LOCATOR_KEYS = ("path", "start_line", "end_line")
+_SCOPE_KEYS = ("roots", "opened", "closed")
+
+_DIGEST_PREFIX = "sha256:"
+_DIGEST_LENGTH = len(_DIGEST_PREFIX) + 64
+_HEX = frozenset("0123456789abcdef")
 
 
 class ContractError(ValueError):
@@ -97,6 +149,42 @@ def _require_mapping(value: Any, code: str, what: str) -> Mapping[str, Any]:
     return value
 
 
+def _check_source_path(path: Any, where: str, code: str) -> str:
+    """The one rule set for every source path: locators AND witness/scope keys.
+
+    Shared on purpose -- a witness key and a locator have to be comparable as
+    strings, so they must be normalized by the same rules or the comparison
+    silently stops matching.
+    """
+    if not isinstance(path, str) or not path:
+        raise ContractError(code, f"source path of {where} must be a non-empty string")
+    if "\\" in path:
+        raise ContractError(code, f"source path of {where} is not posix: {path!r}")
+    if path.startswith("/") or (len(path) > 1 and path[1] == ":"):
+        raise ContractError("absolute_locator", f"source path of {where} is absolute: {path!r}")
+    if ".." in path.split("/"):
+        raise ContractError(code, f"source path of {where} escapes the root: {path!r}")
+    return path
+
+
+def _check_digest(value: Any, where: str, code: str) -> str:
+    if not isinstance(value, str) or len(value) != _DIGEST_LENGTH:
+        raise ContractError(code, f"{where} must be a {_DIGEST_PREFIX}<64 hex> digest")
+    if not value.startswith(_DIGEST_PREFIX) or not set(value[len(_DIGEST_PREFIX):]) <= _HEX:
+        raise ContractError(code, f"{where} is not a lowercase {_DIGEST_PREFIX} digest: {value!r}")
+    return value
+
+
+def _normalize_digest_map(raw: Any, where: str, code: str) -> dict[str, str]:
+    """Validate a ``{source path: content digest}`` mapping (witness or scope)."""
+    mapping = _require_mapping(raw, code, where)
+    out: dict[str, str] = {}
+    for path, digest in mapping.items():
+        clean = _check_source_path(path, where, code)
+        out[clean] = _check_digest(digest, f"{where} entry {clean!r}", code)
+    return out
+
+
 def _normalize_locator(raw: Any, where: str) -> dict[str, Any]:
     loc = _require_mapping(raw, "bad_locator", f"locator of {where}")
     unknown = set(loc) - set(_LOCATOR_KEYS)
@@ -105,15 +193,7 @@ def _normalize_locator(raw: Any, where: str) -> dict[str, Any]:
     missing = [k for k in _LOCATOR_KEYS if k not in loc]
     if missing:
         raise ContractError("bad_locator", f"locator of {where} lacks {missing}")
-    path = loc["path"]
-    if not isinstance(path, str) or not path:
-        raise ContractError("bad_locator", f"locator path of {where} must be a non-empty string")
-    if "\\" in path:
-        raise ContractError("bad_locator", f"locator path of {where} is not posix: {path!r}")
-    if path.startswith("/") or (len(path) > 1 and path[1] == ":"):
-        raise ContractError("absolute_locator", f"locator path of {where} is absolute: {path!r}")
-    if ".." in path.split("/"):
-        raise ContractError("bad_locator", f"locator path of {where} escapes the root: {path!r}")
+    path = _check_source_path(loc["path"], f"locator of {where}", "bad_locator")
     lines = []
     for key in ("start_line", "end_line"):
         value = loc[key]
@@ -217,6 +297,20 @@ def normalize_plane_document(raw: Any) -> dict[str, Any]:
             raise ContractError("duplicate_node_id", f"plane {plane} repeats {node['id']!r}")
         seen.add(node["id"])
     edges = [_normalize_edge(e, plane) for e in doc["edges"]]
+
+    witness = _normalize_digest_map(doc["witness"], f"witness of plane {plane}", "bad_witness")
+    if nodes and not witness:
+        raise ContractError(
+            "nodes_without_witness",
+            f"plane {plane} claims {len(nodes)} nodes but witnessed no source file",
+        )
+    unwitnessed = sorted({n["locator"]["path"] for n in nodes} - set(witness))
+    if unwitnessed:
+        raise ContractError(
+            "unwitnessed_locator",
+            f"plane {plane} locates nodes in {unwitnessed[:3]} but never witnessed reading them",
+        )
+
     return {
         "schema": CONTRACT,
         "plane": plane,
@@ -224,6 +318,7 @@ def normalize_plane_document(raw: Any) -> dict[str, Any]:
         "producer": producer,
         "nodes": nodes,
         "edges": edges,
+        "witness": witness,
     }
 
 
@@ -233,9 +328,15 @@ def normalize_plane_document(raw: Any) -> dict[str, Any]:
 
 
 def plane_digest(document: Mapping[str, Any]) -> str:
-    """Digest one normalized plane document, independent of element order."""
+    """Digest one normalized plane document, independent of element order.
+
+    The witness is part of it: a plane digest has to commit to the source bytes
+    the plane read, otherwise a source change the extractor does not look at
+    leaves the "revision-atomic" digest unmoved.
+    """
     node_digests = sorted(digest_object(n) for n in document["nodes"])
     edge_digests = sorted(digest_object(e) for e in document["edges"])
+    witness_lines = sorted(f"{path}={d}" for path, d in document["witness"].items())
     parts = [
         PLANE_DIGEST_DOMAIN,
         document["plane"],
@@ -244,7 +345,38 @@ def plane_digest(document: Mapping[str, Any]) -> str:
         *node_digests,
         "edges",
         *edge_digests,
+        "witness",
+        *witness_lines,
     ]
+    return digest_bytes("\n".join(parts).encode("utf-8"))
+
+
+def normalize_scope(raw: Any) -> dict[str, Any]:
+    """Validate the scope bracket: the tree state before and after extraction."""
+    scope = _require_mapping(raw, "bad_scope", "scope")
+    unknown = set(scope) - set(_SCOPE_KEYS)
+    if unknown:
+        raise ContractError("unknown_key", f"scope has {sorted(unknown)}")
+    missing = [k for k in _SCOPE_KEYS if k not in scope]
+    if missing:
+        raise ContractError("bad_scope", f"scope lacks {missing}")
+    roots = scope["roots"]
+    if not isinstance(roots, list) or not roots:
+        raise ContractError("bad_scope", "scope roots must be a non-empty list")
+    for root in roots:
+        if not isinstance(root, str) or not root:
+            raise ContractError("bad_scope", "scope roots must be non-empty strings")
+    return {
+        "roots": sorted(roots),
+        "opened": _normalize_digest_map(scope["opened"], "scope opened", "bad_scope"),
+        "closed": _normalize_digest_map(scope["closed"], "scope closed", "bad_scope"),
+    }
+
+
+def scope_digest(scope: Mapping[str, Any]) -> str:
+    """Digest the bracketed tree state.  Provenance only -- not snapshot identity."""
+    parts = [SCOPE_SCHEMA, "roots", *scope["roots"], "files"]
+    parts.extend(f"{path}={d}" for path, d in sorted(scope["opened"].items()))
     return digest_bytes("\n".join(parts).encode("utf-8"))
 
 
@@ -263,13 +395,81 @@ def snapshot_digest(revision: str, plane_digests: Mapping[str, str]) -> str:
 # --------------------------------------------------------------------------
 
 
-def build_snapshot(documents: Iterable[Any]) -> dict[str, Any]:
+def _refuse_scope_drift(scope: Mapping[str, Any]) -> None:
+    """The tree must look the same after the last extraction as before the first."""
+    opened, closed = scope["opened"], scope["closed"]
+    if opened == closed:
+        return
+    added = sorted(set(closed) - set(opened))
+    removed = sorted(set(opened) - set(closed))
+    changed = sorted(p for p in set(opened) & set(closed) if opened[p] != closed[p])
+    raise ContractError(
+        "scope_drift",
+        "the tree moved during extraction: "
+        f"changed={changed[:3]} added={added[:3]} removed={removed[:3]} "
+        "-- the four planes did not see one tree state",
+    )
+
+
+def _refuse_witness_conflict(by_plane: Mapping[str, Mapping[str, Any]]) -> None:
+    """Two planes that read the same file must have read the same bytes."""
+    seen: dict[str, tuple[str, str]] = {}
+    for plane in PLANES:
+        for path, digest in sorted(by_plane[plane]["witness"].items()):
+            if path not in seen:
+                seen[path] = (plane, digest)
+                continue
+            other_plane, other_digest = seen[path]
+            if other_digest != digest:
+                raise ContractError(
+                    "witness_conflict",
+                    f"planes {other_plane} and {plane} read different content for "
+                    f"{path!r} ({other_digest} vs {digest}) -- they extracted two "
+                    "different tree states, not one revision",
+                )
+
+
+def _refuse_witness_scope_mismatch(
+    by_plane: Mapping[str, Mapping[str, Any]], scope: Mapping[str, Any]
+) -> None:
+    """Every file a plane read must match the bracketed state of that file.
+
+    This is what catches a mutation that was reverted before the closing scan:
+    the bracket agrees with itself, but a plane witnessed bytes that were never
+    in the bracketed tree.
+    """
+    opened = scope["opened"]
+    for plane in PLANES:
+        for path, digest in sorted(by_plane[plane]["witness"].items()):
+            if path not in opened:
+                raise ContractError(
+                    "witness_outside_scope",
+                    f"plane {plane} read {path!r}, which the declared scope "
+                    f"{scope['roots']} does not cover -- unbracketed input",
+                )
+            if opened[path] != digest:
+                raise ContractError(
+                    "witness_scope_mismatch",
+                    f"plane {plane} read {path!r} as {digest} but the bracketed tree "
+                    f"holds {opened[path]} -- the file moved and moved back",
+                )
+
+
+def build_snapshot(documents: Iterable[Any], scope: Any) -> dict[str, Any]:
     """Bind four plane extractions to one revision and content-address them.
 
+    ``scope`` is the mandatory atomicity evidence: ``{"roots": [...],
+    "opened": {path: digest}, "closed": {path: digest}}``, scanned by the
+    caller before the first extraction and after the last one.  It is not
+    optional and has no default -- an opt-in atomicity gate is not a gate.
+
     Refuses (``ContractError``) on: an incomplete plane set, a repeated plane,
-    a revision that differs between planes, any contract violation, an edge
-    endpoint missing from its own plane, and an edge that reaches into another
-    plane.  There is no partial result -- a refusal returns no digest at all.
+    a revision label that differs between planes, a tree that moved during
+    extraction, two planes that read different bytes of the same file, a plane
+    that read outside the declared scope or read bytes the bracket never held,
+    any contract violation, an edge endpoint missing from its own plane, and an
+    edge reaching into another plane.  There is no partial result -- a refusal
+    returns no digest at all.
     """
     by_plane: dict[str, dict[str, Any]] = {}
     for raw in documents:
@@ -290,6 +490,13 @@ def build_snapshot(documents: Iterable[Any]) -> dict[str, Any]:
         )
         raise ContractError("revision_mismatch", f"planes disagree: {detail}")
     revision = revisions.pop()
+
+    # Atomicity, in evidence order: the tree-level bracket first (it is the
+    # claim about the whole window), then the per-plane source evidence.
+    checked_scope = normalize_scope(scope)
+    _refuse_scope_drift(checked_scope)
+    _refuse_witness_conflict(by_plane)
+    _refuse_witness_scope_mismatch(by_plane, checked_scope)
 
     ids_by_plane = {plane: {n["id"] for n in doc["nodes"]} for plane, doc in by_plane.items()}
     for plane in PLANES:
@@ -317,17 +524,29 @@ def build_snapshot(documents: Iterable[Any]) -> dict[str, Any]:
             "producer": by_plane[plane]["producer"],
             "nodes": len(by_plane[plane]["nodes"]),
             "edges": len(by_plane[plane]["edges"]),
+            "witness_files": len(by_plane[plane]["witness"]),
         }
         for plane in PLANES
     }
+    witnessed = set()
+    for plane in PLANES:
+        witnessed |= set(by_plane[plane]["witness"])
     return {
         "schema": SNAPSHOT_SCHEMA,
         "contract": CONTRACT,
         "revision": revision,
+        "revision_binding": "source-evidence",
         "snapshot_digest": snapshot_digest(revision, digests),
         "planes": manifest_planes,
         "node_total": sum(p["nodes"] for p in manifest_planes.values()),
         "edge_total": sum(p["edges"] for p in manifest_planes.values()),
+        "scope": {
+            "digest": scope_digest(checked_scope),
+            "roots": checked_scope["roots"],
+            "files": len(checked_scope["opened"]),
+            "witnessed_files": len(witnessed),
+            "unread_files": len(set(checked_scope["opened"]) - witnessed),
+        },
     }
 
 
@@ -341,17 +560,19 @@ def load_plane_documents(paths: Iterable[Any]) -> list[dict[str, Any]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Read four plane JSON files, print the snapshot manifest.  No writes."""
+    """Read a scope file and four plane JSON files, print the manifest.  No writes."""
     import sys
 
     args = list(sys.argv[1:] if argv is None else argv)
-    if not args:
+    if len(args) != 5:
         print(
             json.dumps(
                 {
                     "schema": SNAPSHOT_SCHEMA,
-                    "usage": "python snapshot.py <plane.json> <plane.json> "
-                    "<plane.json> <plane.json>",
+                    "usage": "python snapshot.py <scope.json> <plane.json> "
+                    "<plane.json> <plane.json> <plane.json>",
+                    "scope": "{roots: [...], opened: {path: digest}, closed: {...}} "
+                    "-- scanned before the first and after the last extraction",
                     "planes": list(PLANES),
                     "contract": CONTRACT,
                 },
@@ -361,7 +582,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
-        manifest = build_snapshot(load_plane_documents(args))
+        scope = load_plane_documents(args[:1])[0]
+        manifest = build_snapshot(load_plane_documents(args[1:]), scope)
     except ContractError as exc:
         print(json.dumps({"refused": exc.code, "detail": exc.detail}, indent=2, sort_keys=True))
         return 1

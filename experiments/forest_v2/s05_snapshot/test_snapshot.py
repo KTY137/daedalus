@@ -34,17 +34,22 @@ def _node(node_id: str, path: str = "a/b.py", **attrs):
 
 
 def _doc(plane: str, revision: str = "rev-1", nodes=None, edges=None, producer="s05.check"):
+    node_list = list(nodes if nodes is not None else [_node(f"{plane}:n1"), _node(f"{plane}:n2")])
     return {
         "schema": snap.CONTRACT,
         "plane": plane,
         "revision": revision,
         "producer": producer,
-        "nodes": list(nodes if nodes is not None else [_node(f"{plane}:n1"), _node(f"{plane}:n2")]),
+        "nodes": node_list,
         "edges": list(
             edges
             if edges is not None
             else [{"src": f"{plane}:n1", "dst": f"{plane}:n2", "kind": "near", "attrs": {}}]
         ),
+        "witness": {
+            n["locator"]["path"]: rp.text_digest(f"content of {n['locator']['path']}")
+            for n in node_list
+        },
     }
 
 
@@ -52,9 +57,27 @@ def _four(revision: str = "rev-1"):
     return [_doc(plane, revision) for plane in snap.PLANES]
 
 
-def _refuse(documents) -> str:
+def _agreeing_scope(documents):
+    """TEST HELPER ONLY: a scope bracket that trivially agrees with the witnesses.
+
+    It proves NOTHING about atomicity -- it is derived from the very documents
+    it is supposed to bracket.  It exists so the checks about *other* contract
+    rules do not have to build a filesystem.  The atomicity gate at the bottom
+    of this file uses a real bracket scanned off a real tree.
+    """
+    files: dict[str, str] = {}
+    for doc in documents:
+        files.update(doc.get("witness", {}))
+    return {"roots": ["a"], "opened": dict(files), "closed": dict(files)}
+
+
+def _build(documents, scope=None):
+    return snap.build_snapshot(documents, _agreeing_scope(documents) if scope is None else scope)
+
+
+def _refuse(documents, scope=None) -> str:
     with pytest.raises(snap.ContractError) as excinfo:
-        snap.build_snapshot(documents)
+        _build(documents, scope)
     return excinfo.value.code
 
 
@@ -84,8 +107,8 @@ def test_plane_name_is_part_of_the_plane_digest():
 
 
 def test_revision_is_part_of_the_snapshot_digest():
-    one = snap.build_snapshot(_four("rev-1"))["snapshot_digest"]
-    two = snap.build_snapshot(_four("rev-2"))["snapshot_digest"]
+    one = _build(_four("rev-1"))["snapshot_digest"]
+    two = _build(_four("rev-2"))["snapshot_digest"]
     assert one != two
 
 
@@ -102,8 +125,8 @@ def test_snapshot_digest_needs_all_four_plane_digests():
 
 def test_two_builds_of_the_same_documents_agree():
     assert (
-        snap.build_snapshot(_four())["snapshot_digest"]
-        == snap.build_snapshot(_four())["snapshot_digest"]
+        _build(_four())["snapshot_digest"]
+        == _build(_four())["snapshot_digest"]
     )
 
 
@@ -114,30 +137,30 @@ def test_element_order_does_not_move_the_digest():
         doc["edges"].append(
             {"src": f"{doc['plane']}:n3", "dst": f"{doc['plane']}:n1", "kind": "near", "attrs": {}}
         )
-    baseline = snap.build_snapshot(docs)["snapshot_digest"]
+    baseline = _build(docs)["snapshot_digest"]
     rng = random.Random()
     shuffled = json.loads(json.dumps(docs))
     for doc in shuffled:
         rng.shuffle(doc["nodes"])
         rng.shuffle(doc["edges"])
     rng.shuffle(shuffled)
-    assert snap.build_snapshot(shuffled)["snapshot_digest"] == baseline
+    assert _build(shuffled)["snapshot_digest"] == baseline
 
 
 def test_json_round_trip_does_not_move_the_digest():
     docs = _four()
-    baseline = snap.build_snapshot(docs)["snapshot_digest"]
+    baseline = _build(docs)["snapshot_digest"]
     revived = [json.loads(snap.canonical_bytes(doc).decode("utf-8")) for doc in docs]
-    assert snap.build_snapshot(revived)["snapshot_digest"] == baseline
+    assert _build(revived)["snapshot_digest"] == baseline
 
 
 def test_producer_is_provenance_not_content():
     """s01-s04 may replace the placeholder producers without moving a digest."""
     docs = _four()
-    baseline = snap.build_snapshot(docs)
+    baseline = _build(docs)
     for doc in docs:
         doc["producer"] = "s01_code.extract"
-    replaced = snap.build_snapshot(docs)
+    replaced = _build(docs)
     assert replaced["snapshot_digest"] == baseline["snapshot_digest"]
     assert replaced["planes"]["code"]["producer"] == "s01_code.extract"
 
@@ -147,20 +170,53 @@ def test_producer_is_provenance_not_content():
     [
         ("node.id", lambda d: d[0]["nodes"][0].__setitem__("id", "code:n9")),
         ("node.kind", lambda d: d[0]["nodes"][0].__setitem__("kind", "other")),
-        ("locator.path", lambda d: d[0]["nodes"][0]["locator"].__setitem__("path", "a/c.py")),
+        ("locator.path", lambda d: _relocate(d[0], "a/c.py")),
         ("locator.start_line", lambda d: d[0]["nodes"][0]["locator"].__setitem__("start_line", 0)),
+        ("locator.end_line", lambda d: d[0]["nodes"][0]["locator"].__setitem__("end_line", 9)),
         ("attrs", lambda d: d[0]["nodes"][0]["attrs"].__setitem__("weight", 1)),
+        ("edge.src", lambda d: d[0]["edges"][0].__setitem__("src", "code:n2")),
+        ("edge.dst", lambda d: d[0]["edges"][0].__setitem__("dst", "code:n1")),
         ("edge.kind", lambda d: d[0]["edges"][0].__setitem__("kind", "far")),
         ("edge.attrs", lambda d: d[0]["edges"][0]["attrs"].__setitem__("score", 0.5)),
+        ("witness.digest", lambda d: _rewitness(d, "a/b.py", "other bytes")),
     ],
 )
 def test_every_digested_field_is_load_bearing(field, mutate):
-    baseline = snap.build_snapshot(_four())["snapshot_digest"]
+    baseline = _build(_four())["snapshot_digest"]
     docs = _four()
     mutate(docs)
     if field == "node.id":  # keep the edge consistent, the change must still land
         docs[0]["edges"][0]["src"] = "code:n9"
-    assert snap.build_snapshot(docs)["snapshot_digest"] != baseline, field
+    assert _build(docs)["snapshot_digest"] != baseline, field
+
+
+def _relocate(doc, path: str):
+    """Move a node to another file AND witness that file: one coherent relocation."""
+    doc["nodes"][0]["locator"]["path"] = path
+    doc["witness"][path] = rp.text_digest(f"content of {path}")
+
+
+def _rewitness(documents, path: str, content: str):
+    """Restate one file's content digest wherever it is witnessed.
+
+    One field per document, but it has to move in every plane that read the
+    file -- a witness that moves in one plane only is a different defect
+    (``witness_conflict``), which its own check covers.
+    """
+    for doc in documents:
+        if path in doc["witness"]:
+            doc["witness"][path] = rp.text_digest(content)
+
+
+def test_a_source_change_no_extractor_looks_at_still_moves_the_digest():
+    """The witness is what makes this true; nodes and edges alone would not move."""
+    baseline = _build(_four())["snapshot_digest"]
+    docs = _four()
+    for doc in docs:
+        doc["witness"]["a/b.py"] = rp.text_digest("same view, different bytes")
+    changed = _build(docs)
+    assert changed["snapshot_digest"] != baseline
+    assert changed["node_total"] == _build(_four())["node_total"]
 
 
 # --------------------------------------------------------------------------
@@ -241,7 +297,7 @@ def test_foreign_schema_is_refused():
 
 def test_refusal_yields_no_partial_manifest():
     with pytest.raises(snap.ContractError):
-        snap.build_snapshot(_four()[:2])
+        _build(_four()[:2])
 
 
 # --------------------------------------------------------------------------
@@ -281,7 +337,7 @@ def _extract_tiny(root: Path, revision: str):
 
 
 def test_extractors_produce_a_buildable_snapshot(tiny_tree: Path):
-    manifest = snap.build_snapshot(_extract_tiny(tiny_tree, "rev-1"))
+    manifest = _build(_extract_tiny(tiny_tree, "rev-1"))
     assert manifest["revision"] == "rev-1"
     assert manifest["node_total"] > 0
     assert set(manifest["planes"]) == set(snap.PLANES)
@@ -289,13 +345,13 @@ def test_extractors_produce_a_buildable_snapshot(tiny_tree: Path):
 
 
 def test_extraction_replays_to_the_same_digest(tiny_tree: Path):
-    first = snap.build_snapshot(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
-    second = snap.build_snapshot(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
+    first = _build(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
+    second = _build(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
     assert first == second
 
 
 def test_a_changed_source_file_moves_the_digest(tiny_tree: Path):
-    before = snap.build_snapshot(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
+    before = _build(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
     (tiny_tree / "pkg" / "mod.py").write_text(
         "def add(left: int, right: int) -> int:\n"
         "    return left + right\n"
@@ -304,7 +360,7 @@ def test_a_changed_source_file_moves_the_digest(tiny_tree: Path):
         "    return left - right\n",
         encoding="utf-8",
     )
-    after = snap.build_snapshot(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
+    after = _build(_extract_tiny(tiny_tree, "rev-1"))["snapshot_digest"]
     assert after != before
 
 
@@ -418,7 +474,15 @@ _MOD_MUTATED = (
     "    pass\n"
 )
 
-_ATOMICITY_CODES = frozenset({"scope_drift", "witness_conflict", "witness_scope_mismatch"})
+_ATOMICITY_CODES = frozenset(
+    {"scope_drift", "witness_conflict", "witness_scope_mismatch", "witness_outside_scope"}
+)
+
+_TINY_SCOPE_ROOTS = ("conf", "notes", "pkg")
+
+
+def _tiny_scope_scan(root: Path):
+    return rp.scan_scope(root, _TINY_SCOPE_ROOTS, rp.SCOPE_SUFFIXES)
 
 
 def _build_with_mutation_between(
@@ -432,9 +496,12 @@ def _build_with_mutation_between(
     """Extract four planes, mutate ``target`` right after plane ``after``, build.
 
     Deterministic: no threads, no sleeps, no clock -- the write happens at a
-    fixed point in a fixed extraction order.
+    fixed point in a fixed extraction order.  This harness is the only thing
+    that moved when the binding changed from string equality to source
+    evidence; the assertions below did not.
     """
     original = (root / target).read_text(encoding="utf-8")
+    opened = _tiny_scope_scan(root)
     documents = []
     for plane in _TINY_ORDER:
         documents.append(rp.EXTRACTORS[plane](root, "rev-1", roots=_TINY_ROOTS[plane]))
@@ -442,7 +509,19 @@ def _build_with_mutation_between(
             (root / target).write_text(replacement, encoding="utf-8")
     if revert:
         (root / target).write_text(original, encoding="utf-8")
-    return snap.build_snapshot(documents)
+    closed = _tiny_scope_scan(root)
+    scope = {"roots": list(_TINY_SCOPE_ROOTS), "opened": opened, "closed": closed}
+    return snap.build_snapshot(documents, scope)
+
+
+def test_an_untouched_tree_still_builds(tiny_tree: Path):
+    """The gate must refuse drift, not refuse everything -- fail-closed, not broken."""
+    manifest = rp.build_atomic_snapshot(
+        tiny_tree, "rev-1", plane_roots=_TINY_ROOTS, scope_roots=_TINY_SCOPE_ROOTS
+    )
+    assert manifest["revision_binding"] == "source-evidence"
+    assert manifest["scope"]["witnessed_files"] == manifest["scope"]["files"]
+    assert manifest["node_total"] > 0
 
 
 def test_mutation_between_plane_extractions_is_refused(tiny_tree: Path):
@@ -453,6 +532,7 @@ def test_mutation_between_plane_extractions_is_refused(tiny_tree: Path):
         )
     except snap.ContractError as exc:
         assert exc.code in _ATOMICITY_CODES, exc
+        assert exc.code == "scope_drift", exc  # the bracket sees it first
     else:
         pytest.fail(
             "a tree mutated between two plane extractions digested as ONE atomic "
@@ -474,6 +554,8 @@ def test_mutation_reverted_before_the_build_is_still_refused(tiny_tree: Path):
         )
     except snap.ContractError as exc:
         assert exc.code in _ATOMICITY_CODES, exc
+        # the bracket agrees with itself; two planes read the same file differently
+        assert exc.code == "witness_conflict", exc
     else:
         pytest.fail(
             "a mutate-and-revert between plane extractions digested as ONE atomic "
@@ -492,8 +574,124 @@ def test_mutation_of_a_single_reader_file_is_refused(tiny_tree: Path):
         )
     except snap.ContractError as exc:
         assert exc.code in _ATOMICITY_CODES, exc
+        assert exc.code == "scope_drift", exc
     else:
         pytest.fail(
             "a file only one plane reads was mutated after that plane read it and "
             f"the build still produced snapshot_digest={manifest['snapshot_digest']}"
         )
+
+
+def test_single_reader_mutation_reverted_is_refused_by_the_witness(tiny_tree: Path):
+    """The hardest case: one reader, and the bracket is clean at both ends.
+
+    Only the witness/bracket cross-check can see this -- the tree looks
+    untouched, and no second plane exists to disagree.
+    """
+    try:
+        manifest = _build_with_mutation_between(
+            tiny_tree,
+            after="code",  # before the data plane reads conf/obj.json
+            target="conf/obj.json",
+            replacement='{"outer": {"inner": 1}, "other": 2, "sneaked": 3}',
+            revert=True,
+        )
+    except snap.ContractError as exc:
+        assert exc.code == "witness_scope_mismatch", exc
+    else:
+        pytest.fail(
+            "a single-reader mutate-and-revert produced "
+            f"snapshot_digest={manifest['snapshot_digest']}"
+        )
+
+
+def test_a_transient_no_plane_read_is_deliberately_NOT_refused(tiny_tree: Path):
+    """The documented limit of the gate, kept as evidence rather than as prose.
+
+    conf/obj.json is written after the data plane already read it and reverted
+    before the closing scan.  No plane's content depends on the transient
+    state, both brackets agree, and every witness matches the bracket -- so the
+    snapshot really is a function of one tree state and the build proceeds.
+    Widening the gate to refuse this would need a filesystem watch, not a scan.
+    """
+    manifest = _build_with_mutation_between(
+        tiny_tree,
+        after="data",  # after the only reader of conf/obj.json
+        target="conf/obj.json",
+        replacement='{"outer": {"inner": 1}, "other": 2, "sneaked": 3}',
+        revert=True,
+    )
+    clean = rp.build_atomic_snapshot(
+        tiny_tree, "rev-1", plane_roots=_TINY_ROOTS, scope_roots=_TINY_SCOPE_ROOTS
+    )
+    assert manifest["snapshot_digest"] == clean["snapshot_digest"]
+
+
+def test_a_revision_label_alone_no_longer_binds_the_planes():
+    """The refuted claim, kept as a check: equal labels, disagreeing evidence."""
+    docs = _four()
+    assert all(doc["revision"] == "rev-1" for doc in docs)
+    docs[1]["witness"]["a/b.py"] = rp.text_digest("what the type plane actually read")
+    assert _refuse(docs) == "witness_conflict"
+
+
+def test_a_plane_reading_outside_the_declared_scope_is_refused():
+    docs = _four()
+    scope = _agreeing_scope(docs)
+    docs[0]["nodes"][0]["locator"]["path"] = "outside/mod.py"
+    docs[0]["witness"]["outside/mod.py"] = rp.text_digest("unbracketed")
+    assert _refuse(docs, scope) == "witness_outside_scope"
+
+
+def test_nodes_without_any_source_evidence_are_refused():
+    docs = _four()
+    docs[0]["witness"] = {}
+    assert _refuse(docs) == "nodes_without_witness"
+
+
+def test_a_locator_the_plane_never_read_is_refused():
+    docs = _four()
+    docs[0]["nodes"][0]["locator"]["path"] = "a/never-read.py"
+    assert _refuse(docs) == "unwitnessed_locator"
+
+
+def test_a_missing_scope_bracket_is_not_an_option():
+    """An atomicity gate the caller can skip is not a gate."""
+    with pytest.raises(TypeError):
+        snap.build_snapshot(_four())  # noqa: PLE1120 - the point of the check
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        {"roots": [], "opened": {}, "closed": {}},
+        {"roots": ["a"], "opened": {}},
+        {"roots": ["a"], "opened": {}, "closed": {}, "extra": 1},
+        {"roots": ["a"], "opened": {"a/b.py": "sha256:short"}, "closed": {}},
+        {"roots": ["a"], "opened": {"/abs/b.py": "sha256:" + "0" * 64}, "closed": {}},
+    ],
+)
+def test_a_malformed_scope_is_refused(broken):
+    with pytest.raises(snap.ContractError):
+        snap.build_snapshot(_four(), broken)
+
+
+def test_the_scope_bracket_is_not_part_of_snapshot_identity(tiny_tree: Path):
+    """A file inside the scope that no plane reads must not move the digest."""
+    baseline = rp.build_atomic_snapshot(
+        tiny_tree, "rev-1", plane_roots=_TINY_ROOTS, scope_roots=_TINY_SCOPE_ROOTS
+    )
+    (tiny_tree / "notes" / "unread.json").write_text('{"ignored": true}', encoding="utf-8")
+    after = rp.build_atomic_snapshot(
+        tiny_tree, "rev-1", plane_roots=_TINY_ROOTS, scope_roots=_TINY_SCOPE_ROOTS
+    )
+    assert after["snapshot_digest"] == baseline["snapshot_digest"]
+    assert after["scope"]["digest"] != baseline["scope"]["digest"]
+    assert after["scope"]["unread_files"] == baseline["scope"]["unread_files"] + 1
+
+
+def test_the_witness_is_the_text_the_extractor_consumed(tiny_tree: Path):
+    """Not a second read: the recorded digest is the digest of the parsed text."""
+    doc = rp.extract_code(tiny_tree, "rev-1", roots=("pkg",))
+    text = (tiny_tree / "pkg" / "mod.py").read_text(encoding="utf-8")
+    assert doc["witness"]["pkg/mod.py"] == rp.text_digest(text)
