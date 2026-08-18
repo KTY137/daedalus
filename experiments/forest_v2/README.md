@@ -120,6 +120,10 @@ them; §13 turns both into kill criteria.
   Both are stated so a null result is a result.  A null (a) means the code
   graph is not a retrieval signal at this granularity; a null (b) means
   "four independent indices perform equivalently" — plan §13, verbatim.
+  **The frozen text above is left exactly as it was written.  How (b) was
+  first measured against it was wrong on two counts — see "What was withdrawn"
+  below.  The result now standing for (b) is a null against the comparator
+  this text names.**
 - **Contract of the outputs.**  `s08_api.py` fixes the shared call, the one
   slice s07 and slice s08 must both answer:
   `retriever.query(text: str, k: int) -> list[Hit]`, with
@@ -135,30 +139,53 @@ them; §13 turns both into kill criteria.
   schema-shaped files under `daedalus`/`docs`/root (data);
   `runs/**/*.json` (3329 receipt files) is excluded as evidence, not data.
   `experiments/` is not indexed, so the slice never measures itself.
-- **Budget:** ≤ 4 h implementation, one process, no spend.  Measured run cost:
-  corpus build 20.9 s, index build 4.3 s, 600 queries × 5 retrievers ≈ 12 s.
+- **Budget:** ≤ 4 h implementation, one process, no spend.  Measured run cost
+  after the correction: corpus build 22.9 s, index build 8.5 s, whole self-test
+  149.6 s wall [MEASURED] — the added arms and the second query set roughly
+  triple the earlier ≈ 40 s.
 - **Expiry: 2026-09-15.**  Re-measure before reuse; the tree moves weekly.
 
-### RAW measurement (2026-08-18, this worktree @ `46fd456c`) [MEASURED]
+### RAW measurement (2026-08-18, this worktree @ `49e40793`) [MEASURED]
+
+> **This section replaces the first reported run.**  An adversarial review found
+> two defects in it, both biased *towards* the four-plane hypothesis.  The
+> retraction is spelled out under "What was withdrawn" below; the numbers here
+> are the corrected ones.
 
 Corpus: 1037 documents — code 318, type 289, data 65, knowledge 365;
 1,066,495 tokens; 0 unparseable code files, 0 oversize skips.
 Graph: 318 modules, 992 undirected edges, mean degree 6.239, 14 isolated
-modules.  Queries: 600 = 3 families × 200, seed 20260818, deterministic.
+modules.  Frozen queries: 600 = 3 families × 200, seed 20260818, deterministic,
+**unchanged**.  Added non-code-gold families: 138 (seed 20260819).
 
 Query-token overlap with the own gold document (the honesty column):
-`symbol` 1.0, `docstring` 1.0, `knowledge_ref` 0.6252.  The first two families
-are lexically easy by construction; only `knowledge_ref` is cross-plane.
+`symbol` 1.0, `docstring` 1.0, `knowledge_ref` 0.6252, `doc_ref` 0.5847,
+`data_ref` 0.1618.  The first two families are lexically easy by construction.
 
-All 600 queries, cutoff 10, RAW hits out of 600:
+All 600 frozen queries, RAW hits out of 600:
 
 | retriever | R@1 | R@5 | R@10 | MRR | hits @1/@5/@10 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `bm25_code_only` (control) | 0.5483 | 0.7650 | 0.8183 | 0.6432 | 329/459/491 |
 | `graph_code_only` (a) α=0.5, 2 hops | 0.3717 | 0.7400 | **0.8283** | 0.5256 | 223/444/497 |
 | `graph_code_only` rewired (control) | 0.4767 | 0.7517 | 0.8183 | 0.5926 | 286/451/491 |
-| `four_plane_no_fusion` (b) | 0.5483 | 0.6733 | 0.7200 | 0.5816 | 329/404/432 |
+| `four_plane_no_fusion` (b, round-robin) | 0.5483 | 0.6733 | 0.7200 | 0.5816 | 329/404/432 |
+| `union_no_fusion` (b, per-plane top-k) | 0.5483 | 0.7650 | 0.8183 | 0.6432 | 329/459/**491** |
+| `union_no_fusion` truncated to 10 | 0.5483 | 0.7650 | 0.8183 | 0.6432 | 329/459/491 |
+| `union_no_fusion` code-LAST order | 0.0000 | 0.0000 | 0.0067 | 0.0346 | 0/0/4 |
 | `bm25_single_index_all_planes` | 0.3883 | 0.6617 | 0.7300 | 0.5035 | 233/397/438 |
+
+The 138 added queries whose gold label is **not** a code document, and the
+extended 738:
+
+| retriever | non-code @1/@5/@10 (n=138) | extended @1/@5/@10 (n=738) |
+| --- | ---: | ---: |
+| `bm25_code_only` | 0/0/**0** | 329/459/491 |
+| `graph_code_only` | 0/0/**0** | 223/444/497 |
+| `four_plane_no_fusion` | 0/12/32 | 329/416/464 |
+| `union_no_fusion` | 0/0/1 | 329/459/492 |
+| `union_no_fusion` code-LAST | 3/7/10 | 3/7/14 |
+| `bm25_single_index_all_planes` | 10/39/**49** | 243/436/487 |
 
 Gross rescue/loss at k=10 (net deltas hide which system you have):
 
@@ -167,7 +194,9 @@ Gross rescue/loss at k=10 (net deltas hide which system you have):
 | A=`bm25_code_only`, B=`graph` | 482 | 9 | 15 | 94 |
 | A=`graph rewired`, B=`graph` | 484 | 7 | 13 | 96 |
 | A=`no_fusion`, B=`single index` | 415 | 17 | 23 | 145 |
-| A=`no_fusion`, B=`bm25_code_only` | 432 | **0** | 59 | 109 |
+| A=`no_fusion`, B=`bm25_code_only` | 432 | 0 | 59 | 109 |
+| A=`union_no_fusion`, B=`bm25_code_only` | 491 | **0** | **0** | 109 |
+| A=`union_no_fusion`, B=`single index` | 438 | **53** | **0** | 109 |
 
 ### What the numbers say, including against the hypothesis
 
@@ -186,27 +215,141 @@ Gross rescue/loss at k=10 (net deltas hide which system you have):
    agree), α=0.25 → 0.6254, α=0.5 → 0.5256, α=0.75 → 0.4333.  Recall@10 peaks
    at α=0.25 (499/600, 0.8317).  Monotone in the wrong direction for the
    hypothesis; reported, not buried.
-3. **(b) is confirmed, and more sharply than expected.**  `no_fusion` is
-   *strictly dominated* by `bm25_code_only`: 0 queries found that code-only
-   missed, 59 lost.  Its R@1 is identical (0.5483) because the round-robin's
-   first slot is always the code index's top hit — the loss is purely the
-   three slots per cycle spent on planes that cannot hold the answer.
-4. **The routing cost is the whole story, and the fusion question is NOT
-   answered here.**  Per-plane hits@10 of the four indices (out of 200 per
-   family) are code 190 / 117 / 184 for docstring / knowledge_ref / symbol,
-   and type = data = knowledge = **0** on all three families, because every
-   gold label in this query set is a code document by construction.  The
-   plane oracle therefore equals the code index exactly.  This slice measures
-   the *cost of not routing*; it cannot measure the *value of fusing*, and no
-   fusion retriever exists yet to compare against.  §13's "four independent
-   indices perform equivalently to cross-plane fusion" is instrumented here,
-   not evaluated.
-5. **One number is a query-set artefact, measured rather than argued away.**
-   For the `knowledge_ref` family the query is lifted from a Markdown file
-   that the all-planes index also contains; that source file lands in the top
-   ten for **181 of 200** queries at mean rank 2.26.  The single-index
-   retriever's weak knowledge_ref R@1 (0.1200 vs code-only 0.3100) is
-   therefore partly a property of the query set, not of the retriever.
+3. **(b) is NOT confirmed.  The earlier confirmation is withdrawn — see below.**
+   The un-starved no-fusion arm ties the code-only control exactly: 491 = 491,
+   rank-identical on **600 of 600** queries, 0 rescued and 0 lost.  Against the
+   comparator the frozen sub-spec actually names it goes the other way: the
+   no-fusion arm rescues 53 and loses 0.  On the 138 non-code-gold queries the
+   direction reverses again and the single joint index wins (49 against 32 and
+   1).  Three query sets, three different signs — the honest summary is that
+   (b) is *comparator- and query-set-dependent*, which is not a confirmation
+   of anything.
+4. **The routing cost is the whole story, and the fusion question is still NOT
+   answered.**  Per-plane hits@10 of the four indices (out of 200 per family)
+   are code 190 / 117 / 184 for docstring / knowledge_ref / symbol, and
+   type = data = knowledge = **0** on all three frozen families, because every
+   gold label there is a code document by construction.  The plane oracle
+   therefore equals the code index exactly.  This slice measures the *cost of
+   not routing*; it cannot measure the *value of fusing*, because no fusion
+   retriever exists in it.
+5. **A fixed plane order is a hidden prior worth almost everything here.**  The
+   union arm's tie with the code-only control is not a property of no-fusion
+   retrieval; it is a property of putting the code block first.  Reverse the
+   order and the same arm scores 4/600 instead of 491/600.  Concatenation order
+   is not a cross-plane score comparison, but it decides rank just as firmly,
+   and on a query set with only code gold labels the code-first order is
+   exactly the flattering one.  Stated because it would otherwise read as a
+   result rather than as a choice.
+
+### What was withdrawn (2026-08-18)
+
+An adversarial review found two defects in the first reported run.  Both bias
+towards the four-plane hypothesis, so both are retracted here rather than
+reworded.
+
+**Withdrawn claim 1 — "`no_fusion` is *strictly dominated* by
+`bm25_code_only`: 0 queries found that code-only missed, 59 lost."**  That was
+an artefact of slot allocation, not a property of no-fusion retrieval.  The
+arm split ONE budget of k slots round-robin across four planes, so the only
+plane that can hold a code gold label received slots 1, 5 and 9 — its top-3.
+The measurement that refutes the claim:
+
+| measurement | hits of 600 |
+| --- | ---: |
+| `four_plane_no_fusion` @10 (the arm as reported) | 432 |
+| `bm25_code_only` @**3** (what the arm effectively had) | 430 |
+| `union_no_fusion` @10 (per-plane top-k, no shared budget) | **491** |
+| `bm25_code_only` @10 (the control it was said to lose to) | **491** |
+
+`union_no_fusion` gives each plane its own top-k and concatenates; it compares
+no score across planes anywhere.  It ties the control exactly, rank for rank,
+on all 600 queries.  The clipped row in the table above shows the tie is not
+bought with a bigger budget: truncated to the same 10 returned documents it is
+still 491.  "Strictly dominated" was measuring the handicap, not the design.
+
+**Withdrawn claim 2 — the comparator was substituted.**  The frozen sub-spec
+names *"one index over the same documents"*, i.e.
+`bm25_single_index_all_planes`.  The confirmation was reported against
+`bm25_code_only`, a different and much stronger comparator over a subset of the
+documents.  Re-reported against the named one (materiality declared in this
+correction, not at freeze time: |Δ hits@10| ≥ 5% of the query set with the same
+sign at k=1, 5 and 10):
+
+| query set | arm | Δ hits @1/@5/@10 vs named comparator | verdict |
+| --- | --- | ---: | --- |
+| frozen 600 | `four_plane_no_fusion` | +96 / +7 / −6 | NULL |
+| frozen 600 | `union_no_fusion` | +96 / +62 / +53 | REFUTED (opposite direction) |
+| extended 738 | `four_plane_no_fusion` | +86 / −20 / −23 | NULL |
+| extended 738 | `union_no_fusion` | +86 / +23 / +5 | NULL |
+| non-code gold 138 | `four_plane_no_fusion` | −10 / −27 / −17 | CONFIRMED |
+| non-code gold 138 | `union_no_fusion` | −10 / −39 / −48 | CONFIRMED |
+
+Against the named comparator, hypothesis (b) is a **null** on the query set it
+was frozen against, and the sub-claim that survives is confirmed only on the
+138 queries whose answer the code plane cannot hold.
+
+### Kill criterion §13 "four independent indices perform equivalently to cross-plane fusion"
+
+**Verdict: NOT DECIDABLE AS STATED.**  Entered as the result, replacing the
+earlier "instrumented here, not evaluated" framing, which implied the
+instrumentation was sound.
+
+Two independent reasons:
+
+1. **No second arm exists.**  This slice contains no cross-plane fusion
+   retriever, so the criterion's comparison cannot be run at all.  What is
+   measurable is the weaker question "four independent indices vs *one joint
+   index*", and a joint index is not fusion.
+2. **The query set cannot decide it.**  All 600 frozen gold labels are code
+   documents.  On such a set any cross-plane method can only spend slots on
+   planes that are guaranteed not to hold the answer, and a code-only index
+   cannot be beaten by anything.  The criterion is structurally unfalsifiable
+   here, in the direction that favours the hypothesis.
+
+What the added non-code gold labels *do* show, for the weaker joint-index
+question (n=138, hits@10): `bm25_code_only` 0, `union_no_fusion` 1,
+`four_plane_no_fusion` 32, `bm25_single_index_all_planes` **49**.  When the
+answer can live outside the code plane, one joint index beats every no-fusion
+arm — evidence *against* "four independent indices perform equivalently", for
+the joint-index comparison only.  The plan's actual criterion stays open until
+a fusion arm exists.
+
+Closing it needs two things this slice does not have: a real cross-plane fusion
+retriever, and gold labels in all four planes.
+
+### The added non-code gold labels
+
+The frozen 600 are untouched.  138 queries were added whose gold document is
+not a code document, because without them the question above cannot be asked:
+
+- `doc_ref` (**124**, gold in the knowledge plane) — a prose line in one
+  Markdown file naming another Markdown file; the named path's tokens are
+  stripped from the query, so the prose has to carry it.  Overlap with gold
+  0.5847.
+- `data_ref` (**14**, gold in the data plane) — the same derivation for
+  schema-shaped files.  Overlap 0.1618.  **n = 14 is small**; treat its numbers
+  as an existence proof, not as a rate.
+
+Each gold document is capped at 4 mentions so a much-referenced file cannot
+supply a family alone, and sampling uses its own generator (seed 20260819), so
+the frozen families' stream is bit-for-bit unchanged.  Extended set: 738, gold
+mix code 600 / knowledge 124 / data 14.
+
+**Named gap — the type plane still has zero gold labels.**  No mechanical
+derivation exists in this tree: the type plane is a proxy built from the same
+source files as the code plane, and nothing references it as an artifact.  So
+of the four planes, three can now be a retrieval target and one cannot.  Order
+of magnitude: 289 type documents (27.9% of the corpus) carry 0 gold labels, and
+their marginal contribution (plan §13, "a plane has no marginal contribution in
+ablation") remains untested.  Closing it needs real type artifacts, not a
+better query rule.
+
+Also unchanged and still true: **one number is a query-set artefact, measured
+rather than argued away.**  For the `knowledge_ref` family the query is lifted
+from a Markdown file that the all-planes index also contains; that source file
+lands in the top ten for **181 of 200** queries at mean rank 2.26.  The
+single-index retriever's weak knowledge_ref R@1 (0.1200 vs code-only 0.3100) is
+therefore partly a property of the query set, not of the retriever.
 
 ### Honest caveats
 
@@ -214,9 +357,19 @@ Gross rescue/loss at k=10 (net deltas hide which system you have):
   are annotations/bases extracted from the same source files the code plane
   indexes.  A plane derived from another plane cannot demonstrate independent
   marginal contribution (plan §13) — that ablation needs real type artifacts.
-- All gold labels are code documents; two of three query families draw their
-  text from the gold file itself (overlap 1.0).  These families measure
-  string matching more than retrieval and are kept only as a sanity floor.
+- All gold labels of the **frozen 600** are code documents; two of its three
+  families draw their text from the gold file itself (overlap 1.0).  Those
+  families measure string matching more than retrieval and are kept only as a
+  sanity floor.  The 138 added queries fix the plane mix, not the leakage.
+- **The no-fusion baseline has two arms and neither is "the" one.**  The
+  round-robin arm is budget-equal by construction but starves whichever plane
+  holds the answer; the union arm is un-starved but returns up to 4k documents
+  and imposes a fixed plane order.  They disagree by design — 432 vs 491 on the
+  frozen set, 32 vs 1 on non-code gold — so any single-number "no-fusion
+  result" is a choice of arm, and must be reported as one.
+- The materiality rule (5% of the query set, consistent sign across cutoffs)
+  was declared **in this correction, after seeing the first run**, not at
+  freeze time.  It is a stated decision procedure, not a pre-registered one.
 - Graph weights (import 1.0, call 0.5/site capped at 10), α=0.5, 2 hops and
   25 seeds were frozen before the run.  The sweep is labelled post-hoc and no
   headline number was selected from it.
@@ -230,15 +383,27 @@ Gross rescue/loss at k=10 (net deltas hide which system you have):
 
 ### How to run
 
-```
+```text
 python experiments/forest_v2/s08_graph_baselines/s08_selftest.py
 python -m pytest experiments/forest_v2/s08_graph_baselines/ -q
 ```
 
-32 tests, all green at `46fd456c` [MEASURED].  They assert mechanics on a
+42 checks, all green at `49e40793` [MEASURED].  They assert mechanics on a
 synthetic four-plane tree, never this repository's measured numbers; two
-structural tests check that the slice imports no repository package and calls
+structural checks verify that the slice imports no repository package and calls
 nothing that writes.
+
+Six of them exist to keep the two withdrawn defects from coming back, and each
+was verified by re-introducing the defect and watching it fail [MEASURED]:
+
+| defect re-introduced | checks that went red |
+| --- | ---: |
+| union arm shares one budget again (the starvation) | 3 of 42 |
+| union arm sorts the concatenation by score (cross-plane comparison) | 4 of 42 |
+| per-gold-document mention cap removed | 1 of 42 |
+| non-code families yield nothing again | 2 of 42 |
+
+Restoring each returned the suite to 42 green.
 
 ## Boundary note
 
