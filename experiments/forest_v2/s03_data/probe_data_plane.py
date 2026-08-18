@@ -36,6 +36,7 @@ import ast
 import csv
 import io
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field as dc_field
@@ -52,6 +53,19 @@ EXCLUDED_DIRS = (".git", ".claude", "node_modules", "__pycache__", ".venv")
 # Declared, not silently dropped: receipt instances under runs/ are data
 # *instances* of the schemas in configs/, not declarations of shape.
 DOCUMENTED_EXCLUSIONS = ("runs", ".claude/skills")
+# Directories skipped by the tree census as "not source at all".  Counting the
+# contents of .git would be noise, not honesty.
+CENSUS_PRUNED_DIRS = (".git", "node_modules", "__pycache__", ".venv")
+
+
+@dataclass(frozen=True)
+class Scope:
+    """The frozen scope, as a value -- so a corpus can pin numbers exactly."""
+
+    ddl_roots: tuple[str, ...] = DDL_ROOTS
+    json_roots: tuple[str, ...] = JSON_ROOTS
+    csv_roots: tuple[str, ...] = CSV_ROOTS
+    documented_exclusions: tuple[str, ...] = DOCUMENTED_EXCLUSIONS
 
 _CREATE_TABLE = re.compile(
     r"CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
@@ -301,7 +315,17 @@ def _sql_strings(tree: ast.Module) -> list[tuple[str, int, int, bool]]:
 
 def extract_sqlite(source: str, rel_path: str) -> tuple[list[DataNode], list[DataEdge], int]:
     """Return (table nodes, edges, index statement count) for one Python file."""
-    tree = ast.parse(source)
+    return extract_sqlite_from_tree(ast.parse(source), source, rel_path)
+
+
+def extract_sqlite_from_tree(
+    tree: ast.Module, source: str, rel_path: str
+) -> tuple[list[DataNode], list[DataEdge], int]:
+    """Same, for a caller that already parsed the file.
+
+    The accounting walk parses EVERY candidate file so the unparseable count
+    has an honest denominator; it must not pay for a second parse here.
+    """
     source_lines = source.splitlines()
     nodes: list[DataNode] = []
     edges: list[DataEdge] = []
@@ -842,68 +866,216 @@ def git_revision(root: Path) -> str | None:
     return None
 
 
-# --- probe ------------------------------------------------------------------
-def probe(root: Path) -> dict:
-    sqlite_nodes: list[DataNode] = []
-    schema_nodes: list[DataNode] = []
-    csv_nodes: list[DataNode] = []
-    edges: list[DataEdge] = []
-    indexes = 0
-    unparseable: list[str] = []
-    naive_seen = 0
-    naive_complete = 0
+# --- collection with an honest denominator ----------------------------------
+@dataclass
+class Extraction:
+    """Nodes, edges, and the accounting that produced them.
 
-    python_files = _iter_files(root, DDL_ROOTS, ".py")
-    ddl_files = 0
+    One walk feeds both ``probe`` and ``node_records``, so a count can never
+    describe a different population than the node list it is published with.
+    """
+
+    sqlite_nodes: list[DataNode] = dc_field(default_factory=list)
+    schema_nodes: list[DataNode] = dc_field(default_factory=list)
+    csv_nodes: list[DataNode] = dc_field(default_factory=list)
+    edges: list[DataEdge] = dc_field(default_factory=list)
+    indexes: int = 0
+    naive_seen: int = 0
+    naive_complete: int = 0
+    python: dict = dc_field(default_factory=dict)
+    json: dict = dc_field(default_factory=dict)
+    csv: dict = dc_field(default_factory=dict)
+    unparseable_python: list[str] = dc_field(default_factory=list)
+    unreadable_python: list[str] = dc_field(default_factory=list)
+    unparseable_json: list[str] = dc_field(default_factory=list)
+    unreadable_json: list[str] = dc_field(default_factory=list)
+    unreadable_csv: list[str] = dc_field(default_factory=list)
+
+    @property
+    def all_nodes(self) -> list[DataNode]:
+        return self.sqlite_nodes + self.schema_nodes + self.csv_nodes
+
+
+def collect(root: Path, scope: Scope = Scope()) -> Extraction:
+    """Walk the frozen scope once, counting every candidate file.
+
+    The denominator rule: a file that enters the scope is counted, and every
+    exit from the funnel is counted with its reason.  There is no content
+    prefilter, because a prefilter that runs BEFORE the parser removes files
+    from the denominator of "unparseable" and makes that number meaningless --
+    the earlier version reported "285 scanned / 0 unparseable" while handing
+    only 10 files to the parser.
+    """
+    out = Extraction()
+
+    python_files = _iter_files(root, scope.ddl_roots, ".py")
+    out.python = {
+        "scanned": len(python_files),
+        "unreadable": 0,
+        "unparseable": 0,
+        "parsed": 0,
+        "parsed_with_ddl": 0,
+        "parsed_without_ddl": 0,
+    }
     for path in python_files:
-        source = path.read_text(encoding="utf-8", errors="replace")
-        if "CREATE TABLE" not in source.upper():
-            continue
-        ddl_files += 1
         rel_path = _rel(root, path)
         try:
-            nodes, file_edges, file_indexes = extract_sqlite(source, rel_path)
-        except SyntaxError:
-            unparseable.append(rel_path)
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            out.python["unreadable"] += 1
+            out.unreadable_python.append(rel_path)
             continue
-        sqlite_nodes.extend(nodes)
-        edges.extend(file_edges)
-        indexes += file_indexes
+        try:
+            tree = ast.parse(source)
+        except (SyntaxError, ValueError):
+            # Every candidate file reaches the parser, so "unparseable" is a
+            # fraction of "scanned" and not of a pre-filtered remnant.
+            out.python["unparseable"] += 1
+            out.unparseable_python.append(rel_path)
+            continue
+        out.python["parsed"] += 1
+        # Classification by PARSE, not by grep: a file that only mentions
+        # CREATE TABLE in a comment carries no declaration.
+        if not _sql_strings(tree):
+            out.python["parsed_without_ddl"] += 1
+            continue
+        out.python["parsed_with_ddl"] += 1
+        nodes, file_edges, file_indexes = extract_sqlite_from_tree(
+            tree, source, rel_path
+        )
+        out.sqlite_nodes.extend(nodes)
+        out.edges.extend(file_edges)
+        out.indexes += file_indexes
         seen, complete = naive_sqlite_baseline(source)
-        naive_seen += seen
-        naive_complete += complete
+        out.naive_seen += seen
+        out.naive_complete += complete
 
-    json_files = _iter_files(root, JSON_ROOTS, ".json")
-    json_documents = 0
-    json_unparseable: list[str] = []
+    json_files = _iter_files(root, scope.json_roots, ".json")
+    out.json = {
+        "scanned": len(json_files),
+        "unreadable": 0,
+        "unparseable": 0,
+        "parsed": 0,
+        "schema_documents": 0,
+        "non_schema_documents": 0,
+    }
     for path in json_files:
         rel_path = _rel(root, path)
         try:
-            document = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            json_unparseable.append(rel_path)
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            out.json["unreadable"] += 1
+            out.unreadable_json.append(rel_path)
             continue
+        try:
+            document = json.loads(text)
+        except json.JSONDecodeError:
+            out.json["unparseable"] += 1
+            out.unparseable_json.append(rel_path)
+            continue
+        out.json["parsed"] += 1
         if not _is_schema(document):
-            json_documents += 1
+            out.json["non_schema_documents"] += 1
             continue
+        out.json["schema_documents"] += 1
         nodes, file_edges = extract_json_schema(document, rel_path)
-        schema_nodes.extend(nodes)
-        edges.extend(file_edges)
+        out.schema_nodes.extend(nodes)
+        out.edges.extend(file_edges)
 
-    csv_files = _iter_files(root, CSV_ROOTS, ".csv")
+    csv_files = _iter_files(root, scope.csv_roots, ".csv")
+    out.csv = {"scanned": len(csv_files), "unreadable": 0, "empty": 0, "parsed": 0}
     for path in csv_files:
         rel_path = _rel(root, path)
-        csv_nodes.extend(
-            extract_csv(path.read_text(encoding="utf-8", errors="replace"), rel_path)
-        )
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            out.csv["unreadable"] += 1
+            out.unreadable_csv.append(rel_path)
+            continue
+        nodes = extract_csv(text, rel_path)
+        if not nodes:
+            out.csv["empty"] += 1
+            continue
+        out.csv["parsed"] += 1
+        out.csv_nodes.extend(nodes)
+    return out
 
-    all_nodes = sqlite_nodes + schema_nodes + csv_nodes
+
+def census(root: Path, scope: Scope = Scope()) -> dict:
+    """Every file of each candidate suffix in the tree, bucketed by why it is
+    or is not in scope.
+
+    This is the outer denominator: the frozen scope is a choice, and a reader
+    is entitled to see how large the population is that the choice excludes.
+    """
+    suffixes = {
+        ".py": scope.ddl_roots,
+        ".json": scope.json_roots,
+        ".csv": scope.csv_roots,
+    }
+    in_scope = {
+        suffix: {_rel(root, path) for path in _iter_files(root, roots, suffix)}
+        for suffix, roots in suffixes.items()
+    }
+    buckets = {
+        suffix: {
+            "in_tree": 0,
+            "in_scope": len(in_scope[suffix]),
+            "excluded_documented": 0,
+            "excluded_by_dir_filter": 0,
+            "excluded_outside_frozen_roots": 0,
+        }
+        for suffix in suffixes
+    }
+    for current, dirnames, filenames in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name not in CENSUS_PRUNED_DIRS]
+        base = Path(current)
+        for filename in filenames:
+            suffix = Path(filename).suffix.lower()
+            if suffix not in buckets:
+                continue
+            rel_path = _rel(root, base / filename)
+            bucket = buckets[suffix]
+            bucket["in_tree"] += 1
+            if rel_path in in_scope[suffix]:
+                continue
+            if any(
+                rel_path == name or rel_path.startswith(name + "/")
+                for name in scope.documented_exclusions
+            ):
+                bucket["excluded_documented"] += 1
+            elif _excluded(base / filename):
+                bucket["excluded_by_dir_filter"] += 1
+            else:
+                bucket["excluded_outside_frozen_roots"] += 1
+    for suffix, bucket in buckets.items():
+        bucket["accounted"] = (
+            bucket["in_scope"]
+            + bucket["excluded_documented"]
+            + bucket["excluded_by_dir_filter"]
+            + bucket["excluded_outside_frozen_roots"]
+        )
+    return {"pruned_dirs": list(CENSUS_PRUNED_DIRS), "by_suffix": buckets}
+
+
+# --- probe ------------------------------------------------------------------
+def probe(root: Path, scope: Scope = Scope()) -> dict:
+    found = collect(root, scope)
+    sqlite_nodes = found.sqlite_nodes
+    schema_nodes = found.schema_nodes
+    csv_nodes = found.csv_nodes
+    edges = found.edges
+    indexes = found.indexes
+    naive_seen = found.naive_seen
+    naive_complete = found.naive_complete
+
+    all_nodes = found.all_nodes
     field_total = sum(len(node.fields) for node in all_nodes)
     typed_fields = sum(
         1 for node in all_nodes for item in node.fields if item.type_source == "declared"
     )
     excluded_counts = {}
-    for name in DOCUMENTED_EXCLUSIONS:
+    for name in scope.documented_exclusions:
         base = root / name
         excluded_counts[name] = (
             sum(1 for path in base.rglob("*") if path.is_file()) if base.exists() else 0
@@ -915,23 +1087,42 @@ def probe(root: Path) -> dict:
         "probe": "s03_data.data_plane_extraction",
         "revision": git_revision(root),
         "scope": {
-            "ddl_roots": list(DDL_ROOTS),
-            "json_roots": list(JSON_ROOTS),
-            "csv_roots": list(CSV_ROOTS),
+            "ddl_roots": list(scope.ddl_roots),
+            "json_roots": list(scope.json_roots),
+            "csv_roots": list(scope.csv_roots),
             "documented_exclusions": excluded_counts,
         },
-        "files": {
-            "python_scanned": len(python_files),
-            "python_with_ddl": ddl_files,
-            "python_unparseable": len(unparseable),
-            "json_scanned": len(json_files),
-            "json_schema_documents": len(
-                {node.locator.split("#")[0] for node in schema_nodes}
-            ),
-            "json_plain_documents": json_documents,
-            "json_unparseable": len(json_unparseable),
-            "csv_scanned": len(csv_files),
+        # Replaces the old "files" block.  That block paired "python_scanned"
+        # with "python_unparseable" although the two counted different
+        # populations -- a content prefilter removed 275 of 285 files before
+        # anything was parsed.  Each stage below is a funnel whose exits are
+        # all named, so the parts add up to the population above them.
+        "accounting": {
+            "python": found.python,
+            "json": found.json,
+            "csv": found.csv,
+            "binding": {
+                "candidate_pairs": len(csv_nodes)
+                * sum(1 for node in schema_nodes if node.fields),
+                "excluded_no_field_overlap": (
+                    len(csv_nodes) * sum(1 for node in schema_nodes if node.fields)
+                    - len(proposals)
+                ),
+                "excluded_schema_without_properties": (
+                    len(csv_nodes)
+                    * sum(1 for node in schema_nodes if not node.fields)
+                ),
+                "proposals": len(proposals),
+                "verified": sum(1 for item in proposals if item["status"] == VERIFIED),
+                "rejected": sum(1 for item in proposals if item["status"] == REJECTED),
+                "indeterminate": sum(
+                    1 for item in proposals if item["status"] == INDETERMINATE
+                ),
+            },
         },
+        # The outer denominator: how big is the population the frozen scope
+        # leaves out, and for which stated reason.
+        "census": census(root, scope),
         "nodes": {
             "total": len(all_nodes),
             "sqlite_table": len(sqlite_nodes),
@@ -1022,36 +1213,20 @@ def probe(root: Path) -> dict:
             ),
             "detail": proposals,
         },
-        "unparseable_python": unparseable,
-        "unparseable_json": json_unparseable,
+        "unparseable_python": found.unparseable_python,
+        "unreadable_python": found.unreadable_python,
+        "unparseable_json": found.unparseable_json,
+        "unreadable_json": found.unreadable_json,
+        "unreadable_csv": found.unreadable_csv,
     }
 
 
-def node_records(root: Path) -> list[dict]:
-    """Full node dump -- the artifact contract a Gate 2 builder would consume."""
-    records: list[dict] = []
-    for path in _iter_files(root, DDL_ROOTS, ".py"):
-        source = path.read_text(encoding="utf-8", errors="replace")
-        if "CREATE TABLE" not in source.upper():
-            continue
-        try:
-            nodes, _, _ = extract_sqlite(source, _rel(root, path))
-        except SyntaxError:
-            continue
-        records.extend(nodes)
-    for path in _iter_files(root, JSON_ROOTS, ".json"):
-        try:
-            document = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            continue
-        nodes, _ = extract_json_schema(document, _rel(root, path))
-        records.extend(nodes)
-    for path in _iter_files(root, CSV_ROOTS, ".csv"):
-        records.extend(
-            extract_csv(
-                path.read_text(encoding="utf-8", errors="replace"), _rel(root, path)
-            )
-        )
+def node_records(root: Path, scope: Scope = Scope()) -> list[dict]:
+    """Full node dump -- the artifact contract a Gate 2 builder would consume.
+
+    Same walk as ``probe``, so the dump and the counts can never disagree.
+    """
+    records = collect(root, scope).all_nodes
     return [
         {
             "node_id": node.node_id,

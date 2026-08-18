@@ -498,13 +498,120 @@ def test_git_revision_returns_none_without_a_git_dir(tmp_path):
     assert dp.git_revision(tmp_path) is None
 
 
+# --- accounting: the funnel must add up -------------------------------------
+def test_python_accounting_adds_up_and_parses_every_scanned_file(tmp_path):
+    root = tmp_path
+    (root / "src").mkdir()
+    (root / "src" / "good.py").write_text(
+        'SQL = "CREATE TABLE t (a TEXT)"\n', encoding="utf-8"
+    )
+    (root / "src" / "plain.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (root / "src" / "mentions.py").write_text(
+        "# CREATE TABLE only in a comment\nVALUE = 2\n", encoding="utf-8"
+    )
+    (root / "src" / "broken.py").write_text("def (\n", encoding="utf-8")
+    scope = dp.Scope(ddl_roots=("src",), json_roots=(), csv_roots=())
+    found = dp.collect(root, scope)
+    py = found.python
+    assert py["scanned"] == 4
+    # The whole point: every scanned file reaches the parser.
+    assert py["parsed"] + py["unparseable"] + py["unreadable"] == py["scanned"]
+    assert py["unparseable"] == 1
+    assert found.unparseable_python == ["src/broken.py"]
+    assert py["parsed_with_ddl"] + py["parsed_without_ddl"] == py["parsed"]
+    # Classification is by parse, not by grep: a comment is not a declaration.
+    assert py["parsed_with_ddl"] == 1
+    assert py["parsed_without_ddl"] == 2
+
+
+def test_a_prefilter_can_no_longer_hide_an_unparseable_file(tmp_path):
+    """Regression for the reported denominator artifact.
+
+    The earlier probe skipped any file without the literal text CREATE TABLE
+    BEFORE parsing, so a syntactically invalid file was silently absent from
+    the "unparseable" count while still being counted as "scanned".
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "broken.py").write_text("def (\n", encoding="utf-8")
+    scope = dp.Scope(ddl_roots=("src",), json_roots=(), csv_roots=())
+    py = dp.collect(tmp_path, scope).python
+    assert py["scanned"] == 1 and py["unparseable"] == 1 and py["parsed"] == 0
+
+
+def test_json_and_csv_accounting_add_up(tmp_path):
+    (tmp_path / "d").mkdir()
+    (tmp_path / "d" / "a.schema.json").write_text(
+        '{"properties": {"x": {"type": "string"}}}', encoding="utf-8"
+    )
+    (tmp_path / "d" / "plain.json").write_text('{"a": 1}', encoding="utf-8")
+    (tmp_path / "d" / "broken.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "d" / "rows.csv").write_text("x\n1\n", encoding="utf-8")
+    (tmp_path / "d" / "empty.csv").write_text("", encoding="utf-8")
+    scope = dp.Scope(ddl_roots=(), json_roots=("d",), csv_roots=("d",))
+    found = dp.collect(tmp_path, scope)
+    js = found.json
+    assert js["scanned"] == 3
+    assert js["parsed"] + js["unparseable"] + js["unreadable"] == js["scanned"]
+    assert js["unparseable"] == 1 and found.unparseable_json == ["d/broken.json"]
+    assert js["schema_documents"] + js["non_schema_documents"] == js["parsed"]
+    cs = found.csv
+    assert cs["scanned"] == 2
+    assert cs["parsed"] + cs["empty"] + cs["unreadable"] == cs["scanned"]
+    assert cs["empty"] == 1
+
+
+def test_census_accounts_for_every_file_of_a_candidate_suffix(tmp_path):
+    (tmp_path / "d").mkdir()
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "runs").mkdir()
+    (tmp_path / "d" / "a.csv").write_text("x\n1\n", encoding="utf-8")
+    (tmp_path / "elsewhere" / "b.csv").write_text("x\n1\n", encoding="utf-8")
+    (tmp_path / "runs" / "c.csv").write_text("x\n1\n", encoding="utf-8")
+    scope = dp.Scope(ddl_roots=(), json_roots=(), csv_roots=("d",))
+    bucket = dp.census(tmp_path, scope)["by_suffix"][".csv"]
+    assert bucket["in_tree"] == 3
+    assert bucket["accounted"] == bucket["in_tree"]  # nothing falls off the table
+    assert bucket["in_scope"] == 1
+    assert bucket["excluded_documented"] == 1  # runs/
+    assert bucket["excluded_outside_frozen_roots"] == 1
+
+
+def test_binding_stage_denominator_is_all_candidate_pairs(tmp_path):
+    (tmp_path / "d").mkdir()
+    (tmp_path / "d" / "a.schema.json").write_text(
+        '{"required": ["x"], "properties": {"x": {"type": "integer"}}}',
+        encoding="utf-8",
+    )
+    (tmp_path / "d" / "b.schema.json").write_text(
+        '{"required": ["y"], "properties": {"y": {"type": "integer"}}}',
+        encoding="utf-8",
+    )
+    (tmp_path / "d" / "t.csv").write_text("x\n1\n", encoding="utf-8")
+    scope = dp.Scope(ddl_roots=(), json_roots=("d",), csv_roots=("d",))
+    binding = dp.probe(tmp_path, scope)["accounting"]["binding"]
+    assert binding["candidate_pairs"] == 2  # 1 csv x 2 schemas, not just the hits
+    assert binding["excluded_no_field_overlap"] == 1
+    assert binding["proposals"] == 1
+    assert (
+        binding["verified"] + binding["rejected"] + binding["indeterminate"]
+        == binding["proposals"]
+    )
+
+
 # --- repository-level invariants (no frozen counts) -------------------------
 def test_probe_over_this_repository_is_structurally_sound():
     result = dp.probe(REPO_ROOT)
     assert result["nodes"]["total"] > 0
     assert result["fields"]["unanchored"] == 0
-    assert result["files"]["python_unparseable"] == 0
-    assert result["files"]["json_unparseable"] == 0
+    python = result["accounting"]["python"]
+    assert python["parsed"] + python["unparseable"] + python["unreadable"] == (
+        python["scanned"]
+    )
+    assert python["unparseable"] == 0
+    assert result["accounting"]["json"]["unparseable"] == 0
+    assert result["intra_data_bindings"]["trusted_cross_plane_edges"] == 0
+    for suffix, bucket in result["census"]["by_suffix"].items():
+        assert bucket["accounted"] == bucket["in_tree"], suffix
     assert (
         result["fields"]["declared_type"]
         + result["fields"]["inferred_type"]
