@@ -528,6 +528,69 @@ def test_tools_guarded_call_refuses_as_json_per_its_protocol(
     assert "effect boundary refused" in out["error"]
 
 
+def _runs_module(name):
+    import importlib
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parents[1]
+    if str(root) not in _sys.path:
+        _sys.path.insert(0, str(root))
+    return importlib.import_module(name)
+
+
+def test_runs_ab_doors_refuse_fail_closed(monkeypatch, contracts_disabled):
+    run_arm = _runs_module("runs.ab.run_arm")
+    monkeypatch.setattr("sys.argv", ["run_arm", "A"])
+    with pytest.raises(EffectStartRefused):
+        run_arm.main()
+
+    score = _runs_module("runs.ab.score")
+    with pytest.raises(EffectStartRefused):
+        score.main()
+
+
+def test_runs_council_room_refuses_but_show_stays_fail_open(
+    monkeypatch, contracts_disabled, capsys
+):
+    room = _runs_module("runs.council.room")
+    monkeypatch.setattr("sys.argv", ["room", "show"])
+    room.main()  # read-only inspection keeps working
+    monkeypatch.setattr(
+        room, "_append", getattr(room, "_append", None), raising=False
+    )
+    monkeypatch.setattr("sys.argv", ["room", "cursor", "kaya", "--reset"])
+    with pytest.raises(EffectStartRefused):
+        room.main()
+
+
+def test_runs_council_stream_hook_refuses_without_writing(
+    monkeypatch, contracts_disabled, capsys
+):
+    import io
+
+    stream_hook = _runs_module("runs.council.stream_hook")
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("a refused hook must not write a record")
+
+    monkeypatch.setattr(stream_hook, "_record", _exploded)
+    monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
+    assert stream_hook.main(["stream_hook", "user"]) == 0
+    assert "effect boundary refused" in capsys.readouterr().err
+
+
+def test_runs_council_dead_letter_replay_refuses_but_list_stays_fail_open(
+    tmp_path, contracts_disabled, capsys
+):
+    dlr = _runs_module("runs.council.dead_letter_replay")
+    room_file = tmp_path / "room.md"
+    room_file.write_text("", encoding="utf-8")
+    assert dlr.main(["list", "--room", str(room_file)]) == 0
+    with pytest.raises(EffectStartRefused):
+        dlr.main(["replay", "--room", str(room_file)])
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget

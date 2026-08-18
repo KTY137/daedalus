@@ -473,6 +473,24 @@ class Handler(BaseHTTPRequestHandler):
         if not self._guard():
             return
         try:
+            from daedalus.spine.effect_boundary import (
+                REGISTRY_BY_ID,
+                GuardDecision,
+                begin_effect,
+            )
+
+            begin_effect(
+                "runs.council.room_server.post",
+                REGISTRY_BY_ID["runs.council.room_server.post"].effects,
+                (
+                    GuardDecision(
+                        "web.authenticated_bind",
+                        True,
+                        "Handler._guard passed: loopback-bound room server "
+                        f"request from {self.client_address[0]}",
+                    ),
+                ),
+            )
             path = self.path.partition("?")[0]
             if path == "/api/say":
                 data = self._body()
@@ -542,6 +560,16 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=8765)
     args = ap.parse_args()
 
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runs.council.room_server",
+        REGISTRY_BY_ID["runs.council.room_server"].effects,
+        (process_guard_boundary_decision(),),
+    )
     try:
         httpd = RoomServer(("127.0.0.1", args.port), Handler)
     except OSError as exc:

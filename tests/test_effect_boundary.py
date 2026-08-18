@@ -590,7 +590,10 @@ def test_runs_package_is_scanned_and_its_billable_doors_are_registered() -> None
         row = by_id[row_id]
         assert Effect.SPEND in row.effects, f"{row_id} is billable and must say so"
         assert "budget.process_guard" in row.guard_contracts
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        # centrally wired since the boundary migration; the effectful
+        # subcommands start at begin_effect with the installed spend net
+        assert row.wiring is Wiring.CENTRAL
+        assert any(a.call == "begin_effect" for a in row.anchors)
 
     assert Effect.SECRETS in by_id["runs.council.room"].effects
     assert Effect.REPOSITORY_MUTATION in by_id["runs.ab.run_arm"].effects

@@ -341,6 +341,20 @@ def main(argv: list[str] | None = None) -> int:
     bus_path = _bus_path(room_path, args.bus)
     spool_path = _spool_path(room_path, args.spool)
 
+    if args.cmd != "list":
+        # Spool listing stays fail-open read-only inspection; replaying
+        # dead-lettered turns into the transcript starts centrally.
+        _repo_root = str(Path(__file__).resolve().parents[2])
+        if _repo_root not in sys.path:
+            sys.path.insert(0, _repo_root)
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "runs.council.dead_letter_replay",
+            REGISTRY_BY_ID["runs.council.dead_letter_replay"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.cmd == "list":
         rows = list_spool(spool_path, room_path)
         if not rows:

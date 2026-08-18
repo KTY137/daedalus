@@ -1028,6 +1028,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--turns-dir", default=None,
                         help=f"sidecar root, scanned recursively "
                              f"(default ./{TURNS_DIRNAME}, or ${HOOK_DIR_ENV})")
+    _args_probe = parser.parse_known_args(argv)[0]
+    if not _args_probe.dry_run:
+        # --dry-run prints what would be posted and calls no model; the
+        # billable summarisers start at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "runs.council.summarize",
+            REGISTRY_BY_ID["runs.council.summarize"].effects,
+            (process_guard_boundary_decision(),),
+        )
     parser.add_argument("--room", default=None,
                         help=f"room file (default ./room.md, or ${HOOK_DIR_ENV})")
     parser.add_argument("--ollama-host", default=None,

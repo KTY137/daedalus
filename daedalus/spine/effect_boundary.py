@@ -1254,12 +1254,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.room:main", "begin_effect"),),
         notes=(
-            "Cross-vendor room: five billable vendors including ssh; every "
-            "ask_* site is priced in BILLABLE_SITES but no canonical effect "
-            "start exists."
+            "Cross-vendor room: every transcript-appending or vendor-asking "
+            "subcommand starts centrally with the really-installed spend "
+            "net; show/who/verify stay fail-open read-only inspection."
         ),
+        migration="complete for the runs.council.room entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.summarize",
@@ -1271,8 +1273,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Billable summarisers (cli/ollama); found by the budget drift detector after a hand audit missed it.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.summarize:main", "begin_effect"),),
+        notes=(
+            "Billable summarisers (cli/ollama, found by the budget drift "
+            "detector) start centrally; --dry-run stays fail-open."
+        ),
+        migration="complete for the runs.council.summarize entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.room_server",
@@ -1283,40 +1290,63 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.FILESYSTEM_WRITE,
             Effect.SPEND,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.room_server:main", "begin_effect"),),
         notes=(
             "Binds a loopback HTTP server through a ThreadingHTTPServer "
             "SUBCLASS, which defeats the scanner's literal-name sink match -- "
-            "listen_socket is hand-declared. Drives the paid room."
+            "listen_socket is hand-declared. Drives the paid room; the bind "
+            "starts centrally with the spend net installed."
         ),
+        migration="complete for the runs.council.room_server entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.room_server.post",
         surface=Surface.WEB_API,
         target="runs.council.room_server:Handler.do_POST",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Room-server mutation handler; loopback bind, no request-level effect start.",
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("runs.council.room_server:Handler.do_POST", "begin_effect"),
+        ),
+        notes=(
+            "Room-server mutation handler: each request starts centrally "
+            "after the existing loopback request guard, whose pass is the "
+            "recorded bind decision."
+        ),
+        migration="complete for the runs.council.room_server.post entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.stream_hook",
         surface=Surface.CLI,
         target="runs.council.stream_hook:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Streams room events into the transcript.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.stream_hook:main", "begin_effect"),),
+        notes=(
+            "Streams room events into the transcript; starts centrally and a "
+            "boundary refusal writes nothing (hook protocol: exit 0)."
+        ),
+        migration="complete for the runs.council.stream_hook entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.dead_letter_replay",
         surface=Surface.CLI,
         target="runs.council.dead_letter_replay:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Replays dead-lettered room messages into the transcript.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("runs.council.dead_letter_replay:main", "begin_effect"),
+        ),
+        notes=(
+            "Replays dead-lettered room messages into the transcript; replay "
+            "starts centrally, spool listing stays fail-open."
+        ),
+        migration="complete for the runs.council.dead_letter_replay entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.run_arm",
@@ -1329,8 +1359,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.REPOSITORY_MUTATION,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Billable A/B arm (call_claude in BILLABLE_SITES); mutates its arm worktree.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.run_arm:main", "begin_effect"),),
+        notes=(
+            "Billable A/B arm (call_claude in BILLABLE_SITES); mutates its "
+            "arm worktree and starts centrally."
+        ),
+        migration="complete for the runs.ab.run_arm entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.score",
@@ -1341,27 +1376,36 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Scores A/B arms; touches git state while scoring.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.score:main", "begin_effect"),),
+        notes="Scores A/B arms (git-touching) and starts centrally.",
+        migration="complete for the runs.ab.score entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.oracle_check",
         surface=Surface.CLI,
         target="runs.ab.oracle_check:main",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Runs the oracle over finished arms and writes the verdict.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.oracle_check:main", "begin_effect"),),
+        notes="Runs the oracle over finished arms centrally.",
+        migration="complete for the runs.ab.oracle_check entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.blind",
         surface=Surface.CLI,
         target="runs.ab.blind:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Writes the blinded comparison sheet.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.blind:main", "begin_effect"),),
+        notes=(
+            "Writes the blinded comparison sheet centrally; an existing seal "
+            "still refuses before the boundary is consulted."
+        ),
+        migration="complete for the runs.ab.blind entrypoint",
     ),
     EntrypointSpec(
         id="runs.gate0_matrix.verify_whole_matrix",
