@@ -1006,6 +1006,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=int, default=_DEFAULT_TIMEOUT_SECONDS)
     args = parser.parse_args(argv)
 
+    # Canonical Gate-0 effect start. This collector really spawns one pytest
+    # process per fixture row, so the spend net is installed for real before
+    # the first spawn and the start is receipted. Argument parsing above stays
+    # fail-open: a malformed invocation is a usage error, not an effect.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runtimes.fixture_fault_collector",
+        REGISTRY_BY_ID["runtimes.fixture_fault_collector"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG
 
     runs = run_fixture_fault_catalog(

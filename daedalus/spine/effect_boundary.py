@@ -849,13 +849,37 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard", "provider.write_policy"),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="claude_code_cli",
+        anchors=(
+            GuardAnchor(
+                "daedalus.providers.claude_cli:ClaudeCLIProvider.run",
+                "run_runtime_provider",
+            ),
+        ),
         notes=(
             "Provider delegates to ask_claude; direct Python use bypasses CLI "
-            "spend installation. REASONED REMAINDER 2026-08-18: runtime-bearing "
-            "rows must reach central through the runtime-bound lease/broker "
-            "chain (live-runtime lane, Revision 3); wiring the plain spine "
-            "sluice here would mint a second, weaker start path for a runtime "
-            "row, so this stays inventory_only until that chain lands."
+            "spend installation. SHARPENED REMAINDER 2026-08-18 (supersedes "
+            "the 2026-08-18 'until that chain lands' note, whose condition has "
+            "silently already passed and would now mislead a reader into "
+            "calling this row stale): the runtime-bound lease/broker chain HAS "
+            "landed. run() is fail-closed on runtime-bound Effect-Lease "
+            "authority and brokers its whole execution seam through "
+            "run_runtime_provider -> RuntimeBoundEffectAuthorization."
+            "begin_effect -> EffectLeaseLedger.begin -> begin_effect, and the "
+            "anchor below pins that seam. This row nevertheless stays "
+            "inventory_only ON PURPOSE, because it is the activation blocker "
+            "the Claude bypass-removal packet deliberately left standing: see "
+            "tests/providers/test_claude_bypass_inventory.py::"
+            "test_canonical_registry_activation_remains_an_explicit_blocker, "
+            "which pins this exact value so default lease issuance stays "
+            "impossible. CONDITION UNDER WHICH IT FALLS, both halves required: "
+            "(1) caller injection -- some production caller actually mints a "
+            "RuntimeBoundEffectAuthorization. MEASURED 2026-08-18: zero such "
+            "callers outside tests/, so the lane is unreachable and flipping "
+            "the row would only remove a counted blocker without enabling a "
+            "single real start; (2) exact-head verification, per that packet. "
+            "Flipping this row before both is routing around a guard, not "
+            "wiring a door -- broker._validate_binding refuses non-CENTRAL "
+            "rows, so this value is the last thing holding activation."
         ),
     ),
     EntrypointSpec(
@@ -879,9 +903,21 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
         notes=(
             "Egress is fail-closed and write defaults false; direct write "
-            "mode remains an unleased path. REASONED REMAINDER 2026-08-18: "
-            "runtime-bearing row -- central only via the runtime-bound "
-            "lease/broker chain owned by the live-runtime lane."
+            "mode remains an unleased path. SHARPENED REMAINDER 2026-08-18: "
+            "the runtime-bound lease/broker chain now exists and "
+            "provider.claude demonstrates the shape (run() fail-closed on "
+            "authority, execution seam through run_runtime_provider). This row "
+            "has NOT adopted it: codex_cli imports nothing from the kernel or "
+            "the broker and run() takes no authorization argument. That is "
+            "precisely why it must not be stamped central -- "
+            "broker._validate_binding refuses non-CENTRAL rows, so CENTRAL is "
+            "what admits a start; stamping it while run() still starts "
+            "unleased would authorize a plain begin_effect start that skips "
+            "the lease entirely, which is weaker than the honest gap. "
+            "CONDITION UNDER WHICH IT FALLS: codex_cli.run adopts the brokered "
+            "seam (runtime authorization + effect execution + workspace grant "
+            "+ observation authority, as claude_cli has), after which it "
+            "inherits the same activation criteria as provider.claude."
         ),
     ),
     EntrypointSpec(
@@ -904,9 +940,18 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         runtime_id="ollama_http",
         notes=(
             "Low-level HTTP helper accepts a host and has no independent lane "
-            "decision. REASONED REMAINDER 2026-08-18: runtime-bearing row -- "
-            "central only via the runtime-bound lease/broker chain owned by "
-            "the live-runtime lane."
+            "decision. SHARPENED REMAINDER 2026-08-18: the reason is narrower "
+            "than 'runtime-bearing'. The remote-host refusal for this lane "
+            "lives in the CALLER (provider.ollama, LOCAL_GUARDS), not here; "
+            "native_chat is handed an already-resolved host. Starting the "
+            "boundary inside the helper would place the sluice below the point "
+            "where the lane decision is actually made, so the receipt would "
+            "name an egress decision this function never took. CONDITION UNDER "
+            "WHICH IT FALLS: either native_chat grows its own resolved-host "
+            "egress decision, or OllamaProvider.run becomes the brokered "
+            "runtime row -- in which case the caller's start already covers "
+            "this helper and the row consolidates into it rather than being "
+            "wired separately."
         ),
     ),
     EntrypointSpec(
@@ -1057,7 +1102,20 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         notes=(
             "The plan guard itself: runs git plumbing and installs/serves the "
             "commit hooks. Protected policy artifact -- this row inventories it "
-            "without touching the target."
+            "without touching the target. SHARPENED REMAINDER 2026-08-18: two "
+            "reasons, and the second outlives the first. (1) The target is a "
+            "protected artifact; an ordinary task may not edit it at all, only "
+            "an owner-approved amendment may. (2) Even with that permission it "
+            "should not be wired: this guard is one of the mechanisms that "
+            "keeps the registry itself honest, so routing its start through "
+            "the registry would be a sluice before the sluice -- a refusal "
+            "here disables the very check that detects tampering, i.e. the "
+            "protection path would fail closed into being absent. It would "
+            "also make the guard depend at runtime on the module it exists to "
+            "protect. CONDITION UNDER WHICH IT FALLS: only an owner-approved "
+            "amendment (section 15) that first resolves the circular "
+            "dependency -- e.g. by giving the guard a boundary that cannot "
+            "veto it, only receipt it."
         ),
     ),
     EntrypointSpec(
@@ -1236,7 +1294,17 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         wiring=Wiring.INVENTORY_ONLY,
         notes=(
             "Hook shim that re-executes the plan guard. Protected policy "
-            "artifact -- this row inventories it without touching the target."
+            "artifact -- this row inventories it without touching the target. "
+            "SHARPENED REMAINDER 2026-08-18: inherits both of "
+            "tools.iron_plan_guard's reasons (protected artifact; sluice "
+            "before the sluice) and adds a third specific to a hook shim. Its "
+            "single effect is re-executing the guard from a git hook. A "
+            "boundary that can refuse would, on refusal, stop the hook from "
+            "running the guard -- so a failure here does not block a risky "
+            "commit, it silently stops checking commits. That is fail-open on "
+            "the protection path, dressed as a guarded start. CONDITION UNDER "
+            "WHICH IT FALLS: same owner-approved amendment as the guard, and "
+            "only with a non-vetoing (receipt-only) boundary."
         ),
     ),
     EntrypointSpec(
@@ -1275,13 +1343,17 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.PROCESS_CONTROL,
         ),
-        guard_contracts=("containment.attempt",),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("containment.attempt", "budget.process_guard"),
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor(
                 "daedalus.runtimes.container_fault_driver:"
                 "ContainerFaultDriver._run_script",
                 "run_in_docker_sandbox",
+            ),
+            GuardAnchor(
+                "daedalus.runtimes.container_fault_driver:main",
+                "begin_effect",
             ),
         ),
         notes=(
@@ -1291,10 +1363,18 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "both live in daedalus.kernel.sandbox.run_in_docker_sandbox, which "
             "the scanner cannot see across the module edge. The anchor pins "
             "that containment call so the row cannot rot into a raw spawn. "
-            "REASONED REMAINDER 2026-08-18: fault-matrix collector owned by "
-            "the live-runtime lane (grind/live-column); its central wiring "
-            "lands with that lane's runtime-bound chain."
+            "Wired 2026-08-18: the 'wait for the live-runtime lane' remainder "
+            "did not survive review -- this row carries no runtime_id and "
+            "needs no lease, so nothing about it was ever waiting on that "
+            "chain. main() now starts centrally with two real decisions: the "
+            "installed spend net, and a containment decision that resolves "
+            "run_in_docker_sandbox's defining module at the boundary and "
+            "refuses the start if the spawn path is no longer the bounded "
+            "sandbox. Docker availability is deliberately excluded from the "
+            "decision: a host without docker must still record every scenario "
+            "as blocked and retain that evidence."
         ),
+        migration="complete for the runtimes.container_fault_driver entrypoint",
     ),
     EntrypointSpec(
         id="runtimes.fixture_fault_collector",
@@ -1305,12 +1385,16 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.PROCESS_CONTROL,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor(
                 "daedalus.runtimes.fixture_fault_collector:main",
                 "subprocess_pytest_runner",
+            ),
+            GuardAnchor(
+                "daedalus.runtimes.fixture_fault_collector:main",
+                "begin_effect",
             ),
         ),
         notes=(
@@ -1318,25 +1402,49 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the evidence. The subprocess.run (with its timeout, hence "
             "process_control) sits in a closure returned by "
             "subprocess_pytest_runner, which the scanner does not enter; the "
-            "anchor pins main's use of that runner seam instead. REASONED "
-            "REMAINDER 2026-08-18: fault-matrix collector owned by the "
-            "live-runtime lane (grind/live-column); its central wiring lands "
-            "with that lane's runtime-bound chain."
+            "anchor pins main's use of that runner seam instead. Wired "
+            "2026-08-18: the 'wait for the live-runtime lane' remainder did "
+            "not survive review -- this row carries no runtime_id and needs no "
+            "lease, so its spawns were never waiting on the runtime-bound "
+            "chain. main() now installs the real spend net and starts "
+            "centrally before the first pytest spawn."
         ),
+        migration="complete for the runtimes.fixture_fault_collector entrypoint",
     ),
     EntrypointSpec(
         id="runtimes.live_fault_collector",
         surface=Surface.CLI,
         target="daedalus.runtimes.live_fault_collector:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.runtimes.live_fault_collector:main",
+                "begin_effect",
+            ),
+        ),
         notes=(
             "Runs the two live-runtime fault rows and retains their evidence. It "
             "spawns nothing: the binary-drift probe copies the provider image into "
             "a temp dir and mutates the copy, so the only effect is filesystem "
-            "write. It holds no signing key and grants no trust."
+            "write. It holds no signing key and grants no trust. Wired "
+            "2026-08-18 on the same footing as runs.ab.blind, the existing "
+            "filesystem_write-only central row: the start is receipted and the "
+            "in-process spend net is really installed. Stated plainly so the "
+            "green is not read as more than it is -- the decision that runs is "
+            "the spend net, and it does NOT certify the evidence write; there "
+            "is no filesystem-write contract in GUARD_CONTRACT_IMPLEMENTED to "
+            "make a stronger claim with. The call sits after the "
+            "canonical-module delegation in main(), so it fires exactly once "
+            "even when the module is loaded as __main__. KNOWN RESIDUAL, named "
+            "rather than hidden: this row registers the CLI door (main), and "
+            "the module's library functions (run_live_fault_catalog, "
+            "retain_live_fault_run) stay reachable without it -- the owner-run "
+            "key-ceremony kit calls them directly. That surface predates this "
+            "wiring and is not closed by it."
         ),
+        migration="complete for the runtimes.live_fault_collector entrypoint",
     ),
     EntrypointSpec(
         id="runtimes.fault_attestation_issuer",
@@ -1351,9 +1459,21 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "(_secret_from_env), so secrets is hand-declared: a signing door "
             "that stayed green while handling a key is exactly the row this "
             "inventory exists to name. It grants authenticity, never a "
-            "verdict. REASONED REMAINDER 2026-08-18: key-ceremony door owned "
-            "by the live-runtime lane (grind/live-column); its central "
-            "wiring lands with that lane's runtime-bound chain."
+            "verdict. SHARPENED REMAINDER 2026-08-18: its two sibling "
+            "collectors were wired centrally in the same pass, so 'owned by "
+            "another lane' is no longer the reason -- this row is different in "
+            "kind. Its dominant effect is secrets, and "
+            "GUARD_CONTRACT_IMPLEMENTED contains no secrets or key-custody "
+            "contract. The only decision available to it is the in-process "
+            "spend net, which says nothing whatever about how a signing key is "
+            "sourced, held, or destroyed. Stamping the row central on that "
+            "basis would advertise cover it does not have on exactly the "
+            "effect that matters, which is the failure mode this inventory "
+            "exists to prevent rather than to commit. CONDITION UNDER WHICH IT "
+            "FALLS: a secrets/key-custody contract is added to "
+            "GUARD_CONTRACT_IMPLEMENTED with a real implementation that can "
+            "decide key provenance and custody at the boundary; this row then "
+            "declares it and starts centrally on that decision."
         ),
     ),
     # runs/ -- production-capable entrypoints that spend money; five of these
@@ -1539,10 +1659,21 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the next matrix run mints a fresh unregistered blocker and this "
             "row goes stale the day its evidence folder is pruned. Moving the "
             "verifier to a stable path is an owner decision -- the script is "
-            "deliberately retained beside the evidence it produced. REASONED "
-            "REMAINDER 2026-08-18: lives inside the live-runtime lane's "
-            "dated evidence directory (runs/gate0-*); untouched by the "
-            "central-wiring mission on the parallel branch."
+            "deliberately retained beside the evidence it produced. SHARPENED "
+            "REMAINDER 2026-08-18: two independent reasons, either one "
+            "sufficient. (1) Same secrets gap as "
+            "runtimes.fault_attestation_issuer: it reads BOTH issuer keys and "
+            "no key-custody contract exists to decide on them, so a central "
+            "stamp would rest on a spend-net decision that covers none of the "
+            "risk. (2) The target is a file inside a dated, retained evidence "
+            "directory. Editing it to insert a boundary call would mutate a "
+            "retained evidence artifact after the fact -- the run that "
+            "produced the evidence did not have that call -- which is a worse "
+            "outcome than an honest inventory row. CONDITION UNDER WHICH IT "
+            "FALLS: the owner moves the verifier to a stable path (severing "
+            "reason 2) AND a key-custody contract exists (severing reason 1). "
+            "Until then this row is also the registry's known staleness "
+            "candidate: it goes stale the day its evidence folder is pruned."
         ),
     ),
 )
@@ -1579,11 +1710,21 @@ _REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
         guard_contracts=(),
         wiring=Wiring.INVENTORY_ONLY,
         notes=(
-            "Busiest paid lane. REASONED REMAINDER 2026-08-18: provider run "
-            "methods are the runtime family; central wiring goes through the "
-            "runtime-bound lease/broker chain owned by the live-runtime "
-            "lane, not a second plain sluice here. Its process-boundary door "
-            "(the guarded external-call CLI) IS centrally wired."
+            "Busiest paid lane. SHARPENED REMAINDER 2026-08-18: the chain the "
+            "old note deferred to now exists (provider.claude shows the "
+            "shape), but deepseek.py imports nothing from the kernel or the "
+            "broker and run() takes no authorization argument, so this row has "
+            "not adopted it. CENTRAL is what admits a start -- stamping it "
+            "here while run() is still unleased would authorize a plain start "
+            "that skips the lease on the lane that spends the most money, "
+            "which is worse than an honest gap. The mitigation that already "
+            "exists: this lane's process-boundary door (the guarded "
+            "external-call CLI) IS centrally wired and runs the real spend net "
+            "plus a secret floor over the outbound payload, so the reachable "
+            "production path is covered even while the direct Python method is "
+            "not. CONDITION UNDER WHICH IT FALLS: DeepSeekProvider.run adopts "
+            "the brokered seam, then inherits provider.claude's activation "
+            "criteria."
         ),
     ),
     EntrypointSpec(
@@ -1594,9 +1735,22 @@ _REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
         guard_contracts=(),
         wiring=Wiring.INVENTORY_ONLY,
         notes=(
-            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
-            "provider lifecycle as run; it moves to central together with "
-            "the runtime-bound lease chain, not separately."
+            "SHARPENED REMAINDER 2026-08-18: the old 'same lifecycle as run' "
+            "note was too weak to survive review -- this method carries no "
+            "runtime_id, needs no lease, and would otherwise be trivially "
+            "wirable. The real reason is that it is the UNDO path. rollback() "
+            "restores the originals this provider backed up; it is called "
+            "exactly when a write went wrong. begin_effect is a refusing gate "
+            "(denied decision, unimplemented contract, kill-switch generation, "
+            "exhausted budget), and every one of those conditions is MORE "
+            "likely at rollback time than at write time. Gating the undo path "
+            "behind it converts a recoverable half-written tree into an "
+            "unrecoverable one: the guard would fire precisely when recovery "
+            "is needed. CONDITION UNDER WHICH IT FALLS: rollback is invoked "
+            "inside the runtime lease's terminal reconciliation, where the "
+            "start receipt for the write already exists and covers the undo -- "
+            "then it needs no separate start at all and this row consolidates "
+            "away instead of turning central."
         ),
     ),
     EntrypointSpec(
@@ -1607,9 +1761,18 @@ _REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
         guard_contracts=(),
         wiring=Wiring.INVENTORY_ONLY,
         notes=(
-            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
-            "provider lifecycle as run; it moves to central together with "
-            "the runtime-bound lease chain, not separately."
+            "SHARPENED REMAINDER 2026-08-18: identical body and identical "
+            "reason to provider.deepseek.rollback -- this is the UNDO path, "
+            "and begin_effect is a refusing gate whose refusal conditions "
+            "(denied decision, kill switch, exhausted budget) are most likely "
+            "exactly when a rollback is needed. Gating it would turn a "
+            "recoverable half-written tree into an unrecoverable one. Note "
+            "also that offload refuses to grant write rights to a provider "
+            "without a callable rollback(), so a rollback that can be refused "
+            "at the boundary would silently weaken the write lane it exists to "
+            "make safe. CONDITION UNDER WHICH IT FALLS: rollback runs inside "
+            "the runtime lease's terminal reconciliation, covered by the "
+            "write's own start receipt, and this row consolidates away."
         ),
     ),
 )

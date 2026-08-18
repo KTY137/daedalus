@@ -680,6 +680,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # Canonical Gate-0 effect start, placed after the canonical-module
+    # delegation above so it fires exactly once per run, and after argument
+    # parsing so a usage error stays fail-open. What this decision really does
+    # is install the in-process spend net; it is an honest interposition for
+    # the run, and it is deliberately NOT a claim that the evidence write was
+    # inspected -- this row declares filesystem_write only, and no fs-write
+    # contract exists in GUARD_CONTRACT_IMPLEMENTED to make a stronger one.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runtimes.live_fault_collector",
+        REGISTRY_BY_ID["runtimes.live_fault_collector"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     executors = build_live_probe_executors(
         live_envelope_dir=args.live_envelope_dir,
         provider_binary=args.provider_binary,
