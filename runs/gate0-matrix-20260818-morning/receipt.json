@@ -1,0 +1,125 @@
+{
+  "schema": "daedalus-gate0-whole-matrix-receipt/1",
+  "produced_at": "2026-08-18",
+  "produced_by": "grind/morning-finisher",
+  "source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+  "revision_atomicity": {
+    "claim": "every observation in this run was collected at one exact committed revision",
+    "how": "the working tree was clean at 1e681b9b before the first collector started; both columns and the verdict were given that same revision explicitly, and verify_runtime_fault_matrix refuses any observation whose source_revision differs",
+    "evidence": "the verdict carries zero fault.stale-revision and zero fault.matrix-stale-revision blockers"
+  },
+  "catalog": {
+    "catalog_id": "gate0-runtime-faults-v1",
+    "catalog_sha256": "cd6df83d9071f4b079dcfa88259ae37753bf8ccf6ae3240205194c517a2cc387",
+    "scenarios": 24,
+    "required_for_gate0": 24
+  },
+  "matrix": {
+    "matrix_id": "gate0-whole-runtime-fault-matrix",
+    "matrix_sha256": "3969668daffba988242929c62b8642ea41aa1d2132608329afcc03d121015784",
+    "observations": 22,
+    "closed": false,
+    "blocker_count": 6
+  },
+  "key_material": {
+    "class": "development",
+    "declared_by_the_issuers_themselves": true,
+    "what_these_signatures_mean": "a development-key signature proves only that this machine's collector output was not altered between collection and verification. It is NOT operator authority, NOT an owner approval, and NOT a production trust anchor.",
+    "what_they_do_not_mean": "no row of this run may be cited as gate-closing evidence. Closing Gate 0 requires the same run under production key custody, which this lane neither holds nor can mint.",
+    "fixture_issuer_id": "issuer.gate0-fixture-dev",
+    "linux_host_issuer_id": "issuer.gate0-linux-host-dev",
+    "issuer_separation": "each issuer is authorized for exactly one authority, so a fixture signature over a Linux-host row (or the reverse) is refused rather than counted",
+    "key_environment_variables": {
+      "fixture": "MORNING_GATE0_FIXTURE_DEV_KEY",
+      "linux_host": "MORNING_GATE0_HOST_DEV_KEY"
+    },
+    "key_generation": "both secrets were freshly generated for this run via python secrets.token_hex(32), held only in the issuing process environment, and never written to disk or committed"
+  },
+  "columns": {
+    "deterministic-fixture": {
+      "collector": "daedalus.runtimes.fixture_fault_collector",
+      "rows": 13,
+      "passed": 13,
+      "failed": 0,
+      "blocked": 0,
+      "attested": 13,
+      "refused": 0,
+      "bundle_sha256": "af1f07910d78796b1125fc8f7510e0102c216a76b9236535d6507ddef3c4216f"
+    },
+    "linux-host": {
+      "collector": "daedalus.runtimes.container_fault_driver",
+      "image": "python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a",
+      "rows": 9,
+      "passed": 5,
+      "failed": 0,
+      "blocked": 4,
+      "attested": 9,
+      "refused": 0,
+      "bundle_sha256": "15c1d09549b3e15cbc3284212ca09eeef8a0c47d77abbb656d4dc96acddc3fa8"
+    },
+    "live-runtime": {
+      "collector": null,
+      "rows": 2,
+      "note": "no collector column exists for this authority yet, so these rows have no observation at all"
+    }
+  },
+  "blockers": {
+    "total": 6,
+    "fault.blocked": {
+      "count": 4,
+      "scenarios": [
+        "runtime.egress.unauthorized-endpoint",
+        "runtime.process.oom",
+        "runtime.sandbox.daemon-unavailable",
+        "runtime.secrets.undeclared-access"
+      ],
+      "detail_code": "docker-cli-unavailable",
+      "why": "these four executors need a container runtime inside the already containerized executor, i.e. Docker-in-Docker, which this host does not provide. The driver records honest ignorance rather than a pass.",
+      "scoped_by": "docs/GATE0_LINUX_FAULT_SCOPING_DECISION.md"
+    },
+    "fault.missing": {
+      "count": 2,
+      "scenarios": [
+        "runtime.live-envelope.binary-drift",
+        "runtime.live-envelope.expiry"
+      ],
+      "why": "the live-runtime authority has no collector column at this revision. Genuinely open, deliberately not papered over.",
+      "scoped_by": null
+    },
+    "absent_by_measurement": {
+      "fault.failed": 0,
+      "fault.stale-revision": 0,
+      "fault.matrix-stale-revision": 0,
+      "fault.untrusted-observation": 0,
+      "fault.outcome-mismatch": 0,
+      "fault.scenario-drift": 0,
+      "fault.authority-mismatch": 0,
+      "fault.foreign-scenario": 0,
+      "fault.catalog-mismatch": 0,
+      "fault.reconciliation-overdue": 0,
+      "note": "every required row that could be observed was observed within the reconciliation deadline, matched its expected terminal outcome, and carried a trusted attestation over its exact record digest"
+    }
+  },
+  "runtime_conformance": {
+    "companion_bundle": "runs/gate0-conformance-20260818-morning/receipts",
+    "producer": "daedalus.kernel.runtime_conformance.assemble_recorded_conformance",
+    "persistence": "daedalus.kernel.runtime_conformance.persist_conformance_receipt",
+    "receipts": {
+      "claude_code_cli-offline-receipt": "9609753399a086632ba1eb8b2809461db43e9f06781382aef228dcd8519b092e",
+      "codex_cli-offline-receipt": "f14e5d6908f2699504c2ef96f08444532af3191ac24703e70accb6e5509227de",
+      "ollama_http-offline-receipt": "7e4c2f2ad7316f888412ac33b0d723598c14f0903d308207c10fcc7140219a90"
+    },
+    "binding_gap_measured": "the registered report CLIs (scripts/report_gate0_v3.py and python -m daedalus.gates) expose no receipt-dir flag and the binding performs no filesystem discovery, so the persisted bundle binds only when runtime_conformance_receipt_dir is passed to the builder API; gate-report-v3-cli.json retains the unbound CLI measurement, gate-report-v3.json is the bound builder-API run"
+  },
+  "reproduction": {
+    "note": "the two signing secrets are development key material held only by the operator who ran this. Re-verification requires the same two environment variables; the artifacts themselves are content-addressed and can be re-collected without them. The combiner is the module daedalus.runtimes.whole_fault_matrix.verify_whole_runtime_fault_matrix; this run directory deliberately carries no script copy, because the registry names a dated script copy as a fresh unregistered-entrypoint blocker. The registered thin CLI delegate over that module is retained at runs/gate0-matrix-2026-08-17/verify_whole_matrix.py and takes every path as a flag.",
+    "steps": [
+      "python -m daedalus.runtimes.fixture_fault_collector --run-dir <dir>/fixture --source-revision <sha> --repo-root .",
+      "python -m daedalus.runtimes.container_fault_driver --source-revision <sha> --output-dir <dir>/linux-host --repo-root .",
+      "python -m daedalus.runtimes.fixture_fault_attestation_issuer issue --run-dir <dir>/fixture --source-revision <sha> --issuer-id issuer.gate0-fixture-dev --key-id gate0-fixture-dev-key --fixture-key-env MORNING_GATE0_FIXTURE_DEV_KEY --key-class development --output <dir>/fixture-attestations.json",
+      "python -m daedalus.runtimes.fault_attestation_issuer issue --run-dir <dir>/linux-host --source-revision <sha> --issuer-id issuer.gate0-linux-host-dev --key-id gate0-linux-host-dev-key --key-env MORNING_GATE0_HOST_DEV_KEY --key-class development --output <dir>/linux-host-attestations.json",
+      "python runs/gate0-matrix-2026-08-17/verify_whole_matrix.py --fixture-run-dir <dir>/fixture --fixture-bundle <dir>/fixture-attestations.json --fixture-key-env MORNING_GATE0_FIXTURE_DEV_KEY --host-run-dir <dir>/linux-host --host-bundle <dir>/linux-host-attestations.json --host-key-env MORNING_GATE0_HOST_DEV_KEY --source-revision <sha> --output <dir>/whole-matrix-verdict.json"
+    ]
+  },
+  "provenance": "MEASURED"
+}

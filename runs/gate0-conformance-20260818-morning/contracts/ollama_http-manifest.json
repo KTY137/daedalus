@@ -1,0 +1,45 @@
+{
+ "adapter_id": "ollama-http-provider",
+ "adapter_version": "source/5467bd98f55d4a78",
+ "assurance": "declared",
+ "capabilities": {
+  "cancellation": false,
+  "cost_reporting": false,
+  "streaming": true,
+  "structured_output": true,
+  "timeout": true,
+  "tool_events": true,
+  "workspace_isolation": true,
+  "workspace_write": true
+ },
+ "contract_type": "daedalus.runtime-manifest",
+ "contract_version": "1.0.0",
+ "cost_model": "unknown",
+ "declared_tools": [
+  "read_file",
+  "write_file"
+ ],
+ "egress_transports": [
+  "loopback-http"
+ ],
+ "provenance": {
+  "created_at": "2026-08-18T05:39:11.395910+00:00",
+  "input_digests": [
+   "2f50a1afc49c1ff44cec620bb06bdbde210c934c1e0fc0dd133ab95ae4d923cd",
+   "5467bd98f55d4a78fa43fb63efd8870150b248c1042085976e5031b782e85b4c",
+   "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+   "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+   "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba"
+  ],
+  "origin": "runtimes.materialized-manifest",
+  "source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+  "trace_id": "ollama_http"
+ },
+ "runtime_id": "ollama_http",
+ "runtime_version": "offline-contract/3.10.11",
+ "source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+ "workspace_modes": [
+  "isolated-worktree",
+  "read-only"
+ ]
+}
