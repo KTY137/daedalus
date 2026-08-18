@@ -245,6 +245,151 @@ def test_skipped_dirs_are_not_walked(tmp_path):
     assert probe(tmp_path)["totals"]["markdown_files"] == 1
 
 
+# --- the published table, pinned to the committed corpus ----------------
+#
+# Everything above builds its corpus in a tmp dir, which pins the *rules* but
+# pins no *number*.  That is exactly how the retracted 96.6% headline survived:
+# it was measured against the live repository, so it read 96.6, then 95.9, then
+# 95.2 on three different days, and no test noticed.  The corpus below is
+# committed, so the published table has a fixed thing to be true about.
+
+CORPUS = Path(__file__).resolve().parent / "corpus"
+
+# Every file the corpus is built from.  Pinned so that deleting one shrinks the
+# inventory check instead of silently shrinking the rate.
+CORPUS_FILES = {
+    "guide.md",
+    "index.md",
+    "notes/Alpha.md",
+    "pkg/a/mod/thing.py",
+    "pkg/b/mod/thing.py",
+    "pkg/one/report.py",
+    "pkg/solo.py",
+    "pkg/spine/attempt.py",
+    "pkg/two/report.py",
+}
+
+# The published table, verbatim: stage, count, percent of extracted.
+PUBLISHED_WATERFALL = [
+    ("extracted", 19, 100.0),
+    ("- excluded: external_url", 3, 15.8),
+    ("- excluded: ambiguous_target", 2, 10.5),
+    ("= verifiable", 14, 73.7),
+    ("strictly_verified", 7, 36.8),
+    ("inferred_proposal", 1, 5.3),
+    ("unresolved", 6, 31.6),
+]
+
+PUBLISHED_UNRESOLVED_BY_REASON = {
+    "link_path_dead": 1,
+    "link_anchor_dead": 1,
+    "code_ref_dead_path": 1,
+    "code_ref_line_out_of_range": 1,
+    "wiki_dead": 1,
+    "wiki_code_target_dead": 1,
+}
+
+
+def test_committed_corpus_inventory_is_intact():
+    """A missing corpus file must fail here, not quietly move the numbers."""
+    assert CORPUS.is_dir(), "committed corpus is missing"
+    found = {
+        p.relative_to(CORPUS).as_posix()
+        for p in CORPUS.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts
+    }
+    assert found == CORPUS_FILES
+
+
+def test_published_waterfall_table_is_pinned_to_the_corpus():
+    """Break the moment any published number drifts."""
+    rows = probe(CORPUS)["waterfall"]["rows"]
+    actual = [(r["stage"], r["count"], r["pct_of_extracted"]) for r in rows]
+    assert actual == PUBLISHED_WATERFALL
+
+
+def test_published_waterfall_totals_and_balances_are_pinned():
+    w = probe(CORPUS)["waterfall"]
+    assert w["extracted"] == 19
+    assert w["excluded_total"] == 5
+    assert w["excluded_by_reason"] == {"external_url": 3, "ambiguous_target": 2}
+    assert w["verifiable"] == 14
+    assert w["strictly_verified"] == 7
+    assert w["inferred_proposal"] == 1
+    assert w["unresolved"] == 6
+    assert w["unresolved_by_reason"] == PUBLISHED_UNRESOLVED_BY_REASON
+    # Both denominators, because quoting one alone is the defect being fixed.
+    assert w["strict_pct_of_extracted"] == 36.8
+    assert w["strict_pct_of_verifiable"] == 50.0
+    assert w["inferred_pct_of_extracted"] == 5.3
+    assert w["unresolved_pct_of_verifiable"] == 42.9
+    assert all(w["balances"].values())
+
+
+def test_corpus_exercises_every_stage_and_every_unresolved_reason():
+    """A corpus with an empty stage would pin nothing about that stage."""
+    w = probe(CORPUS)["waterfall"]
+    for row in w["rows"]:
+        assert row["count"] > 0, f"stage {row['stage']} is unexercised"
+    for reason, count in w["unresolved_by_reason"].items():
+        assert count > 0, f"unresolved reason {reason} is unexercised"
+    for reason, count in w["excluded_by_reason"].items():
+        assert count > 0, f"exclusion reason {reason} is unexercised"
+
+
+def test_inference_is_never_folded_into_the_verified_count():
+    """The precise defect of the retracted headline, pinned on real data."""
+    result = probe(CORPUS)
+    w = result["waterfall"]
+    # 7 verified and 1 inferred must never be published as 8 resolved.
+    assert w["strictly_verified"] == 7
+    assert w["inferred_proposal"] == 1
+    # The retracted style would have reported (7 + 1) / 14 = 57.1%.  No
+    # published figure may carry that value, in the waterfall or the rates.
+    retracted = round(100.0 * (7 + 1) / 14, 1)
+    assert retracted == 57.1
+    numbers = [v for v in w.values() if isinstance(v, (int, float))]
+    numbers += [r["pct_of_extracted"] for r in w["rows"]]
+    numbers += [v for v in result["rates"].values() if isinstance(v, (int, float))]
+    assert retracted not in numbers, "the retracted headline is being published again"
+    # and the inferred specimen is listed, so it can be audited by hand
+    assert result["inferred_examples"] == [
+        "guide.md -> spine/attempt.py:12 => pkg/spine/attempt.py"
+    ]
+
+
+def test_ambiguity_is_reported_with_evidence_not_discarded():
+    result = probe(CORPUS)
+    assert result["waterfall"]["excluded_by_reason"]["ambiguous_target"] == 2
+    assert sorted(result["ambiguous_examples"]) == [
+        "guide.md -> mod/thing.py:5 (2 candidates)",
+        "guide.md -> report.py:5 (2 candidates)",
+    ]
+    # ambiguous and inferred refs are not dead, and must not be filed as dead
+    assert "code_ref_ambiguous" not in result["dead_examples"]
+    assert "code_ref_suffix_resolved" not in result["dead_examples"]
+
+
+def test_retracted_single_rate_key_does_not_come_back():
+    """Schema 2 has no all-edges headline; re-adding one must fail loudly."""
+    rates = probe(CORPUS)["rates"]
+    for gone in (
+        "all_edges_resolved_pct",
+        "all_edges_resolved",
+        "all_edges_checkable",
+        "all_edges_dead",
+        "code_ref_resolved_incl_suffix_pct",
+    ):
+        assert gone not in rates, f"retracted key {gone} is back"
+
+
+def test_probe_is_read_only_on_the_committed_corpus():
+    before = {p: p.stat().st_mtime_ns for p in CORPUS.rglob("*") if p.is_file()}
+    probe(CORPUS)
+    after = {p: p.stat().st_mtime_ns for p in CORPUS.rglob("*") if p.is_file()}
+    assert before == after, "probe must not write to the committed corpus"
+
+
 def test_cli_emits_one_json_object(tmp_path):
     write(tmp_path, "a.md", "[x](b.md)\n")
     write(tmp_path, "b.md", "# B\n")
