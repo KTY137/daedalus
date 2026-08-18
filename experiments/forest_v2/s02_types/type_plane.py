@@ -781,12 +781,19 @@ def corpus_pin(entries: list[tuple[str, bytes]]) -> dict[str, Any]:
     to need (a stdlib subset, a fixture tree) have no revision, so every run
     carries a digest over ``<relpath>\\0<sha256>`` of every file it parsed --
     including the unparseable ones, which are part of the corpus too.
+
+    Line endings are normalised to ``\\n`` before hashing.  A checkout that
+    rewrites CRLF would otherwise move every pin without one character of
+    content changing, and this repository does rewrite them.  The digest is
+    therefore content-exact rather than byte-exact, which is the property the
+    pin is actually for.
     """
     digest = hashlib.sha256()
     for rel, data in sorted(entries):
         digest.update(rel.encode("utf-8"))
         digest.update(b"\0")
-        digest.update(hashlib.sha256(data).hexdigest().encode("ascii"))
+        normalised = data.replace(b"\r\n", b"\n")
+        digest.update(hashlib.sha256(normalised).hexdigest().encode("ascii"))
         digest.update(b"\n")
     return {"files": len(entries), "sha256": digest.hexdigest()}
 

@@ -307,6 +307,15 @@ def test_corpus_pin_is_stable_and_content_sensitive(tmp_path: Path) -> None:
     assert build(tmp_path)["corpus_pin"]["sha256"] != first["sha256"]
 
 
+def test_corpus_pin_ignores_line_endings(tmp_path: Path) -> None:
+    """A CRLF checkout must not move a pin. This repository rewrites them."""
+    body = "def f(a: int) -> int:\n    return a\n"
+    write_pkg(tmp_path, "pkg", {"m.py": body})
+    lf = build(tmp_path)["corpus_pin"]
+    (tmp_path / "pkg" / "m.py").write_bytes(body.replace("\n", "\r\n").encode("utf-8"))
+    assert build(tmp_path)["corpus_pin"] == lf
+
+
 def test_builtins_only_control_is_weaker_than_the_full_resolver(tmp_path: Path) -> None:
     write_pkg(
         tmp_path,
