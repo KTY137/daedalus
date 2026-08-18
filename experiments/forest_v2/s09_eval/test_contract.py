@@ -26,8 +26,14 @@ def _universe(*paths: str):
 def test_query_view_carries_no_answer_key():
     """A retriever must not be able to reach the gold set through its input."""
     names = {f.name for f in fields(QueryView)}
-    assert names == {"case_id", "text", "variant", "revision"}
+    assert names == {"case_id", "text", "variant", "revision", "repo"}
     assert not any("gold" in n for n in names)
+
+    # ``repo`` is the pre-image isolation seam, added after an oracle probe
+    # walked git forward to its own case commit and scored a perfect 1.000.
+    # It hands the retriever a repository, not an answer: under isolation
+    # that repository does not contain the commit being graded.
+    assert QueryView("c0", "t", "raw").repo == "", "repo must default to no access"
 
     candidate_names = {f.name for f in fields(Candidate)}
     assert not any("gold" in n or "label" in n for n in candidate_names)

@@ -1,9 +1,25 @@
-"""Read-only git plumbing for the s09 eval harness.
+"""Git plumbing for the s09 eval harness: read-only on the source repository.
 
-Only ever runs plumbing that reads: ``log``, ``rev-parse``, ``ls-tree``,
-``cat-file --batch``.  No command in this module can mutate a repository.
-Pure stdlib plus the ``git`` binary, which is the data source for the task
-set -- the history IS the ground truth, so reading it is not optional.
+Every call that touches a repository the harness did not create goes through
+:func:`_run`, which refuses any verb outside ``_READ_ONLY_VERBS`` (``log``,
+``rev-parse``, ``ls-tree``, ``cat-file``).  Pure stdlib plus the ``git``
+binary, which is the data source for the task set -- the history IS the
+ground truth, so reading it is not optional.
+
+The docstring here used to say "no command in this module can mutate a
+repository".  That was wrong in two directions and is corrected in place:
+
+* it was enforced at four call sites and skipped at the fifth --
+  :func:`read_blobs` shelled ``cat-file --batch`` directly, past the gate,
+  because it needs stdin.  :func:`_run` now takes ``stdin`` and
+  ``read_blobs`` goes through it like every other read.
+* :func:`make_preimage_clone` *does* write, on purpose.  It writes only into
+  a destination directory the caller supplies and which must not already
+  exist, and never into the source repository.  It is the one exception, it
+  is named, and it is deliberately not routed through the read-only gate.
+
+The precise claim is therefore: **no function in this module can mutate the
+repository it reads from**, and exactly one function writes at all.
 """
 from __future__ import annotations
 
@@ -24,11 +40,20 @@ class GitError(RuntimeError):
     """A git plumbing call failed."""
 
 
-def _run(repo: Path, args: Sequence[str]) -> bytes:
+def _run(repo: Path, args: Sequence[str], stdin: bytes | None = None) -> bytes:
+    """Run one read-only git plumbing command against ``repo``.
+
+    The verb allowlist is the whole point: this is the single door every read
+    in this package goes through, so "read-only on the source" is one
+    checkable property instead of a promise repeated in five docstrings.
+    ``stdin`` exists so ``cat-file --batch`` can be fed *through* the gate
+    rather than around it.
+    """
     if not args or args[0] not in _READ_ONLY_VERBS:
         raise GitError(f"refusing non-read-only git verb: {args[:1]}")
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
+        input=stdin,
         capture_output=True,
         check=False,
     )
@@ -125,18 +150,13 @@ def read_blobs(repo: Path, shas: Iterable[str]) -> Dict[str, bytes]:
     wanted = [s for s in dict.fromkeys(shas)]
     if not wanted:
         return {}
-    proc = subprocess.run(
-        ["git", "-C", str(repo), "cat-file", "--batch"],
-        input=("\n".join(wanted) + "\n").encode("ascii"),
-        capture_output=True,
-        check=False,
+    buf = _run(
+        repo,
+        ["cat-file", "--batch"],
+        stdin=("\n".join(wanted) + "\n").encode("ascii"),
     )
-    if proc.returncode != 0:
-        detail = proc.stderr.decode("utf-8", "replace").strip()
-        raise GitError(f"git cat-file --batch failed: {detail}")
 
     out: Dict[str, bytes] = {}
-    buf = proc.stdout
     pos = 0
     end = len(buf)
     while pos < end:
@@ -155,3 +175,89 @@ def read_blobs(repo: Path, shas: Iterable[str]) -> Dict[str, bytes]:
         if kind == "blob":
             out[sha] = payload
     return out
+
+
+def log_name_only(repo: Path, revision: str, limit: int) -> List[str]:
+    """Paths touched by the last ``limit`` non-merge commits up to ``revision``.
+
+    Exists so ``RecencyPrior`` stops shelling ``git log`` straight out of
+    ``retrievers.py``.  That was the fifth call site the read-only gate never
+    saw; routing it here means the allowlist covers every git call the
+    package makes, and a test can prove it by watching this door.
+
+    Returns paths in first-seen order, newest commit first.  Duplicates are
+    preserved -- the caller decides what "recent" means.
+    """
+    raw = _run(
+        repo,
+        [
+            "log", "--no-merges", "--pretty=format:", "--name-only",
+            f"-n{int(limit)}", revision,
+        ],
+    ).decode("utf-8", "replace")
+    return [line.strip() for line in raw.splitlines() if line.strip()]
+
+
+def make_preimage_clone(source: Path, revision: str, dest: Path) -> Path:
+    """Materialise a bare repository containing ONLY ``revision`` and its ancestors.
+
+    This is the sandbox behind ``QueryView.revision``'s "read nothing after
+    the case" rule.  A stated norm is not a boundary: a retriever handed the
+    real repository can walk forward to the very commit whose diff is the
+    answer key, and an executed probe scored MRR 1.000 doing exactly that,
+    detected by nothing.  A retriever handed *this* repository cannot,
+    because the future is not merely unreferenced -- it is absent from the
+    object store.
+
+    Built by pushing one commit into a fresh bare repo: ``git push`` computes
+    the object closure of what it sends, so ancestors come along and
+    descendants cannot.  ``dest`` must not exist; this function is the only
+    writer in this module and it writes nowhere else.
+    """
+    if dest.exists():
+        raise GitError(f"pre-image clone destination already exists: {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    init = subprocess.run(
+        ["git", "init", "--quiet", "--bare", str(dest)],
+        capture_output=True,
+        check=False,
+    )
+    if init.returncode != 0:
+        raise GitError(
+            "git init --bare failed: " + init.stderr.decode("utf-8", "replace").strip()
+        )
+    push = subprocess.run(
+        ["git", "-C", str(source), "push", "--quiet", str(dest),
+         f"{revision}:refs/heads/preimage"],
+        capture_output=True,
+        check=False,
+    )
+    if push.returncode != 0:
+        raise GitError(
+            f"pushing pre-image {revision[:12]} failed: "
+            + push.stderr.decode("utf-8", "replace").strip()
+        )
+    head = subprocess.run(
+        ["git", "-C", str(dest), "symbolic-ref", "HEAD", "refs/heads/preimage"],
+        capture_output=True,
+        check=False,
+    )
+    if head.returncode != 0:
+        raise GitError(
+            "setting HEAD in the pre-image clone failed: "
+            + head.stderr.decode("utf-8", "replace").strip()
+        )
+    return dest
+
+
+def contains_commit(repo: Path, sha: str) -> bool:
+    """True when ``sha`` is present in ``repo``'s object store at all.
+
+    The assertion a pre-image clone has to survive: not "the future is
+    unreachable from HEAD" but "the future is not here".
+    """
+    try:
+        _run(repo, ["cat-file", "-e", f"{sha}^{{commit}}"])
+    except GitError:
+        return False
+    return True

@@ -12,7 +12,24 @@ claim and easy to fake:
 * tokenization is **pre-warmed once per case** and reported as a shared
   indexing cost, so per-retriever timings do not depend on run order;
 * a ranking that names a path outside the universe, or repeats one, aborts
-  the run instead of quietly scoring.
+  the run instead of quietly scoring;
+* a retriever loaded through ``--retriever`` is graded against a **pre-image
+  bare clone** by default (``--isolate-preimage``, on unless
+  ``--no-isolate-preimage``), so the commit whose diff is the answer key is
+  not merely unreferenced but absent from the object store it can read.
+
+Timings are NOT a validated property of this harness.  ``rank_seconds`` and
+``wall_seconds_total`` are wall-clock on a shared developer box; a re-run of
+identical work measured ``bm25`` at 6.5 s against a stored 26.8 s, a 4.1x
+swing that is load, not algorithm.  They are recorded for shape only and
+carry a disclaimer in the payload.  Do not cite them, do not compare
+retrievers by them, and do not put one in a README.
+
+**This module is an effectful entrypoint.**  ``main`` writes ``results/raw.json``
+unless ``--no-write`` is passed.  See the boundary note in the slice README:
+``experiments`` is not covered by the effect scanner's ``HARNESS_PACKAGES``,
+so this write is unscanned.  That gap is recorded as an escalation, not
+closed here -- closing it edits kernel policy, which is owner work.
 
 Usage::
 
@@ -29,6 +46,7 @@ import argparse
 import json
 import platform
 import sys
+import tempfile
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -46,6 +64,18 @@ else:
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 VARIANTS = ("raw", "scrubbed")
+#: ``scrubbed_basename`` is derived from the frozen case rather than stored in
+#: it, so it is available as a measurement without touching the digest.  It is
+#: not in ``VARIANTS`` because the published table is the two frozen variants;
+#: ask for it explicitly with ``--variant scrubbed_basename``.
+EXTRA_VARIANTS = ("scrubbed_basename",)
+
+TIMING_DISCLAIMER = (
+    "rank_seconds and wall_seconds_total are unvalidated wall-clock on a "
+    "shared box, not a property of the harness: a re-run of identical work "
+    "measured bm25 at 6.525 s against a stored 26.806 s (4.1x). Recorded for "
+    "shape only. Do not cite them and do not rank retrievers by them."
+)
 
 
 class BlobStore:
@@ -85,6 +115,47 @@ class BlobStore:
         return self._data.get(sha, b"")
 
 
+class PreimageIsolation:
+    """Per-case bare clones that contain the pre-image and nothing after it.
+
+    ``QueryView.revision`` documents "read nothing committed after the case",
+    and a documented norm is what an executed probe walked straight through:
+    a retriever that followed git forward from the pre-image to its own child
+    commit scored MRR 1.000, 20/20 hits, fully separated -- and no check in
+    this harness noticed.  That is the oracle hole, and prose cannot close it.
+
+    One clone per case, because reachability is a property of a repository and
+    not of a ref: a single clone holding every case's pre-image would still let
+    an older case's answer commit be reached as an ancestor of a newer case's
+    pre-image.  Clones are cached by revision and torn down with the run.
+    """
+
+    def __init__(self, repo: Path, root: Path | None = None) -> None:
+        self.repo = repo
+        self._tmp = None
+        if root is None:
+            self._tmp = tempfile.TemporaryDirectory(prefix="s09_preimage_")
+            root = Path(self._tmp.name)
+        self.root = Path(root)
+        self._clones: Dict[str, Path] = {}
+        self.built = 0
+
+    def repo_for(self, revision: str) -> str:
+        existing = self._clones.get(revision)
+        if existing is not None:
+            return str(existing)
+        dest = self.root / revision[:12]
+        gitio.make_preimage_clone(self.repo, revision, dest)
+        self.built += 1
+        self._clones[revision] = dest
+        return str(dest)
+
+    def close(self) -> None:
+        if self._tmp is not None:
+            self._tmp.cleanup()
+            self._tmp = None
+
+
 def build_universe(
     repo: Path, case: taskset.Case, budget: Budget, store: BlobStore
 ) -> List[Candidate]:
@@ -108,6 +179,34 @@ def build_universe(
     ]
 
 
+def comparison_payload(deltas: Sequence[stats.PairedDelta]) -> List[Dict[str, object]]:
+    """Serialise paired comparisons, refusing an ambiguous key.
+
+    ``paired_comparisons`` is one flat array across every query variant, so
+    ``(subject, reference)`` alone is not a key -- it collides once more than
+    one variant runs, and position is no fallback because each variant block
+    is independently re-sorted by ``-delta.point``.  A consumer keying on the
+    obvious pair silently reads whichever block landed last; that is not a
+    hypothetical, it happened to a verifier's script against the first
+    published ``raw.json``.
+
+    Rather than trust every future producer to remember the field, this
+    refuses to emit an array a consumer could misread.
+    """
+    rows = [d.as_dict() for d in deltas]
+    keys = [(r.get("subject"), r.get("reference"), r.get("variant")) for r in rows]
+    missing = [k for k in keys if not k[2]]
+    if missing:
+        raise ValueError(
+            "paired comparison carries no variant, so its key is ambiguous: "
+            f"{missing[0][:2]}"
+        )
+    if len(set(keys)) != len(keys):
+        duplicated = sorted({k for k in keys if keys.count(k) > 1})
+        raise ValueError(f"colliding paired-comparison keys: {duplicated}")
+    return rows
+
+
 def run(
     repo: Path,
     cases: Sequence[taskset.Case],
@@ -116,6 +215,7 @@ def run(
     variants: Sequence[str],
     cache: TokenCache,
     universe_provider: Callable[[taskset.Case], List[Candidate]] | None = None,
+    repo_provider: Callable[[taskset.Case], str] | None = None,
 ) -> Tuple[
     List[metrics.Aggregate],
     List[Dict[str, object]],
@@ -126,6 +226,11 @@ def run(
 
     ``universe_provider`` exists so the budget-equality rules can be tested
     without a repository; production runs leave it at the git-backed default.
+
+    ``repo_provider`` decides which repository path each case's ``QueryView``
+    advertises.  Under pre-image isolation it returns a per-case bare clone
+    with the future absent; without it, retrievers see nothing at all in that
+    field and any repository access they make is their own doing.
     """
     store = BlobStore(repo, budget)
     provide = universe_provider or (lambda case: build_universe(repo, case, budget, store))
@@ -158,6 +263,7 @@ def run(
                 text=case.query(variant),
                 variant=variant,
                 revision=case.parent,
+                repo=repo_provider(case) if repo_provider else "",
             )
             for retriever in suite:
                 name = getattr(retriever, "name", type(retriever).__name__)
@@ -192,6 +298,7 @@ def run(
     }
 
     cost = {
+        "timing_disclaimer": TIMING_DISCLAIMER,
         "shared_index_seconds": round(index_seconds, 2),
         "rank_seconds": {k: round(v, 3) for k, v in sorted(rank_seconds.items())},
         "blobs_fetched": store.fetched,
@@ -215,7 +322,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="module:attribute",
         help="add a retriever; repeatable. Baselines always run.",
     )
-    parser.add_argument("--variant", choices=(*VARIANTS, "both"), default="both")
+    parser.add_argument(
+        "--variant", choices=(*VARIANTS, *EXTRA_VARIANTS, "both"), default="both"
+    )
+    isolation = parser.add_mutually_exclusive_group()
+    isolation.add_argument(
+        "--isolate-preimage",
+        dest="isolate",
+        action="store_true",
+        default=None,
+        help="grade against per-case bare clones with the future absent "
+             "(default whenever --retriever is used)",
+    )
+    isolation.add_argument(
+        "--no-isolate-preimage",
+        dest="isolate",
+        action="store_false",
+        help="hand retrievers the live repository; the oracle hole is open",
+    )
     parser.add_argument("--limit-cases", type=int, default=0)
     parser.add_argument(
         "--reference",
@@ -238,9 +362,44 @@ def main(argv: Sequence[str] | None = None) -> int:
     for spec in args.retriever:
         suite.append(load_retriever(spec))
 
+    # Isolation is the default the moment a retriever this package did not
+    # write is in the suite.  A baselines-only run leaves it off: the five
+    # baselines are auditable in-tree and 20 clones is real work for a check
+    # that only matters for a foreign arm.
+    isolate = bool(args.retriever) if args.isolate is None else args.isolate
+    isolator = PreimageIsolation(repo) if isolate else None
+    repo_provider = (
+        (lambda case: isolator.repo_for(case.parent)) if isolator else None
+    )
+    if isolate:
+        print(
+            "\npre-image isolation ACTIVE: each retriever sees a bare clone "
+            "holding only its case's pre-image and ancestors.  A retriever "
+            "that hardcodes a path to the live repository instead of reading "
+            "QueryView.repo escapes this; that residue is documented, not "
+            "closed."
+        )
+    elif args.retriever:
+        print(
+            "\nWARNING: pre-image isolation DISABLED with a foreign retriever "
+            "in the suite. A retriever that walks git forward to its own case "
+            "commit reads the answer key and scores a perfect 1.000 that "
+            "nothing here will flag."
+        )
+
     started = time.perf_counter()
-    aggregates, per_case, cost, rr = run(repo, cases, suite, budget, variants, cache)
+    try:
+        aggregates, per_case, cost, rr = run(
+            repo, cases, suite, budget, variants, cache, repo_provider=repo_provider
+        )
+    finally:
+        if isolator is not None:
+            cost_clones = isolator.built
+            isolator.close()
     cost["wall_seconds_total"] = round(time.perf_counter() - started, 2)
+    cost["preimage_isolation"] = isolate
+    if isolate:
+        cost["preimage_clones_built"] = cost_clones
 
     names = [getattr(r, "name", type(r).__name__) for r in suite]
     reference = args.reference if args.reference in names else names[0]
@@ -257,7 +416,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             intervals[key] = stats.bootstrap_mean(rr[(name, variant)]).as_dict()
 
         deltas = [
-            stats.paired_delta(name, reference, rr[(name, variant)], rr[(reference, variant)])
+            stats.paired_delta(
+                name,
+                reference,
+                rr[(name, variant)],
+                rr[(reference, variant)],
+                variant=variant,
+            )
             for name in names
             if name != reference
         ]
@@ -288,8 +453,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "cost": cost,
         "aggregates": [a.as_dict() for a in aggregates],
         "mrr_intervals": intervals,
-        "paired_comparisons": [c.as_dict() for c in comparisons],
+        "paired_comparisons": comparison_payload(comparisons),
         "reference_retriever": reference,
+        "paired_comparisons_key": ["subject", "reference", "variant"],
         "per_case": per_case,
     }
     if not args.no_write:

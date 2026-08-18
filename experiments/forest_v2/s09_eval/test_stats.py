@@ -89,3 +89,38 @@ def test_tables_stay_printable_on_a_cp1252_console():
     delta = stats.paired_delta("s", "r", [0.9] * 4, [0.1] * 4, resamples=50)
     for table in (stats.comparison_table([delta]), str(delta.delta)):
         table.encode("cp1252")  # raises UnicodeEncodeError on regression
+
+
+def test_paired_delta_carries_its_query_variant():
+    """Without this field the published array has colliding keys (F5).
+
+    ``Aggregate.as_dict`` always emitted ``variant``; ``PairedDelta`` did not,
+    while the harness concatenated both variants into one flat list.  A
+    consumer keying on ``(subject, reference)`` therefore read the scrubbed
+    number believing it was the raw one.
+    """
+    delta = stats.paired_delta(
+        "s", "r", [0.5, 0.4], [0.1, 0.2], resamples=50, variant="scrubbed"
+    )
+    assert delta.variant == "scrubbed"
+    assert delta.as_dict()["variant"] == "scrubbed"
+
+
+def test_paired_deltas_of_two_variants_do_not_share_a_key():
+    raw = stats.paired_delta("s", "r", [0.5], [0.1], resamples=20, variant="raw")
+    scrubbed = stats.paired_delta(
+        "s", "r", [0.2], [0.1], resamples=20, variant="scrubbed"
+    )
+    key = lambda d: (d.subject, d.reference, d.variant)  # noqa: E731
+    assert key(raw) != key(scrubbed)
+    assert (raw.subject, raw.reference) == (scrubbed.subject, scrubbed.reference), (
+        "this test is only meaningful while the pair alone would collide"
+    )
+
+
+def test_comparison_table_shows_which_variant_each_row_is():
+    rendered = stats.comparison_table(
+        [stats.paired_delta("s", "r", [0.5], [0.1], resamples=20, variant="raw")]
+    )
+    assert "variant" in rendered.splitlines()[0]
+    assert "| raw |" in rendered

@@ -12,13 +12,28 @@ Three honesty rules are baked into the format rather than promised in prose:
   sha256 digest over the canonical case list.  The harness recomputes and
   refuses to score a task set whose digest does not match, so cases cannot
   drift toward whatever a retriever happens to be good at.
-* **Files created by the commit are dropped from gold**, not silently
-  counted as misses -- they are unretrievable from the pre-image tree by
-  construction.  The dropped paths stay in the record.
+* **Paths outside the searchable universe are dropped from gold**, not
+  silently counted as misses -- they cannot be retrieved from the pre-image
+  tree by construction.  The dropped paths stay in the record.  The per-case
+  field is called ``gold_created_dropped``, which is a misnomer kept for
+  digest stability: it collects everything outside the *eligible* universe,
+  which is files the commit created **plus** files that existed but fail the
+  suffix/size rule.  ``dropped_breakdown`` in the record splits the two
+  honestly.  The total is unaffected -- an ineligible file is outside the
+  universe too, so it really is unretrievable -- and the denominator was
+  never shaved.
+* **Every rejection is counted.**  Selecting 20 cases meant considering more
+  than 20 commits; the ones with no surviving gold used to vanish without a
+  trace.  ``acceptance`` records the denominator, the rate, and the reason
+  for each rejection, because the rejected population is *not* random -- it
+  is dominated by file-creating commits.
 * **The leak is measured, not hidden.**  These commit messages very often
   name the file they touch, so every case carries a second, scrubbed query
-  with every gold-path token removed, plus the list of removed tokens.  The
-  gap between the two variants is the honest size of the filename echo.
+  with every gold-path token removed, plus the list of removed tokens.  Read
+  the caveat on :func:`scrub` before drawing a conclusion from the gap: the
+  full scrub removes directory tokens too, so it erases every path signal
+  rather than isolating the filename echo.  :func:`scrub_basename` is the
+  variant that isolates it.
 
 Known limitation, stated once and not walked back: the commit message is
 written *after* the change, so even the scrubbed variant is a post-hoc
@@ -46,7 +61,33 @@ else:
     from .contract import Budget
     from .tokens import path_tokens, word_tokens
 
-SCHEMA = "forest_v2.s09.taskset/1"
+SCHEMA = "forest_v2.s09.taskset/2"
+#: ``/2`` is additive over ``/1``: the case list, and therefore the digest, is
+#: byte-identical.  What changed is the record *around* the cases -- it now
+#: carries the selection census, the acceptance denominator, the dropped-path
+#: breakdown, and the plane composition, all of which were previously computed
+#: and thrown away.
+
+#: Which Project-Twin plane a gold path is evidence for, by suffix.  A coarse
+#: proxy and nothing more: the Type plane has no file-level representative at
+#: all, so a corpus can look "three-plane" here while touching two.
+PLANE_BY_SUFFIX = {
+    ".py": "code", ".ts": "code", ".tsx": "code", ".js": "code",
+    ".jsx": "code", ".sh": "code",
+    ".md": "knowledge", ".rst": "knowledge", ".txt": "knowledge",
+    ".json": "data", ".yml": "data", ".yaml": "data", ".toml": "data",
+    ".csv": "data", ".sql": "data", ".ini": "data", ".cfg": "data",
+    ".html": "presentation", ".css": "presentation",
+}
+
+
+def plane_of(path: str) -> str:
+    """Coarse plane label for a path; ``unknown`` when the suffix is unmapped."""
+    lowered = path.lower()
+    for suffix, plane in PLANE_BY_SUFFIX.items():
+        if lowered.endswith(suffix):
+            return plane
+    return "unknown"
 DEFAULT_PATH = Path(__file__).resolve().parent / "taskset.json"
 
 #: frozen selection rule -- changing any of these changes the digest
@@ -54,11 +95,19 @@ DEFAULT_PATH = Path(__file__).resolve().parent / "taskset.json"
 #: Stratified on purpose.  This history is ~95% single-file commits, so an
 #: unstratified hash sample drew 20 cases with exactly one gold file each,
 #: which degenerates Recall@k into a plain hit rate and never exercises
-#: partial credit.  The multi-file stratum is capped by supply (18 such
-#: commits exist in the window), and the shortfall is filled from the
-#: single-file stratum and recorded in ``strata_actual``.  This rule was
-#: last changed before any retriever existed; from the first scored run on,
-#: the digest freezes it.
+#: partial credit.
+#:
+#: CORRECTED 2026-08-18 -- the note here used to say the multi-file stratum
+#: was "capped by supply (18 such commits exist)" and that a "shortfall is
+#: filled from the single-file stratum".  Both were false.  ``multi_file_target``
+#: is 8 and the loop breaks at 8, while admissible multi-file supply in the
+#: same window is 18: the quota is more than 2x oversubscribed, ten
+#: multi-file commits go unused, and no shortfall ever occurred.  The 8/12
+#: split is a *choice*, not a ceiling.  ``selection_census`` in the record
+#: now carries supply against quota so the claim cannot drift again.
+#:
+#: This rule was last changed before any retriever existed; from the first
+#: scored run on, the digest freezes it.
 SELECTION = {
     "history_limit": 1200,
     "min_changed": 1,
@@ -91,14 +140,52 @@ class Case:
             return self.query_raw
         if variant == "scrubbed":
             return self.query_scrubbed
+        if variant == "scrubbed_basename":
+            # Derived, not stored: it is a function of two frozen fields, so
+            # computing it on demand adds a measurement without disturbing
+            # the digest that anchors every published number.
+            return scrub_basename(self.query_raw, self.gold)[0]
         raise ValueError(f"unknown query variant {variant!r}")
 
 
 def scrub(message: str, gold: Sequence[str]) -> Tuple[str, List[str]]:
-    """Remove every token the gold paths would have handed the retriever."""
+    """Remove every token the gold paths would have handed the retriever.
+
+    Read this before interpreting a path-based retriever's scrubbed score.
+    The ban set is ``path_tokens(gold)`` -- *directory* tokens included --
+    and a path-token retriever scores exactly the intersection of the query
+    tokens with a candidate's path tokens.  For a gold path that intersection
+    is empty by construction after this scrub, so such a retriever scores a
+    structural zero on gold no matter what the corpus contains.  That zero is
+    arithmetic, not evidence about this repository.
+
+    The scrub is still the right control for a *content* retriever, which is
+    what it was built for: it removes the answer's name from the query
+    without pretending the result isolates the filename echo.  To isolate the
+    echo, use :func:`scrub_basename`.
+    """
     banned = set()
     for path in gold:
         banned |= path_tokens(path)
+    kept: List[str] = []
+    removed: List[str] = []
+    for token in word_tokens(message):
+        (removed if token in banned else kept).append(token)
+    return " ".join(kept), sorted(set(removed))
+
+
+def scrub_basename(message: str, gold: Sequence[str]) -> Tuple[str, List[str]]:
+    """Remove only the gold *filename* tokens, leaving directory tokens intact.
+
+    The measurement :func:`scrub` cannot make.  Banning the whole path erases
+    every path signal at once; banning just the basename leaves a path
+    retriever able to score a gold file through its directory, so what it
+    loses is attributable to the commit message naming the file rather than
+    to the scrub having removed the only tokens it could ever have matched.
+    """
+    banned: set = set()
+    for path in gold:
+        banned |= path_tokens(path.rsplit("/", 1)[-1])
     kept: List[str] = []
     removed: List[str] = []
     for token in word_tokens(message):
@@ -140,17 +227,65 @@ def build(repo: Path, anchor: str, budget: Budget) -> Dict[str, object]:
     want_multi = int(SELECTION["multi_file_target"])
     accepted: List[Tuple[gitio.Commit, Tuple[str, ...], Tuple[str, ...], int]] = []
     strata_actual = {"multi_file": 0, "single_file": 0}
+    #: Every commit ``consider`` looked at, accepted or not.  Rejections used
+    #: to return ``False`` and increment nothing, which hid both a denominator
+    #: and a composition bias: the rejected population is the file-*creating*
+    #: commits, and those are exactly the cross-plane-shaped ones.
+    considered: List[Dict[str, object]] = []
+    dropped_detail: Dict[str, Dict[str, List[str]]] = {}
 
     def consider(commit: gitio.Commit) -> bool:
+        stratum = "multi_file" if len(commit.changed) >= 2 else "single_file"
         try:
             tree = gitio.list_tree(repo, commit.parent)
         except gitio.GitError:
+            considered.append(
+                {
+                    "commit": commit.sha,
+                    "stratum": stratum,
+                    "changed": list(commit.changed),
+                    "accepted": False,
+                    "reason": "parent_tree_unreadable",
+                }
+            )
             return False
         universe = {p for p, (_, size) in tree.items() if budget.eligible(p, size)}
         gold = tuple(sorted(p for p in commit.changed if p in universe))
+        created = sorted(p for p in commit.changed if p not in tree)
+        ineligible = sorted(
+            p for p in commit.changed if p in tree and p not in universe
+        )
         if not gold:
+            considered.append(
+                {
+                    "commit": commit.sha,
+                    "stratum": stratum,
+                    "changed": list(commit.changed),
+                    "accepted": False,
+                    "reason": (
+                        "all_changed_files_created_by_this_commit"
+                        if not ineligible
+                        else "no_changed_file_survives_the_pre_image_filter"
+                    ),
+                    "created_by_commit": created,
+                    "ineligible_in_universe": ineligible,
+                }
+            )
             return False
         dropped = tuple(sorted(p for p in commit.changed if p not in universe))
+        dropped_detail[commit.sha] = {
+            "created_by_commit": created,
+            "ineligible_in_universe": ineligible,
+        }
+        considered.append(
+            {
+                "commit": commit.sha,
+                "stratum": stratum,
+                "changed": list(commit.changed),
+                "accepted": True,
+                "reason": "accepted",
+            }
+        )
         accepted.append((commit, gold, dropped, len(universe)))
         return True
 
@@ -184,14 +319,137 @@ def build(repo: Path, anchor: str, budget: Budget) -> Dict[str, object]:
             )
         )
 
+    kept_shas = {c.commit for c in cases}
+    n_considered = len(considered)
+    n_accepted = sum(1 for row in considered if row["accepted"])
+    rejected = [row for row in considered if not row["accepted"]]
+    reasons: Dict[str, int] = {}
+    for row in rejected:
+        reasons[str(row["reason"])] = reasons.get(str(row["reason"]), 0) + 1
+
     return {
         "schema": SCHEMA,
         "anchor_commit": anchor_sha,
         "selection": SELECTION,
         "strata_actual": strata_actual,
+        "selection_census": {
+            "history_scanned": len(history),
+            "admissible_total": len(ordered),
+            "admissible_multi_file": len(multi),
+            "admissible_single_file": len(single),
+            "multi_file_quota": want_multi,
+            "multi_file_used": strata_actual["multi_file"],
+            "multi_file_admissible_unused": max(
+                0, len(multi) - strata_actual["multi_file"]
+            ),
+            "note": (
+                "multi_file_quota is a choice, not a ceiling: admissible "
+                "multi-file supply exceeds it, so the unused remainder was "
+                "left on the table by the quota, not missing from history."
+            ),
+        },
+        "acceptance": {
+            "commits_considered": n_considered,
+            "commits_accepted": n_accepted,
+            "commits_rejected": n_considered - n_accepted,
+            "acceptance_rate": round(n_accepted / n_considered, 4) if n_considered else 0.0,
+            "rejection_reasons": reasons,
+            "rejected_commits": rejected,
+            "composition_bias": (
+                "Rejections are not a random sample. A commit is rejected when "
+                "no file it changed existed in the pre-image tree -- i.e. "
+                "file-CREATING commits. Multi-file creators are removed "
+                "wholesale, and those are disproportionately the cross-plane "
+                "ones (workflow + doc + fixture + test in a single commit). "
+                "The corpus is therefore biased toward edits to existing code "
+                "and against the introduction of new cross-plane structure."
+            ),
+        },
+        "dropped_breakdown": {
+            "field_is_misnamed": (
+                "gold_created_dropped collects every changed path outside the "
+                "ELIGIBLE universe, not only paths the commit created. Files "
+                "that existed in the parent tree but fail the suffix/size rule "
+                "land in it too. The total is correct either way -- an "
+                "ineligible file is unretrievable as well -- but the label "
+                "over-attributes to creation. Kept as-is for digest stability."
+            ),
+            "created_by_commit": sum(
+                len(d["created_by_commit"])
+                for sha, d in dropped_detail.items()
+                if sha in kept_shas
+            ),
+            "existed_but_ineligible": sum(
+                len(d["ineligible_in_universe"])
+                for sha, d in dropped_detail.items()
+                if sha in kept_shas
+            ),
+            "per_case": {
+                c.case_id: dropped_detail[c.commit]
+                for c in cases
+                if c.commit in dropped_detail
+                and (
+                    dropped_detail[c.commit]["created_by_commit"]
+                    or dropped_detail[c.commit]["ineligible_in_universe"]
+                )
+            },
+        },
+        "plane_composition": _plane_composition(cases),
         "universe_rule": budget.as_dict(),
         "cases": [asdict(c) for c in cases],
         "digest": digest_of(cases),
+    }
+
+
+def _plane_composition(cases: Sequence[Case]) -> Dict[str, object]:
+    """How much of this corpus is anything other than Python.
+
+    Declared as a first-class field because it decides what the corpus is
+    *able* to show.  A task set whose gold is ~91% ``.py`` has almost no mass
+    on which a cross-plane retrieval win could appear, so a null result from a
+    four-plane method here is close to preordained and must not be read as a
+    kill criterion firing.
+    """
+    by_suffix: Dict[str, int] = {}
+    by_plane: Dict[str, int] = {}
+    gold_total = 0
+    multi_plane = 0
+    knowledge_cases = 0
+    gate1_shape = 0
+    for case in cases:
+        planes = set()
+        suffixes = set()
+        for path in case.gold:
+            gold_total += 1
+            suffix = "." + path.rsplit(".", 1)[-1].lower() if "." in path else "(none)"
+            by_suffix[suffix] = by_suffix.get(suffix, 0) + 1
+            plane = plane_of(path)
+            by_plane[plane] = by_plane.get(plane, 0) + 1
+            planes.add(plane)
+            suffixes.add(suffix)
+        if len(planes) > 1:
+            multi_plane += 1
+        if "knowledge" in planes:
+            knowledge_cases += 1
+        if {".py", ".md", ".csv"} <= suffixes:
+            gate1_shape += 1
+    return {
+        "gold_paths_total": gold_total,
+        "gold_by_suffix": dict(sorted(by_suffix.items(), key=lambda kv: -kv[1])),
+        "gold_by_plane": dict(sorted(by_plane.items(), key=lambda kv: -kv[1])),
+        "cases_spanning_more_than_one_plane": multi_plane,
+        "cases_touching_the_knowledge_plane": knowledge_cases,
+        "cases_matching_the_gate1_python_markdown_csv_shape": gate1_shape,
+        "type_plane_representatives": 0,
+        "warning": (
+            "This corpus grades a hypothesis it cannot exercise. Gold is "
+            "overwhelmingly Python; only a handful of cases span more than one "
+            "plane; the Type plane has no file-level representative at all; and "
+            "the Gate-1 flagship scenario (propagate across Python, Markdown "
+            "and CSV) has no representative. A four-plane method can register a "
+            "LOSS here, but a cross-plane WIN has almost no mass to appear on. "
+            "Read a null result as 'this corpus cannot see it', never as a kill."
+        ),
     }
 
 
@@ -249,7 +507,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     for n in sorted({len(c["gold"]) for c in cases})
                 },
                 "gold_paths_total": sum(len(c["gold"]) for c in cases),
-                "created_paths_dropped": sum(len(c["gold_created_dropped"]) for c in cases),
+                "paths_dropped_from_gold": sum(
+                    len(c["gold_created_dropped"]) for c in cases
+                ),
+                "acceptance": {
+                    k: v
+                    for k, v in record["acceptance"].items()
+                    if k not in ("rejected_commits", "composition_bias")
+                },
+                "selection_census": {
+                    k: v
+                    for k, v in record["selection_census"].items()
+                    if k != "note"
+                },
+                "plane_composition": {
+                    k: v
+                    for k, v in record["plane_composition"].items()
+                    if k != "warning"
+                },
                 "median_universe_size": sorted(c["universe_size"] for c in cases)[
                     len(cases) // 2
                 ]

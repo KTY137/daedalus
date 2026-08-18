@@ -306,19 +306,21 @@
   "cost": {
     "blob_lookups_reused": 80613,
     "blobs_fetched": 4945,
+    "preimage_isolation": false,
     "rank_seconds": {
-      "bm25": 26.806,
-      "bm25_content_only": 8.153,
-      "path_lexical": 6.448,
-      "random_uniform": 0.247,
-      "recency_prior": 6.155
+      "bm25": 7.168,
+      "bm25_content_only": 2.749,
+      "path_lexical": 1.986,
+      "random_uniform": 0.09,
+      "recency_prior": 1.264
     },
-    "shared_index_seconds": 20.71,
+    "shared_index_seconds": 5.44,
+    "timing_disclaimer": "rank_seconds and wall_seconds_total are unvalidated wall-clock on a shared box, not a property of the harness: a re-run of identical work measured bm25 at 6.525 s against a stored 26.806 s (4.1x). Recorded for shape only. Do not cite them and do not rank retrievers by them.",
     "token_cache_hits": 422845,
     "token_cache_misses": 4945,
     "universe_size_max": 4731,
     "universe_size_min": 3896,
-    "wall_seconds_total": 79.43
+    "wall_seconds_total": 20.94
   },
   "environment": {
     "platform": "Windows-10-10.0.26200-SP0",
@@ -400,7 +402,8 @@
       "interval_excludes_zero": false,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.1445,
-      "subject": "bm25_content_only"
+      "subject": "bm25_content_only",
+      "variant": "raw"
     },
     {
       "cases_better": 4,
@@ -415,7 +418,8 @@
       "interval_excludes_zero": false,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.093,
-      "subject": "bm25"
+      "subject": "bm25",
+      "variant": "raw"
     },
     {
       "cases_better": 5,
@@ -430,7 +434,8 @@
       "interval_excludes_zero": false,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.1065,
-      "subject": "path_lexical"
+      "subject": "path_lexical",
+      "variant": "raw"
     },
     {
       "cases_better": 0,
@@ -445,7 +450,8 @@
       "interval_excludes_zero": true,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.0,
-      "subject": "random_uniform"
+      "subject": "random_uniform",
+      "variant": "raw"
     },
     {
       "cases_better": 3,
@@ -460,7 +466,8 @@
       "interval_excludes_zero": false,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.051,
-      "subject": "bm25_content_only"
+      "subject": "bm25_content_only",
+      "variant": "scrubbed"
     },
     {
       "cases_better": 3,
@@ -475,7 +482,8 @@
       "interval_excludes_zero": true,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.0235,
-      "subject": "bm25"
+      "subject": "bm25",
+      "variant": "scrubbed"
     },
     {
       "cases_better": 0,
@@ -490,7 +498,8 @@
       "interval_excludes_zero": true,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.0,
-      "subject": "random_uniform"
+      "subject": "random_uniform",
+      "variant": "scrubbed"
     },
     {
       "cases_better": 0,
@@ -505,8 +514,14 @@
       "interval_excludes_zero": true,
       "reference": "recency_prior",
       "share_of_resamples_favouring_subject": 0.0,
-      "subject": "path_lexical"
+      "subject": "path_lexical",
+      "variant": "scrubbed"
     }
+  ],
+  "paired_comparisons_key": [
+    "subject",
+    "reference",
+    "variant"
   ],
   "per_case": [
     {

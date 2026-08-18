@@ -73,10 +73,26 @@ def test_content_only_ignores_a_term_that_exists_only_in_the_path():
 def test_recency_prior_never_reads_the_query_text():
     """Query-blindness is the point of this control, so it is asserted."""
     r = retrievers.RecencyPrior()
-    r._order_cache["rev1"] = {"runs/council/room.md": 1, "configs/schemas/matrix.json": 2}
+    r._order_cache[r.cache_key(r.repo, "rev1")] = {
+        "runs/council/room.md": 1, "configs/schemas/matrix.json": 2
+    }
     a = r.rank(_query("effect boundary", revision="rev1"), UNIVERSE)
     b = r.rank(_query("something entirely different", revision="rev1"), UNIVERSE)
     assert a == b == ["runs/council/room.md", "configs/schemas/matrix.json"]
+
+
+def test_recency_cache_does_not_serve_one_repository_answer_to_another():
+    """Isolation would leak straight through a revision-only cache key."""
+    r = retrievers.RecencyPrior()
+    live = r.cache_key(r.repo, "rev1")
+    clone = r.cache_key("/tmp/preimage-clone", "rev1")
+    assert live != clone
+    r._order_cache[live] = {"runs/council/room.md": 1}
+    assert r.rank(
+        QueryView(case_id="c00", text="", variant="raw", revision="rev1",
+                  repo="/tmp/preimage-clone"),
+        UNIVERSE,
+    ) == [], "the clone was served the live repository's cached history"
 
 
 def test_recency_prior_returns_nothing_without_a_revision():

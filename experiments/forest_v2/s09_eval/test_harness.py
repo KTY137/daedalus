@@ -134,3 +134,31 @@ def test_scores_land_in_the_aggregate():
     assert agg.cases == 1 and agg.gold_total == 1
     assert agg.hits_at[5] == 1  # "declared sink" body match finds the target
     assert per_case[0]["case_id"] == "c00"
+
+
+def _delta(subject: str, variant: str):
+    from s09_eval import stats
+
+    return stats.paired_delta(
+        subject, "ref", [0.5, 0.4], [0.1, 0.2], resamples=20, variant=variant
+    )
+
+
+def test_comparison_payload_emits_a_usable_key():
+    rows = harness.comparison_payload([_delta("a", "raw"), _delta("a", "scrubbed")])
+    keys = {(r["subject"], r["reference"], r["variant"]) for r in rows}
+    assert len(keys) == 2
+    assert all(r["variant"] for r in rows)
+
+
+def test_comparison_payload_refuses_an_entry_without_a_variant():
+    """Fail closed rather than publish an array a consumer can misread."""
+    with pytest.raises(ValueError) as excinfo:
+        harness.comparison_payload([_delta("a", "")])
+    assert "no variant" in str(excinfo.value)
+
+
+def test_comparison_payload_refuses_colliding_keys():
+    with pytest.raises(ValueError) as excinfo:
+        harness.comparison_payload([_delta("a", "raw"), _delta("a", "raw")])
+    assert "colliding" in str(excinfo.value)

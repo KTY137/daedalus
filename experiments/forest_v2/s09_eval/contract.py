@@ -59,15 +59,24 @@ class QueryView:
     ``revision`` is the pre-image commit -- the tree the universe was taken
     from -- so a retriever may use history-derived priors.  It is the *only*
     revision a retriever may consult: reading anything committed after it is
-    reading the answer.  That rule is a stated norm, not a sandbox; this
-    package cannot stop a retriever with repository access from walking
-    forward, and the plan is explicit that a prompt is not a boundary.
+    reading the answer.
+
+    ``repo`` is the **only** repository a retriever may open, and it is how
+    that rule stopped being a mere norm.  Under the harness's pre-image
+    isolation (on by default for any retriever loaded through
+    ``--retriever``) it points at a bare clone whose object store contains
+    ``revision`` and its ancestors and *nothing else* -- the commit holding
+    the answer is not unreachable, it is absent.  A retriever that ignores
+    this field and hardcodes a path to the real working repository defeats
+    the isolation; that residue is stated in the README rather than papered
+    over, because the plan is explicit that a prompt is not a boundary.
     """
 
     case_id: str
     text: str
     variant: str
     revision: str = ""
+    repo: str = ""
 
 
 @runtime_checkable

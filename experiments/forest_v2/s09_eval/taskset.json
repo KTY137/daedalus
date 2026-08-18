@@ -1,4 +1,227 @@
 {
+  "acceptance": {
+    "acceptance_rate": 0.5714,
+    "commits_accepted": 20,
+    "commits_considered": 35,
+    "commits_rejected": 15,
+    "composition_bias": "Rejections are not a random sample. A commit is rejected when no file it changed existed in the pre-image tree -- i.e. file-CREATING commits. Multi-file creators are removed wholesale, and those are disproportionately the cross-plane ones (workflow + doc + fixture + test in a single commit). The corpus is therefore biased toward edits to existing code and against the introduction of new cross-plane structure.",
+    "rejected_commits": [
+      {
+        "accepted": false,
+        "changed": [
+          ".github/workflows/g0-undeclared-secret-fault.yml",
+          "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md",
+          "tests/fixtures/undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor_review.py"
+        ],
+        "commit": "2ff6141aa5d03e977749cba7565e7e8215dd1fea",
+        "created_by_commit": [
+          ".github/workflows/g0-undeclared-secret-fault.yml",
+          "docs/work-packets/G0-RTC-06N_UNDECLARED_SECRET_FAULT.md",
+          "tests/fixtures/undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor.py",
+          "tests/runtimes/test_undeclared_secret_fault_executor_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "multi_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          ".github/workflows/g0-effect-ledger-contention-fault.yml",
+          "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md",
+          "tests/fixtures/effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor_review.py"
+        ],
+        "commit": "a74d12440f088c9ce43c2cb25d72aa335a31bef1",
+        "created_by_commit": [
+          ".github/workflows/g0-effect-ledger-contention-fault.yml",
+          "docs/work-packets/G0-RTC-06K_EFFECT_LEDGER_CONTENTION_FAULT.md",
+          "tests/fixtures/effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor.py",
+          "tests/runtimes/test_effect_ledger_contention_fault_executor_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "multi_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/kernel/test_runtime_effect_admission.py"
+        ],
+        "commit": "65468e2e86e3823b22ab08e69197be875258301e",
+        "created_by_commit": [
+          "tests/kernel/test_runtime_effect_admission.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_spine_writer_factory_mutations.py"
+        ],
+        "commit": "fc1b25206b0c1e20201650bda9270f295b923128",
+        "created_by_commit": [
+          "scripts/run_spine_writer_factory_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/kernel/test_effect_authorization.py"
+        ],
+        "commit": "871bda422542061f8abcdfce56cc55c5cd74cdec",
+        "created_by_commit": [
+          "tests/kernel/test_effect_authorization.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tools/run_gate_checks.py"
+        ],
+        "commit": "03d45d5ac89529e3454c92611f2628ecd6aca694",
+        "created_by_commit": [
+          "tools/run_gate_checks.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+        ],
+        "commit": "b500ae26f840667fbefb39c93712bd622de11018",
+        "created_by_commit": [
+          "tests/runtimes/test_runtime_provider_post_invoke_unknown.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_write_inventory.py"
+        ],
+        "commit": "4e77ce8ea1bad5ed0bb5115b7b13e221c43b34b1",
+        "created_by_commit": [
+          "tests/gates/test_repository_write_inventory.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_gate_baseline_v2_mutations.py"
+        ],
+        "commit": "dcb4ea3b929c344dc8b970b6c52f9cd684e24688",
+        "created_by_commit": [
+          "scripts/run_gate_baseline_v2_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_tree_review.py"
+        ],
+        "commit": "e8eee18b65ea223681170b7b7112b3bfa932c4e5",
+        "created_by_commit": [
+          "tests/gates/test_repository_tree_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_repository_write_artifact_verifier_mutations.py"
+        ],
+        "commit": "b7e20cff235ac0368e3a4f9966987bc239b51b20",
+        "created_by_commit": [
+          "scripts/run_repository_write_artifact_verifier_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/gates/test_repository_write_stdlib_delta_review.py"
+        ],
+        "commit": "e35ce1b9a948b3e17af47040395d91c7697dc073",
+        "created_by_commit": [
+          "tests/gates/test_repository_write_stdlib_delta_review.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "tests/twin/test_legacy_assurance.py"
+        ],
+        "commit": "148f6106a216f9ec5eb45ee65069b1033d45390b",
+        "created_by_commit": [
+          "tests/twin/test_legacy_assurance.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "scripts/run_provider_invocation_identity_mutations.py"
+        ],
+        "commit": "0f5a45a5f9845fad1177c4c6dc1dd050b512c61e",
+        "created_by_commit": [
+          "scripts/run_provider_invocation_identity_mutations.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      },
+      {
+        "accepted": false,
+        "changed": [
+          "daedalus/gates/guard_implementation_manifest.py"
+        ],
+        "commit": "d4290e8e3aa9e4982fca93658e9291543ff6106e",
+        "created_by_commit": [
+          "daedalus/gates/guard_implementation_manifest.py"
+        ],
+        "ineligible_in_universe": [],
+        "reason": "all_changed_files_created_by_this_commit",
+        "stratum": "single_file"
+      }
+    ],
+    "rejection_reasons": {
+      "all_changed_files_created_by_this_commit": 15
+    }
+  },
   "anchor_commit": "d849c2a94d66ffb1bf892de924995645395bf2a6",
   "cases": [
     {
@@ -356,7 +579,63 @@
     }
   ],
   "digest": "sha256:c3ef36f19ebaaf953ef8c26615295dfe7e845a89ec68b50ffb5c933df96d8c33",
-  "schema": "forest_v2.s09.taskset/1",
+  "dropped_breakdown": {
+    "created_by_commit": 3,
+    "existed_but_ineligible": 2,
+    "field_is_misnamed": "gold_created_dropped collects every changed path outside the ELIGIBLE universe, not only paths the commit created. Files that existed in the parent tree but fail the suffix/size rule land in it too. The total is correct either way -- an ineligible file is unretrievable as well -- but the label over-attributes to creation. Kept as-is for digest stability.",
+    "per_case": {
+      "c12": {
+        "created_by_commit": [
+          "scripts/fault_mutation_sandbox.py"
+        ],
+        "ineligible_in_universe": []
+      },
+      "c15": {
+        "created_by_commit": [],
+        "ineligible_in_universe": [
+          ".daedalus-bootstrap/g0-final.patch"
+        ]
+      },
+      "c16": {
+        "created_by_commit": [],
+        "ineligible_in_universe": [
+          "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+        ]
+      },
+      "c17": {
+        "created_by_commit": [
+          "tests/runtimes/test_provider_observation_authority.py"
+        ],
+        "ineligible_in_universe": []
+      },
+      "c19": {
+        "created_by_commit": [
+          "daedalus/runtimes/provider_observation.py"
+        ],
+        "ineligible_in_universe": []
+      }
+    }
+  },
+  "plane_composition": {
+    "cases_matching_the_gate1_python_markdown_csv_shape": 0,
+    "cases_spanning_more_than_one_plane": 3,
+    "cases_touching_the_knowledge_plane": 1,
+    "gold_by_plane": {
+      "code": 32,
+      "data": 2,
+      "knowledge": 1
+    },
+    "gold_by_suffix": {
+      ".json": 1,
+      ".md": 1,
+      ".py": 32,
+      ".yml": 1
+    },
+    "gold_paths_total": 35,
+    "type_plane_representatives": 0,
+    "warning": "This corpus grades a hypothesis it cannot exercise. Gold is overwhelmingly Python; only a handful of cases span more than one plane; the Type plane has no file-level representative at all; and the Gate-1 flagship scenario (propagate across Python, Markdown and CSV) has no representative. A four-plane method can register a LOSS here, but a cross-plane WIN has almost no mass to appear on. Read a null result as 'this corpus cannot see it', never as a kill."
+  },
+  "schema": "forest_v2.s09.taskset/2",
   "selection": {
     "case_count": 20,
     "history_limit": 1200,
@@ -366,6 +645,16 @@
     "multi_file_target": 8,
     "order": "sha256(commit_sha) ascending, multi-file stratum first",
     "require_python_change": true
+  },
+  "selection_census": {
+    "admissible_multi_file": 18,
+    "admissible_single_file": 710,
+    "admissible_total": 728,
+    "history_scanned": 1200,
+    "multi_file_admissible_unused": 10,
+    "multi_file_quota": 8,
+    "multi_file_used": 8,
+    "note": "multi_file_quota is a choice, not a ceiling: admissible multi-file supply exceeds it, so the unused remainder was left on the table by the quota, not missing from history."
   },
   "strata_actual": {
     "multi_file": 8,

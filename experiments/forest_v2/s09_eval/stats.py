@@ -82,10 +82,21 @@ def bootstrap_mean(
 
 @dataclass(frozen=True)
 class PairedDelta:
-    """A paired comparison of two retrievers over the same cases."""
+    """A paired comparison of two retrievers over the same cases.
+
+    ``variant`` is part of the key, not decoration.  The published
+    ``paired_comparisons`` array concatenates every query variant into one
+    flat list, so without this field ``(subject, reference)`` collides
+    between the raw and scrubbed blocks and a consumer keying on it silently
+    reads whichever block sorted last.  That is not hypothetical: it
+    happened to a verifier's script against the first published
+    ``raw.json``.  ``Aggregate.as_dict`` has always emitted ``variant``;
+    this now matches it.
+    """
 
     subject: str
     reference: str
+    variant: str
     delta: Interval
     share_favouring_subject: float
     cases_better: int
@@ -101,6 +112,7 @@ class PairedDelta:
         return {
             "subject": self.subject,
             "reference": self.reference,
+            "variant": self.variant,
             "delta_mean": self.delta.as_dict(),
             "share_of_resamples_favouring_subject": round(
                 self.share_favouring_subject, 4
@@ -119,6 +131,7 @@ def paired_delta(
     reference_scores: Sequence[float],
     resamples: int = DEFAULT_RESAMPLES,
     seed: int = DEFAULT_SEED,
+    variant: str = "",
 ) -> PairedDelta:
     """Bootstrap the per-case difference ``subject - reference``.
 
@@ -131,7 +144,9 @@ def paired_delta(
     diffs = [s - r for s, r in zip(subject_scores, reference_scores)]
     n = len(diffs)
     if n == 0:
-        return PairedDelta(subject, reference, Interval(0.0, 0.0, 0.0, 0), 0.0, 0, 0, 0)
+        return PairedDelta(
+            subject, reference, variant, Interval(0.0, 0.0, 0.0, 0), 0.0, 0, 0, 0
+        )
 
     interval = bootstrap_mean(diffs, resamples, seed)
     means = [sum(diffs[i] for i in draw) / n for draw in _indices(n, resamples, seed)]
@@ -139,6 +154,7 @@ def paired_delta(
     return PairedDelta(
         subject=subject,
         reference=reference,
+        variant=variant,
         delta=interval,
         share_favouring_subject=favouring,
         cases_better=sum(1 for d in diffs if d > 0),
@@ -151,8 +167,8 @@ def comparison_table(deltas: Sequence[PairedDelta]) -> str:
     # ASCII only: this prints to a cp1252 console on Windows, where a Greek
     # delta raises UnicodeEncodeError and takes the whole run down with it.
     head = [
-        "subject", "vs reference", "delta MRR (95% CI)", "resamples favouring",
-        "better/worse/tied", "excludes 0",
+        "subject", "vs reference", "variant", "delta MRR (95% CI)",
+        "resamples favouring", "better/worse/tied", "excludes 0",
     ]
     lines = ["| " + " | ".join(head) + " |"]
     lines.append("| " + " | ".join(["---"] * len(head)) + " |")
@@ -163,6 +179,7 @@ def comparison_table(deltas: Sequence[PairedDelta]) -> str:
                 [
                     d.subject,
                     d.reference,
+                    d.variant or "-",
                     str(d.delta),
                     f"{d.share_favouring_subject:.0%}",
                     f"{d.cases_better}/{d.cases_worse}/{d.cases_tied}",

@@ -24,7 +24,6 @@ from __future__ import annotations
 import hashlib
 import math
 import random
-import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Sequence
@@ -33,9 +32,11 @@ if __package__ in (None, ""):  # pragma: no cover - direct-script convenience
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from s09_eval import gitio
     from s09_eval.contract import Candidate, QueryView
     from s09_eval.tokens import TokenCache, path_tokens, word_tokens
 else:
+    from . import gitio
     from .contract import Candidate, QueryView
     from .tokens import TokenCache, path_tokens, word_tokens
 
@@ -169,6 +170,14 @@ class RecencyPrior:
 
     Only history reachable from ``query.revision`` (the pre-image commit) is
     walked, so nothing after the case is visible.
+
+    Reads through ``gitio.log_name_only`` rather than shelling ``git log``
+    itself.  That used to be the one git call in the package the read-only
+    verb gate never saw, which made "this module cannot mutate anything" a
+    claim about four call sites out of five.
+
+    Honours ``query.repo`` when the harness supplies one, so it runs against
+    the pre-image clone under isolation instead of the live working tree.
     """
 
     name = "recency_prior"
@@ -178,33 +187,38 @@ class RecencyPrior:
         self.window = window
         self._order_cache: Dict[str, Dict[str, int]] = {}
 
-    def _recency(self, revision: str) -> Dict[str, int]:
-        cached = self._order_cache.get(revision)
+    @staticmethod
+    def cache_key(repo: Path | str, revision: str) -> str:
+        """Cache identity is (repository, revision), never revision alone.
+
+        Under pre-image isolation the same revision is read out of a
+        different repository than the live one, and a revision-only key
+        would serve the live repository's answer to the isolated run.
+        """
+        return f"{repo}\x00{revision}"
+
+    def _recency(self, repo: Path, revision: str) -> Dict[str, int]:
+        key = self.cache_key(repo, revision)
+        cached = self._order_cache.get(key)
         if cached is not None:
             return cached
-        proc = subprocess.run(
-            [
-                "git", "-C", str(self.repo), "log", "--no-merges",
-                "--pretty=format:", "--name-only", f"-n{self.window}", revision,
-            ],
-            capture_output=True,
-            check=False,
-        )
         order: Dict[str, int] = {}
-        if proc.returncode == 0:
-            rank = 0
-            for line in proc.stdout.decode("utf-8", "replace").splitlines():
-                path = line.strip()
-                if path and path not in order:
-                    rank += 1
-                    order[path] = rank
-        self._order_cache[revision] = order
+        try:
+            paths = gitio.log_name_only(repo, revision, self.window)
+        except gitio.GitError:
+            paths = []
+        rank = 0
+        for path in paths:
+            if path not in order:
+                rank += 1
+                order[path] = rank
+        self._order_cache[key] = order
         return order
 
     def rank(self, query: QueryView, universe: Sequence[Candidate]) -> List[str]:
         if not query.revision:
             return []
-        order = self._recency(query.revision)
+        order = self._recency(Path(query.repo) if query.repo else self.repo, query.revision)
         scored = [
             (order[c.path], c.path) for c in universe if c.path in order
         ]
