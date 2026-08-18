@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Corpus Article With Bare Enum",
+  "type": "object",
+  "required": ["id", "title", "votes"],
+  "properties": {
+    "id": {"type": "string"},
+    "title": {"type": "string"},
+    "votes": {"enum": [1, 2, 3]}
+  }
+}

@@ -598,6 +598,192 @@ def test_binding_stage_denominator_is_all_candidate_pairs(tmp_path):
     )
 
 
+# --- the pinned corpus ------------------------------------------------------
+# The repository table is revision-bound and moves when the tree moves, which
+# is exactly how the earlier numbers drifted away from what the code did.
+# `corpus/` is a committed, frozen tree, so THESE numbers are a contract: they
+# can only change when someone changes the corpus or the extractor, and then
+# this test says so out loud.
+CORPUS = Path(__file__).resolve().parent / "corpus"
+CORPUS_SCOPE = dp.Scope(
+    ddl_roots=("src",),
+    json_roots=("schemas",),
+    csv_roots=("data",),
+    documented_exclusions=("excluded",),
+)
+
+PINNED_ACCOUNTING = {
+    "python": {
+        "scanned": 9,
+        "unreadable": 0,
+        "unparseable": 1,
+        "parsed": 8,
+        "parsed_with_ddl": 6,
+        "parsed_without_ddl": 2,
+    },
+    "json": {
+        "scanned": 6,
+        "unreadable": 0,
+        "unparseable": 1,
+        "parsed": 5,
+        "schema_documents": 4,
+        "non_schema_documents": 1,
+    },
+    "csv": {"scanned": 7, "unreadable": 0, "empty": 1, "parsed": 6},
+    "binding": {
+        "candidate_pairs": 30,
+        "excluded_no_field_overlap": 6,
+        "excluded_schema_without_properties": 6,
+        "proposals": 24,
+        "verified": 1,
+        "rejected": 10,
+        "indeterminate": 13,
+    },
+}
+
+PINNED_NODES = {
+    "total": 19,
+    "sqlite_table": 7,
+    "sqlite_table_incomplete": 3,
+    "json_schema": 4,
+    "json_schema_def": 2,
+    "csv_table": 6,
+    "json_schema_def_scalar": 1,
+    "with_zero_fields": 3,
+}
+
+PINNED_FIELDS = {
+    "total": 42,
+    "sqlite": 10,
+    "json_schema": 13,
+    "csv": 19,
+    "declared_type": 23,
+    "inferred_type": 19,
+    "no_type": 0,
+    "line_anchored": 29,
+    "pointer_anchored": 13,
+    "unanchored": 0,
+}
+
+PINNED_EDGES = {
+    "total": 2,
+    "sqlite_foreign_key": 1,
+    "json_ref": 1,
+    "json_ref_internal": 1,
+    "sqlite_index_statements": 0,
+}
+
+PINNED_CENSUS = {
+    ".py": {"in_tree": 9, "in_scope": 9, "excluded_documented": 0},
+    ".json": {"in_tree": 7, "in_scope": 6, "excluded_documented": 1},
+    ".csv": {"in_tree": 8, "in_scope": 7, "excluded_documented": 1},
+}
+
+
+def _corpus() -> dict:
+    return dp.probe(CORPUS, CORPUS_SCOPE)
+
+
+def test_pinned_corpus_accounting_table():
+    accounting = _corpus()["accounting"]
+    assert accounting == PINNED_ACCOUNTING
+
+
+def test_pinned_corpus_node_field_and_edge_table():
+    result = _corpus()
+    assert result["nodes"] == PINNED_NODES
+    assert result["fields"] == PINNED_FIELDS
+    assert result["edges"] == PINNED_EDGES
+    assert result["naive_ddl_baseline"] == {
+        "statements_on_raw_lines": 7,
+        "complete_body_on_one_line": 0,
+        "ast_folded_tables": 7,
+    }
+
+
+def test_pinned_corpus_census_accounts_for_every_candidate_file():
+    census = _corpus()["census"]["by_suffix"]
+    for suffix, expected in PINNED_CENSUS.items():
+        bucket = census[suffix]
+        assert bucket["accounted"] == bucket["in_tree"], suffix
+        for key, value in expected.items():
+            assert bucket[key] == value, (suffix, key)
+
+
+def test_pinned_corpus_binding_outcomes_per_pair():
+    detail = {
+        (
+            Path(item["csv"].split("#")[0]).name,
+            Path(item["schema"].split("#")[0]).name,
+        ): item["status"]
+        for item in _corpus()["intra_data_bindings"]["detail"]
+    }
+    # Exactly one binding in the whole corpus survives every check.
+    assert detail[("good.csv", "article.schema.json")] == dp.VERIFIED
+    assert sum(1 for status in detail.values() if status == dp.VERIFIED) == 1
+    # The same clean CSV is indeterminate against the three schemas whose
+    # property types this probe cannot decide.
+    assert detail[("good.csv", "enum_votes.schema.json")] == dp.INDETERMINATE
+    assert detail[("good.csv", "union_votes.schema.json")] == dp.INDETERMINATE
+    assert detail[("good.csv", "ref_id.schema.json")] == dp.INDETERMINATE
+    # Structural failures reject against every schema.
+    for schema in (
+        "article.schema.json",
+        "enum_votes.schema.json",
+        "union_votes.schema.json",
+        "ref_id.schema.json",
+    ):
+        assert detail[("extra_column.csv", schema)] == dp.REJECTED
+        assert detail[("missing_required.csv", schema)] == dp.REJECTED
+        assert detail[("ragged.csv", schema)] == dp.INDETERMINATE
+        assert detail[("duplicate_header.csv", schema)] == dp.INDETERMINATE
+    # A contradicted value rejects only where the type was decidable at all.
+    assert detail[("bad_type.csv", "article.schema.json")] == dp.REJECTED
+    assert detail[("bad_type.csv", "ref_id.schema.json")] == dp.REJECTED
+    assert detail[("bad_type.csv", "enum_votes.schema.json")] == dp.INDETERMINATE
+    assert detail[("bad_type.csv", "union_votes.schema.json")] == dp.INDETERMINATE
+
+
+def test_pinned_corpus_sqlite_nodes():
+    nodes = dp.collect(CORPUS, CORPUS_SCOPE).sqlite_nodes
+    shape = sorted(
+        (node.name, node.complete, len(node.fields), node.notes) for node in nodes
+    )
+    assert shape == [
+        ("article", True, 3, ()),
+        ("article_tag", True, 2, ()),
+        # prose in a docstring: a known false positive, kept visible and
+        # explicitly shapeless rather than filtered away
+        ("ghost_table", False, 0, ("no_balanced_body",)),
+        # f-string: one node, not two -- ast.walk yields the literal segments
+        # of a JoinedStr a second time on their own
+        ("live_", False, 1, ("f_string_partial",)),
+        ("session", False, 0, ("no_balanced_body",)),
+        ("session", True, 2, ()),
+        ("session", True, 2, ()),
+    ]
+
+
+def test_one_fstring_declaration_yields_exactly_one_node():
+    source = 'SQL = f"CREATE TABLE live_{suffix} (key TEXT PRIMARY KEY)"\n'
+    nodes, _, _ = dp.extract_sqlite(source, "pkg/mod.py")
+    assert len(nodes) == 1
+    assert nodes[0].name == "live_"
+    assert nodes[0].notes == ("f_string_partial",)
+    assert nodes[0].complete is False
+
+
+def test_pinned_corpus_finds_the_constraint_divergence():
+    groups = _corpus()["duplicate_table_declarations"]
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["table"] == "session"
+    assert group["column_names_agree"] is True
+    assert group["column_types_agree"] is True
+    assert group["column_flags_agree"] is False
+    assert group["declarations"] == ["src/duplicate_a.py#L10", "src/duplicate_b.py#L4"]
+
+
 # --- repository-level invariants (no frozen counts) -------------------------
 def test_probe_over_this_repository_is_structurally_sound():
     result = dp.probe(REPO_ROOT)

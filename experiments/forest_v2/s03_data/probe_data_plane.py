@@ -292,10 +292,25 @@ def _parse_columns(
 
 
 def _sql_strings(tree: ast.Module) -> list[tuple[str, int, int, bool]]:
-    """(text, lineno, end_lineno, is_complete) for every DDL-bearing literal."""
+    """(text, lineno, end_lineno, is_complete) for every DDL-bearing literal.
+
+    An f-string's literal segments are ``ast.Constant`` nodes in their own
+    right, so a plain ``ast.walk`` yields them BOTH as part of the JoinedStr
+    and again individually -- one f-string DDL then counts as two tables, the
+    second of them a truncated phantom.  The segments are collected first and
+    skipped, so each literal is accounted for exactly once.
+    """
+    inside_fstring: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            for part in ast.walk(node):
+                if isinstance(part, ast.Constant):
+                    inside_fstring.add(id(part))
     found: list[tuple[str, int, int, bool]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if id(node) in inside_fstring:
+                continue
             if _CREATE_TABLE.search(node.value):
                 found.append(
                     (node.value, node.lineno, node.end_lineno or node.lineno, True)

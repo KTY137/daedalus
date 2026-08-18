@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Corpus Article With Ref",
+  "type": "object",
+  "required": ["id", "title", "votes"],
+  "properties": {
+    "id": {"$ref": "#/$defs/identifier"},
+    "title": {"type": "string"},
+    "votes": {"type": "integer"}
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[a-z0-9]+$"},
+    "record": {
+      "type": "object",
+      "required": ["inner"],
+      "properties": {"inner": {"type": "boolean"}}
+    }
+  }
+}
