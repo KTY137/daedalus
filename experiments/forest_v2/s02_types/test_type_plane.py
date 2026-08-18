@@ -146,6 +146,38 @@ def test_builtins_only_control_is_weaker_than_the_full_resolver(tmp_path: Path) 
 # --------------------------------------------------------------------------
 # attribution buckets
 # --------------------------------------------------------------------------
+def test_signatures_are_split_by_whether_they_need_repo_types(tmp_path: Path) -> None:
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "types_.py": """
+            class Widget:
+                pass
+            """,
+            "m.py": """
+            from pkg.types_ import Widget
+
+            def needs_repo(w: Widget) -> None:
+                return None
+
+            def stdlib_only(a: int) -> str:
+                return str(a)
+            """,
+        },
+    )
+    report = build(tmp_path)
+    totals = report["totals"]
+    assert totals["sig_resolved"] == 2
+    assert totals["sig_resolved_needs_repo_types"] == 1
+    assert totals["sig_resolved_without_repo_types"] == 1
+    assert (
+        totals["sig_resolved_needs_repo_types"]
+        + totals["sig_resolved_without_repo_types"]
+        == totals["sig_resolved"]
+    )
+
+
 def test_repo_attribution_is_verified_against_the_symbol_table(tmp_path: Path) -> None:
     write_pkg(
         tmp_path,

@@ -78,6 +78,7 @@ RESOLVED_BUCKETS = frozenset(
     {"builtin", "typing", "repo", "repo_unverified", "stdlib", "third_party", "special"}
 )
 UNRESOLVED_BUCKETS = frozenset({"unresolved", "structural"})
+REPO_BUCKETS = frozenset({"repo", "repo_unverified"})
 FIELD_BASE_HINTS = frozenset({"TypedDict", "NamedTuple"})
 
 
@@ -562,6 +563,7 @@ class FileExtractor:
         annotated = True
         resolved = True
         control_ok = True
+        sig_buckets: set[str] = set()
 
         for param in params:
             param_sym = self.graph.symbol_node(
@@ -580,6 +582,7 @@ class FileExtractor:
             heads, seen = self._annotation(param.annotation, fn.lineno)
             for head in heads:
                 self.graph.edge(param_sym, head, "param_type", self.rel_file, fn.lineno)
+            sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
             control_ok = control_ok and self._control_ok(param.annotation)
@@ -593,6 +596,7 @@ class FileExtractor:
             heads, seen = self._annotation(fn.returns, fn.lineno)
             for head in heads:
                 self.graph.edge(sym, head, "return_type", self.rel_file, fn.lineno)
+            sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
             control_ok = control_ok and self._control_ok(fn.returns)
@@ -603,6 +607,11 @@ class FileExtractor:
             self.totals["sig_resolved"] += 1
         if control_ok:
             self.totals["sig_resolved_builtins_only"] += 1
+        if resolved:
+            if sig_buckets & REPO_BUCKETS:
+                self.totals["sig_resolved_needs_repo_types"] += 1
+            else:
+                self.totals["sig_resolved_without_repo_types"] += 1
         if not params:
             self.totals["zero_param_functions"] += 1
             if resolved:
@@ -677,6 +686,8 @@ TOTAL_KEYS = (
     "sig_annotated",
     "sig_resolved",
     "sig_resolved_builtins_only",
+    "sig_resolved_needs_repo_types",
+    "sig_resolved_without_repo_types",
     "zero_param_functions",
     "sig_resolved_zero_param",
 )
@@ -740,7 +751,10 @@ def build_type_plane(
         edge_kinds[edge["kind"]] = edge_kinds.get(edge["kind"], 0) + 1
 
     def pct(numerator: int, total: int) -> float:
-        return round(100.0 * numerator / (total or 1), 1)
+        # Two decimals on purpose: at one decimal 3294/3295 prints as a
+        # flawless 100.0, and a rate that rounds up into a flawless score is
+        # the one number a reader must never be handed.
+        return round(100.0 * numerator / (total or 1), 2)
 
     return {
         "schema": SCHEMA,
@@ -756,6 +770,9 @@ def build_type_plane(
             "sig_resolved_pct": pct(totals["sig_resolved"], denominator),
             "sig_resolved_builtins_only_pct": pct(
                 totals["sig_resolved_builtins_only"], denominator
+            ),
+            "sig_resolved_without_repo_types_pct": pct(
+                totals["sig_resolved_without_repo_types"], denominator
             ),
             "sig_resolved_pct_excl_zero_param": pct(
                 totals["sig_resolved"] - totals["sig_resolved_zero_param"],
