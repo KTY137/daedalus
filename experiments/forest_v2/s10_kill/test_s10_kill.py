@@ -460,6 +460,23 @@ def test_a_prior_cannot_reach_keep_while_its_controls_were_never_shipped():
     assert "never" in twin.rationale
 
 
+def test_an_equivalence_kill_is_reachable_at_the_real_effect_size():
+    """Not "could fire in principle" -- fires at s08's own discordance rate.
+
+    600 paired queries cannot resolve inside the +/-0.02 margin.  Holding the
+    measured 13-rescued / 7-lost / 580-tied rate and tripling the query set
+    does, and 14.2 then reads EQUIVALENT, which is a KILL.  The evaluator is
+    short of resolution, not incapable of a verdict.
+    """
+    n, wins, losses = 1800, 39, 21
+    treat = [1.0] * wins + [0.0] * losses + [1.0] * (n - wins - losses)
+    base = [0.0] * wins + [1.0] * losses + [1.0] * (n - wins - losses)
+    comp = compare("scaled", "t", "b", treat, base, margin=0.02,
+                   confidence=0.95, resamples=4000, seed=CFG.seed)
+    assert comp.equivalent, comp.describe()
+    assert comp.ci_high < 0.02
+
+
 def test_a_fully_instrumented_run_can_still_reach_keep():
     """The guard above must not make KEEP unreachable in principle."""
     twin = [

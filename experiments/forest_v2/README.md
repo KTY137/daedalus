@@ -220,7 +220,7 @@ Three design decisions carry the honesty of the whole slice:
 
 ### Self-test result (2026-08-18, synthetic ground truth) [MEASURED]
 
-`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **59 passed in 10.18s**
+`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **60 passed in 12.74s**
 (2026-08-18, after the register repair; was 44 passed in 7.84s before it).
 
 Nine scenarios with constructed ground truth, all scores drawn at runtime from
@@ -288,7 +288,7 @@ pins it; `surviving_prior`, which ships every control, still reaches KEEP.
 its published 2x2 counts (`measured_inputs.py`; both marginals and the pairing
 come back out exactly, no score invented):
 
-```
+```text
 python -m experiments.forest_v2.s10_kill.cli --measured s08_graph_structure
 ```
 
@@ -300,10 +300,26 @@ The interval reaches 0.0250 against a ±0.02 margin, so it is neither a win nor
 demonstrable equivalence — and the evaluator says so instead of reading "not
 significant" as "equivalent". This is a real limit worth stating: **with a
 binary per-query metric, 600 paired queries cannot resolve inside a ±0.02
-band.** An equivalence-shaped kill (14.2, 14.3, 14.8) needs either a graded
-metric (MRR, nDCG) or roughly 2–4× the queries. Every verdict from this run
-also carries `run declares 1 seed(s)`; s08 was a single run with no repeated
-trials.
+band.**
+
+How far off is it? Holding s08's observed discordance rate (13 rescued, 7
+lost, 580 tied) and scaling the query set, CI95 percentile bootstrap, 20,000
+resamples [MEASURED — a power projection over the real effect shape, not more
+data]:
+
+| queries | mean diff | CI95 | state |
+| ---: | ---: | --- | --- |
+| 600 (s08 as run) | +0.0100 | [-0.0050, +0.0250] | INCONCLUSIVE |
+| 1200 | +0.0100 | [+0.0000, +0.0208] | INCONCLUSIVE |
+| **1800** | +0.0100 | [+0.0017, +0.0183] | **EQUIVALENT → 14.2 fires KILL** |
+| 2400 | +0.0100 | [+0.0029, +0.0171] | EQUIVALENT |
+
+So the criterion is reachable, and the gap is a factor of three in query
+count, not a structural impossibility: at s08's own effect size a 1800-query
+run would kill 14.2. (A graded metric — MRR, nDCG — would get there sooner
+than more binary queries, since the variance is mostly the 0/1 quantisation.)
+Every verdict from the real run also carries `run declares 1 seed(s)`; s08 was
+a single run with no repeated trials.
 
 **14.3 is refused, not answered.** The s08 plane-routing run
 (`--measured s08_plane_routing`) reports `0 of 16` criteria decidable. s08
