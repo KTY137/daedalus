@@ -58,7 +58,10 @@ import re
 from collections import Counter
 from typing import Any, Iterable, Sequence
 
-CARD_SCHEMA = "forest-v2-node-card/1"
+#: Bumped from /1 when provenance became a ref and content gained its budget.
+#: A /1 consumer reading a /2 card would find a string where it expected a
+#: dict, so this is a breaking change and says so.
+CARD_SCHEMA = "forest-v2-node-card/2"
 RECORD_SCHEMA = "forest-v2-node-record/1"
 
 #: Planes the card contract accepts (master plan §5).  There is no fifth one.

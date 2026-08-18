@@ -248,6 +248,19 @@ def test_jsonl_round_trips():
 # --- provenance carried by reference ---------------------------------------
 
 
+def test_the_card_schema_announces_the_breaking_change():
+    """provenance dict -> ref string is breaking, so the version must say so."""
+    card = build(make_record())
+    assert card["schema"] == "forest-v2-node-card/2"
+
+
+def test_a_card_still_claiming_the_old_schema_is_refused():
+    card = build(make_record())
+    card["schema"] = "forest-v2-node-card/1"
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    assert any("unexpected schema" in p for p in nc.validate_card(card))
+
+
 def test_the_card_carries_a_ref_not_the_block():
     card = build(make_record())
     assert isinstance(card["provenance"], str)
