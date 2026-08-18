@@ -40,21 +40,43 @@ Resolution buckets (a type name lands in exactly one)
 existence proofs -- the same honesty caveat continuation 1 carries.  Only
 ``repo`` is verified against a symbol table the probe itself built.
 
-Headline metric
----------------
-Fraction of functions with a *resolved signature*: every parameter (implicit
+Metrics, and what each one can and cannot falsify
+-------------------------------------------------
+``sig_resolved`` (the original headline) is: every parameter (implicit
 ``self``/``cls`` excluded) and the return annotated, AND every type name
-referenced by that signature in a bucket other than ``unresolved``/
-``structural``.  Reported next to the weaker ``annotated`` rate (syntax only)
-and against a ``builtins_only`` control resolver, so the marginal
-contribution of the import-binding + symbol-table machinery is visible rather
-than assumed.
+referenced by that signature attributable.  It is *coupled to annotation
+coverage by construction* -- a missing annotation sets both ``annotated`` and
+``resolved`` to false -- so ``sig_resolved <= sig_annotated`` always holds and
+the rate mostly measures how well the corpus is annotated.  It is retained for
+continuity and it is NOT the metric any claim about resolvability may rest on.
+
+The correct control for it is therefore ``annotation_only``: "is the signature
+syntactically complete?", i.e. ``sig_annotated``.  The marginal contribution of
+the entire import-binding + symbol-table machinery is the disagreement between
+the two, ``sig_annotated - sig_resolved``, and nothing larger: the machinery
+can only ever *subtract* from the annotation-only control.
+
+The ``builtins_only`` resolver is retained as RETRACTED negative evidence, not
+as a control.  It cannot read a single import statement by construction, so the
+difference against it measures "does this corpus use non-builtin types", which
+nobody doubted.
+
+Two *decoupled* metrics carry the actual resolvability question, and both can
+be low on a fully annotated corpus and high on a barely annotated one:
+
+``type_name_resolution``   resolved / total type-name occurrences.
+``sig_present_annotations_resolve``  among functions with at least one
+                           annotation, the share whose *present* annotations
+                           all attribute -- no completeness requirement.
+
+Those two are what the slice's falsifier is allowed to fire on.
 """
 from __future__ import annotations
 
 import argparse
 import ast
 import builtins
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -251,7 +273,14 @@ class Resolver:
 
 
 def builtins_only_bucket(dotted: str) -> str:
-    """Control resolver: nothing but bare builtins is attributable."""
+    """RETRACTED control: nothing but bare builtins is attributable.
+
+    Kept as executable negative evidence.  This resolver cannot read an import
+    statement -- there is no code path by which it could -- so a corpus that
+    uses any non-builtin type name is guaranteed to score low against it.  Its
+    difference from the full resolver is not a marginal contribution and must
+    not be reported as one.  See ``annotation_only`` for the real control.
+    """
     if "." not in dotted and dotted in BUILTIN_NAMES:
         return "builtin"
     return "unresolved"
@@ -281,6 +310,7 @@ class TypeExprWalker:
         bindings: dict[str, str],
         rel_file: str,
         unresolved_names: dict[str, list[str]],
+        totals: dict[str, int],
     ) -> None:
         self.graph = graph
         self.resolver = resolver
@@ -289,6 +319,7 @@ class TypeExprWalker:
         self.bindings = bindings
         self.rel_file = rel_file
         self.unresolved_names = unresolved_names
+        self.totals = totals
 
     def walk(self, expr: ast.expr, line: int, seen: set[str]) -> list[str]:
         """Return the head type node ids; records buckets into ``seen``."""
@@ -350,6 +381,16 @@ class TypeExprWalker:
 
     def _emit(self, bucket: str, name: str, seen: set[str], line: int) -> str:
         seen.add(bucket)
+        # Occurrence-level accounting.  Unlike the signature metrics this is
+        # independent of annotation COVERAGE: a corpus that annotates one
+        # parameter in a thousand still gets a resolution rate over that one.
+        self.totals["type_name_sites"] = self.totals.get("type_name_sites", 0) + 1
+        key = f"sites_{bucket}"
+        self.totals[key] = self.totals.get(key, 0) + 1
+        if bucket in RESOLVED_BUCKETS:
+            self.totals["type_name_sites_resolved"] = (
+                self.totals.get("type_name_sites_resolved", 0) + 1
+            )
         if bucket in UNRESOLVED_BUCKETS:
             # An unattributed annotation name is only evidence if a reader can
             # go look at it, so keep source locators, not a bare count.
@@ -416,7 +457,14 @@ class FileExtractor:
         self.totals = totals
         self.unresolved_names = unresolved_names
         self.walker = TypeExprWalker(
-            graph, resolver, module, local_names, bindings, rel_file, unresolved_names
+            graph,
+            resolver,
+            module,
+            local_names,
+            bindings,
+            rel_file,
+            unresolved_names,
+            totals,
         )
 
     # -- helpers ----------------------------------------------------------
@@ -564,6 +612,11 @@ class FileExtractor:
         resolved = True
         control_ok = True
         sig_buckets: set[str] = set()
+        # Decoupled accounting: what is actually THERE, and does it resolve.
+        # ``annotated``/``resolved`` are locked together by construction (a
+        # missing annotation kills both); these two are not.
+        present = 0
+        present_unresolved = 0
 
         for param in params:
             param_sym = self.graph.symbol_node(
@@ -579,6 +632,7 @@ class FileExtractor:
                 control_ok = False
                 continue
             self.totals["params_annotated"] += 1
+            present += 1
             # locate at the annotation itself, not at the enclosing ``def``:
             # a multi-line signature would otherwise send every reader to the
             # wrong line.
@@ -589,6 +643,7 @@ class FileExtractor:
             sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
+                present_unresolved += 1
             control_ok = control_ok and self._control_ok(param.annotation)
 
         if fn.returns is None:
@@ -597,6 +652,7 @@ class FileExtractor:
             control_ok = False
         else:
             self.totals["returns_annotated"] += 1
+            present += 1
             ret_line = fn.returns.lineno
             heads, seen = self._annotation(fn.returns, ret_line)
             for head in heads:
@@ -604,14 +660,27 @@ class FileExtractor:
             sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
+                present_unresolved += 1
             control_ok = control_ok and self._control_ok(fn.returns)
 
         if annotated:
             self.totals["sig_annotated"] += 1
         if resolved:
             self.totals["sig_resolved"] += 1
+        if annotated and not resolved:
+            # The ENTIRE marginal contribution of the binding + symbol-table
+            # machinery over the annotation-only control lives in this counter.
+            self.totals["sig_annotated_but_unresolvable"] += 1
+        if present:
+            self.totals["sig_any_annotation"] += 1
+            if not present_unresolved:
+                self.totals["sig_present_annotations_resolve"] += 1
+        else:
+            self.totals["sig_no_annotation"] += 1
         if control_ok:
             self.totals["sig_resolved_builtins_only"] += 1
+            if not params:
+                self.totals["sig_resolved_builtins_only_zero_param"] += 1
         if resolved:
             if sig_buckets & REPO_BUCKETS:
                 self.totals["sig_resolved_needs_repo_types"] += 1
@@ -690,12 +759,36 @@ TOTAL_KEYS = (
     "implicit_receivers",
     "sig_annotated",
     "sig_resolved",
+    "sig_annotated_but_unresolvable",
+    "sig_any_annotation",
+    "sig_no_annotation",
+    "sig_present_annotations_resolve",
     "sig_resolved_builtins_only",
+    "sig_resolved_builtins_only_zero_param",
     "sig_resolved_needs_repo_types",
     "sig_resolved_without_repo_types",
     "zero_param_functions",
     "sig_resolved_zero_param",
+    "type_name_sites",
+    "type_name_sites_resolved",
 )
+
+
+def corpus_pin(entries: list[tuple[str, bytes]]) -> dict[str, Any]:
+    """Content pin for the corpus actually read.
+
+    A revision only pins a repository.  The external corpora this slice grew
+    to need (a stdlib subset, a fixture tree) have no revision, so every run
+    carries a digest over ``<relpath>\\0<sha256>`` of every file it parsed --
+    including the unparseable ones, which are part of the corpus too.
+    """
+    digest = hashlib.sha256()
+    for rel, data in sorted(entries):
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(data).hexdigest().encode("ascii"))
+        digest.update(b"\n")
+    return {"files": len(entries), "sha256": digest.hexdigest()}
 
 
 def build_type_plane(
@@ -707,11 +800,18 @@ def build_type_plane(
     parsed: list[tuple[Path, str, bool, ast.Module]] = []
     module_symbols: dict[str, set[str]] = {}
     totals: dict[str, int] = {key: 0 for key in TOTAL_KEYS}
+    pin_entries: list[tuple[str, bytes]] = []
 
     for path in paths:
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except (SyntaxError, ValueError, OSError):
+            raw = path.read_bytes()
+        except OSError:
+            totals["files_unparseable"] += 1
+            continue
+        pin_entries.append((path.relative_to(root).as_posix(), raw))
+        try:
+            tree = ast.parse(raw.decode("utf-8", errors="replace"))
+        except (SyntaxError, ValueError):
             totals["files_unparseable"] += 1
             continue
         module, is_package = module_name_of(root, path)
@@ -761,18 +861,70 @@ def build_type_plane(
         # the one number a reader must never be handed.
         return round(100.0 * numerator / (total or 1), 2)
 
+    marginal = totals["sig_annotated_but_unresolvable"]
+    controls = {
+        "annotation_only": {
+            "status": "control",
+            "resolved": totals["sig_annotated"],
+            "pct": pct(totals["sig_annotated"], denominator),
+            "rule": "signature counts iff every parameter and the return "
+            "carry a syntactic annotation; no name is looked up",
+        },
+        "full_resolver": {
+            "resolved": totals["sig_resolved"],
+            "pct": pct(totals["sig_resolved"], denominator),
+            "rule": "annotation_only AND every referenced type name attributable",
+        },
+        "marginal_vs_annotation_only": {
+            "functions": marginal,
+            "pp": round(100.0 * marginal / denominator, 4),
+            "direction": "subtractive" if marginal else "none",
+            "note": "the full resolver is a strict subset of the "
+            "annotation-only control, so this is both the observed "
+            "difference and its own upper bound",
+        },
+        "builtins_only": {
+            "status": "RETRACTED -- not a control",
+            "resolved": totals["sig_resolved_builtins_only"],
+            "pct": pct(totals["sig_resolved_builtins_only"], denominator),
+            "zero_param_share_of_hits": pct(
+                totals["sig_resolved_builtins_only_zero_param"],
+                totals["sig_resolved_builtins_only"],
+            ),
+            "note": "cannot read any import statement by construction; "
+            "retained as negative evidence only",
+        },
+    }
     return {
         "schema": SCHEMA,
         "read_only": True,
         "root": root.as_posix(),
         "packages": list(packages),
         "revision": git_revision(root),
+        "corpus_pin": corpus_pin(pin_entries),
         "totals": totals,
         "functions_total": all_functions,
         "functions_top_level_and_methods": top_functions,
+        "controls": controls,
+        "coupling": {
+            "sig_resolved_is_subset_of_sig_annotated": totals["sig_resolved"]
+            <= totals["sig_annotated"],
+            "decoupled_metrics": [
+                "type_name_resolution_pct",
+                "sig_present_annotations_resolve_pct",
+            ],
+        },
         "rates": {
             "sig_annotated_pct": pct(totals["sig_annotated"], denominator),
             "sig_resolved_pct": pct(totals["sig_resolved"], denominator),
+            # Decoupled from annotation coverage -- these are the two rates a
+            # resolvability claim (or its falsification) may rest on.
+            "type_name_resolution_pct": pct(
+                totals["type_name_sites_resolved"], totals["type_name_sites"]
+            ),
+            "sig_present_annotations_resolve_pct": pct(
+                totals["sig_present_annotations_resolve"], totals["sig_any_annotation"]
+            ),
             "sig_resolved_builtins_only_pct": pct(
                 totals["sig_resolved_builtins_only"], denominator
             ),
@@ -803,6 +955,11 @@ def build_type_plane(
             key[len("names_") :]: value
             for key, value in sorted(totals.items())
             if key.startswith("names_")
+        },
+        "type_name_sites_by_bucket": {
+            key[len("sites_") :]: value
+            for key, value in sorted(totals.items())
+            if key.startswith("sites_")
         },
         "unresolved_annotation_names": [
             {"name": name, "sites": sites}

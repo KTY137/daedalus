@@ -112,6 +112,201 @@ def test_implicit_receiver_is_not_a_missing_annotation(tmp_path: Path) -> None:
     assert totals["sig_resolved"] == 2
 
 
+def test_builtins_only_is_retracted_and_its_hits_are_mostly_empty_signatures(
+    tmp_path: Path,
+) -> None:
+    """The retracted control's own composition, measured rather than asserted."""
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            def nullary() -> None:
+                return None
+
+            def also_nullary() -> int:
+                return 1
+
+            def has_params(a: int) -> int:
+                return a
+            """
+        },
+    )
+    report = build(tmp_path)
+    control = report["controls"]["builtins_only"]
+    assert control["status"].startswith("RETRACTED")
+    assert control["resolved"] == 3
+    # two of the three hits carry no parameter at all
+    assert report["totals"]["sig_resolved_builtins_only_zero_param"] == 2
+    assert control["zero_param_share_of_hits"] == 66.67
+
+
+def test_annotation_only_is_the_control_and_strictly_bounds_the_resolver(
+    tmp_path: Path,
+) -> None:
+    """The whole marginal contribution is annotated-but-unattributable signatures."""
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "types_.py": """
+            class Widget:
+                pass
+            """,
+            "m.py": """
+            from pkg.types_ import Widget
+
+            def ok(w: Widget) -> int:
+                return 1
+
+            def annotated_but_dangling(x: NeverImported) -> int:
+                return 1
+
+            def not_annotated(x) -> int:
+                return 1
+            """,
+        },
+    )
+    report = build(tmp_path)
+    totals = report["totals"]
+    controls = report["controls"]
+    assert controls["annotation_only"]["resolved"] == 2  # ok + annotated_but_dangling
+    assert controls["full_resolver"]["resolved"] == 1  # ok
+    assert totals["sig_annotated_but_unresolvable"] == 1
+    assert controls["marginal_vs_annotation_only"]["functions"] == 1
+    assert controls["marginal_vs_annotation_only"]["direction"] == "subtractive"
+    # the containment that makes the marginal number its own ceiling
+    assert report["coupling"]["sig_resolved_is_subset_of_sig_annotated"] is True
+    assert totals["sig_resolved"] <= totals["sig_annotated"]
+    assert (
+        controls["marginal_vs_annotation_only"]["functions"]
+        == totals["sig_annotated"] - totals["sig_resolved"]
+    )
+
+
+def test_falsifier_fires_full_annotation_coverage_zero_resolvability(
+    tmp_path: Path,
+) -> None:
+    """The decoupled rate can be 0 while the coupled headline says 100%.
+
+    This is the case the original ``sig_resolved`` metric could not express:
+    every signature is syntactically complete, so annotation-only scores a
+    perfect 100%, and not one type name is attributable.
+    """
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            def f(a: Ghost) -> Phantom:
+                return a
+
+            def g(b: Wraith) -> Spectre:
+                return b
+            """
+        },
+    )
+    report = build(tmp_path)
+    rates = report["rates"]
+    assert rates["sig_annotated_pct"] == 100.0  # control: perfect
+    assert rates["sig_resolved_pct"] == 0.0
+    assert rates["type_name_resolution_pct"] == 0.0
+    assert rates["sig_present_annotations_resolve_pct"] == 0.0
+    assert report["totals"]["type_name_sites"] == 4
+    assert report["totals"]["type_name_sites_resolved"] == 0
+
+
+def test_decoupled_rate_is_high_when_coverage_is_low(tmp_path: Path) -> None:
+    """The converse direction: barely annotated, perfectly resolvable."""
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            def a(x, y, z):
+                return x
+
+            def b(x, y, z):
+                return x
+
+            def c(x, y, z) -> int:
+                return 1
+            """
+        },
+    )
+    report = build(tmp_path)
+    rates = report["rates"]
+    assert rates["sig_annotated_pct"] == 0.0  # nothing is complete
+    assert rates["sig_resolved_pct"] == 0.0
+    # ...yet the one annotation present resolves, and the decoupled rates say so
+    assert rates["type_name_resolution_pct"] == 100.0
+    assert report["totals"]["sig_any_annotation"] == 1
+    assert report["totals"]["sig_no_annotation"] == 2
+    assert rates["sig_present_annotations_resolve_pct"] == 100.0
+
+
+def test_present_annotations_metric_ignores_signature_completeness(
+    tmp_path: Path,
+) -> None:
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            def partial_ok(a: int, b):
+                return a
+
+            def partial_dangling(a: Ghost, b):
+                return a
+
+            def bare(a, b):
+                return a
+            """
+        },
+    )
+    report = build(tmp_path)
+    totals = report["totals"]
+    assert totals["sig_annotated"] == 0  # none is complete
+    assert totals["sig_resolved"] == 0
+    assert totals["sig_any_annotation"] == 2
+    assert totals["sig_present_annotations_resolve"] == 1  # partial_ok only
+    assert report["rates"]["sig_present_annotations_resolve_pct"] == 50.0
+
+
+def test_type_name_sites_partition_by_bucket(tmp_path: Path) -> None:
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            from typing import Optional
+
+            def f(a: Optional[int], b: Ghost) -> dict[str, int]:
+                return {}
+            """
+        },
+    )
+    report = build(tmp_path)
+    sites = report["type_name_sites_by_bucket"]
+    totals = report["totals"]
+    assert sum(sites.values()) == totals["type_name_sites"]
+    resolved = sum(v for k, v in sites.items() if k in tp.RESOLVED_BUCKETS)
+    assert resolved == totals["type_name_sites_resolved"]
+    assert sites["unresolved"] == 1  # Ghost
+    assert totals["type_name_sites"] == totals["type_name_sites_resolved"] + 1
+
+
+def test_corpus_pin_is_stable_and_content_sensitive(tmp_path: Path) -> None:
+    write_pkg(tmp_path, "pkg", {"m.py": "def f(a: int) -> int:\n    return a\n"})
+    first = build(tmp_path)["corpus_pin"]
+    assert build(tmp_path)["corpus_pin"] == first
+    assert first["files"] == 2  # m.py + the generated __init__.py
+    (tmp_path / "pkg" / "m.py").write_text(
+        "def f(a: int) -> str:\n    return str(a)\n", encoding="utf-8"
+    )
+    assert build(tmp_path)["corpus_pin"]["sha256"] != first["sha256"]
+
+
 def test_builtins_only_control_is_weaker_than_the_full_resolver(tmp_path: Path) -> None:
     write_pkg(
         tmp_path,
