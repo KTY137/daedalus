@@ -18,14 +18,19 @@ import json
 import pytest
 
 from . import SCHEMA_ID
+from . import plan_register
 from .criteria import (
+    EVALUATORS,
     INCONCLUSIVE,
     KEEP,
     KILL,
     NOT_EVALUABLE,
     OUT_OF_SCOPE,
+    PLAN_STATEMENTS,
+    REGISTER,
     EvalConfig,
     evaluate,
+    register_entries,
 )
 from .report import build, render, roll_up, to_json
 from .schema import ResultSet, SchemaError, dump
@@ -44,6 +49,123 @@ def _finding(rs: ResultSet, ref: str, cfg: EvalConfig = CFG):
         if f.plan_ref == ref:
             return f
     raise AssertionError(f"no finding for plan ref {ref}")
+
+
+# --------------------------------------------------------- plan register
+#
+# These are the checks the first version of this slice did not have.  It
+# asserted ``len(findings) == 15`` with the reason "the plan lists 15 kill
+# criteria".  The plan lists sixteen.  A constant cannot notice that; only a
+# comparison against the living document can.
+
+
+def test_the_register_matches_the_living_plan_one_to_one():
+    """Wording, order and plan_ref of every criterion, against the real plan."""
+    check = plan_register.verify(register_entries())
+    assert check.ok, "\n" + check.describe()
+    assert check.n_registered == check.n_extracted
+
+
+def test_the_register_has_no_gap_in_its_plan_indices():
+    """14.15 must be 14.15.  A hand-numbered list closed the gap left by a
+    missing criterion, so a reader who looked up a citation landed on a
+    different bullet than the report meant."""
+    section = plan_register.load_section().section
+    assert [r.plan_ref for r in REGISTER] == [
+        f"{section}.{i}" for i in range(1, len(REGISTER) + 1)
+    ]
+
+
+def test_every_registered_criterion_is_decidable_or_says_why_not():
+    for r in REGISTER:
+        assert r.statement, r.plan_ref
+        assert r.decidable or r.out_of_scope_reason, (
+            f"{r.plan_ref} is neither implemented nor explained; that is the "
+            f"silent omission this register exists to prevent"
+        )
+    assert len(EVALUATORS) + len(OUT_OF_SCOPE) == len(REGISTER)
+
+
+def test_the_corpus_licensing_criterion_is_present_and_explained():
+    """The bullet that was missing entirely, pinned by content not by index."""
+    matches = [r for r in REGISTER if "licensing" in r.statement]
+    assert len(matches) == 1, "the corpus licensing/provenance bullet must appear once"
+    got = matches[0]
+    assert got.plan_ref == "14.15"
+    assert not got.decidable
+    assert "corpus" in got.out_of_scope_reason
+
+
+# --- mutation probes: the checks above must be capable of failing ---------
+
+
+def _tampered_plan(tmp_path, mutate):
+    """A copy of the living plan with one edit; the real plan is never touched."""
+    source = plan_register.find_plan()
+    assert source is not None, "the living plan must be findable"
+    before = source.read_text(encoding="utf-8")
+    after = mutate(before)
+    # A mutation probe that mutates nothing proves nothing: it would leave the
+    # check green and read as "the check is fine".
+    assert after != before, "the tamper anchor no longer matches the plan text"
+    target = tmp_path / "plan.md"
+    target.write_text(after, encoding="utf-8")
+    return target
+
+
+def test_a_reworded_plan_bullet_makes_the_register_check_red(tmp_path):
+    victim = PLAN_STATEMENTS["14.3"]
+    path = _tampered_plan(
+        tmp_path, lambda text: text.replace(victim, "four independent indices are fine")
+    )
+    check = plan_register.verify(register_entries(), path)
+    assert not check.ok
+    assert any("wording differs" in m for m in check.mismatches)
+
+
+def test_a_plan_that_gains_a_criterion_makes_the_register_check_red(tmp_path):
+    # Anchored on the first bullet, which the plan holds on a single line.
+    anchor = "- " + PLAN_STATEMENTS["14.1"] + ";"
+    path = _tampered_plan(
+        tmp_path,
+        lambda text: text.replace(
+            anchor, "- a seventeenth condition nobody implemented yet;\n" + anchor
+        ),
+    )
+    check = plan_register.verify(register_entries(), path)
+    assert not check.ok
+    assert any("count:" in m for m in check.mismatches)
+
+
+def test_a_removed_criterion_makes_the_register_check_red():
+    entries = [e for e in register_entries() if e[0] != "14.9"]
+    check = plan_register.verify(entries)
+    assert not check.ok
+    assert any("count:" in m for m in check.mismatches)
+    assert any("missing, not" in m for m in check.mismatches)
+
+
+def test_a_renumbered_criterion_makes_the_register_check_red():
+    """The exact defect: one bullet dropped, everything after it slides up."""
+    entries = [e for e in register_entries() if e[0] != "14.15"]
+    section = plan_register.load_section().section
+    slid = [
+        (f"{section}.{i}", statement)
+        for i, (_, statement) in enumerate(entries, start=1)
+    ]
+    check = plan_register.verify(slid)
+    assert not check.ok
+    # Named for the harm it causes, not only as "the wording differs":
+    # a report citing 14.15 would send its reader to a different criterion.
+    assert any("misfiled citation" in m for m in check.mismatches)
+    assert any("plan numbers 14.16" in m for m in check.mismatches)
+
+
+def test_the_extractor_refuses_a_plan_it_cannot_read(tmp_path):
+    path = tmp_path / "plan.md"
+    path.write_text("# not the plan\n\nnothing here\n", encoding="utf-8")
+    with pytest.raises(plan_register.PlanRegisterError, match="Kill criteria"):
+        plan_register.load_section(path)
 
 
 # ------------------------------------------------------------------ schema
@@ -248,12 +370,18 @@ def test_missing_arms_are_reported_as_not_evaluable_not_as_a_pass():
     assert "rewired" in finding.missing
 
 
-def test_six_criteria_are_always_out_of_scope_and_say_why():
+def test_out_of_scope_criteria_are_counted_and_say_why():
     findings = evaluate(_rs("surviving_prior"), CFG)
     out = [f for f in findings if f.verdict == NOT_EVALUABLE]
     assert len(out) == len(OUT_OF_SCOPE)
     assert all(f.rationale for f in out)
-    assert len(findings) == 15, "the plan lists 15 kill criteria; all must appear"
+    # The count comes from the living plan, never from a literal typed here.
+    # A plan that gains a kill criterion must make this fail.
+    n_plan = plan_register.load_section().n_extracted
+    assert len(findings) == n_plan, (
+        f"the plan lists {n_plan} kill criteria and the evaluator reported "
+        f"{len(findings)}; every bullet must appear, decided or not"
+    )
 
 
 # ----------------------------------------------------------------- guards
@@ -333,7 +461,13 @@ def test_report_declares_itself_advisory_and_states_coverage():
     rep = build(rs, evaluate(rs, CFG), CFG)
     blob = to_json(rep)
     assert blob["advisory"] is True
-    assert blob["coverage"] == {"decided": 9, "criteria": 15}
+    # The denominator is the number of bullets in the living plan, computed --
+    # the published 60% came from dividing 9 decided criteria by a register
+    # that had silently lost one, and no constant here may reintroduce that.
+    n_plan = plan_register.load_section().n_extracted
+    assert blob["coverage"]["criteria"] == n_plan
+    assert blob["coverage"]["decided"] == len(EVALUATORS)
+    assert blob["coverage"]["fraction"] == pytest.approx(len(EVALUATORS) / n_plan)
     assert json.dumps(blob)  # serialisable
 
 

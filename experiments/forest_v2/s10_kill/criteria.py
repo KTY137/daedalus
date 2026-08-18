@@ -4,14 +4,25 @@ Section numbering note: the kill criteria are **section 14** in plan revision
 5 (they were section 13 in earlier revisions; section 13 is now "Forbidden
 default directions").  ``plan_ref`` below cites the live numbering.
 
-Fifteen bullets are listed in the plan.  Nine of them are decidable from a
-retrieval result set; six are not, because they need evidence this format
-does not carry (behavioural outcomes, snapshot cost telemetry, verifier
-precision, Genesis conformance).  Those six are reported as
-``NOT_EVALUABLE`` with the reason, and they are *counted*, so the report
-can state what fraction of the plan's kill surface a given run actually
-covers.  Quietly shipping nine checks and calling it "the kill criteria"
-would be the dishonest version.
+``REGISTER`` at the foot of this module is the code's copy of that list, and
+``plan_register.verify`` re-derives the same list from the living plan every
+time the checks run.  A copy is allowed to exist -- the evaluator must work
+on a machine that has only a result file -- but it is not allowed to be
+*unchecked*, and it is never the source of a published number.  The report's
+coverage is ``n_decided / n_extracted``, computed from the register, never a
+literal.  (The first version of this module registered fifteen criteria for a
+sixteen-bullet plan, skipped the corpus-licensing bullet entirely, and
+published the resulting 9/15 = 60%.  Nine of sixteen is 56.3%.)
+
+Nine bullets are decidable from a retrieval result set; seven are not,
+because they need evidence this format does not carry (behavioural outcomes,
+snapshot cost telemetry, verifier precision, Genesis conformance, corpus
+licensing and provenance).  Those seven are reported as ``NOT_EVALUABLE``
+with the reason, and they are *counted*, so the report can state what
+fraction of the plan's kill surface a given run actually covers.  Quietly
+shipping nine checks and calling it "the kill criteria" would be the
+dishonest version; quietly shipping nine of sixteen and dividing by fifteen
+is the same dishonesty with a decimal point.
 
 Two guards sit in front of every verdict:
 
@@ -35,7 +46,7 @@ KILL             the baseline        downgraded -- the loss may be starvation
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from .schema import Arm, ResultSet
 from .stats import (
@@ -55,7 +66,48 @@ PRIOR_TWIN = "four_plane_project_twin"
 PRIOR_LATENT = "latent_cross_plane_discovery"
 PRIOR_GRAPH_CTX = "graph_conditioned_context"
 PRIOR_GENESIS = "genesis_motif_composition"
+PRIOR_CORPUS = "repository_corpus_reuse"
 PRIOR_ORCH = "orchestration_evolution"
+
+#: The section-14 bullets, wording as the plan words them, keyed by the index
+#: the plan gives them.  Checked verbatim against the living plan by
+#: ``plan_register.verify``; edit only to follow the plan, never to make a
+#: check pass.
+PLAN_STATEMENTS: Dict[str, str] = {
+    "14.1": "the full representation does not beat code-only or BM25 retrieval",
+    "14.2": "degree-preserving randomized cross-plane edges perform equivalently",
+    "14.3": "four independent indices perform equivalently to cross-plane fusion",
+    "14.4": "a plane has no marginal contribution in ablation",
+    "14.5": "graph movement does not predict or cause behavioral improvement",
+    "14.6": (
+        "graph-conditioned prioritization does not beat random or evaluator-only choice"
+    ),
+    "14.7": "the gain disappears after temporal and knowledge-leakage scrubbing",
+    "14.8": "extra context tokens explain the whole gain",
+    "14.9": "graph construction/query cost worsens the quality/cost frontier",
+    "14.10": "revision-atomic snapshots cannot be maintained at usable cost",
+    "14.11": (
+        "embedding proposals cannot achieve useful precision after verification cost"
+    ),
+    "14.12": (
+        "benefits disappear on held-out repositories, under equal context budgets, "
+        "or in cross-project transfer"
+    ),
+    "14.13": (
+        "motif composition does not outperform direct generation after equalizing "
+        "model, tokens, repair budget, and evaluator access"
+    ),
+    "14.14": (
+        "Genesis round-trip conformance fails to predict buildable, usable software"
+    ),
+    "14.15": (
+        "corpus licensing/provenance or extraction cost prevents reproducible reuse"
+    ),
+    "14.16": (
+        "orchestration evolution gains vanish when evaluated on unseen repositories "
+        "and fixed models"
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -265,7 +317,7 @@ def _pick_baseline(rs: ResultSet, variant: str) -> Optional[Arm]:
 
 def c_full_beats_cheap_retrieval(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.1", "full_beats_code_only_and_bm25"
-    statement = "the full representation does not beat code-only or BM25 retrieval"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     missing = _missing(rs, ("full", "code_only", "bm25"), variant)
     if missing:
@@ -296,7 +348,7 @@ def c_full_beats_cheap_retrieval(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_rewired_edges_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.2", "rewired_cross_plane_edges_equivalent"
-    statement = "degree-preserving randomized cross-plane edges perform equivalently"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     missing = _missing(rs, ("full", "rewired"), variant)
     if missing:
@@ -315,7 +367,7 @@ def c_rewired_edges_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_separate_indices_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.3", "four_indices_equal_fusion"
-    statement = "four independent indices perform equivalently to cross-plane fusion"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     fusion = rs.find("fusion", variant) or rs.find("full", variant)
     separate = rs.find("separate_indices", variant)
@@ -339,7 +391,7 @@ def c_separate_indices_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_plane_marginal_contribution(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.4", "plane_has_no_marginal_contribution"
-    statement = "a plane has no marginal contribution in ablation"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     full = rs.find("full", variant)
     ablations = rs.ablation_arms(variant)
@@ -382,9 +434,7 @@ def c_plane_marginal_contribution(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_graph_priority_beats_controls(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.6", "graph_priority_beats_random_or_evaluator_only"
-    statement = (
-        "graph-conditioned prioritization does not beat random or evaluator-only choice"
-    )
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     treat = rs.find("graph_priority", variant)
     controls = [
@@ -417,7 +467,7 @@ def c_graph_priority_beats_controls(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_gain_survives_scrubbing(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.7", "gain_vanishes_after_leakage_scrub"
-    statement = "the gain disappears after temporal and knowledge-leakage scrubbing"
+    statement = PLAN_STATEMENTS[ref]
     if "scrubbed" not in rs.variants():
         return _not_evaluable(
             key, ref, PRIOR_TWIN, statement,
@@ -481,7 +531,7 @@ def c_gain_survives_scrubbing(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_tokens_explain_gain(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.8", "extra_tokens_explain_the_gain"
-    statement = "extra context tokens explain the whole gain"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     missing = _missing(rs, ("full", "token_matched"), variant)
     if missing:
@@ -507,7 +557,7 @@ def c_tokens_explain_gain(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_cost_frontier(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.9", "cost_worsens_quality_cost_frontier"
-    statement = "graph construction/query cost worsens the quality/cost frontier"
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     full = rs.find("full", variant)
     base = _pick_baseline(rs, variant)
@@ -561,10 +611,7 @@ def c_cost_frontier(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 def c_held_out_transfer(rs: ResultSet, cfg: EvalConfig) -> Finding:
     ref, key = "14.12", "benefit_vanishes_on_held_out"
-    statement = (
-        "benefits disappear on held-out repositories, under equal context budgets, "
-        "or in cross-project transfer"
-    )
+    statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
     held = rs.group("held_out")
     in_domain = rs.group("in_domain")
@@ -621,57 +668,126 @@ def c_held_out_transfer(rs: ResultSet, cfg: EvalConfig) -> Finding:
     )
 
 
-#: The section-14 bullets this format cannot decide, and why.  Listed so the
-#: report can state its own coverage instead of implying completeness.
-OUT_OF_SCOPE: Tuple[Tuple[str, str, str, str, str], ...] = (
-    (
-        "graph_movement_predicts_behaviour", "14.5", PRIOR_TWIN,
-        "graph movement does not predict or cause behavioral improvement",
-        "needs paired graph-delta and behavioural-outcome records; a retrieval "
-        "result set contains no behavioural outcome",
+# ------------------------------------------------------------- the register
+
+
+@dataclass(frozen=True)
+class Registered:
+    """One plan bullet, and what this evaluator does about it.
+
+    ``evaluator is None`` means out of scope for a retrieval result set --
+    which is a *stated* position with a reason, not a silent omission.  The
+    distinction matters: an omitted bullet shrinks the denominator and
+    flatters the coverage; an out-of-scope bullet is counted and reported as
+    ``NOT_EVALUABLE``.
+    """
+
+    plan_ref: str
+    key: str
+    prior: str
+    evaluator: Optional[Callable[[ResultSet, "EvalConfig"], Finding]] = None
+    out_of_scope_reason: str = ""
+
+    @property
+    def statement(self) -> str:
+        return PLAN_STATEMENTS[self.plan_ref]
+
+    @property
+    def decidable(self) -> bool:
+        return self.evaluator is not None
+
+
+#: Every bullet of the plan's kill-criteria section, in plan order, with no
+#: gaps.  ``plan_register.verify(register_entries())`` re-derives this list
+#: from the living plan and fails on any difference -- count, order, index or
+#: wording.  Adding a bullet to the plan turns that check red until this
+#: register follows.
+REGISTER: Tuple[Registered, ...] = (
+    Registered("14.1", "full_beats_code_only_and_bm25", PRIOR_TWIN,
+               c_full_beats_cheap_retrieval),
+    Registered("14.2", "rewired_cross_plane_edges_equivalent", PRIOR_TWIN,
+               c_rewired_edges_equivalent),
+    Registered("14.3", "four_indices_equal_fusion", PRIOR_TWIN,
+               c_separate_indices_equivalent),
+    Registered("14.4", "plane_has_no_marginal_contribution", PRIOR_TWIN,
+               c_plane_marginal_contribution),
+    Registered(
+        "14.5", "graph_movement_predicts_behaviour", PRIOR_TWIN,
+        out_of_scope_reason=(
+            "needs paired graph-delta and behavioural-outcome records; a retrieval "
+            "result set contains no behavioural outcome"
+        ),
     ),
-    (
-        "revision_atomic_snapshot_cost", "14.10", PRIOR_TWIN,
-        "revision-atomic snapshots cannot be maintained at usable cost",
-        "needs snapshot build/maintenance cost telemetry per revision, which this "
-        "format does not carry",
+    Registered("14.6", "graph_priority_beats_random_or_evaluator_only",
+               PRIOR_GRAPH_CTX, c_graph_priority_beats_controls),
+    Registered("14.7", "gain_vanishes_after_leakage_scrub", PRIOR_TWIN,
+               c_gain_survives_scrubbing),
+    Registered("14.8", "extra_tokens_explain_the_gain", PRIOR_GRAPH_CTX,
+               c_tokens_explain_gain),
+    Registered("14.9", "cost_worsens_quality_cost_frontier", PRIOR_TWIN,
+               c_cost_frontier),
+    Registered(
+        "14.10", "revision_atomic_snapshot_cost", PRIOR_TWIN,
+        out_of_scope_reason=(
+            "needs snapshot build/maintenance cost telemetry per revision, which this "
+            "format does not carry"
+        ),
     ),
-    (
-        "embedding_precision_after_verification", "14.11", PRIOR_LATENT,
-        "embedding proposals cannot achieve useful precision after verification cost",
-        "needs proposal-level precision and verifier cost, not ranked file lists",
+    Registered(
+        "14.11", "embedding_precision_after_verification", PRIOR_LATENT,
+        out_of_scope_reason=(
+            "needs proposal-level precision and verifier cost, not ranked file lists"
+        ),
     ),
-    (
-        "motif_composition_beats_direct", "14.13", PRIOR_GENESIS,
-        "motif composition does not outperform direct generation after equalizing "
-        "model, tokens, repair budget, and evaluator access",
-        "needs generation trials with a build/repair ladder; out of scope for a "
-        "retrieval measurement",
+    Registered("14.12", "benefit_vanishes_on_held_out", PRIOR_TWIN,
+               c_held_out_transfer),
+    Registered(
+        "14.13", "motif_composition_beats_direct", PRIOR_GENESIS,
+        out_of_scope_reason=(
+            "needs generation trials with a build/repair ladder; out of scope for a "
+            "retrieval measurement"
+        ),
     ),
-    (
-        "genesis_roundtrip_predicts_buildable", "14.14", PRIOR_GENESIS,
-        "Genesis round-trip conformance fails to predict buildable, usable software",
-        "needs round-trip conformance and build outcomes",
+    Registered(
+        "14.14", "genesis_roundtrip_predicts_buildable", PRIOR_GENESIS,
+        out_of_scope_reason="needs round-trip conformance and build outcomes",
     ),
-    (
-        "orchestration_evolution_transfer", "14.15", PRIOR_ORCH,
-        "orchestration evolution gains vanish when evaluated on unseen repositories "
-        "and fixed models",
-        "needs orchestration campaign results across repositories",
+    Registered(
+        "14.15", "corpus_licensing_provenance_blocks_reuse", PRIOR_CORPUS,
+        out_of_scope_reason=(
+            "needs per-document corpus ingestion metadata -- source repository, "
+            "revision, license, temporal cutoff, extraction version and extraction "
+            "cost (plan sections 5 and 9.1) -- none of which a retrieval result set "
+            "carries. This criterion is not about ranking at all, so no result set "
+            "of this schema can ever decide it; deciding it needs a corpus manifest "
+            "audit, which is a different instrument. Recorded rather than dropped: "
+            "the first version of this register omitted it entirely and shrank its "
+            "own denominator by doing so"
+        ),
+    ),
+    Registered(
+        "14.16", "orchestration_evolution_transfer", PRIOR_ORCH,
+        out_of_scope_reason=(
+            "needs orchestration campaign results across repositories"
+        ),
     ),
 )
 
-EVALUATORS: Tuple[Callable[[ResultSet, EvalConfig], Finding], ...] = (
-    c_full_beats_cheap_retrieval,
-    c_rewired_edges_equivalent,
-    c_separate_indices_equivalent,
-    c_plane_marginal_contribution,
-    c_graph_priority_beats_controls,
-    c_gain_survives_scrubbing,
-    c_tokens_explain_gain,
-    c_cost_frontier,
-    c_held_out_transfer,
+EVALUATORS: Tuple[Callable[[ResultSet, EvalConfig], Finding], ...] = tuple(
+    r.evaluator for r in REGISTER if r.evaluator is not None
 )
+
+#: Kept in the historical (key, ref, prior, statement, why) shape for callers
+#: that want only the undecidable bullets; derived, never hand-maintained.
+OUT_OF_SCOPE: Tuple[Tuple[str, str, str, str, str], ...] = tuple(
+    (r.key, r.plan_ref, r.prior, r.statement, r.out_of_scope_reason)
+    for r in REGISTER if r.evaluator is None
+)
+
+
+def register_entries() -> Tuple[Tuple[str, str], ...]:
+    """(plan_ref, statement) pairs in plan order, for the register check."""
+    return tuple((r.plan_ref, r.statement) for r in REGISTER)
 
 
 def evaluate(rs: ResultSet, cfg: Optional[EvalConfig] = None) -> List[Finding]:

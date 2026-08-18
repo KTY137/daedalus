@@ -16,7 +16,7 @@ else is INCONCLUSIVE, which is a real answer and not a soft KEEP.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Sequence, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .criteria import (
     INCONCLUSIVE,
@@ -25,7 +25,9 @@ from .criteria import (
     NOT_EVALUABLE,
     EvalConfig,
     Finding,
+    register_entries,
 )
+from .plan_register import RegisterCheck, verify_quietly
 from .schema import ResultSet, roles_present
 
 BANNER = (
@@ -55,11 +57,27 @@ class Report:
     findings: Tuple[Finding, ...]
     priors: Tuple[PriorVerdict, ...]
     roles: Tuple[str, ...]
+    #: the 1:1 comparison of the criteria register against the living plan;
+    #: None when the plan was not reachable, which the report says in words
+    #: rather than printing an unverified denominator as if it were checked.
+    register: Optional[RegisterCheck] = None
 
     @property
     def coverage(self) -> Tuple[int, int]:
+        """(decided, total) -- both counted, neither a constant.
+
+        The total is the size of the criteria register, which
+        ``plan_register`` checks against the plan bullet for bullet.  The
+        earlier version of this slice published 60% because its register had
+        lost a criterion and the denominator shrank with it.
+        """
         decided = sum(1 for f in self.findings if f.verdict != NOT_EVALUABLE)
         return decided, len(self.findings)
+
+    @property
+    def coverage_fraction(self) -> float:
+        decided, total = self.coverage
+        return (decided / total) if total else 0.0
 
 
 def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
@@ -99,7 +117,12 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
     return out
 
 
-def build(rs: ResultSet, findings: Sequence[Finding], cfg: EvalConfig) -> Report:
+def build(
+    rs: ResultSet,
+    findings: Sequence[Finding],
+    cfg: EvalConfig,
+    register: Optional[RegisterCheck] = None,
+) -> Report:
     return Report(
         run_id=rs.run_id,
         source=rs.source,
@@ -110,6 +133,7 @@ def build(rs: ResultSet, findings: Sequence[Finding], cfg: EvalConfig) -> Report
         findings=tuple(findings),
         priors=tuple(roll_up(findings)),
         roles=tuple(roles_present(rs)),
+        register=register if register is not None else verify_quietly(register_entries()),
     )
 
 
@@ -132,7 +156,12 @@ def to_json(rep: Report) -> Dict[str, object]:
             "min_seeds": rep.config.min_seeds,
             "budget_tolerance": rep.config.budget_tolerance,
         },
-        "coverage": {"decided": rep.coverage[0], "criteria": rep.coverage[1]},
+        "coverage": {
+            "decided": rep.coverage[0],
+            "criteria": rep.coverage[1],
+            "fraction": rep.coverage_fraction,
+        },
+        "register": _register_json(rep.register),
         "priors": [
             {
                 "prior": p.prior,
@@ -181,6 +210,28 @@ def to_json(rep: Report) -> Dict[str, object]:
     }
 
 
+def _register_json(check: Optional[RegisterCheck]) -> Dict[str, object]:
+    """Provenance for the coverage denominator, stated rather than assumed."""
+    if check is None:
+        return {
+            "verified": False,
+            "reason": (
+                "the master plan was not reachable from this process; the "
+                "denominator below is this package's own register and has not "
+                "been checked against the living plan"
+            ),
+        }
+    return {
+        "verified": check.ok,
+        "plan_path": check.section.plan_path,
+        "plan_sha256": check.section.plan_digest,
+        "plan_section": check.section.section,
+        "bullets_in_plan": check.n_extracted,
+        "criteria_registered": check.n_registered,
+        "mismatches": list(check.mismatches),
+    }
+
+
 _MARK = {KEEP: "[KEEP]", KILL: "[KILL]", INCONCLUSIVE: "[????]", NOT_EVALUABLE: "[ -- ]"}
 
 
@@ -207,7 +258,34 @@ def render(rep: Report) -> str:
         f"equivalence margin +/-{cfg.margin}, min_cases {cfg.min_cases}"
     )
     decided, total = rep.coverage
-    add(f"coverage         {decided} of {total} plan criteria decidable from this run")
+    add(
+        f"coverage         {decided} of {total} plan criteria decidable from this "
+        f"run ({100.0 * rep.coverage_fraction:.1f}%)"
+    )
+    chk = rep.register
+    if chk is None:
+        add(
+            "register         NOT VERIFIED -- the master plan was not reachable; "
+            "the denominator above is unchecked"
+        )
+    elif chk.ok:
+        add(
+            f"register         verified 1:1 against {chk.section.plan_path} "
+            f"section {chk.section.section}"
+        )
+        add(
+            f"                 ({chk.n_extracted} bullets, plan sha256 "
+            f"{chk.section.plan_digest[:12]})"
+        )
+    else:
+        add(
+            f"register         MISMATCH against the living plan "
+            f"({len(chk.mismatches)} problem(s)) -- the coverage figure is unsound"
+        )
+        for problem in chk.mismatches:
+            for part in problem.splitlines():
+                for line in _wrap(part, 72):
+                    add("                 " + line)
     add("")
     add("-" * 78)
     add("PREJUDICE PER PRIOR")
