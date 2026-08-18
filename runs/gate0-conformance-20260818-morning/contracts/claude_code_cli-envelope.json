@@ -1,0 +1,24 @@
+{
+ "authority": "offline-fixture",
+ "conformance_receipt_sha256": "9609753399a086632ba1eb8b2809461db43e9f06781382aef228dcd8519b092e",
+ "contract_type": "daedalus.runtime-conformance-envelope",
+ "contract_version": "1.0.0",
+ "created_at": "2026-08-18T05:39:10.661374+00:00",
+ "envelope_id": "claude_code_cli-offline-envelope",
+ "probe_identity_sha256": "40cf3234d95d50622a088f9721a0a61b1c37fb961544cdf6d39100ca356ad34e",
+ "provenance": {
+  "created_at": "2026-08-18T05:39:10.661374+00:00",
+  "input_digests": [
+   "1428999ecc22286f2146a63573a51ad7871df51a9661d512f5da9619cc0d5b87",
+   "40cf3234d95d50622a088f9721a0a61b1c37fb961544cdf6d39100ca356ad34e",
+   "9609753399a086632ba1eb8b2809461db43e9f06781382aef228dcd8519b092e"
+  ],
+  "origin": "runtimes.conformance-envelope",
+  "source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+  "trace_id": "claude_code_cli-offline-envelope"
+ },
+ "runtime_id": "claude_code_cli",
+ "runtime_manifest_sha256": "1428999ecc22286f2146a63573a51ad7871df51a9661d512f5da9619cc0d5b87",
+ "source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+ "status": "passed"
+}
