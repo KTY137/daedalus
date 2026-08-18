@@ -40,6 +40,9 @@ from daedalus.runtimes.fault_matrix import (
 from daedalus.runtimes.fixture_fault_attestation_issuer import (
     build_matrix_from_fixture_run_directory,
 )
+from daedalus.runtimes.live_fault_attestation_issuer import (
+    build_matrix_from_live_run_directory,
+)
 from daedalus.spine.envelope import canonical_sha
 
 
@@ -456,35 +459,63 @@ def verify_whole_runtime_fault_matrix(
     host_run_dir: str | Path,
     host_bundle: FaultAttestationBundle,
     host_secret: bytes,
+    live_run_dir: str | Path | None = None,
+    live_bundle: FaultAttestationBundle | None = None,
+    live_secret: bytes | None = None,
     source_revision: str,
     now: datetime,
     catalog: RuntimeFaultCatalog = RUNTIME_FAULT_CATALOG,
     matrix_id: str = WHOLE_MATRIX_ID,
 ) -> WholeRuntimeFaultMatrixVerdict:
-    """Assemble both columns into one matrix and verify it as a whole.
+    """Assemble every supplied column into one matrix and verify it as a whole.
 
     Each column keeps its own loader so that loader's artifact-binding refusals
     still apply, and each issuer is authorized for exactly one authority, so a
-    fixture signature over a Linux-host row (or the reverse) is refused here
-    rather than counted.
+    fixture signature over a Linux-host row (or any other crossing) is refused
+    here rather than counted.
+
+    The ``live-runtime`` column is optional because a host that cannot produce
+    live evidence must still be able to assemble the columns it does have. Its
+    absence is not neutral: every required ``live-runtime`` row then shows up as
+    a ``fault.missing`` blocker, which is exactly the visible debt it should be.
     """
 
-    if fixture_bundle.issuer_id == host_bundle.issuer_id:
+    live_parts = (live_run_dir, live_bundle, live_secret)
+    if any(part is not None for part in live_parts) and not all(
+        part is not None for part in live_parts
+    ):
         raise WholeRuntimeFaultMatrixError(
-            "the two columns must not share one issuer identity"
-        )
-    if fixture_bundle.authority == host_bundle.authority:
-        raise WholeRuntimeFaultMatrixError(
-            "the two columns must not claim the same authority"
+            "the live column needs its run directory, bundle and secret together"
         )
 
-    fixture_matrix = build_matrix_from_fixture_run_directory(
-        Path(fixture_run_dir), catalog=catalog, source_revision=source_revision
+    builders = [
+        (fixture_bundle, fixture_secret, fixture_run_dir, build_matrix_from_fixture_run_directory),
+        (host_bundle, host_secret, host_run_dir, build_matrix_from_run_directory),
+    ]
+    if live_bundle is not None:
+        builders.append(
+            (live_bundle, live_secret, live_run_dir, build_matrix_from_live_run_directory)
+        )
+
+    bundles = [row[0] for row in builders]
+    issuers = [bundle.issuer_id for bundle in bundles]
+    if len(issuers) != len(set(issuers)):
+        raise WholeRuntimeFaultMatrixError(
+            "the columns must not share one issuer identity"
+        )
+    authorities = [bundle.authority for bundle in bundles]
+    if len(authorities) != len(set(authorities)):
+        raise WholeRuntimeFaultMatrixError(
+            "the columns must not claim the same authority"
+        )
+
+    column_matrices = [
+        build(Path(run_dir), catalog=catalog, source_revision=source_revision)
+        for _bundle, _secret, run_dir, build in builders
+    ]
+    observations = tuple(
+        row for column in column_matrices for row in column.observations
     )
-    host_matrix = build_matrix_from_run_directory(
-        Path(host_run_dir), catalog=catalog, source_revision=source_revision
-    )
-    observations = tuple(fixture_matrix.observations) + tuple(host_matrix.observations)
     if not observations:
         raise WholeRuntimeFaultMatrixError("a whole matrix needs at least one observation")
     matrix = build_runtime_fault_matrix(
@@ -496,38 +527,35 @@ def verify_whole_runtime_fault_matrix(
     )
 
     keyring: dict[tuple[str, str], bytes] = {}
-    for bundle, secret in ((fixture_bundle, fixture_secret), (host_bundle, host_secret)):
+    for bundle, secret, _run_dir, _build in builders:
         for row in bundle.attestations:
             keyring[(row.issuer_id, row.key_id)] = secret
+
+    attestations: tuple[RuntimeFaultAttestation, ...] = ()
+    for bundle in bundles:
+        attestations = attestations + bundle.attestations
 
     verification = verify_attested_runtime_fault_matrix(
         matrix,
         catalog=catalog,
         expected_source_revision=source_revision,
-        attestations=fixture_bundle.attestations + host_bundle.attestations,
+        attestations=attestations,
         keyring=keyring,
         issuer_authorities={
-            fixture_bundle.issuer_id: (fixture_bundle.authority,),
-            host_bundle.issuer_id: (host_bundle.authority,),
+            bundle.issuer_id: (bundle.authority,) for bundle in bundles
         },
         now=now,
     )
 
-    columns = (
+    columns = tuple(
         WholeMatrixColumn(
-            authority=fixture_bundle.authority,
-            issuer_id=fixture_bundle.issuer_id,
-            key_class=fixture_bundle.key_class,
-            observations=len(fixture_matrix.observations),
-            attestations=len(fixture_bundle.attestations),
-        ),
-        WholeMatrixColumn(
-            authority=host_bundle.authority,
-            issuer_id=host_bundle.issuer_id,
-            key_class=host_bundle.key_class,
-            observations=len(host_matrix.observations),
-            attestations=len(host_bundle.attestations),
-        ),
+            authority=bundle.authority,
+            issuer_id=bundle.issuer_id,
+            key_class=bundle.key_class,
+            observations=len(column.observations),
+            attestations=len(bundle.attestations),
+        )
+        for bundle, column in zip(bundles, column_matrices)
     )
     return WholeRuntimeFaultMatrixVerdict(
         source_revision=source_revision,

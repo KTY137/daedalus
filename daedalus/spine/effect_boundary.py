@@ -795,6 +795,20 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
     ),
     EntrypointSpec(
+        id="runtimes.live_fault_collector",
+        surface=Surface.CLI,
+        target="daedalus.runtimes.live_fault_collector:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Runs the two live-runtime fault rows and retains their evidence. It "
+            "spawns nothing: the binary-drift probe copies the provider image into "
+            "a temp dir and mutates the copy, so the only effect is filesystem "
+            "write. It holds no signing key and grants no trust."
+        ),
+    ),
+    EntrypointSpec(
         id="runtimes.fault_attestation_issuer",
         surface=Surface.CLI,
         target="daedalus.runtimes.fault_attestation_issuer:main",

@@ -1,0 +1,160 @@
+{
+  "schema": "daedalus-gate0-whole-matrix-receipt/1",
+  "produced_at": "2026-08-18",
+  "produced_by": "grind/live-column",
+  "source_revision": "9326767812602ee0b1b5581deca1950322855aea",
+  "what_changed_in_this_run": {
+    "claim": "the live-runtime authority has a collector column for the first time, so every required catalog row now carries an observation",
+    "before": "runs/gate0-matrix-20260818-head/whole-matrix-verdict.json -- 2 columns, 22 observations, 6 blockers = 4 fault.blocked + 2 fault.missing",
+    "after": "3 columns, 24 observations, 6 blockers = 6 fault.blocked + 0 fault.missing",
+    "note": "the blocker count is unchanged on purpose. The two live rows moved from absent to observed-and-blocked, which is a different and better finding: they are now measured ignorance with a named reason instead of a hole."
+  },
+  "revision_atomicity": {
+    "claim": "every observation in this run was collected at one exact committed revision",
+    "how": "the working tree was clean at 9326767 before the first collector started; all three columns and the verdict were given that same revision explicitly, and verify_runtime_fault_matrix refuses any observation whose source_revision differs",
+    "evidence": "the verdict carries zero fault.stale-revision and zero fault.matrix-stale-revision blockers"
+  },
+  "catalog": {
+    "catalog_id": "gate0-runtime-faults-v1",
+    "catalog_sha256": "cd6df83d9071f4b079dcfa88259ae37753bf8ccf6ae3240205194c517a2cc387",
+    "scenarios": 24,
+    "required_for_gate0": 24
+  },
+  "matrix": {
+    "matrix_id": "gate0-whole-runtime-fault-matrix",
+    "matrix_sha256": "9ccd52f199b183bfc426ead4702aa3a5360fa5285921ffe3489dd7f5577b6725",
+    "observations": 24,
+    "closed": false,
+    "blocker_count": 6
+  },
+  "key_material": {
+    "class": "development",
+    "declared_by_the_issuers_themselves": true,
+    "generated_how": "three ephemeral secrets minted with secrets.token_urlsafe(48) into the shell environment for this run only; they were never written to disk and are not recoverable",
+    "what_these_signatures_mean": "a development-key signature proves only that this machine's collector output was not altered between collection and verification. It is NOT operator authority, NOT an owner approval, and NOT a production trust anchor.",
+    "what_they_do_not_mean": "no row of this run may be cited as gate-closing evidence. Closing Gate 0 requires the same run under production key custody, which this lane neither holds nor can mint. The ceremony that mints it is docs/recovery/production_key_ceremony_kit.py and only the owner runs it.",
+    "fixture_issuer_id": "issuer.gate0-fixture-dev",
+    "linux_host_issuer_id": "issuer.gate0-linux-host-dev",
+    "live_runtime_issuer_id": "issuer.gate0-live-runtime-dev",
+    "issuer_separation": "each issuer is authorized for exactly one authority, so a fixture signature over a live-runtime row (or any other crossing) is refused rather than counted; the refusal is enforced at issuance and again at verification",
+    "production_key_material": false
+  },
+  "columns": {
+    "deterministic-fixture": {
+      "collector": "daedalus.runtimes.fixture_fault_collector",
+      "rows": 13,
+      "passed": 13,
+      "failed": 0,
+      "blocked": 0,
+      "attested": 13,
+      "refused": 0,
+      "bundle_sha256": "0f44ec417cfe59c7a4e6f2021b49fed90274353eb1200c3247e072acc433d2e2"
+    },
+    "linux-host": {
+      "collector": "daedalus.runtimes.container_fault_driver",
+      "image": "python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a",
+      "rows": 9,
+      "passed": 5,
+      "failed": 0,
+      "blocked": 4,
+      "attested": 9,
+      "refused": 0,
+      "bundle_sha256": "d1982deb377b04e82784f2ca68a1a18d973a331ff0e3e46e31c06a4f1721b4ec"
+    },
+    "live-runtime": {
+      "collector": "daedalus.runtimes.live_fault_collector",
+      "drivers": "daedalus.runtimes.live_probe_drivers",
+      "rows": 2,
+      "passed": 0,
+      "failed": 0,
+      "blocked": 2,
+      "attested": 2,
+      "refused": 0,
+      "bundle_sha256": "5bb35de5a0a9c7149434f08ed3cc3cecdd29f26f14486a95b4f7041407bf8442",
+      "provider_binary_measured": "C:/Users/nukei/AppData/Local/Programs/Ollama/ollama.exe"
+    }
+  },
+  "blockers": {
+    "total": 6,
+    "fault.blocked": {
+      "count": 6,
+      "linux_host": {
+        "scenarios": [
+          "runtime.egress.unauthorized-endpoint",
+          "runtime.process.oom",
+          "runtime.sandbox.daemon-unavailable",
+          "runtime.secrets.undeclared-access"
+        ],
+        "detail_code": "docker-cli-unavailable",
+        "why": "these four executors need a container runtime inside the already containerized executor, i.e. Docker-in-Docker, which this host does not provide. The driver records honest ignorance rather than a pass.",
+        "scoped_by": "docs/GATE0_LINUX_FAULT_SCOPING_DECISION.md"
+      },
+      "live_runtime": {
+        "scenarios": [
+          "runtime.live-envelope.binary-drift",
+          "runtime.live-envelope.expiry"
+        ],
+        "detail_code": "live-envelope-unavailable",
+        "why": "both rows are refusals OF A PRODUCTION RUNTIME LEASE, and a lease is only ever authorized by a live-runtime conformance envelope: a probe identity measured from a really installed provider plus a receipt assembled from live observations of all eight conformance checks. No such envelope exists at any revision of this repository -- the conformance evidence produced on this box carries authority offline-fixture. The probes refuse to synthesize one and refuse to accept an offline-fixture bundle in its place.",
+        "why_this_box_cannot_mint_one": "the workspace-isolation check requires observing a real provider being denied an escape from its workspace, which needs OS-level containment this Windows host does not provide for a live provider run. A receipt failing that check yields a failed envelope, which would then be refused for its own status rather than for the injected fault -- so the probes block on it instead of reporting a meaningless pass.",
+        "what_was_still_measured": {
+          "binary_drift_half": "the drift probe measured the real installed ollama.exe (sha256 a64341018083a575267896f8117e66cca0a04262a963bfb3053e46ce2fc4acda), copied it, mutated the copy, and re-measured it (sha256 99f45b21aceb2a0a9a6d1c683c1969895d9be9dbddfcd16b48364bc135f1ca56). Real binary identity really moved; the installed provider was never written to. Only the lease-boundary half is missing.",
+          "expiry_half": "the probe read the staleness bound out of the kernel itself (604800 s) rather than copying it, so the instant it would test is pinned to the one the production path enforces."
+        },
+        "scoped_by": null,
+        "decision": "docs/GATE0_LIVE_RUNTIME_DECISION.md option A -- these rows are closed by building, not by scoping. The column now exists; what remains is live evidence and production custody."
+      }
+    },
+    "absent_by_measurement": {
+      "fault.missing": 0,
+      "fault.failed": 0,
+      "fault.stale-revision": 0,
+      "fault.matrix-stale-revision": 0,
+      "fault.untrusted-observation": 0,
+      "fault.outcome-mismatch": 0,
+      "fault.scenario-drift": 0,
+      "fault.authority-mismatch": 0,
+      "fault.foreign-scenario": 0,
+      "fault.catalog-mismatch": 0,
+      "note": "fault.missing is zero for the first time: all 24 required rows carry an observation at one exact revision, each with a trusted attestation over its exact record digest."
+    }
+  },
+  "honesty_properties_of_the_live_column": {
+    "positive_control": "each live probe must first verify that the UNMODIFIED bundle is accepted at the production lease boundary. Without that control it reports blocked, because a refusal of something already refusable proves nothing.",
+    "named_refusal": "after the fault, the probe requires the refusal belonging to its row -- staleness for expiry; binding quarantine plus trusted-set exclusion for drift. A refusal for another reason is failed, not passed.",
+    "no_synthesis": "the column never mints live evidence. An offline-fixture bundle handed to it is refused by name (envelope-not-live), demonstrated against the real artifacts in runs/gate0-conformance-20260818-morning/.",
+    "verified_by": "tests/runtimes/test_live_probe_drivers.py, tests/runtimes/test_live_fault_collector.py, tests/runtimes/test_live_fault_attestation_issuer.py, tests/runtimes/test_live_column_whole_matrix.py"
+  },
+  "known_gap": {
+    "entrypoint_registry": "daedalus.runtimes.live_fault_collector:main is a newly discovered effectful entrypoint and is NOT yet in the canonical registry, so tools/effect_boundary_check.py reports structural conformance BLOCKED with exactly this one blocker. The registry lives in daedalus/spine/effect_boundary.py, which a concurrent mission owns; the required EntrypointSpec is written out in this lane's handoff rather than added here to avoid a collision.",
+    "sibling_precedent": "daedalus.runtimes.fixture_fault_attestation_issuer:main and the new live issuer main are likewise absent from the registry, because their writes go through a cross-module _atomic_write the scanner does not follow. That is a pre-existing gap this run did not create."
+  },
+  "reproduction": {
+    "note": "the three signing secrets are ephemeral development material that existed only in the shell environment of this run. Re-verification requires minting three fresh secrets and re-attesting; the collector artifacts themselves are content-addressed and can be re-collected without them. The combiner is the module daedalus.runtimes.whole_fault_matrix.verify_whole_runtime_fault_matrix; this run directory deliberately carries no script copy, because a dated script copy would land as a fresh unregistered-entrypoint blocker. The registered thin CLI delegate over that module is retained at runs/gate0-matrix-2026-08-17/verify_whole_matrix.py and now takes the live column as an optional flag triple.",
+    "steps": [
+      "python -m daedalus.runtimes.fixture_fault_collector --run-dir <dir>/fixture --source-revision <sha> --repo-root .",
+      "python -m daedalus.runtimes.container_fault_driver --source-revision <sha> --output-dir <dir>/linux-host --repo-root .",
+      "python -m daedalus.runtimes.live_fault_collector --run-dir <dir>/live --source-revision <sha> --provider-binary <path-to-installed-provider> [--live-envelope-dir <dir-with-live-bundle>]",
+      "python -m daedalus.runtimes.fixture_fault_attestation_issuer issue --run-dir <dir>/fixture --source-revision <sha> --issuer-id issuer.gate0-fixture-dev --key-id gate0-fixture-dev-key --fixture-key-env DAEDALUS_FIXTURE_FAULT_KEY --key-class development --output <dir>/fixture-attestations.json",
+      "python -m daedalus.runtimes.fault_attestation_issuer issue --run-dir <dir>/linux-host --source-revision <sha> --issuer-id issuer.gate0-linux-host-dev --key-id gate0-linux-host-dev-key --key-env DAEDALUS_HOST_FAULT_KEY --key-class development --output <dir>/linux-host-attestations.json",
+      "python -m daedalus.runtimes.live_fault_attestation_issuer issue --run-dir <dir>/live --source-revision <sha> --issuer-id issuer.gate0-live-runtime-dev --key-id gate0-live-runtime-dev-key --live-key-env DAEDALUS_LIVE_FAULT_KEY --key-class development --output <dir>/live-attestations.json",
+      "python runs/gate0-matrix-2026-08-17/verify_whole_matrix.py --fixture-run-dir <dir>/fixture --fixture-bundle <dir>/fixture-attestations.json --fixture-key-env DAEDALUS_FIXTURE_FAULT_KEY --host-run-dir <dir>/linux-host --host-bundle <dir>/linux-host-attestations.json --host-key-env DAEDALUS_HOST_FAULT_KEY --live-run-dir <dir>/live --live-bundle <dir>/live-attestations.json --live-key-env DAEDALUS_LIVE_FAULT_KEY --source-revision <sha> --output <dir>/whole-matrix-verdict.json"
+    ]
+  },
+  "for_the_production_run": {
+    "owner_step_first": {
+      "what": "mint the three production column keys outside the repository",
+      "command": "python docs/recovery/production_key_ceremony_kit.py selftest && python docs/recovery/production_key_ceremony_kit.py mint",
+      "result": "%USERPROFILE%/.daedalus-keys/gate0-runtime-fault/ holding live-runtime.key, linux-host.key, deterministic-fixture.key and custody.json, locked to the owner account",
+      "then": "load them with the loader lines the kit prints, and re-run every issue step above with --key-class production",
+      "why_only_the_owner": "nothing in the build path may create production key material; the kit refuses any target inside the project tree or any Git working tree before writing a byte of entropy"
+    },
+    "still_required_after_the_ceremony": [
+      "a real live-runtime conformance envelope: a probe identity measured from an installed provider plus a receipt from live observations of all eight checks, produced on a host that can observe workspace isolation under real containment (Linux/RTX host or CI, not this Windows box)",
+      "pass that bundle to the collector with --live-envelope-dir; the two probes then run their controls and their fault injections instead of blocking",
+      "the four Docker-in-Docker linux-host rows still need a host that provides nested containers, or they remain scoped by docs/GATE0_LINUX_FAULT_SCOPING_DECISION.md",
+      "an EntrypointSpec for daedalus.runtimes.live_fault_collector:main in daedalus/spine/effect_boundary.py, or tools/effect_boundary_check.py stays BLOCKED"
+    ]
+  },
+  "provenance": "MEASURED"
+}
