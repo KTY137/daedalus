@@ -267,3 +267,65 @@ RAW: Sonde druckt ein JSON (attributed_pct 30.3, cross_module_repo 2413).
 Plan-Guard verify → `Iron Plan OK: revision 5, Gate 0 … ce4335e1…`, exit 0.
 `python -m pytest tests/test_effect_boundary.py -q` → RAW:
 `26 passed in 115.65s (0:01:55)` (experiments/-Zugang bleibt boundary-sauber).
+
+## Mission 4, Slice 1: adapter.subprocess-Familie zentral verdrahtet (3716d4e9)
+
+Vier Entrypoints (create_session/send/interrupt/terminate) starten jetzt nur
+noch durch `begin_effect` mit echter runtime.adapter_profile-Entscheidung
+(verified-profile vs explicit-config, gebundener repo_root); Start-Receipt
+wird pro Session einbehalten, refusierter terminate lässt die Session
+getrackt. Registry: 4 Zeilen auf Wiring.CENTRAL mit begin_effect-Ankern;
+inventory_only 70 -> 66.
+RAW: tests/test_adapters.py `12 passed in 1.00s`; tests/test_effect_boundary.py
+`26 passed in 51.88s`. Mutationsprobe RAW: Schleuse deaktiviert ->
+`FAILED tests/test_adapters.py::test_create_session_is_refused_fail_closed_without_the_guard_contract`,
+restauriert -> `1 passed`.
+
+## Mission 4, Slices 2-8: CENTRAL-Verdrahtung 66 -> 12 inventory_only
+
+Owner-Direktive umgesetzt: echte `begin_effect`-Pfade mit ausgefuehrten
+Guard-Entscheidungen, kein Registry-Umdeklarieren. Commits (je Batch, mit
+Zaehlerstand, Familientests + Mutationsprobe RAW in der Commit-Message):
+
+- 3716d4e9 adapter.subprocess-Familie (4): runtime.adapter_profile-Entscheidung
+  (verified-profile vs explicit-config), Receipt pro Session. 70->66.
+- (Batch 2) 8 cli.* via budget.process_guard: process_guard_boundary_decision()
+  in daedalus/budget.py installiert das echte Spend-Netz und liefert die
+  Entscheidung; read-only-Pfade bleiben fail-open. 66->58.
+- b9dfec91 8 weitere cli.* (arch_memory, bookkeeper, dctx, doctor, eval_*,
+  memory). Mutationsprobe bookkeeper: Schleuse aus -> Test rot UND der
+  ungeschuetzte Lauf ueberschrieb docs/architecture.html (restauriert) --
+  der Beweis, wozu die Schleuse da ist. 58->50.
+- 32eeaafe file_bridge.enqueue/process/watch (crash_journal-Entscheidung
+  verifiziert das durable Journal; enqueue-Refusal hinterlaesst keine Datei)
+  + cli.file_bridge/mapping_*/status. RAW: bridge+mapping 197 passed. 50->42.
+- 6269c53e 8 tool-runner mains; Pinning-Loops tragen jetzt SOLL-Wiring pro
+  Zeile (CENTRAL fuer verdrahtete, INVENTORY_ONLY fuer protected). 42->34.
+- ddc4ad9b bezahlte/git-anfassende Tool-Tueren inkl. guarded_call (echte
+  provider.egress_policy-Entscheidung: secret_floor_rule ueber den Outbound-
+  Payload; Refusal als JSON exit 0 nach Prozess-Protokoll). 34->27.
+- 26a8ab5a runs/-Tueren (Council-Room, Summariser, Room-Server inkl.
+  per-POST-Start, Stream-Hook schreibt bei Refusal NICHTS, Dead-Letter,
+  4x A/B). 27->17.
+- 251d350c web.mutations/put (per-Request-Start nach Auth, Bind-Klasse als
+  Entscheidung), cli.web_api (echter _resolve_bind-Verdict), command_gate,
+  worktree.reap. Nebenwirkung gefangen: Proben mit echtem Netz resetteten
+  runs/budget/ledger.json -> aus HEAD restauriert. 17->12.
+
+Rest (12) ausnahmslos mit REASONED-REMAINDER-Notiz in der Registry:
+2 protected Plan-Guard-Artefakte, 3 runtimes-Kollektoren + gate0-matrix-
+Verifier (parallele live-runtime-Lane grind/live-column), 6 Provider-
+Lifecycle-Zeilen (zentral nur ueber die runtime-gebundene Lease/Broker-
+Kette; eine zweite plain-Schleuse waere eine schwaechere Parallel-Tuer).
+
+Gate-Report RAW bei HEAD 251d350c (mission4-gate-report-final.json):
+inventory_only 12, blockers 73 -> 15 (58 geloest, 0 NEUE), unregistered 0,
+unguarded 0, missing_guard_contracts 0, registry_sha256 b947fe55f15998fe...
+Suiten RAW: tests/test_cli_effect_boundary.py `49 passed in 8.02s`;
+tests/test_effect_boundary.py `26 passed in 51.62s`; tests/test_adapters.py
+`12 passed`; bridge+mapping `197 passed, 2 subtests passed in 50.70s`;
+web+worktree `72 passed in 25.76s`; spine attempt `40 passed in 14.41s`.
+Mutationsproben RAW je Familie: adapter/create_session, cli.enforce,
+cli.bookkeeper, file_bridge.enqueue, lane_invariants, guarded_call,
+stream_hook, cli.web_api -- jeweils Schleuse deaktiviert -> benannter Test
+FAILED, restauriert -> passed. Plan-Guard verify: Iron Plan OK (ce4335e1...).
