@@ -329,3 +329,32 @@ Mutationsproben RAW je Familie: adapter/create_session, cli.enforce,
 cli.bookkeeper, file_bridge.enqueue, lane_invariants, guarded_call,
 stream_hook, cli.web_api -- jeweils Schleuse deaktiviert -> benannter Test
 FAILED, restauriert -> passed. Plan-Guard verify: Iron Plan OK (ce4335e1...).
+
+## Mission 4, Abschlussverifikation (nach 7cea2d24)
+
+Breite Regression (detached, voller Baum) RAW:
+`7 failed, 6686 passed, 109 skipped, 1 xfailed, 17 warnings, 1992 subtests passed in 3147.86s (0:52:27)`.
+Triage der 7:
+- test_spend_coverage (Installer-Pin): ECHT durch die Mission -- daedalus/budget.py
+  installiert das Netz jetzt in process_guard_boundary_decision(). Pin bewusst
+  erweitert (7cea2d24), Test danach gruen.
+- test_killswitch latency-gate: Last-Flake unter der 52-min-Suite; standalone
+  RAW gruen im Re-Run-Batch.
+- 4x tests/gates/test_gate_report_matrix_binding + test_envelope_coverage:
+  VORBESTEHENDE Baseline-Fehler bei Basis 35172501, separat benannt:
+  drei getrackte Matrix-Laeufe (runs/gate0-matrix-2026-08-17, -20260818-head,
+  -20260818-morning) machen die Whole-Matrix-Evidenz ambivalent
+  (`whole-matrix:unbound:ambiguous-evidence:3`), und
+  runs/gate0-matrix-2026-08-17/verify_whole_matrix.py fehlt im
+  Producers-Ledger. Beweis: `git diff 35172501..HEAD` beruehrt weder
+  daedalus/gates/, daedalus/kernel/, tests/gates/, envelope noch runs/gate0-*
+  (nur die Sluice-Zeilen in runs/ab+council-Skripten, die das Binding nicht
+  liest) -- die Test-Inputs sind byte-identisch zur Basis. Beide Bereiche
+  gehoeren der parallelen live-runtime-Lane (grind/live-column) und sind fuer
+  diese Mission ausdruecklich tabu; Reparatur liegt dort.
+Re-Run-Batch RAW nach Pin-Fix: gates-binding+spend+killswitch+envelope
+`5 failed, 87 passed in 350.94s` -- die 5 sind exakt die benannten
+Baseline-Fehler. runs/budget/ledger.json wurde von Suite-Laeufen erneut
+zurueckgesetzt und aus HEAD restauriert (bekannte Nebenwirkung, s.o.).
+Mission-Ziel erreicht: inventory_only 70 -> 12, alle 12 mit begruendeter
+Registry-Notiz; 0 neue Gate-Report-Blocker; 58 geloest.
