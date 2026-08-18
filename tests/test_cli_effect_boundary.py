@@ -591,6 +591,35 @@ def test_runs_council_dead_letter_replay_refuses_but_list_stays_fail_open(
         dlr.main(["replay", "--room", str(room_file)])
 
 
+def test_web_api_main_refuses_fail_closed_before_binding(
+    monkeypatch, contracts_disabled
+):
+    from daedalus import web_api
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("run() must not bind after a refused boundary")
+
+    monkeypatch.setattr(web_api, "run", _exploded)
+    with pytest.raises(EffectStartRefused):
+        web_api.main(["--host", "127.0.0.1"])
+
+
+def test_command_gate_refuses_fail_closed(contracts_disabled):
+    from daedalus.spine.attempt import command_gate
+
+    with pytest.raises(EffectStartRefused):
+        command_gate(["python", "-c", "pass"])
+
+
+def test_worktree_reap_refuses_fail_closed(tmp_path, contracts_disabled):
+    from daedalus.kairos.worktree import GitWorktreeManager
+
+    manager = GitWorktreeManager.__new__(GitWorktreeManager)
+    manager._allocations = {}
+    with pytest.raises(EffectStartRefused):
+        manager.reap_branches()
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget

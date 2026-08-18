@@ -200,9 +200,16 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("web.authenticated_bind",),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "_authorized"),),
-        notes="Request auth exists; one canonical per-request effect start does not.",
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "_authorized"),
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "begin_effect"),
+        ),
+        notes=(
+            "Each POST starts centrally after request auth; the recorded "
+            "decision names the bind class (loopback vs token-verified)."
+        ),
+        migration="complete for the web.mutations entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.enqueue",
@@ -688,6 +695,76 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the cli.memory entrypoint",
     ),
     EntrypointSpec(
+        id="cli.web_api",
+        surface=Surface.CLI,
+        target="daedalus.web_api:main",
+        effects=(Effect.LISTEN_SOCKET,),
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.web_api:main", "begin_effect"),),
+        notes=(
+            "The listen socket starts centrally with the real _resolve_bind "
+            "verdict as its decision; a refused non-loopback bind still "
+            "refuses before the boundary is consulted."
+        ),
+        migration="complete for the cli.web_api entrypoint",
+    ),
+    EntrypointSpec(
+        id="web.mutations_put",
+        surface=Surface.WEB_API,
+        target="daedalus.web_api:DaedalusHandler.do_PUT",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_PUT", "begin_effect"),
+        ),
+        notes=(
+            "Each PUT starts centrally after request auth, mirroring "
+            "web.mutations."
+        ),
+        migration="complete for the web.mutations_put entrypoint",
+    ),
+    EntrypointSpec(
+        id="python.command_gate",
+        surface=Surface.PYTHON,
+        target="daedalus.spine.attempt:command_gate",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("containment.attempt",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.spine.attempt:command_gate", "begin_effect"),),
+        notes=(
+            "Gate construction starts centrally; candidate execution inside "
+            "the gate remains containment-enforced with refusal instead of "
+            "downgrade (no contained=False exists)."
+        ),
+        migration="complete for the python.command_gate entrypoint",
+    ),
+    EntrypointSpec(
+        id="worktree.reap",
+        surface=Surface.WORKTREE,
+        target="daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=("containment.worktree",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Branch reaping starts centrally; deletion still requires this "
+            "manager's in-process allocation record AND git reachability, "
+            "per the method's trust model."
+        ),
+        migration="complete for the worktree.reap entrypoint",
+    ),
+    EntrypointSpec(
         id="cli.file_bridge",
         surface=Surface.CLI,
         target="daedalus.file_bridge:main",
@@ -772,7 +849,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard", "provider.write_policy"),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="claude_code_cli",
-        notes="Provider delegates to ask_claude; direct Python use bypasses CLI spend installation.",
+        notes=(
+            "Provider delegates to ask_claude; direct Python use bypasses CLI "
+            "spend installation. REASONED REMAINDER 2026-08-18: runtime-bearing "
+            "rows must reach central through the runtime-bound lease/broker "
+            "chain (live-runtime lane, Revision 3); wiring the plain spine "
+            "sluice here would mint a second, weaker start path for a runtime "
+            "row, so this stays inventory_only until that chain lands."
+        ),
     ),
     EntrypointSpec(
         id="provider.codex",
@@ -793,7 +877,12 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
                 "classify_data",
             ),
         ),
-        notes="Egress is fail-closed and write defaults false; direct write mode remains an unleased path.",
+        notes=(
+            "Egress is fail-closed and write defaults false; direct write "
+            "mode remains an unleased path. REASONED REMAINDER 2026-08-18: "
+            "runtime-bearing row -- central only via the runtime-bound "
+            "lease/broker chain owned by the live-runtime lane."
+        ),
     ),
     EntrypointSpec(
         id="provider.ollama",
@@ -813,7 +902,12 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("provider.egress_policy",),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="ollama_http",
-        notes="Low-level HTTP helper accepts a host and has no independent lane decision.",
+        notes=(
+            "Low-level HTTP helper accepts a host and has no independent lane "
+            "decision. REASONED REMAINDER 2026-08-18: runtime-bearing row -- "
+            "central only via the runtime-bound lease/broker chain owned by "
+            "the live-runtime lane."
+        ),
     ),
     EntrypointSpec(
         id="worktree.create",
@@ -1196,7 +1290,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "policy (read-only root, network=none, dropped caps, timeout_s) "
             "both live in daedalus.kernel.sandbox.run_in_docker_sandbox, which "
             "the scanner cannot see across the module edge. The anchor pins "
-            "that containment call so the row cannot rot into a raw spawn."
+            "that containment call so the row cannot rot into a raw spawn. "
+            "REASONED REMAINDER 2026-08-18: fault-matrix collector owned by "
+            "the live-runtime lane (grind/live-column); its central wiring "
+            "lands with that lane's runtime-bound chain."
         ),
     ),
     EntrypointSpec(
@@ -1221,7 +1318,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the evidence. The subprocess.run (with its timeout, hence "
             "process_control) sits in a closure returned by "
             "subprocess_pytest_runner, which the scanner does not enter; the "
-            "anchor pins main's use of that runner seam instead."
+            "anchor pins main's use of that runner seam instead. REASONED "
+            "REMAINDER 2026-08-18: fault-matrix collector owned by the "
+            "live-runtime lane (grind/live-column); its central wiring lands "
+            "with that lane's runtime-bound chain."
         ),
     ),
     EntrypointSpec(
@@ -1236,7 +1336,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "bundle. It reads the signing key from the environment "
             "(_secret_from_env), so secrets is hand-declared: a signing door "
             "that stayed green while handling a key is exactly the row this "
-            "inventory exists to name. It grants authenticity, never a verdict."
+            "inventory exists to name. It grants authenticity, never a "
+            "verdict. REASONED REMAINDER 2026-08-18: key-ceremony door owned "
+            "by the live-runtime lane (grind/live-column); its central "
+            "wiring lands with that lane's runtime-bound chain."
         ),
     ),
     # runs/ -- production-capable entrypoints that spend money; five of these
@@ -1422,7 +1525,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the next matrix run mints a fresh unregistered blocker and this "
             "row goes stale the day its evidence folder is pruned. Moving the "
             "verifier to a stable path is an owner decision -- the script is "
-            "deliberately retained beside the evidence it produced."
+            "deliberately retained beside the evidence it produced. REASONED "
+            "REMAINDER 2026-08-18: lives inside the live-runtime lane's "
+            "dated evidence directory (runs/gate0-*); untouched by the "
+            "central-wiring mission on the parallel branch."
         ),
     ),
 )
@@ -1433,87 +1539,68 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
 # blocker, while deleting one makes its row stale.  These rows are intentionally
 # concise because their next Gate-0 action is consolidation behind the primary
 # rows above, not preservation as separate architecture.
-_LEGACY_ENTRYPOINT_ROWS: tuple[
-    tuple[str, Surface, str, tuple[Effect, ...], Wiring], ...
-] = (
-    # cli.claude_bridge was deleted from this inventory 2026-08-17: the target
-    # is now a fail-closed stub (parser.error, no effect), so its row declared
-    # effects the code cannot perform and produced the registry's only
-    # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
-    # effectful body the scanner will rediscover it as an unregistered blocker.
-    ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
-    (
+# The former legacy tuple block is gone: every direct start now carries a
+# full spec (central where the real begin_effect path exists, inventory_only
+# with a reasoned note where it honestly does not).
+# cli.claude_bridge was deleted from this inventory 2026-08-17: the target
+# is now a fail-closed stub (parser.error, no effect), so its row declared
+# effects the code cannot perform and produced the registry's only
+# entrypoint.not_rediscovered staleness finding.  If the bridge regains an
+# effectful body the scanner will rediscover it as an unregistered blocker.
+_REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
         # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:
         # run reads DEEPSEEK_API_KEY, and chat_completion is priced through
         # daedalus.budget._guarded_urlopen, so the busiest paid lane declares
         # spend/egress/secrets instead of filesystem_write alone.
-        "provider.deepseek",
-        Surface.PYTHON,
-        "daedalus.providers.deepseek:DeepSeekProvider.run",
-        (
+        id="provider.deepseek",
+        surface=Surface.PYTHON,
+        target="daedalus.providers.deepseek:DeepSeekProvider.run",
+        effects=(
             Effect.FILESYSTEM_WRITE,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
             Effect.SECRETS,
         ),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "provider.deepseek.rollback",
-        Surface.PYTHON,
-        "daedalus.providers.deepseek:DeepSeekProvider.rollback",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "provider.ollama.rollback",
-        Surface.OLLAMA,
-        "daedalus.providers.ollama:OllamaProvider.rollback",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "python.command_gate",
-        Surface.PYTHON,
-        "daedalus.spine.attempt:command_gate",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "web.mutations_put",
-        Surface.WEB_API,
-        "daedalus.web_api:DaedalusHandler.do_PUT",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "worktree.reap",
-        Surface.WORKTREE,
-        "daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
-        (
-            Effect.FILESYSTEM_WRITE,
-            Effect.PROCESS_SPAWN,
-            Effect.REPOSITORY_MUTATION,
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Busiest paid lane. REASONED REMAINDER 2026-08-18: provider run "
+            "methods are the runtime family; central wiring goes through the "
+            "runtime-bound lease/broker chain owned by the live-runtime "
+            "lane, not a second plain sluice here. Its process-boundary door "
+            "(the guarded external-call CLI) IS centrally wired."
         ),
-        Wiring.INVENTORY_ONLY,
+    ),
+    EntrypointSpec(
+        id="provider.deepseek.rollback",
+        surface=Surface.PYTHON,
+        target="daedalus.providers.deepseek:DeepSeekProvider.rollback",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
+            "provider lifecycle as run; it moves to central together with "
+            "the runtime-bound lease chain, not separately."
+        ),
+    ),
+    EntrypointSpec(
+        id="provider.ollama.rollback",
+        surface=Surface.OLLAMA,
+        target="daedalus.providers.ollama:OllamaProvider.rollback",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
+            "provider lifecycle as run; it moves to central together with "
+            "the runtime-bound lease chain, not separately."
+        ),
     ),
 )
 
-ENTRYPOINTS += tuple(
-    EntrypointSpec(
-        id=row_id,
-        surface=surface,
-        target=target,
-        effects=effects,
-        guard_contracts=(),
-        wiring=wiring,
-        notes=(
-            "Legacy direct start retained in the Gate-0 inventory; consolidate "
-            "behind a canonical boundary row before declaring Gate 0 closed."
-        ),
-    )
-    for row_id, surface, target, effects, wiring in _LEGACY_ENTRYPOINT_ROWS
-)
+ENTRYPOINTS += _REMAINDER_PROVIDER_ROWS
 
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(

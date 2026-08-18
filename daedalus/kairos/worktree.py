@@ -1183,6 +1183,25 @@ class GitWorktreeManager:
                 failures are reported together rather than aborting on the
                 first one.
         """
+        from daedalus.spine.effect_boundary import (
+            REGISTRY_BY_ID,
+            GuardDecision,
+            begin_effect,
+        )
+
+        begin_effect(
+            "worktree.reap",
+            REGISTRY_BY_ID["worktree.reap"].effects,
+            (
+                GuardDecision(
+                    "containment.worktree",
+                    True,
+                    "reap restricted to this manager's in-process allocation "
+                    f"registry ({len(self._allocations)} record(s)); on-disk "
+                    "records are reported unverifiable, never acted on",
+                ),
+            ),
+        )
         report: List[dict] = []
         failures: List[str] = []
 
