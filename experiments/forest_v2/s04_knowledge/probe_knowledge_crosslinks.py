@@ -37,6 +37,29 @@ that are not edges).  Links and wiki links are additionally taken only from
 outside inline code spans, while code refs are taken only from inside them —
 that is the form they actually occur in.  The count of refs dropped by fence
 stripping is reported, so the filter's effect is visible instead of assumed.
+
+**Reporting rule (schema 2): a denominator waterfall, never one number.**
+Schema 1 published a single ``all_edges_resolved_pct``.  That number was
+denominator cosmetics: it silently dropped external links and ambiguous
+references out of the denominator, and it counted weak unique-suffix inference
+as if it were resolution.  Two different exclusions and one weaker claim all
+disappeared into one flattering percentage.
+
+Schema 2 removes it and reports every stage instead::
+
+    extracted
+      - excluded, itemised per reason (external_url, ambiguous_target)
+      = verifiable
+          strictly_verified    exact path/anchor/stem, line within range
+          inferred_proposal    unique-suffix inference — a PROPOSAL, not a
+                               resolution, and never added to the strict count
+          unresolved           itemised per reason
+
+No stage may vanish: the two balance identities (excluded + verifiable ==
+extracted, and strict + inferred + unresolved == verifiable) are checked at
+build time and also published, so a future edit that loses a bucket fails
+loudly instead of quietly improving the rate.  Ambiguity is a first-class
+outcome with its own examples, not a discard.
 """
 from __future__ import annotations
 
@@ -179,6 +202,119 @@ def count_lines(root: Path, rel: str, cache: dict[str, int]) -> int:
     return total
 
 
+# Buckets that are genuinely dead edges.  ``code_ref_ambiguous`` and
+# ``code_ref_suffix_resolved`` are deliberately NOT here: one is excluded, the
+# other is a proposal, and calling either "dead" is as wrong as calling it
+# "resolved".
+DEAD_BUCKETS = (
+    "link_path_dead",
+    "link_anchor_dead",
+    "code_ref_dead_path",
+    "code_ref_line_out_of_range",
+    "wiki_dead",
+    "wiki_code_target_dead",
+)
+
+# Every extracted candidate is counted by exactly one of these keys, which is
+# what makes the waterfall balance checkable rather than decorative.
+EXCLUDED_REASONS = {
+    "external_url": "link_external",
+    "ambiguous_target": "code_ref_ambiguous",
+}
+STRICT_BUCKETS = (
+    "link_path_resolved",
+    "link_anchor_resolved",
+    "code_ref_resolved",
+    "wiki_resolved",
+    "wiki_code_target_resolved",
+)
+INFERRED_BUCKETS = ("code_ref_suffix_resolved",)
+EXTRACTED_BUCKETS = (
+    "link_total",
+    "code_ref_total",
+    "wiki_total",
+    "wiki_code_target_total",
+)
+
+
+def build_waterfall(totals: dict) -> dict:
+    """Stage the denominator so nothing can leave it unannounced.
+
+    ``extracted`` is every candidate the extractor produced.  Exclusions are
+    itemised per reason and subtracted explicitly; what remains is
+    ``verifiable``, which splits into strictly verified, inferred proposals,
+    and unresolved.  Both balance identities are asserted here, so a bucket
+    that stops being counted raises instead of silently raising the rate.
+    """
+    extracted = sum(totals[k] for k in EXTRACTED_BUCKETS)
+    excluded_by_reason = {
+        reason: totals[bucket] for reason, bucket in EXCLUDED_REASONS.items()
+    }
+    excluded = sum(excluded_by_reason.values())
+    verifiable = extracted - excluded
+    strict = sum(totals[k] for k in STRICT_BUCKETS)
+    inferred = sum(totals[k] for k in INFERRED_BUCKETS)
+    unresolved_by_reason = {k: totals[k] for k in DEAD_BUCKETS}
+    unresolved = sum(unresolved_by_reason.values())
+
+    balances = {
+        "excluded_plus_verifiable_equals_extracted": excluded + verifiable == extracted,
+        "verifiable_splits_without_remainder":
+            strict + inferred + unresolved == verifiable,
+    }
+    if not all(balances.values()):
+        raise ValueError(
+            "waterfall does not balance — a bucket is unaccounted for: "
+            f"extracted={extracted} excluded={excluded} verifiable={verifiable} "
+            f"strict={strict} inferred={inferred} unresolved={unresolved}"
+        )
+
+    def of(count: int, total: int) -> float:
+        return round(100.0 * count / total, 1) if total else 0.0
+
+    # Ordered rows: this list is the published table, so the prose cannot drift
+    # away from the computation that produced it.
+    rows = [
+        ("extracted", extracted, 100.0, "every candidate the extractor produced"),
+        ("- excluded: external_url", excluded_by_reason["external_url"],
+         of(excluded_by_reason["external_url"], extracted),
+         "http/mailto/ftp — unverifiable offline, no network in this frame"),
+        ("- excluded: ambiguous_target", excluded_by_reason["ambiguous_target"],
+         of(excluded_by_reason["ambiguous_target"], extracted),
+         "more than one candidate file matched; reported, never guessed"),
+        ("= verifiable", verifiable, of(verifiable, extracted),
+         "candidates this frame can actually decide"),
+        ("strictly_verified", strict, of(strict, extracted),
+         "exact path/anchor/stem hit, cited line within the real file length"),
+        ("inferred_proposal", inferred, of(inferred, extracted),
+         "unique-suffix inference — a proposal awaiting verification"),
+        ("unresolved", unresolved, of(unresolved, extracted),
+         "target absent, anchor absent, or line past end of file"),
+    ]
+
+    return {
+        "extracted": extracted,
+        "excluded_total": excluded,
+        "excluded_by_reason": excluded_by_reason,
+        "verifiable": verifiable,
+        "strictly_verified": strict,
+        "inferred_proposal": inferred,
+        "unresolved": unresolved,
+        "unresolved_by_reason": unresolved_by_reason,
+        # Both denominators, published side by side.  Quoting either one alone
+        # is what produced the retracted headline.
+        "strict_pct_of_extracted": of(strict, extracted),
+        "strict_pct_of_verifiable": of(strict, verifiable),
+        "inferred_pct_of_extracted": of(inferred, extracted),
+        "unresolved_pct_of_verifiable": of(unresolved, verifiable),
+        "balances": balances,
+        "rows": [
+            {"stage": s, "count": c, "pct_of_extracted": p, "meaning": m}
+            for s, c, p, m in rows
+        ],
+    }
+
+
 def probe(root: Path) -> dict:
     root = root.resolve()
     index = build_corpus_index(root)
@@ -240,7 +376,10 @@ def probe(root: Path) -> dict:
         # precision accounting
         "refs_dropped_by_fence_filter": 0,
     }
-    dead_examples: dict[str, list[str]] = {
+    # One store, split at output time.  Ambiguous and suffix-inferred specimens
+    # used to sit inside ``dead_examples``, which mislabelled them: neither is
+    # dead.  They now surface under their own headings.
+    examples: dict[str, list[str]] = {
         "link_path_dead": [],
         "link_anchor_dead": [],
         "code_ref_line_out_of_range": [],
@@ -252,8 +391,8 @@ def probe(root: Path) -> dict:
     }
 
     def note(bucket: str, value: str) -> None:
-        if len(dead_examples[bucket]) < 12:
-            dead_examples[bucket].append(value)
+        if len(examples[bucket]) < 12:
+            examples[bucket].append(value)
 
     for path, rel in zip(md_files, md_rel):
         raw = _read(path)
@@ -409,33 +548,37 @@ def probe(root: Path) -> dict:
     )
     link_resolved = totals["link_path_resolved"] + totals["link_anchor_resolved"]
     code_checkable = totals["code_ref_total"] - totals["code_ref_ambiguous"]
-    code_tolerant = totals["code_ref_resolved"] + totals["code_ref_suffix_resolved"]
-    wiki_all = totals["wiki_total"] + totals["wiki_code_target_total"]
-    wiki_all_resolved = totals["wiki_resolved"] + totals["wiki_code_target_resolved"]
-    edges_checkable = link_checkable + code_checkable + wiki_all
-    edges_resolved = link_resolved + code_tolerant + wiki_all_resolved
+    code_incl_inferred = totals["code_ref_resolved"] + totals["code_ref_suffix_resolved"]
+
+    waterfall = build_waterfall(totals)
 
     return {
-        "schema": "forest-v2-knowledge-crosslink-probe/1",
+        "schema": "forest-v2-knowledge-crosslink-probe/2",
         "read_only": True,
         "root": root.name,
         "totals": totals,
+        # The headline.  Schema 1's single ``all_edges_resolved_pct`` is gone on
+        # purpose: it hid two exclusions and promoted inference to resolution.
+        "waterfall": waterfall,
         "rates": {
             "link_resolved_pct": pct(link_resolved, link_checkable),
             "link_checkable": link_checkable,
             "code_ref_resolved_strict_pct": pct(
                 totals["code_ref_resolved"], code_checkable),
-            "code_ref_resolved_incl_suffix_pct": pct(code_tolerant, code_checkable),
+            # Deliberately not called "resolved": the suffix bucket is inference.
+            "code_ref_incl_inferred_pct": pct(code_incl_inferred, code_checkable),
             "code_ref_checkable": code_checkable,
             "wiki_note_resolved_pct": pct(totals["wiki_resolved"], totals["wiki_total"]),
             "wiki_code_target_resolved_pct": pct(
                 totals["wiki_code_target_resolved"], totals["wiki_code_target_total"]),
-            "all_edges_checkable": edges_checkable,
-            "all_edges_resolved": edges_resolved,
-            "all_edges_resolved_pct": pct(edges_resolved, edges_checkable),
-            "all_edges_dead": edges_checkable - edges_resolved,
         },
-        "dead_examples": dead_examples,
+        "dead_examples": {k: examples[k] for k in DEAD_BUCKETS},
+        # Ambiguity is an outcome, not a discard: it leaves the denominator but
+        # keeps its evidence.
+        "ambiguous_examples": examples["code_ref_ambiguous"],
+        # Inference is a proposal, not a resolution; its specimens are listed so
+        # every one of them can be audited by hand.
+        "inferred_examples": examples["code_ref_suffix_resolved"],
     }
 
 

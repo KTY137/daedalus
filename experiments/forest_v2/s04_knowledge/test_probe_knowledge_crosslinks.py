@@ -148,7 +148,10 @@ def test_package_relative_ref_resolves_by_suffix_into_its_own_bucket(tmp_path):
     assert result["totals"]["code_ref_resolved"] == 0
     assert result["totals"]["code_ref_dead_path"] == 0
     assert result["rates"]["code_ref_resolved_strict_pct"] == 0.0
-    assert result["rates"]["code_ref_resolved_incl_suffix_pct"] == 100.0
+    assert result["rates"]["code_ref_incl_inferred_pct"] == 100.0
+    # and in the waterfall it is a proposal, never a verification
+    assert result["waterfall"]["strictly_verified"] == 0
+    assert result["waterfall"]["inferred_proposal"] == 1
 
 
 def test_suffix_match_still_obeys_the_line_range_check(tmp_path):
@@ -231,7 +234,7 @@ def test_probe_is_read_only_on_the_corpus(tmp_path):
 def test_output_is_json_serialisable_with_declared_schema(tmp_path):
     write(tmp_path, "a.md", "# H\n")
     result = probe(tmp_path)
-    assert result["schema"] == "forest-v2-knowledge-crosslink-probe/1"
+    assert result["schema"] == "forest-v2-knowledge-crosslink-probe/2"
     assert result["read_only"] is True
     json.dumps(result)  # must not raise
 
