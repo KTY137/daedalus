@@ -212,41 +212,247 @@ def test_csv_header_becomes_fields_with_inferred_types():
     assert node.fields[0].type_source == "inferred"
     assert node.fields[3].type_source == "none"
     assert node.fields[1].locator.endswith("#L1C2")
-    assert node.notes == ("sampled_rows=2",)
+    assert node.notes == ("rows_read=2", "exhaustive")
 
 
 def test_empty_csv_yields_no_node():
     assert dp.extract_csv("", "x.csv") == []
 
 
-# --- binding and consistency ------------------------------------------------
-def _csv_node(text: str) -> dp.DataNode:
-    return dp.extract_csv(text, "data/events.csv")[0]
+def test_csv_reads_every_row_by_default_and_marks_sampling_when_asked():
+    text = "id\n" + "".join(f"{n}\n" for n in range(200))
+    node = dp.extract_csv(text, "x.csv")[0]
+    assert node.meta["rows_read"] == 200
+    assert node.meta["exhaustive"] is True
+    sampled = dp.extract_csv(text, "x.csv", sample_rows=50)[0]
+    assert sampled.meta["rows_read"] == 50
+    assert sampled.meta["exhaustive"] is False
 
 
-def test_binding_verifies_only_subset_with_compatible_types():
-    schema_nodes, _ = dp.extract_json_schema(
+def test_column_observation_counts_empty_cells_as_non_numeric():
+    # The DESCRIPTIVE label skips empty cells; the verifier's evidence does not.
+    # An empty CELL (",,") -- distinct from a blank ROW, which is dropped.
+    node = dp.extract_csv("n,other\n1,a\n,b\n2,c\n", "x.csv")[0]
+    assert node.fields[0].declared_type == "integer"  # description
+    observation = node.meta["columns"]["0"]
+    assert observation["values_seen"] == 3
+    assert observation["empty_cells"] == 1
+    assert observation["all_integer"] is False  # evidence
+    assert observation["all_string"] is True
+
+
+def test_ragged_and_blank_rows_are_recorded():
+    node = dp.extract_csv("a,b\n1,2\n3\n\n4,5\n", "x.csv")[0]
+    assert node.meta["ragged_rows"] == 1
+    assert node.meta["blank_rows"] == 1
+    assert node.meta["rows_read"] == 3
+
+
+# --- fail-closed intra-data binding -----------------------------------------
+def _schema(properties: dict, required: list[str]) -> list[dp.DataNode]:
+    nodes, _ = dp.extract_json_schema(
         {
             "$schema": "s",
             "type": "object",
-            "required": ["id"],
-            "properties": {"id": {"type": "string"}, "voltage": {"type": "number"}},
+            "required": required,
+            "properties": properties,
         },
         "schemas/event.schema.json",
     )
-    good = dp.bind_csv_to_schema([_csv_node("id,voltage\na,1.5\n")], schema_nodes)
-    assert len(good) == 1 and good[0]["verified"] is True
-    assert good[0]["overlap"] == 2 and good[0]["header_is_subset"] is True
+    return nodes
 
-    mismatch = dp.bind_csv_to_schema([_csv_node("id,voltage\na,b\n")], schema_nodes)
-    assert mismatch[0]["verified"] is False
-    assert mismatch[0]["type_mismatches"] == ["voltage: csv=string schema=number"]
 
-    extra = dp.bind_csv_to_schema([_csv_node("id,voltage,extra\na,1.5,x\n")], schema_nodes)
-    assert extra[0]["header_is_subset"] is False
-    assert extra[0]["verified"] is False
+EVENT_SCHEMA = _schema(
+    {"id": {"type": "string"}, "voltage": {"type": "number"}}, ["id", "voltage"]
+)
 
-    assert dp.bind_csv_to_schema([_csv_node("other\n1\n")], schema_nodes) == []
+
+def _bind(text: str, schema_nodes=None, **kwargs) -> dict:
+    proposals = dp.propose_intra_data_bindings(
+        [dp.extract_csv(text, "data/events.csv", **kwargs)[0]],
+        EVENT_SCHEMA if schema_nodes is None else schema_nodes,
+    )
+    assert len(proposals) == 1
+    return proposals[0]
+
+
+def test_a_clean_binding_verifies_and_still_is_not_a_trusted_edge():
+    record = _bind("id,voltage\na,1.5\nb,2\n")
+    assert record["status"] == dp.VERIFIED
+    assert record["rejections"] == [] and record["indeterminacies"] == []
+    assert record["rows_checked"] == 2 and record["exhaustive_rows"] is True
+    # The whole point of the fix: a passing check is NOT a cross-plane edge.
+    assert record["record_type"] == "intra_data_proposal"
+    assert record["planes"] == ["data", "data"]
+    assert record["trusted_cross_plane_edge"] is False
+    assert record["sec6_verifier_record"] is None
+    assert set(record["sec6_inputs_missing"]) == {
+        "revision_compatibility",
+        "task_relevance",
+        "score",
+        "expiry_or_retest",
+    }
+
+
+def test_missing_required_field_is_rejected():
+    # The old check never looked at `required` at all.
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": "number"}}, ["id", "voltage"]
+    )
+    record = _bind("id\na\n", schema)
+    assert record["status"] == dp.REJECTED
+    assert record["rejections"] == ["required_field_missing:voltage"]
+
+
+def test_column_the_schema_does_not_declare_is_rejected():
+    record = _bind("id,voltage,extra\na,1.5,x\n")
+    assert record["status"] == dp.REJECTED
+    assert "csv_column_not_in_schema:extra" in record["rejections"]
+
+
+def test_value_contradicting_the_declared_type_is_rejected():
+    record = _bind("id,voltage\na,b\n")
+    assert record["status"] == dp.REJECTED
+    assert record["rejections"] == ["type_mismatch:voltage:values_not_number"]
+
+
+def test_one_bad_row_late_in_the_file_is_still_caught():
+    # The old code sampled 50 rows; row 120 was invisible to it.
+    rows = "".join(f"id{n},1.0\n" for n in range(119)) + "idX,not-a-number\n"
+    record = _bind("id,voltage\n" + rows)
+    assert record["rows_checked"] == 120
+    assert record["status"] == dp.REJECTED
+    assert record["rejections"] == ["type_mismatch:voltage:values_not_number"]
+    # and proof the old 50-row window would have missed it
+    sampled = dp.extract_csv("id,voltage\n" + rows, "data/events.csv", sample_rows=50)[0]
+    assert sampled.meta["columns"]["1"]["all_number"] is True
+
+
+def test_union_type_is_indeterminate_never_verified():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": ["number", "null"]}},
+        ["id", "voltage"],
+    )
+    record = _bind("id,voltage\na,1.5\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert record["indeterminacies"] == ["schema_type_union:voltage"]
+
+
+def test_ref_is_indeterminate_never_verified():
+    schema = _schema(
+        {"id": {"$ref": "#/$defs/identifier"}, "voltage": {"type": "number"}},
+        ["id", "voltage"],
+    )
+    record = _bind("id,voltage\na,1.5\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert record["indeterminacies"] == ["schema_type_ref:id"]
+
+
+def test_untyped_property_is_indeterminate_never_verified():
+    schema = _schema(
+        {"id": {"description": "no type"}, "voltage": {"type": "number"}},
+        ["id", "voltage"],
+    )
+    record = _bind("id,voltage\na,1.5\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert record["indeterminacies"] == ["schema_type_untyped:id"]
+
+
+def test_bare_enum_property_is_indeterminate_never_verified():
+    # This is the exact hole the old table walked through: `enum` was not in
+    # the admissibility map, `.get()` returned None, and "no mismatch" was
+    # read as "verified".
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"enum": ["low", "high"]}},
+        ["id", "voltage"],
+    )
+    record = _bind("id,voltage\na,low\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert record["indeterminacies"] == ["schema_type_enum:voltage"]
+
+
+def test_unsupported_non_scalar_type_is_indeterminate():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": "object"}}, ["id", "voltage"]
+    )
+    record = _bind("id,voltage\na,1.5\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert record["indeterminacies"] == ["schema_type_unsupported:voltage"]
+
+
+def test_sampled_rows_can_never_verify():
+    rows = "".join(f"id{n},1.0\n" for n in range(200))
+    record = _bind("id,voltage\n" + rows, sample_rows=50)
+    assert record["status"] == dp.INDETERMINATE
+    assert "csv_types_sampled_not_exhaustive" in record["indeterminacies"]
+    assert record["exhaustive_rows"] is False
+
+
+def test_duplicate_header_name_is_indeterminate():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": "number"}}, ["id", "voltage"]
+    )
+    record = _bind("id,voltage,id\na,1.5,b\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert "csv_header_not_unique:id" in record["indeterminacies"]
+
+
+def test_blank_header_name_is_indeterminate():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": "number"}, "": {"type": "string"}},
+        ["id", "voltage"],
+    )
+    record = _bind("id,voltage,\na,1.5,x\n", schema)
+    assert record["status"] == dp.INDETERMINATE
+    assert "csv_header_blank_name" in record["indeterminacies"]
+
+
+def test_header_only_file_is_indeterminate_not_verified():
+    record = _bind("id,voltage\n")
+    assert record["status"] == dp.INDETERMINATE
+    assert "csv_has_no_data_rows" in record["indeterminacies"]
+
+
+def test_ragged_rows_are_indeterminate():
+    record = _bind("id,voltage\na,1.5\nb\n")
+    assert record["status"] == dp.INDETERMINATE
+    assert "csv_rows_ragged:1" in record["indeterminacies"]
+
+
+def test_column_without_observed_values_is_indeterminate():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"type": "number"}}, ["id", "voltage"]
+    )
+    record = _bind("id,voltage\na,\n", schema)
+    # "" is not a number: an empty cell cannot verify a numeric property.
+    assert record["status"] == dp.REJECTED
+    assert record["rejections"] == ["type_mismatch:voltage:values_not_number"]
+
+
+def test_boolean_only_accepts_true_false_literals():
+    schema = _schema({"flag": {"type": "boolean"}}, ["flag"])
+    assert _bind("flag\ntrue\nFALSE\n", schema)["status"] == dp.VERIFIED
+    # The old map said boolean admits any string; 0/1 must not pass.
+    assert _bind("flag\n1\n0\n", schema)["status"] == dp.REJECTED
+    assert _bind("flag\nyes\n", schema)["status"] == dp.REJECTED
+
+
+def test_a_rejection_always_outranks_an_indeterminacy():
+    schema = _schema(
+        {"id": {"type": "string"}, "voltage": {"enum": ["low"]}}, ["id", "voltage"]
+    )
+    record = _bind("id,voltage,extra\na,low,x\n", schema)
+    assert record["status"] == dp.REJECTED
+    assert record["rejections"] and record["indeterminacies"]
+
+
+def test_no_field_overlap_produces_no_proposal():
+    assert (
+        dp.propose_intra_data_bindings(
+            [dp.extract_csv("other\n1\n", "data/events.csv")[0]], EVENT_SCHEMA
+        )
+        == []
+    )
 
 
 def test_duplicate_declarations_separate_names_types_and_flags():

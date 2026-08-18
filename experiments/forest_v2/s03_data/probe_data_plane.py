@@ -16,6 +16,13 @@ Every node carries ``locator`` = "<repo-relative path>#<anchor>" and every
 field carries its own locator, so a later Forest build can bind a data node
 back to the exact source line or JSON Pointer that declared it.
 
+It also proposes CSV-table -> JSON-schema bindings.  Those are INTRA-DATA-PLANE
+PROPOSALS: both endpoints are data-plane nodes, and the plan section 6 verifier
+record is incomplete here (no revision compatibility, no task relevance, no
+score, no expiry/retest), so nothing this module emits is a trusted cross-plane
+edge.  Verification is fail-closed: whatever the probe cannot decide comes back
+``indeterminate``, never ``verified``.
+
 Constraints held on purpose: stdlib only, no repository imports, no writes,
 no network, no subprocess.  ``main`` prints one JSON object to stdout, which
 keeps this directory free of an effectful entrypoint (see the boundary note
@@ -113,6 +120,11 @@ class DataNode:
     fields: list[Field] = dc_field(default_factory=list)
     complete: bool = True
     notes: tuple[str, ...] = ()
+    # Evidence the verifier needs but a field list cannot carry: how many rows
+    # were actually read, whether that was the whole file, and the per-column
+    # observation summary.  A verifier that only sees a summarised type label
+    # cannot tell an exhaustive check from a sample.
+    meta: dict = dc_field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -428,43 +440,107 @@ def extract_json_schema(
 
 
 # --- CSV --------------------------------------------------------------------
+# A CSV cell is text.  "true"/"false" is the only spelling of a JSON boolean
+# this probe will accept; 0/1/yes/no are deliberately NOT booleans here,
+# because guessing an encoding is exactly the kind of unverifiable heuristic
+# this slice is supposed to avoid.
+_BOOLEAN_LITERALS = frozenset({"true", "false"})
+
+
+def _is_integer(value: str) -> bool:
+    try:
+        int(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_number(value: str) -> bool:
+    try:
+        float(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _infer(values: list[str]) -> str | None:
+    """Descriptive label for the reported column type.
+
+    Deliberately skips empty cells so the *description* stays readable.  This
+    is NOT what the verifier uses -- see ``_column_observation``.
+    """
     kept = [value for value in values if value != ""]
     if not kept:
         return None
-    try:
-        for value in kept:
-            int(value)
+    if all(_is_integer(value) for value in kept):
         return "integer"
-    except ValueError:
-        pass
-    try:
-        for value in kept:
-            float(value)
+    if all(_is_number(value) for value in kept):
         return "number"
-    except ValueError:
-        pass
     return "string"
 
 
-def extract_csv(text: str, rel_path: str, sample_rows: int = 50) -> list[DataNode]:
+def _column_observation(values: list[str]) -> dict:
+    """Exhaustive per-column evidence over EVERY value that was read.
+
+    Unlike ``_infer`` this counts empty cells: "" is not an integer, not a
+    number and not a boolean, so a column carrying one is admissible for a
+    string property only.  ``values_seen == 0`` means there is no evidence at
+    all, which the verifier must treat as indeterminate rather than as a pass.
+    """
+
+    def _every(predicate) -> bool:
+        return bool(values) and all(predicate(value) for value in values)
+
+    return {
+        "values_seen": len(values),
+        "empty_cells": sum(1 for value in values if value == ""),
+        "all_integer": _every(_is_integer),
+        "all_number": _every(_is_number),
+        "all_boolean": _every(lambda value: value.strip().lower() in _BOOLEAN_LITERALS),
+        "all_string": bool(values),
+    }
+
+
+def extract_csv(text: str, rel_path: str, sample_rows: int | None = None) -> list[DataNode]:
+    """Header fields plus exhaustive per-column evidence.
+
+    ``sample_rows=None`` (the default) reads EVERY row.  Sampling remains
+    possible for a caller that wants it, but a sampled node is stamped
+    ``exhaustive=False`` and the verifier refuses to verify anything from it:
+    a type claim derived from part of a file is a hypothesis, not evidence.
+    """
     reader = csv.reader(io.StringIO(text))
     try:
         header = next(reader)
     except StopIteration:
         return []
-    samples: list[list[str]] = []
+    rows: list[list[str]] = []
+    blank_rows = 0
+    truncated = False
     for index, row in enumerate(reader):
-        if index >= sample_rows:
+        if sample_rows is not None and len(rows) >= sample_rows:
+            truncated = True
             break
-        samples.append(row)
+        if not row:
+            blank_rows += 1
+            continue
+        rows.append(row)
+    ragged_rows = sum(1 for row in rows if len(row) != len(header))
+
     fields: list[Field] = []
-    for column, name in enumerate(header):
-        column_values = [row[column] for row in samples if len(row) > column]
+    observations: dict[str, dict] = {}
+    for column, raw_name in enumerate(header):
+        name = raw_name.strip()
+        column_values = [row[column] for row in rows if len(row) > column]
         inferred = _infer(column_values)
+        # Keyed by column index, not by name: a duplicated header name must
+        # not silently overwrite another column's evidence.
+        observations[str(column)] = dict(
+            _column_observation(column_values), name=name
+        )
         fields.append(
             Field(
-                name=name.strip(),
+                name=name,
                 declared_type=inferred,
                 type_source="inferred" if inferred else "none",
                 flags=(f"column_{column}",),
@@ -478,7 +554,17 @@ def extract_csv(text: str, rel_path: str, sample_rows: int = 50) -> list[DataNod
             name=Path(rel_path).stem,
             locator=f"{rel_path}#L1",
             fields=fields,
-            notes=(f"sampled_rows={len(samples)}",),
+            notes=(
+                f"rows_read={len(rows)}",
+                "exhaustive" if not truncated else "sampled",
+            ),
+            meta={
+                "rows_read": len(rows),
+                "blank_rows": blank_rows,
+                "ragged_rows": ragged_rows,
+                "exhaustive": not truncated,
+                "columns": observations,
+            },
         )
     ]
 
@@ -524,59 +610,198 @@ def duplicate_declarations(sqlite_nodes: list[DataNode]) -> list[dict]:
     return groups
 
 
-# --- cross-plane candidate check -------------------------------------------
-_JSON_TO_CSV_TYPE = {
-    "integer": {"integer"},
-    "number": {"integer", "number"},
-    "string": {"string", "integer", "number"},
-    "boolean": {"string"},
-}
+# --- intra-data-plane proposals (NOT trusted cross-plane edges) -------------
+# Plan section 6: "A verifier checks source evidence, revision compatibility,
+# type/rule constraints, and task relevance before an edge becomes trusted.
+# Unverified similarities remain proposals and expire or are retested", and a
+# proposal carries "score and rationale".
+#
+# This probe can supply two of those six inputs.  It therefore emits
+# INTRA-DATA-PLANE PROPOSALS -- a CSV table bound to a JSON schema, both of
+# them nodes of the SAME (data) plane -- and it never emits a trusted
+# cross-plane edge.  A CSV-to-schema agreement is a subset-and-type check
+# inside one plane; calling it cross-plane would be a category error.
+SEC6_VERIFIER_INPUTS = (
+    "source_evidence",
+    "revision_compatibility",
+    "type_rule_constraints",
+    "task_relevance",
+    "score",
+    "expiry_or_retest",
+)
+# Present: every endpoint carries a file/line/pointer locator, and the type and
+# required-field rules below are actually evaluated.
+# Absent, with reasons:
+#   revision_compatibility -- the probe reads the WORKING TREE while
+#       git_revision() reports HEAD; a dirty tree makes the two disagree and
+#       nothing here proves the two endpoints came from one revision.
+#   task_relevance         -- there is no mission or task in scope to be
+#       relevant to.
+#   score                  -- the outcome is a boolean check, not a calibrated
+#       score, and inventing one would be decoration.
+#   expiry_or_retest       -- records carry no expiry and no retest policy.
+SEC6_INPUTS_PRESENT = ("source_evidence", "type_rule_constraints")
+SEC6_INPUTS_MISSING = tuple(
+    name for name in SEC6_VERIFIER_INPUTS if name not in SEC6_INPUTS_PRESENT
+)
+
+# The only JSON Schema types whose CSV encoding this probe claims to decide.
+SUPPORTED_SCALAR_TYPES = frozenset({"string", "integer", "number", "boolean"})
+
+VERIFIED = "verified"
+REJECTED = "rejected"
+INDETERMINATE = "indeterminate"
 
 
-def bind_csv_to_schema(
+def _supported_scalar(declared: str | None) -> tuple[bool, str]:
+    """(is a decidable scalar, reason it is not)."""
+    if declared is None:
+        return False, "untyped"
+    if declared.startswith("$ref:"):
+        return False, "ref"
+    if "|" in declared:
+        return False, "union"
+    if declared in ("const", "enum"):
+        return False, declared
+    if declared not in SUPPORTED_SCALAR_TYPES:
+        return False, "unsupported"
+    return True, ""
+
+
+def _admissible(declared: str, observation: dict) -> bool:
+    """Does EVERY observed value satisfy the declared scalar type?"""
+    if declared == "string":
+        return observation["all_string"]
+    if declared == "integer":
+        return observation["all_integer"]
+    if declared == "number":
+        return observation["all_number"]
+    if declared == "boolean":
+        return observation["all_boolean"]
+    return False
+
+
+def propose_intra_data_bindings(
     csv_nodes: list[DataNode], schema_nodes: list[DataNode]
 ) -> list[dict]:
-    """Propose data<->data bindings and verify them against declared types.
+    """Propose CSV-table -> JSON-schema bindings and check them fail-closed.
 
-    A proposal is only ``verified`` when the CSV header is a subset of the
-    schema's property names AND every inferred column type is admissible for
-    the declared property type.  Unverified proposals stay proposals -- that
-    is the section 6 rule applied to the cheapest possible hypothesis source.
+    Three outcomes, never two:
+
+    ``rejected``      a check the probe CAN run says no (a column the schema
+                      does not declare, a required property the header omits,
+                      a value that contradicts the declared type).
+    ``indeterminate`` the probe cannot decide -- a union type, a ``$ref``, an
+                      untyped or non-scalar property, a duplicated or blank
+                      header name, ragged rows, a column with no observed
+                      values, or types derived from a sample rather than the
+                      whole file.
+    ``verified``      every check passed AND every check was actually runnable.
+
+    "verified" here means "this intra-data-plane proposal survived every check
+    this probe can run".  It does NOT mean a trusted edge: the section 6
+    verifier record is incomplete by construction (SEC6_INPUTS_MISSING), which
+    every emitted record states about itself.
     """
     proposals: list[dict] = []
     for csv_node in csv_nodes:
         csv_names = [item.name for item in csv_node.fields]
         if not csv_names:
             continue
+        meta = csv_node.meta or {}
+        columns = meta.get("columns", {})
+        duplicates = sorted({name for name in csv_names if csv_names.count(name) > 1})
+        header_is_unique = not duplicates and "" not in csv_names
+        by_name = {
+            entry["name"]: entry
+            for entry in columns.values()
+            if isinstance(entry, dict) and "name" in entry
+        }
+
         for schema_node in schema_nodes:
             schema_types = {
                 item.name: item.declared_type for item in schema_node.fields
             }
             if not schema_types:
                 continue
+            required_names = sorted(
+                item.name for item in schema_node.fields if "required" in item.flags
+            )
             overlap = [name for name in csv_names if name in schema_types]
             if not overlap:
                 continue
-            subset = len(overlap) == len(csv_names)
-            mismatches = []
-            for item in csv_node.fields:
-                declared = schema_types.get(item.name)
-                if declared is None or item.declared_type is None:
-                    continue
-                allowed = _JSON_TO_CSV_TYPE.get(declared)
-                if allowed is not None and item.declared_type not in allowed:
-                    mismatches.append(
-                        f"{item.name}: csv={item.declared_type} schema={declared}"
-                    )
+
+            rejections: list[str] = []
+            indeterminacies: list[str] = []
+
+            # --- header hygiene: an ambiguous header cannot be verified -----
+            if duplicates:
+                indeterminacies.append(
+                    "csv_header_not_unique:" + ",".join(duplicates)
+                )
+            if "" in csv_names:
+                indeterminacies.append("csv_header_blank_name")
+            if not meta.get("exhaustive", False):
+                indeterminacies.append("csv_types_sampled_not_exhaustive")
+            if meta.get("ragged_rows"):
+                indeterminacies.append(
+                    f"csv_rows_ragged:{meta['ragged_rows']}"
+                )
+            if not meta.get("rows_read", 0):
+                indeterminacies.append("csv_has_no_data_rows")
+
+            # --- structural checks: definite negatives ----------------------
+            for name in csv_names:
+                if name not in schema_types:
+                    rejections.append(f"csv_column_not_in_schema:{name}")
+            for name in required_names:
+                if name not in csv_names:
+                    rejections.append(f"required_field_missing:{name}")
+
+            # --- type/rule constraints over every row -----------------------
+            if header_is_unique:
+                for name in overlap:
+                    declared = schema_types[name]
+                    supported, why = _supported_scalar(declared)
+                    if not supported:
+                        indeterminacies.append(f"schema_type_{why}:{name}")
+                        continue
+                    observation = by_name.get(name)
+                    if observation is None:
+                        indeterminacies.append(f"csv_column_not_observed:{name}")
+                    elif not observation["values_seen"]:
+                        indeterminacies.append(f"csv_column_without_values:{name}")
+                    elif not _admissible(declared, observation):
+                        rejections.append(
+                            f"type_mismatch:{name}:values_not_{declared}"
+                        )
+
+            if rejections:
+                status = REJECTED
+            elif indeterminacies:
+                status = INDETERMINATE
+            else:
+                status = VERIFIED
+
             proposals.append(
                 {
+                    "record_type": "intra_data_proposal",
+                    "planes": ["data", "data"],
+                    "trusted_cross_plane_edge": False,
                     "csv": csv_node.locator,
                     "schema": schema_node.locator,
                     "overlap": len(overlap),
                     "csv_fields": len(csv_names),
-                    "header_is_subset": subset,
-                    "type_mismatches": mismatches,
-                    "verified": subset and not mismatches,
+                    "schema_fields": len(schema_types),
+                    "required_fields": required_names,
+                    "rows_checked": meta.get("rows_read", 0),
+                    "exhaustive_rows": bool(meta.get("exhaustive", False)),
+                    "status": status,
+                    "rejections": rejections,
+                    "indeterminacies": indeterminacies,
+                    "sec6_verifier_record": None,
+                    "sec6_inputs_present": list(SEC6_INPUTS_PRESENT),
+                    "sec6_inputs_missing": list(SEC6_INPUTS_MISSING),
                 }
             )
     return proposals
@@ -684,7 +909,7 @@ def probe(root: Path) -> dict:
             sum(1 for path in base.rglob("*") if path.is_file()) if base.exists() else 0
         )
 
-    proposals = bind_csv_to_schema(csv_nodes, schema_nodes)
+    proposals = propose_intra_data_bindings(csv_nodes, schema_nodes)
 
     return {
         "probe": "s03_data.data_plane_extraction",
@@ -782,9 +1007,19 @@ def probe(root: Path) -> dict:
             "ast_folded_tables": len(sqlite_nodes),
         },
         "duplicate_table_declarations": duplicate_declarations(sqlite_nodes),
-        "cross_plane_candidates": {
+        # NOT "cross_plane_candidates".  Both endpoints are data-plane nodes
+        # and the section 6 verifier record is incomplete, so these are
+        # intra-data-plane proposals and nothing may promote them to edges.
+        "intra_data_bindings": {
+            "trusted_cross_plane_edges": 0,
+            "sec6_inputs_present": list(SEC6_INPUTS_PRESENT),
+            "sec6_inputs_missing": list(SEC6_INPUTS_MISSING),
             "proposals": len(proposals),
-            "verified": sum(1 for item in proposals if item["verified"]),
+            "verified": sum(1 for item in proposals if item["status"] == VERIFIED),
+            "rejected": sum(1 for item in proposals if item["status"] == REJECTED),
+            "indeterminate": sum(
+                1 for item in proposals if item["status"] == INDETERMINATE
+            ),
             "detail": proposals,
         },
         "unparseable_python": unparseable,
@@ -825,6 +1060,7 @@ def node_records(root: Path) -> list[dict]:
             "locator": node.locator,
             "complete": node.complete,
             "notes": list(node.notes),
+            "meta": node.meta,
             "fields": [
                 {
                     "name": item.name,
