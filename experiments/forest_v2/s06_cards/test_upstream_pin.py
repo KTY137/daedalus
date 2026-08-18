@@ -36,12 +36,17 @@ the naming is true.  The commit's HEAD is reported next to the digest and is
 explicitly not trusted on its own, because HEAD says nothing about uncommitted
 edits and s01's worktree was in fact dirty when this was written.
 
-Read-only, stdlib only, no repository imports, no sibling worktree required.
+Read-only, stdlib only, no repository imports.  Everything here runs without
+a sibling worktree except the last case, which holds the write-up's PUBLISHED
+pin against the live upstream and skips when s01 is not reachable.
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -280,3 +285,74 @@ def test_a_build_that_reached_s01_publishes_its_pin(tmp_path):
     # The s01 path carries the pin through stats into describe().
     upstream.stats["s01_pin"] = {"input_digest": "sha256:" + "0" * 64}
     assert upstream.describe()["s01_pin"]["input_digest"].startswith("sha256:")
+
+
+# --- the published pin must be the pin the code computes --------------------
+
+#: The write-up carries the pin in one three-row table.  That table is the only
+#: place the combined value appears, so it is the only place it can rot.
+README_PATH = Path(__file__).resolve().parents[1] / "README.md"
+
+_PUBLISHED_ROW = re.compile(
+    r"^\s*\|\s*(?:combined\s+)?`(?P<label>[^`]+)`\s*\|\s*"
+    r"`(?P<digest>sha256:[0-9a-f]{64})`\s*\|\s*$",
+    re.MULTILINE,
+)
+
+
+def _published_pin() -> dict[str, str]:
+    """The digests the write-up publishes, read out of its own table."""
+    return {
+        match.group("label"): match.group("digest")
+        for match in _PUBLISHED_ROW.finditer(README_PATH.read_text(encoding="utf-8"))
+    }
+
+
+def test_the_published_pin_is_the_pin_the_code_computes():
+    """The document and the code may not drift apart in silence.
+
+    Everything else in this file pins the pin's STRUCTURE: that it names both
+    modules, that it moves when either module moves, that it degrades loudly
+    when a module is unreadable, that it reaches ``card_id``.  None of it ever
+    looks at the value the write-up actually published.  So the whole file
+    could stay green while the three digests printed next to "which is now
+    pinned by content inside the artifact" quietly became false -- and a pin
+    nobody checks is prose with a hex string in it, which is the exact defect
+    the pin was added to remove.
+
+    This closes that loop from both ends.  The combined row is recomputed from
+    the two file rows by the slice's own rule, which needs no upstream and
+    catches a hand-edited or stale total anywhere.  Then the published values
+    are held against the live ``s01_input_digest``, which is what makes the
+    document fail when s01's content moves rather than when someone remembers
+    to look.
+    """
+    published = _published_pin()
+    missing = {*up.S01_INPUT_MODULES, "input_digest"} - set(published)
+    assert not missing, (
+        f"the write-up no longer publishes {sorted(missing)}; this table is the "
+        "only place those values appear, so a dropped row is a lost claim"
+    )
+
+    # Internally consistent: the combined row follows the module rows under the
+    # rule the code uses.  No sibling worktree needed for this half.
+    recomputed = nc.sha256_text(
+        "\n".join(f"{name}={published[name]}" for name in sorted(up.S01_INPUT_MODULES))
+    )
+    assert published["input_digest"] == recomputed, (
+        "the published combined digest does not follow from the published "
+        "per-file digests; one of the three rows was edited alone"
+    )
+
+    # Externally true: the values are the ones the live upstream produces.
+    found, _searched = up.find_s01(Path(__file__).resolve().parents[3])
+    if found is None:
+        pytest.skip("slice s01 is not checked out anywhere reachable from here")
+    live = up.s01_input_digest(found)
+    assert live["input_files"] == {name: published[name] for name in up.S01_INPUT_MODULES}, (
+        "the per-file digests in the write-up are not what s01 holds now"
+    )
+    assert live["input_digest"] == published["input_digest"], (
+        "the write-up publishes a combined input_digest the upstream no longer "
+        "produces; the s01 column is attributed to the wrong content"
+    )
