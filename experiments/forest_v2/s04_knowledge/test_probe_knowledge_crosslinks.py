@@ -394,6 +394,46 @@ def test_probe_is_read_only_on_the_committed_corpus():
     assert before == after, "probe must not write to the committed corpus"
 
 
+def test_readme_publishes_exactly_the_computed_table():
+    """The prose cannot drift away from the computation that produced it."""
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    start = readme.index("<!-- waterfall:corpus:start -->")
+    end = readme.index("<!-- waterfall:corpus:end -->")
+
+    published = []
+    for line in readme[start:end].splitlines():
+        line = line.strip()
+        if not line.startswith("|") or line.startswith("| ---"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if cells[0] == "stage":
+            continue
+        published.append((
+            cells[0].replace("`", "").replace("**", ""),
+            int(cells[1].replace("**", "")),
+            float(cells[2].replace("**", "").rstrip("%")),
+        ))
+
+    assert published, "no waterfall rows found between the README markers"
+    rows = probe(CORPUS)["waterfall"]["rows"]
+    computed = [(r["stage"], r["count"], r["pct_of_extracted"]) for r in rows]
+    assert published == computed
+
+
+def test_readme_marks_the_old_headline_as_retracted():
+    """The superseded claim must stay flagged, not quietly disappear."""
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert "RETRACTED" in readme
+    retraction = readme[readme.index("RETRACTED"):]
+    # the withdrawn figures are named, so the correction stays auditable
+    for figure in ("96.6", "413", "399", "551", "383"):
+        assert figure in retraction, f"retraction does not name {figure}"
+
+
 def test_cli_emits_one_json_object(tmp_path):
     write(tmp_path, "a.md", "[x](b.md)\n")
     write(tmp_path, "b.md", "# B\n")
