@@ -220,7 +220,7 @@ Three design decisions carry the honesty of the whole slice:
 
 ### Self-test result (2026-08-18, synthetic ground truth) [MEASURED]
 
-`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **60 passed in 12.74s**
+`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **68 passed in 14.46s**
 (2026-08-18, after the register repair; was 44 passed in 7.84s before it).
 
 Nine scenarios with constructed ground truth, all scores drawn at runtime from
@@ -284,7 +284,10 @@ implemented here that the run did not ask), and a prior with holes cannot
 reach KEEP. `test_a_prior_cannot_reach_keep_while_its_controls_were_never_shipped`
 pins it; `surviving_prior`, which ships every control, still reaches KEEP.
 
-**On real data it withholds.** Slice s08's landed 600-query run, rebuilt from
+**On real data it withholds.** Slice s08's corrected 600-query run (@
+`a0c8fabd`; s08's first run was retracted on 2026-08-18 and its withdrawn
+tables are not reused here — both rows below survived the retraction
+unchanged), rebuilt from
 its published 2x2 counts (`measured_inputs.py`; both marginals and the pairing
 come back out exactly, no score invented):
 
@@ -321,19 +324,55 @@ than more binary queries, since the variance is mostly the 0/1 quantisation.)
 Every verdict from the real run also carries `run declares 1 seed(s)`; s08 was
 a single run with no repeated trials.
 
-**14.3 is refused, not answered.** The s08 plane-routing run
-(`--measured s08_plane_routing`) reports `0 of 16` criteria decidable. s08
-measured the *cost of not routing* — a round-robin over four independent
-indices, strictly dominated by the code-only index (0 rescued, 59 lost) — but
-built no cross-plane **fusion** retriever, so 14.3 has no treatment arm:
-`missing: fusion|full`. The tempting shortcut is to let the nearest available
-arm stand in; that is how a criterion gets "decided" by a comparison nobody
-ran, and it is pinned shut by
-`test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion`.
-Independently of the arms, s08's query set carries **100% code gold labels**,
-so the type/data/knowledge indices score zero by arithmetic rather than by
-measurement — the fusion question is not cleanly decidable on that query set
-whatever arms are added.
+**14.3 is refused, not answered — and that is the finding.** All six
+`--measured s08_routing_*` runs report `0 of 16` criteria decidable. s08 built
+**no cross-plane fusion retriever**, so the criterion's second arm does not
+exist: `missing: fusion|full`. Its own verdict is "NOT DECIDABLE AS STATED".
+
+The nearest measurable system is `bm25_single_index_all_planes` — *one joint
+BM25 index* over all four planes' documents, a shared IDF space that never
+compares or combines per-plane scores. **A joint index is not fusion.**
+Labelling it `fusion` would have produced a 14.3 verdict out of a comparison
+nobody ran — the substituted-comparator defect s08 itself had to retract,
+committed one level up by the instrument built to catch it. Pinned by
+`test_no_arm_of_a_measured_run_is_labelled_fusion` and by the refusal check
+across every query set and both no-fusion instantiations.
+
+Against that weaker joint-index question the answer is comparator- and
+query-set-dependent, which is why it is reported here rather than rolled into
+a verdict (hits@10, corrected s08 @ `a0c8fabd` [MEASURED]):
+
+| query set | four independent indices | one joint index | direction |
+| --- | ---: | ---: | --- |
+| frozen 600 (all gold = code) | 432 round-robin / **491** union | 438 | union ties the code-only control exactly, 0 rescued 0 lost |
+| non-code gold 138 | 32 / 1 | **49** | joint index wins; rescues 21, loses 4 |
+| extended 738 | 464 / **492** | 487 | sign flips again |
+
+Three query sets, three signs. Two further reasons no verdict belongs here:
+the two no-fusion arms (`four_plane_no_fusion` round-robin vs `union_no_fusion`
+per-plane top-k) disagree by design, so picking one *is* picking the answer —
+both are shipped for that reason; and `union_no_fusion` scores **491/600
+code-first against 4/600 code-last**, so a fixed plane order is a hidden prior
+worth almost the entire result. Every no-fusion arm here names its plane order
+in the report's new `ARMS AS LABELLED` block.
+
+**The sharpest limit is not statistical.** On the frozen 600 every gold label
+is a code document, so a cross-plane method can only lose slots to planes
+guaranteed not to hold the answer and a code-only index *cannot be beaten*.
+The criterion is structurally unfalsifiable there, in the direction that
+favours the hypothesis. A kill instrument can be blind for reasons that have
+nothing to do with its statistics — the query set decides what is refutable
+before any interval is computed. The 138 non-code-gold queries fix the plane
+mix but not the leakage, and the **type plane still carries zero gold labels**
+(289 documents, 27.9% of the corpus), so 14.4's per-plane ablation is
+untestable there too.
+
+Because criteria select arms by *role*, a role label is all that stands
+between "cross-plane fusion" and whatever a run actually measured, and the
+evaluator cannot know the difference. So the report now prints every arm's id,
+role and provenance note under `ARMS AS LABELLED`. That is a disclosure, not a
+guard: it makes a substituted comparator visible to a reader. Nothing in this
+package can detect one.
 
 So: no criterion fires on the evidence available today, and the reason is
 insufficient resolution and missing controls, not a KEEP-shaped evaluator.
@@ -365,8 +404,14 @@ matched, so a probe that mutates nothing fails instead of passing quietly.
 - **The s08 rebuild reproduces published pairings, not unpublished ones.**
   Where s08 printed a 2x2 the reconstruction is exact; where it did not, the
   joint is filled deterministically and no criterion consumes that pairing.
-  The two runs are deliberately kept apart for this reason rather than merged
-  into one five-arm result set that would imply pairings nobody measured.
+  The runs are deliberately kept apart for this reason rather than merged into
+  one many-armed result set that would imply pairings nobody measured.
+- **Upstream retractions propagate, they do not get patched over.** s08
+  withdrew its starved round-robin comparison (432/0/59/109) on 2026-08-18;
+  that table is deleted here rather than reworded, and
+  `test_the_retracted_s08_comparison_is_not_reused` fails if it comes back. A
+  retracted measurement republished downstream is how a corrected finding
+  stays wrong.
 - **The margin is a judgement, not a measurement.** +/-0.02 absolute on a 0..1
   metric decides the difference between `tiny_win` being a KILL and a KEEP. It
   should be pre-registered per campaign, not defaulted.

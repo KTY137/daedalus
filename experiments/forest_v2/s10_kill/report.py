@@ -61,6 +61,12 @@ class Report:
     findings: Tuple[Finding, ...]
     priors: Tuple[PriorVerdict, ...]
     roles: Tuple[str, ...]
+    #: (arm_id, role, notes) for every arm. Criteria select arms by *role*, so
+    #: a role label is all that stands between "cross-plane fusion" and
+    #: whatever the run actually measured. Printing what each label was
+    #: attached to is the only thing here that can expose a substituted
+    #: comparator; the evaluator itself cannot know.
+    arms: Tuple[Tuple[str, str, str], ...] = ()
     #: the 1:1 comparison of the criteria register against the living plan;
     #: None when the plan was not reachable, which the report says in words
     #: rather than printing an unverified denominator as if it were checked.
@@ -157,6 +163,7 @@ def build(
         findings=tuple(findings),
         priors=tuple(roll_up(findings)),
         roles=tuple(roles_present(rs)),
+        arms=tuple((a.arm_id, a.role, a.notes) for a in rs.arms),
         register=register if register is not None else verify_quietly(register_entries()),
     )
 
@@ -171,6 +178,10 @@ def to_json(rep: Report) -> Dict[str, object]:
         "n_cases": rep.n_cases,
         "seeds": rep.seeds,
         "roles_present": list(rep.roles),
+        "arms": [
+            {"arm_id": arm_id, "role": role, "notes": notes}
+            for arm_id, role, notes in rep.arms
+        ],
         "config": {
             "margin": rep.config.margin,
             "confidence": rep.config.confidence,
@@ -312,6 +323,15 @@ def render(rep: Report) -> str:
                 for line in _wrap(part, 72):
                     add("                 " + line)
     add("")
+    if rep.arms:
+        add("-" * 78)
+        add("ARMS AS LABELLED  (criteria select by role -- check the labels)")
+        add("-" * 78)
+        for arm_id, role, notes in rep.arms:
+            add(f"  {role:18s} {arm_id}")
+            for line in _wrap(notes, 68):
+                add("       " + line)
+        add("")
     add("-" * 78)
     add("PREJUDICE PER PRIOR")
     add("-" * 78)

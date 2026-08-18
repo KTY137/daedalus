@@ -427,16 +427,55 @@ def test_a_real_measurement_reaches_the_criterion_it_instruments():
     assert (comp.wins, comp.losses) == (13, 7)
 
 
-def test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion():
+@pytest.mark.parametrize(
+    "run", [n for n in measured_inputs.MEASURED_RUNS if n.startswith("s08_routing")]
+)
+def test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion(run):
     """s08 built no fusion retriever, so 14.3 must not be answered from it.
 
     The tempting shortcut is to let the nearest available arm stand in for the
     missing one; that is how a criterion gets 'decided' by a comparison nobody
-    ran.
+    ran.  Every query set and both no-fusion instantiations, so the refusal
+    cannot be an accident of one arm choice.
     """
-    finding = _finding(_measured("s08_plane_routing"), "14.3")
+    finding = _finding(_measured(run), "14.3")
     assert finding.verdict == NOT_EVALUABLE
     assert "fusion|full" in finding.missing
+
+
+def test_no_arm_of_a_measured_run_is_labelled_fusion():
+    """The joint single index must never be dressed up as cross-plane fusion.
+
+    s08 has no fusion retriever. A `fusion` or `full` label on the joint index
+    would hand 14.3 a verdict from a comparison that was never run -- the
+    substituted-comparator defect s08 itself had to retract.
+    """
+    for name in measured_inputs.MEASURED_RUNS:
+        if not name.startswith("s08_routing"):
+            continue
+        rs = _measured(name)
+        assert {a.role for a in rs.arms} == {"separate_indices", "bm25"}, name
+        joint = rs.find("bm25")
+        assert "NOT cross-plane fusion" in joint.notes
+
+
+def test_the_retracted_s08_comparison_is_not_reused():
+    """s08 withdrew the starved round-robin vs code-only table (432/0/59/109).
+
+    A retracted measurement republished downstream is how a corrected finding
+    stays wrong.
+    """
+    with pytest.raises(KeyError):
+        measured_inputs.pair("four_plane_no_fusion", "bm25_code_only")
+
+
+def test_every_measured_arm_carries_its_provenance_into_the_report():
+    """Criteria select arms by role; the report must say what the label was on."""
+    rs = _measured("s08_graph_structure")
+    rep = build(rs, evaluate(rs, CFG), CFG)
+    assert rep.arms and all(notes for _, _, notes in rep.arms)
+    assert "ARMS AS LABELLED" in render(rep)
+    assert all(a["notes"] for a in to_json(rep)["arms"])
 
 
 def test_a_prior_cannot_reach_keep_while_its_controls_were_never_shipped():

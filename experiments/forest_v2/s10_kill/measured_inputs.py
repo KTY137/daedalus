@@ -7,22 +7,37 @@ can any kill criterion fire at all, or is the evaluator structurally unable
 to say KILL?*
 
 Provenance of everything below: slice s08 (`experiments/forest_v2/
-s08_graph_baselines/`), branch ``grind/f2-s08`` @ ``3a785930``, its RAW
-section "All 600 queries, cutoff 10" and the gross rescue/loss table beside
-it.  600 queries, one gold document each, so ``recall@10`` per query is 1 or
-0 and the published 2x2 tables *are* the paired data -- the reconstruction
-below reproduces both marginals and the pairing exactly, and invents no
-score.  What it cannot reproduce is a pairing s08 never published: where a
-2x2 table is missing, the joint is filled deterministically and the affected
-comparison is not consumed by any criterion.  Those gaps are named per run.
+s08_graph_baselines/`), branch ``grind/f2-s08`` @ ``a0c8fabd`` -- the
+**corrected** run.  s08's first reported run was retracted on 2026-08-18 for
+two defects that both biased towards the four-plane hypothesis, so the
+retracted tables are not reused here; where a table survived the retraction
+unchanged, that is stated at the run.  One gold document per query, so
+``recall@10`` per query is 1 or 0 and the published 2x2 tables *are* the
+paired data -- the reconstruction reproduces both marginals and the pairing
+exactly, and invents no score.  What it cannot reproduce is a pairing s08
+never published: where a 2x2 is missing, the joint is filled
+deterministically and the affected comparison is not consumed by any
+criterion.  Those gaps are named per run.
 
-Two honest limits travel with every verdict derived from this input:
+Three honest limits travel with every verdict derived from this input:
 
-* **s08's query set carries code gold labels only.**  Every gold document is
-  a code document by construction, so the type, data and knowledge indices
-  score zero by arithmetic rather than by measurement.  Any cross-plane
-  question -- above all 14.3, fusion versus separate indices -- is
-  *instrumented* by this data, not decided by it.  s08 says so itself.
+* **The comparator the criterion names does not exist in s08.**  There is no
+  cross-plane *fusion* retriever, so 14.3 cannot be decided here at all;
+  s08's own verdict is "NOT DECIDABLE AS STATED".  The nearest measurable
+  system is ONE joint BM25 index over all four planes' documents, and a joint
+  index is **not** fusion.  Labelling it ``fusion`` to get a verdict out
+  would be substituting the comparator -- the same defect s08 had to retract,
+  reborn one level up in the instrument that is supposed to detect it.  The
+  arms here are therefore labelled ``bm25`` (one joint index), never
+  ``fusion``, and the evaluator refuses 14.3 on every one of these runs.
+* **s08's frozen query set carries code gold labels only.**  Every gold
+  document is a code document by construction, so a cross-plane method can
+  only lose slots to planes guaranteed not to hold the answer, and a
+  code-only index cannot be beaten.  The criterion is structurally
+  unfalsifiable there, *in the direction that favours the hypothesis*.  The
+  138 added non-code-gold queries fix the plane mix but not the leakage, and
+  the type plane still has zero gold labels (289 documents, 27.9% of the
+  corpus).
 * **One run, one machine, no repeated trials.**  ``seeds`` is 1, and the
   evaluator attaches its low-seed warning to every verdict it reaches.
 
@@ -36,18 +51,27 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 
 from . import SCHEMA_ID
 
-S08_COMMIT = "3a785930"
+S08_COMMIT = "a0c8fabd"
 S08_QUERIES = 600
 S08_SOURCE = (
-    "slice s08 graph baselines, branch grind/f2-s08 @ 3a785930, RAW table "
-    "'All 600 queries, cutoff 10' + gross rescue/loss table [MEASURED]"
+    "slice s08 graph baselines, branch grind/f2-s08 @ a0c8fabd (the corrected "
+    "run; the first one was retracted), RAW hits table + gross rescue/loss "
+    "table [MEASURED]"
 )
 
 #: The caveat that must travel with any verdict computed from this input.
 S08_CAVEAT = (
-    "every gold label in the s08 query set is a code document by construction, "
-    "so the type/data/knowledge indices cannot score; cross-plane questions are "
-    "instrumented by this run, not decided by it"
+    "every gold label in the s08 frozen query set is a code document by "
+    "construction, so the type/data/knowledge indices cannot score; cross-plane "
+    "questions are instrumented by this run, not decided by it"
+)
+
+#: s08 has no cross-plane fusion retriever.  Stated once, cited by every run
+#: that touches the plane-routing question.
+NO_FUSION_ARM_EXISTS = (
+    "s08 contains no cross-plane fusion retriever, so criterion 14.3 has no "
+    "treatment arm; the joint single index is a different, weaker comparator "
+    "and is labelled as one"
 )
 
 
@@ -75,13 +99,63 @@ class Contingency:
         return self.both + self.only_b
 
 
-#: Verbatim from the s08 README's "Gross rescue/loss at k=10" table.
+#: Verbatim from the corrected s08 README's "Gross rescue/loss at k=10"
+#: table.  Both graph rows survived the retraction unchanged.
+#:
+#: Deliberately absent: ``four_plane_no_fusion`` vs ``bm25_code_only``
+#: (432/0/59/109).  s08 withdrew it -- the round-robin arm was starved by slot
+#: allocation, and the comparator was a third system again -- so reusing it
+#: here would republish a retracted measurement.
 S08_PAIRS: Tuple[Contingency, ...] = (
     Contingency("bm25_code_only", "graph_code_only", 482, 9, 15, 94),
     Contingency("graph_rewired", "graph_code_only", 484, 7, 13, 96),
-    Contingency("four_plane_no_fusion", "bm25_single_index", 415, 17, 23, 145),
-    Contingency("four_plane_no_fusion", "bm25_code_only", 432, 0, 59, 109),
 )
+
+#: The corrected plane-routing comparison, per query set and per no-fusion
+#: instantiation.  A is always ``bm25_single_index_all_planes`` -- ONE joint
+#: BM25 index over all four planes' documents, which is *not* fusion.
+#:
+#: The two no-fusion arms disagree by design and neither is "the" one:
+#: ``four_plane_no_fusion`` splits one budget of k slots round-robin across
+#: four planes, ``union_no_fusion`` takes per-plane top-k and concatenates.
+#: Both are run, so the answer cannot be selected by picking an arm.
+S08_ROUTING: Dict[Tuple[str, str], Contingency] = {
+    ("frozen600", "four_plane_no_fusion"):
+        Contingency("bm25_single_index", "four_plane_no_fusion", 415, 23, 17, 145),
+    ("frozen600", "union_no_fusion"):
+        Contingency("bm25_single_index", "union_no_fusion", 438, 0, 53, 109),
+    ("noncode138", "four_plane_no_fusion"):
+        Contingency("bm25_single_index", "four_plane_no_fusion", 28, 21, 4, 85),
+    ("noncode138", "union_no_fusion"):
+        Contingency("bm25_single_index", "union_no_fusion", 1, 48, 0, 89),
+    ("extended738", "four_plane_no_fusion"):
+        Contingency("bm25_single_index", "four_plane_no_fusion", 443, 44, 21, 230),
+    ("extended738", "union_no_fusion"):
+        Contingency("bm25_single_index", "union_no_fusion", 439, 48, 53, 198),
+}
+
+#: What each query set is, and why its answer cannot simply be pooled.
+QUERY_SETS = {
+    "frozen600": (
+        "the 600 frozen queries, seed 20260818 -- every gold label is a CODE "
+        "document, so a code-only index cannot be beaten and the criterion is "
+        "unfalsifiable here in the direction that favours the hypothesis"
+    ),
+    "noncode138": (
+        "the 138 added queries whose gold label is NOT a code document, seed "
+        "20260819 -- fixes the plane mix, does not fix the leakage, and the "
+        "type plane still carries zero gold labels"
+    ),
+    "extended738": (
+        "frozen 600 + non-code 138; a pooled set whose plane mix is an "
+        "artefact of how many of each were generated, not of any population"
+    ),
+}
+
+#: Plane order is a hidden prior worth almost the whole result: s08 measured
+#: union_no_fusion at 491/600 code-FIRST and 4/600 code-LAST.  Any no-fusion
+#: number is meaningless without it.
+S08_PLANE_ORDER = "code-first (s08 measured 491/600 code-first vs 4/600 code-last)"
 
 
 def pair(a: str, b: str) -> Contingency:
@@ -127,12 +201,15 @@ def _paired_to_anchor(anchor: Sequence[int], table: Contingency) -> List[int]:
 
 
 def _arm(arm_id: str, role: str, scores: Sequence[int], cases: Sequence[str],
-         metric: str, note: str) -> Dict[str, object]:
+         metric: str, notes: str) -> Dict[str, object]:
+    # The field is "notes": the schema reads that name, and an arm whose
+    # provenance is dropped on the floor is exactly how a role label ends up
+    # standing in for a system nobody measured.
     return {
         "arm_id": arm_id,
         "role": role,
         "variant": "raw",
-        "note": note,
+        "notes": notes,
         "scores": {metric: {c: float(v) for c, v in zip(cases, scores)}},
     }
 
@@ -176,7 +253,8 @@ def s08_graph_structure() -> Dict[str, object]:
         [
             _arm("graph_code_only/raw", "full", graph, cases, metric,
                  "s08 graph retriever, alpha=0.5, 2 hops -- a CODE graph, not the "
-                 "four-plane Twin"),
+                 "four-plane Twin; both rows of this run survived s08's retraction "
+                 "unchanged"),
             _arm("graph_rewired/raw", "rewired", rewired, cases, metric,
                  "degree-preserving rewiring of the same graph, s08's own control"),
             _arm("bm25_code_only/raw", "code_only", code_only, cases, metric,
@@ -187,46 +265,67 @@ def s08_graph_structure() -> Dict[str, object]:
     )
 
 
-def s08_plane_routing() -> Dict[str, object]:
-    """Four independent indices against the lexical baseline (14.3 territory).
+def s08_plane_routing(query_set: str, no_fusion_arm: str) -> Dict[str, object]:
+    """Four independent indices against ONE JOINT INDEX -- not against fusion.
 
-    s08 measured the *cost of not routing*: a round-robin over four separate
-    single-plane indices, strictly dominated by the code-only index (0 queries
-    rescued, 59 lost).  It never built a cross-plane **fusion** retriever, so
-    the criterion as the plan words it -- "four independent indices perform
-    equivalently to cross-plane fusion" -- has no treatment arm to compare
-    against.  This run exists to show the evaluator refusing that comparison
-    rather than substituting the nearest available arm for the missing one.
+    The plan's 14.3 asks whether four independent indices perform equivalently
+    to *cross-plane fusion*.  s08 built no fusion retriever, so that criterion
+    has no treatment arm and cannot be decided from this data at any sample
+    size; s08's own verdict is "NOT DECIDABLE AS STATED".
+
+    What exists instead is one joint BM25 index over all four planes'
+    documents.  A joint index shares an IDF space; it does not compare or
+    combine per-plane scores.  It is a weaker, different question, and the arm
+    is labelled ``bm25`` accordingly.  Labelling it ``fusion`` would produce a
+    verdict for 14.3 out of a comparison nobody ran -- which is the defect s08
+    had to retract, committed one level up by the instrument built to catch
+    it.  These runs exist to show the evaluator refusing.
     """
+    table = S08_ROUTING[(query_set, no_fusion_arm)]
     metric = "recall@10"
-    cases = _cases(S08_QUERIES)
-    no_fusion = _anchor_vector(
-        pair("four_plane_no_fusion", "bm25_code_only").hits_a, len(cases)
-    )
-    code_only = _paired_to_anchor(
-        no_fusion, pair("bm25_code_only", "four_plane_no_fusion")
-    )
-    single_index = _paired_to_anchor(
-        no_fusion, pair("bm25_single_index", "four_plane_no_fusion")
-    )
+    cases = _cases(table.n)
+    separate = _anchor_vector(table.hits_b, len(cases))
+    joint = _paired_to_anchor(separate, table)
     return _run(
-        f"s08-plane-routing@{S08_COMMIT}",
+        f"s08-routing-{query_set}-{no_fusion_arm}@{S08_COMMIT}",
         [
-            _arm("four_plane_no_fusion/raw", "separate_indices", no_fusion, cases,
-                 metric, "round-robin over four independent single-plane BM25 indices"),
-            _arm("bm25_code_only/raw", "code_only", code_only, cases, metric,
-                 "lexical code-only baseline"),
-            _arm("bm25_single_index/raw", "bm25", single_index, cases, metric,
-                 "one BM25 index over all four planes' documents"),
+            _arm(
+                f"{no_fusion_arm}/raw", "separate_indices", separate, cases, metric,
+                f"four independent single-plane BM25 indices, {no_fusion_arm} "
+                f"instantiation, plane order {S08_PLANE_ORDER}; "
+                f"budget at cutoff 10: 10 documents for four_plane_no_fusion, up "
+                f"to 40 for union_no_fusion (s08 measured a truncated union at "
+                f"identical numbers, so the extra documents buy nothing here)",
+            ),
+            _arm(
+                "bm25_single_index_all_planes/raw", "bm25", joint, cases, metric,
+                "ONE joint BM25 index over all 1037 documents of all four planes "
+                "-- a shared IDF space, NOT cross-plane fusion; no fusion "
+                "retriever exists in s08",
+            ),
         ],
         cases,
         metric,
     )
 
 
+def _routing_run(query_set: str, arm: str):
+    def make() -> Dict[str, object]:
+        return s08_plane_routing(query_set, arm)
+
+    make.__doc__ = (
+        f"Four independent indices ({arm}) vs one joint index, {query_set}. "
+        f"14.3 is REFUSED: no fusion arm exists. {QUERY_SETS[query_set]}"
+    )
+    return make
+
+
 MEASURED_RUNS = {
     "s08_graph_structure": s08_graph_structure,
-    "s08_plane_routing": s08_plane_routing,
+    **{
+        f"s08_routing_{qs}_{arm}": _routing_run(qs, arm)
+        for qs, arm in sorted(S08_ROUTING)
+    },
 }
 
 
