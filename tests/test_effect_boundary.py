@@ -479,12 +479,15 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
     """
     by_id = {row.id: row for row in ENTRYPOINTS}
 
-    for row_id in (
-        "tools.iron_plan_guard",
-        "tools.gate_discrimination",
-        "tools.bootstrap_receipt",
-        "tools.operability_drill",
-        "tools.gate_host_preflight",
+    for row_id, wiring in (
+        # The plan guard is a protected policy artifact: its row inventories
+        # the door without touching the target, so it stays inventory_only
+        # with a reasoned note rather than being bent to central.
+        ("tools.iron_plan_guard", Wiring.INVENTORY_ONLY),
+        ("tools.gate_discrimination", Wiring.INVENTORY_ONLY),
+        ("tools.bootstrap_receipt", Wiring.CENTRAL),
+        ("tools.operability_drill", Wiring.INVENTORY_ONLY),
+        ("tools.gate_host_preflight", Wiring.CENTRAL),
     ):
         row = by_id[row_id]
         assert row.surface is Surface.CLI
@@ -492,7 +495,7 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
             f"{row_id} touches git; repository_mutation is hand-maintained"
         )
         assert {Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN} <= set(row.effects)
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        assert row.wiring is wiring
 
     gui = by_id["tools.gui_check"]
     assert {
@@ -531,19 +534,21 @@ def test_remaining_tools_rows_and_the_invisible_system_check_are_registered() ->
     """
     by_id = {row.id: row for row in ENTRYPOINTS}
 
-    for row_id, effect in (
-        ("tools.mutation_score", Effect.FILESYSTEM_WRITE),
-        ("tools.audit_triage", Effect.FILESYSTEM_WRITE),
-        ("tools.agent_findings", Effect.FILESYSTEM_WRITE),
-        ("tools.lane_invariants", Effect.FILESYSTEM_WRITE),
-        ("tools.funnel_report", Effect.PROCESS_SPAWN),
-        ("tools.run_gate_checks", Effect.PROCESS_SPAWN),
-        ("tools.iron_plan_hook_runner", Effect.PROCESS_SPAWN),
+    for row_id, effect, wiring in (
+        ("tools.mutation_score", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.audit_triage", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.agent_findings", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.lane_invariants", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.funnel_report", Effect.PROCESS_SPAWN, Wiring.CENTRAL),
+        ("tools.run_gate_checks", Effect.PROCESS_SPAWN, Wiring.CENTRAL),
+        # Protected policy artifact: inventoried, not wired (see its note).
+        ("tools.iron_plan_hook_runner", Effect.PROCESS_SPAWN,
+         Wiring.INVENTORY_ONLY),
     ):
         row = by_id[row_id]
         assert row.surface is Surface.CLI
         assert effect in row.effects
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        assert row.wiring is wiring
 
     system_check = by_id["tools.system_check"]
     assert {

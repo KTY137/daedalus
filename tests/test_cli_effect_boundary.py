@@ -325,6 +325,106 @@ def test_status_refuses_fail_closed_before_any_probe(monkeypatch, contracts_disa
         status.main([])
 
 
+def test_tools_agent_findings_refuses_fail_closed(tmp_path, monkeypatch, contracts_disabled):
+    import tools.agent_findings as agent_findings
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(EffectStartRefused):
+        agent_findings.main([])
+    assert not (tmp_path / "runs").exists()
+
+
+def test_tools_audit_triage_json_refuses_but_print_stays_fail_open(
+    tmp_path, contracts_disabled, capsys
+):
+    import tools.audit_triage as audit_triage
+
+    in_dir = tmp_path / "results"
+    in_dir.mkdir()
+    out = tmp_path / "triage.json"
+    with pytest.raises(EffectStartRefused):
+        audit_triage.main(["--in-dir", str(in_dir), "--json", str(out)])
+    assert not out.exists()
+    # printed triage is read-only inspection and keeps working
+    assert audit_triage.main(["--in-dir", str(in_dir)]) == 0
+
+
+def test_tools_bootstrap_receipt_refuses_fail_closed(tmp_path, contracts_disabled):
+    import tools.bootstrap_receipt as bootstrap_receipt
+
+    with pytest.raises(EffectStartRefused):
+        bootstrap_receipt.main(
+            [
+                "--single",
+                "--repo-root", str(tmp_path),
+                "--instruction", "x",
+                "--task-id", "t",
+            ]
+        )
+
+
+def test_tools_funnel_report_refuses_fail_closed(tmp_path, contracts_disabled):
+    import tools.funnel_report as funnel_report
+
+    with pytest.raises(EffectStartRefused):
+        funnel_report.main([str(tmp_path)])
+
+
+def test_tools_gate_host_preflight_refuses_fail_closed(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    import tools.gate_host_preflight as preflight
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("host probes must not run after a refused boundary")
+
+    monkeypatch.setattr(preflight, "run_checks", _exploded)
+    with pytest.raises(EffectStartRefused):
+        preflight.main(["--repo-root", str(tmp_path)])
+
+
+def test_tools_lane_invariants_json_refuses_but_print_stays_fail_open(
+    tmp_path, contracts_disabled, capsys
+):
+    import tools.lane_invariants as lane_invariants
+
+    in_dir = tmp_path / "run"
+    in_dir.mkdir()
+    out = tmp_path / "check.json"
+    with pytest.raises(EffectStartRefused):
+        lane_invariants.main([str(in_dir), "--json", str(out)])
+    assert not out.exists()
+    # fail-open: the read-only check still runs (its own no-data verdict is 1)
+    assert lane_invariants.main([str(in_dir)]) in (0, 1)
+
+
+def test_tools_mutation_score_refuses_but_list_stays_fail_open(
+    tmp_path, monkeypatch, contracts_disabled, capsys
+):
+    import tools.mutation_score as mutation_score
+
+    repo = _target_repo(tmp_path)
+    (repo / "m.py").write_text("def f(a, b):\n    return a + b\n", encoding="utf-8")
+    with pytest.raises(EffectStartRefused):
+        mutation_score.main(["--repo", str(repo), "--module", "m.py"])
+    assert mutation_score.main(["--repo", str(repo), "--module", "m.py", "--list"]) == 0
+
+
+def test_tools_run_gate_checks_refuses_before_any_spawn(
+    monkeypatch, contracts_disabled
+):
+    import tools.run_gate_checks as run_gate_checks
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("no subprocess may start after a refused boundary")
+
+    monkeypatch.setattr(run_gate_checks, "_run", _exploded)
+    profile = next(iter(run_gate_checks.PROFILES))
+    with pytest.raises(EffectStartRefused):
+        run_gate_checks.main([profile])
+    assert run_gate_checks.main([profile, "--list"]) == 0
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget

@@ -738,6 +738,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.bootstrap_receipt",
+        REGISTRY_BY_ID["tools.bootstrap_receipt"].effects,
+        (process_guard_boundary_decision(),),
+    )
     target = Path(args.repo_root).resolve()
     artifact_dir = _target_path(
         target, args.artifact_dir, DEFAULT_ARTIFACT_REL)

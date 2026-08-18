@@ -53,6 +53,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.list:
         print("\n".join(tests))
         return 0
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.run_gate_checks",
+        REGISTRY_BY_ID["tools.run_gate_checks"].effects,
+        (process_guard_boundary_decision(),),
+    )
     if not args.skip_plan:
         _run([sys.executable, "tools/iron_plan_guard.py", "verify"])
     _run([sys.executable, "-m", "pytest", "-q", *tests])

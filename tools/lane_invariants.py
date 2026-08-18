@@ -277,6 +277,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", metavar="PATH", default=None)
     args = p.parse_args(argv)
 
+    if args.json:
+        # The printed invariant check stays fail-open read-only inspection;
+        # the JSON result write starts at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "tools.lane_invariants",
+            REGISTRY_BY_ID["tools.lane_invariants"].effects,
+            (process_guard_boundary_decision(),),
+        )
     in_dir = Path(args.in_dir)
     if not in_dir.is_dir():
         print(f"no such directory: {in_dir}")

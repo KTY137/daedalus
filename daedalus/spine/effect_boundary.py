@@ -974,9 +974,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Bootstrap evidence run that touches git state while producing its receipt.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.bootstrap_receipt:main", "begin_effect"),),
+        notes=(
+            "Bootstrap evidence run (git-touching) begins centrally with the "
+            "really-installed process spend net."
+        ),
+        migration="complete for the tools.bootstrap_receipt entrypoint",
     ),
     EntrypointSpec(
         id="tools.operability_drill",
@@ -1000,9 +1005,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Host preflight that probes git and workspace state before gate runs.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gate_host_preflight:main", "begin_effect"),),
+        notes="Host preflight probes begin centrally.",
+        migration="complete for the tools.gate_host_preflight entrypoint",
     ),
     EntrypointSpec(
         id="tools.gui_check",
@@ -1023,55 +1030,82 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         id="tools.mutation_score",
         surface=Surface.CLI,
         target="tools.mutation_score:main",
-        effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Scores mutation runs and writes the report.",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.mutation_score:main", "begin_effect"),),
+        notes=(
+            "Scoring (pytest spawns against mutated trees, hand-declared) "
+            "begins centrally; --list stays fail-open."
+        ),
+        migration="complete for the tools.mutation_score entrypoint",
     ),
     EntrypointSpec(
         id="tools.audit_triage",
         surface=Surface.CLI,
         target="tools.audit_triage:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Triages audit findings into a written worklist.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.audit_triage:main", "begin_effect"),),
+        notes=(
+            "The JSON worklist write begins centrally; the printed triage "
+            "stays fail-open read-only inspection."
+        ),
+        migration="complete for the tools.audit_triage entrypoint",
     ),
     EntrypointSpec(
         id="tools.agent_findings",
         surface=Surface.CLI,
         target="tools.agent_findings:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Collects agent findings and writes the digest.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.agent_findings:main", "begin_effect"),),
+        notes="Findings digest writes begin centrally.",
+        migration="complete for the tools.agent_findings entrypoint",
     ),
     EntrypointSpec(
         id="tools.lane_invariants",
         surface=Surface.CLI,
         target="tools.lane_invariants:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Checks lane invariants and writes the result file.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.lane_invariants:main", "begin_effect"),),
+        notes=(
+            "The JSON result write begins centrally; the printed invariant "
+            "check stays fail-open read-only inspection."
+        ),
+        migration="complete for the tools.lane_invariants entrypoint",
     ),
     EntrypointSpec(
         id="tools.funnel_report",
         surface=Surface.CLI,
         target="tools.funnel_report:main",
         effects=(Effect.PROCESS_SPAWN,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Reads a finished funnel run directory; the fan_out mention in its source is docstring only.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.funnel_report:main", "begin_effect"),),
+        notes=(
+            "Reads a finished funnel run directory (fan_out mention in its "
+            "source is docstring only); its declared spawn begins centrally."
+        ),
+        migration="complete for the tools.funnel_report entrypoint",
     ),
     EntrypointSpec(
         id="tools.run_gate_checks",
         surface=Surface.CLI,
         target="tools.run_gate_checks:main",
         effects=(Effect.PROCESS_SPAWN,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Runs the canonical gate verification profiles via subprocess pytest.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.run_gate_checks:main", "begin_effect"),),
+        notes=(
+            "Gate verification pytest spawns begin centrally; --list stays "
+            "fail-open."
+        ),
+        migration="complete for the tools.run_gate_checks entrypoint",
     ),
     EntrypointSpec(
         id="tools.iron_plan_hook_runner",

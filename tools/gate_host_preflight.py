@@ -377,6 +377,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repo-root", default=str(REPO_ROOT))
     args = p.parse_args(argv)
 
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.gate_host_preflight",
+        REGISTRY_BY_ID["tools.gate_host_preflight"].effects,
+        (process_guard_boundary_decision(),),
+    )
     root = Path(args.repo_root).resolve()
     pf = run_checks(root)
     if args.include_hostname:

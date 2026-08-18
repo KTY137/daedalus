@@ -280,6 +280,14 @@ def render(clusters: list[dict], reports: list[dict], limit: int = 45) -> str:
 
 
 def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.agent_findings",
+        REGISTRY_BY_ID["tools.agent_findings"].effects,
+        (process_guard_boundary_decision(),),
+    )
     root = "."
     reports = load_reports(root)
     claims = extract(reports)

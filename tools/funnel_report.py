@@ -451,6 +451,14 @@ def main(argv: list[str] | None = None) -> int:
                          "which is where a resumed rerun lands")
     ap.add_argument("--repo", default=".", help="repository root for path checks")
     args = ap.parse_args(argv)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.funnel_report",
+        REGISTRY_BY_ID["tools.funnel_report"].effects,
+        (process_guard_boundary_decision(),),
+    )
 
     root = Path(args.run_dir)
     if not root.is_dir():
