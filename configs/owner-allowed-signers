@@ -1,0 +1,24 @@
+# Daedalus owner allowed signers -- the trust root for sealed promotion approval.
+#
+# This file, at its committed revision, is what decides whose signature counts
+# as the repository owner's. It is read by
+# daedalus/kernel/signed_approval.py through `git show HEAD:<this path>`, never
+# from the working tree, so editing the checked-out copy grants nothing.
+#
+# Format is ssh-keygen(1) ALLOWED SIGNERS. One principal per line:
+#
+#   owner@daedalus ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... comment
+#
+# The principal on the left must match the signing identity (user.email) the
+# owner tags with.
+#
+# It is deliberately empty of principals. Promotion approval is refused --
+# SignedApprovalRootError -- until the owner adds their own public key in a
+# reviewed commit. An empty root is the correct default: it fails closed, and
+# it cannot be filled in by anything that merely runs as the owner.
+#
+# Adding a key here is a trust-root change. It belongs in its own commit, with
+# the key fingerprint stated in the message, and it should be reviewed as
+# carefully as a change to the promotion boundary itself.
+#
+# See docs/OWNER_SEALED_APPROVAL_HOWTO.md for minting a key and signing.
