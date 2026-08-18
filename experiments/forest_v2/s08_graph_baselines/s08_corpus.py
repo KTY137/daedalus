@@ -22,6 +22,8 @@ Pure stdlib.  Read-only: this module opens files and never writes one.
 """
 from __future__ import annotations
 
+import hashlib
+
 import ast
 import csv
 import io
@@ -493,3 +495,55 @@ def _build_graph(corpus: Corpus, visitors: dict[str, "_ModuleVisitor"]) -> None:
 def _add_edge(corpus: Corpus, a: str, b: str, weight: float) -> None:
     key = (a, b) if a < b else (b, a)
     corpus.edges[key] = corpus.edges.get(key, 0.0) + weight
+
+
+def corpus_digest(corpus: "Corpus") -> str:
+    """SHA-256 over the built corpus, so a reported number names the corpus it came from.
+
+    Covers every document's id, plane, locator and content hash plus the full
+    edge set with weights, in sorted order.  Two runs that print the same digest
+    saw the same documents and the same graph; two that do not are not
+    comparable, however similar their tables look.
+    """
+    sep = b"\x1f"
+    h = hashlib.sha256()
+    for doc_id in sorted(corpus.docs):
+        doc = corpus.docs[doc_id]
+        h.update(doc_id.encode("utf-8"))
+        h.update(sep)
+        h.update(doc.plane.encode("utf-8"))
+        h.update(sep)
+        h.update(doc.locator.encode("utf-8"))
+        h.update(sep)
+        h.update(hashlib.sha256(doc.text.encode("utf-8", "replace")).digest())
+        h.update(b"\n")
+    h.update(b"--edges--\n")
+    for pair in sorted(corpus.edges):
+        line = "%s\x1f%s\x1f%.6f\n" % (pair[0], pair[1], corpus.edges[pair])
+        h.update(line.encode("utf-8"))
+    return h.hexdigest()
+
+
+def cross_plane_edge_census(corpus: "Corpus") -> dict:
+    """How many of the graph's edges actually cross a plane boundary.
+
+    Plan section 13 names "degree-preserving randomized CROSS-PLANE edges".
+    If this census reports 0 cross-plane edges, a rewiring control in this slice
+    randomises something else, and the criterion's object does not exist here --
+    a fact about the instrument, not about the hypothesis.
+    """
+    plane_of_doc = {d.doc_id: d.plane for d in corpus.docs.values()}
+    endpoints: dict[str, int] = defaultdict(int)
+    cross = 0
+    for pair in corpus.edges:
+        pa = plane_of_doc.get(corpus.doc_id_by_module.get(pair[0], ""), "UNMAPPED")
+        pb = plane_of_doc.get(corpus.doc_id_by_module.get(pair[1], ""), "UNMAPPED")
+        endpoints[pa] += 1
+        endpoints[pb] += 1
+        if pa != pb:
+            cross += 1
+    return {
+        "total_edges": len(corpus.edges),
+        "endpoint_plane_counts": dict(sorted(endpoints.items())),
+        "cross_plane_edges": cross,
+    }

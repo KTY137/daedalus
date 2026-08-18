@@ -20,7 +20,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from s08_api import PLANES, evaluate, rank_of  # noqa: E402
-from s08_corpus import build_corpus  # noqa: E402
+from s08_corpus import (  # noqa: E402
+    build_corpus,
+    corpus_digest,
+    cross_plane_edge_census,
+)
 from s08_queries import (  # noqa: E402
     build_non_code_queries,
     build_queries,
@@ -106,6 +110,41 @@ def crosstabs_by_cutoff(ranks: dict[str, list[int]]) -> dict:
     }
 
 
+def reachable_planes(retriever, queries, kmax: int) -> dict:
+    """Which planes this arm can put in front of a user AT ALL, measured.
+
+    An arm whose index holds only code documents cannot be beaten -- or beaten
+    back -- on a query whose gold label is not a code document.  It scores zero
+    on every such query no matter what the graph does, and so does its control.
+    That is a property of the instrument, and it decides what a comparison
+    involving that arm is able to refute before any interval is computed.
+    """
+    counts: dict[str, int] = {}
+    for query in queries:
+        for hit in retriever.query(query.text, k=kmax):
+            counts[hit.plane] = counts.get(hit.plane, 0) + 1
+    return {
+        "returned_doc_planes": dict(sorted(counts.items())),
+        "can_return_non_code": any(plane != "code" for plane in counts),
+    }
+
+
+def informative_queries(a_ranks: list[int], b_ranks: list[int]) -> dict:
+    """Discordant pairs per cutoff: the ONLY queries that carry information here.
+
+    Two arms that both miss a query agree by default.  Padding a comparison with
+    queries neither arm can answer adds denominator and no evidence, which
+    shrinks a difference-of-proportions and its interval towards zero -- i.e.
+    towards EQUIVALENT -- without a single new observation.  An equivalence test
+    run on such a padded set will fire a KILL verdict sooner and on less.
+    """
+    out: dict[str, int] = {}
+    for k in KS:
+        counts = crosstab(a_ranks, b_ranks, k)
+        out[str(k)] = counts["only_a"] + counts["only_b"]
+    return out
+
+
 def _repo_root(argv: list[str]) -> Path:
     if len(argv) > 1:
         return Path(argv[1]).resolve()
@@ -150,7 +189,11 @@ def main(argv: list[str]) -> int:
     t0 = time.perf_counter()
     corpus = build_corpus(root)
     build_seconds = time.perf_counter() - t0
-    report["corpus"] = {**corpus.stats, "build_seconds": round(build_seconds, 3)}
+    report["corpus"] = {
+        **corpus.stats,
+        "build_seconds": round(build_seconds, 3),
+        "digest_sha256": corpus_digest(corpus),
+    }
 
     queries = build_queries(corpus)
     families = by_family(queries)
@@ -404,6 +447,156 @@ def main(argv: list[str]) -> int:
         "bm25_single_index_all_planes": rank_vector(bm25_all, queries, kmax),
     }
     report["crosstabs_by_cutoff"] = crosstabs_by_cutoff(ranks)
+
+    # ---------------------------------------------------------------------
+    # DECIDABILITY AUDIT.  Asked after the s10 evaluator observed that on the
+    # frozen 600 every gold label is a code document, so criterion 14.3 is
+    # structurally unfalsifiable there in the direction that favours the
+    # hypothesis.  The question this answers is not "what do the arms score"
+    # but "can this query set produce BOTH verdicts at all".  A kill instrument
+    # can be blind for reasons that have nothing to do with its statistics.
+    audit_sets = {
+        "frozen_600": queries,
+        "added_non_code_138": non_code,
+        "extended_738": extended,
+    }
+    audit_ranks = {
+        name: {
+            set_name: rank_vector(arm, qs, max(KS))
+            for set_name, qs in audit_sets.items()
+        }
+        for name, arm in (
+            ("bm25_code_only", bm25_code),
+            ("graph_code_only", graph),
+            ("graph_rewired", graph_rewired),
+            ("four_plane_no_fusion", no_fusion),
+            ("union_no_fusion", union),
+            ("bm25_single_index_all_planes", bm25_all),
+        )
+    }
+    census = cross_plane_edge_census(corpus)
+    report["decidability_audit"] = {
+        "question": "does a query set with non-code gold labels make kill criteria 14.2 and "
+                    "14.3 resolvable in BOTH directions, or only in one?",
+        "corpus_digest_sha256": corpus_digest(corpus),
+        "gold_plane_distribution": {
+            set_name: {"n": len(qs), "mix": gold_plane_mix(qs)}
+            for set_name, qs in audit_sets.items()
+        },
+        "planes_that_can_hold_a_gold_label": {
+            "code": True,
+            "knowledge": True,
+            "data": True,
+            "type": False,
+        },
+        "graph_edge_census": {
+            **census,
+            "reading": "criterion 14.2 names degree-preserving randomized CROSS-PLANE edges. "
+                       "This graph has %d of them: every edge joins two code modules, so the "
+                       "rewiring control randomises an intra-code-plane import/call graph. "
+                       "The object the criterion speaks about does not exist in this slice."
+                       % census["cross_plane_edges"],
+        },
+        "arm_reachable_planes": {
+            name: reachable_planes(arm, extended, max(KS))
+            for name, arm in (
+                ("bm25_code_only", bm25_code),
+                ("graph_code_only", graph),
+                ("graph_rewired", graph_rewired),
+                ("four_plane_no_fusion", no_fusion),
+                ("union_no_fusion", union),
+                ("bm25_single_index_all_planes", bm25_all),
+            )
+        },
+        "criterion_14_2": {
+            "text": "degree-preserving randomized cross-plane edges perform equivalently",
+            "arm_a": "graph_rewired",
+            "arm_b": "graph_code_only",
+            "second_arm_exists": True,
+            "arms_are_cross_plane": census["cross_plane_edges"] > 0,
+            "hits_at_10": {
+                set_name: {
+                    "graph_code_only": sum(
+                        1 for r in audit_ranks["graph_code_only"][set_name] if 1 <= r <= 10
+                    ),
+                    "graph_rewired": sum(
+                        1 for r in audit_ranks["graph_rewired"][set_name] if 1 <= r <= 10
+                    ),
+                }
+                for set_name in audit_sets
+            },
+            "informative_queries_by_cutoff": {
+                set_name: informative_queries(
+                    audit_ranks["graph_rewired"][set_name],
+                    audit_ranks["graph_code_only"][set_name],
+                )
+                for set_name in audit_sets
+            },
+            "verdict": "NOT RESOLVABLE IN EITHER DIRECTION BY THIS QUERY SET, for two "
+                       "independent reasons. (1) Both arms index the code plane only, so on "
+                       "all 138 non-code-gold queries both score 0 and every one of them is "
+                       "concordant: the added labels contribute ZERO informative queries at "
+                       "every cutoff. The discordant counts on the extended 738 are identical "
+                       "to those on the frozen 600 while n grows by 23%, so an equivalence "
+                       "test run on the extended set reports a SMALLER difference and a "
+                       "TIGHTER interval from no new evidence -- it manufactures the KILL "
+                       "verdict out of padding. (2) The graph has 0 cross-plane edges, so what "
+                       "the control randomises is not what the criterion names.",
+        },
+        "criterion_14_3": {
+            "text": "four independent indices perform equivalently to cross-plane fusion",
+            "arm_a": "four_plane_no_fusion / union_no_fusion",
+            "arm_b": None,
+            "second_arm_exists": False,
+            "weaker_proxy_arm_b": "bm25_single_index_all_planes (ONE JOINT INDEX, not fusion)",
+            "proxy_hits_at_10": {
+                set_name: {
+                    name: sum(1 for r in audit_ranks[name][set_name] if 1 <= r <= 10)
+                    for name in (
+                        "bm25_code_only",
+                        "four_plane_no_fusion",
+                        "union_no_fusion",
+                        "bm25_single_index_all_planes",
+                    )
+                }
+                for set_name in audit_sets
+            },
+            "proxy_informative_queries_by_cutoff": {
+                set_name: informative_queries(
+                    audit_ranks["union_no_fusion"][set_name],
+                    audit_ranks["bm25_single_index_all_planes"][set_name],
+                )
+                for set_name in audit_sets
+            },
+            "verdict": "THE CRITERION AS WRITTEN IS STILL NOT RESOLVABLE IN EITHER DIRECTION: "
+                       "no cross-plane fusion retriever exists in this slice, so it has one "
+                       "arm on any query set. Missing arm, not missing labels -- the non-code "
+                       "gold labels cannot fix it. What they DO fix is the weaker joint-index "
+                       "proxy: on the frozen 600 the no-fusion arms win (union +53 at k=10), "
+                       "on the added 138 the joint index wins (+48 at k=10), both with "
+                       "non-zero discordant counts. That proxy question is now two-sided, "
+                       "which it was not before; the plan's criterion is not.",
+        },
+        "what_a_kill_verdict_from_this_query_set_would_mean": {
+            "14_2": "AN ARTEFACT. The non-code labels add denominator and no information to "
+                    "it, and the rewired control does not randomise cross-plane edges. A KILL "
+                    "here would be evidence about the query set and the graph's scope, not "
+                    "about the four-plane prior.",
+            "14_3": "NOT PRODUCIBLE. With one arm the comparison cannot be run in either "
+                    "direction. A KILL reported against it would be a category error.",
+            "14_3_weaker_proxy": "EVIDENCE, with a named limit. The proxy is decidable in both "
+                                 "directions on this query set and it points opposite ways on "
+                                 "the two halves, which is a real finding about routing cost. "
+                                 "It is not the plan's criterion and must not be reported as "
+                                 "it.",
+        },
+        "what_would_make_them_resolvable": [
+            "14.2: cross-plane edges to rewire (the graph currently has none), and arms whose "
+            "index can return the plane the gold label lives in",
+            "14.3: a real cross-plane fusion retriever as the second arm",
+            "both: gold labels in the type plane, which no mechanical rule in this tree yields",
+        ],
+    }
 
     # Post-hoc sensitivity: NOT a tuned claim, printed so the frozen alpha=0.5
     # cannot be mistaken for a lucky pick.

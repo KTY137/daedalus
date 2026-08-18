@@ -20,10 +20,20 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from s08_api import Document, EvalResult, Hit, Query, evaluate, rank_of  # noqa: E402
+from s08_api import (  # noqa: E402
+    PLANES,
+    Document,
+    EvalResult,
+    Hit,
+    Query,
+    evaluate,
+    rank_of,
+)
 from s08_corpus import (  # noqa: E402
     Corpus,
     build_corpus,
+    corpus_digest,
+    cross_plane_edge_census,
     data_document_text,
     split_identifier,
     tokenize,
@@ -33,6 +43,8 @@ from s08_selftest import (  # noqa: E402
     KS,
     crosstab,
     crosstabs_by_cutoff,
+    informative_queries,
+    reachable_planes,
 )
 from s08_queries import (  # noqa: E402
     build_extended_queries,
@@ -620,6 +632,118 @@ def test_crosstab_sign_can_flip_between_cutoffs() -> None:
     assert crosstab(a_ranks, b_ranks, 1)["only_b"] == 0
     assert crosstab(a_ranks, b_ranks, 2)["only_a"] == 1
     assert crosstab(a_ranks, b_ranks, 2)["only_b"] == 1
+
+
+def test_corpus_digest_is_stable_and_content_sensitive(cross_plane_repo: Path) -> None:
+    """A number without a corpus digest names no corpus."""
+    first = corpus_digest(build_corpus(cross_plane_repo))
+    assert len(first) == 64
+    assert first == corpus_digest(build_corpus(cross_plane_repo)), "digest is not stable"
+    target = sorted(cross_plane_repo.rglob("*.md"))[0]
+    target.write_text(target.read_text(encoding="utf-8") + "\nan added line\n", encoding="utf-8")
+    assert corpus_digest(build_corpus(cross_plane_repo)) != first, "digest ignored a change"
+
+
+def test_cross_plane_edge_census_counts_a_real_cross_plane_edge(tiny_repo: Path) -> None:
+    """The census must be able to report a cross-plane edge, or its 0 means nothing.
+
+    Kill criterion 14.2 speaks of degree-preserving randomized CROSS-PLANE
+    edges.  This slice's graph reports 0 of them.  That reading is only worth
+    anything if the census would have counted one had it existed -- so one is
+    injected here and must be seen.
+    """
+    corpus = build_corpus(tiny_repo)
+    before = cross_plane_edge_census(corpus)
+    assert before["total_edges"] > 0, "fixture produced no edges to census"
+    assert before["cross_plane_edges"] == 0
+    assert set(before["endpoint_plane_counts"]) == {"code"}
+
+    knowledge_doc = sorted(d.doc_id for d in corpus.by_plane["knowledge"])[0]
+    code_module = sorted(corpus.doc_id_by_module)[0]
+    corpus.doc_id_by_module["__synthetic_knowledge_node__"] = knowledge_doc
+    corpus.edges[(code_module, "__synthetic_knowledge_node__")] = 1.0
+
+    after = cross_plane_edge_census(corpus)
+    assert after["cross_plane_edges"] == 1, "the census cannot see a cross-plane edge"
+    assert after["endpoint_plane_counts"].get("knowledge") == 1
+    assert after["total_edges"] == before["total_edges"] + 1
+
+
+def test_reachable_planes_names_what_an_arm_can_return(cross_plane_repo: Path) -> None:
+    """An arm that cannot return the gold plane cannot be refuted on it.
+
+    Both graph arms index the code plane only, so on a non-code-gold query they
+    and their control both score 0 and agree by construction.  This is the
+    measurement behind that statement.
+    """
+    corpus = build_corpus(cross_plane_repo)
+    queries = build_non_code_queries(corpus)
+    assert queries, "fixture produced no non-code queries"
+
+    code_only = LexicalRetriever.over("bm25_code_only", corpus.by_plane["code"])
+    all_planes = LexicalRetriever.over(
+        "bm25_single_index_all_planes",
+        [d for plane in PLANES for d in corpus.by_plane.get(plane, [])],
+    )
+    graph = CodeGraphRetriever(corpus)
+
+    assert reachable_planes(code_only, queries, 10)["can_return_non_code"] is False
+    assert reachable_planes(graph, queries, 10)["can_return_non_code"] is False
+    assert reachable_planes(all_planes, queries, 10)["can_return_non_code"] is True
+
+
+def test_padding_with_unanswerable_queries_adds_no_information() -> None:
+    """Why an equivalence test can be walked to KILL without new evidence.
+
+    Two arms that both miss a query agree on it.  Adding such queries grows n
+    and leaves the discordant count untouched, so the difference of proportions
+    and its interval both shrink towards zero -- towards EQUIVALENT -- on no new
+    observation at all.  That is exactly what the 138 non-code queries do to the
+    graph-vs-rewiring comparison, whose arms are both code-only.
+    """
+    # 0 = not retrieved.  q1 only A, q2 only B, q3 both, q4 neither.
+    a_real, b_real = [1, 0, 3, 0], [0, 2, 3, 0]
+    informative_real = informative_queries(a_real, b_real)
+    padding = [0] * 50  # both arms miss every padded query, exactly like the 138
+    informative_padded = informative_queries(a_real + padding, b_real + padding)
+    assert informative_real == informative_padded, "padding changed the evidence, not just n"
+    assert informative_padded["10"] > 0
+
+    for k in (1, 5, 10):
+        counts_real = crosstab(a_real, b_real, k)
+        counts_padded = crosstab(a_real + padding, b_real + padding, k)
+        assert counts_padded["neither"] == counts_real["neither"] + len(padding)
+        diff_real = (counts_real["only_b"] - counts_real["only_a"]) / len(a_real)
+        diff_padded = (counts_padded["only_b"] - counts_padded["only_a"]) / (
+            len(a_real) + len(padding)
+        )
+        assert abs(diff_padded) <= abs(diff_real), "padding failed to shrink the difference"
+
+
+def test_no_arm_is_called_fusion_unless_a_fusion_retriever_exists() -> None:
+    """An earlier retraction in this slice was about exactly this word.
+
+    Nothing here fuses evidence across planes: the no-fusion arms concatenate,
+    and the joint index is one index over all documents.  Naming any of them a
+    fusion arm would restate the missing second arm of criterion 14.3 as if it
+    were present.
+    """
+    for path in sorted(SLICE_DIR.glob("s08_*.py")):
+        source = path.read_text(encoding="utf-8")
+        for lineno, line in enumerate(source.splitlines(), 1):
+            lowered = line.lower()
+            if "fusion" not in lowered:
+                continue
+            residual = lowered.replace("no_fusion", "").replace("no-fusion", "")
+            residual = residual.replace("nofusion", "").replace("nofusionretriever", "")
+            if "fusion" not in residual:
+                continue
+            assert not residual.strip().startswith(("class ", "def ")), (
+                f"{path.name}:{lineno} declares a fusion arm: {line.strip()}"
+            )
+            assert "name=" not in residual, (
+                f"{path.name}:{lineno} names an arm fusion: {line.strip()}"
+            )
 
 
 def test_slice_contains_no_write_or_subprocess_call() -> None:

@@ -398,6 +398,116 @@ lands in the top ten for **181 of 200** queries at mean rank 2.26.  The
 single-index retriever's weak knowledge_ref R@1 (0.1200 vs code-only 0.3100) is
 therefore partly a property of the query set, not of the retriever.
 
+### Decidability audit: can this query set produce BOTH verdicts?
+
+Asked after the s10 kill-criterion evaluator consumed the correction above and
+observed that on the frozen 600 every gold label is a code document, so §13's
+"four independent indices" criterion is structurally unfalsifiable there in the
+direction that favours the hypothesis.  The commit that added 138 non-code gold
+labels looked like the answer.  Measured, it is the answer to one of the two
+criteria and not to the other.  Corpus pinned by digest
+`b0d146a34356356782a6b4817b3398dd202ebdbc9682b8f54c3d8cd64b7175a2`; the
+self-test now prints that digest beside every number it reports.
+
+**Gold-label plane distribution** (all [MEASURED], `decidability_audit`):
+
+| query set | n | code | knowledge | data | type |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| frozen 600 | 600 | 600 | 0 | 0 | 0 |
+| added non-code | 138 | 0 | 124 | 14 | 0 |
+| extended | 738 | 600 | 124 | 14 | **0** |
+
+Corpus for scale: code 318, type 289, data 65, knowledge 365 documents.  Three
+of four planes can now hold an answer; the type plane holds 289 documents and
+**zero** gold labels, and no mechanical rule in this tree yields one.
+
+**Which planes each arm can return at all** — the number that decides what a
+comparison is able to refute, measured over the extended 738 at k=10:
+
+| arm | code | type | data | knowledge | can return non-code |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `bm25_code_only` | 7345 | 0 | 0 | 0 | **no** |
+| `graph_code_only` | 7370 | 0 | 0 | 0 | **no** |
+| `graph_rewired` | 7370 | 0 | 0 | 0 | **no** |
+| `four_plane_no_fusion` | 2447 | 1654 | 1468 | 1801 | yes |
+| `union_no_fusion` | 7345 | 4648 | 5809 | 7359 | yes |
+| `bm25_single_index_all_planes` | 3202 | 148 | 103 | 3917 | yes |
+
+#### §13 "degree-preserving randomized cross-plane edges perform equivalently"
+
+**Second arm exists** (`graph_rewired`).  **Verdict: still NOT resolvable in
+either direction by this query set**, for two independent reasons, and the
+non-code labels make it worse rather than better.
+
+1. *The added labels carry zero information for it.*  Both arms index the code
+   plane only, so on all 138 non-code-gold queries both score 0 and every one of
+   them is concordant.  Discordant (informative) queries:
+
+   | query set | n | k=1 | k=5 | k=10 |
+   | --- | ---: | ---: | ---: | ---: |
+   | frozen 600 | 600 | 141 | 55 | 20 |
+   | added non-code | 138 | **0** | **0** | **0** |
+   | extended | 738 | 141 | 55 | 20 |
+
+   The discordant counts on 738 are *identical* to those on 600 while n grows
+   23%.  An equivalence test run on the extended set therefore reports a
+   smaller difference (6/738 = +0.0081 instead of 6/600 = +0.0100) and a
+   tighter interval **from no new evidence at all**.  s10 projected that at the
+   observed discordance rate n=1800 would flip 14.2 from INCONCLUSIVE to
+   EQUIVALENT, i.e. fire KILL.  Padding with queries neither arm can answer is
+   a way to walk to that n without measuring anything — the fastest route to a
+   KILL verdict here is to add queries that contain no information.
+2. *The object the criterion names does not exist in this slice.*  The graph
+   has **992 edges and 0 of them cross a plane**: every edge joins two code
+   modules (endpoint plane counts: code 1984, nothing else).  The rewiring
+   control randomises an intra-code-plane import/call graph.  Whatever the
+   graph-vs-rewired comparison measures, it is not "cross-plane edges perform
+   equivalently".
+
+**A KILL verdict for 14.2 from this query set would be an artefact** — evidence
+about the arms' index scope and the graph's plane coverage, not about the
+four-plane prior.  Stated plainly because the measurement says so, not because
+it is the comfortable answer: the earlier −63/−7/+6 reading against the rewired
+control still stands as a refutation of *this graph's* claimed structural gain,
+but it cannot be promoted into a verdict on the plan's §13 clause.
+
+#### §13 "four independent indices perform equivalently to cross-plane fusion"
+
+**Second arm does not exist.**  No cross-plane fusion retriever is implemented
+here, so the criterion has one arm on *any* query set.  That is a missing-arm
+problem, and gold labels cannot fix it.  **Verdict: not resolvable in either
+direction**, unchanged by the 138.
+
+What the 138 *do* fix is the weaker joint-index proxy — and there the query set
+now cuts both ways, which it did not before.  Hits@10 and discordant counts for
+`union_no_fusion` vs `bm25_single_index_all_planes`:
+
+| query set | union | joint index | net @10 | discordant k=1/5/10 |
+| --- | ---: | ---: | ---: | ---: |
+| frozen 600 | 491 | 438 | **union +53** | 104 / 64 / 53 |
+| added non-code 138 | 1 | 49 | **joint +48** | 10 / 39 / 48 |
+| extended 738 | 492 | 487 | union +5 | 114 / 103 / 101 |
+
+Both directions are reachable, both are populated, and the two halves disagree.
+That is a real finding about the cost of not routing.  It is **not** the plan's
+criterion and must not be reported as one: a joint index is not fusion, and the
+suite now refuses any arm named "fusion" while no fusion retriever exists.
+
+#### What would make them resolvable
+
+- **14.2**: cross-plane edges to rewire — the graph currently has none — and
+  arms whose index can return the plane the gold label lives in.
+- **14.3**: a real cross-plane fusion retriever as the second arm.
+- **both**: gold labels in the type plane, which no mechanical rule in this tree
+  yields.
+
+Mutation evidence for the five checks added with this audit (each re-introduced
+defect, each turning the suite red from 51 green): census blind to cross-plane
+edges → 1 failed; `reachable_planes` always claiming non-code → 1 failed;
+`informative_queries` counting agreement instead of discordance → 1 failed;
+`corpus_digest` returning a constant → 1 failed; an arm renamed to
+`cross_plane_fusion` → 1 failed.
+
 ### Honest caveats
 
 - The type plane is a **proxy**: the tree carries no `.pyi`, so type documents
