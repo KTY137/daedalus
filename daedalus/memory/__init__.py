@@ -257,6 +257,17 @@ def main() -> None:
     done_p.add_argument("--source", default="manual")
 
     args = parser.parse_args()
+    if args.command in ("add", "snapshot", "done"):
+        # Help output stays fail-open; every event/snapshot write starts
+        # at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.memory",
+            REGISTRY_BY_ID["cli.memory"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.command == "add":
         record = append_event(
             MemoryEvent(

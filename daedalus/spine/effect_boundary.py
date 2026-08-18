@@ -568,6 +568,109 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the cli.token_monitor entrypoint",
     ),
     EntrypointSpec(
+        id="cli.arch_memory",
+        surface=Surface.CLI,
+        target="daedalus.arch_memory:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.arch_memory:main", "begin_effect"),),
+        notes=(
+            "Memory build/save (git probes plus the memory-file write, "
+            "hand-declared) begins centrally; --show stays fail-open."
+        ),
+        migration="complete for the cli.arch_memory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.bookkeeper",
+        surface=Surface.CLI,
+        target="daedalus.bookkeeper:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.bookkeeper:main", "begin_effect"),),
+        notes="architecture.html render plus history snapshot begin centrally.",
+        migration="complete for the cli.bookkeeper entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.dctx",
+        surface=Surface.CLI,
+        target="daedalus.dctx:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.dctx:main", "begin_effect"),),
+        notes=(
+            "Receipt minting begins centrally; --verify stays fail-open "
+            "read-only inspection."
+        ),
+        migration="complete for the cli.dctx entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.doctor",
+        surface=Surface.CLI,
+        target="daedalus.doctor:main",
+        effects=(Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.doctor:main", "begin_effect"),),
+        notes=(
+            "Diagnostic probes really spawn CLIs and reach the local model "
+            "host, so the whole run begins centrally with the spend net on."
+        ),
+        migration="complete for the cli.doctor entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_ceiling",
+        surface=Surface.CLI,
+        target="daedalus.eval.ceiling:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.ceiling:main", "begin_effect"),),
+        notes="Advisory report, but its git history probes spawn processes.",
+        migration="complete for the cli.eval_ceiling entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_correctness",
+        surface=Surface.CLI,
+        target="daedalus.eval.correctness:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.correctness:main", "begin_effect"),),
+        notes=(
+            "verify/run/seed spawn pytest in disposable worktrees and begin "
+            "centrally; --derive stays fail-open (prints, writes nothing)."
+        ),
+        migration="complete for the cli.eval_correctness entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_graph_delta",
+        surface=Surface.CLI,
+        target="daedalus.eval.graph_delta:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.graph_delta:main", "begin_effect"),),
+        notes="Every mode writes its evidence JSON, so the run begins centrally.",
+        migration="complete for the cli.eval_graph_delta entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.memory",
+        surface=Surface.CLI,
+        target="daedalus.memory.__init__:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.memory.__init__:main", "begin_effect"),),
+        notes=(
+            "add/snapshot/done event writes begin centrally; bare help "
+            "output stays fail-open."
+        ),
+        migration="complete for the cli.memory entrypoint",
+    ),
+    EntrypointSpec(
         id="provider.claude",
         surface=Surface.CLAUDE,
         target="daedalus.providers.claude_cli:ClaudeCLIProvider.run",
@@ -1137,48 +1240,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
 _LEGACY_ENTRYPOINT_ROWS: tuple[
     tuple[str, Surface, str, tuple[Effect, ...], Wiring], ...
 ] = (
-    ("cli.arch_memory", Surface.CLI, "daedalus.arch_memory:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.bookkeeper",
-        Surface.CLI,
-        "daedalus.bookkeeper:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
     # cli.claude_bridge was deleted from this inventory 2026-08-17: the target
     # is now a fail-closed stub (parser.error, no effect), so its row declared
     # effects the code cannot perform and produced the registry's only
     # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
     # effectful body the scanner will rediscover it as an unregistered blocker.
-    (
-        "cli.dctx",
-        Surface.CLI,
-        "daedalus.dctx:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.doctor",
-        Surface.CLI,
-        "daedalus.doctor:main",
-        (Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.eval_ceiling", Surface.CLI, "daedalus.eval.ceiling:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.eval_correctness",
-        Surface.CLI,
-        "daedalus.eval.correctness:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.eval_graph_delta",
-        Surface.CLI,
-        "daedalus.eval.graph_delta:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
     ("cli.file_bridge", Surface.CLI, "daedalus.file_bridge:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     ("cli.mapping_drift", Surface.CLI, "daedalus.mapping.drift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     (
@@ -1193,13 +1259,6 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         Surface.CLI,
         "daedalus.mapping.render:main",
         (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.memory",
-        Surface.CLI,
-        "daedalus.memory.__init__:main",
-        (Effect.FILESYSTEM_WRITE,),
         Wiring.INVENTORY_ONLY,
     ),
     ("cli.status", Surface.CLI, "daedalus.status:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),

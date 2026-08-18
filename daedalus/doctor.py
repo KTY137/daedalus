@@ -130,6 +130,14 @@ def _print_watcher_heartbeat() -> None:
 
 
 def main() -> None:
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.doctor",
+        REGISTRY_BY_ID["cli.doctor"].effects,
+        (process_guard_boundary_decision(),),
+    )
     r = check()
     print("daedalus doctor -- can we offload real work?\n")
     print(f"[{_m(r['claude_cli'])}] claude CLI on PATH          (senior lane)")

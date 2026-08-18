@@ -290,6 +290,14 @@ def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
     if "--show" in argv:
         print(render(root) or "(no memory built yet)")
         return 0
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.arch_memory",
+        REGISTRY_BY_ID["cli.arch_memory"].effects,
+        (process_guard_boundary_decision(),),
+    )
     mem = build(root)
     save(mem, root)
     print("\n".join(mem.lines))

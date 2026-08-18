@@ -1779,6 +1779,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(task, indent=2, sort_keys=True))
         return 0 if task else 2
 
+    # --derive above prints a proposal and writes nothing; every remaining
+    # mode spawns pytest in disposable worktrees and starts centrally.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.eval_correctness",
+        REGISTRY_BY_ID["cli.eval_correctness"].effects,
+        (process_guard_boundary_decision(),),
+    )
     if args.seed:
         task, diagnostics = seed_task_from_commit(AGENT_ENV_ROOT, args.seed)
         print(json.dumps({"task": task, "diagnostics": diagnostics},

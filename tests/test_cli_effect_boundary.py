@@ -152,6 +152,87 @@ def test_token_monitor_refuses_fail_closed_without_the_contract(
         main()
 
 
+def test_arch_memory_show_stays_fail_open_but_build_refuses(
+    tmp_path, monkeypatch, contracts_disabled, capsys
+):
+    from daedalus.arch_memory import main
+
+    root = _target_repo(tmp_path)
+    assert main([str(root), "--show"]) == 0
+    with pytest.raises(EffectStartRefused):
+        main([str(root)])
+
+
+def test_bookkeeper_update_refuses_fail_closed(contracts_disabled):
+    from daedalus.bookkeeper import main
+
+    with pytest.raises(EffectStartRefused):
+        main(["update"])
+
+
+def test_dctx_mint_refuses_fail_closed(tmp_path, contracts_disabled):
+    from daedalus.dctx import main
+
+    repo = _target_repo(tmp_path)
+    (repo / "a.py").write_text("x = 1\n", encoding="utf-8")
+    out = tmp_path / "receipt.dctx"
+    with pytest.raises(EffectStartRefused):
+        main([str(repo), "a.py", "--out", str(out)])
+    assert not out.exists()
+
+
+def test_doctor_refuses_fail_closed_before_any_probe(monkeypatch, contracts_disabled):
+    from daedalus import doctor
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("check() must not probe after a refused boundary")
+
+    monkeypatch.setattr(doctor, "check", _exploded)
+    with pytest.raises(EffectStartRefused):
+        doctor.main()
+
+
+def test_eval_ceiling_refuses_fail_closed(monkeypatch, contracts_disabled):
+    from daedalus.eval import ceiling
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("temporal_ceiling must not run after a refusal")
+
+    monkeypatch.setattr(ceiling, "temporal_ceiling", _exploded)
+    with pytest.raises(EffectStartRefused):
+        ceiling.main([])
+
+
+def test_eval_correctness_run_refuses_but_derive_stays_fail_open(
+    monkeypatch, contracts_disabled, capsys
+):
+    from daedalus.eval import correctness
+
+    monkeypatch.setattr(
+        correctness, "derive_task_from_commit", lambda *_a, **_kw: {"id": "t"}
+    )
+    assert correctness.main(["--derive", "a" * 40]) == 0
+    with pytest.raises(EffectStartRefused):
+        correctness.main(["--run"])
+
+
+def test_eval_graph_delta_refuses_fail_closed(tmp_path, contracts_disabled):
+    from daedalus.eval.graph_delta import main
+
+    root = _target_repo(tmp_path)
+    with pytest.raises(EffectStartRefused):
+        main([str(root)])
+    assert not (root / "runs").exists()
+
+
+def test_memory_event_writes_refuse_fail_closed(monkeypatch, contracts_disabled):
+    from daedalus import memory
+
+    monkeypatch.setattr("sys.argv", ["memory", "add", "probe"])
+    with pytest.raises(EffectStartRefused):
+        memory.main()
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget

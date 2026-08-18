@@ -251,6 +251,14 @@ def main(argv: list[str] | None = None) -> None:
     up.add_argument("--note", default="", help="short note recorded in the history row")
     args = p.parse_args(argv)
     if args.action in (None, "update"):
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.bookkeeper",
+            REGISTRY_BY_ID["cli.bookkeeper"].effects,
+            (process_guard_boundary_decision(),),
+        )
         res = update(force=getattr(args, "force", False), note=getattr(args, "note", ""))
         print(json.dumps(res, indent=2))
 
