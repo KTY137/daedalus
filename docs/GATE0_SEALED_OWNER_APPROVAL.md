@@ -1,11 +1,51 @@
 # Gate 0: the sealed owner approval
 
-Status: **analysis and design options. Nothing implemented.** The choice of
-trust root is the owner's, not an implementer's, and it is the reason this note
-stops short of code.
+Status: **SUPERSEDED as a status claim; retained as design history.** The
+authority for what is built is the master plan, Revision 3 ("Sealed Gate-0
+promotion and bounded Gate-1 rehearsal", `docs/IKARUS_ARIADNE_MASTER_PLAN.md`
+§12), not this note.
 
 Iron Plan: ALIGNED · Iron Gate: 0 · touches invariant §4.5 (sealed promotion),
 §4.3 (isolation), §4.8 (bounded effects).
+
+> **Read this before section 1.** Every "nothing implemented" claim below was
+> true when written and is false now. The sealed approval exists:
+>
+> - `daedalus/spine/effect_boundary.py:151` reads
+>   `"promotion.owner_approval": True`.
+> - `daedalus/kairos/gated_writes.py:144` — `promote_candidates` requires
+>   `consumed_approval`, `evidence_packet`, `target_ref`, `approval_ledger`
+>   and `owner_keyring`, and refuses before any lock, worktree or Git effect.
+> - `daedalus/kernel/approvals.py` carries `OwnerApproval`,
+>   `VerifiedOwnerApproval`, `ConsumedOwnerApproval` and `ApprovalLedger` with
+>   one-use nonce consumption, validity-window binding and a candidate
+>   snapshot taken before authentication.
+> - `daedalus/kernel/promotion.py:363` — `authorize_persisted_promotion`
+>   re-authenticates the consumption inside the promotion lock.
+>
+> What section 4 calls the choice of trust root was therefore made in code, and
+> it landed as **option D-class**, not the recommended option B: the signing
+> secret is read from an environment variable
+> (`daedalus/kernel/approvals.py` `_cli_issue(--secret-env)`), and — the
+> sharper defect — the *verifier's* root is supplied by the caller. Both
+> `owner_keyring` and `approval_ledger` are parameters of
+> `promote_candidates`, and `authorize_persisted_promotion` binds
+> `trusted_keyring = dict(owner_keyring)`. A caller that reaches the promotion
+> boundary chooses the keys against which its own approval is authenticated.
+>
+> Sections 4B and 5 (git-signed tags against a committed allowed-signers file)
+> remain the correct upgrade and are the active direction. One measured
+> constraint that this note does not state, and that governs any
+> implementation of option B:
+>
+> **the allowed-signers file path is itself the trust root.** Verifying an
+> attacker-signed tag against an attacker-chosen signers file returns "Good
+> signature", exit 0. A verifier must therefore resolve that file from a fixed
+> committed location — reading the committed blob, not the working-tree copy —
+> and must never accept the path, the file or a keyring from its caller.
+>
+> Section 6's checklist is still the right shape; item 5 (the first production
+> construction of `PromotionReceipt`) is genuinely still open.
 
 ---
 
