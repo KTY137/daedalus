@@ -150,11 +150,12 @@ ranked_paths = [hit.path for hit in hits]         # repo-relative POSIX, best fi
 - `index.with_scoring(k1=…, b=…)` → a view sharing the same postings, so a
   scoring ablation cannot accidentally index a different corpus.
 - `IndexConfig.exclude_paths` is the contamination firewall: a harness **must**
-  exclude the files carrying its own query strings (see below).
+  exclude the files carrying its own query strings — including its own
+  documentation (see below; this README is on that list).
 
 Process boundary, language-agnostic, same ranking:
 
-```
+```text
 python experiments/forest_v2/s07_bm25/bm25_index.py --root . --k 10 "query"
 ```
 
@@ -162,25 +163,27 @@ python experiments/forest_v2/s07_bm25/bm25_index.py --root . --k 10 "query"
 as above plus the RAW build counters. `measure_bm25.py` emits
 `"schema": "forest-v2-s07-bm25-measure/1"`.
 
-### Measured baseline (2026-08-18, this worktree @ 8bfaa7a, Windows, CPython 3.10.11)
+### Measured baseline (2026-08-18, this worktree @ af7df8f + firewall fix, Windows, CPython 3.10.11)
 
 12 frozen queries, one gold file each, ranks searched to 100. `hit@N` counts
 queries whose gold file landed in the top N. **All RAW, single run, no
-repetition** — treat build seconds as ±30 % (the same corpus rebuilt between
-13.8 s and 19.8 s across arms).
+repetition.** Build seconds are wall clock on a busy host and are *not* a
+benchmark: identical rebuilds of the same corpus came out at 14.7 s, 19.0 s and
+35.9 s in this very run. Use them for order of magnitude only. Per-query
+latency is stabler (it is measured 12 times per arm) but still single-run.
 
 | arm | files | build s | h@1 | h@3 | h@5 | h@10 | MRR@10 | ms/query |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **full corpus, path_weight=3 (primary)** | 5062 | 19.8 | **4** | 10 | 10 | **12** | **0.5613** | 35.5 |
-| full corpus, path_weight=1 | 5062 | 18.6 | 3 | 10 | 10 | 12 | 0.5188 | 25.2 |
-| full corpus, path_weight=0 (content only) | 5062 | 17.8 | 3 | 9 | 10 | 12 | 0.5076 | 30.9 |
-| **code+prose only (no `.json`/`.jsonl`)** | 1557 | 5.9 | **8** | 12 | 12 | 12 | **0.8056** | 7.7 |
-| contaminated control (carriers left in) | 5064 | 13.8 | 3 | 8 | 10 | 12 | 0.5046 | 36.1 |
-| full corpus, b=0 (no length norm) | 5062 | — | 3 | 6 | 7 | 9 | 0.4021 | 31.4 |
-| full corpus, k1=0 (presence only) | 5062 | — | 2 | 6 | 8 | 10 | 0.3669 | 25.3 |
+| **full corpus, path_weight=3 (primary)** | 5061 | 19.0 | **5** | 10 | 10 | **12** | **0.6169** | 29.9 |
+| full corpus, path_weight=1 | 5061 | 14.7 | 4 | 10 | 10 | 12 | 0.5743 | 30.1 |
+| full corpus, path_weight=0 (content only) | 5061 | 35.9 | 4 | 9 | 10 | 12 | 0.5632 | 29.5 |
+| **code+prose only (no `.json`/`.jsonl`)** | 1556 | 7.8 | **9** | 12 | 12 | 12 | **0.8611** | 8.2 |
+| contaminated control (carriers left in) | 5064 | 18.8 | 3 | 8 | 10 | 12 | 0.5046 | 31.0 |
+| full corpus, b=0 (no length norm) | 5061 | — | 3 | 6 | 7 | 9 | 0.4021 | 28.9 |
+| full corpus, k1=0 (presence only) | 5061 | — | 2 | 8 | 8 | 10 | 0.3988 | 30.6 |
 
-Primary-arm corpus: 5062 files / 41.9 MB / 5,536,028 tokens / 62,660 distinct
-terms / mean 1093.6 tokens per document, from 5276 files walked.
+Primary-arm corpus: 5061 files / 41.9 MB / 5,535,224 tokens / 62,658 distinct
+terms / mean 1093.7 tokens per document, from 5276 files walked.
 
 What the arms actually say:
 
@@ -189,16 +192,18 @@ What the arms actually say:
    that "finds the right file" has not beaten anything; it has to beat rank 1
    at equal cost.
 2. **Term frequency and length normalisation both earn their keep.** Removing
-   length normalisation (b=0) costs 0.159 MRR and drops three golds out of the
-   top 10; ignoring term frequency entirely (k1=0, pure idf) costs 0.194.
+   length normalisation (b=0) costs 0.215 MRR and drops three golds out of the
+   top 10; ignoring term frequency entirely (k1=0, pure idf) costs 0.218 and
+   pushes one gold to rank 32.
 3. **Path tokens help, mildly.** 3× path weight buys +0.054 MRR over
-   content-only — real, but far smaller than the corpus effect.
+   content-only — real, but an order of magnitude smaller than the corpus
+   effect below.
 4. **The machine-written artifact tree is the dominant retrieval hazard.**
-   Dropping `.json`/`.jsonl` removes 3505 files (24 MB) and takes h@1 from 4 to
-   8 and MRR from 0.561 to 0.806, while making the build 3.3× and queries 4.6×
-   faster. Receipt dumps under `runs/` beat their own subject matter: a scan
-   receipt *about* `worktree.py` outranks `worktree.py`, and plan-critique
-   receipts outrank the master plan itself. **This is a finding s09 must
+   Dropping `.json`/`.jsonl` removes 3505 files (24.3 MB) and takes h@1 from 5
+   to 9 and MRR from 0.617 to 0.861, while making the build ~2.4× and queries
+   3.6× faster. Receipt dumps under `runs/` beat their own subject matter: a
+   scan receipt *about* `worktree.py` outranks `worktree.py`, and plan-critique
+   receipts outrank the master plan itself. **This is the finding s09 must
    inherit**: a Data-plane corpus needs a stated inclusion rule, and any
    cross-plane comparison that silently varies it is measuring the corpus, not
    the retriever.
@@ -207,17 +212,25 @@ What the arms actually say:
 
 - **The confusable-neighbour miss (pinned in the self-test).** For "same module
   call site resolution baseline probe", `probe_cross_module_resolution.py` (the
-  *continuation*) outranks `probe_call_resolution.py` (the subject). Bag of
-  words cannot separate "the document about X" from "the document that cites
-  X". Not reworded, not excluded — this is exactly the failure class a
-  structure-aware retriever must beat, so it is asserted as a known miss and
-  will fail loudly if it ever silently changes.
-- **The evaluation contaminated itself on the first run.** `measure_bm25.py`
-  lives in the corpus it measures and quotes all 12 queries verbatim; it took
-  rank 1 for four of them. Fixed by `exclude_paths`, and kept measurable as the
-  contaminated control arm. Note the direction: the leak *lowered* MRR by 0.057
-  (a carrier is a distractor, not a gold), so "our number went up after we
-  fixed leakage" is not, by itself, evidence that leakage was absent.
+  *continuation*) takes rank 1 and `probe_call_resolution.py` (the actual
+  subject) rank 2. Bag of words cannot separate "the document about X" from
+  "the document that cites X". Not reworded, not excluded — this is exactly the
+  failure class a structure-aware retriever must beat, so it is asserted as a
+  known miss and fails loudly if it ever silently changes.
+- **The evaluation contaminated itself twice, in two different ways.**
+  `measure_bm25.py` lives in the corpus it measures and quotes all 12 queries
+  verbatim; on the first run it took rank 1 for four of them. That was fixed
+  with `exclude_paths` — and then *this README section broke a self-test the
+  moment it was written*, because documenting the query set puts the query set
+  back in the corpus. Writing the evaluation down contaminates it exactly as
+  much as coding it does. All three carriers (script, self-test, this README)
+  are now excluded from every scored arm, and one control arm keeps them in:
+  the leak is worth **0.112 MRR** (0.617 → 0.505).
+- **The leak made the score *worse*, not better.** A query carrier is a
+  distractor, not a gold file, so it displaced golds down the ranking. "Our
+  number went up after we removed leakage" is therefore not evidence that
+  leakage was harmless, and a number that went *down* is not evidence that
+  none is left.
 - **Legitimate relevance is still counted as a miss.** `tests/test_effect_boundary.py`
   outranking `tools/effect_boundary_check.py` is arguably correct behaviour;
   the single-gold rule counts it against BM25 anyway. Absolute numbers here are
@@ -231,10 +244,20 @@ broken" and to anchor an ablation; **not** enough for a published comparison.
 Gate 3 needs a frozen task set produced by someone other than the retriever's
 author.
 
+Two further asymmetries worth stating out loud:
+
+- one of the 12 queries ("bm25 ranking baseline over repository files") targets
+  `bm25_index.py`, whose docstring the same author wrote in the same session.
+  That is easy mode and it is one of the five h@1 hits; the primary arm without
+  it is 4/11;
+- the scored arms exclude this README, so editing this file cannot move them —
+  but the `leaky_control` row *is* affected by it, so that row's exact value is
+  only meaningful next to the README revision it was measured against.
+
 ### Reproduce
 
-```
-python -m pytest experiments/forest_v2/s07_bm25/test_bm25_index.py -q   # 27 passed, 2.8 s
+```text
+python -m pytest experiments/forest_v2/s07_bm25/test_bm25_index.py -q   # 27 passed, 2.4 s
 python experiments/forest_v2/s07_bm25/measure_bm25.py --root .          # the table above
 ```
 

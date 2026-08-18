@@ -59,11 +59,14 @@ SCHEMA = "forest-v2-s07-bm25-measure/1"
 RANK_LIMIT = 100
 
 # The files that carry the query strings themselves.  Excluded from every
-# scored arm; see CONTAMINATION FIREWALL above.
+# scored arm; see CONTAMINATION FIREWALL above.  The slice README is on this
+# list because *documenting* the query set contaminates the corpus exactly as
+# much as coding it does -- it quotes the queries and the gold paths verbatim.
 QUERY_CARRIERS: frozenset[str] = frozenset(
     {
         "experiments/forest_v2/s07_bm25/measure_bm25.py",
         "experiments/forest_v2/s07_bm25/test_bm25_index.py",
+        "experiments/forest_v2/README.md",
     }
 )
 

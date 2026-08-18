@@ -34,6 +34,19 @@ from bm25_index import (  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
+# Contamination firewall for the known-hit tests, expressed relative to the
+# `experiments/forest_v2` subtree.  This file, the measurement script and the
+# slice README all quote the query strings verbatim; left in the corpus they
+# win their own queries.  Documenting an evaluation contaminates it just as
+# thoroughly as coding it does.
+FOREST_V2_QUERY_CARRIERS = frozenset(
+    {
+        "README.md",
+        "s07_bm25/measure_bm25.py",
+        "s07_bm25/test_bm25_index.py",
+    }
+)
+
 
 # --------------------------------------------------------------- tokenizer
 
@@ -311,22 +324,28 @@ def test_cli_emits_the_s09_json_contract(tmp_path, capsys):
 
 
 @pytest.mark.parametrize(
-    ("subtree", "query", "expected"),
+    ("subtree", "query", "expected", "exclude"),
     [
-        ("tools", "iron plan guard verify the plan digest", "iron_plan_guard.py"),
-        ("tools", "effect boundary entrypoint registry drift", "effect_boundary_check.py"),
+        ("tools", "iron plan guard verify the plan digest", "iron_plan_guard.py", frozenset()),
+        (
+            "tools",
+            "effect boundary entrypoint registry drift",
+            "effect_boundary_check.py",
+            frozenset(),
+        ),
         (
             "experiments/forest_v2",
             "bm25 ranking baseline over repository files",
             "s07_bm25/bm25_index.py",
+            FOREST_V2_QUERY_CARRIERS,
         ),
     ],
 )
-def test_known_hits_rank_first_in_a_real_subtree(subtree, query, expected):
+def test_known_hits_rank_first_in_a_real_subtree(subtree, query, expected, exclude):
     root = REPO_ROOT / subtree
     if not root.is_dir():  # pragma: no cover - worktree layout guard
         pytest.skip(f"{subtree} missing")
-    index = BM25Index.build(root)
+    index = BM25Index.build(root, IndexConfig(exclude_paths=exclude))
     hits = index.search(query, k=5)
     assert hits, f"no hits for {query!r}"
     assert hits[0].path == expected, [hit.path for hit in hits]
@@ -346,7 +365,7 @@ def test_confusable_neighbour_is_a_retained_known_miss():
     root = REPO_ROOT / "experiments/forest_v2"
     if not root.is_dir():  # pragma: no cover - worktree layout guard
         pytest.skip("forest_v2 missing")
-    index = BM25Index.build(root)
+    index = BM25Index.build(root, IndexConfig(exclude_paths=FOREST_V2_QUERY_CARRIERS))
     rank = index.rank_of("same module call site resolution baseline probe", "probe_call_resolution.py")
     assert rank is not None and rank > 1, "the known miss disappeared -- re-measure and re-record"
     assert rank <= 5, f"the known miss got worse: rank {rank}"
