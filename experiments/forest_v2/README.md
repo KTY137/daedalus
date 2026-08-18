@@ -176,7 +176,7 @@ results. Replacements below.
 Nothing else in the earlier section is withdrawn: the card counts, the plane
 split, the edge counts and the determinism results reproduce unchanged.
 
-### Measured, this worktree @ `ff5f22dd` [MEASURED]
+### Measured, this worktree @ `461492ca` [MEASURED]
 
 `python experiments/forest_v2/s06_cards/probe_node_cards.py`, default budgets
 (content 800 chars, neighborhood 8 edges), scanning the same three code
@@ -215,9 +215,15 @@ The withdrawn "50% / 41% / 31%" becomes:
 
 | content budget | mean card (stand-in) | envelope share | mean card (s01) | envelope share |
 | ---: | ---: | ---: | ---: | ---: |
-| 200 | 1,562.8 | **43.9%** (was 50%) | 1,829.4 | **37.5%** |
-| 800 (default) | 1,943.6 | **35.3%** (was 41%) | 2,210.1 | **31.0%** |
-| 4,000 | 2,582.5 | **26.6%** (was 31%) | 2,849.1 | **24.1%** |
+| 200 | 1,562.8 | **43.9%** (was 50%) | 1,809.6 | **37.9%** |
+| 800 (default) | 1,943.6 | **35.3%** (was 41%) | 2,190.4 | **31.3%** |
+| 4,000 | 2,582.5 | **26.6%** (was 31%) | 2,829.4 | **24.2%** |
+
+The s01 column moved after the join repair below (1,829.4 → 1,809.6 and so on)
+and its envelope **share rose**, 37.5% → 37.9%. That direction is against this
+slice's own headline and is printed rather than rounded away: the repair made
+the edge payload smaller while the envelope stayed 686 bytes, so the envelope
+now buys a larger fraction of a smaller card.
 
 A reviewer projected the corrected 800-char figure at ~35% assuming the
 provenance cost vanished entirely; the stand-in column lands at 35.3%, and the
@@ -237,13 +243,25 @@ table:
 | 800 (default) | 16,454,198 | 1,924 | 2,579 | 5,075 | 3,841 (45.4%) | 12.4 |
 | 4,000 | 21,863,801 | 2,048 | 5,244 | 8,298 | 768 (9.1%) | 14.2 |
 
-Real s01 upstream, same 8,466 cards, more edges:
+Real s01 upstream, same 8,466 cards, more edges — **re-measured after the join
+repair below**, which is why every cell moved:
 
-| content budget | total bytes | p50 | p90 | max | truncated | probe seconds |
+| content budget | total bytes | was | p50 | p90 | max | truncated |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 200 | 15,487,658 | 1,713 | 2,522 | 4,467 | 6,888 (81.4%) | 25.5 |
-| 800 (default) | 18,711,048 | 2,135 | 3,138 | 5,075 | 3,841 (45.4%) | 24.4 |
-| 4,000 | 24,120,651 | 2,279 | 5,814 | 8,389 | 768 (9.1%) | 25.5 |
+| 200 | 15,320,303 | 15,487,658 | 1,700 | 2,463 | 4,467 | 6,888 (81.4%) |
+| 800 (default) | 18,543,693 | 18,711,048 | 2,126 | 3,079 | 5,075 | 3,841 (45.4%) |
+| 4,000 | 23,953,296 | 24,120,651 | 2,268 | 5,779 | 8,298 | 768 (9.1%) |
+
+The saving is **−167,355 bytes at every one of the three budgets**, to the
+byte. That constancy is the check that the repair touched the neighborhood and
+nothing else: content scales with the budget, edges do not. The stand-in table
+above is byte-identical to its previous run, which is the other half of the
+same check — the repair is confined to the s01 path.
+
+The `probe seconds` column is dropped rather than carried forward stale. Other
+lanes were running on this box, and a duration measured under load is wrong
+rather than merely noisy. The previous values (≈24–26 s) stand as [INHERITED]
+and were not re-measured here.
 
 The qualitative reading survives the correction: raising the budget 5×
 (800→4,000) moves the median card 6.4% but the p90 103% (stand-in). Half the
@@ -258,8 +276,8 @@ global constant — a Gate-2 decision this slice does not pre-empt.
 | cards built | 8,466 | 8,466 |
 | code / knowledge plane | 5,739 / 2,727 | 5,739 / 2,727 |
 | distinct `node_id` / duplicates | 8,466 / 0 | 8,466 / 0 |
-| neighborhood edges found / kept | 18,640 / 13,762 | **34,104 / 27,983** |
-| neighborhoods truncated by the bound | 345 (4.1%) | 952 (11.2%) |
+| neighborhood edges found / kept | 18,640 / 13,762 | **33,985 / 27,940** (was 34,104 / 27,983) |
+| neighborhoods truncated by the bound | 345 (4.1%) | 940 (11.1%) (was 952) |
 | cards with no edge at all | 3 | 23 |
 | contract violations | 0 | 0 |
 | records rejected | 0 | 0 |
@@ -272,6 +290,80 @@ s01's own resolution result, passed through [MEASURED]: 318 modules,
 0 unparseable, 45,005 call sites — 13,124 verified, 17,881 external,
 **14,000 declined**; 341 base classes, 189 resolved to a repo class. The
 declined 31% is reported, not absorbed: s06 attaches no edge it cannot name.
+
+Of the 13,124 verified, **12,788 now reach a Node Card and 336 do not**
+(`calls_verified_joined` / `calls_verified_no_card` in `describe()`). The 336
+are targets s01 verified and s06 does not card at all — defs nested inside
+functions, which `_walk_defs` deliberately does not walk. They are dropped and
+counted rather than shipped as pointers into nothing. See the retraction below
+for what those figures were before.
+
+### RETRACTED: "34,104 edges" was 13,124 pointers into nothing
+
+The corpus attached 13,124 verified call edges and **not one of them could be
+followed**. `node_cards.node_id` mints `code://{rel}#{kind}:{qualname}` from the
+record's **node kind** — `module` | `class` | `function` | `method`.
+`s01_upstream` minted the target id from `Resolution.kind`, which is not a node
+kind at all but s01's **resolution bucket**: `local_function`, `local_class`,
+`import_repo`, `self_method`, `module_attr_repo`, `local_var_method`,
+`repo_class_attr`, `self_attr_method`, `cls_method`, `super_method`. Every
+`calls` edge in the s01 column therefore addressed a card that cannot exist.
+
+85 checks were green throughout. Each looked at one side of the join; none
+looked at the join. That is the defect behind the defect, and it is the reason
+the replacement is a **join guard** rather than a format assertion: it follows
+a known edge set to its cards and fails on the rate, so a future drift for some
+entirely different reason — a separator, an ordinal, a qualname convention —
+reddens the same check.
+
+**What is withdrawn.** The s01 column's edge counts and every byte figure
+derived from them: 34,104 / 27,983 edges, 952 truncated neighborhoods, the
+three s01 sweep rows, and the three s01 envelope-share cells. They were
+arithmetically correct and they counted unusable edges. Replacements are in the
+tables above.
+
+**What is not withdrawn.** Card counts, the plane split, `distinct_node_ids`,
+the envelope figures, the whole stand-in column, and the counter-liveness
+table. The stand-in column re-runs byte-identical, which is the evidence that
+the fault was confined to the s01 path rather than a claim that it was.
+
+**The correction, in full** [MEASURED]:
+
+| quantity | before | after |
+| --- | ---: | ---: |
+| verified call edges emitted | 13,124 | 12,788 |
+| …that reach a card | **0** | **12,788 (100%)** |
+| …verified but uncarded, declined | 0 (shipped dangling) | 336 |
+| raw call edges | 31,005 | 30,669 |
+| deduped call edges | 18,461 | 18,342 |
+| joined targets by node kind | — | function 7,478 / class 4,055 / method 1,255 |
+
+The deduped count falls by 119 while the raw count falls by 336, and the gap is
+accounted for rather than waved at: 217 of the dropped edges were repeat calls
+from one enclosing definition to the same nested target, which the per-owner
+dedup would have collapsed anyway. Measured separately: **zero** edges existed
+only because the route was in the id — within a single owner record no target
+was ever reached under two different buckets. So the bucket never inflated the
+edge count. It only broke the join, silently, at 100%.
+
+**Mutation-verified, not asserted.** Putting `res.kind` back reddens
+`test_every_repo_call_edge_reaches_a_card_in_the_same_build` and
+`test_call_edges_carry_the_node_kind_not_the_resolution_bucket` (3 failed, 89
+passed); restoring returns 100 passed and 12,788 / 12,788. One result is kept
+because it is against interest: the build's own `calls_verified_joined` counter
+does **not** notice the mutation — it counts successful kind lookups, and the
+lookup still succeeds when the id minted from it is wrong. A counter is not a
+join check. The in-suite mutation probe asserts that non-detection rather than
+hiding it.
+
+**The interface decision, stated because it binds two slices.** The **node kind
+is canonical** and the resolver conforms. `node_id` is a pure function of a
+record, so a card must be able to mint the identity another slice points at;
+the resolution bucket is not a property of the record. And the bucket names the
+*route* from call site to target, not the target — an identity that varies with
+the path taken to it is not an identity. The bucket is not discarded: it is
+published once per build as `calls_by_resolution`, split verified/external, the
+same discipline this slice already applied to provenance blocks.
 
 #### The two counters are now measurements [MEASURED]
 
@@ -309,6 +401,34 @@ load-bearing guard there would have been the easier sentence and the wrong one.
   plausible-looking join that cannot work. `s01_upstream.py` consumes the real
   contract; line ranges come from s01's own parsed tree, so no locator is
   guessed.
+- **The s01 column is NOT reproducible from this slice alone, and the external
+  commit is named.** Every code-plane number here — 318 modules, 5,739 records,
+  12,788 joined edges, the s01 byte totals — is produced by s01's resolver in a
+  **sibling worktree**. Nothing s06 commits determines them. Re-running this
+  README's s01 figures requires that exact upstream, which is now pinned by
+  content inside the artifact rather than described in prose:
+
+  | | |
+  | --- | --- |
+  | `s01_index.py` | `sha256:213d7f888e868453fe69121bf3daa22e1fc9bf2d4e7f0d565ca06a6c66068ded` |
+  | `s01_resolver.py` | `sha256:6b0604f78432167d216c2c9faaaf5e4255a71d23a22c2fbbb2d3fa8a5314396d` |
+  | combined `input_digest` | `sha256:0b98dcd87afbb5d5471933b9d3e318beecaef8c0ae0eb378e519e240eddaeac5` |
+  | s01 worktree HEAD | `d4f363f669d4bb126ed56a6ce8db45f4dc56b4f9` |
+
+  Those two files are the whole upstream: `s01_resolver` imports only
+  `s01_index` and the stdlib. The pin rides in the code-plane provenance block,
+  which is content-addressed and referenced by every card, so the upstream
+  reaches `card_id` — change s01 and the corpus changes identity loudly instead
+  of quietly reporting different numbers under the same description. Before
+  this, a card recorded only `"source": "s01_resolution"` and an
+  `extractor_version` of `"1"`, a constant that does not move when s01 moves.
+
+  The HEAD is reported **beside** the digest and never instead of it. That is
+  not hypothetical: s01's HEAD moved under this lane mid-session
+  (`16fab41e` → `d4f363f6`) and was carrying uncommitted edits before that.
+  Neither imported module changed across that range — which is what licenses
+  the before/after correction above to be read as one measurement rather than
+  two.
 - **The cross-lane coupling is a named gap, not prose.** s01 lives in a
   sibling worktree and is located by `--s01-path`, then `F2_S01_PATH`, then a
   sibling search. When none resolves, the run falls back to the stand-in and
@@ -338,10 +458,16 @@ The slice imports nothing from `daedalus/`, nothing in `daedalus/` imports it,
 and it contains no effectful entrypoint — `main()` only prints. Cards are
 proposal carriers: they never become evidence and they promote nothing.
 
-Checks: `python -m pytest experiments/forest_v2/s06_cards/` → **85 passed**
+Checks: `python -m pytest experiments/forest_v2/s06_cards/` → **100 passed**
 [MEASURED] — 41 from the first version, plus the provenance-ref contract and
 its break-even limit, the budget guards, the six negative-path fixtures, one
-mutation probe per new guard, and the real-s01 wiring.
+mutation probe per new guard, the real-s01 wiring, the seven edge-join guards
+and the eight upstream-pin guards.
+
+Both new guard families are reproducible from **this slice alone**: they drive
+the real code paths against an injected stand-in for s01's two modules over a
+tree in `tmp_path`, so neither needs the sibling worktree. A guard that depends
+on another lane's HEAD is not a guard this slice can run.
 
 ## Boundary note
 
