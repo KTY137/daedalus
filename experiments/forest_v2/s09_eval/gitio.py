@@ -198,6 +198,52 @@ def log_name_only(repo: Path, revision: str, limit: int) -> List[str]:
     return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
+def read_rename_stats(repo: Path, anchor: str, limit: int) -> Dict[str, Tuple[int, int]]:
+    """Map ``sha -> (rename_entries, diff_entries)`` for the same history.
+
+    Exists so the cross-plane corpus can reject rename-dominated commits
+    without shelling ``git`` around the read-only gate.  ``read_history``
+    uses ``--name-only``, which prints a rename's destination and hides its
+    source; that is fine for gold (the destination is absent from the parent
+    tree and drops out) but it means a rename-heavy commit looks small.  The
+    same commit under ``diff.renames=false`` reports both sides, and the
+    sources ARE in the parent tree.  Reading the statuses here is what lets a
+    rule see the difference instead of inheriting whichever git config the
+    machine happened to have.
+    """
+    raw = _run(
+        repo,
+        [
+            "log", "--no-merges", f"--pretty=format:{_RS}%H", "--name-status",
+            f"-n{int(limit)}", anchor,
+        ],
+    ).decode("utf-8", "replace")
+
+    out: Dict[str, Tuple[int, int]] = {}
+    current = ""
+    renames = 0
+    total = 0
+    for chunk in raw.split(_RS):
+        if not chunk.strip():
+            continue
+        lines = chunk.splitlines()
+        if not lines:
+            continue
+        current = lines[0].strip()
+        renames = 0
+        total = 0
+        for line in lines[1:]:
+            if not line.strip():
+                continue
+            status = line.split("\t")[0]
+            total += 1
+            if status.startswith("R"):
+                renames += 1
+        if current:
+            out[current] = (renames, total)
+    return out
+
+
 def make_preimage_clone(source: Path, revision: str, dest: Path) -> Path:
     """Materialise a bare repository containing ONLY ``revision`` and its ancestors.
 

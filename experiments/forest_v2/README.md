@@ -475,16 +475,307 @@ documents without any error. Not reached in this run: 4945 blobs / 40.6 MiB
 against a 256 MiB cap. It is a latent correctness bug, not a live one, and it
 is written down here so a larger corpus does not rediscover it as a mystery.
 
+## Slice s09, continuation 2 (2026-08-18): a corpus that can be asked the question
+
+Artifact: `s09_eval/taskset_xplane.json`, schema
+`forest_v2.s09.taskset_xplane/1`, cases digest
+`sha256:0148e7f0e3744c40420cc90e31ee0f306930f7ac9e341289d8e5ac247e6c6386`,
+anchor `d849c2a94d66ffb1bf892de924995645395bf2a6`.
+Build: `python -m experiments.forest_v2.s09_eval.taskset_xplane`.
+Rebuilt twice at the same anchor, byte-identical both times [MEASURED].
+
+**This is additive. The first corpus is untouched** and stays the corpus every
+number published above was measured on. Proof is below, and a test enforces it.
+
+### Frozen specification
+
+- **Hypothesis this instrument is built to test (not tested here):** verified
+  cross-plane structure improves retrieval of the files a change must touch,
+  and the improvement concentrates on changes that actually span planes.
+- **What this continuation delivers:** the corpus, and nothing else. No
+  retriever is run, imported, or scored against it in this slice. Gold is
+  derived from git history and frozen first; that ordering is the property
+  that let the first corpus survive independent reconstruction when nine
+  sibling slices did not.
+- **Scope:** read-only git plumbing over one pinned anchor, one new module,
+  one JSON artifact, one test file. No model calls, no network, no spend.
+- **Expiry:** 2026-10-31, same as the rest of this pre-study. The anchor is
+  pinned, so the corpus does not rot when the tree moves; but if nothing has
+  consumed it by then, re-argue it rather than inherit it.
+- **Kill-criterion linkage:** this corpus is what makes plan section 13's
+  "graph-conditioned prioritization does not beat random or evaluator-only
+  choice" *checkable* here. It does not make a result from it *conclusive* —
+  see "What this does not buy" below.
+
+### Why a second corpus rather than a wider first one
+
+The first corpus cannot decide anything about cross-plane structure, measured
+rather than asserted: 32 of its 35 gold slots are `.py`, 3 of 20 cases span
+more than one plane, exactly 1 touches Knowledge, 0 touch Type, and the Gate-1
+flagship shape has no representative. A cross-plane retrieval arm scored
+against it returned a paired MRR delta of exactly +0.000000 with a bootstrap
+CI of [0, 0] — degenerate, because the graph signal reached 5 of 35 gold slots
+and the text baseline had already placed the gold at rank 1–3 on every one.
+
+Re-freezing the first corpus to fix that would invalidate every number
+published against it at once, so it is left alone.
+
+### What the old selection rule could not see
+
+| old rule | what it cost |
+| --- | --- |
+| `history_limit: 1200` | 61 commits in this history carry usable cross-plane gold; only 13 fall inside a 1,200-commit window. **48 were excluded by window position alone.** The new limit covers all 1,457 reachable single-parent commits. |
+| `require_python_change: true` | deletes the entire `{data, knowledge}` stratum — 10 commits where a document and a schema move together with no Python at all. That is the purest cross-plane shape in the history. Dropped. |
+| `max_changed: 6` | leaves 39 cross-plane commits and collapses `{code,data,knowledge}` from 15 to **3** [MEASURED]. |
+
+### Composition of the new corpus [MEASURED]
+
+88 cases: 58 cross-plane, 30 single-plane control.
+
+| quantity | first corpus | this corpus |
+| --- | ---: | ---: |
+| cases | 20 | **88** |
+| gold slots | 35 | **475** |
+| cases spanning >1 plane | 3 | **58** |
+| cases spanning 3 planes | — | **13** |
+| cases touching Knowledge | 1 | **45** |
+| cases touching Type | 0 | **0** |
+| Gate-1 `.py`+`.md`+`.csv` shape | 0 | **0** |
+
+Gold slots by plane: code 313, knowledge 78, data 71 (plus 13 `.html`/`.css`
+slots, which are gold but are **not** counted as plane span — see below).
+By suffix: `.py` 285, `.md` 78, `.json` 60, `.tsx` 17, `.html` 10, `.js` 6,
+`.yml` 6, `.ts` 5, `.toml` 5, `.css` 3.
+
+Cases by plane combination:
+
+| combination | cases | stratum |
+| --- | ---: | --- |
+| `code+knowledge` | 22 | cross-plane |
+| `code+data` | 14 | cross-plane |
+| `code+data+knowledge` | 13 | cross-plane |
+| `data+knowledge` | 9 | cross-plane |
+| `code` | 28 | control |
+| `data` | 1 | control |
+| `knowledge` | 1 | control |
+
+The target was ≥60 cases, ≥20 spanning ≥2 planes, ≥15 touching Knowledge. All
+three are met, and the ≥60 came from power rather than taste: at the observed
+per-case reciprocal-rank spread (sd 0.244), n=20 cannot resolve an effect below
+about 0.15 MRR against a base of 0.1168.
+
+### The control stratum is a placebo, not a second measurement
+
+30 single-plane cases exist so a cross-plane method's gain can be checked for
+*specificity*. A method whose gain appears equally on single-plane cases is not
+gaining from planes. The control is drawn only from single-plane commits with
+≥2 gold paths, because cross-plane cases are multi-file by construction and a
+single-file control would confound plane-span with gold-set size. Median gold
+size: 5 in the cross-plane stratum, 3 in the control [MEASURED] — not equal,
+and stated rather than smoothed.
+
+### The denominator, in four buckets that close
+
+1,457 commits considered = 691 rejected by rule + 766 admissible.
+766 admissible = 88 accepted + 678 admissible-but-not-sampled.
+
+| rejected by | count | why the rule exists |
+| --- | ---: | --- |
+| `no_retrievable_gold_in_pre_image` | 687 | every changed path was created by the commit or fails the suffix/size rule, so nothing it touched is retrievable from the pre-image tree |
+| `gold_exceeds_largest_cutoff` | 3 | Recall@20 is bounded by 20/G < 1 above k, for every retriever including a perfect one |
+| `rename_dominated_diff` | 1 | see below |
+| `parent_tree_unreadable` | **0** | **not counted as a rule** — see below |
+
+| admissible but not sampled | count | why |
+| --- | ---: | --- |
+| `single_plane_below_control_min_gold` | 592 | single-file; would confound plane-span with gold-set size |
+| `single_plane_beyond_control_quota` | 86 | the control is capped so it cannot outweigh the stratum it contrasts with |
+
+Rejection and non-selection are different facts and are kept in different
+buckets. The first corpus recorded "35 considered, 20 accepted, 15 rejected"
+and had no counter at all for the commits it never looked at.
+
+**The largest bucket is biased and the bias is not fixable here.** The 687 are
+dominated by file-*creating* commits, which is exactly the shape that
+introduces new cross-plane structure. A pre-image retrieval task cannot score
+a file that does not yet exist. This is recorded so nobody reads the corpus as
+a uniform sample of the repository's history.
+
+### A rule that cannot reject is not a rule
+
+`parent_tree_unreadable` fires **0** times in this history. It is kept as an
+I/O failure branch — it separates "git could not read the parent tree" from
+"the parent tree holds no gold" — and it is deliberately kept **out** of
+`SELECTION_RULES`, because a never-firing branch presented as a safeguard is
+how a corpus acquires rigour it does not have. A test asserts both halves.
+
+`min_message_chars >= 24`, inherited from the first corpus, was tried and
+**removed**: it rejects 0 of the 770 gold-bearing commits. Its measured zero is
+recorded in the artifact so the next person does not re-add it as prudence.
+
+### The two bulk contaminants, excluded by rule
+
+**The rename-dominated diff.** Commit `946db82a` is 249 R100 renames under
+`runs/audit_swarm/` out of 309 diff entries. The rule is not "drop this sha" —
+no commit sha appears in the selection code. It is `rename_fraction >= 0.5`,
+and the reason is that this commit's gold set *is not stable*: under git's
+default rename detection it reports 309 changed paths and yields 3 gold; under
+`diff.renames=false` it reports **558**, and the 249 extra are the pre-rename
+paths, which do exist in the parent tree and are eligible, so the same commit
+would contribute ~249 gold slots [MEASURED]. A corpus whose Recall@k
+denominator moves when a client-side git config flag moves is not frozen. The
+rule makes the corpus invariant to that knob. It rejects exactly 1 commit, and
+that commit was cross-plane — the rule costs something real.
+
+**The mechanical mass edit.** `max_gold_paths <= 20` is set to the largest
+reported cutoff, on the argument above about Recall@k being unattainable past
+k. What it removed, measured: 3 commits, of which 2 were cross-plane and both
+of those tri-plane — a 56-path central-wiring port and a 28-path rebrand that
+also carries 34 renames. Neither is cross-plane evidence: those files moved
+together because one substitution was applied to all of them, not because a
+change in one plane implied a change in another. **That the cap happens to
+remove exactly the mechanical commits is an observation, not the cap's
+justification.** The justification is the metric bound; the tidiness is luck,
+and if the two ever diverge the metric bound wins.
+
+The cap costs 2 of 15 tri-plane commits. That cost is recorded in the artifact
+under `cap_cost`, not left in prose.
+
+### Supply attrition, as a chain that closes [MEASURED]
+
+61 cross-plane commits exist before any rule → `rename_dominated_diff` takes 1
+→ 60 → `gold_exceeds_largest_cutoff` takes 2 → **58 admissible, 58 accepted, 0
+unused**. Cross-plane supply is the *ceiling*, not a quota: every admissible
+cross-plane commit in the whole reachable history is in the corpus. A demand
+for more cross-plane cases is a demand for a different repository.
+
+Three separate numbers about "how many cross-plane commits there are" invite
+the reader to assume they describe the same population. They do not, so the
+artifact writes them as a chain that has to add up, and a test checks it does.
+
+`presentation` (`.html`/`.css`) is **not** one of the four planes and is not
+counted as span. Counting it would inflate this history's cross-plane supply
+from 61 commits to 70. Such paths are still gold and still retrievable; they
+just cannot make a case cross-plane on their own.
+
+### The Type plane still cannot be represented
+
+**0 gold slots, and this is not an oversight to be fixed by a wider suffix
+map.** The Type plane has no file-level node, so a gold label whose unit is a
+file path can never name it. Counting a `.py` file because it carries
+annotations would not fix this: the retrievable unit would still be the file,
+and a retriever that returned it would be scored for finding code. This corpus
+represents **three** planes.
+
+What symbol-level gold would take, stated but **not built under this brief**:
+gold whose unit is a `(path, qualified name, revision)` triple; a
+symbol-resolving extractor over each pre-image tree (the call-resolution probes
+above are the closest existing machinery, and they attribute 30.3% of call
+sites, which is nowhere near enough to ground a gold label); and a retriever
+contract whose candidate universe is symbols rather than files — which changes
+`Candidate`, the universe budget, and every metric denominator. That is a
+different slice, and it should not be started on the strength of this
+paragraph.
+
+### The semantically tight shape is scarce
+
+The one genuinely cross-plane shape in this history is the work-packet seam: a
+`.md` document, its `.json` contract, the `.py` implementation and the `.yml`
+workflow moving together. Two files changing together because someone ran a
+formatter satisfies "multi-plane" and is not cross-plane evidence.
+
+Detected mechanically as a shared basename stem appearing in two or more
+planes inside one gold set. **It occurs in 5 of the 88 cases** [MEASURED],
+including both known instances `4d67a562` and `824b1ec9`. Five is far too few
+to build a corpus from, so the shape is *labelled per case* (`seam_stems`)
+rather than used as a filter. Any analysis that wants only semantically tight
+cross-plane evidence should restrict to those cases and report the reduced n
+honestly. The scarcity is itself a finding about what this repository can
+support.
+
+### What this buys, and what it does not
+
+It buys **askability**. There is now mass on which a cross-plane win could
+appear, and a control stratum on which it should not.
+
+It does **not** buy an interpretable answer, and the write-up should not
+pretend otherwise. The cross-plane edges this repository can currently produce
+are laundered: all 2,528 carry one hardcoded evidence constant, and a
+deliberately falsified edge was measured to receive the same
+`assurance='verified'` label as a true one. Until that verifier is fixed — work
+that lives outside this directory and is not this slice's — a win measured on
+this corpus is a win for a *label*, not for a plane.
+
+**This artifact is an instrument awaiting a subject.**
+
+### Guards, and the mutation run that graded them
+
+`s09_eval/test_taskset_xplane.py`, 29 tests. Every one asserts a behaviour of
+the artifact or of the builder; none asserts the presence of a word in a source
+file, because a text-scanning guard has twice been satisfied here by an
+unrelated occurrence.
+
+14 mutations were applied one at a time, each with a named test to watch:
+
+| guard disabled | named test | verdict |
+| --- | --- | --- |
+| cap unbound from the largest cutoff | `test_no_case_carries_more_gold_than_the_largest_cutoff` | RED |
+| never-firing branch promoted to a rule | `test_every_selection_rule_rejects_at_least_one_commit` | RED |
+| digest check removed from `load()` | `test_load_refuses_a_tampered_case` | RED |
+| `presentation` admitted as a plane | `test_presentation_paths_cannot_make_a_case_cross_plane` | RED |
+| Type plane faked by relabelling `.py` | `test_the_type_plane_has_no_gold_slot_anywhere` | RED |
+| seam detector stops requiring two planes | `test_seam_detection_needs_one_artifact_in_two_planes` | RED |
+| builder pulls in a retriever | `test_building_the_corpus_imports_no_retriever_and_no_scorer` | RED |
+| census denominator understated | `test_census_buckets_add_up` | RED |
+| supply chain no longer closes | `test_supply_chain_closes` | RED |
+| rename-dominated commit smuggled back in | `test_the_rename_dominated_commit_is_absent_and_accounted_for` | RED |
+| one case's gold silently widened | `test_gold_is_reconstructible_from_raw_git_without_this_package` | RED |
+| the first corpus rebuilt under this slice | `test_the_first_corpus_is_byte_reachable_and_unchanged` | RED |
+| control stratum allowed to be single-file | `test_the_control_stratum_is_matched_on_gold_set_size` | RED |
+| cap-cost arithmetic falsified | `test_the_cap_reports_what_it_cost` | RED |
+
+**14 of 14 caught — but only on the second run.** The first pass had one
+survivor, and it is worth recording rather than quietly fixing: a builder
+rewritten to relabel every `.py` as `type` left
+`test_the_type_plane_has_no_gold_slot_anywhere` **green**, because that test
+read only the frozen record, which had been built before the mutation. The
+guard was strengthened to run the live labeller over the corpus's own paths.
+The lesson generalises: a guard that reads a frozen artifact proves the
+artifact is clean and proves nothing about the code that would dirty the next
+one.
+
+### Proof the first corpus is unchanged [MEASURED]
+
+- `git diff` against HEAD for `s09_eval/taskset.json` and `s09_eval/taskset.py`:
+  empty.
+- EOL-normalised sha256 of `taskset.json`, HEAD vs worktree:
+  `c83841ae…` both.
+- Loaded through its own loader, which recomputes the digest from the cases:
+  file digest and recomputed digest both
+  `sha256:c3ef36f19ebaaf953ef8c26615295dfe7e845a89ec68b50ffb5c933df96d8c33`,
+  schema `forest_v2.s09.taskset/2`, 20 cases, ids `c00`…`c19`.
+- `test_the_first_corpus_is_byte_reachable_and_unchanged` pins the digest and
+  goes red if the corpus is rebuilt.
+
+The only change to a pre-existing file in this continuation is one added
+function in `s09_eval/gitio.py`, `read_rename_stats`, which reads diff
+statuses through the module's existing read-only verb gate rather than around
+it. The rename rule needs to see rename *statuses*, and `read_history` uses
+`--name-only`, which hides them.
+
 ## Boundary note
 
 **Corrected 2026-08-18.** This note previously read "this directory currently
 contains no effectful entrypoint". That stopped being true in the same commit
-that stated it. This directory now contains **two** effectful entrypoints:
+that stated it. **Updated again in continuation 2: the count is now three, not
+two.** Adding an entrypoint without updating this table is precisely how the
+note went stale the first time.
 
 | entrypoint | effect |
 | --- | --- |
 | `s09_eval/harness.py:main` | `mkdir` + `write_text` of `results/raw.json`, on the default path, suppressed only by `--no-write` |
 | `s09_eval/taskset.py:main` | `write_text` of `taskset.json` |
+| `s09_eval/taskset_xplane.py:main` | `write_text` of `taskset_xplane.json` |
 
 Both are unscanned. `daedalus/spine/effect_boundary.py` pins
 `HARNESS_PACKAGES = ("scripts", "tests")`, so nothing under `experiments/` is
@@ -499,7 +790,8 @@ slice does not touch `daedalus/`. The exact gap:
 - constant: `HARNESS_PACKAGES = ("scripts", "tests")`
 - unscanned effectful entrypoints:
   `experiments/forest_v2/s09_eval/harness.py:main`,
-  `experiments/forest_v2/s09_eval/taskset.py:main`
+  `experiments/forest_v2/s09_eval/taskset.py:main`,
+  `experiments/forest_v2/s09_eval/taskset_xplane.py:main`
 - both write only inside `experiments/forest_v2/s09_eval/`; neither performs
   network egress, spend, or model calls.
 
