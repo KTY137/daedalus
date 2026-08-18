@@ -482,6 +482,128 @@ def read_committed_allowed_signers(repo_root: str | Path) -> str:
     return resolve_trust_root(repo_root).normalised()
 
 
+def _check_tag_signature(
+    root: Path, tag_object: str, trust_root: TrustRoot
+) -> tuple[bool, str, str]:
+    """Run the one signature check. Returns ``(ok, principal, detail)``.
+
+    Extracted so the owner's read-before-signing tool and the promotion
+    boundary cannot drift apart: an inspector that checks signatures a little
+    differently from the verifier is a way to be shown one thing and approve
+    another.
+    """
+    handle, signers_path = tempfile.mkstemp(prefix="daedalus-allowed-signers-")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
+            # ssh-keygen's allowed-signers parser is line-oriented and a
+            # carriage return becomes part of the key blob, so a checkout on a
+            # CRLF platform would silently stop matching any principal.
+            normalised = trust_root.normalised()
+            stream.write(normalised.replace("\r\n", "\n").replace("\r", "\n"))
+        verified = _git(
+            root,
+            [
+                "-c",
+                "gpg.format=ssh",
+                "-c",
+                f"gpg.ssh.allowedSignersFile={signers_path}",
+                # The verifier itself is pinned. MEASURED 2026-08-18: with
+                # gpg.ssh.program set in a config git still reads, an
+                # attacker-signed tag verifies "Good signature" and exit 0,
+                # because the substituted program decides the answer. The
+                # repository's OWN config is such a place, and no environment
+                # variable closes it -- only this pin does.
+                "-c",
+                "gpg.ssh.program=ssh-keygen",
+                "verify-tag",
+                "--raw",
+                # NB: the pinned OID, never a tag name. A name is a mutable ref.
+                tag_object,
+            ],
+            label="verifying the approval tag signature",
+            check=False,
+        )
+    finally:
+        try:
+            os.unlink(signers_path)
+        except OSError:
+            pass
+    output = verified.stderr or verified.stdout
+    if verified.returncode != 0:
+        return False, "", (output.strip() or "no principal matched")
+    return True, _signer_principal(output), output.strip()
+
+
+def describe_signed_tag(repo_root: str | Path, tag_name: str) -> dict[str, str]:
+    """Describe a tag for the owner's read-before-signing step. Grants nothing.
+
+    Returns plain strings and never a :class:`VerifiedSignedApproval`. It runs
+    the SAME signature check as the promotion boundary but performs none of the
+    purpose, binding, generation or expiry checks, so it can describe a tag and
+    can never authorise one.
+
+    ``verified`` is ``"yes"`` only when the signature checked out against the
+    committed signer set. The body is returned either way, because the owner
+    needs to see what a tag holds -- but a caller that prints it MUST print the
+    verification state with it. Showing a tag body under a heading that implies
+    provenance, without saying whether the signature checked out, is how an
+    owner gets talked into signing an attacker's bytes.
+    """
+    root = Path(repo_root).resolve()
+    result = {
+        "tag_name": tag_name,
+        "tag_object": "",
+        "verified": "no",
+        "principal": "",
+        "detail": "",
+        "body": "",
+    }
+    resolved = _git(
+        root,
+        ["rev-parse", "--verify", "--quiet", f"refs/tags/{tag_name}^{{tag}}"],
+        label="resolving the tag object",
+        check=False,
+    )
+    tag_object = resolved.stdout.strip()
+    if resolved.returncode != 0 or not tag_object:
+        result["detail"] = (
+            f"{tag_name} is not an annotated tag object in this repository; "
+            "a lightweight tag carries no signature"
+        )
+        return result
+    result["tag_object"] = tag_object
+
+    raw = _git(
+        root, ["cat-file", "tag", tag_object],
+        label="reading the tag object", check=False,
+    )
+    if raw.returncode != 0:
+        result["detail"] = f"tag object {tag_object[:12]} is unreadable"
+        return result
+    try:
+        result["body"] = _strip_signature(_tag_message(raw.stdout))
+    except SignedApprovalError as exc:
+        result["detail"] = str(exc)
+
+    try:
+        trust_root = resolve_trust_root(root)
+    except SignedApprovalError as exc:
+        result["detail"] = str(exc)
+        return result
+
+    ok, principal, detail = _check_tag_signature(root, tag_object, trust_root)
+    result["verified"] = "yes" if ok and principal else "no"
+    result["principal"] = principal
+    if result["verified"] == "yes":
+        result["detail"] = (
+            f"signature verified against allowed-signers blob "
+            f"{trust_root.blob_oid} committed at {trust_root.commit_oid}"
+        )
+    else:
+        result["detail"] = detail or "no principal matched"
+    return result
+
+
 def verify_signed_approval(
     repo_root: str | Path,
     tag_name: str,
@@ -511,7 +633,6 @@ def verify_signed_approval(
 
     root = Path(repo_root).resolve()
     trust_root = resolve_trust_root(root)
-    allowed_signers = trust_root.normalised()
 
     # An annotated/signed tag is a real object; a lightweight tag is only a ref
     # to a commit and carries no signature at all.
@@ -528,49 +649,11 @@ def verify_signed_approval(
             "a lightweight tag carries no signature"
         )
 
-    handle, signers_path = tempfile.mkstemp(prefix="daedalus-allowed-signers-")
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
-            # ssh-keygen's allowed-signers parser is line-oriented and a
-            # carriage return becomes part of the key blob, so a checkout on a
-            # CRLF platform would silently stop matching any principal.
-            stream.write(allowed_signers.replace("\r\n", "\n").replace("\r", "\n"))
-        verified = _git(
-            root,
-            [
-                "-c",
-                "gpg.format=ssh",
-                "-c",
-                f"gpg.ssh.allowedSignersFile={signers_path}",
-                # NB: the pinned OID, never `tag_name`. See the TOCTOU note
-                # where the tag object is resolved.
-                # The verifier itself is pinned. MEASURED 2026-08-18: with
-                # gpg.ssh.program set in a config git still reads, an
-                # attacker-signed tag verifies "Good signature" and exit 0,
-                # because the substituted program decides the answer. The
-                # repository's OWN config is such a place, and no environment
-                # variable closes it -- only this pin does.
-                "-c",
-                "gpg.ssh.program=ssh-keygen",
-                "verify-tag",
-                "--raw",
-                tag_object,
-            ],
-            label="verifying the approval tag signature",
-            check=False,
-        )
-    finally:
-        try:
-            os.unlink(signers_path)
-        except OSError:
-            pass
-
-    if verified.returncode != 0:
+    signature_ok, principal, detail = _check_tag_signature(root, tag_object, trust_root)
+    if not signature_ok:
         raise SignedApprovalSignatureError(
-            f"{tag_name} is not signed by an allowed owner principal: "
-            f"{verified.stderr.strip() or verified.stdout.strip() or 'no principal matched'}"
+            f"{tag_name} is not signed by an allowed owner principal: {detail}"
         )
-    principal = _signer_principal(verified.stderr or verified.stdout)
     if not principal:
         raise SignedApprovalSignatureError(
             f"{tag_object[:12]} verified, but git named no principal for the "
@@ -959,6 +1042,7 @@ __all__ = [
     "approval_tag_for",
     "canonical_approval_body",
     "claim_signed_approval",
+    "describe_signed_tag",
     "promotion_receipt",
     "read_committed_allowed_signers",
     "regeneration_voids_approval",

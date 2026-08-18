@@ -32,6 +32,7 @@ from daedalus.kernel.signed_approval import (  # noqa: E402
     OWNER_ALLOWED_SIGNERS_PATH,
     SignedApprovalBody,
     canonical_approval_body,
+    describe_signed_tag,
     read_committed_allowed_signers,
     resolve_trust_root,
 )
@@ -101,27 +102,39 @@ def _show(args: argparse.Namespace) -> int:
 
 def _inspect(args: argparse.Namespace) -> int:
     repo = Path(args.repo_root).resolve()
-    import subprocess
 
-    completed = subprocess.run(
-        ["git", "tag", "-l", "--format=%(contents)", args.tag],
-        cwd=str(repo),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0 or not completed.stdout.strip():
-        raise SystemExit(f"no tag {args.tag} in {repo}")
-    contents = completed.stdout
-    for marker in ("-----BEGIN SSH SIGNATURE-----", "-----BEGIN PGP SIGNATURE-----"):
-        index = contents.find(marker)
-        if index != -1:
-            contents = contents[:index]
-    text = contents.strip()
+    # Through the kernel's git choke point, never a bare subprocess: this ran
+    # git with a completely unscrubbed environment, so the same GIT_DIR that
+    # redirects the verifier redirected the tool the owner reads BEFORE
+    # signing.
+    described = describe_signed_tag(repo, args.tag)
+    if not described["tag_object"]:
+        raise SystemExit(f"{described['detail']} (repository {repo})")
 
-    _rule(f"body held by {args.tag}")
+    text = described["body"]
+    trustworthy = described["verified"] == "yes"
+
+    # The heading states the verification result. The previous version printed
+    # "body held by <tag>" with no signature check at all, and the HOWTO sends
+    # the owner here as their read-before-signing step -- so an attacker-signed
+    # tag was displayed exactly like an owner-signed one.
+    if trustworthy:
+        _rule(f"VERIFIED body of {args.tag}")
+        print(f"  signed by : {described['principal']}")
+        print(f"  {described['detail']}")
+        print()
+    else:
+        _rule(f"UNVERIFIED body of {args.tag}")
+        print("  !! THE SIGNATURE ON THIS TAG DID NOT CHECK OUT !!")
+        print(f"  reason : {described['detail']}")
+        print("  The bytes below are whatever the tag holds. They are NOT")
+        print("  evidence that the owner signed anything. Do not act on them.")
+        print()
+    if not text:
+        raise SystemExit("the tag carries no readable body")
     print(text)
     print(f"\n  sha256 : {hashlib.sha256(text.encode('utf-8')).hexdigest()}")
+    print(f"  tag object : {described['tag_object']}")
 
     try:
         body = SignedApprovalBody.from_json(text)
@@ -149,7 +162,9 @@ def _inspect(args: argparse.Namespace) -> int:
     for line in principals:
         print(f"    {line.strip()[:96]}")
     print()
-    return 0
+    # A well-formed body under a bad signature is still a failure, and a script
+    # that checks the exit status must see it as one.
+    return 0 if trustworthy else 1
 
 
 def main() -> int:

@@ -394,20 +394,35 @@ def _subprocess_argv_literals(source: str) -> list[list[str]]:
 
 
 def test_owner_tool_executes_no_signing_command() -> None:
-    """The tool prints what to sign; it must never be able to sign it."""
+    """The tool prints what to sign; it must never be able to sign it.
+
+    This used to require the tool to run at least one git command, because it
+    spawned git itself. Since F6 it runs NONE -- every repository read goes
+    through the kernel's scrubbed choke point -- so the premise was inverted:
+    the tool must hold no signing capability in any form, spawned or not.
+    """
     tool = (
         Path(__file__).resolve().parents[2] / "scripts" / "owner_approval_request.py"
     )
-    argvs = _subprocess_argv_literals(tool.read_text(encoding="utf-8"))
+    source = tool.read_text(encoding="utf-8")
 
-    assert argvs, "expected the tool to run at least one git command"
-    for argv in argvs:
+    for argv in _subprocess_argv_literals(source):
         assert "-s" not in argv, f"owner tool creates a signature: {argv}"
         assert not any(
             argument.startswith("user.signingkey") for argument in argv
         ), f"owner tool passes a signing key: {argv}"
         if "tag" in argv:
             assert "-l" in argv, f"owner tool uses tag for more than reading: {argv}"
+
+    # Signing verbs must not appear as executable literals at all. They remain
+    # legal inside the printed instructions the OWNER runs in their own shell,
+    # which is the whole point of the split, so only call arguments are scanned.
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            for argument in node.args:
+                if isinstance(argument, ast.Constant) and argument.value == "tag -s":
+                    raise AssertionError("owner tool invokes a signing command")
 
 
 def test_verifier_executes_no_signing_command() -> None:
@@ -1126,6 +1141,91 @@ def test_a_tag_object_the_repository_does_not_hold_is_refused(
     monkeypatch.setattr(module, "_git", failing_target_pin)
     with pytest.raises(SignedApprovalSignatureError, match="refusing rather than fetching"):
         verify_signed_approval(repo, tag, expectation=_expectation())
+
+
+# --- F6: the owner reads before signing, so that read must be honest --------
+
+
+def test_the_owner_tool_marks_an_unverified_body_as_unverified(
+    signing_repo: dict[str, object]
+) -> None:
+    """F6: `inspect` printed "body held by <tag>" with NO signature check.
+
+    The HOWTO sends the owner there as the read-before-signing step, so an
+    attacker-signed tag was displayed exactly like an owner-signed one.
+    """
+    from daedalus.kernel.signed_approval import describe_signed_tag
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    attacker_key: Path = signing_repo["attacker_key"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+
+    tag = "owner-approval/attacker-signed"
+    assert _git(
+        repo, "-c", "gpg.format=ssh", "-c", f"user.signingkey={attacker_key}",
+        "tag", "-s", "-m", _body_json(mechanism), tag,
+    ).returncode == 0
+
+    described = describe_signed_tag(repo, tag)
+    assert described["verified"] == "no"
+    assert described["principal"] == ""
+    # The body is still shown -- the owner needs to see it -- but never as fact.
+    assert described["body"], "the owner still needs to see what the tag holds"
+
+
+def test_the_owner_tool_confirms_a_genuine_signature(
+    signing_repo: dict[str, object]
+) -> None:
+    from daedalus.kernel.signed_approval import describe_signed_tag
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = "owner-approval/genuine"
+    sign_tag(tag, _body_json(mechanism))
+
+    described = describe_signed_tag(repo, tag)
+    assert described["verified"] == "yes"
+    assert described["principal"] == "owner@daedalus"
+    assert json.loads(described["body"])["candidate_artifact_sha256"] == CANDIDATE
+
+
+def test_describing_a_tag_never_yields_a_capability(
+    signing_repo: dict[str, object]
+) -> None:
+    """It reports; it must not be able to authorise."""
+    from daedalus.kernel.signed_approval import (
+        VerifiedSignedApproval,
+        describe_signed_tag,
+    )
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = "owner-approval/described"
+    sign_tag(tag, _body_json(mechanism))
+
+    described = describe_signed_tag(repo, tag)
+    assert isinstance(described, dict)
+    assert all(isinstance(value, str) for value in described.values())
+    assert not isinstance(described, VerifiedSignedApproval)
+
+
+def test_the_owner_tool_runs_no_bare_subprocess() -> None:
+    """F6: `inspect` called git directly, bypassing the scrubbed environment."""
+    script = Path(__file__).resolve().parents[2] / "scripts" / "owner_approval_request.py"
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+    offenders = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and node.attr in {"run", "Popen", "call", "check_output"}
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "subprocess"
+    ]
+    assert not offenders, (
+        "the owner tool spawns git outside the kernel's scrubbed choke point"
+    )
 
 
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
