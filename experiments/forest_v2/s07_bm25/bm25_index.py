@@ -221,6 +221,66 @@ class SearchHit:
         }
 
 
+def _walk_tree(root: Path, skip: frozenset[str]) -> Iterable[Path]:
+    """Deterministic walk of ``root``, skipping the usual noise directories."""
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in skip)
+        for name in sorted(filenames):
+            yield Path(dirpath) / name
+
+
+def iter_documents(
+    root: str | os.PathLike[str],
+    config: "IndexConfig | None" = None,
+    report: "BuildReport | None" = None,
+) -> Iterable[tuple[str, str]]:
+    """Yield ``(repo-relative POSIX path, decoded text)`` for every indexable file.
+
+    This is THE corpus definition.  ``BM25Index.build`` consumes it, and so does
+    the contamination scanner in ``contamination.py``.  They must agree on which
+    files exist, or the evidence rule would be judging a different corpus than
+    the one being scored -- so there is exactly one walk, not two.
+    """
+    cfg = config or IndexConfig()
+    rep = report if report is not None else BuildReport()
+    root_path = Path(root)
+    indexed = 0
+    for path in _walk_tree(root_path, cfg.skip_dirs):
+        rep.files_seen += 1
+        if cfg.max_files is not None and indexed >= cfg.max_files:
+            continue
+        if path.suffix.lower() not in cfg.extensions:
+            rep.files_skipped_extension += 1
+            continue
+        try:
+            rel = path.relative_to(root_path).as_posix()
+        except ValueError:  # pragma: no cover - defensive
+            rel = path.as_posix()
+        if rel in cfg.exclude_paths:
+            rep.files_skipped_excluded += 1
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            rep.files_skipped_unreadable += 1
+            continue
+        if size > cfg.max_file_bytes:
+            rep.files_skipped_size += 1
+            continue
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            rep.files_skipped_unreadable += 1
+            continue
+        if b"\x00" in raw:
+            rep.files_skipped_binary += 1
+            continue
+        rep.files_indexed += 1
+        rep.bytes_indexed += len(raw)
+        indexed += 1
+        yield rel, raw.decode("utf-8", errors="replace")
+
+
 @dataclass
 class BuildReport:
     """RAW counters from the last build.  Never smoothed, never estimated."""
@@ -259,8 +319,8 @@ class BM25Index:
         """Index every eligible file under ``root`` (deterministic walk order)."""
         index = cls(config)
         started = time.perf_counter()
-        for path in index._walk(Path(root)):
-            index._ingest_file(Path(root), path)
+        for rel, text in iter_documents(root, index.config, index.report):
+            index._add(rel, text)
         index.report.build_seconds = time.perf_counter() - started
         return index
 
@@ -280,48 +340,6 @@ class BM25Index:
             index.report.bytes_indexed += len(documents[path].encode("utf-8"))
         index.report.build_seconds = time.perf_counter() - started
         return index
-
-    def _walk(self, root: Path) -> Iterable[Path]:
-        skip = self.config.skip_dirs
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted(d for d in dirnames if d not in skip)
-            for name in sorted(filenames):
-                yield Path(dirpath) / name
-
-    def _ingest_file(self, root: Path, path: Path) -> None:
-        report = self.report
-        report.files_seen += 1
-        if self.config.max_files is not None and report.files_indexed >= self.config.max_files:
-            return
-        if path.suffix.lower() not in self.config.extensions:
-            report.files_skipped_extension += 1
-            return
-        try:
-            rel = path.relative_to(root).as_posix()
-        except ValueError:  # pragma: no cover - defensive
-            rel = path.as_posix()
-        if rel in self.config.exclude_paths:
-            report.files_skipped_excluded += 1
-            return
-        try:
-            size = path.stat().st_size
-        except OSError:
-            report.files_skipped_unreadable += 1
-            return
-        if size > self.config.max_file_bytes:
-            report.files_skipped_size += 1
-            return
-        try:
-            raw = path.read_bytes()
-        except OSError:
-            report.files_skipped_unreadable += 1
-            return
-        if b"\x00" in raw:
-            report.files_skipped_binary += 1
-            return
-        self._add(rel, raw.decode("utf-8", errors="replace"))
-        report.files_indexed += 1
-        report.bytes_indexed += len(raw)
 
     def _add(self, rel_path: str, text: str) -> None:
         cfg = self.config
