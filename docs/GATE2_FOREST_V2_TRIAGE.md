@@ -23,11 +23,35 @@ wurden bis zum Verdikt angegriffen, und alle drei Zahlen fielen:
 | s04 Knowledge-Plane | 96,6 % Referenz-Auflösung | 72,4 % (399/551) über alle Kandidaten; 136 externe/mehrdeutige Kanten aus dem Nenner genommen, Suffix-Inferenz als „resolved" gezählt, Repro ergibt 95,9 % statt 96,6 |
 | s05 Snapshot | Revisions-Atomizität, 10/10 Sensitivität | **Atomizität WIDERLEGT**: Bindung ist String-Gleichheit, kein Source-Evidenz-Beweis — ein zwischen zwei Plane-Extraktionen mutierter Worktree digestet als eine „atomare" Revision (Invariante 6). Sensitivität überstellt: Mutatoren nicht wirklich ein-Feld, mehrere Felder ungetestet, Timer vermischt |
 
-Die drei Fix-Rezepte sind präzise und laufen als eigene Lanes: fail-closed
-Verifikation mit ehrlichem Nenner (s03), Denominator-Waterfall statt
-Einzelzahl plus korpus-gepinnter Test (s04), und der Gate-Test
-`test_mutation_between_plane_extractions_is_refused` plus Bindung an
-Source-Evidenz (s05).
+Die drei Fix-Rezepte sind präzise und **alle drei sind umgesetzt** (in ihren
+Lanes, nicht geportet):
+
+- **s03** (`c93a68c1`…`6a2fda3f`): Verifikation kennt jetzt drei Ausgänge —
+  rejected / indeterminate / verified — und „kein Widerspruch gefunden" gilt
+  nicht mehr als verifiziert. Nenner ehrlich: **285 von 285 geparst** statt
+  285 gescannt bei 10 geparsten; die „0 unparseable" waren über einen Nenner
+  von zehn berechnet. Ergebnis der Ehrlichkeit: aus 2 verifizierten Paaren
+  wird **1** (das zweite Schema hatte nie einen Typ, gegen den man prüfen
+  konnte). Zusätzlich ein echter Doppelzähl-Bug gefunden (f-String-Literale
+  erscheinen im Syntaxbaum zweimal). 54 Tests, 5/5 Mutationen getötet.
+- **s04** (`84d54f05`…`06d2ca01`): Wasserfall statt Einzelzahl, mit erzwungenen
+  Bilanz-Identitäten (eine verlorene Kategorie lässt den Build krachen). Die
+  alte Zahl war dreifach publiziert (96,6 / 95,9 / 95,2) und real **69,5 %
+  strikt verifiziert**. Die Lane fand außerdem, dass ihre eigene Fixture die
+  Metrik kontaminierte, und hat es selbst korrigiert. 35 Tests, 4 Mutationen.
+- **s05** (`be34f92f`…`2be67ef6`): Die Widerlegung zuerst als **roter** Gate-Test
+  reproduziert, dann behoben. Bindung jetzt zweischichtig: ein Per-Plane-Witness
+  (Digest als Nebenprodukt genau der Lesung, die die Extraktion fütterte) plus
+  eine Scope-Klammer vor der ersten und nach der letzten Extraktion. Contract
+  `/1` → `/2`. Sensitivität ehrlich **18/18** statt überstellter 10/10, Timer
+  getrennt, Kosten der Bindung gemessen: **+1,23 s (×1,18)**. 63 Tests,
+  7/7 Guards mutationsgeprüft.
+
+Zwei Grenzen hat s05 ausdrücklich stehen lassen statt sie zu verstecken: eine
+transiente Mutation, die keine Ebene liest, wird bewusst NICHT refüsiert (als
+bestehender Test festgehalten, nicht als Prosa), und die Zeugen schlagen einen
+konkurrierenden Schreiber, nicht einen lügenden Extraktor — dafür bräuchte es
+einen Leser außerhalb des Produzenten (§4).
 
 ## Was für Gate 2 noch vollständig fehlt
 
