@@ -7,6 +7,8 @@ nothing about the trust root.
 """
 from __future__ import annotations
 
+import ast
+import hashlib
 import inspect
 import json
 import shutil
@@ -347,6 +349,100 @@ def test_verifier_never_inherits_signing_capability() -> None:
     assert "'tag', '-s'" not in source
     assert "-c user.signingkey" not in source
     assert "user.signingkey" not in source
+
+
+def _subprocess_argv_literals(source: str) -> list[list[str]]:
+    """Every literal argv this module hands to subprocess.
+
+    Read from the AST rather than the text, because the tool legitimately
+    *prints* the string ``user.signingkey=<YOUR KEY>`` for the owner to copy.
+    What matters is what it executes, not what it displays.
+    """
+    tree = ast.parse(source)
+    argvs: list[list[str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name != "run":
+            continue
+        first = node.args[0]
+        if isinstance(first, (ast.List, ast.Tuple)):
+            argvs.append(
+                [
+                    element.value
+                    for element in first.elts
+                    if isinstance(element, ast.Constant)
+                    and isinstance(element.value, str)
+                ]
+            )
+    return argvs
+
+
+def test_owner_tool_executes_no_signing_command() -> None:
+    """The tool prints what to sign; it must never be able to sign it."""
+    tool = (
+        Path(__file__).resolve().parents[2] / "scripts" / "owner_approval_request.py"
+    )
+    argvs = _subprocess_argv_literals(tool.read_text(encoding="utf-8"))
+
+    assert argvs, "expected the tool to run at least one git command"
+    for argv in argvs:
+        assert "-s" not in argv, f"owner tool creates a signature: {argv}"
+        assert not any(
+            argument.startswith("user.signingkey") for argument in argv
+        ), f"owner tool passes a signing key: {argv}"
+        if "tag" in argv:
+            assert "-l" in argv, f"owner tool uses tag for more than reading: {argv}"
+
+
+def test_verifier_executes_no_signing_command() -> None:
+    import daedalus.kernel.signed_approval as module
+
+    for argv in _subprocess_argv_literals(inspect.getsource(module)):
+        assert "-s" not in argv
+        assert not any(
+            argument.startswith("user.signingkey") for argument in argv
+        )
+
+
+def test_owner_flow_end_to_end(signing_repo) -> None:
+    """The documented loop: build a body, sign exactly it, verify it."""
+    repo = signing_repo["repo"]
+    expectation = _expectation()
+    body = canonical_approval_body(
+        expectation=expectation, nonce="nonce-e2e", expires_at=_future()
+    )
+
+    # The owner pastes precisely the bytes the tool printed.
+    signing_repo["sign_tag"](
+        "owner-approval/e2e", body.canonical_bytes().decode("utf-8")
+    )
+
+    verified = verify_signed_approval(
+        repo, "owner-approval/e2e", expectation=expectation
+    )
+    assert verified.body == body
+    assert (
+        verified.body_sha256
+        == hashlib.sha256(body.canonical_bytes()).hexdigest()
+    )
+
+
+def test_a_retyped_body_is_a_different_body(signing_repo) -> None:
+    """Pretty-printing the body breaks it, exactly as the HOWTO warns."""
+    repo = signing_repo["repo"]
+    body = canonical_approval_body(
+        expectation=_expectation(), nonce="nonce-1", expires_at=_future()
+    )
+    retyped = json.dumps(body.to_dict(), indent=2, sort_keys=True)
+    signing_repo["sign_tag"]("owner-approval/retyped", retyped)
+
+    with pytest.raises(SignedApprovalBindingMismatch):
+        verify_signed_approval(
+            repo, "owner-approval/retyped", expectation=_expectation()
+        )
 
 
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
