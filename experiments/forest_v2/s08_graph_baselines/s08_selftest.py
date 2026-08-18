@@ -21,7 +21,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from s08_api import PLANES, evaluate, rank_of  # noqa: E402
 from s08_corpus import build_corpus  # noqa: E402
-from s08_queries import build_queries, by_family, leakage_note  # noqa: E402
+from s08_queries import (  # noqa: E402
+    build_non_code_queries,
+    build_queries,
+    by_family,
+    gold_plane_mix,
+    leakage_note,
+)
 from s08_retrievers import (  # noqa: E402
     CodeGraphRetriever,
     FourPlaneNoFusionRetriever,
@@ -104,6 +110,11 @@ def main(argv: list[str]) -> int:
 
     queries = build_queries(corpus)
     families = by_family(queries)
+    # The frozen 600 stay exactly as they were; the non-code-gold families are an
+    # addition, built with their own generator so the frozen stream is untouched.
+    non_code = build_non_code_queries(corpus)
+    non_code_families = by_family(non_code)
+    extended = queries + non_code
     report["queries"] = {
         "total": len(queries),
         "per_family": {f: len(q) for f, q in sorted(families.items())},
@@ -202,57 +213,116 @@ def main(argv: list[str]) -> int:
     # --- CORRECTION 2: hypothesis (b) is re-reported against the comparator the
     # frozen sub-spec NAMES ("one index over the same documents" =
     # bm25_single_index_all_planes), not against the code-only subset index.
-    def _hits(result_name: str, ranks: list[int]) -> dict[str, int]:
+    def _hits(ranks: list[int]) -> dict[str, int]:
         return {str(k): sum(1 for r in ranks if 1 <= r <= k) for k in KS}
 
-    single_ranks = rank_vector(bm25_all, queries, kmax=max(KS))
-    named = {
+    def _named_comparison(query_list) -> dict:
+        """Re-report (b) on one query set against the comparator the spec names."""
+        single = rank_vector(bm25_all, query_list, kmax=max(KS))
+        block: dict[str, object] = {
+            "n_queries": len(query_list),
+            "arms": {"bm25_single_index_all_planes": _hits(single)},
+        }
+        for arm_name, arm in (("four_plane_no_fusion", no_fusion), ("union_no_fusion", union)):
+            arm_ranks = rank_vector(arm, query_list, kmax=max(KS))
+            block["arms"][arm_name] = _hits(arm_ranks)  # type: ignore[index]
+            deltas = {k: _hits(arm_ranks)[k] - _hits(single)[k] for k in _hits(single)}
+            signs = {1 if v > 0 else (-1 if v < 0 else 0) for v in deltas.values()}
+            consistent = len(signs - {0}) == 1 and 0 not in signs
+            # 5 percentage points OF THIS QUERY SET, not a fixed hit count: a
+            # constant threshold would silently call a 12 pp gap on 138 queries
+            # a null, which is the same under-reporting this fix exists to undo.
+            threshold = 0.05 * len(query_list)
+            material = abs(deltas["10"]) >= threshold and consistent
+            if material and deltas["10"] < 0:
+                verdict = "CONFIRMED (materially less, as the spec claims)"
+            elif material:
+                verdict = "REFUTED (material, but the OPPOSITE direction to the spec claim)"
+            else:
+                verdict = "NULL (no material difference in either direction)"
+            block[f"{arm_name}_vs_named_comparator"] = {
+                "delta_hits": deltas,
+                "same_sign_across_cutoffs": consistent,
+                "verdict": verdict,
+            }
+        return block
+
+    report["hypothesis_b_vs_named_comparator"] = {
         "spec_text": "four independent BM25 indices with no cross-plane scoring reach "
                      "materially less than one index over the same documents",
         "named_comparator": "bm25_single_index_all_planes",
         "comparator_used_in_the_landed_report": "bm25_code_only (NOT the named one)",
         "materiality_rule": "declared in THIS correction, not at freeze time: material = "
-                            "|delta hits@10| >= 30 of 600 (5 pp) AND the same sign at k=1, 5 and 10",
+                            "|delta hits@10| >= 5% of the query set AND the same sign at "
+                            "k=1, 5 and 10",
         "direction_rule": "the spec claim is DIRECTIONAL ('reach materially less'), so "
                           "delta = no_fusion - single_index: materially negative CONFIRMS, "
                           "materially positive REFUTES, anything else is a NULL",
-        "arms": {
-            "four_plane_no_fusion": _hits("rr", rr_ranks),
-            "union_no_fusion": _hits("union", union_ranks_all),
-            "bm25_single_index_all_planes": _hits("single", single_ranks),
-        },
+        "on_frozen_600": _named_comparison(queries),
+        "on_extended_set": _named_comparison(extended),
+        "on_non_code_gold_only": _named_comparison(non_code),
     }
-    for arm, ranks in (("four_plane_no_fusion", rr_ranks), ("union_no_fusion", union_ranks_all)):
-        deltas = {
-            str(k): sum(1 for r in ranks if 1 <= r <= k) - sum(1 for r in single_ranks if 1 <= r <= k)
-            for k in KS
-        }
-        signs = {1 if v > 0 else (-1 if v < 0 else 0) for v in deltas.values()}
-        consistent = len(signs - {0}) == 1 and 0 not in signs
-        material = abs(deltas["10"]) >= 30 and consistent
-        if material and deltas["10"] < 0:
-            verdict = "CONFIRMED (materially less, as the spec claims)"
-        elif material:
-            verdict = "REFUTED (material, but the OPPOSITE direction to the spec claim)"
-        else:
-            verdict = "NULL (no material difference in either direction)"
-        named[f"{arm}_vs_named_comparator"] = {
-            "delta_hits": deltas,
-            "same_sign_across_cutoffs": consistent,
-            "verdict": verdict,
-        }
-    report["hypothesis_b_vs_named_comparator"] = named
 
+    # --- CORRECTION 3: gold labels outside the code plane, so that plane routing
+    # has something to get right.  The frozen 600 are untouched; this is an
+    # addition reported beside them.
+    ext_arms = [bm25_code, no_fusion, union, union_code_last, bm25_all, graph]
+    ext_results: list[dict] = []
+    for retriever in ext_arms:
+        for family, family_queries in sorted(non_code_families.items()):
+            ext_results.append(evaluate(retriever, family_queries, KS, family=family).as_dict(KS))
+        ext_results.append(evaluate(retriever, non_code, KS, family="non_code_only").as_dict(KS))
+        ext_results.append(evaluate(retriever, extended, KS, family="extended_all").as_dict(KS))
+    report["extended_query_set"] = {
+        "purpose": "the frozen 600 have a code gold label for every query, which makes any "
+                   "cross-plane method structurally unable to win; these families put the "
+                   "answer in the knowledge and data planes instead",
+        "frozen_set": {"n": len(queries), "gold_plane_mix": gold_plane_mix(queries)},
+        "added": {
+            "n": len(non_code),
+            "per_family": {f: len(q) for f, q in sorted(non_code_families.items())},
+            "gold_plane_mix": gold_plane_mix(non_code),
+            "seed": 20260819,
+            "max_mentions_per_gold_document": 4,
+            "leakage_note": leakage_note(corpus, non_code),
+        },
+        "extended_set": {"n": len(extended), "gold_plane_mix": gold_plane_mix(extended)},
+        "type_plane_gap": "no mechanical derivation of a TYPE-plane gold label exists in this "
+                          "tree: the type plane is a proxy built from the same source files as "
+                          "the code plane, and nothing references it as an artifact. The type "
+                          "plane therefore still has 0 gold labels and its marginal contribution "
+                          "remains untested (plan 13). Closing it needs real type artifacts, "
+                          "not a better query rule.",
+        "results": ext_results,
+    }
+
+    nc_single = evaluate(bm25_all, non_code, KS, family="non_code_only").as_dict(KS)
+    nc_rr = evaluate(no_fusion, non_code, KS, family="non_code_only").as_dict(KS)
+    nc_union = evaluate(union, non_code, KS, family="non_code_only").as_dict(KS)
+    nc_code = evaluate(bm25_code, non_code, KS, family="non_code_only").as_dict(KS)
     report["kill_criterion_14_3"] = {
         "criterion": "four independent indices perform equivalently to cross-plane fusion",
-        "fusion_arm_present": False,
-        "verdict": "NOT CLEANLY DECIDABLE ON THIS QUERY SET",
-        "reason": "every gold label in the frozen 600 is a code document, so a cross-plane "
-                  "method can only lose slots to planes that cannot hold the answer; and no "
-                  "fusion retriever exists in this slice, so the criterion has no second arm",
-        "what_the_named_comparison_does_say": "against bm25_single_index_all_planes the "
-                                              "no-fusion arms are a NULL, which is the direction "
-                                              "the kill criterion points",
+        "true_fusion_arm_present": False,
+        "verdict": "NOT DECIDABLE AS STATED — no cross-plane fusion retriever exists in this "
+                   "slice, so the criterion has no second arm. What IS measurable here is the "
+                   "weaker question 'four independent indices vs ONE JOINT index'.",
+        "on_the_frozen_600": "structurally undecidable even for the weaker question: every gold "
+                             "label is a code document, so any method that spends a slot on a "
+                             "non-code plane can only lose, and a code-only index cannot be beaten",
+        "on_non_code_gold_labels": {
+            "n": len(non_code),
+            "bm25_code_only_hits_at_10": nc_code["hits_at"]["10"],
+            "four_plane_no_fusion_hits_at_10": nc_rr["hits_at"]["10"],
+            "union_no_fusion_hits_at_10": nc_union["hits_at"]["10"],
+            "bm25_single_index_all_planes_hits_at_10": nc_single["hits_at"]["10"],
+            "reading": "on gold labels the code plane cannot hold, ONE joint index beats every "
+                       "no-fusion arm. That is evidence AGAINST 'four independent indices "
+                       "perform equivalently' for the joint-index comparison — but a joint "
+                       "index is not cross-plane fusion, so the plan's criterion itself stays "
+                       "open until a fusion arm exists.",
+        },
+        "what_would_close_it": "a real cross-plane fusion retriever, plus gold labels in all "
+                               "four planes (the type plane still has none)",
     }
 
     # Construction artefact, measured instead of merely disclosed: a

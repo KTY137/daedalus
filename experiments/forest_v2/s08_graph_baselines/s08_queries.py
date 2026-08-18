@@ -136,6 +136,126 @@ def build_queries(corpus: Corpus, max_per_family: int = MAX_PER_FAMILY) -> list[
     return queries
 
 
+# --------------------------------------------------------------- non-code gold
+#
+# The three families above ALL have a code document as their gold label.  That
+# makes the plan's kill criterion "four independent indices perform equivalently
+# to cross-plane fusion" undecidable on this query set: a method that spends any
+# slot on a non-code plane can only lose, and a code-only index cannot be beaten
+# by anything.  These two families put the answer somewhere other than the code
+# plane, so plane routing has something to get right or wrong.
+#
+# They are an ADDITION, never a modification: ``build_queries`` still returns
+# exactly the frozen 600, and the extended set is reported beside it, not
+# instead of it.
+
+NONCODE_QUERY_SEED = 20260819
+MAX_MENTIONS_PER_TARGET = 4
+
+_PATHISH = re.compile(r"[A-Za-z0-9_./\\-]+\.(?:json|csv|toml|yaml|yml|md)\b", re.IGNORECASE)
+_DATA_SUFFIXES = (".json", ".csv", ".toml", ".yaml", ".yml")
+
+
+def _locator_lookup(corpus: Corpus, plane: str) -> tuple[dict[str, str], dict[str, str]]:
+    """(exact locator -> doc_id, unique basename -> doc_id) for one plane."""
+    from pathlib import PurePosixPath
+
+    by_locator: dict[str, str] = {}
+    basenames: dict[str, list[str]] = defaultdict(list)
+    for doc in corpus.by_plane.get(plane, []):
+        by_locator[doc.locator] = doc.doc_id
+        basenames[PurePosixPath(doc.locator).name].append(doc.doc_id)
+    unique = {name: ids[0] for name, ids in basenames.items() if len(ids) == 1}
+    return by_locator, unique
+
+
+def build_non_code_queries(corpus: Corpus, max_per_family: int = MAX_PER_FAMILY) -> list[Query]:
+    """Two families whose gold document is NOT a code document.
+
+    * ``doc_ref`` — a prose line in one Markdown file that names another
+      Markdown file; gold = the named **knowledge** document.  The mention's own
+      tokens are stripped, exactly as in ``knowledge_ref``, so the query has to
+      be matched by the surrounding prose rather than by the path.
+    * ``data_ref`` — the same derivation, but the named file is a schema-shaped
+      artifact; gold = the named **data** document.
+
+    Both are capped at ``MAX_MENTIONS_PER_TARGET`` per gold document so one
+    much-referenced file cannot supply a whole family, and both are sampled
+    with their own generator, leaving the frozen families' stream untouched.
+    """
+    from pathlib import PurePosixPath
+
+    rng = random.Random(NONCODE_QUERY_SEED)
+    know_by_locator, know_unique = _locator_lookup(corpus, "knowledge")
+    data_by_locator, data_unique = _locator_lookup(corpus, "data")
+
+    pools: dict[str, list[tuple[str, str, str, str]]] = {"doc_ref": [], "data_ref": []}
+    for source in sorted(corpus.by_plane.get("knowledge", []), key=lambda d: d.doc_id):
+        for line in source.text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("|", ">", "```", "#")):
+                continue
+            for match in _PATHISH.finditer(stripped):
+                raw = match.group(0).replace("\\", "/").lstrip("./")
+                base = PurePosixPath(raw).name
+                lowered = raw.lower()
+                if lowered.endswith(".md"):
+                    family = "doc_ref"
+                    target = know_by_locator.get(raw) or know_unique.get(base)
+                elif lowered.endswith(_DATA_SUFFIXES):
+                    family = "data_ref"
+                    target = data_by_locator.get(raw) or data_unique.get(base)
+                else:
+                    continue
+                if target is None or target == source.doc_id:
+                    continue
+                pools[family].append((source.locator, raw, target, stripped))
+
+    queries: list[Query] = []
+    for family in ("doc_ref", "data_ref"):
+        pool = pools[family]
+        rng.shuffle(pool)
+        per_target: dict[str, int] = defaultdict(int)
+        seen: set[tuple[str, str]] = set()
+        taken = 0
+        for source_locator, raw, target, line in pool:
+            if taken >= max_per_family:
+                break
+            if per_target[target] >= MAX_MENTIONS_PER_TARGET:
+                continue
+            key = (source_locator, target)
+            if key in seen:
+                continue
+            text = _strip_tokens(line, set(tokenize(raw)))
+            if len(text.split()) < MIN_QUERY_TOKENS:
+                continue
+            seen.add(key)
+            per_target[target] += 1
+            taken += 1
+            queries.append(
+                Query(
+                    qid=f"{family}:{source_locator}:{raw}",
+                    family=family,
+                    text=text,
+                    gold_doc_id=target,
+                )
+            )
+    return queries
+
+
+def build_extended_queries(corpus: Corpus, max_per_family: int = MAX_PER_FAMILY) -> list[Query]:
+    """The frozen 600 plus the non-code families, in that order."""
+    return build_queries(corpus, max_per_family) + build_non_code_queries(corpus, max_per_family)
+
+
+def gold_plane_mix(queries: list[Query]) -> dict[str, int]:
+    """How many gold labels sit in each plane — the number that decides decidability."""
+    mix: dict[str, int] = defaultdict(int)
+    for query in queries:
+        mix[query.gold_doc_id.split(":", 1)[0]] += 1
+    return dict(sorted(mix.items()))
+
+
 def by_family(queries: list[Query]) -> dict[str, list[Query]]:
     out: dict[str, list[Query]] = defaultdict(list)
     for query in queries:
@@ -168,4 +288,11 @@ def leakage_note(corpus: Corpus, queries: list[Query]) -> dict[str, object]:
     }
 
 
-__all__ = ["build_queries", "by_family", "leakage_note"]
+__all__ = [
+    "build_queries",
+    "build_non_code_queries",
+    "build_extended_queries",
+    "by_family",
+    "gold_plane_mix",
+    "leakage_note",
+]

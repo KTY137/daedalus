@@ -27,7 +27,13 @@ from s08_corpus import (  # noqa: E402
     split_identifier,
     tokenize,
 )
-from s08_queries import build_queries, leakage_note  # noqa: E402
+from s08_queries import (  # noqa: E402
+    build_extended_queries,
+    build_non_code_queries,
+    build_queries,
+    gold_plane_mix,
+    leakage_note,
+)
 from s08_retrievers import (  # noqa: E402
     Bm25Index,
     CodeGraphRetriever,
@@ -464,6 +470,80 @@ def test_leakage_note_reports_overlap_per_family(tiny_repo: Path) -> None:
     assert note
     for family, values in note.items():
         assert 0.0 <= values["mean_query_token_overlap_with_gold"] <= 1.0
+
+
+# ------------------------------------------------ queries: non-code gold labels
+
+
+@pytest.fixture()
+def cross_plane_repo(tmp_path: Path) -> Path:
+    """A tree where one Markdown file names another Markdown file and a schema file."""
+    root = tmp_path
+    _write(root / "daedalus" / "alpha.py", "def harvest_all(payload: dict) -> int:\n    return 1\n")
+    _write(root / "daedalus" / "settings.json", '{"telemetry": {"sample_rate": 1}}')
+    _write(
+        root / "docs" / "index.md",
+        "The retention rules for every campaign live in docs/policy.md and nowhere else.\n"
+        "Sampling behaviour is configured by daedalus/settings.json at startup.\n",
+    )
+    _write(root / "docs" / "policy.md", "Retention rules for campaign artifacts.\n")
+    return root
+
+
+def test_non_code_families_put_the_gold_outside_the_code_plane(cross_plane_repo: Path) -> None:
+    """CRITICAL 2 follow-on: with only code gold labels the routing question is undecidable."""
+    corpus = build_corpus(cross_plane_repo)
+    queries = build_non_code_queries(corpus)
+    families = {q.family for q in queries}
+    assert families == {"doc_ref", "data_ref"}
+    assert {q.gold_doc_id for q in queries} == {"knowledge:docs/policy.md", "data:daedalus/settings.json"}
+    assert all(not q.gold_doc_id.startswith("code:") for q in queries)
+
+
+def test_non_code_query_strips_the_named_path(cross_plane_repo: Path) -> None:
+    """The give-away path must not survive in the query text."""
+    corpus = build_corpus(cross_plane_repo)
+    for query in build_non_code_queries(corpus):
+        tokens = set(tokenize(query.text))
+        assert "policy" not in tokens or query.family != "doc_ref"
+        assert "settings" not in tokens or query.family != "data_ref"
+
+
+def test_frozen_query_set_still_has_only_code_gold(tiny_repo: Path) -> None:
+    """``build_queries`` is frozen: the correction ADDS families, it does not edit these."""
+    corpus = build_corpus(tiny_repo)
+    queries = build_queries(corpus)
+    assert {q.family for q in queries} <= {"symbol", "docstring", "knowledge_ref"}
+    assert gold_plane_mix(queries).keys() <= {"code"}
+
+
+def test_extended_set_is_the_frozen_set_plus_the_additions(cross_plane_repo: Path) -> None:
+    corpus = build_corpus(cross_plane_repo)
+    frozen = build_queries(corpus)
+    extended = build_extended_queries(corpus)
+    assert extended[: len(frozen)] == frozen
+    assert len(extended) == len(frozen) + len(build_non_code_queries(corpus))
+
+
+def test_no_gold_document_dominates_a_non_code_family(tmp_path: Path) -> None:
+    """Six sources all point at one document; the cap must keep it to four."""
+    from collections import Counter
+
+    for i in range(6):
+        _write(
+            tmp_path / "docs" / f"source{i}.md",
+            f"Chapter {i} defers the retention question entirely to docs/policy.md instead.\n",
+        )
+    _write(tmp_path / "docs" / "policy.md", "Retention rules for campaign artifacts.\n")
+    counts = Counter(q.gold_doc_id for q in build_non_code_queries(build_corpus(tmp_path)))
+    assert counts["knowledge:docs/policy.md"] == 4, "the per-gold cap did not bind"
+
+
+def test_non_code_queries_are_deterministic(cross_plane_repo: Path) -> None:
+    corpus = build_corpus(cross_plane_repo)
+    first = [q.qid for q in build_non_code_queries(corpus)]
+    second = [q.qid for q in build_non_code_queries(build_corpus(cross_plane_repo))]
+    assert first == second
 
 
 # ------------------------------------------------------- slice-level structure
