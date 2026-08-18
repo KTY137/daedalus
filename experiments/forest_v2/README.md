@@ -101,6 +101,147 @@ sees top-level `FunctionDef`s; the baseline's generous last-segment
 same-module rule is kept unchanged for comparability, so the cross-module
 buckets only ever split the baseline's cross_module_or_dynamic mass.
 
+## Slice s05 (2026-08-18): revision atomicity — `s05_snapshot/`
+
+Gate 2 (revision 5) asks for "revision atomicity, evidence locators" and
+"deterministic Twin rebuilding". This slice builds the smallest thing that can
+be *refuted* on that point: a builder that binds four plane extractions to one
+revision, content-addresses them, and replays to the same digest.
+
+### Frozen specification
+
+- **Hypothesis (falsifiable):** four independently produced plane extractions
+  of one source revision can be reduced to a single content-addressed digest
+  that (a) is identical on replay across processes, path spellings and element
+  orders, (b) moves when any digested field moves, and (c) cannot be produced
+  at all from an incomplete or revision-inconsistent plane set. If any of the
+  three fails, master plan invariant 6 ("partial graph states do not
+  masquerade as a revision") has no cheap mechanical enforcement and Gate 2
+  needs a heavier design than a digest.
+- **Scope:** read-only stdlib AST/text/CSV/JSON analysis of the repository
+  tree, no repository imports, no writes outside pytest's `tmp_path`, no
+  network, no subprocess. Nothing under `daedalus/` may import this slice
+  (checked: `grep -rn forest_v2 --include=*.py` over the package is empty).
+- **Budget:** one work session, four modules, whole probe re-runnable in
+  ~6 s wall time. No model calls, no spend.
+- **Expiry:** 2026-09-15. After that, re-measure before reuse — the numbers
+  below are properties of *this* tree, not constants.
+- **Kill criterion linkage:** if maintaining a revision-atomic snapshot costs
+  more than the value it carries, master plan §13 ("revision-atomic snapshots
+  cannot be maintained at usable cost") fires. The cost side of that trade is
+  the wall time and byte size reported below; the ceiling is not tested here.
+
+### The common contract: `forest-v2-plane-extraction/1`
+
+One plane extraction is one JSON object. s01–s04 produce it; s05 consumes it.
+Exactly these keys, all required, **unknown keys are refused**:
+
+```json
+{
+  "schema":   "forest-v2-plane-extraction/1",
+  "plane":    "code" | "type" | "data" | "knowledge",
+  "revision": "<source revision id, identical across all four planes>",
+  "producer": "<who extracted this — provenance, NOT digested>",
+  "nodes":    [ {"id": "...", "kind": "...",
+                 "locator": {"path": "rel/posix/path", "start_line": 0, "end_line": 0},
+                 "attrs":   { }} ],
+  "edges":    [ {"src": "<node id>", "dst": "<node id>", "kind": "...", "attrs": {}} ]
+}
+```
+
+Rules a producer must satisfy: node ids unique within the plane; locators
+relative, posix, never absolute, never escaping the root; `end_line >=
+start_line`; `attrs` JSON-serializable with string keys; **edges intra-plane
+only** — an extractor asserting a cross-plane relation is refused with its own
+code, because §6 gives cross-plane edges to a verifier, not to an extractor.
+
+`producer` is deliberately outside the digest. That is what lets s01–s04
+replace the placeholder extractors in `reference_planes.py` without moving a
+digest, as long as the extraction itself is identical.
+
+### Outputs
+
+`snapshot.build_snapshot(docs)` → `forest-v2-snapshot/1` manifest:
+`revision`, `snapshot_digest`, per-plane `{digest, producer, nodes, edges}`,
+`node_total`, `edge_total`. No timestamp, no absolute path, no host state —
+those are exactly what would break replay.
+
+Digest algebra (domain-separated, sorted, so order cannot leak in):
+
+```
+node_digest     = sha256(canonical(node))            # canonical = JSON, sorted keys,
+edge_digest     = sha256(canonical(edge))            # no spaces, UTF-8, no \u escapes
+plane_digest    = sha256("forest-v2-plane/1" | plane | revision
+                         | sorted(node_digests) | sorted(edge_digests))
+snapshot_digest = sha256("forest-v2-snapshot/1" | contract | revision
+                         | "<plane>=<plane_digest>" for code, type, data, knowledge)
+```
+
+### Measured, this worktree, `python probe_replay_identity.py` [MEASURED]
+
+Placeholder extractors over `daedalus/` (code, type), `configs/ catalogue/
+examples/` (data), `docs/` (knowledge):
+
+| quantity | code | type | data | knowledge | total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| nodes | 3637 | 3399 | 382 | 2705 | **10,123** |
+| edges | 3352 | 8005 | 337 | 2347 | **14,041** |
+| canonical bytes | 1,273,600 | 2,014,422 | 159,125 | 1,279,229 | **4,726,376** |
+
+| replay property | raw result |
+| --- | --- |
+| build twice in one process @ `d849c2a9` | `sha256:fa01e21b…d91ab0` = `sha256:fa01e21b…d91ab0` — **identical**, manifests byte-equal |
+| build wall time | 5.822 s / 5.069 s (second build, warm) |
+| three separate processes, `PYTHONHASHSEED` 1 / 2 / 424242 | `fa01e21b…` / `fa01e21b…` / `fa01e21b…` — **identical** |
+| root spelled `<root>/daedalus/..` instead of `<root>` | identical |
+| node and edge order shuffled (seed 20260818) | identical |
+| documents round-tripped through the canonical form | identical |
+| single-field sensitivity matrix | **10 of 10 as expected** (9 content fields move the digest, `producer` does not) |
+| refusal matrix | **10 of 10 refused with the exact expected code** |
+
+Revision binding, measured across three real commits of this branch with the
+scanned roots untouched in between [MEASURED]:
+
+| HEAD | git-bound `snapshot_digest` | with revision label held fixed |
+| --- | --- | --- |
+| `d849c2a9` | `sha256:fa01e21b…d91ab0` | — |
+| `2c78bdb7` | `sha256:0ee74bbd…09f241` | `sha256:0b274bfc…30f99eb` |
+| `f416ce52` | `sha256:44856f83…c5b58` | `sha256:0b274bfc…30f99eb` |
+
+Three commits, three digests — the snapshot really is bound to the revision and
+not merely to the bytes. Hold the revision label fixed and the digest stops
+moving, which shows the movement comes from the revision binding, not from
+nondeterminism.
+
+Checks: `python -m pytest experiments/forest_v2/s05_snapshot/test_snapshot.py`
+→ **40 passed in 1.93 s** [MEASURED].
+
+### Honest caveats and open ends
+
+1. **The extractors are placeholders, not evidence.** Top-level definitions
+   only, syntactic annotation text with no inference, file-level data
+   locators with no field spans, headings with no concept resolution. Every
+   count above is a property of the cheapest possible producer. When s01–s04
+   land, the counts change and only the *properties* carry over.
+2. **The revision is HEAD, not the working tree.** `read_git_revision` reads
+   git's files; it does not check whether the tree is dirty. A modified
+   working tree is therefore silently labelled with a clean commit id. That is
+   a real hole for Gate 2 — a production builder must either digest the tree
+   state or refuse on a dirty tree. Measured builds above are honest only
+   because the uncommitted files lived outside the scanned roots.
+3. **`attrs` is free-form, so determinism there is producer-enforced.** The
+   builder rejects unknown *contract* keys, which stops a wall clock at the
+   node level, but a producer that writes `attrs: {"built_at": …}` is only
+   caught by the double-build check, never by the schema.
+4. **Digest ≠ storage.** Nothing here stores content-addressed blobs; it
+   addresses the extraction, not the sources. §5's content-addressed source
+   trees remain unbuilt.
+5. **Cost ceiling untested.** 6 s and 4.7 MB canonical form for ~10k nodes is
+   the frontier point measured, not a scaling claim. The §13 kill criterion
+   about snapshot cost needs a curve, not one point.
+6. **Cross-plane edges are refused, not verified.** That is deliberate (§6),
+   but it means a real Twin still needs the verifier this slice does not build.
+
 ## Boundary note
 
 This directory currently contains no effectful entrypoint (the probe's
