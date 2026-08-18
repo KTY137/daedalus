@@ -564,6 +564,39 @@ def publish_container_faults(
     return summary
 
 
+def containment_boundary_decision():
+    """Run the ``containment.attempt`` contract for this driver's spawn path.
+
+    The driver never invokes docker itself: every scenario spawn goes through
+    :func:`daedalus.kernel.sandbox.run_in_docker_sandbox`, which is where the
+    bounded-effect policy (read-only root, ``network=none``, dropped caps,
+    ``timeout_s``) actually lives.  That indirection is the whole containment
+    story for this row, and the static scanner cannot see across the module
+    edge to check it.
+
+    So this decision resolves the binding at the boundary instead of asserting
+    it: if the containment symbol this module will call no longer comes from
+    ``daedalus.kernel.sandbox``, the decision is negative and the start is
+    refused rather than proceeding as a raw docker spawn.
+    """
+    from daedalus.spine.effect_boundary import GuardDecision
+
+    module = getattr(run_in_docker_sandbox, "__module__", "") or "<unknown>"
+    qualname = getattr(run_in_docker_sandbox, "__qualname__", "<unknown>")
+    bound = module == "daedalus.kernel.sandbox"
+    if bound:
+        evidence = (
+            f"scenario spawns bound to {module}.{qualname}: read-only root, "
+            "network=none, dropped caps and timeout_s are enforced there"
+        )
+    else:
+        evidence = (
+            f"containment call resolved to {module}.{qualname}, not "
+            "daedalus.kernel.sandbox: refusing to start an unbounded spawn"
+        )
+    return GuardDecision("containment.attempt", bound, evidence)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Run canonical linux-host fault scenarios in a Docker container.",
@@ -574,6 +607,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--image", default=DEFAULT_IMAGE)
     parser.add_argument("--timeout-s", type=int, default=_DEFAULT_TIMEOUT_S)
     args = parser.parse_args(argv)
+
+    # Canonical Gate-0 effect start. Two real contracts run here: the spend net
+    # is installed before the first container spawn, and the containment
+    # decision resolves that the spawn path is still the bounded sandbox.
+    # Docker *availability* is deliberately not part of the decision -- a host
+    # without docker must still record every scenario as blocked and retain
+    # that evidence, so refusing the start there would destroy the honest
+    # blocked column rather than protect anything.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runtimes.container_fault_driver",
+        REGISTRY_BY_ID["runtimes.container_fault_driver"].effects,
+        (process_guard_boundary_decision(), containment_boundary_decision()),
+    )
 
     if not docker_cli_available():
         print(
@@ -600,6 +649,7 @@ __all__ = [
     "ContainerFaultEvidenceMissing",
     "ContainerFaultScenarioDrift",
     "ContainerScriptRun",
+    "containment_boundary_decision",
     "docker_cli_available",
     "publish_container_faults",
 ]

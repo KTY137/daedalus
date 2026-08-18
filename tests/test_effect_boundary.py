@@ -639,8 +639,20 @@ def test_runtime_fault_drivers_declare_their_statically_invisible_effects() -> N
     for row in (driver, collector, issuer):
         assert row.surface is Surface.CLI
         assert Effect.FILESYSTEM_WRITE in row.effects
-        # inventory_only is the honest wiring: no canonical effect start exists
-        assert row.wiring is Wiring.INVENTORY_ONLY
+
+    # Wiring updated 2026-08-18. The two spawning rows are centrally wired:
+    # neither carries a runtime_id nor needs a lease, so the old "waits for the
+    # live-runtime lane's runtime-bound chain" remainder never applied to them.
+    for row in (driver, collector):
+        assert row.wiring is Wiring.CENTRAL
+        assert any(a.call == "begin_effect" for a in row.anchors)
+
+    # The issuer stays inventory_only, and for a sharper reason than before:
+    # its dominant effect is secrets, and no secrets-handling contract exists
+    # in GUARD_CONTRACT_IMPLEMENTED. Stamping it central on the strength of a
+    # spend-net decision would advertise cover this row does not have.
+    assert issuer.wiring is Wiring.INVENTORY_ONLY
+    assert not issuer.guard_contracts
 
     # the container driver's spawn is real but lives in daedalus.kernel.sandbox
     assert {Effect.PROCESS_SPAWN, Effect.PROCESS_CONTROL} <= set(driver.effects)
@@ -777,6 +789,34 @@ def test_claude_row_stays_the_activation_blocker_but_pins_the_brokered_seam() ->
     # the note must keep naming a *falsifiable* condition, not a passed one
     assert "caller injection" in row.notes
     assert "test_claude_bypass_inventory" in row.notes
+
+
+def test_every_remaining_inventory_only_row_names_a_falsifiable_condition() -> None:
+    """A remainder that cannot be checked is a remainder that never falls.
+
+    The 2026-08-18 pass over the last inventory_only doors found the failure
+    mode directly: several notes deferred to "the live-runtime lane's
+    runtime-bound chain", a condition that had already quietly come true for
+    some rows and had never applied to others (two of them carry no runtime_id
+    and needed no lease at all).  A note like that reads as a reason while
+    actually deferring forever.
+
+    So every row that stays unwired must say, in its own note, the concrete
+    thing that would have to change for it to fall.  This test does not judge
+    whether a reason is good -- it makes the absence of one mechanical.
+    """
+    remainders = [row for row in ENTRYPOINTS if row.wiring is Wiring.INVENTORY_ONLY]
+    assert remainders, "if this list ever empties, delete this test with it"
+
+    for row in remainders:
+        assert "CONDITION UNDER WHICH IT FALLS" in row.notes, (
+            f"{row.id} stays inventory_only without naming what would change "
+            "that; write the condition or wire the door"
+        )
+        # a condition is only useful if the reason is concrete enough to check
+        assert len(row.notes) > 200, (
+            f"{row.id} has a note too thin to carry a reason and a condition"
+        )
 
 
 def test_claude_seam_anchor_is_load_bearing_not_decoration() -> None:
