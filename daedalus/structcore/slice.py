@@ -618,6 +618,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", default=None, help="write the full result (incl. slice) to JSON")
     args = ap.parse_args(argv)
 
+    if args.out or args.json:
+        # Slicing and the printed report stay fail-open read-only inspection;
+        # the artifact writes start at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.structcore_slice",
+            REGISTRY_BY_ID["cli.structcore_slice"].effects,
+            (process_guard_boundary_decision(),),
+        )
     res = semantic_slice(args.repo, args.target)
     print(f"\nDISTILL  '{res['target']}'  ->  focus {res['focus_file']}")
     print(f"backend: tree-sitter={'on' if res['backend']['tree_sitter'] else 'off'}")

@@ -1281,3 +1281,23 @@ BILLABLE_SITES: tuple[dict[str, Any], ...] = (
     {"file": "runs/council/summarize.py", "func": "ollama_summariser",
      "vendor": "remote_inference", "how": "urlopen", "explicit": False},
 )
+
+
+def process_guard_boundary_decision():
+    """Run the ``budget.process_guard`` contract and report its decision.
+
+    This is the contract module's own evidence for a canonical effect start:
+    it actually installs the process-wide spend net (idempotent) and returns
+    the :class:`~daedalus.spine.effect_boundary.GuardDecision` naming what is
+    now interposed.  It never broadens the decision: a caller that skips this
+    and asserts the contract by hand is visible in the receipt evidence.
+    """
+    from daedalus.spine.effect_boundary import GuardDecision
+
+    install_process_guard()
+    return GuardDecision(
+        "budget.process_guard",
+        True,
+        "install_process_guard active: subprocess.run/subprocess.Popen/"
+        "urllib.request.urlopen priced against the budget ceiling in-process",
+    )

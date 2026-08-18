@@ -200,6 +200,14 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     repo_root = resolve_repo_root(args.repo_root, args.project)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.token_monitor",
+        REGISTRY_BY_ID["cli.token_monitor"].effects,
+        (process_guard_boundary_decision(),),
+    )
     if args.watch:
         watch(repo_root, args.interval_s, args.fresh_threshold, args.cached_threshold)
         return

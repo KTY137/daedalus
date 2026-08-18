@@ -289,6 +289,17 @@ def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
         print(load().render())
         return 0
     cmd = argv[0]
+    if cmd in ("start", "note", "end"):
+        # Read-only status stays fail-open above; every state write starts
+        # at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.shift",
+            REGISTRY_BY_ID["cli.shift"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if cmd == "start":
         goal = argv[1] if len(argv) > 1 else ""
         until = argv[2] if len(argv) > 2 else ""

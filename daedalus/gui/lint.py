@@ -256,6 +256,14 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         print("usage: python -m daedalus.gui.lint runs/gui/*.json")
         return 2
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.gui_lint",
+        REGISTRY_BY_ID["cli.gui_lint"].effects,
+        (process_guard_boundary_decision(),),
+    )
     reports = []
     for p in argv:
         cap = json.loads(Path(p).read_text(encoding="utf-8"))

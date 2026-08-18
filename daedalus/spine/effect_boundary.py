@@ -461,6 +461,112 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
         migration="complete for the adapter.subprocess.terminate entrypoint",
     ),
+    # CLI mains wired through the central boundary.  The family contract is
+    # budget.process_guard: each main actually installs the process-wide spend
+    # net (daedalus.budget.process_guard_boundary_decision) and passes its
+    # decision to begin_effect before the first effect.  Read-only inspection
+    # paths (status/summary printing) stay fail-open by design.
+    EntrypointSpec(
+        id="cli.enforce",
+        surface=Surface.CLI,
+        target="daedalus.enforce:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.enforce:main", "begin_effect"),),
+        notes="Harness-instruction writes into a target repo start centrally.",
+        migration="complete for the cli.enforce entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.gui_lint",
+        surface=Surface.CLI,
+        target="daedalus.gui.lint:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.gui.lint:main", "begin_effect"),),
+        notes="GUI capture lint report write starts centrally.",
+        migration="complete for the cli.gui_lint entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.runbook",
+        surface=Surface.CLI,
+        target="daedalus.runbook:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.runbook:main", "begin_effect"),),
+        notes="Run-brief creation starts centrally.",
+        migration="complete for the cli.runbook entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.selftest",
+        surface=Surface.CLI,
+        target="daedalus.selftest:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.selftest:main", "begin_effect"),),
+        notes=(
+            "Live Ollama write round-trip; network_egress is hand-declared "
+            "(the request leaves via the provider path the scanner does not "
+            "follow) and the installed spend net prices it."
+        ),
+        migration="complete for the cli.selftest entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.shift",
+        surface=Surface.CLI,
+        target="daedalus.shift:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.shift:main", "begin_effect"),),
+        notes=(
+            "start/note/end state writes begin centrally; the status "
+            "subcommand stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.shift entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.structcore",
+        surface=Surface.CLI,
+        target="daedalus.structcore.__main__:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.structcore.__main__:main", "begin_effect"),),
+        notes=(
+            "Index/LPG artifact writes begin centrally; pure indexing with "
+            "the printed summary stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.structcore entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.structcore_slice",
+        surface=Surface.CLI,
+        target="daedalus.structcore.slice:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.structcore.slice:main", "begin_effect"),),
+        notes=(
+            "Slice/JSON artifact writes begin centrally; slicing with the "
+            "printed report stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.structcore_slice entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.token_monitor",
+        surface=Surface.CLI,
+        target="daedalus.token_monitor:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.token_monitor:main", "begin_effect"),),
+        notes="Checkpoint writes (one-shot and watch loop) begin centrally.",
+        migration="complete for the cli.token_monitor entrypoint",
+    ),
     EntrypointSpec(
         id="provider.claude",
         surface=Surface.CLAUDE,
@@ -1058,7 +1164,6 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
         Wiring.INVENTORY_ONLY,
     ),
-    ("cli.enforce", Surface.CLI, "daedalus.enforce:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     ("cli.eval_ceiling", Surface.CLI, "daedalus.eval.ceiling:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
     (
         "cli.eval_correctness",
@@ -1075,7 +1180,6 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         Wiring.INVENTORY_ONLY,
     ),
     ("cli.file_bridge", Surface.CLI, "daedalus.file_bridge:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.gui_lint", Surface.CLI, "daedalus.gui.lint:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     ("cli.mapping_drift", Surface.CLI, "daedalus.mapping.drift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     (
         "cli.mapping_inventory",
@@ -1098,31 +1202,7 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.FILESYSTEM_WRITE,),
         Wiring.INVENTORY_ONLY,
     ),
-    ("cli.runbook", Surface.CLI, "daedalus.runbook:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.selftest", Surface.CLI, "daedalus.selftest:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.shift", Surface.CLI, "daedalus.shift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
     ("cli.status", Surface.CLI, "daedalus.status:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.structcore",
-        Surface.CLI,
-        "daedalus.structcore.__main__:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.structcore_slice",
-        Surface.CLI,
-        "daedalus.structcore.slice:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.token_monitor",
-        Surface.CLI,
-        "daedalus.token_monitor:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
     ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
     (
         # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:
