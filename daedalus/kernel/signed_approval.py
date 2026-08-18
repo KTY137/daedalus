@@ -270,12 +270,17 @@ class VerifiedSignedApproval:
 
 
 def approval_tag_for(candidate_artifact_sha256: str) -> str:
-    """The one tag name that can approve a given candidate.
+    """The conventional tag name for approving a given candidate.
 
-    Deriving the name from the candidate digest means an owner cannot approve
-    candidate A under a name the boundary will later resolve for candidate B,
-    and a caller cannot point the boundary at some other tag it happens to
-    like: the name is a function of the artifact being promoted.
+    This is a NAMING CONVENTION for the owner tool, not a check. Deriving the
+    name from the candidate digest keeps approvals legible and collision-free,
+    but :func:`verify_signed_approval` does not require a tag to match it -- it
+    only requires the approval namespace prefix.
+
+    What actually stops candidate A's approval from promoting candidate B is
+    :func:`_require_binding`, which compares the SIGNED body against the
+    expectation. That is the real check, and it does not depend on what the ref
+    happens to be called. Do not read this function as a binding.
     """
     return f"{APPROVAL_TAG_NAMESPACE}{_sha256(candidate_artifact_sha256, 'candidate_artifact_sha256')}"
 
@@ -527,6 +532,8 @@ def verify_signed_approval(
                 "gpg.format=ssh",
                 "-c",
                 f"gpg.ssh.allowedSignersFile={signers_path}",
+                # NB: the pinned OID, never `tag_name`. See the TOCTOU note
+                # where the tag object is resolved.
                 # The verifier itself is pinned. MEASURED 2026-08-18: with
                 # gpg.ssh.program set in a config git still reads, an
                 # attacker-signed tag verifies "Good signature" and exit 0,
@@ -537,7 +544,7 @@ def verify_signed_approval(
                 "gpg.ssh.program=ssh-keygen",
                 "verify-tag",
                 "--raw",
-                tag_name,
+                tag_object,
             ],
             label="verifying the approval tag signature",
             check=False,
@@ -554,13 +561,26 @@ def verify_signed_approval(
             f"{verified.stderr.strip() or verified.stdout.strip() or 'no principal matched'}"
         )
     principal = _signer_principal(verified.stderr or verified.stdout)
+    if not principal:
+        raise SignedApprovalSignatureError(
+            f"{tag_object[:12]} verified, but git named no principal for the "
+            "signature; refusing an approval whose signer cannot be recorded"
+        )
 
-    contents = _git(
+    # The signed bytes, read as the object Git actually holds, so the digest a
+    # receipt cites is a digest of the material that was verified -- and so the
+    # body parsed here belongs to the object that was verified. Reading it by
+    # tag NAME instead would reopen a TOCTOU: a ref moved between the signature
+    # check and this read would pair tag A's signature with tag B's body.
+    raw = _git(
         root,
-        ["tag", "-l", "--format=%(contents)", tag_name],
-        label="reading the approval tag body",
-    ).stdout
-    body = SignedApprovalBody.from_json(_strip_signature(contents))
+        ["cat-file", "tag", tag_object],
+        label="reading the approval tag object",
+    )
+    approval_ref = _artifact_locator_for(
+        hashlib.sha256(raw.stdout.encode("utf-8")).hexdigest()
+    )
+    body = SignedApprovalBody.from_json(_strip_signature(_tag_message(raw.stdout)))
 
     # The approval binds the signer-set generation it was made under, so
     # rotating the owner's keys invalidates approvals signed against the
@@ -579,17 +599,6 @@ def verify_signed_approval(
         raise SignedApprovalExpired(
             f"signed approval {tag_name} expired at {body.expires_at}"
         )
-
-    # The signed bytes, read as the object Git actually holds, so the digest
-    # cited by a receipt is a digest of the material that was verified.
-    raw = _git(
-        root,
-        ["cat-file", "tag", tag_object],
-        label="reading the approval tag object",
-    )
-    approval_ref = _artifact_locator_for(
-        hashlib.sha256(raw.stdout.encode("utf-8")).hexdigest()
-    )
 
     # A tag name is a mutable ref. Resolving what the signed tag object points
     # at pins the approval to an immutable object graph, so re-pointing the
@@ -636,11 +645,46 @@ def _strip_signature(contents: str) -> str:
     return text
 
 
+def _tag_message(raw: str) -> str:
+    """The message of a raw tag object, without its headers.
+
+    ``git cat-file tag`` emits ``object``/``type``/``tag``/``tagger`` headers,
+    a blank line, then the message. Only the message is signed content as far
+    as this module is concerned; the headers are Git's framing.
+    """
+    separator = raw.find("\n\n")
+    if separator == -1:
+        raise SignedApprovalBindingMismatch(
+            "approval tag object has no message separated from its headers"
+        )
+    return raw[separator + 2:]
+
+
+# git's ssh backend reports a matched principal as:
+#   Good "git" signature for <principal> with <keytype> key SHA256:<fp>
+# The "for <principal>" clause is present only when a principal in the allowed
+# signers matched. The principal-less form ("Good ... signature with ...") is
+# the untrusted-key case, which exits non-zero and never reaches here.
+_GOOD_SIGNATURE_FOR = 'Good "git" signature for '
+
+
 def _signer_principal(output: str) -> str:
+    """The principal git matched, or ``""`` when it named none.
+
+    Returning the whole log line (the previous behaviour) put a human sentence
+    into a receipt field an auditor reads as an identity, and returning
+    ``"unknown-principal"`` let verification succeed while the signer stayed
+    anonymous. The caller now refuses on an empty result.
+    """
     for line in output.splitlines():
-        if "GOODSIG" in line or "Good " in line:
-            return line.strip()
-    return "unknown-principal"
+        stripped = line.strip()
+        if not stripped.startswith(_GOOD_SIGNATURE_FOR):
+            continue
+        remainder = stripped[len(_GOOD_SIGNATURE_FOR):]
+        principal, separator, _key = remainder.rpartition(" with ")
+        if separator and principal.strip():
+            return principal.strip()
+    return ""
 
 
 def _require_binding(
@@ -813,11 +857,29 @@ def promotion_receipt(
         evidence_packet_sha256,
         evidence_locator.rsplit(":", 1)[-1],
     ]
+    extra_reasons: tuple[str, ...] = ()
     if approved:
         digests.append(verified.owner_approval_ref.rsplit(":", 1)[-1])
+        # The signer-set generation the approval was made under. It is the one
+        # trust-root pin that is already a sha256, so it belongs with the
+        # digests; the git object IDs are SHA-1 and go into reasons instead.
+        digests.append(verified.body.approval_mechanism_sha256)
+        # An auditor asks three questions of an authenticated receipt: signed
+        # by whom, checked against which list, and which commit put that list
+        # there. Verification knows all three; dropping them left the receipt
+        # saying only "against the committed list" without saying which one.
         default_reason = (
-            f"owner signature on {verified.tag_name} verified against the "
-            "committed allowed-signers list"
+            f"owner signature on {verified.tag_name} (tag object "
+            f"{verified.tag_object_sha1}) verified as principal "
+            f"{verified.signer_principal!r} against allowed-signers blob "
+            f"{verified.trust_root_blob_oid} committed at "
+            f"{verified.trust_root_commit_oid}"
+        )
+        extra_reasons = (
+            f"trust-root commit: {verified.trust_root_commit_oid}",
+            f"trust-root allowed-signers blob: {verified.trust_root_blob_oid}",
+            f"signer principal: {verified.signer_principal}",
+            f"signer-set generation: {verified.body.approval_mechanism_sha256}",
         )
     else:
         default_reason = "no verified owner signature; awaiting owner approval"
@@ -834,7 +896,7 @@ def promotion_receipt(
         promotion_status="approved" if approved else "pending-owner",
         owner_approval_ref=verified.owner_approval_ref if approved else None,
         approval_assurance="authenticated" if approved else "not-applicable",
-        reasons=tuple(sorted({default_reason, *reasons})),
+        reasons=tuple(sorted({default_reason, *extra_reasons, *reasons})),
         provenance=ContractProvenance(
             origin=origin,
             source_revision=source_revision,

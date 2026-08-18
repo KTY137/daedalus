@@ -804,6 +804,159 @@ def test_a_substituted_ssh_verifier_cannot_forge_a_good_signature(
         verify_signed_approval(repo, tag, expectation=_expectation())
 
 
+# --- F8: the mutable tag NAME must not be re-resolved after the signature ---
+
+
+def test_moving_the_ref_mid_verification_cannot_swap_the_body(
+    signing_repo: dict[str, object], monkeypatch
+) -> None:
+    """F8, raced for real: tag A's signature must never pair with tag B's body.
+
+    The ref is re-pointed at a DIFFERENT signed tag in the window between the
+    signature check and the body read. If any step still resolves the name, the
+    body that comes back is the other tag's and names another candidate.
+    """
+    import daedalus.kernel.signed_approval as module
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+
+    tag = "owner-approval/raced"
+    sign_tag(tag, _body_json(mechanism))
+
+    # A second, equally well-signed tag approving a DIFFERENT candidate.
+    other = "owner-approval/decoy"
+    sign_tag(other, _body_json(mechanism, candidate_artifact_sha256="9" * 64))
+    decoy_oid = _git(repo, "rev-parse", "--verify", f"refs/tags/{other}^{{tag}}").stdout.strip()
+    assert decoy_oid
+
+    real_git = module._git
+    swapped = {"done": False}
+
+    def racing_git(root, args, **kwargs):
+        result = real_git(root, args, **kwargs)
+        # The instant the signature has been checked, move the name.
+        if not swapped["done"] and "verify-tag" in args:
+            swapped["done"] = True
+            assert _git(repo, "update-ref", f"refs/tags/{tag}", decoy_oid).returncode == 0
+        return result
+
+    monkeypatch.setattr(module, "_git", racing_git)
+
+    verified = verify_signed_approval(repo, tag, expectation=_expectation())
+
+    assert swapped["done"], "the race never fired; the test proved nothing"
+    # The body came from the pinned object, not from the moved name.
+    assert verified.body.candidate_artifact_sha256 == CANDIDATE
+    assert verified.tag_object_sha1 != decoy_oid
+
+
+def test_the_body_is_never_read_through_the_tag_name() -> None:
+    """The structural companion to the race: no `git tag -l` body read."""
+    import daedalus.kernel.signed_approval as module
+
+    source = inspect.getsource(module.verify_signed_approval)
+    assert "--format=%(contents)" not in source, (
+        "the body is being read through the mutable ref again"
+    )
+
+
+# --- F7: the signer principal is an identity, not a log line ----------------
+
+
+def test_the_signer_principal_is_parsed_not_echoed() -> None:
+    import daedalus.kernel.signed_approval as module
+
+    good = 'Good "git" signature for owner@daedalus with ED25519 key SHA256:abc\n'
+    assert module._signer_principal(good) == "owner@daedalus"
+    # The principal-less form names nobody, and must not be reported as one.
+    assert module._signer_principal(
+        'Good "git" signature with ED25519 key SHA256:abc\n'
+    ) == ""
+    assert module._signer_principal("something else entirely") == ""
+
+
+def test_a_signature_git_cannot_attribute_is_refused(
+    signing_repo: dict[str, object], monkeypatch
+) -> None:
+    """Verification used to succeed while recording "unknown-principal"."""
+    import daedalus.kernel.signed_approval as module
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = "owner-approval/anonymous"
+    sign_tag(tag, _body_json(mechanism))
+
+    monkeypatch.setattr(module, "_signer_principal", lambda output: "")
+    with pytest.raises(SignedApprovalSignatureError, match="no principal"):
+        verify_signed_approval(repo, tag, expectation=_expectation())
+
+
+def test_a_real_verification_records_a_bare_principal(
+    signing_repo: dict[str, object]
+) -> None:
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = "owner-approval/named"
+    sign_tag(tag, _body_json(mechanism))
+
+    verified = verify_signed_approval(repo, tag, expectation=_expectation())
+    assert verified.signer_principal == "owner@daedalus"
+    assert "Good " not in verified.signer_principal
+
+
+# --- F5: the receipt must say WHICH list and WHOSE signature ----------------
+
+
+def test_an_authenticated_receipt_names_the_signer_and_the_trust_root(
+    signing_repo: dict[str, object]
+) -> None:
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = approval_tag_for(CANDIDATE)
+    sign_tag(tag, _body_json(mechanism))
+
+    verified = verify_signed_approval(repo, tag, expectation=_expectation())
+    receipt = promotion_receipt(
+        verified,
+        promotion_id="promotion-1",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator="artifact-locator:sha256:" + CANDIDATE,
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator="artifact-locator:sha256:" + EVIDENCE,
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-01-01T00:00:00Z",
+    )
+    blob = "\n".join(receipt.reasons)
+    assert verified.trust_root_commit_oid in blob, "receipt does not say which commit"
+    assert verified.trust_root_blob_oid in blob, "receipt does not say which list"
+    assert verified.signer_principal in blob, "receipt does not say whose signature"
+    # The signer-set generation is a sha256, so it is a first-class input.
+    assert mechanism in receipt.provenance.input_digests
+
+
+# --- F9: a docstring must not credit a check that does not run --------------
+
+
+def test_the_tag_name_helper_does_not_claim_to_bind() -> None:
+    """`verify_signed_approval` checks the namespace prefix, not this name."""
+    import daedalus.kernel.signed_approval as module
+
+    doc = module.approval_tag_for.__doc__ or ""
+    assert "a caller cannot point the boundary at some other tag" not in doc
+    assert "not a check" in doc or "NAMING CONVENTION" in doc
+
+    # And the claim really is unenforced, which is why the text had to change.
+    source = inspect.getsource(module.verify_signed_approval)
+    assert "approval_tag_for(" not in source
+
+
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
     body = canonical_approval_body(
         expectation=_expectation(),
