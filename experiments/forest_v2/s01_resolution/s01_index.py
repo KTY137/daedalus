@@ -204,6 +204,26 @@ class ProjectIndex:
         self._attr_cache: dict[tuple[str, str, str], object] = {}
 
     # ---- construction -------------------------------------------------
+    @staticmethod
+    def module_level_statements(body: list[ast.stmt]):
+        """Statements that bind at module level, including the conditional ones.
+
+        ``try: import x / except ImportError: def x()`` and ``if TYPE_CHECKING:``
+        blocks bind names in module scope.  Reading only ``tree.body`` misses
+        them, which showed up as unresolvable cross-module imports.
+        """
+        stack = list(reversed(body))
+        while stack:
+            node = stack.pop()
+            yield node
+            if isinstance(node, (ast.If, ast.Try, ast.With, ast.AsyncWith)):
+                nested: list[ast.stmt] = list(node.body)
+                nested += list(getattr(node, "orelse", []) or [])
+                nested += list(getattr(node, "finalbody", []) or [])
+                for handler in getattr(node, "handlers", []) or []:
+                    nested += list(handler.body)
+                stack.extend(reversed(nested))
+
     def add_source(self, module: str, path: Path, rel: str, source: str) -> bool:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -211,7 +231,7 @@ class ProjectIndex:
             self.unparseable.append(rel)
             return False
         info = ModuleInfo(name=module, path=path, rel=rel, tree=tree)
-        for node in tree.body:
+        for node in self.module_level_statements(tree.body):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 info.defs[node.name] = ("function", node.lineno)
             elif isinstance(node, ast.ClassDef):
@@ -271,7 +291,12 @@ class ProjectIndex:
                 return Target("external", found.dotted, ".".join(rest[1:]))
             return Target("external", ".".join(parts[:-1]), parts[-1])
         owner = ".".join(parts[:-1])
-        return Target("external", owner, parts[-1]) if owner else UNKNOWN
+        if owner:
+            return Target("external", owner, parts[-1])
+        # A single segment that matches no repo module is a top-level external
+        # module or name (``re``, ``json``, ``hashlib``).  Naming it is a claim,
+        # not a proof -- which is exactly what ``external`` means here.
+        return Target("external", parts[0], "", "module")
 
     def class_of(self, module: str, raw: str) -> ClassInfo | None:
         """Raw dotted class expression, as spelled in ``module``, -> repo class."""

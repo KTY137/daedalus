@@ -56,12 +56,22 @@ EXTERNAL_KINDS = frozenset(
 
 @dataclass(frozen=True)
 class Resolution:
+    """One call site's answer.
+
+    ``site_line`` is where the call is; ``target_rel``/``target_line`` are where
+    the definition is.  A ``verified`` resolution always carries both, which is
+    what makes the claim auditable: reopen the file at that line and the
+    definition must be there (see ``s01_measure.audit_definitions``).
+    """
+
     kind: str
     status: str  # 'verified' | 'external' | 'unresolved'
     target: str
-    rel: str
-    lineno: int
+    site_rel: str
+    site_line: int
     target_module: str = ""
+    target_rel: str = ""
+    target_line: int = 0
     origin: str = ""  # how a receiver type was learned, for local_var_method
 
 
@@ -69,40 +79,37 @@ class Resolution:
 class Scope:
     parent: "Scope | None" = None
     bindings: dict[str, str] = field(default_factory=dict)  # local -> dotted import
+    local_defs: dict[str, tuple[str, int]] = field(default_factory=dict)  # name -> kind,line
     var_types: dict[str, str] = field(default_factory=dict)  # local -> raw class expr
     var_origin: dict[str, str] = field(default_factory=dict)
     shadowed: set[str] = field(default_factory=set)  # assigned locally, type unknown
     class_info: ClassInfo | None = None
     self_name: str = ""
     cls_name: str = ""
+    is_module: bool = False
 
-    def binding(self, name: str) -> str | None:
+    def resolve_name(self, name: str) -> tuple[str, object]:
+        """Nearest binding for ``name``: the first scope that binds it wins.
+
+        Returns one of ``('localdef', (kind, line))``, ``('binding', dotted)``,
+        ``('vartype', (raw, origin))``, ``('shadow', is_module_scope)`` or
+        ``('none', None)``.
+        """
         scope: Scope | None = self
         while scope is not None:
+            if name in scope.local_defs:
+                return "localdef", scope.local_defs[name]
             if name in scope.bindings:
-                return scope.bindings[name]
-            if name in scope.shadowed or name in scope.var_types:
-                return None
-            scope = scope.parent
-        return None
-
-    def var_type(self, name: str) -> tuple[str, str] | None:
-        scope: Scope | None = self
-        while scope is not None:
+                return "binding", scope.bindings[name]
             if name in scope.var_types:
-                return scope.var_types[name], scope.var_origin.get(name, "assign")
+                return "vartype", (
+                    scope.var_types[name],
+                    scope.var_origin.get(name, "assign"),
+                )
             if name in scope.shadowed:
-                return None
+                return "shadow", scope.is_module
             scope = scope.parent
-        return None
-
-    def is_local(self, name: str) -> bool:
-        scope: Scope | None = self
-        while scope is not None:
-            if name in scope.shadowed or name in scope.var_types:
-                return True
-            scope = scope.parent
-        return False
+        return "none", None
 
     def enclosing_class(self) -> ClassInfo | None:
         scope: Scope | None = self
@@ -126,18 +133,73 @@ class Scope:
         return ""
 
 
+@dataclass(frozen=True)
+class Options:
+    """Ablation switches.  Each one removes a mechanism the resolver claims to
+    need, so its marginal contribution can be measured instead of asserted."""
+
+    use_imports: bool = True
+    use_hierarchy: bool = True
+    use_receiver_types: bool = True
+    # Randomised control: repo module name -> the module its bindings should be
+    # made to point at instead.  Applied to EVERY binding the resolver learns,
+    # module-level and function-level alike.  A control that only rewrites the
+    # module-level table leaks, because inline imports re-seed the true value.
+    module_map: dict | None = None
+
+
+FULL = Options()
+
+
 class CallResolver:
     """Resolves every call site in one module of an indexed tree."""
 
-    def __init__(self, index: ProjectIndex, module: ModuleInfo) -> None:
+    def __init__(
+        self, index: ProjectIndex, module: ModuleInfo, options: Options = FULL
+    ) -> None:
         self.index = index
         self.module = module
+        self.options = options
         self.results: list[tuple[ast.Call, Resolution]] = []
+
+    def _bind(self, dotted: str) -> str:
+        """Apply the randomised control to one binding target, if one is active."""
+        mapping = self.options.module_map
+        if not mapping or not dotted:
+            return dotted
+        parts = dotted.split(".")
+        for cut in range(len(parts), 0, -1):
+            prefix = ".".join(parts[:cut])
+            if prefix in mapping:
+                return ".".join([mapping[prefix]] + parts[cut:])
+        return dotted
+
+    def _bind_all(self, table: dict) -> dict:
+        if not self.options.module_map:
+            return dict(table)
+        return {local: self._bind(target) for local, target in table.items()}
+
+    def _lookup_attribute(self, info: ClassInfo, attr: str) -> tuple[str, object]:
+        if self.options.use_hierarchy:
+            return self.index.lookup_attribute(info, attr)
+        if attr in info.methods:
+            return "method", (info, info.methods[attr])
+        if attr in info.attributes:
+            return "attribute", (info, info.attributes[attr])
+        return "missing", None
 
     # ---- public -------------------------------------------------------
     def run(self) -> list[tuple[ast.Call, Resolution]]:
-        scope = Scope()
-        scope.bindings.update(self.module.imports)
+        scope = Scope(is_module=True)
+        if self.options.use_imports:
+            scope.bindings.update(self._bind_all(self.module.imports))
+        scope.local_defs.update(
+            {
+                name: (kind, line)
+                for name, (kind, line) in self.module.defs.items()
+                if kind in {"function", "class"}
+            }
+        )
         self._seed_assignments(self.module.tree.body, scope, "assign")
         self._visit_body(self.module.tree.body, scope)
         return self.results
@@ -147,8 +209,17 @@ class CallResolver:
         """Learn local variable types without descending into nested scopes."""
         for stmt in body:
             for node in self._shallow_walk(stmt):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    scope.bindings.update(import_bindings(node, self.module.name))
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    scope.local_defs[node.name] = ("function", node.lineno)
+                    scope.shadowed.discard(node.name)
+                elif isinstance(node, ast.ClassDef):
+                    scope.local_defs[node.name] = ("class", node.lineno)
+                    scope.shadowed.discard(node.name)
+                elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                    if self.options.use_imports:
+                        scope.bindings.update(
+                            self._bind_all(import_bindings(node, self.module.name))
+                        )
                 elif isinstance(node, ast.Assign):
                     raw = (
                         dotted_name(node.value.func)
@@ -158,14 +229,22 @@ class CallResolver:
                     for target in node.targets:
                         if not isinstance(target, ast.Name):
                             continue
-                        if raw and self.index.class_of(self.module.name, raw):
+                        if (
+                            self.options.use_receiver_types
+                            and raw
+                            and self.index.class_of(self.module.name, raw)
+                        ):
                             scope.var_types[target.id] = raw
                             scope.var_origin[target.id] = origin
                         else:
                             scope.shadowed.add(target.id)
                 elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                     raw = dotted_name(node.annotation)
-                    if raw and self.index.class_of(self.module.name, raw):
+                    if (
+                        self.options.use_receiver_types
+                        and raw
+                        and self.index.class_of(self.module.name, raw)
+                    ):
                         scope.var_types[node.target.id] = raw
                         scope.var_origin[node.target.id] = "annotation"
                     else:
@@ -201,17 +280,20 @@ class CallResolver:
 
     @staticmethod
     def _shallow_walk(stmt: ast.AST):
-        """Yield ``stmt`` and its descendants, stopping at nested scopes."""
+        """Yield ``stmt`` and its descendants without entering a nested scope.
+
+        Nested ``def``/``class``/``lambda`` nodes are yielded (they bind a name
+        in *this* scope) but never descended into (their bodies are their own
+        scope).
+        """
+        nested = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
         stack = [stmt]
         while stack:
             node = stack.pop()
             yield node
-            for child in ast.iter_child_nodes(node):
-                if isinstance(
-                    child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
-                ):
-                    continue
-                stack.append(child)
+            if isinstance(node, nested):
+                continue
+            stack.extend(ast.iter_child_nodes(node))
 
     def _function_scope(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
@@ -231,7 +313,11 @@ class CallResolver:
             a for a in (args.vararg, args.kwarg) if a is not None
         ]:
             raw = dotted_name(arg.annotation) if arg.annotation is not None else ""
-            if raw and self.index.class_of(self.module.name, raw):
+            if (
+                self.options.use_receiver_types
+                and raw
+                and self.index.class_of(self.module.name, raw)
+            ):
                 scope.var_types[arg.arg] = raw
                 scope.var_origin[arg.arg] = "param_annotation"
             else:
@@ -310,9 +396,11 @@ class CallResolver:
             kind,
             "verified",
             f"{module}.{name}" if name else module,
-            rel,
+            self.module.rel,
             lineno,
             target_module=module,
+            target_rel=rel,
+            target_line=line,
             origin=origin,
         )
 
@@ -320,34 +408,49 @@ class CallResolver:
         return Resolution(kind, "external", dotted, self.module.rel, lineno)
 
     def _resolve_bare(self, name: str, lineno: int, scope: Scope) -> Resolution:
-        binding = scope.binding(name)
-        if binding is not None:
-            found = self.index.resolve_dotted(binding)
-            if found.status == "repo":
-                kind = "import_repo"
+        # ``cls(...)`` inside a classmethod constructs the enclosing class.
+        if scope.receiver_role(name) == "cls":
+            enclosing = scope.enclosing_class()
+            if enclosing is not None:
                 return self._repo(
-                    kind, (found.module, found.symbol, found.rel, found.lineno), lineno
+                    "local_class",
+                    (enclosing.module, enclosing.name,
+                     self.index.modules[enclosing.module].rel, enclosing.lineno),
+                    lineno,
+                )
+
+        found_kind, payload = scope.resolve_name(name)
+        if found_kind == "localdef":
+            def_kind, def_line = payload  # type: ignore[misc]
+            bucket = "local_class" if def_kind == "class" else "local_function"
+            return self._repo(
+                bucket, (self.module.name, name, self.module.rel, def_line), lineno
+            )
+        if found_kind == "binding":
+            found = self.index.resolve_dotted(str(payload))
+            if found.status == "repo":
+                return self._repo(
+                    "import_repo",
+                    (found.module, found.symbol, found.rel, found.lineno),
+                    lineno,
                 )
             if found.status == "external":
                 return self._external("import_external", found.dotted, lineno)
             return self._unresolved("import_unknown", lineno)
-        if scope.is_local(name):
-            typed = scope.var_type(name)
-            if typed is not None:
-                info = self.index.class_of(self.module.name, typed[0])
-                if info is not None:
-                    return self._repo(
-                        "local_class", (info.module, info.name, self.module.rel, info.lineno),
-                        lineno,
-                    )
+        if found_kind == "vartype":
+            raw, _origin = payload  # type: ignore[misc]
+            info = self.index.class_of(self.module.name, str(raw))
+            if info is not None:
+                return self._repo(
+                    "local_class",
+                    (info.module, info.name, self.index.modules[info.module].rel,
+                     info.lineno),
+                    lineno,
+                )
             return self._unresolved("local_callable", lineno)
-        if name in self.module.defs:
-            kind, def_line = self.module.defs[name]
-            bucket = "local_class" if kind == "class" else "local_function"
-            if kind == "assign":
-                return self._unresolved("module_variable_callable", lineno)
-            return self._repo(
-                bucket, (self.module.name, name, self.module.rel, def_line), lineno
+        if found_kind == "shadow":
+            return self._unresolved(
+                "module_variable_callable" if payload else "local_callable", lineno
             )
         enclosing = scope.enclosing_class()
         if enclosing is not None and name in enclosing.methods:
@@ -389,31 +492,32 @@ class CallResolver:
                 kind = "self_method" if role == "self" else "cls_method"
                 return self._from_class(enclosing, attr, lineno, kind, "self_unknown")
 
-            typed = scope.var_type(value.id)
-            if typed is not None:
-                info = self.index.class_of(self.module.name, typed[0])
+            found_kind, payload = scope.resolve_name(value.id)
+            if found_kind == "vartype":
+                raw, origin = payload  # type: ignore[misc]
+                info = self.index.class_of(self.module.name, str(raw))
                 if info is not None:
                     return self._from_class(
                         info, attr, lineno, "local_var_method", "local_var_attr_missing",
-                        origin=typed[1],
+                        origin=str(origin),
                     )
-
-            binding = scope.binding(value.id)
-            if binding is not None:
-                return self._through_binding(binding, attr, lineno)
-
-            if scope.is_local(value.id):
                 return self._unresolved("untyped_local_receiver", lineno)
-
-            if value.id in self.module.defs:
-                kind, _ = self.module.defs[value.id]
-                if kind == "class":
+            if found_kind == "binding":
+                return self._through_binding(str(payload), attr, lineno)
+            if found_kind == "localdef":
+                def_kind, _ = payload  # type: ignore[misc]
+                if def_kind == "class":
                     info = self.module.classes.get(value.id)
                     if info is not None:
                         return self._from_class(
                             info, attr, lineno, "repo_class_attr", "repo_class_attr_missing"
                         )
-                return self._unresolved("module_variable_receiver", lineno)
+                return self._unresolved("function_object_receiver", lineno)
+            if found_kind == "shadow":
+                return self._unresolved(
+                    "module_variable_receiver" if payload else "untyped_local_receiver",
+                    lineno,
+                )
 
             if value.id in BUILTIN_NAMES:
                 return self._external("builtin", f"builtins.{value.id}.{attr}", lineno)
@@ -426,8 +530,8 @@ class CallResolver:
             and scope.receiver_role(value.value.id) == "self"
         ):
             enclosing = scope.enclosing_class()
-            if enclosing is not None:
-                kind, payload = self.index.lookup_attribute(enclosing, value.attr)
+            if enclosing is not None and self.options.use_receiver_types:
+                kind, payload = self._lookup_attribute(enclosing, value.attr)
                 if kind == "attribute":
                     owner, raw = payload  # type: ignore[misc]
                     info = self.index.class_of(owner.module, raw)
@@ -441,8 +545,9 @@ class CallResolver:
         chain = dotted_name(value)
         if chain:
             head, _, rest = chain.partition(".")
-            binding = scope.binding(head)
-            if binding is not None:
+            found_kind, payload = scope.resolve_name(head)
+            if found_kind == "binding":
+                binding = str(payload)
                 dotted = f"{binding}.{rest}.{attr}" if rest else f"{binding}.{attr}"
                 return self._through_dotted(dotted, lineno)
             return self._unresolved("chain_receiver", lineno)
@@ -466,7 +571,7 @@ class CallResolver:
         miss_reason: str,
         origin: str = "",
     ) -> Resolution:
-        found, payload = self.index.lookup_attribute(info, attr)
+        found, payload = self._lookup_attribute(info, attr)
         if found == "method":
             owner, line = payload  # type: ignore[misc]
             rel = self.index.modules[owner.module].rel
@@ -491,7 +596,7 @@ class CallResolver:
                 if raw.split(".")[-1] not in {"object"}:
                     external = external or raw
                 continue
-            found, payload = self.index.lookup_attribute(base, attr)
+            found, payload = self._lookup_attribute(base, attr)
             if found == "method":
                 owner, line = payload  # type: ignore[misc]
                 rel = self.index.modules[owner.module].rel
@@ -535,8 +640,10 @@ class CallResolver:
         return self._unresolved("dotted_unknown", lineno)
 
 
-def resolve_module(index: ProjectIndex, module: ModuleInfo) -> list[tuple[ast.Call, Resolution]]:
-    return CallResolver(index, module).run()
+def resolve_module(
+    index: ProjectIndex, module: ModuleInfo, options: Options = FULL
+) -> list[tuple[ast.Call, Resolution]]:
+    return CallResolver(index, module, options).run()
 
 
 def resolve_tree(root: Path, packages: tuple[str, ...] | None = None):
