@@ -1,0 +1,40 @@
+{
+    "schema":  "daedalus-gate0-whole-matrix-receipt/1",
+    "produced_at":  "2026-08-18",
+    "produced_by":  "docs/recovery/gate0_production_attest.ps1",
+    "source_revision":  "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+    "matrix":  {
+                   "matrix_id":  "gate0-whole-runtime-fault-matrix",
+                   "matrix_sha256":  "a85e1a319c8eef51c3ac3c6a7093ce107a06de14def3258ca14fb799b75ff642",
+                   "observations":  24,
+                   "closed":  false,
+                   "blocker_count":  6
+               },
+    "key_material":  {
+                         "class":  "production",
+                         "fixture_issuer_id":  "issuer.gate0-fixture-production",
+                         "linux_host_issuer_id":  "issuer.gate0-linux-host-production",
+                         "live_runtime_issuer_id":  "issuer.gate0-live-runtime-production",
+                         "production_key_material":  true
+                     },
+    "blockers":  {
+                     "total":  6,
+                     "fault.blocked":  {
+                                           "count":  6,
+                                           "rows":  [
+                                                        "fault.blocked:runtime.egress.unauthorized-endpoint",
+                                                        "fault.blocked:runtime.live-envelope.binary-drift",
+                                                        "fault.blocked:runtime.live-envelope.expiry",
+                                                        "fault.blocked:runtime.process.oom",
+                                                        "fault.blocked:runtime.sandbox.daemon-unavailable",
+                                                        "fault.blocked:runtime.secrets.undeclared-access"
+                                                    ],
+                                           "scoped_by":  null,
+                                           "note":  "offene Zeilen bleiben benannt; keine Sammel-Scoping-Erklaerung ueber gemischte Ursachen"
+                                       }
+                 },
+    "reproduction":  {
+                         "collected_run_dir":  "runs\\gate0-closure-20260818",
+                         "note":  "Observations, Attestation-Bundles und Reproduktionsschritte liegen im Sammel-Lauf; dieses Verzeichnis existiert, damit der Gate-Report das Verdikt unter runs/gate0-matrix-* findet."
+                     }
+}
