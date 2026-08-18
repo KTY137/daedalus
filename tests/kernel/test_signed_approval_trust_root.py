@@ -26,6 +26,7 @@ from daedalus.kernel.signed_approval import (
     SignedApprovalBody,
     SignedApprovalExpired,
     SignedApprovalPurposeError,
+    SignedApprovalMechanismMismatch,
     SignedApprovalRootError,
     SignedApprovalSignatureError,
     approval_tag_for,
@@ -34,6 +35,7 @@ from daedalus.kernel.signed_approval import (
     promotion_receipt,
     read_committed_allowed_signers,
     regeneration_voids_approval,
+    resolve_trust_root,
     verify_signed_approval,
 )
 
@@ -81,10 +83,11 @@ def _future() -> str:
     )
 
 
-def _body_json(**changes: str) -> str:
+def _body_json(mechanism: str, **changes: str) -> str:
     body = {
         "purpose": APPROVAL_PURPOSE,
         "operation": "promote-candidate",
+        "approval_mechanism_sha256": mechanism,
         "nomination_receipt_sha256": NOMINATION,
         "candidate_artifact_sha256": CANDIDATE,
         "evidence_packet_sha256": EVIDENCE,
@@ -141,8 +144,13 @@ def signing_repo(tmp_path: Path) -> dict[str, object]:
         )
         assert result.returncode == 0, result.stderr
 
+    from daedalus.kernel.signed_approval import resolve_trust_root
+
+    mechanism = resolve_trust_root(repo).digest
+
     return {
         "repo": repo,
+        "mechanism": mechanism,
         "owner_key": owner_key,
         "attacker_key": attacker_key,
         "sign_tag": sign_tag,
@@ -151,7 +159,7 @@ def signing_repo(tmp_path: Path) -> dict[str, object]:
 
 def test_owner_signed_tag_verifies_against_the_committed_root(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
 
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
@@ -167,7 +175,7 @@ def test_foreign_signature_is_refused(signing_repo) -> None:
     repo = signing_repo["repo"]
     signing_repo["sign_tag"](
         "owner-approval/promotion-1",
-        _body_json(),
+        _body_json(signing_repo["mechanism"]),
         key=signing_repo["attacker_key"],
     )
 
@@ -187,7 +195,7 @@ def test_rogue_worktree_signers_file_grants_nothing(signing_repo) -> None:
     repo: Path = signing_repo["repo"]
     attacker_key: Path = signing_repo["attacker_key"]
     signing_repo["sign_tag"](
-        "owner-approval/promotion-1", _body_json(), key=attacker_key
+        "owner-approval/promotion-1", _body_json(signing_repo["mechanism"]), key=attacker_key
     )
 
     # The candidate rewrites the checked-out trust root to name its own key.
@@ -206,7 +214,7 @@ def test_wrong_purpose_cannot_be_replayed_as_an_approval(signing_repo) -> None:
     """A tag the owner really signed, for a different domain."""
     repo = signing_repo["repo"]
     signing_repo["sign_tag"](
-        "owner-approval/promotion-1", _body_json(purpose="daedalus.release")
+        "owner-approval/promotion-1", _body_json(signing_repo["mechanism"], purpose="daedalus.release")
     )
 
     with pytest.raises(SignedApprovalPurposeError):
@@ -217,7 +225,7 @@ def test_wrong_purpose_cannot_be_replayed_as_an_approval(signing_repo) -> None:
 
 def test_tag_outside_the_approval_namespace_is_refused(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("v1.0.0", _body_json())
+    signing_repo["sign_tag"]("v1.0.0", _body_json(signing_repo["mechanism"]))
 
     with pytest.raises(SignedApprovalPurposeError):
         verify_signed_approval(repo, "v1.0.0", expectation=_expectation())
@@ -226,7 +234,7 @@ def test_tag_outside_the_approval_namespace_is_refused(signing_repo) -> None:
 def test_signed_body_naming_another_candidate_is_refused(signing_repo) -> None:
     repo = signing_repo["repo"]
     signing_repo["sign_tag"](
-        "owner-approval/promotion-1", _body_json(candidate_artifact_sha256="d" * 64)
+        "owner-approval/promotion-1", _body_json(signing_repo["mechanism"], candidate_artifact_sha256="d" * 64)
     )
 
     with pytest.raises(SignedApprovalBindingMismatch):
@@ -237,7 +245,7 @@ def test_signed_body_naming_another_candidate_is_refused(signing_repo) -> None:
 
 def test_signed_body_naming_a_moved_target_head_is_refused(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
 
     with pytest.raises(SignedApprovalBindingMismatch):
         verify_signed_approval(
@@ -269,7 +277,7 @@ def test_lightweight_tag_carries_no_signature(signing_repo) -> None:
 def test_unsigned_annotated_tag_is_refused(signing_repo) -> None:
     repo: Path = signing_repo["repo"]
     assert _git(
-        repo, "tag", "-a", "-m", _body_json(), "owner-approval/promotion-1"
+        repo, "tag", "-a", "-m", _body_json(signing_repo["mechanism"]), "owner-approval/promotion-1"
     ).returncode == 0
 
     with pytest.raises(SignedApprovalSignatureError):
@@ -280,7 +288,7 @@ def test_unsigned_annotated_tag_is_refused(signing_repo) -> None:
 
 def test_expired_approval_is_refused(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
 
     with pytest.raises(SignedApprovalExpired):
         verify_signed_approval(
@@ -416,7 +424,10 @@ def test_owner_flow_end_to_end(signing_repo) -> None:
     repo = signing_repo["repo"]
     expectation = _expectation()
     body = canonical_approval_body(
-        expectation=expectation, nonce="nonce-e2e", expires_at=_future()
+        expectation=expectation,
+        nonce="nonce-e2e",
+        expires_at=_future(),
+        approval_mechanism_sha256=signing_repo["mechanism"],
     )
 
     # The owner pastes precisely the bytes the tool printed.
@@ -438,7 +449,10 @@ def test_a_retyped_body_is_a_different_body(signing_repo) -> None:
     """Pretty-printing the body breaks it, exactly as the HOWTO warns."""
     repo = signing_repo["repo"]
     body = canonical_approval_body(
-        expectation=_expectation(), nonce="nonce-1", expires_at=_future()
+        expectation=_expectation(),
+        nonce="nonce-1",
+        expires_at=_future(),
+        approval_mechanism_sha256=signing_repo["mechanism"],
     )
     retyped = json.dumps(body.to_dict(), indent=2, sort_keys=True)
     signing_repo["sign_tag"]("owner-approval/retyped", retyped)
@@ -451,7 +465,7 @@ def test_a_retyped_body_is_a_different_body(signing_repo) -> None:
 
 def test_approval_ref_is_the_digest_of_the_verified_tag_object(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
 
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
@@ -476,7 +490,7 @@ def test_approval_tag_name_is_a_function_of_the_candidate() -> None:
 
 def test_an_approval_can_be_spent_only_once(signing_repo, tmp_path) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
     )
@@ -494,7 +508,7 @@ def test_a_broken_single_use_ledger_refuses_rather_than_assumes_fresh(
     signing_repo, tmp_path
 ) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
     )
@@ -522,7 +536,7 @@ def test_receipt_is_authenticated_only_from_a_verified_signature(
 ) -> None:
     """The first production construction of the canonical PromotionReceipt."""
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
     )
@@ -579,7 +593,7 @@ def test_receipt_takes_no_status_or_assurance_argument() -> None:
 
 def test_receipt_refuses_a_signature_for_another_candidate(signing_repo) -> None:
     repo = signing_repo["repo"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
     verified = verify_signed_approval(
         repo, "owner-approval/promotion-1", expectation=_expectation()
     )
@@ -599,9 +613,96 @@ def test_receipt_refuses_a_signature_for_another_candidate(signing_repo) -> None
         )
 
 
+def test_trust_root_swap_invalidates_an_existing_approval(signing_repo) -> None:
+    """Rotating the signer set must not carry old approvals across the swap."""
+    repo: Path = signing_repo["repo"]
+    owner_key: Path = signing_repo["owner_key"]
+    attacker_key: Path = signing_repo["attacker_key"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
+
+    # The owner set changes in a reviewed commit -- a second principal joins.
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(
+        f"owner@daedalus {owner_key.with_suffix('.pub').read_text().strip()}\n"
+        f"evil@x {attacker_key.with_suffix('.pub').read_text().strip()}\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "rotate signers").returncode == 0
+
+    with pytest.raises(SignedApprovalMechanismMismatch):
+        verify_signed_approval(
+            repo, "owner-approval/promotion-1", expectation=_expectation()
+        )
+
+
+def test_trust_root_pins_commit_and_blob_independently(signing_repo) -> None:
+    repo = signing_repo["repo"]
+    root = resolve_trust_root(repo)
+
+    assert len(root.commit_oid) == 40
+    assert len(root.blob_oid) == 40
+    assert root.commit_oid != root.blob_oid
+    assert len(root.principals()) == 1
+    assert root.digest == hashlib.sha256(
+        root.normalised().encode("utf-8")
+    ).hexdigest()
+
+
+def test_verification_reports_the_pins_it_used(signing_repo) -> None:
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
+    root = resolve_trust_root(repo)
+
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    assert verified.trust_root_commit_oid == root.commit_oid
+    assert verified.trust_root_blob_oid == root.blob_oid
+    assert len(verified.tag_target_oid) == 40
+    # The signed tag object and what it points at are different objects.
+    assert verified.tag_target_oid != verified.tag_object_sha1
+
+
+def test_moving_the_tag_name_changes_the_pinned_object(signing_repo) -> None:
+    """A tag name is mutable; the pins are what an approval is anchored to."""
+    repo: Path = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
+    first = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    (repo / "moved.txt").write_text("moved", encoding="utf-8")
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "move").returncode == 0
+    assert _git(repo, "tag", "-d", "owner-approval/promotion-1").returncode == 0
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
+
+    second = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    assert second.tag_object_sha1 != first.tag_object_sha1
+    assert second.tag_target_oid != first.tag_target_oid
+    assert second.owner_approval_ref != first.owner_approval_ref
+
+
+def test_lazy_fetch_is_disabled_for_every_git_call() -> None:
+    import daedalus.kernel.signed_approval as module
+
+    env = module._git_env()
+    assert env["GIT_NO_LAZY_FETCH"] == "1"
+    assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+    for scrubbed in ("GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL", "GIT_SSH_COMMAND"):
+        assert scrubbed not in env
+
+
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
     body = canonical_approval_body(
-        expectation=_expectation(), nonce="nonce-1", expires_at=_future()
+        expectation=_expectation(),
+        nonce="nonce-1",
+        expires_at=_future(),
+        approval_mechanism_sha256="e" * 64,
     )
     restored = SignedApprovalBody.from_json(body.canonical_bytes().decode("utf-8"))
     assert restored == body

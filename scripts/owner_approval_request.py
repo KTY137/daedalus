@@ -33,6 +33,7 @@ from daedalus.kernel.signed_approval import (  # noqa: E402
     SignedApprovalBody,
     canonical_approval_body,
     read_committed_allowed_signers,
+    resolve_trust_root,
 )
 
 MAX_TTL_HOURS = 24
@@ -55,10 +56,19 @@ def _show(args: argparse.Namespace) -> int:
         target_ref=args.target_ref,
         current_target_revision=args.target_revision,
     )
+    try:
+        trust_root = resolve_trust_root(args.repo_root)
+    except Exception as exc:  # noqa: BLE001 - this tool only reports
+        raise SystemExit(
+            f"{type(exc).__name__}: {exc}\n\n"
+            "Nothing can be approved until the owner commits a public key. "
+            "See docs/OWNER_SEALED_APPROVAL_HOWTO.md section 0."
+        ) from exc
     body = canonical_approval_body(
         expectation=expectation,
         nonce=args.nonce or f"nonce-{secrets.token_hex(8)}",
         expires_at=expires.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        approval_mechanism_sha256=trust_root.digest,
     )
     raw = body.canonical_bytes()
     tag = args.tag or f"{APPROVAL_TAG_NAMESPACE}{args.candidate_sha256[:12]}"
@@ -70,6 +80,8 @@ def _show(args: argparse.Namespace) -> int:
     print(f"  candidate base     : {body.base_revision}")
     print(f"  target             : {body.target_ref} at {body.expected_target_revision}")
     print(f"  valid until        : {body.expires_at}  ({args.ttl_hours}h)")
+    print(f"  signer set         : {trust_root.digest[:16]}... "
+          f"(blob {trust_root.blob_oid[:12]} in commit {trust_root.commit_oid[:12]})")
 
     _rule("the exact bytes that will be signed")
     print(raw.decode("utf-8"))
@@ -157,6 +169,7 @@ def main() -> int:
     show.add_argument("--ttl-hours", type=int, default=2)
     show.add_argument("--nonce", default=None)
     show.add_argument("--tag", default=None)
+    show.add_argument("--repo-root", default=".")
     show.set_defaults(handler=_show)
 
     inspect_parser = sub.add_parser("inspect", help="print the body a tag holds")

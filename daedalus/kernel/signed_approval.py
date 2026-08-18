@@ -64,6 +64,7 @@ APPROVAL_TAG_NAMESPACE = "owner-approval/"
 APPROVAL_BODY_FIELDS = (
     "purpose",
     "operation",
+    "approval_mechanism_sha256",
     "nomination_receipt_sha256",
     "candidate_artifact_sha256",
     "evidence_packet_sha256",
@@ -120,6 +121,10 @@ class SignedApprovalExpired(SignedApprovalError):
     """The signed approval is outside its validity window."""
 
 
+class SignedApprovalMechanismMismatch(SignedApprovalError):
+    """The approval was signed against a different allowed-signers generation."""
+
+
 @dataclass(frozen=True)
 class SignedApprovalBody:
     """The exact canonical object the owner signs.
@@ -131,6 +136,7 @@ class SignedApprovalBody:
 
     purpose: str
     operation: str
+    approval_mechanism_sha256: str
     nomination_receipt_sha256: str
     candidate_artifact_sha256: str
     evidence_packet_sha256: str
@@ -152,6 +158,7 @@ class SignedApprovalBody:
             )
         try:
             for name in (
+                "approval_mechanism_sha256",
                 "nomination_receipt_sha256",
                 "candidate_artifact_sha256",
                 "evidence_packet_sha256",
@@ -227,9 +234,12 @@ class VerifiedSignedApproval:
 
     tag_name: str
     tag_object_sha1: str
+    tag_target_oid: str
     signer_principal: str
     body: SignedApprovalBody
     owner_approval_ref: str
+    trust_root_commit_oid: str
+    trust_root_blob_oid: str
 
     @property
     def body_sha256(self) -> str:
@@ -252,6 +262,7 @@ def canonical_approval_body(
     expectation: ApprovalExpectation,
     nonce: str,
     expires_at: str,
+    approval_mechanism_sha256: str,
 ) -> SignedApprovalBody:
     """Build the body an owner is about to sign, from a checked expectation.
 
@@ -265,6 +276,7 @@ def canonical_approval_body(
     return SignedApprovalBody(
         purpose=APPROVAL_PURPOSE,
         operation=expectation.operation,
+        approval_mechanism_sha256=approval_mechanism_sha256,
         nomination_receipt_sha256=expectation.nomination_receipt_sha256,
         candidate_artifact_sha256=expectation.candidate_artifact_sha256,
         evidence_packet_sha256=expectation.evidence_packet_sha256,
@@ -282,6 +294,11 @@ def _git_env() -> dict[str, str]:
         env.pop(name, None)
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_TERMINAL_PROMPT"] = "0"
+    # A shallow or partial clone must fail closed rather than reach out for the
+    # object it is missing. Lazy fetching would turn "this repository cannot
+    # show me the signed bytes" into a network call whose answer an attacker
+    # may control.
+    env["GIT_NO_LAZY_FETCH"] = "1"
     return env
 
 
@@ -312,39 +329,96 @@ def _git(
     return completed
 
 
-def read_committed_allowed_signers(repo_root: str | Path) -> str:
-    """Read the trust root from the committed object, never the working tree.
+@dataclass(frozen=True)
+class TrustRoot:
+    """The pinned trust policy: which commit, which blob, which signer set.
 
-    A candidate that can write files could otherwise create or edit
-    ``configs/owner-allowed-signers`` in the checkout and name its own key as a
-    principal. Reading the blob at a pinned revision means the trust root can
-    only be changed by a reviewed commit.
+    The commit OID and the blob OID are resolved and reported independently on
+    purpose. A blob digest alone does not say which reviewed commit introduced
+    it, and a commit OID alone does not say the policy file inside it is the
+    one that was read. Recording both makes a trust-root swap describable after
+    the fact instead of merely detectable.
+
+    ``digest`` is the SHA-256 of the signer set as fed to ssh-keygen. It is the
+    mechanism generation an approval binds itself to, so rotating the owner's
+    keys invalidates approvals signed under the previous set rather than
+    silently carrying them forward.
     """
+
+    commit_oid: str
+    blob_oid: str
+    content: str
+
+    @property
+    def digest(self) -> str:
+        return hashlib.sha256(self.normalised().encode("utf-8")).hexdigest()
+
+    def normalised(self) -> str:
+        return self.content.replace("\r\n", "\n").replace("\r", "\n")
+
+    def principals(self) -> tuple[str, ...]:
+        return tuple(
+            line.strip()
+            for line in self.normalised().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+
+
+def resolve_trust_root(repo_root: str | Path) -> TrustRoot:
+    """Pin the trust policy commit and the signer blob independently."""
     root = Path(repo_root).resolve()
-    completed = _git(
+    commit = _git(
         root,
-        ["show", f"{ALLOWED_SIGNERS_REVISION}:{OWNER_ALLOWED_SIGNERS_PATH}"],
-        label="reading the committed allowed-signers list",
+        ["rev-parse", "--verify", "--quiet", f"{ALLOWED_SIGNERS_REVISION}^{{commit}}"],
+        label="pinning the trust-policy commit",
         check=False,
     )
-    if completed.returncode != 0:
+    commit_oid = commit.stdout.strip()
+    if commit.returncode != 0 or not commit_oid:
         raise SignedApprovalRootError(
-            f"no committed {OWNER_ALLOWED_SIGNERS_PATH} at "
-            f"{ALLOWED_SIGNERS_REVISION}: "
-            f"{completed.stderr.strip() or 'not found'}"
+            f"no commit at {ALLOWED_SIGNERS_REVISION} to pin the trust policy to"
         )
-    content = completed.stdout
-    principals = [
-        line
-        for line in content.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    if not principals:
+    blob = _git(
+        root,
+        [
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{commit_oid}:{OWNER_ALLOWED_SIGNERS_PATH}",
+        ],
+        label="pinning the allowed-signers blob",
+        check=False,
+    )
+    blob_oid = blob.stdout.strip()
+    if blob.returncode != 0 or not blob_oid:
+        raise SignedApprovalRootError(
+            f"no committed {OWNER_ALLOWED_SIGNERS_PATH} at {commit_oid[:12]}"
+        )
+    content = _git(
+        root,
+        ["cat-file", "blob", blob_oid],
+        label="reading the pinned allowed-signers blob",
+        check=False,
+    )
+    if content.returncode != 0:
+        raise SignedApprovalRootError(
+            f"allowed-signers blob {blob_oid[:12]} is unreadable; refusing "
+            "rather than fetching it"
+        )
+    trust_root = TrustRoot(
+        commit_oid=commit_oid, blob_oid=blob_oid, content=content.stdout
+    )
+    if not trust_root.principals():
         raise SignedApprovalRootError(
             f"committed {OWNER_ALLOWED_SIGNERS_PATH} names no owner principal; "
             "promotion stays refused until the owner commits their public key"
         )
-    return content
+    return trust_root
+
+
+def read_committed_allowed_signers(repo_root: str | Path) -> str:
+    """The committed signer set, normalised. Thin view over the pinned root."""
+    return resolve_trust_root(repo_root).normalised()
 
 
 def verify_signed_approval(
@@ -375,7 +449,8 @@ def verify_signed_approval(
         raise SignedApprovalSignatureError("approval tag name must not contain spaces")
 
     root = Path(repo_root).resolve()
-    allowed_signers = read_committed_allowed_signers(root)
+    trust_root = resolve_trust_root(root)
+    allowed_signers = trust_root.normalised()
 
     # An annotated/signed tag is a real object; a lightweight tag is only a ref
     # to a commit and carries no signature at all.
@@ -433,6 +508,17 @@ def verify_signed_approval(
     ).stdout
     body = SignedApprovalBody.from_json(_strip_signature(contents))
 
+    # The approval binds the signer-set generation it was made under, so
+    # rotating the owner's keys invalidates approvals signed against the
+    # previous set instead of silently carrying them across the swap.
+    if body.approval_mechanism_sha256 != trust_root.digest:
+        raise SignedApprovalMechanismMismatch(
+            f"{tag_name} was signed against allowed-signers generation "
+            f"{body.approval_mechanism_sha256[:12]}, but the committed trust "
+            f"root is now {trust_root.digest[:12]}; re-approve under the "
+            "current signer set"
+        )
+
     _require_binding(body, expectation)
     moment = now or datetime.now(timezone.utc)
     if moment >= _parse_utc(body.expires_at, "expires_at"):
@@ -451,12 +537,32 @@ def verify_signed_approval(
         hashlib.sha256(raw.stdout.encode("utf-8")).hexdigest()
     )
 
+    # A tag name is a mutable ref. Resolving what the signed tag object points
+    # at pins the approval to an immutable object graph, so re-pointing the
+    # name at a different object after signing cannot silently redirect a
+    # promotion that already looked authorised.
+    target = _git(
+        root,
+        ["rev-parse", "--verify", "--quiet", f"{tag_object}^{{}}"],
+        label="pinning the approval tag target",
+        check=False,
+    )
+    tag_target = target.stdout.strip()
+    if target.returncode != 0 or not tag_target:
+        raise SignedApprovalSignatureError(
+            f"{tag_name} does not resolve to an object this repository holds; "
+            "refusing rather than fetching it"
+        )
+
     return VerifiedSignedApproval(
         tag_name=tag_name,
         tag_object_sha1=tag_object,
+        tag_target_oid=tag_target,
         signer_principal=principal,
         body=body,
         owner_approval_ref=approval_ref,
+        trust_root_commit_oid=trust_root.commit_oid,
+        trust_root_blob_oid=trust_root.blob_oid,
     )
 
 
@@ -690,9 +796,12 @@ __all__ = [
     "SignedApprovalError",
     "SignedApprovalExpired",
     "SignedApprovalPurposeError",
+    "SignedApprovalMechanismMismatch",
     "SignedApprovalRootError",
     "SignedApprovalSignatureError",
+    "TrustRoot",
     "VerifiedSignedApproval",
+    "resolve_trust_root",
     "approval_tag_for",
     "canonical_approval_body",
     "claim_signed_approval",

@@ -17,6 +17,79 @@ SUITE = "tests/kernel/test_signed_approval_trust_root.py"
 MODULE = ROOT / "daedalus" / "kernel" / "signed_approval.py"
 
 
+# (name, anchor, replacement, test that must fail)
+MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "worktree-trust-root",
+        "    trust_root = TrustRoot(\n"
+        "        commit_oid=commit_oid, blob_oid=blob_oid, content=content.stdout\n"
+        "    )",
+        "    _wt = Path(repo_root) / OWNER_ALLOWED_SIGNERS_PATH\n"
+        "    trust_root = TrustRoot(\n"
+        "        commit_oid=commit_oid, blob_oid=blob_oid,\n"
+        "        content=_wt.read_text(encoding='utf-8') if _wt.exists()\n"
+        "        else content.stdout,\n"
+        "    )",
+        "test_rogue_worktree_signers_file_grants_nothing",
+    ),
+    (
+        "ignored-verify-tag-exit",
+        "    if verified.returncode != 0:\n"
+        "        raise SignedApprovalSignatureError(",
+        "    if False:\n        raise SignedApprovalSignatureError(",
+        "test_foreign_signature_is_refused",
+    ),
+    (
+        "no-purpose-separation",
+        "        if self.purpose != APPROVAL_PURPOSE:",
+        "        if False:",
+        "test_wrong_purpose_cannot_be_replayed_as_an_approval",
+    ),
+    (
+        "no-tag-namespace",
+        "    if not tag_name.startswith(APPROVAL_TAG_NAMESPACE):",
+        "    if False:",
+        "test_tag_outside_the_approval_namespace_is_refused",
+    ),
+    (
+        "no-subject-binding",
+        "    _require_binding(body, expectation)",
+        "    pass  # binding removed",
+        "test_signed_body_naming_another_candidate_is_refused",
+    ),
+    (
+        "no-expiry",
+        '    if moment >= _parse_utc(body.expires_at, "expires_at"):',
+        "    if False:",
+        "test_expired_approval_is_refused",
+    ),
+    (
+        "empty-trust-root-accepted",
+        "    if not trust_root.principals():",
+        "    if False:",
+        "test_committed_root_without_principals_refuses",
+    ),
+    (
+        "lightweight-tag-accepted",
+        "    if resolved.returncode != 0 or not tag_object:",
+        "    if False:",
+        "test_lightweight_tag_carries_no_signature",
+    ),
+    (
+        "no-mechanism-binding",
+        "    if body.approval_mechanism_sha256 != trust_root.digest:",
+        "    if False:",
+        "test_trust_root_swap_invalidates_an_existing_approval",
+    ),
+    (
+        "lazy-fetch-enabled",
+        '    env["GIT_NO_LAZY_FETCH"] = "1"',
+        '    env.pop("GIT_NO_LAZY_FETCH", None)',
+        "test_lazy_fetch_is_disabled_for_every_git_call",
+    ),
+)
+
+
 def _pytest(selector: str) -> int:
     return subprocess.run(
         [sys.executable, "-m", "pytest", "-q", selector],
@@ -27,147 +100,32 @@ def _pytest(selector: str) -> int:
     ).returncode
 
 
-def _require_killed(name: str, test: str) -> None:
-    selector = f"{SUITE}::{test}"
-    if _pytest(selector) == 0:
-        raise SystemExit(f"mutation survived: {name} (expected {test} to fail)")
-    print(f"  killed by {test}: {name}")
-
-
-def _mutate(original: str, old: str, new: str, name: str) -> str:
-    if original.count(old) != 1:
-        raise SystemExit(f"mutation anchor is not unique: {name}")
-    return original.replace(old, new, 1)
-
-
 def main() -> int:
     print(f"baseline: {SUITE}")
     if _pytest(SUITE) != 0:
         raise SystemExit("focused baseline failed before the mutation campaign")
 
     original = MODULE.read_text(encoding="utf-8")
+    survivors: list[str] = []
     try:
-        # 1. Trust root read from the working tree instead of the committed blob.
-        source = _mutate(
-            original,
-            '        ["show", f"{ALLOWED_SIGNERS_REVISION}:{OWNER_ALLOWED_SIGNERS_PATH}"],\n'
-            '        label="reading the committed allowed-signers list",\n'
-            '        check=False,\n'
-            "    )\n"
-            "    if completed.returncode != 0:",
-            '        ["show", f"{ALLOWED_SIGNERS_REVISION}:{OWNER_ALLOWED_SIGNERS_PATH}"],\n'
-            '        label="reading the committed allowed-signers list",\n'
-            '        check=False,\n'
-            "    )\n"
-            "    _worktree = root / OWNER_ALLOWED_SIGNERS_PATH\n"
-            "    if _worktree.exists():\n"
-            "        return _worktree.read_text(encoding='utf-8')\n"
-            "    if completed.returncode != 0:",
-            "worktree-trust-root",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "worktree-trust-root",
-            "test_rogue_worktree_signers_file_grants_nothing",
-        )
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 2. Signature verification exit code ignored.
-        source = _mutate(
-            original,
-            "    if verified.returncode != 0:\n"
-            "        raise SignedApprovalSignatureError(",
-            "    if False:\n"
-            "        raise SignedApprovalSignatureError(",
-            "ignored-verify-tag-exit",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed("ignored-verify-tag-exit", "test_foreign_signature_is_refused")
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 3. Purpose/domain separation dropped.
-        source = _mutate(
-            original,
-            "        if self.purpose != APPROVAL_PURPOSE:",
-            "        if False:",
-            "no-purpose-separation",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "no-purpose-separation",
-            "test_wrong_purpose_cannot_be_replayed_as_an_approval",
-        )
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 4. Approval namespace dropped.
-        source = _mutate(
-            original,
-            "    if not tag_name.startswith(APPROVAL_TAG_NAMESPACE):",
-            "    if False:",
-            "no-tag-namespace",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "no-tag-namespace",
-            "test_tag_outside_the_approval_namespace_is_refused",
-        )
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 5. Subject binding dropped.
-        source = _mutate(
-            original,
-            "    _require_binding(body, expectation)",
-            "    pass  # binding removed",
-            "no-subject-binding",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "no-subject-binding",
-            "test_signed_body_naming_another_candidate_is_refused",
-        )
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 6. Expiry dropped.
-        source = _mutate(
-            original,
-            '    if moment >= _parse_utc(body.expires_at, "expires_at"):',
-            "    if False:",
-            "no-expiry",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed("no-expiry", "test_expired_approval_is_refused")
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 7. Empty trust root accepted.
-        source = _mutate(
-            original,
-            "    if not principals:",
-            "    if False:",
-            "empty-trust-root-accepted",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "empty-trust-root-accepted",
-            "test_committed_root_without_principals_refuses",
-        )
-        MODULE.write_text(original, encoding="utf-8")
-
-        # 8. Annotated-tag requirement dropped (lightweight tags accepted).
-        source = _mutate(
-            original,
-            "    if resolved.returncode != 0 or not tag_object:",
-            "    if False:",
-            "lightweight-tag-accepted",
-        )
-        MODULE.write_text(source, encoding="utf-8")
-        _require_killed(
-            "lightweight-tag-accepted", "test_lightweight_tag_carries_no_signature"
-        )
-        MODULE.write_text(original, encoding="utf-8")
+        for name, anchor, replacement, test in MUTATIONS:
+            if original.count(anchor) != 1:
+                raise SystemExit(
+                    f"mutation anchor is not unique ({original.count(anchor)}): {name}"
+                )
+            MODULE.write_text(original.replace(anchor, replacement, 1), encoding="utf-8")
+            if _pytest(f"{SUITE}::{test}") == 0:
+                survivors.append(f"{name} (expected {test} to fail)")
+                print(f"  SURVIVED: {name}")
+            else:
+                print(f"  killed by {test}: {name}")
+            MODULE.write_text(original, encoding="utf-8")
     finally:
         MODULE.write_text(original, encoding="utf-8")
 
-    print("all mutations killed")
+    if survivors:
+        raise SystemExit("mutations survived:\n  " + "\n  ".join(survivors))
+    print(f"all {len(MUTATIONS)} mutations killed")
     if _pytest(SUITE) != 0:
         raise SystemExit("suite did not return to green after restoration")
     return 0

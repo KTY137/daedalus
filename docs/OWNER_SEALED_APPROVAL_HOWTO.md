@@ -107,6 +107,7 @@ it does not, something changed between reading and signing; do not proceed.
 | bound to | replay it prevents |
 |---|---|
 | `purpose` | a tag you signed for anything else counting as a promotion approval |
+| `approval_mechanism_sha256` | an approval signed under the old signer set surviving a key rotation |
 | candidate artifact sha256 | approving candidate A and promoting candidate B |
 | evidence packet sha256 | approving on evidence E and promoting on weaker E′ |
 | `base_revision` | approving a candidate built on a different base |
