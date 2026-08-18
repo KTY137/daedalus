@@ -67,6 +67,23 @@ from daedalus.spine.attempt import _git_env as _canonical_git_env
 OWNER_ALLOWED_SIGNERS_PATH = "configs/owner-allowed-signers"
 ALLOWED_SIGNERS_REVISION = "HEAD"
 
+# Where the EXPECTED signer-set digest lives, and under which key.
+#
+# This is the answer to the hole that hardening the API surface cannot close:
+# `ALLOWED_SIGNERS_REVISION` is "HEAD", so a single commit that rewrites
+# `configs/owner-allowed-signers` IS the new trust root, and every pin this
+# module reports would faithfully describe the attacker's own file. Moving the
+# signers file "somewhere protected" does not help either -- whoever can commit
+# can commit there too.
+#
+# The amendment ledger is different in kind: it is hash-chained, each record
+# commits to the previous one, and section 15 of the master plan requires owner
+# approval to append. Binding the expected digest there makes rotating the
+# owner's keys an AMENDMENT rather than a commit -- the one link an attacker
+# holding commit rights cannot quietly mutate along with everything else.
+AMENDMENT_LEDGER_PATH = "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+TRUST_ROOT_DIGEST_FIELD = "owner_allowed_signers_sha256"
+
 # Domain separation. A signature is only an approval inside this purpose.
 APPROVAL_PURPOSE = "daedalus.promotion-approval"
 APPROVAL_OPERATION = "promote-candidate"
@@ -474,7 +491,89 @@ def resolve_trust_root(repo_root: str | Path) -> TrustRoot:
             f"committed {OWNER_ALLOWED_SIGNERS_PATH} names no owner principal; "
             "promotion stays refused until the owner commits their public key"
         )
+
+    # The binding that makes the pins above mean something. Read from the SAME
+    # commit as the signers blob, so the policy and the digest that authorises
+    # it are one revision and cannot be mixed.
+    expected = _amendment_pinned_signers_digest(root, commit_oid)
+    if trust_root.digest != expected:
+        raise SignedApprovalRootError(
+            f"committed {OWNER_ALLOWED_SIGNERS_PATH} hashes to "
+            f"{trust_root.digest[:12]}, but the amendment chain pins the owner "
+            f"signer set to {expected[:12]}. Either this signer set was not "
+            "approved, or the owner rotated keys without an amendment. "
+            "Rotating the trust root is an amendment, not a commit; see "
+            "section 15 of the master plan."
+        )
     return trust_root
+
+
+def _amendment_pinned_signers_digest(root: Path, commit_oid: str) -> str:
+    """The signer-set digest the amendment chain declares authoritative.
+
+    Fails closed when the chain pins nothing: a repository that has never
+    amended in an owner signer set cannot promote. That is the correct state
+    for a repository whose trust root nobody has approved, and it is the state
+    this repository is in until the owner runs
+    ``docs/recovery/amendment_007_kit.py``.
+    """
+    blob = _git(
+        root,
+        ["rev-parse", "--verify", "--quiet", f"{commit_oid}:{AMENDMENT_LEDGER_PATH}"],
+        label="pinning the amendment ledger blob",
+        check=False,
+    )
+    blob_oid = blob.stdout.strip()
+    if blob.returncode != 0 or not blob_oid:
+        raise SignedApprovalRootError(
+            f"no committed {AMENDMENT_LEDGER_PATH} at {commit_oid[:12]}, so no "
+            "amendment pins the owner signer set; promotion stays refused"
+        )
+    content = _git(
+        root,
+        ["cat-file", "blob", blob_oid],
+        label="reading the pinned amendment ledger",
+        check=False,
+    )
+    if content.returncode != 0:
+        raise SignedApprovalRootError(
+            f"amendment ledger blob {blob_oid[:12]} is unreadable; refusing "
+            "rather than fetching it"
+        )
+
+    pinned: str | None = None
+    for number, line in enumerate(content.stdout.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            record = json.loads(stripped)
+        except ValueError as exc:
+            raise SignedApprovalRootError(
+                f"{AMENDMENT_LEDGER_PATH}:{number} is not valid JSON ({exc}); "
+                "refusing to guess which signer set was approved"
+            ) from exc
+        if not isinstance(record, Mapping) or record.get("status") != "accepted":
+            continue
+        declared = record.get(TRUST_ROOT_DIGEST_FIELD)
+        if declared is None:
+            continue
+        try:
+            # The last accepted record that names one wins, so a later
+            # amendment rotates the trust root forward.
+            pinned = _sha256(declared, TRUST_ROOT_DIGEST_FIELD)
+        except (TypeError, ValueError) as exc:
+            raise SignedApprovalRootError(
+                f"{AMENDMENT_LEDGER_PATH}:{number} declares a malformed "
+                f"{TRUST_ROOT_DIGEST_FIELD} ({exc})"
+            ) from exc
+    if pinned is None:
+        raise SignedApprovalRootError(
+            f"no accepted amendment declares {TRUST_ROOT_DIGEST_FIELD}, so no "
+            "owner signer set has been approved through the amendment "
+            "protocol; promotion stays refused"
+        )
+    return pinned
 
 
 def read_committed_allowed_signers(repo_root: str | Path) -> str:

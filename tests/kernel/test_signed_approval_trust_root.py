@@ -63,6 +63,37 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return completed
 
 
+def _signers_digest(text: str) -> str:
+    """The digest exactly as :class:`TrustRoot` computes it."""
+    normalised = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+
+
+def _pin_signers_in_ledger(repo: Path, signers_text: str) -> str:
+    """Write an accepted amendment record pinning this signer set."""
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    digest = _signers_digest(signers_text)
+    ledger = repo / AMENDMENT_LEDGER_PATH
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema": "daedalus-master-plan-amendment/1",
+        "plan_id": "daedalus-master-plan",
+        "sequence": 1,
+        "status": "accepted",
+        "approval_ref": "test-fixture",
+        TRUST_ROOT_DIGEST_FIELD: digest,
+    }
+    ledger.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return digest
+
+
 def _expectation(**changes: str) -> ApprovalExpectation:
     body = {
         "operation": "promote-candidate",
@@ -122,10 +153,10 @@ def signing_repo(tmp_path: Path) -> dict[str, object]:
     assert _git(repo, "init", "-q", "-b", "main").returncode == 0
     signers = repo / OWNER_ALLOWED_SIGNERS_PATH
     signers.parent.mkdir(parents=True, exist_ok=True)
-    signers.write_text(
-        f"owner@daedalus {owner_key.with_suffix('.pub').read_text().strip()}\n",
-        encoding="utf-8",
-    )
+    signers_text = f"owner@daedalus {owner_key.with_suffix('.pub').read_text().strip()}\n"
+    signers.write_text(signers_text, encoding="utf-8")
+    # The signer set only counts once an accepted amendment pins its digest.
+    _pin_signers_in_ledger(repo, signers_text)
     assert _git(repo, "add", "-A").returncode == 0
     assert _git(repo, "commit", "-q", "-m", "seed").returncode == 0
 
@@ -327,16 +358,49 @@ def test_committed_root_without_principals_refuses(tmp_path: Path) -> None:
         read_committed_allowed_signers(repo)
 
 
-def test_repository_ships_a_principal_free_trust_root() -> None:
-    """The real committed file must not name a principal nobody reviewed."""
-    shipped = Path(__file__).resolve().parents[2] / OWNER_ALLOWED_SIGNERS_PATH
+def test_the_shipped_trust_root_names_nobody_the_owner_did_not_approve() -> None:
+    """The real committed file must not name a principal nobody reviewed.
+
+    This used to assert the file is EMPTY, which made it fail the moment the
+    owner did the intended thing and committed their key -- measured on a
+    throwaway copy 2026-08-18, where it rolled the amendment kit back. The
+    property that is true before AND after the owner's key lands is the one
+    asserted here: any principal in the shipped file is exactly the set an
+    accepted amendment approved.
+    """
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    here = Path(__file__).resolve().parents[2]
+    shipped = here / OWNER_ALLOWED_SIGNERS_PATH
     assert shipped.exists()
-    principals = [
+    text = shipped.read_text(encoding="utf-8")
+    named = [
         line
-        for line in shipped.read_text(encoding="utf-8").splitlines()
+        for line in text.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    assert principals == []
+    if not named:
+        return  # nothing approved yet: the state this repository ships in
+
+    pinned = [
+        record.get(TRUST_ROOT_DIGEST_FIELD)
+        for line in (here / AMENDMENT_LEDGER_PATH).read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+        for record in [json.loads(line)]
+        if record.get("status") == "accepted" and record.get(TRUST_ROOT_DIGEST_FIELD)
+    ]
+    assert pinned, (
+        "the shipped allowed-signers names a principal, but no accepted "
+        "amendment approves any signer set"
+    )
+    assert pinned[-1] == _signers_digest(text), (
+        "the shipped allowed-signers is not the set the amendment chain pins"
+    )
 
 
 def test_caller_cannot_supply_the_trust_root() -> None:
@@ -629,14 +693,23 @@ def test_receipt_refuses_a_signature_for_another_candidate(signing_repo) -> None
         )
 
 
-def test_trust_root_swap_invalidates_an_existing_approval(signing_repo) -> None:
-    """Rotating the signer set must not carry old approvals across the swap."""
+def test_a_commit_alone_cannot_rotate_the_trust_root(signing_repo) -> None:
+    """F2: the pin DESCRIBED the root instead of BINDING it.
+
+    ALLOWED_SIGNERS_REVISION is "HEAD", so one commit writing a new
+    allowed-signers file simply WAS the new trust root, and commit_oid/blob_oid
+    -- being outputs of resolution rather than inputs to it -- reported the
+    attacker's own OIDs back as if they were evidence. The expected digest now
+    comes from the amendment chain, so an unamended rotation is refused.
+    """
     repo: Path = signing_repo["repo"]
     owner_key: Path = signing_repo["owner_key"]
     attacker_key: Path = signing_repo["attacker_key"]
-    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json(signing_repo["mechanism"]))
+    signing_repo["sign_tag"](
+        "owner-approval/promotion-1", _body_json(signing_repo["mechanism"])
+    )
 
-    # The owner set changes in a reviewed commit -- a second principal joins.
+    # A single commit adds a second principal. No amendment accompanies it.
     (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(
         f"owner@daedalus {owner_key.with_suffix('.pub').read_text().strip()}\n"
         f"evil@x {attacker_key.with_suffix('.pub').read_text().strip()}\n",
@@ -645,10 +718,128 @@ def test_trust_root_swap_invalidates_an_existing_approval(signing_repo) -> None:
     assert _git(repo, "add", "-A").returncode == 0
     assert _git(repo, "commit", "-q", "-m", "rotate signers").returncode == 0
 
+    with pytest.raises(SignedApprovalRootError, match="amendment"):
+        resolve_trust_root(repo)
+
+    # And the attacker cannot use their newly self-granted principal either.
+    attacker_tag = "owner-approval/attacker-self-granted"
+    assert _git(
+        repo, "-c", "gpg.format=ssh", "-c", f"user.signingkey={attacker_key}",
+        "tag", "-s", "-m", _body_json(signing_repo["mechanism"]), attacker_tag,
+    ).returncode == 0
+    with pytest.raises(SignedApprovalRootError):
+        verify_signed_approval(repo, attacker_tag, expectation=_expectation())
+
+
+def test_an_amended_rotation_works_and_voids_old_approvals(signing_repo) -> None:
+    """Rotation is allowed -- through an amendment -- and does not carry approvals."""
+    repo: Path = signing_repo["repo"]
+    owner_key: Path = signing_repo["owner_key"]
+    signing_repo["sign_tag"](
+        "owner-approval/promotion-1", _body_json(signing_repo["mechanism"])
+    )
+
+    # A second owner key joins, and an accepted amendment pins the new set.
+    second = owner_key.parent / "owner2"
+    subprocess.run(
+        ["ssh-keygen", "-q", "-t", "ed25519", "-f", str(second), "-N", "",
+         "-C", "owner2@daedalus"],
+        check=True, capture_output=True,
+    )
+    rotated = (
+        f"owner@daedalus {owner_key.with_suffix('.pub').read_text().strip()}\n"
+        f"owner2@daedalus {second.with_suffix('.pub').read_text().strip()}\n"
+    )
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rotated, encoding="utf-8")
+    _pin_signers_in_ledger(repo, rotated)
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "amend signers").returncode == 0
+
+    # The rotation is accepted...
+    assert resolve_trust_root(repo).digest == _signers_digest(rotated)
+    # ...and the approval signed under the OLD generation does not survive it.
     with pytest.raises(SignedApprovalMechanismMismatch):
         verify_signed_approval(
             repo, "owner-approval/promotion-1", expectation=_expectation()
         )
+
+
+def test_a_repository_with_no_amendment_pin_refuses(signing_repo) -> None:
+    """F3 fail-closed: no approved signer set means no promotion."""
+    from daedalus.kernel.signed_approval import AMENDMENT_LEDGER_PATH
+
+    repo: Path = signing_repo["repo"]
+    (repo / AMENDMENT_LEDGER_PATH).unlink()
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "drop the ledger").returncode == 0
+
+    with pytest.raises(SignedApprovalRootError, match="no amendment|no committed"):
+        resolve_trust_root(repo)
+
+
+def test_a_ledger_that_pins_nothing_refuses(signing_repo) -> None:
+    """An amendment chain without a declared signer set authorises nothing."""
+    from daedalus.kernel.signed_approval import AMENDMENT_LEDGER_PATH
+
+    repo: Path = signing_repo["repo"]
+    (repo / AMENDMENT_LEDGER_PATH).write_text(
+        json.dumps({"status": "accepted", "sequence": 1}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "ledger without a pin").returncode == 0
+
+    with pytest.raises(SignedApprovalRootError, match="no accepted amendment"):
+        resolve_trust_root(repo)
+
+
+def test_a_pin_in_an_unaccepted_record_does_not_count(signing_repo) -> None:
+    """Only ACCEPTED amendments move the trust root."""
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    repo: Path = signing_repo["repo"]
+    attacker_key: Path = signing_repo["attacker_key"]
+    rogue = f"evil@x {attacker_key.with_suffix('.pub').read_text().strip()}\n"
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+    (repo / AMENDMENT_LEDGER_PATH).write_text(
+        json.dumps(
+            {
+                "status": "proposed",
+                "sequence": 2,
+                TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "propose a rotation").returncode == 0
+
+    with pytest.raises(SignedApprovalRootError):
+        resolve_trust_root(repo)
+
+
+def test_the_shipped_repository_resolves_only_an_amended_trust_root() -> None:
+    """Before the kit runs this refuses; after it runs it must agree with the chain.
+
+    Asserting only "it refuses" would fail the moment the owner legitimately
+    lands amendment 007, so the assertion follows the state instead of freezing
+    it.
+    """
+    here = Path(__file__).resolve().parents[2]
+    try:
+        trust_root = resolve_trust_root(here)
+    except SignedApprovalRootError:
+        return  # no approved signer set yet: promotion stays refused
+    from daedalus.kernel.signed_approval import _amendment_pinned_signers_digest
+
+    assert trust_root.digest == _amendment_pinned_signers_digest(
+        here, trust_root.commit_oid
+    )
 
 
 def test_trust_root_pins_commit_and_blob_independently(signing_repo) -> None:
