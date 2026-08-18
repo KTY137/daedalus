@@ -217,18 +217,23 @@ def _superiority_verdict(comps: Sequence[Paired]) -> Tuple[str, str]:
     )
 
 
-def _equivalence_verdict(comp: Paired, control: str) -> Tuple[str, str]:
-    """KILL when a control performs equivalently (or better)."""
+def _equivalence_verdict(comp: Paired, control: str, kill_note: str = "") -> Tuple[str, str]:
+    """KILL when a control performs equivalently (or better).
+
+    ``kill_note`` lets a caller say what the equivalence *means* for its own
+    criterion without rewriting the returned string afterwards.
+    """
+    head = f"kill condition met: {kill_note}" if kill_note else "kill condition met:"
     if comp.inferior and not comp.equivalent:
         return (
             KILL,
-            f"kill condition met: {control} outperforms the treatment "
+            f"{head} {control} outperforms the treatment "
             f"(diff {comp.mean_diff:+.4f}, CI [{comp.ci_low:+.4f},{comp.ci_high:+.4f}])",
         )
     if comp.equivalent:
         return (
             KILL,
-            f"kill condition met: {control} performs equivalently -- the whole CI "
+            f"{head} {control} performs equivalently -- the whole CI "
             f"[{comp.ci_low:+.4f},{comp.ci_high:+.4f}] lies inside the practical margin "
             f"+/-{comp.margin}",
         )
@@ -491,12 +496,11 @@ def c_tokens_explain_gain(rs: ResultSet, cfg: EvalConfig) -> Finding:
     favour, note = _budget_favour(full, matched, cfg)
     if note:
         warns.append(note + " -- a token-matched arm whose budget is not matched is not a control")
-    verdict, rationale = _equivalence_verdict(comp, "the token-matched baseline")
-    if verdict == KILL:
-        rationale = rationale.replace(
-            "kill condition met:",
-            "kill condition met: the structure adds nothing beyond the tokens --",
-        )
+    verdict, rationale = _equivalence_verdict(
+        comp,
+        "the token-matched baseline",
+        kill_note="the structure adds nothing beyond the tokens --",
+    )
     verdict, rationale, warns_t = _guard(verdict, rationale, [comp], warns, cfg, [favour])
     return Finding(key, ref, PRIOR_GRAPH_CTX, statement, verdict, rationale, (comp,), warns_t)
 
