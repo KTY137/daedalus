@@ -210,8 +210,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.file_bridge:enqueue",
         effects=(Effect.FILESYSTEM_WRITE,),
         guard_contracts=("file_bridge.crash_journal",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Atomic queue publication; dispatch policy is evaluated by the watcher.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:enqueue", "begin_effect"),),
+        notes=(
+            "Atomic queue publication starts at the central boundary after "
+            "the consumer check, with the verified durable-journal decision; "
+            "a refusal still leaves no request file behind."
+        ),
+        migration="complete for the file_bridge.enqueue entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.process",
@@ -224,8 +230,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("file_bridge.crash_journal",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Durable before-dispatch journal exists; no shared effect-start lease exists.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:process_request", "begin_effect"),),
+        notes=(
+            "Exactly-once dispatch starts at the central boundary with the "
+            "verified durable-journal decision for the request key."
+        ),
+        migration="complete for the file_bridge.process entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.watch",
@@ -238,8 +249,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("file_bridge.crash_journal", "budget.process_guard"),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Direct python -m watcher can run without installing the process spend guard.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:watch", "begin_effect"),),
+        notes=(
+            "The watcher loop starts at the central boundary with the journal "
+            "decision AND the really-installed process spend net, so a direct "
+            "python -m watcher can no longer run unpriced."
+        ),
+        migration="complete for the file_bridge.watch entrypoint",
     ),
     EntrypointSpec(
         id="python.attempt",
@@ -669,6 +686,78 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "output stays fail-open."
         ),
         migration="complete for the cli.memory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.file_bridge",
+        surface=Surface.CLI,
+        target="daedalus.file_bridge:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:main", "begin_effect"),),
+        notes=(
+            "watch/enqueue/once/mark-read begin centrally (the delegated "
+            "bridge functions carry their own central rows); the status "
+            "subcommand stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.file_bridge entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_drift",
+        surface=Surface.CLI,
+        target="daedalus.mapping.drift:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.drift:main", "begin_effect"),),
+        notes=(
+            "--refresh/--init baseline writes begin centrally; the drift "
+            "comparison gate stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.mapping_drift entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_inventory",
+        surface=Surface.CLI,
+        target="daedalus.mapping.inventory:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.inventory:main", "begin_effect"),),
+        notes=(
+            "--refresh inventory rewrite begins centrally; --check/--json "
+            "stay fail-open (they write nothing)."
+        ),
+        migration="complete for the cli.mapping_inventory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_render",
+        surface=Surface.CLI,
+        target="daedalus.mapping.render:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.render:main", "begin_effect"),),
+        notes=(
+            "Map/snapshot/inventory rewrites and --accept records begin "
+            "centrally; --json/--check stay fail-open (they write nothing)."
+        ),
+        migration="complete for the cli.mapping_render entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.status",
+        surface=Surface.CLI,
+        target="daedalus.status:main",
+        effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.status:main", "begin_effect"),),
+        notes=(
+            "Health probes really spawn processes and --probe-remote reaches "
+            "the bench host (network_egress hand-declared), so the run "
+            "begins centrally with the spend net on."
+        ),
+        migration="complete for the cli.status entrypoint",
     ),
     EntrypointSpec(
         id="provider.claude",
@@ -1245,23 +1334,6 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
     # effects the code cannot perform and produced the registry's only
     # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
     # effectful body the scanner will rediscover it as an unregistered blocker.
-    ("cli.file_bridge", Surface.CLI, "daedalus.file_bridge:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.mapping_drift", Surface.CLI, "daedalus.mapping.drift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.mapping_inventory",
-        Surface.CLI,
-        "daedalus.mapping.inventory:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.mapping_render",
-        Surface.CLI,
-        "daedalus.mapping.render:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.status", Surface.CLI, "daedalus.status:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
     ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
     (
         # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:

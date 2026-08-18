@@ -208,6 +208,25 @@ def _journal_path(key: str) -> Path:
     return _journal_dir() / f"{key}.json"
 
 
+def _crash_journal_decision(detail: str):
+    """Run the ``file_bridge.crash_journal`` contract for one effect start.
+
+    The mechanical check is the contract's real precondition: the durable
+    journal directory exists (created idempotently) and is a directory, so a
+    kill between dispatch and report lands in replayable state instead of a
+    silent loss.  The decision names the journal location it verified.
+    """
+    from daedalus.spine.effect_boundary import GuardDecision
+
+    journal = _journal_dir()
+    journal.mkdir(parents=True, exist_ok=True)
+    allowed = journal.is_dir()
+    evidence = f"journal={journal}; {detail}"
+    if not allowed:
+        evidence = "journal directory unavailable; " + evidence
+    return GuardDecision("file_bridge.crash_journal", allowed, evidence)
+
+
 def _write_journal(key: str, entry: dict[str, Any]) -> None:
     entry["updated"] = _now_iso()
     _write_json_atomic(_journal_path(key), entry)
@@ -345,6 +364,13 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
               f"({hb.get('busy_for_s')}s > {BUSY_BUDGET_S:.0f}s budget); this task is "
               f"queued behind it and may not run soon.", file=sys.stderr)
 
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "file_bridge.enqueue",
+        REGISTRY_BY_ID["file_bridge.enqueue"].effects,
+        (_crash_journal_decision(f"enqueue objective={objective[:40]!r}"),),
+    )
     OUTBOX.mkdir(parents=True, exist_ok=True)
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
     # UNIQUENESS FROM THE NAME ITSELF, not from looking first.
@@ -520,6 +546,13 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
     and the report landing, we cannot know whether the provider ran, so the
     work is retried -- up to MAX_ATTEMPTS, after which the request is
     quarantined rather than re-dispatched forever."""
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "file_bridge.process",
+        REGISTRY_BY_ID["file_bridge.process"].effects,
+        (_crash_journal_decision(f"process request={path.name}"),),
+    )
     INBOX.mkdir(parents=True, exist_ok=True)
     ARCHIVE.mkdir(parents=True, exist_ok=True)
     key = _request_key(path)
@@ -910,6 +943,17 @@ def _print_status(status: dict[str, Any]) -> None:
 
 def watch(default_repo_root: str | None, interval_s: float,
           project: str | None = None) -> None:
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "file_bridge.watch",
+        REGISTRY_BY_ID["file_bridge.watch"].effects,
+        (
+            _crash_journal_decision("watch loop start"),
+            process_guard_boundary_decision(),
+        ),
+    )
     OUTBOX.mkdir(parents=True, exist_ok=True)
     INBOX.mkdir(parents=True, exist_ok=True)
     print("AGENT_BRIDGE_START", flush=True)
@@ -979,6 +1023,17 @@ def main() -> None:
     mark_p.add_argument("--all", action="store_true", help="mark every unread report as read")
 
     args = parser.parse_args()
+    if args.command in ("watch", "enqueue", "once", "mark-read"):
+        # Queue status stays fail-open read-only inspection; every mutating
+        # subcommand starts at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.file_bridge",
+            REGISTRY_BY_ID["cli.file_bridge"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.command == "watch":
         watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
               project=args.project)

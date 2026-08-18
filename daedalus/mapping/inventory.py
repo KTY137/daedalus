@@ -1033,6 +1033,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.refresh:
         ap.error("nothing to do: pass --refresh, --check or --json")
 
+    # --check and --json above write nothing and stay fail-open; the
+    # inventory rewrite starts at the central boundary.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.mapping_inventory",
+        REGISTRY_BY_ID["cli.mapping_inventory"].effects,
+        (process_guard_boundary_decision(),),
+    )
     result = refresh(root, target, probe_dirty=probe)
     print(render_text(result["doc"]))
     stats = result["harvest"]

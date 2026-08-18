@@ -1559,6 +1559,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     from . import drift as drift_mod
     snap_path = Path(args.snapshot) if args.snapshot else root / drift_mod.SNAPSHOT_REL
 
+    if not (args.json or args.check):
+        # --json/--check write nothing and stay fail-open; acceptance records
+        # and the map/snapshot/inventory rewrites start at the central
+        # boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.mapping_render",
+            REGISTRY_BY_ID["cli.mapping_render"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.accept:
         ok, message = accept(root, args.accept, args.why, until=args.until,
                              since=args.since, who=args.who,

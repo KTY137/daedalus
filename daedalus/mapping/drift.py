@@ -1528,6 +1528,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:
         index = None
 
+    if args.refresh or args.init:
+        # The comparison gate below stays fail-open read-only inspection;
+        # baseline writes start at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.mapping_drift",
+            REGISTRY_BY_ID["cli.mapping_drift"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.refresh:
         refresh(root, snap, index=index)
         print(f"architecture drift: re-baselined {snap}")

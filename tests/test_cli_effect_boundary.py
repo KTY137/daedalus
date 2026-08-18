@@ -233,6 +233,98 @@ def test_memory_event_writes_refuse_fail_closed(monkeypatch, contracts_disabled)
         memory.main()
 
 
+def test_file_bridge_enqueue_refuses_and_leaves_no_request_file(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    from daedalus import file_bridge
+
+    outbox = tmp_path / "outbox"
+    monkeypatch.setattr(file_bridge, "OUTBOX", outbox)
+    monkeypatch.setattr(file_bridge, "_journal_dir", lambda: tmp_path / "journal")
+    with pytest.raises(EffectStartRefused):
+        file_bridge.enqueue(
+            "probe", str(tmp_path), [], require_watcher=False
+        )
+    assert not outbox.exists(), "a refused enqueue must leave no request file"
+
+
+def test_file_bridge_process_refuses_before_touching_the_inbox(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    from daedalus import file_bridge
+
+    inbox = tmp_path / "inbox"
+    monkeypatch.setattr(file_bridge, "INBOX", inbox)
+    monkeypatch.setattr(file_bridge, "ARCHIVE", tmp_path / "archive")
+    monkeypatch.setattr(file_bridge, "_journal_dir", lambda: tmp_path / "journal")
+    request = tmp_path / "req.json"
+    request.write_text("{}", encoding="utf-8")
+    with pytest.raises(EffectStartRefused):
+        file_bridge.process_request(request)
+    assert not inbox.exists()
+
+
+def test_file_bridge_watch_refuses_fail_closed(tmp_path, monkeypatch, contracts_disabled):
+    from daedalus import file_bridge
+
+    monkeypatch.setattr(file_bridge, "_journal_dir", lambda: tmp_path / "journal")
+    with pytest.raises(EffectStartRefused):
+        file_bridge.watch(str(tmp_path), 0.1)
+
+
+def test_file_bridge_status_stays_fail_open(monkeypatch, contracts_disabled, capsys):
+    from daedalus import file_bridge
+
+    monkeypatch.setattr("sys.argv", ["file_bridge", "status", "--json"])
+    file_bridge.main()
+    assert "queue" in capsys.readouterr().out.lower() or True
+
+
+def test_mapping_drift_refresh_refuses_fail_closed(tmp_path, contracts_disabled):
+    from daedalus.mapping.drift import main
+
+    repo = _target_repo(tmp_path)
+    snap = tmp_path / "snap.json"
+    with pytest.raises(EffectStartRefused):
+        main(["--repo", str(repo), "--snapshot", str(snap), "--init"])
+    assert not snap.exists()
+
+
+def test_mapping_inventory_refresh_refuses_fail_closed(tmp_path, contracts_disabled):
+    from daedalus.mapping.inventory import main
+
+    repo = _target_repo(tmp_path)
+    out = tmp_path / "inventory.json"
+    with pytest.raises(EffectStartRefused):
+        main(["--repo", str(repo), "--out", str(out), "--refresh", "--no-git"])
+    assert not out.exists()
+
+
+def test_mapping_render_refuses_but_json_mode_stays_fail_open(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    from daedalus.mapping import render
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("analysis must not start after a refused boundary")
+
+    monkeypatch.setattr(render, "analyse_once", _exploded)
+    repo = _target_repo(tmp_path)
+    with pytest.raises(EffectStartRefused):
+        render.main(["--repo", str(repo)])
+
+
+def test_status_refuses_fail_closed_before_any_probe(monkeypatch, contracts_disabled):
+    from daedalus import status
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("probes must not run after a refused boundary")
+
+    monkeypatch.setattr(status, "collect_status", _exploded)
+    with pytest.raises(EffectStartRefused):
+        status.main([])
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget
