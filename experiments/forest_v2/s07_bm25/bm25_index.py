@@ -62,7 +62,7 @@ import os
 import re
 import time
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -198,6 +198,11 @@ class IndexConfig:
     max_files: int | None = None
     extensions: tuple[str, ...] = DEFAULT_EXTENSIONS
     skip_dirs: frozenset[str] = DEFAULT_SKIP_DIRS
+    # Repo-relative POSIX paths kept out of the corpus.  This exists for one
+    # reason: a file that embeds the evaluation's own query strings would be
+    # retrieved by every one of them.  An evaluation harness must exclude its
+    # own query carriers and say that it did.
+    exclude_paths: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -226,6 +231,7 @@ class BuildReport:
     files_skipped_size: int = 0
     files_skipped_binary: int = 0
     files_skipped_unreadable: int = 0
+    files_skipped_excluded: int = 0
     bytes_indexed: int = 0
     build_seconds: float = 0.0
 
@@ -291,6 +297,13 @@ class BM25Index:
             report.files_skipped_extension += 1
             return
         try:
+            rel = path.relative_to(root).as_posix()
+        except ValueError:  # pragma: no cover - defensive
+            rel = path.as_posix()
+        if rel in self.config.exclude_paths:
+            report.files_skipped_excluded += 1
+            return
+        try:
             size = path.stat().st_size
         except OSError:
             report.files_skipped_unreadable += 1
@@ -306,10 +319,6 @@ class BM25Index:
         if b"\x00" in raw:
             report.files_skipped_binary += 1
             return
-        try:
-            rel = path.relative_to(root).as_posix()
-        except ValueError:  # pragma: no cover - defensive
-            rel = path.as_posix()
         self._add(rel, raw.decode("utf-8", errors="replace"))
         report.files_indexed += 1
         report.bytes_indexed += len(raw)
@@ -388,6 +397,27 @@ class BM25Index:
                 )
             )
         return hits
+
+    def with_scoring(self, *, k1: float | None = None, b: float | None = None) -> "BM25Index":
+        """A view over the same postings with different ``k1``/``b``.
+
+        ``k1`` and ``b`` are query-time parameters only, so a scoring ablation
+        must not pay for a rebuild -- and must not silently rebuild a *different*
+        corpus either.  Everything is shared, including the idf cache, which
+        depends on document frequencies alone.
+        """
+        clone = BM25Index.__new__(BM25Index)
+        clone.config = replace(
+            self.config,
+            k1=self.config.k1 if k1 is None else k1,
+            b=self.config.b if b is None else b,
+        )
+        clone.paths = self.paths
+        clone.doc_len = self.doc_len
+        clone.postings = self.postings
+        clone.report = self.report
+        clone._idf_cache = self._idf_cache
+        return clone
 
     def rank_of(self, query: str, path: str, limit: int = 1000) -> int | None:
         """1-based rank of ``path`` for ``query`` within ``limit``; ``None`` if absent."""

@@ -204,6 +204,20 @@ def test_empty_query_and_empty_index_return_no_hits():
     assert BM25Index.from_documents({}).search("anything", k=5) == []
 
 
+def test_with_scoring_shares_the_corpus_and_only_changes_k1_b():
+    """A scoring ablation must not silently rebuild a different corpus."""
+    index = _tiny_index()
+    view = index.with_scoring(b=0.0)
+    assert view.paths is index.paths
+    assert view.postings is index.postings
+    assert view.doc_len is index.doc_len
+    assert (view.config.b, index.config.b) == (0.0, 0.75)
+    assert view.config.k1 == index.config.k1
+    assert view.config.path_weight == index.config.path_weight
+    # idf depends on document frequency alone, so the shared cache stays valid.
+    assert view.idf("budget") == index.idf("budget")
+
+
 def test_rank_of_reports_position_or_none():
     index = _tiny_index()
     assert index.rank_of("budget ledger", "a.txt") == 1
@@ -245,6 +259,18 @@ def test_build_skips_unknown_extensions_binary_and_oversized_files(tmp_path):
     assert report.files_skipped_extension == 1
     assert report.files_skipped_binary == 1
     assert report.files_skipped_size == 1
+
+
+def test_exclude_paths_keeps_a_file_out_of_the_corpus(tmp_path):
+    """The evaluation's own query carriers must be excludable, and counted."""
+    (tmp_path / "keep.py").write_text("ledger budget", encoding="utf-8")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "carrier.py").write_text("ledger budget", encoding="utf-8")
+
+    index = BM25Index.build(tmp_path, IndexConfig(exclude_paths=frozenset({"pkg/carrier.py"})))
+    assert index.paths == ["keep.py"]
+    assert index.report.files_skipped_excluded == 1
+    assert [hit.path for hit in index.search("ledger", k=5)] == ["keep.py"]
 
 
 def test_paths_are_repo_relative_posix(tmp_path):
