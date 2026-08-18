@@ -386,3 +386,114 @@ def test_worktree_gitdir_with_packed_refs(tmp_path: Path):
 
 def test_no_checkout_yields_no_revision(tmp_path: Path):
     assert rp.read_git_revision(tmp_path) is None
+
+
+# --------------------------------------------------------------------------
+# revision atomicity: source evidence, not string equality
+#
+# Refutation received 2026-08-18: the builder bound four planes to one
+# revision by STRING EQUALITY of the ``revision`` field.  A worktree mutated
+# BETWEEN two plane extractions therefore reduced to one "atomic" digest for a
+# tree state that never existed.  Master plan invariant 6 says a partial or
+# mixed state must not masquerade as a revision -- so this is a gate.
+#
+# ``_build_with_mutation_between`` is the scenario harness; the assertions
+# below are what the gate claims.  When the binding changed from string
+# equality to source evidence, only the harness moved.
+# --------------------------------------------------------------------------
+
+_TINY_ORDER = ("code", "type", "data", "knowledge")
+_TINY_ROOTS = {"code": ("pkg",), "type": ("pkg",), "data": ("conf",), "knowledge": ("notes",)}
+
+#: a replacement that adds a definition, so a plane extracted before the write
+#: and a plane extracted after it visibly disagree about the same file
+_MOD_MUTATED = (
+    "def add(left: int, right: int) -> int:\n"
+    "    return left + right\n"
+    "\n"
+    "def sneak(value: str) -> str:\n"
+    "    return value\n"
+    "\n"
+    "class Holder:\n"
+    "    pass\n"
+)
+
+_ATOMICITY_CODES = frozenset({"scope_drift", "witness_conflict", "witness_scope_mismatch"})
+
+
+def _build_with_mutation_between(
+    root: Path,
+    *,
+    after: str,
+    target: str,
+    replacement: str,
+    revert: bool = False,
+):
+    """Extract four planes, mutate ``target`` right after plane ``after``, build.
+
+    Deterministic: no threads, no sleeps, no clock -- the write happens at a
+    fixed point in a fixed extraction order.
+    """
+    original = (root / target).read_text(encoding="utf-8")
+    documents = []
+    for plane in _TINY_ORDER:
+        documents.append(rp.EXTRACTORS[plane](root, "rev-1", roots=_TINY_ROOTS[plane]))
+        if plane == after:
+            (root / target).write_text(replacement, encoding="utf-8")
+    if revert:
+        (root / target).write_text(original, encoding="utf-8")
+    return snap.build_snapshot(documents)
+
+
+def test_mutation_between_plane_extractions_is_refused(tiny_tree: Path):
+    """The worktree moves between plane 1 and plane 2; no digest may result."""
+    try:
+        manifest = _build_with_mutation_between(
+            tiny_tree, after="code", target="pkg/mod.py", replacement=_MOD_MUTATED
+        )
+    except snap.ContractError as exc:
+        assert exc.code in _ATOMICITY_CODES, exc
+    else:
+        pytest.fail(
+            "a tree mutated between two plane extractions digested as ONE atomic "
+            f"revision: revision={manifest['revision']!r} "
+            f"snapshot_digest={manifest['snapshot_digest']} -- that snapshot "
+            "describes a tree state that never existed at any instant"
+        )
+
+
+def test_mutation_reverted_before_the_build_is_still_refused(tiny_tree: Path):
+    """Mutate, let one plane read it, revert.  Opening and closing state agree."""
+    try:
+        manifest = _build_with_mutation_between(
+            tiny_tree,
+            after="code",
+            target="pkg/mod.py",
+            replacement=_MOD_MUTATED,
+            revert=True,
+        )
+    except snap.ContractError as exc:
+        assert exc.code in _ATOMICITY_CODES, exc
+    else:
+        pytest.fail(
+            "a mutate-and-revert between plane extractions digested as ONE atomic "
+            f"revision: snapshot_digest={manifest['snapshot_digest']}"
+        )
+
+
+def test_mutation_of_a_single_reader_file_is_refused(tiny_tree: Path):
+    """conf/obj.json is read by the data plane only -- no second reader to disagree."""
+    try:
+        manifest = _build_with_mutation_between(
+            tiny_tree,
+            after="data",
+            target="conf/obj.json",
+            replacement='{"outer": {"inner": 1}, "other": 2, "sneaked": 3}',
+        )
+    except snap.ContractError as exc:
+        assert exc.code in _ATOMICITY_CODES, exc
+    else:
+        pytest.fail(
+            "a file only one plane reads was mutated after that plane read it and "
+            f"the build still produced snapshot_digest={manifest['snapshot_digest']}"
+        )
