@@ -18,6 +18,19 @@ Three properties are enforced here rather than trusted:
    ``ablate:type`` ...).  The evaluator matches on role, never on a
    hopeful substring of a name, and reports the roles it needed but did
    not find instead of guessing.
+4. **Declared reach.**  An arm says which planes its index can ever return
+   (``returns_planes``) and, where measured, how many documents it did
+   return per plane (``returned_plane_counts``).  A run says which plane
+   each case's gold label lives in (``gold_planes``) and what the corpus
+   and its graph are made of (``corpus``).  Without those, a comparison's
+   dynamic range is unknown and ``plane_range`` refuses to report a number
+   for it -- see that module for why an unknown range is not a small
+   problem.
+
+A role is a *claim*.  ``returns_planes``, ``returned_plane_counts`` and the
+graph census are *counts*.  Where the two can disagree, this module believes
+the counts: an arm whose ``returned_plane_counts`` name a plane outside its
+declared scope is rejected here rather than graded.
 """
 from __future__ import annotations
 
@@ -45,9 +58,55 @@ KNOWN_ROLES: Tuple[str, ...] = (
 
 PLANES: Tuple[str, ...] = ("code", "type", "data", "knowledge")
 
+#: How an arm turns per-plane evidence into one ranking.  This is the field
+#: criterion 14.3 actually reads: the role string ``fusion`` is a label anyone
+#: can type, the mechanism is a claim about the implementation that has to
+#: agree with the arm's measured per-plane returns before it is believed.
+FUSION_MECHANISM = "cross_plane_score_fusion"
+
+KNOWN_MECHANISMS: Tuple[str, ...] = (
+    FUSION_MECHANISM,      # per-plane scores compared/combined into one ranking
+    "single_index",        # one index over documents of several planes (shared IDF)
+    "per_plane_topk_concat",  # each plane's top-k concatenated in a fixed order
+    "round_robin_slots",   # one budget of slots split across planes
+    "single_plane",        # one plane's index alone
+    "graph_walk",          # graph expansion over one plane's documents
+    "lexical",             # a lexical baseline
+    "random",              # a random control
+    "oracle",              # an oracle control
+)
+
 
 class SchemaError(ValueError):
     """The input is not a result set this evaluator will grade."""
+
+
+@dataclass(frozen=True)
+class Retriever:
+    """What an arm's system *is*, as an attestation rather than a label.
+
+    ``implementation`` names the code and revision that produced the scores,
+    so a reader can go and look.  ``mechanism`` says how planes are combined.
+    Neither is proof -- an offline evaluator reading JSON cannot execute the
+    retriever -- but together with the arm's measured ``returned_plane_counts``
+    they are the difference between "this run says fusion" and "this run
+    contains evidence of fusion".
+    """
+
+    implementation: str
+    mechanism: str
+    combines_planes: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Corpus:
+    """What the arms were run over, and what its graph is made of."""
+
+    documents_per_plane: Mapping[str, int] = field(default_factory=dict)
+    total_edges: Optional[int] = None
+    cross_plane_edges: Optional[int] = None
+    endpoint_plane_counts: Mapping[str, int] = field(default_factory=dict)
+    source: str = ""
 
 
 @dataclass(frozen=True)
@@ -61,6 +120,13 @@ class Arm:
     budget_tokens: Optional[float] = None
     cost_units: Optional[float] = None
     notes: str = ""
+    #: planes this arm's index can ever return.  ``None`` means undeclared,
+    #: which is not the same as "all four": an undeclared reach makes every
+    #: comparison involving the arm UNDECIDABLE rather than optimistic.
+    returns_planes: Optional[Tuple[str, ...]] = None
+    #: measured documents returned per plane over the whole case set
+    returned_plane_counts: Optional[Mapping[str, int]] = None
+    retriever: Optional[Retriever] = None
 
     @property
     def ablated_plane(self) -> Optional[str]:
@@ -80,6 +146,10 @@ class ResultSet:
     case_groups: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
     source: str = ""
     seeds: int = 1
+    #: case id -> the plane its gold document lives in.  Empty means the run
+    #: declared none, and every comparison in it is UNDECIDABLE.
+    gold_planes: Mapping[str, str] = field(default_factory=dict)
+    corpus: Optional[Corpus] = None
 
     # -- lookup ---------------------------------------------------------
     def find(self, role: str, variant: Optional[str] = None) -> Optional[Arm]:
@@ -197,6 +267,22 @@ def _parse(obj: Mapping[str, object]) -> ResultSet:
     for idx, raw in enumerate(raw_arms):
         arms.append(_parse_arm(raw, idx, cases, primary_metric, where, seen_ids))
 
+    raw_gold = obj.get("gold_planes") or {}
+    if not isinstance(raw_gold, dict):
+        raise SchemaError(f"{where}: gold_planes must be an object")
+    gold_planes: Dict[str, str] = {}
+    for case, plane in raw_gold.items():
+        case = str(case)
+        if case not in known:
+            raise SchemaError(
+                f"{where}: gold_planes names case {case!r}, which is not in the run"
+            )
+        if plane not in PLANES:
+            raise SchemaError(
+                f"{where}: gold plane {plane!r} for case {case!r} is not one of {PLANES}"
+            )
+        gold_planes[case] = str(plane)
+
     return ResultSet(
         run_id=run_id,
         primary_metric=primary_metric,
@@ -205,6 +291,70 @@ def _parse(obj: Mapping[str, object]) -> ResultSet:
         case_groups=groups,
         source=str(obj.get("source", "")),
         seeds=int(obj.get("seeds", 1) or 1),
+        gold_planes=gold_planes,
+        corpus=_parse_corpus(obj.get("corpus"), where),
+    )
+
+
+def _parse_corpus(raw: object, where: str) -> Optional[Corpus]:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise SchemaError(f"{where}: corpus must be an object")
+    docs = raw.get("documents_per_plane") or {}
+    if not isinstance(docs, dict):
+        raise SchemaError(f"{where}: corpus.documents_per_plane must be an object")
+    per_plane: Dict[str, int] = {}
+    for plane, count in docs.items():
+        if plane not in PLANES:
+            raise SchemaError(f"{where}: corpus plane {plane!r} is not one of {PLANES}")
+        per_plane[str(plane)] = int(count)
+    graph = raw.get("graph") or {}
+    if not isinstance(graph, dict):
+        raise SchemaError(f"{where}: corpus.graph must be an object")
+    endpoints: Dict[str, int] = {}
+    for plane, count in (graph.get("endpoint_plane_counts") or {}).items():
+        endpoints[str(plane)] = int(count)
+    total = graph.get("total_edges")
+    cross = graph.get("cross_plane_edges")
+    if cross is not None and total is not None and int(cross) > int(total):
+        raise SchemaError(
+            f"{where}: corpus.graph claims {cross} cross-plane edges out of "
+            f"{total} total"
+        )
+    return Corpus(
+        documents_per_plane=per_plane,
+        total_edges=None if total is None else int(total),
+        cross_plane_edges=None if cross is None else int(cross),
+        endpoint_plane_counts=endpoints,
+        source=str(raw.get("source", "")),
+    )
+
+
+def _parse_retriever(raw: object, spot: str) -> Optional[Retriever]:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise SchemaError(f"{spot}: retriever must be an object")
+    implementation = _require(raw, "implementation", str, f"{spot} retriever")
+    mechanism = _require(raw, "mechanism", str, f"{spot} retriever")
+    if mechanism not in KNOWN_MECHANISMS:
+        raise SchemaError(
+            f"{spot}: retriever mechanism {mechanism!r} is not one of "
+            f"{KNOWN_MECHANISMS}"
+        )
+    combines = raw.get("combines_planes") or []
+    if not isinstance(combines, list):
+        raise SchemaError(f"{spot}: retriever.combines_planes must be a list")
+    for plane in combines:
+        if plane not in PLANES:
+            raise SchemaError(
+                f"{spot}: retriever.combines_planes names {plane!r}, not a plane"
+            )
+    return Retriever(
+        implementation=implementation,
+        mechanism=mechanism,
+        combines_planes=tuple(str(p) for p in combines),
     )
 
 
@@ -262,6 +412,43 @@ def _parse_arm(
             raise SchemaError(f"{spot}: score for case {case!r} is not a number")
         scores[case] = float(val)
 
+    returns_planes: Optional[Tuple[str, ...]] = None
+    raw_scope = raw.get("returns_planes")
+    if raw_scope is not None:
+        if not isinstance(raw_scope, list):
+            raise SchemaError(f"{spot}: returns_planes must be a list")
+        for plane in raw_scope:
+            if plane not in PLANES:
+                raise SchemaError(
+                    f"{spot}: returns_planes names {plane!r}, not one of {PLANES}"
+                )
+        returns_planes = tuple(str(p) for p in raw_scope)
+
+    returned_counts: Optional[Dict[str, int]] = None
+    raw_counts = raw.get("returned_plane_counts")
+    if raw_counts is not None:
+        if not isinstance(raw_counts, dict):
+            raise SchemaError(f"{spot}: returned_plane_counts must be an object")
+        returned_counts = {}
+        for plane, count in raw_counts.items():
+            if plane not in PLANES:
+                raise SchemaError(
+                    f"{spot}: returned_plane_counts names {plane!r}, not a plane"
+                )
+            returned_counts[str(plane)] = int(count)
+        # The counts win over the label: an arm that returned documents from a
+        # plane it says it cannot reach has one of the two facts wrong, and
+        # this evaluator will not pick which.
+        if returns_planes is not None:
+            stray = sorted(
+                p for p, n in returned_counts.items() if n > 0 and p not in returns_planes
+            )
+            if stray:
+                raise SchemaError(
+                    f"{spot}: returned documents from plane(s) {stray} that are "
+                    f"outside its declared returns_planes {list(returns_planes)}"
+                )
+
     return Arm(
         arm_id=arm_id,
         role=role,
@@ -270,6 +457,9 @@ def _parse_arm(
         budget_tokens=_opt_number(raw.get("budget_tokens"), spot, "budget_tokens"),
         cost_units=_opt_number(raw.get("cost_units"), spot, "cost_units"),
         notes=str(raw.get("notes", "")),
+        returns_planes=returns_planes,
+        returned_plane_counts=returned_counts,
+        retriever=_parse_retriever(raw.get("retriever"), spot),
     )
 
 
@@ -295,6 +485,16 @@ def dump(rs: ResultSet) -> Dict[str, object]:
         "primary_metric": rs.primary_metric,
         "cases": list(rs.cases),
         "case_groups": {k: list(v) for k, v in rs.case_groups.items()},
+        "gold_planes": dict(rs.gold_planes),
+        "corpus": None if rs.corpus is None else {
+            "documents_per_plane": dict(rs.corpus.documents_per_plane),
+            "graph": {
+                "total_edges": rs.corpus.total_edges,
+                "cross_plane_edges": rs.corpus.cross_plane_edges,
+                "endpoint_plane_counts": dict(rs.corpus.endpoint_plane_counts),
+            },
+            "source": rs.corpus.source,
+        },
         "arms": [
             {
                 "arm_id": a.arm_id,
@@ -303,6 +503,18 @@ def dump(rs: ResultSet) -> Dict[str, object]:
                 "budget_tokens": a.budget_tokens,
                 "cost_units": a.cost_units,
                 "notes": a.notes,
+                "returns_planes": (
+                    None if a.returns_planes is None else list(a.returns_planes)
+                ),
+                "returned_plane_counts": (
+                    None if a.returned_plane_counts is None
+                    else dict(a.returned_plane_counts)
+                ),
+                "retriever": None if a.retriever is None else {
+                    "implementation": a.retriever.implementation,
+                    "mechanism": a.retriever.mechanism,
+                    "combines_planes": list(a.retriever.combines_planes),
+                },
                 "scores": {rs.primary_metric: dict(a.scores)},
             }
             for a in rs.arms

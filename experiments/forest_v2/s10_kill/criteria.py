@@ -24,7 +24,16 @@ shipping nine checks and calling it "the kill criteria" would be the
 dishonest version; quietly shipping nine of sixteen and dividing by fifteen
 is the same dishonesty with a decimal point.
 
-Two guards sit in front of every verdict:
+Three guards sit in front of every verdict:
+
+*Dynamic range.*  Before any comparison metric is reported, the gold-label
+plane x arm-reach cross-tab has to show that the comparison could have come
+out the other way.  When the planes that distinguish the two arms carry zero
+gold labels, or an arm sits at a structural 0%/100% ceiling, or the object the
+criterion names (cross-plane edges, a fusion retriever) is absent from the
+input, the verdict is ``UNDECIDABLE`` and no number is printed.  See
+``plane_range``; the gate is inside ``_compare_arms``, so a criterion cannot
+report a comparison by forgetting to ask.
 
 *Power.*  Fewer than ``min_cases`` paired cases and the verdict is
 ``INCONCLUSIVE`` regardless of what the interval says.  The plan asks for
@@ -48,6 +57,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from .plane_range import (
+    RangeRefused,
+    Refusal,
+    cross_plane_edge_refusal,
+    fusion_arm,
+    range_refusal,
+)
 from .schema import Arm, ResultSet
 from .stats import (
     DEFAULT_CONFIDENCE,
@@ -61,6 +77,15 @@ KEEP = "KEEP"
 KILL = "KILL"
 INCONCLUSIVE = "INCONCLUSIVE"
 NOT_EVALUABLE = "NOT_EVALUABLE"
+#: The data could never decide this, at any sample size -- the object the
+#: criterion names is absent from the input, or the observation that would
+#: separate the two arms does not occur in it.  Kept strictly apart from
+#: ``INCONCLUSIVE`` (the data could decide and did not) and from
+#: ``NOT_EVALUABLE`` (the run shipped no such arm, or the format cannot carry
+#: the evidence).  Conflating the three is how a category error hides: an
+#: INCONCLUSIVE invites a bigger run, and a bigger run of data that contains
+#: no distinguishing observation walks straight to a verdict.
+UNDECIDABLE = "UNDECIDABLE"
 
 PRIOR_TWIN = "four_plane_project_twin"
 PRIOR_LATENT = "latent_cross_plane_discovery"
@@ -155,6 +180,16 @@ def _compare_arms(
     base: Arm,
     cases: Sequence[str],
 ) -> Paired:
+    """The one place a comparison metric is produced -- and its gate.
+
+    The dynamic-range precondition is enforced here rather than in each
+    criterion, so a new criterion cannot report a number by forgetting to
+    ask.  ``RangeRefused`` propagates to ``evaluate``, which turns it into an
+    ``UNDECIDABLE`` finding for whichever criterion raised it.
+    """
+    refusal = range_refusal(rs, treat, base, cases)
+    if refusal is not None:
+        raise RangeRefused(refusal, label)
     return compare(
         label,
         treat.arm_id,
@@ -198,7 +233,7 @@ def _guard(
     favours: Sequence[str],
 ) -> Tuple[str, str, Tuple[str, ...]]:
     """Apply the power and budget-symmetry guards to a provisional verdict."""
-    if verdict == NOT_EVALUABLE:
+    if verdict in (NOT_EVALUABLE, UNDECIDABLE):
         return verdict, rationale, tuple(warnings)
 
     thin = [c for c in comps if c.n < cfg.min_cases]
@@ -243,6 +278,21 @@ def _not_evaluable(
         verdict=NOT_EVALUABLE,
         rationale=why,
         missing=tuple(missing),
+    )
+
+
+def _undecidable(
+    key: str, ref: str, prior: str, statement: str, refusal: Refusal
+) -> Finding:
+    """The data could never decide this -- not a verdict, and not a maybe."""
+    return Finding(
+        key=key,
+        plan_ref=ref,
+        prior=prior,
+        statement=statement,
+        verdict=UNDECIDABLE,
+        rationale=refusal.reason,
+        warnings=tuple(refusal.detail),
     )
 
 
@@ -347,9 +397,22 @@ def c_full_beats_cheap_retrieval(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 
 def c_rewired_edges_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
+    """14.2 names cross-plane edges, so it counts them before it compares.
+
+    A criterion must verify that the object it names exists in its input.
+    Measured on s08: 992 edges, 0 of them cross a plane, endpoint plane
+    counts ``{code: 1984}``.  The rewiring control there randomises an
+    intra-code import/call graph, so the comparison -- whichever way it comes
+    out -- is not evidence about cross-plane edges.  The arm check comes
+    *after* this one deliberately: shipping the missing rewiring control
+    would not make the graph cross-plane.
+    """
     ref, key = "14.2", "rewired_cross_plane_edges_equivalent"
     statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
+    edges = cross_plane_edge_refusal(rs)
+    if edges is not None:
+        return _undecidable(key, ref, PRIOR_TWIN, statement, edges)
     missing = _missing(rs, ("full", "rewired"), variant)
     if missing:
         return _not_evaluable(
@@ -366,24 +429,41 @@ def c_rewired_edges_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
 
 
 def c_separate_indices_equivalent(rs: ResultSet, cfg: EvalConfig) -> Finding:
+    """14.3 names a cross-plane fusion arm, so it demands a real one.
+
+    The role label ``fusion`` is not accepted on its own and there is no
+    fallback to ``full`` -- that fallback was measured minting a hard KILL out
+    of a one-string relabel of real s08 data, for a comparison nobody ran.  No
+    cross-plane fusion retriever is implemented anywhere in this program (s08
+    ships five retrievers and s09 five more, none of them fusion), so every
+    14.3 verdict this evaluator could previously emit was a category error.
+    A missing or unattested fusion arm is UNDECIDABLE, never a verdict, and
+    never merely "this run forgot an arm": the arm does not exist to ship.
+    """
     ref, key = "14.3", "four_indices_equal_fusion"
     statement = PLAN_STATEMENTS[ref]
     variant = rs.default_variant
-    fusion = rs.find("fusion", variant) or rs.find("full", variant)
+    fusion, refusal = fusion_arm(rs, variant)
+    if refusal is not None:
+        return _undecidable(key, ref, PRIOR_TWIN, statement, refusal)
     separate = rs.find("separate_indices", variant)
-    if fusion is None or separate is None:
-        missing = tuple(
-            r for r, a in (("fusion|full", fusion), ("separate_indices", separate))
-            if a is None
-        )
+    if separate is None:
         return _not_evaluable(
             key, ref, PRIOR_TWIN, statement,
-            "run does not contain both a fusion arm and a separate-indices arm",
-            missing,
+            "run carries an attested fusion arm but no four-independent-indices "
+            "arm to compare it against",
+            ("separate_indices",),
         )
     comp = _compare_arms(rs, cfg, key, fusion, separate, rs.cases)
     favour, note = _budget_favour(fusion, separate, cfg)
-    warns = [note] if note else []
+    att = fusion.retriever
+    warns = [
+        f"fusion arm attested as {att.implementation} ({att.mechanism} over "
+        f"{', '.join(att.combines_planes)}) -- read the implementation string "
+        f"before reading the verdict"
+    ]
+    if note:
+        warns.append(note)
     verdict, rationale = _equivalence_verdict(comp, "four independent indices")
     verdict, rationale, warns_t = _guard(verdict, rationale, [comp], warns, cfg, [favour])
     return Finding(key, ref, PRIOR_TWIN, statement, verdict, rationale, (comp,), warns_t)
@@ -791,9 +871,30 @@ def register_entries() -> Tuple[Tuple[str, str], ...]:
 
 
 def evaluate(rs: ResultSet, cfg: Optional[EvalConfig] = None) -> List[Finding]:
-    """Run every criterion, decidable or not, in plan order."""
+    """Run every criterion, decidable or not, in plan order.
+
+    ``RangeRefused`` is caught here, once, for every criterion.  A criterion
+    that tries to report a comparison whose dynamic range is zero does not get
+    to choose what happens next: it becomes UNDECIDABLE, named by the register
+    entry that raised it.
+    """
     cfg = cfg or EvalConfig()
-    findings = [fn(rs, cfg) for fn in EVALUATORS]
+    findings: List[Finding] = []
+    for entry in REGISTER:
+        if entry.evaluator is None:
+            continue
+        try:
+            findings.append(entry.evaluator(rs, cfg))
+        except RangeRefused as exc:
+            findings.append(
+                _undecidable(
+                    entry.key, entry.plan_ref, entry.prior, entry.statement,
+                    Refusal(
+                        exc.refusal.reason,
+                        exc.refusal.detail + (f"refused comparison: {exc.label}",),
+                    ),
+                )
+            )
     for key, ref, prior, statement, why in OUT_OF_SCOPE:
         findings.append(_not_evaluable(key, ref, prior, statement, why))
     if rs.seeds < cfg.min_seeds:
@@ -803,7 +904,7 @@ def evaluate(rs: ResultSet, cfg: Optional[EvalConfig] = None) -> List[Finding]:
         )
         annotated: List[Finding] = []
         for f in findings:
-            if f.verdict == NOT_EVALUABLE:
+            if f.verdict in (NOT_EVALUABLE, UNDECIDABLE):
                 annotated.append(f)
                 continue
             annotated.append(

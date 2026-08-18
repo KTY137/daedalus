@@ -124,8 +124,8 @@ citation. Section 14 is byte-identical in revisions 5 and 6 [MEASURED].
   pass fires anything, or a guard has to be bypassed to get a usable verdict.
 - **Contract of the outputs:** the evaluator reads `forest_v2.s10.kill-input/1`
   JSON (`schema.py`) and emits, per criterion, one of `KEEP` / `KILL` /
-  `INCONCLUSIVE` / `NOT_EVALUABLE` with its comparison intervals, plus a
-  per-prior rollup. Text and `--json` renderings carry the same content.
+  `INCONCLUSIVE` / `UNDECIDABLE` / `NOT_EVALUABLE` with its comparison
+  intervals, plus a per-prior rollup. Text and `--json` renderings carry the same content.
   **Advisory: it gates nothing, promotes nothing, blocks nothing, writes
   nothing.** A `KILL` is a proposal to open an amendment (plan section 15).
   Its exit code says whether the evaluation ran, never what it found.
@@ -218,10 +218,104 @@ Three design decisions carry the honesty of the whole slice:
 3. **The metric is declared in the input, before the numbers are seen.** The
    evaluator reads that one metric and cannot shop for a friendlier cutoff.
 
+### The dynamic-range precondition (2026-08-18) [MEASURED]
+
+A census found that this evaluator could mint a hard `KILL` against the plan's
+central research prior from data that cannot support it. Three measured
+defects, all the same defect in different coordinates:
+
+1. **A role label could manufacture a verdict.** `criteria.py` selected the
+   14.3 treatment as `rs.find("fusion") or rs.find("full")`. Relabelling one
+   string in a real s08 result set -- role `bm25` to role `fusion` on the
+   frozen-600 routing run -- produced `14.3 verdict=KILL`, with no warning
+   anywhere in the report. The fallback also graded 14.3 as `KEEP` on a
+   synthetic run that had no fusion arm at all. **No cross-plane fusion
+   retriever is implemented anywhere in this program** (s08 ships
+   `LexicalRetriever`, `CodeGraphRetriever`, `FourPlaneNoFusionRetriever`,
+   `UnionNoFusionRetriever`, `SinglePlaneOracleRetriever`; s09 ships
+   `random_uniform`, `path_lexical`, `bm25`, `bm25_content_only`,
+   `recency_prior`), so every 14.3 verdict this evaluator could emit was a
+   category error.
+2. **Arms were selected by role string, never by what they contain.** 14.2 is
+   about *cross-plane* edges and was being computed on s08's graph: **992
+   edges, 0 of them cross a plane**, endpoint plane counts `{code: 1984}`. The
+   rewiring control randomises an intra-code import/call graph. Neither `KEEP`
+   nor `KILL` from that comparison means anything about the plan's clause --
+   and the `INCONCLUSIVE` it actually returned was the most dangerous of the
+   three, because the remedy it invites is a bigger query set.
+3. **The same blindness in the query set.** All 600 frozen gold labels are code
+   documents; the 138 added non-code queries left the discordant counts
+   identical while `n` grew 23%. The **type plane has zero gold labels
+   anywhere in the program**, against 289 type documents (27.9% of the corpus).
+
+The rule, in `plane_range.py`: **before any comparison metric is reported, emit
+the cross-tab of gold-label plane x plane each arm can actually return, and
+refuse the metric -- `UNDECIDABLE`, never a number -- when the gold labels
+contain zero instances in any plane that distinguishes the two arms, or when an
+arm sits at a structural 0%/100% ceiling.** The gate lives inside
+`criteria._compare_arms`, the one function every comparison passes through, so
+a criterion cannot report a number by forgetting to ask.
+
+`UNDECIDABLE` is a fifth verdict, kept strictly apart from the other two
+refusals because the remedies differ: `INCONCLUSIVE` -> run more;
+`NOT_EVALUABLE` -> ship the arm; `UNDECIDABLE` -> neither helps, because the
+distinguishing observation is not in the data. Conflating the first two is how
+this class of error hides.
+
+Applied to today's artifacts, every measured run refuses [MEASURED]:
+
+| run | n | 14.2 | 14.3 |
+| --- | ---: | --- | --- |
+| `s08_graph_structure` | 600 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_frozen600_four_plane_no_fusion` | 600 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_frozen600_union_no_fusion` | 600 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_noncode138_four_plane_no_fusion` | 138 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_noncode138_union_no_fusion` | 138 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_extended738_four_plane_no_fusion` | 738 | UNDECIDABLE | UNDECIDABLE |
+| `s08_routing_extended738_union_no_fusion` | 738 | UNDECIDABLE | UNDECIDABLE |
+
+The rollup consequence, stated plainly: **on the measurements this project has
+today, this evaluator decides none of the criteria that bear on the four-plane
+prior.** `four_plane_project_twin` rolls up `0/9 decidable` on every measured
+run -- two criteria UNDECIDABLE, the rest with no arm shipped.
+
+`python -m experiments.forest_v2.s10_kill.cli --plane-census` reports which
+planes can never be a retrieval target anywhere in the program. Today that is
+the **type** plane: 289 documents, 0 gold labels in any query set.
+
+Every new guard was mutation-tested: disabled at the source, one named test
+watched go red, restored, baseline confirmed green. 11 of 11 are watched
+[MEASURED].
+
+| mutation | named test that goes red |
+| --- | --- |
+| restore the deleted `or rs.find("full")` fallback | `test_a_missing_fusion_arm_never_falls_back_to_the_full_arm` |
+| accept the role label without checking the mechanism | `test_a_relabelled_arm_cannot_mint_a_fusion_verdict` |
+| stop demanding a second returned plane from a fusion arm | `test_a_relabelled_arm_cannot_mint_a_fusion_verdict` |
+| stop counting cross-plane edges for 14.2 | `test_142_is_undecidable_on_every_measured_run_in_the_program` |
+| stop refusing when the distinguishing planes hold no gold label | `test_a_gold_set_blind_to_the_distinguishing_planes_is_undecidable` |
+| stop refusing an arm pinned at a 0%/100% ceiling | `test_an_arm_pinned_at_a_structural_ceiling_is_refused` |
+| stop refusing an arm that cannot reach any gold plane | `test_an_arm_that_cannot_reach_any_gold_plane_is_refused` |
+| remove the gate from `_compare_arms` | `test_no_criterion_can_report_a_comparison_without_passing_the_gate` |
+| conflate `UNDECIDABLE` with `INCONCLUSIVE` | `test_undecidable_is_distinct_from_inconclusive_and_not_evaluable` |
+| count `UNDECIDABLE` as covered | `test_undecidable_does_not_count_as_covered` |
+| stop refusing a run that declares no gold planes | `test_a_run_with_no_declared_gold_planes_reports_no_number` |
+
+The first pass of that probe found one of these tests was **decoration**:
+disabling the mechanism check changed nothing, because the relabelled arm was
+already caught one line later for carrying no measured per-plane returns. The
+test now includes the realistic attack -- a joint index that really does span
+four planes and really does return documents from more than one, whose only
+defect is that it compares no score across them -- which the mechanism check
+alone catches.
+
 ### Self-test result (2026-08-18, synthetic ground truth) [MEASURED]
 
-`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **68 passed in 14.46s**
-(2026-08-18, after the register repair; was 44 passed in 7.84s before it).
+`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **97 passed**
+(2026-08-18, after the dynamic-range precondition; was 68 passed before it,
+and 44 before the register repair). The table below predates the precondition
+and its `decidable` column is one too high for every scenario without an
+attested fusion arm -- which is all of them, because none exists.
 
 Nine scenarios with constructed ground truth, all scores drawn at runtime from
 a seeded PRNG (no fixture tables). Default config: CI95 percentile bootstrap,

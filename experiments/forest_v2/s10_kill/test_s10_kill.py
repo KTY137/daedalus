@@ -28,10 +28,12 @@ from .criteria import (
     OUT_OF_SCOPE,
     PLAN_STATEMENTS,
     REGISTER,
+    UNDECIDABLE,
     EvalConfig,
     evaluate,
     register_entries,
 )
+from .plane_range import crosstab, fusion_arm, range_refusal
 from .report import build, render, roll_up, to_json
 from .schema import ResultSet, SchemaError, dump
 from .stats import bootstrap_ci, compare, stable_seed
@@ -240,6 +242,45 @@ def test_ambiguous_role_lookup_is_an_error_not_a_guess():
         rs.find("full", "raw")
 
 
+def test_schema_rejects_a_gold_plane_for_a_case_outside_the_run():
+    obj = build_scenario("no_gain")
+    obj["gold_planes"]["not_a_case"] = "code"
+    with pytest.raises(SchemaError, match="not in the run"):
+        ResultSet.from_obj(obj)
+
+
+def test_schema_rejects_an_unknown_gold_plane():
+    obj = build_scenario("no_gain")
+    obj["gold_planes"][obj["cases"][0]] = "vibes"
+    with pytest.raises(SchemaError, match="not one of"):
+        ResultSet.from_obj(obj)
+
+
+def test_schema_rejects_returns_that_contradict_the_declared_scope():
+    """The counts win over the label, and a contradiction is not graded."""
+    obj = build_scenario("no_gain")
+    obj["arms"][0]["returns_planes"] = ["code"]
+    obj["arms"][0]["returned_plane_counts"] = {"code": 10, "knowledge": 3}
+    with pytest.raises(SchemaError, match="outside its declared returns_planes"):
+        ResultSet.from_obj(obj)
+
+
+def test_schema_rejects_an_unknown_retriever_mechanism():
+    obj = build_scenario("no_gain")
+    obj["arms"][0]["retriever"] = {
+        "implementation": "x", "mechanism": "magic", "combines_planes": [],
+    }
+    with pytest.raises(SchemaError, match="mechanism"):
+        ResultSet.from_obj(obj)
+
+
+def test_schema_rejects_more_cross_plane_edges_than_edges():
+    obj = build_scenario("no_gain")
+    obj["corpus"]["graph"]["cross_plane_edges"] = 99999
+    with pytest.raises(SchemaError, match="cross-plane edges out of"):
+        ResultSet.from_obj(obj)
+
+
 def test_dump_round_trips():
     rs = _rs("surviving_prior")
     again = ResultSet.from_obj(dump(rs))
@@ -298,9 +339,15 @@ def test_surviving_prior_kills_nothing():
     findings = evaluate(_rs("surviving_prior"), CFG)
     killed = [f.plan_ref for f in findings if f.verdict == KILL]
     assert killed == [], f"a constructed pass fired {killed}"
-    decided = [f for f in findings if f.verdict != NOT_EVALUABLE]
-    assert len(decided) == 9
+    decided = [
+        f for f in findings if f.verdict not in (NOT_EVALUABLE, UNDECIDABLE)
+    ]
+    # Eight, not nine: this scenario carries no attested fusion arm, because
+    # no fusion retriever exists in this program, so 14.3 is UNDECIDABLE here
+    # exactly as it is on every real measurement.
+    assert len(decided) == 8
     assert all(f.verdict == KEEP for f in decided)
+    assert _finding(_rs("surviving_prior"), "14.3").verdict == UNDECIDABLE
 
 
 @pytest.mark.parametrize(
@@ -334,18 +381,16 @@ def test_ablation_kill_names_the_useless_plane():
     assert "data" in finding.rationale
 
 
-def test_separate_indices_equivalence_fires():
-    obj = make_run(
-        "fusion-pointless",
-        [
-            ArmSpec("full", 0.15),
-            ArmSpec("code_only", 0.0),
-            ArmSpec("bm25", 0.0),
-            ArmSpec("separate_indices", 0.15),
-        ],
-        seed=4, noise=0.01,
-    )
-    assert _finding(ResultSet.from_obj(obj), "14.3").verdict == KILL
+def test_separate_indices_equivalence_fires_when_a_fusion_arm_is_attested():
+    """14.3 must remain *capable* of firing, or the refusal proves nothing.
+
+    The attestation here is synthetic and says so in its implementation
+    string; the criterion copies that string into a warning so a verdict can
+    never be read without it.
+    """
+    finding = _finding(_rs("fusion_attested_kill"), "14.3")
+    assert finding.verdict == KILL
+    assert any("synthetic ground truth" in w for w in finding.warnings)
 
 
 def test_token_matched_baseline_explains_the_gain():
@@ -418,29 +463,46 @@ def test_the_measured_input_reproduces_the_published_s08_pairing():
     )
 
 
-def test_a_real_measurement_reaches_the_criterion_it_instruments():
-    """14.2 is *asked* of the s08 data -- not skipped as unevaluable."""
+def test_142_refuses_the_s08_graph_because_it_has_no_cross_plane_edge():
+    """The criterion names cross-plane edges; this graph has none.
+
+    Until this slice, 14.2 read INCONCLUSIVE here off a real 13-rescued /
+    7-lost comparison -- a number computed over 992 edges of which 0 cross a
+    plane.  Neither KEEP nor KILL from that comparison means anything about
+    the plan's clause, and INCONCLUSIVE was the most dangerous of the three,
+    because the remedy it invites is a bigger query set.
+    """
     finding = _finding(_measured("s08_graph_structure"), "14.2")
-    assert finding.verdict != NOT_EVALUABLE
-    comp = finding.comparisons[0]
-    assert comp.n == 600
-    assert (comp.wins, comp.losses) == (13, 7)
+    assert finding.verdict == UNDECIDABLE
+    assert finding.comparisons == ()
+    assert "992 edges and 0 of them cross a plane" in finding.rationale
+    assert any("code: 1984" in w for w in finding.warnings)
 
 
-@pytest.mark.parametrize(
-    "run", [n for n in measured_inputs.MEASURED_RUNS if n.startswith("s08_routing")]
-)
+@pytest.mark.parametrize("run", sorted(measured_inputs.MEASURED_RUNS))
+def test_142_is_undecidable_on_every_measured_run_in_the_program(run):
+    """Every s08 query set -- 600, 138 and the extended 738 -- and both
+    no-fusion instantiations. The refusal is a property of the corpus, so it
+    cannot be escaped by picking a query set."""
+    assert _finding(_measured(run), "14.2").verdict == UNDECIDABLE
+
+
+@pytest.mark.parametrize("run", sorted(measured_inputs.MEASURED_RUNS))
 def test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion(run):
     """s08 built no fusion retriever, so 14.3 must not be answered from it.
 
     The tempting shortcut is to let the nearest available arm stand in for the
     missing one; that is how a criterion gets 'decided' by a comparison nobody
-    ran.  Every query set and both no-fusion instantiations, so the refusal
-    cannot be an accident of one arm choice.
+    ran.  Every measured run, every query set and both no-fusion
+    instantiations, so the refusal cannot be an accident of one arm choice.
+
+    UNDECIDABLE, not NOT_EVALUABLE: a missing rewiring control is a hole this
+    run could fill, while the fusion arm does not exist anywhere in the
+    program to ship.
     """
     finding = _finding(_measured(run), "14.3")
-    assert finding.verdict == NOT_EVALUABLE
-    assert "fusion|full" in finding.missing
+    assert finding.verdict == UNDECIDABLE
+    assert "no fallback to another role" in finding.rationale
 
 
 def test_no_arm_of_a_measured_run_is_labelled_fusion():
@@ -517,13 +579,19 @@ def test_an_equivalence_kill_is_reachable_at_the_real_effect_size():
 
 
 def test_a_fully_instrumented_run_can_still_reach_keep():
-    """The guard above must not make KEEP unreachable in principle."""
+    """The guards must not make KEEP unreachable in principle.
+
+    Fully instrumented now means one more thing than it used to: an attested
+    fusion arm, gold labels in every plane, and a graph that actually has
+    cross-plane edges.  No result set in this program meets that bar.
+    """
     twin = [
-        p for p in roll_up(evaluate(_rs("surviving_prior"), CFG))
+        p for p in roll_up(evaluate(_rs("fusion_attested_keep"), CFG))
         if p.prior == "four_plane_project_twin"
     ][0]
     assert twin.verdict == KEEP
     assert twin.uninstrumented == ()
+    assert twin.undecidable == ()
 
 
 # ----------------------------------------------------------------- guards
@@ -577,9 +645,303 @@ def test_low_seed_count_is_flagged_on_every_decided_finding():
     obj = build_scenario("no_gain")
     obj["seeds"] = 1
     findings = evaluate(ResultSet.from_obj(obj), CFG)
-    decided = [f for f in findings if f.verdict != NOT_EVALUABLE]
+    decided = [
+        f for f in findings if f.verdict not in (NOT_EVALUABLE, UNDECIDABLE)
+    ]
     assert decided
     assert all(any("seed(s)" in w for w in f.warnings) for f in decided)
+
+
+# --------------------------------------------------- dynamic range
+#
+# The rule: before any comparison metric is reported, the gold-label plane x
+# arm-reach cross-tab must show the comparison could have come out the other
+# way.  Everything below is a way of failing that, and every one of them used
+# to produce a number.
+
+
+def test_a_gold_set_blind_to_the_distinguishing_planes_is_undecidable():
+    """s08's defect in miniature: all gold labels in the code plane.
+
+    ``full`` and ``code_only`` differ only in type/data/knowledge. With no
+    gold label in any of those, the comparison cannot move in the refuting
+    direction at any sample size -- and it used to report a tight interval
+    and a KEEP.
+    """
+    finding = _finding(_rs("blind_query_set"), "14.1")
+    assert finding.verdict == UNDECIDABLE
+    assert finding.comparisons == ()
+    assert "zero gold labels" in finding.rationale
+    for plane in ("data", "knowledge", "type"):
+        assert plane in finding.rationale
+
+
+def test_enlarging_a_blind_query_set_does_not_buy_a_verdict():
+    """The 600 -> 738 move, generalised: n grows, the observation does not.
+
+    s08 measured the discordant counts staying *identical* while n grew 23%.
+    A rule that counts cases sees a tighter interval; the rule that asks
+    whether the distinguishing observation is present sees nothing new.
+    """
+    small = ResultSet.from_obj(
+        make_run("blind-small", [ArmSpec("full", 0.15), ArmSpec("code_only", 0.0),
+                                 ArmSpec("bm25", 0.0)],
+                 n_cases=60, seed=7, noise=0.01, gold_planes=["code"])
+    )
+    big = ResultSet.from_obj(
+        make_run("blind-big", [ArmSpec("full", 0.15), ArmSpec("code_only", 0.0),
+                               ArmSpec("bm25", 0.0)],
+                 n_cases=1800, seed=7, noise=0.01, gold_planes=["code"])
+    )
+    assert _finding(small, "14.1").verdict == UNDECIDABLE
+    assert _finding(big, "14.1").verdict == UNDECIDABLE, (
+        "a 30x larger blind query set must not become decidable"
+    )
+
+
+def test_a_run_with_no_declared_gold_planes_reports_no_number():
+    """Unknown dynamic range is refused, not assumed adequate."""
+    obj = build_scenario("fusion_attested_keep")
+    obj.pop("gold_planes")
+    findings = evaluate(ResultSet.from_obj(obj), CFG)
+    decided = [f for f in findings if f.verdict in (KEEP, KILL, INCONCLUSIVE)]
+    assert decided == [], [f.plan_ref for f in decided]
+    assert all(f.comparisons == () for f in findings)
+    assert any("no gold-label planes" in f.rationale for f in findings)
+
+
+def test_an_arm_pinned_at_a_structural_ceiling_is_refused():
+    """s02's 100% annotation ceiling, in retrieval coordinates.
+
+    A control that scores 1.0 on every case cannot lose, so the difference
+    against it measures the ceiling, not the treatment.
+    """
+    obj = make_run(
+        "ceilinged",
+        [ArmSpec("full", 0.15), ArmSpec("code_only", 0.0), ArmSpec("bm25", 0.0)],
+        n_cases=40, seed=8, noise=0.01,
+    )
+    metric = obj["primary_metric"]
+    for arm in obj["arms"]:
+        if arm["role"] == "code_only":
+            arm["scores"][metric] = {c: 1.0 for c in obj["cases"]}
+    finding = _finding(ResultSet.from_obj(obj), "14.1")
+    assert finding.verdict == UNDECIDABLE
+    assert "100% ceiling" in finding.rationale
+
+
+def test_an_arm_that_cannot_reach_any_gold_plane_is_refused():
+    """A structural 0%: the arm's index holds none of the answers."""
+    obj = make_run(
+        "blind-arm",
+        [
+            ArmSpec("full", 0.15, returns_planes=["knowledge"]),
+            ArmSpec("code_only", 0.0),
+            ArmSpec("bm25", 0.0, returns_planes=["knowledge"]),
+        ],
+        n_cases=40, seed=9, noise=0.01, gold_planes=["code"],
+    )
+    finding = _finding(ResultSet.from_obj(obj), "14.1")
+    assert finding.verdict == UNDECIDABLE
+    assert "structural floor" in finding.rationale
+
+
+def test_no_criterion_can_report_a_comparison_without_passing_the_gate(monkeypatch):
+    """The gate lives in the one function every comparison goes through.
+
+    Forcing ``range_refusal`` to refuse must silence *every* criterion. A
+    criterion that still produced a number would be computing its comparison
+    somewhere else.
+    """
+    from . import criteria as criteria_mod
+    from .plane_range import Refusal
+
+    monkeypatch.setattr(
+        criteria_mod, "range_refusal",
+        lambda rs, treat, base, cases: Refusal("forced refusal for the mutation probe"),
+    )
+    findings = evaluate(_rs("fusion_attested_keep"), CFG)
+    assert all(f.comparisons == () for f in findings)
+    assert all(
+        f.verdict in (UNDECIDABLE, NOT_EVALUABLE) for f in findings
+    ), [(f.plan_ref, f.verdict) for f in findings]
+
+
+# ------------------------------------------------- the fusion label attack
+
+
+def test_a_relabelled_arm_cannot_mint_a_fusion_verdict():
+    """The measured attack, re-run at four depths.
+
+    Before this slice, changing one string -- role ``bm25`` to role
+    ``fusion`` -- on the real s08 frozen-600 routing run produced
+    ``14.3 verdict=KILL``, with no warning anywhere in the report, for a
+    comparison nobody ran.
+    """
+    base = measured_inputs.build("s08_routing_frozen600_union_no_fusion")
+
+    def relabel(mutate=None):
+        obj = json.loads(json.dumps(base))
+        for arm in obj["arms"]:
+            if arm["role"] == "bm25":
+                arm["role"] = "fusion"
+                if mutate:
+                    mutate(arm)
+        return _finding(ResultSet.from_obj(obj), "14.3")
+
+    # 1. the bare relabel
+    assert relabel().verdict == UNDECIDABLE
+    # 2. relabel + a forged attestation with no measured returns
+    forged = {
+        "implementation": "totally_real_fusion.py::Fusion@deadbeef",
+        "mechanism": "cross_plane_score_fusion",
+        "combines_planes": ["code", "type", "data", "knowledge"],
+    }
+    f2 = relabel(lambda a: a.update(retriever=dict(forged)))
+    assert f2.verdict == UNDECIDABLE
+    assert "no measured per-plane return counts" in f2.rationale
+
+    # 3. forged attestation + a single-plane return histogram
+    def single_plane(arm):
+        arm["retriever"] = dict(forged)
+        arm["returned_plane_counts"] = {"code": 6000}
+
+    f3 = relabel(single_plane)
+    assert f3.verdict == UNDECIDABLE
+    assert "single-plane retriever" in f3.rationale
+
+    # 4. an attestation claiming fusion over one plane
+    def one_plane_fusion(arm):
+        arm["retriever"] = dict(forged, combines_planes=["code"])
+        arm["returned_plane_counts"] = {"code": 3000, "knowledge": 3000}
+
+    assert relabel(one_plane_fusion).verdict == UNDECIDABLE
+
+    # 5. the realistic one, and the only depth the *mechanism* check catches:
+    #    the joint index really does span four planes and really does return
+    #    documents from more than one, so every other check is satisfied. It
+    #    shares an IDF space; it compares no score across planes. This is the
+    #    exact substitution s08 had to retract, one level up.
+    def honest_looking_joint_index(arm):
+        arm["retriever"] = {
+            "implementation": "s08_retrievers.py::LexicalRetriever@a0c8fabd",
+            "mechanism": "single_index",
+            "combines_planes": ["code", "type", "data", "knowledge"],
+        }
+        arm["returned_plane_counts"] = {
+            "code": 3000, "type": 1000, "data": 500, "knowledge": 1500,
+        }
+
+    f5 = relabel(honest_looking_joint_index)
+    assert f5.verdict == UNDECIDABLE
+    assert "does not compare or combine scores across planes" in f5.rationale
+
+
+def test_a_missing_fusion_arm_never_falls_back_to_the_full_arm():
+    """The deleted ``or rs.find("full", ...)``.
+
+    A run carrying ``full`` and ``separate_indices`` and no fusion arm used to
+    grade 14.3 as if the full arm were the fusion arm -- measured KEEP on the
+    synthetic scenario, and the same path is what produced the KILL above.
+    """
+    rs = _rs("surviving_prior")
+    assert rs.find("full", "raw") is not None
+    assert rs.find("separate_indices", "raw") is not None
+    assert rs.find("fusion", "raw") is None
+    finding = _finding(rs, "14.3")
+    assert finding.verdict == UNDECIDABLE
+    assert "no fallback to another role" in finding.rationale
+    assert finding.comparisons == ()
+
+
+def test_the_fusion_arm_is_read_from_the_mechanism_not_the_role(monkeypatch):
+    arm, refusal = fusion_arm(_rs("fusion_attested_keep"), "raw")
+    assert refusal is None and arm.role == "fusion"
+    assert arm.retriever.mechanism == "cross_plane_score_fusion"
+
+
+# ------------------------------------------ the three refusals stay apart
+
+
+def test_undecidable_is_distinct_from_inconclusive_and_not_evaluable():
+    """Three different states, three different remedies.
+
+    INCONCLUSIVE -> run more. NOT_EVALUABLE -> ship the arm. UNDECIDABLE ->
+    neither helps; build a query set or a graph that contains the
+    distinguishing observation. Collapsing them is how the category error
+    hides, because the remedy INCONCLUSIVE invites is exactly the one that
+    walks a blind run to a verdict.
+    """
+    assert len({UNDECIDABLE, INCONCLUSIVE, NOT_EVALUABLE}) == 3
+    underpowered = _finding(_rs("underpowered"), "14.1").verdict
+    missing_arm = _finding(_rs("no_gain"), "14.2").verdict
+    blind = _finding(_rs("blind_query_set"), "14.1").verdict
+    assert (underpowered, missing_arm, blind) == (
+        INCONCLUSIVE, NOT_EVALUABLE, UNDECIDABLE
+    )
+
+
+def test_the_rollup_shows_undecidable_separately_from_a_missing_arm():
+    findings = evaluate(_rs("intra_plane_graph"), CFG)
+    twin = [p for p in roll_up(findings) if p.prior == "four_plane_project_twin"][0]
+    assert "14.2" in twin.undecidable
+    assert "14.2" not in twin.uninstrumented
+    assert twin.verdict != KEEP
+    text = render(build(_rs("intra_plane_graph"), findings, CFG))
+    assert "UNDECIDABLE" in text
+    assert "UNDECIDABLE on this data at any sample size: 14.2" in text
+
+
+def test_undecidable_does_not_count_as_covered():
+    rs = _rs("blind_query_set")
+    rep = build(rs, evaluate(rs, CFG), CFG)
+    counts = rep.verdict_counts
+    assert counts[UNDECIDABLE] > 0
+    assert rep.coverage[0] == counts[KEEP] + counts[KILL] + counts[INCONCLUSIVE]
+    assert to_json(rep)["verdict_counts"][UNDECIDABLE] == counts[UNDECIDABLE]
+
+
+def test_the_crosstab_is_printed_before_the_criteria():
+    rs = _measured("s08_routing_extended738_union_no_fusion")
+    text = render(build(rs, evaluate(rs, CFG), CFG))
+    assert "GOLD-LABEL PLANE x PLANE EACH ARM CAN RETURN" in text
+    assert text.index("GOLD-LABEL PLANE") < text.index("CRITERIA")
+    assert "never a retrieval target" in text
+
+
+# -------------------------------------------- what the program cannot ask
+
+
+def test_the_type_plane_is_never_a_retrieval_target_anywhere():
+    """289 documents, 27.9% of the corpus, and zero gold labels in any set.
+
+    No criterion that names the type plane can be decided by any measurement
+    this program has produced.
+    """
+    census = measured_inputs.program_plane_census()
+    assert census["documents"]["type"] == 289
+    assert census["gold_labels"]["type"] == 0
+    assert measured_inputs.planes_never_a_retrieval_target() == ("type",)
+    for name in measured_inputs.MEASURED_RUNS:
+        ct = crosstab(_measured(name))
+        assert "type" in ct.never_targeted(), name
+
+
+def test_every_measured_run_decides_nothing_about_the_four_plane_prior():
+    """The headline, as an assertion rather than a sentence in a report.
+
+    On today's artifacts this evaluator decides *none* of the criteria that
+    bear on the four-plane prior: the two it can reach are UNDECIDABLE and
+    the rest have no arm.
+    """
+    for name in measured_inputs.MEASURED_RUNS:
+        findings = evaluate(_measured(name), CFG)
+        twin = [
+            p for p in roll_up(findings) if p.prior == "four_plane_project_twin"
+        ][0]
+        assert twin.decided == 0, (name, twin.verdict)
+        assert twin.verdict == UNDECIDABLE, name
+        assert set(twin.undecidable) == {"14.2", "14.3"}, name
 
 
 # ----------------------------------------------------------------- report
@@ -599,7 +961,7 @@ def test_inconclusive_never_rolls_up_to_keep():
 
 
 def test_report_declares_itself_advisory_and_states_coverage():
-    rs = _rs("surviving_prior")
+    rs = _rs("fusion_attested_keep")
     rep = build(rs, evaluate(rs, CFG), CFG)
     blob = to_json(rep)
     assert blob["advisory"] is True
@@ -657,3 +1019,12 @@ def test_cli_reads_a_real_file(tmp_path, capsys):
     path.write_text(json.dumps(build_scenario("no_gain")), encoding="utf-8")
     assert main([str(path), "--resamples", "200"]) == 0
     assert "[KILL] 14.1" in capsys.readouterr().out
+
+
+def test_cli_names_the_planes_no_measurement_can_target(capsys):
+    from .cli import main
+
+    assert main(["--plane-census"]) == 0
+    out = capsys.readouterr().out
+    assert "type" in out and "289" in out
+    assert "never be a retrieval target anywhere in the program: type" in out

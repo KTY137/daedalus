@@ -157,6 +157,94 @@ QUERY_SETS = {
 #: number is meaningless without it.
 S08_PLANE_ORDER = "code-first (s08 measured 491/600 code-first vs 4/600 code-last)"
 
+#: Corpus and graph census, verbatim from the corrected s08 README
+#: (grind/f2-s08 @ a0c8fabd): "Corpus: 1037 documents -- code 318, type 289,
+#: data 65, knowledge 365" and "992 edges and 0 of them cross a plane: every
+#: edge joins two code modules (endpoint plane counts: code 1984, nothing
+#: else)".  [MEASURED by s08, transcribed here.]
+S08_CORPUS: Dict[str, object] = {
+    "documents_per_plane": {"code": 318, "type": 289, "data": 65, "knowledge": 365},
+    "graph": {
+        "total_edges": 992,
+        "cross_plane_edges": 0,
+        "endpoint_plane_counts": {"code": 1984},
+    },
+    "source": (
+        "s08 corpus + code graph @ a0c8fabd; 1037 documents, 992 undirected "
+        "edges, 0 crossing a plane boundary [MEASURED]"
+    ),
+}
+
+#: Gold-label plane mix per query set.  s08 built the frozen 600 from three
+#: families whose gold document is a code module by construction, and added
+#: two non-code families: ``doc_ref`` (124, gold in the knowledge plane) and
+#: ``data_ref`` (14, gold in the data plane).  The type plane has **zero**
+#: gold labels in every set, against 289 type documents in the corpus.
+S08_GOLD_MIX: Dict[str, Tuple[Tuple[str, int], ...]] = {
+    "frozen600": (("code", 600),),
+    "noncode138": (("knowledge", 124), ("data", 14)),
+    "extended738": (("code", 600), ("knowledge", 124), ("data", 14)),
+}
+
+#: What the plane labels below are and are not.  s08 published the gold plane
+#: *marginals* per query set; it did not publish, for the routing tables,
+#: which individual query is a hit for which arm.  The reconstruction assigns
+#: planes to case ids in block order, so the (plane x hit) joint in these runs
+#: is an artefact and no criterion may consume it.  The dynamic-range check
+#: consumes the marginals only -- how many gold labels each plane holds --
+#: which the published mix fixes exactly.
+GOLD_PLANE_JOINT_CAVEAT = (
+    "gold planes are the published per-query-set marginals; the per-case "
+    "assignment is block order and carries no information, so no criterion "
+    "may read the (plane x hit) joint of these runs"
+)
+
+
+def _gold_planes(query_set: str, cases: Sequence[str]) -> Dict[str, str]:
+    mix = S08_GOLD_MIX[query_set]
+    total = sum(n for _, n in mix)
+    if total != len(cases):
+        raise ValueError(
+            f"gold mix for {query_set!r} covers {total} queries, run has {len(cases)}"
+        )
+    out: Dict[str, str] = {}
+    i = 0
+    for plane, count in mix:
+        for _ in range(count):
+            out[cases[i]] = plane
+            i += 1
+    return out
+
+
+def program_plane_census() -> Dict[str, Dict[str, int]]:
+    """Gold labels per plane across every distinct query set in the program.
+
+    The question it answers: which planes can never be a retrieval target
+    anywhere?  A plane with documents in the corpus and no gold label in any
+    query set is a plane the whole measurement programme is structurally
+    unable to say anything about.
+    """
+    docs = dict(S08_CORPUS["documents_per_plane"])  # type: ignore[arg-type]
+    per_set = {
+        name: {plane: count for plane, count in mix}
+        for name, mix in S08_GOLD_MIX.items()
+    }
+    totals: Dict[str, int] = {p: 0 for p in docs}
+    # frozen600 and noncode138 are disjoint; extended738 is their union, so
+    # counting it again would double every label.
+    for name in ("frozen600", "noncode138"):
+        for plane, count in per_set[name].items():
+            totals[plane] = totals.get(plane, 0) + count
+    return {"documents": docs, "gold_labels": totals, **per_set}
+
+
+def planes_never_a_retrieval_target() -> Tuple[str, ...]:
+    """Planes that hold documents and have never held a gold label."""
+    census = program_plane_census()
+    docs = census["documents"]
+    gold = census["gold_labels"]
+    return tuple(p for p in sorted(docs) if docs[p] > 0 and gold.get(p, 0) == 0)
+
 
 def pair(a: str, b: str) -> Contingency:
     for c in S08_PAIRS:
@@ -201,29 +289,41 @@ def _paired_to_anchor(anchor: Sequence[int], table: Contingency) -> List[int]:
 
 
 def _arm(arm_id: str, role: str, scores: Sequence[int], cases: Sequence[str],
-         metric: str, notes: str) -> Dict[str, object]:
+         metric: str, notes: str, returns_planes: Sequence[str],
+         implementation: str, mechanism: str,
+         combines_planes: Sequence[str] = ()) -> Dict[str, object]:
     # The field is "notes": the schema reads that name, and an arm whose
     # provenance is dropped on the floor is exactly how a role label ends up
-    # standing in for a system nobody measured.
+    # standing in for a system nobody measured.  ``returns_planes`` and the
+    # retriever attestation exist for the same reason one level down: they are
+    # what the dynamic-range check reads instead of the role string.
     return {
         "arm_id": arm_id,
         "role": role,
         "variant": "raw",
         "notes": notes,
+        "returns_planes": list(returns_planes),
+        "retriever": {
+            "implementation": implementation,
+            "mechanism": mechanism,
+            "combines_planes": list(combines_planes),
+        },
         "scores": {metric: {c: float(v) for c, v in zip(cases, scores)}},
     }
 
 
 def _run(run_id: str, arms: Sequence[Mapping[str, object]], cases: Sequence[str],
-         metric: str) -> Dict[str, object]:
+         metric: str, query_set: str) -> Dict[str, object]:
     return {
         "schema": SCHEMA_ID,
         "run_id": run_id,
-        "source": S08_SOURCE,
+        "source": f"{S08_SOURCE}; {GOLD_PLANE_JOINT_CAVEAT}",
         "seeds": 1,
         "primary_metric": metric,
         "cases": list(cases),
         "case_groups": {},
+        "gold_planes": _gold_planes(query_set, cases),
+        "corpus": S08_CORPUS,
         "arms": list(arms),
     }
 
@@ -248,20 +348,27 @@ def s08_graph_structure() -> Dict[str, object]:
     graph = _anchor_vector(pair("bm25_code_only", "graph_code_only").hits_b, len(cases))
     code_only = _paired_to_anchor(graph, pair("bm25_code_only", "graph_code_only"))
     rewired = _paired_to_anchor(graph, pair("graph_rewired", "graph_code_only"))
+    impl = "experiments/forest_v2/s08_graph_baselines/s08_retrievers.py"
     return _run(
         f"s08-graph-structure@{S08_COMMIT}",
         [
             _arm("graph_code_only/raw", "full", graph, cases, metric,
                  "s08 graph retriever, alpha=0.5, 2 hops -- a CODE graph, not the "
                  "four-plane Twin; both rows of this run survived s08's retraction "
-                 "unchanged"),
+                 "unchanged; the graph it walks has 992 edges and 0 cross-plane ones",
+                 ["code"], f"{impl}::CodeGraphRetriever@{S08_COMMIT}", "graph_walk"),
             _arm("graph_rewired/raw", "rewired", rewired, cases, metric,
-                 "degree-preserving rewiring of the same graph, s08's own control"),
+                 "degree-preserving rewiring of the same graph, s08's own control -- "
+                 "it randomises an intra-code import/call graph, not cross-plane edges",
+                 ["code"], f"{impl}::_degree_preserving_rewire@{S08_COMMIT}",
+                 "graph_walk"),
             _arm("bm25_code_only/raw", "code_only", code_only, cases, metric,
-                 "lexical code-only baseline"),
+                 "lexical code-only baseline",
+                 ["code"], f"{impl}::LexicalRetriever@{S08_COMMIT}", "single_plane"),
         ],
         cases,
         metric,
+        "frozen600",
     )
 
 
@@ -286,6 +393,15 @@ def s08_plane_routing(query_set: str, no_fusion_arm: str) -> Dict[str, object]:
     cases = _cases(table.n)
     separate = _anchor_vector(table.hits_b, len(cases))
     joint = _paired_to_anchor(separate, table)
+    impl = "experiments/forest_v2/s08_graph_baselines/s08_retrievers.py"
+    klass = (
+        "FourPlaneNoFusionRetriever" if no_fusion_arm == "four_plane_no_fusion"
+        else "UnionNoFusionRetriever"
+    )
+    mechanism = (
+        "round_robin_slots" if no_fusion_arm == "four_plane_no_fusion"
+        else "per_plane_topk_concat"
+    )
     return _run(
         f"s08-routing-{query_set}-{no_fusion_arm}@{S08_COMMIT}",
         [
@@ -296,16 +412,21 @@ def s08_plane_routing(query_set: str, no_fusion_arm: str) -> Dict[str, object]:
                 f"budget at cutoff 10: 10 documents for four_plane_no_fusion, up "
                 f"to 40 for union_no_fusion (s08 measured a truncated union at "
                 f"identical numbers, so the extra documents buy nothing here)",
+                ["code", "type", "data", "knowledge"],
+                f"{impl}::{klass}@{S08_COMMIT}", mechanism,
             ),
             _arm(
                 "bm25_single_index_all_planes/raw", "bm25", joint, cases, metric,
                 "ONE joint BM25 index over all 1037 documents of all four planes "
                 "-- a shared IDF space, NOT cross-plane fusion; no fusion "
                 "retriever exists in s08",
+                ["code", "type", "data", "knowledge"],
+                f"{impl}::LexicalRetriever@{S08_COMMIT}", "single_index",
             ),
         ],
         cases,
         metric,
+        query_set,
     )
 
 

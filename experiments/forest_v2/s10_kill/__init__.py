@@ -14,8 +14,10 @@ Layout:
 
 ``schema``    the result-record contract this evaluator reads (JSON, not code)
 ``stats``     paired bootstrap CIs and an equivalence test, pure stdlib
+``plane_range`` the dynamic-range precondition: refuse a metric whose data
+              could never have come out the other way
 ``criteria``  the section-14 bullets as predicates over a ``ResultSet``
-``report``    the honest KEEP / KILL / INCONCLUSIVE / NOT_EVALUABLE rollup
+``report``    the KEEP / KILL / INCONCLUSIVE / UNDECIDABLE / NOT_EVALUABLE rollup
 ``synth``     synthetic result sets for the self-test (values drawn at runtime)
 ``cli``       ``python -m experiments.forest_v2.s10_kill.cli`` -- prints only
 

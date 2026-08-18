@@ -23,11 +23,13 @@ from .criteria import (
     KEEP,
     KILL,
     NOT_EVALUABLE,
+    UNDECIDABLE,
     EvalConfig,
     Finding,
     register_entries,
 )
 from .plan_register import RegisterCheck, verify_quietly
+from .plane_range import CrossTab, crosstab, render_crosstab
 from .schema import ResultSet, roles_present
 
 BANNER = (
@@ -48,6 +50,10 @@ class PriorVerdict:
     #: carry the arms.  Distinct from the criteria this input schema can never
     #: decide: those are a limit of the instrument, these are a hole in the run.
     uninstrumented: Tuple[str, ...] = ()
+    #: criteria whose data could never decide them, at any sample size.  Kept
+    #: apart from ``uninstrumented``: shipping the missing arm fixes that one,
+    #: and fixes nothing here.
+    undecidable: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -72,6 +78,9 @@ class Report:
     #: rather than printing an unverified denominator as if it were checked.
     register: Optional[RegisterCheck] = None
 
+    #: the gold-label plane x arm-reach cross-tab, printed before any number
+    crosstab: Optional[CrossTab] = None
+
     @property
     def coverage(self) -> Tuple[int, int]:
         """(decided, total) -- both counted, neither a constant.
@@ -80,9 +89,23 @@ class Report:
         ``plan_register`` checks against the plan bullet for bullet.  The
         earlier version of this slice published 60% because its register had
         lost a criterion and the denominator shrank with it.
+
+        UNDECIDABLE does not count as decided.  It used to be able to: an
+        undecidable criterion that reported a number inflated this fraction
+        *and* the confidence in it at the same time.
         """
-        decided = sum(1 for f in self.findings if f.verdict != NOT_EVALUABLE)
+        decided = sum(
+            1 for f in self.findings
+            if f.verdict not in (NOT_EVALUABLE, UNDECIDABLE)
+        )
         return decided, len(self.findings)
+
+    @property
+    def verdict_counts(self) -> Dict[str, int]:
+        counts = {v: 0 for v in (KEEP, KILL, INCONCLUSIVE, UNDECIDABLE, NOT_EVALUABLE)}
+        for f in self.findings:
+            counts[f.verdict] = counts.get(f.verdict, 0) + 1
+        return counts
 
     @property
     def coverage_fraction(self) -> float:
@@ -97,7 +120,9 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
     out: List[PriorVerdict] = []
     for prior in sorted(by_prior):
         group = by_prior[prior]
-        decidable = [f for f in group if f.verdict != NOT_EVALUABLE]
+        decidable = [
+            f for f in group if f.verdict not in (NOT_EVALUABLE, UNDECIDABLE)
+        ]
         killed = tuple(f.plan_ref for f in decidable if f.verdict == KILL)
         # A criterion this evaluator implements, that this run left unasked
         # because it shipped no control arm for it.  Not the same thing as a
@@ -105,7 +130,20 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
         gaps = tuple(
             f.plan_ref for f in group if f.verdict == NOT_EVALUABLE and f.missing
         )
-        if not decidable:
+        # A criterion whose input could never decide it.  Shipping an arm
+        # fixes a gap; nothing about this run's size fixes one of these.
+        undecidable = tuple(f.plan_ref for f in group if f.verdict == UNDECIDABLE)
+        if not decidable and undecidable:
+            verdict = UNDECIDABLE
+            rationale = (
+                f"no criterion for this prior could be decided, and "
+                f"{len(undecidable)} of them ({', '.join(undecidable)}) could not be "
+                f"decided by this data at any sample size -- the object the criterion "
+                f"names, or the observation that would separate the arms, is absent "
+                f"from the input. A larger run of the same data would only narrow the "
+                f"intervals around a comparison that cannot move"
+            )
+        elif not decidable:
             verdict = NOT_EVALUABLE
             rationale = "no criterion for this prior could be decided from this run"
         elif killed:
@@ -114,18 +152,31 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
                 f"{len(killed)} kill criterion/criteria fired ({', '.join(killed)}); "
                 f"the plan stops or redesigns the track on any single one"
             )
-        elif all(f.verdict == KEEP for f in decidable) and gaps:
+        elif all(f.verdict == KEEP for f in decidable) and (gaps or undecidable):
             # Otherwise a prior survives by being under-instrumented: ship a
             # run without the rewiring control, the ablations or the
             # token-matched arm and every criterion that could have killed it
             # is silently absent from the denominator.  Omission is not a pass.
+            # An UNDECIDABLE is the harder version of the same thing -- not a
+            # missing arm, a missing observation -- so it is named separately
+            # and never folded into the gaps.
             verdict = INCONCLUSIVE
-            rationale = (
+            parts = [
                 f"all {len(decidable)} criteria this run could decide passed, but "
-                f"{len(gaps)} implemented criteria ({', '.join(gaps)}) were never "
-                f"asked -- the run carries no control arm for them. A prior that "
-                f"was not tested where it is weakest has not survived a test"
-            )
+                f"the prior was not tested where it is weakest"
+            ]
+            if gaps:
+                parts.append(
+                    f"{len(gaps)} implemented criteria ({', '.join(gaps)}) were never "
+                    f"asked -- the run carries no control arm for them"
+                )
+            if undecidable:
+                parts.append(
+                    f"{len(undecidable)} ({', '.join(undecidable)}) were UNDECIDABLE: "
+                    f"this data cannot decide them at any sample size, so shipping a "
+                    f"bigger run of it would change nothing"
+                )
+            rationale = "; ".join(parts)
         elif all(f.verdict == KEEP for f in decidable):
             verdict = KEEP
             rationale = (
@@ -141,7 +192,8 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
             )
         out.append(
             PriorVerdict(
-                prior, verdict, len(decidable), len(group), killed, rationale, gaps
+                prior, verdict, len(decidable), len(group), killed, rationale, gaps,
+                undecidable,
             )
         )
     return out
@@ -165,6 +217,7 @@ def build(
         roles=tuple(roles_present(rs)),
         arms=tuple((a.arm_id, a.role, a.notes) for a in rs.arms),
         register=register if register is not None else verify_quietly(register_entries()),
+        crosstab=crosstab(rs),
     )
 
 
@@ -196,6 +249,8 @@ def to_json(rep: Report) -> Dict[str, object]:
             "criteria": rep.coverage[1],
             "fraction": rep.coverage_fraction,
         },
+        "verdict_counts": rep.verdict_counts,
+        "dynamic_range": _crosstab_json(rep.crosstab),
         "register": _register_json(rep.register),
         "priors": [
             {
@@ -205,6 +260,7 @@ def to_json(rep: Report) -> Dict[str, object]:
                 "total": p.total,
                 "killed_by": list(p.killed_by),
                 "uninstrumented": list(p.uninstrumented),
+                "undecidable": list(p.undecidable),
                 "rationale": p.rationale,
             }
             for p in rep.priors
@@ -246,6 +302,30 @@ def to_json(rep: Report) -> Dict[str, object]:
     }
 
 
+def _crosstab_json(ct: Optional[CrossTab]) -> Dict[str, object]:
+    """The cross-tab, machine-readable, next to the numbers it licenses."""
+    if ct is None:
+        return {"gold_planes_declared": False, "rows": []}
+    return {
+        "gold_planes_declared": ct.gold_planes_declared,
+        "cases": ct.cases,
+        "cases_without_a_declared_gold_plane": ct.unlabelled,
+        "planes_never_a_retrieval_target": list(ct.never_targeted()),
+        "rows": [
+            {
+                "plane": r.plane,
+                "documents": r.documents,
+                "gold_labels": r.gold_labels,
+                "arms": {
+                    arm_id: {"in_index_scope": can, "documents_returned": got}
+                    for arm_id, (can, got) in r.per_arm.items()
+                },
+            }
+            for r in ct.rows
+        ],
+    }
+
+
 def _register_json(check: Optional[RegisterCheck]) -> Dict[str, object]:
     """Provenance for the coverage denominator, stated rather than assumed."""
     if check is None:
@@ -268,7 +348,13 @@ def _register_json(check: Optional[RegisterCheck]) -> Dict[str, object]:
     }
 
 
-_MARK = {KEEP: "[KEEP]", KILL: "[KILL]", INCONCLUSIVE: "[????]", NOT_EVALUABLE: "[ -- ]"}
+_MARK = {
+    KEEP: "[KEEP]",
+    KILL: "[KILL]",
+    INCONCLUSIVE: "[????]",
+    UNDECIDABLE: "[XXXX]",
+    NOT_EVALUABLE: "[ -- ]",
+}
 
 
 def render(rep: Report) -> str:
@@ -297,6 +383,13 @@ def render(rep: Report) -> str:
     add(
         f"coverage         {decided} of {total} plan criteria decidable from this "
         f"run ({100.0 * rep.coverage_fraction:.1f}%)"
+    )
+    counts = rep.verdict_counts
+    add(
+        "verdicts         "
+        + "  ".join(f"{name} {counts[name]}" for name in (
+            KEEP, KILL, INCONCLUSIVE, UNDECIDABLE, NOT_EVALUABLE
+        ))
     )
     chk = rep.register
     if chk is None:
@@ -332,6 +425,11 @@ def render(rep: Report) -> str:
             for line in _wrap(notes, 68):
                 add("       " + line)
         add("")
+    if rep.crosstab is not None:
+        add("-" * 78)
+        for line in render_crosstab(rep.crosstab):
+            add(line)
+        add("")
     add("-" * 78)
     add("PREJUDICE PER PRIOR")
     add("-" * 78)
@@ -345,12 +443,18 @@ def render(rep: Report) -> str:
                 + ", ".join(p.uninstrumented), 74
             ):
                 add("      " + line)
+        if p.undecidable:
+            for line in _wrap(
+                "UNDECIDABLE on this data at any sample size: "
+                + ", ".join(p.undecidable), 74
+            ):
+                add("      " + line)
     add("")
     add("-" * 78)
     add("CRITERIA")
     add("-" * 78)
     for f in rep.findings:
-        add(f"{_MARK[f.verdict]} {f.plan_ref}  {f.key}")
+        add(f"{_MARK[f.verdict]} {f.plan_ref}  {f.key}  {f.verdict}")
         for line in _wrap('"' + f.statement + '"', 72):
             add("       " + line)
         for line in _wrap(f.rationale, 72):
@@ -368,6 +472,13 @@ def render(rep: Report) -> str:
     add("verdict means the run was too small or too noisy to decide, and must not")
     add("be read as a pass. Underpowered and budget-asymmetric comparisons are")
     add("withheld rather than reported as results.")
+    add("")
+    add("UNDECIDABLE is not INCONCLUSIVE. INCONCLUSIVE says this data could have")
+    add("decided and did not, so a larger run would help. UNDECIDABLE says this")
+    add("data could never decide it: the object the criterion names, or the")
+    add("observation that separates the two arms, is not in the input. Enlarging")
+    add("such a run shrinks the interval around a comparison that cannot move,")
+    add("which walks towards a verdict without measuring anything.")
     add("-" * 78)
     return "\n".join(w)
 

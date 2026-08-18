@@ -24,6 +24,7 @@ import sys
 from typing import List, Optional, Sequence
 
 from . import SCHEMA_ID
+from . import measured_inputs
 from .criteria import EvalConfig, evaluate
 from .report import build, render, to_json
 from .measured_inputs import MEASURED_RUNS, build as build_measured
@@ -46,6 +47,11 @@ def _parser() -> argparse.ArgumentParser:
                    help="evaluate a run rebuilt from a real published measurement")
     p.add_argument("--demo-seed", type=int, default=None, help="seed for --demo")
     p.add_argument("--list-demos", action="store_true", help="list synthetic scenarios")
+    p.add_argument(
+        "--plane-census", action="store_true",
+        help="print gold labels per plane across every query set in the program, "
+             "and the planes that are never a retrieval target anywhere",
+    )
     p.add_argument("--json", action="store_true", dest="as_json", help="machine-readable output")
     p.add_argument("--margin", type=float, default=DEFAULT_MARGIN,
                    help="practical equivalence margin (default %(default)s)")
@@ -73,6 +79,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for name in sorted(MEASURED_RUNS):
             doc = (MEASURED_RUNS[name].__doc__ or "").strip().splitlines()[0]
             print(f"{name:22s} {doc}   [MEASURED, rebuilt from published counts]")
+        return 0
+
+    if args.plane_census:
+        census = measured_inputs.program_plane_census()
+        docs, gold = census["documents"], census["gold_labels"]
+        print("Gold labels per plane, across every query set this program has")
+        print(f"{'plane':12s} {'documents':>10s} {'gold labels':>12s}")
+        for plane in sorted(docs):
+            print(f"{plane:12s} {docs[plane]:>10d} {gold.get(plane, 0):>12d}")
+        for name in ("frozen600", "noncode138", "extended738"):
+            mix = census[name]
+            print(f"  {name:12s} " + ", ".join(f"{p}={n}" for p, n in mix.items()))
+        never = measured_inputs.planes_never_a_retrieval_target()
+        print()
+        print(
+            "planes that can never be a retrieval target anywhere in the program: "
+            + (", ".join(never) if never else "(none)")
+        )
+        if never:
+            print(
+                "  a plane with documents in the corpus and no gold label in any "
+                "query set is a plane no measurement here can say anything about; "
+                "every criterion that names it is UNDECIDABLE by construction"
+            )
         return 0
 
     if not args.path and not args.demo and not args.measured:
