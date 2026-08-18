@@ -157,7 +157,7 @@ def _expand(raw: str, min_token_len: int) -> tuple[str, ...]:
 def tokenize(text: str, *, min_token_len: int = 2) -> list[str]:
     """Identifier-aware tokenizer.
 
-    ``BM25Index.build`` -> ``bm25index``, ``bm``, ``25``, ``index``, ``build``.
+    ``BM25Index.build`` -> ``bm25index``, ``bm``, ``index``, ``build``.
     The full identifier and its parts are both emitted, so exact-name queries
     and natural-language queries hit the same documents.  Tokens without a
     letter are dropped (line numbers and hashes are noise, not vocabulary).
