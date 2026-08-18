@@ -1,0 +1,29 @@
+{
+ "adapter_sha256": "5467bd98f55d4a78fa43fb63efd8870150b248c1042085976e5031b782e85b4c",
+ "authority": "offline-fixture",
+ "collected_at": "2026-08-18T08:21:47.153120+00:00",
+ "contract_type": "daedalus.runtime-probe-identity",
+ "contract_version": "1.0.0",
+ "environment_sha256": "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+ "executable_sha256": "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba",
+ "fixture_suite_sha256": "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+ "probe_id": "ollama_http-offline-fixture",
+ "profile_sha256": "2f50a1afc49c1ff44cec620bb06bdbde210c934c1e0fc0dd133ab95ae4d923cd",
+ "provenance": {
+  "created_at": "2026-08-18T08:21:47.153120+00:00",
+  "input_digests": [
+   "16ccdd54589ae66a7c0333a6da59b84fdfdce3baa164ff97d549666f8ffbabff",
+   "2f50a1afc49c1ff44cec620bb06bdbde210c934c1e0fc0dd133ab95ae4d923cd",
+   "5467bd98f55d4a78fa43fb63efd8870150b248c1042085976e5031b782e85b4c",
+   "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+   "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+   "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba"
+  ],
+  "origin": "runtimes.probe-identity",
+  "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+  "trace_id": "ollama_http-offline-fixture"
+ },
+ "runtime_id": "ollama_http",
+ "runtime_manifest_sha256": "16ccdd54589ae66a7c0333a6da59b84fdfdce3baa164ff97d549666f8ffbabff",
+ "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5"
+}

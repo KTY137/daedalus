@@ -1,0 +1,93 @@
+{
+  "schema": "daedalus-gate0-whole-matrix-receipt/1",
+  "produced_at": "2026-08-18",
+  "produced_by": "grind/closure-run",
+  "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+  "what_changed_in_this_run": {
+    "claim": "the two resolvable blocker classes of the bcc0feaf gate report now have fresh evidence at this exact HEAD: a complete 3-column collection (resolves whole-matrix ambiguity once the owner attests and the verdict lands) and three fresh runtime-conformance receipts (resolves the three stale-revision conformance rows)",
+    "before": "gate report at bcc0feaf: 18 blockers = 13 inventory_only (justified) + 1 whole-matrix ambiguous (no verdict at this HEAD) + 3 conformance stale-revision (receipts from 1e681b9b) + 1 security_boundary_claimed",
+    "after_collection": "24/24 required catalog rows observed at bcc0feaf; conformance receipts re-produced at bcc0feaf; both classes await only the owner attestation step to bind into the report",
+    "not_changed": "the 4 Docker-in-Docker linux-host rows and the 2 live-envelope rows remain honestly blocked with named reasons; the security_boundary_claimed row and the 13 inventory_only rows are out of scope for this run"
+  },
+  "revision_atomicity": {
+    "claim": "every observation in this run was collected at one exact committed revision",
+    "how": "the working tree was clean at bcc0feaf before the first collector started; all three columns and the conformance producer were given that same revision explicitly, and verify_runtime_fault_matrix refuses any observation whose source_revision differs",
+    "evidence": "all 24 fault observations and all 3 conformance receipts carry source_revision bcc0feaf501ebe445fd7c6c75de321dd36f02cd5"
+  },
+  "catalog": {
+    "catalog_id": "gate0-runtime-faults-v1",
+    "catalog_sha256": "cd6df83d9071f4b079dcfa88259ae37753bf8ccf6ae3240205194c517a2cc387",
+    "scenarios": 24,
+    "required_for_gate0": 24
+  },
+  "columns": {
+    "deterministic-fixture": {
+      "collector": "daedalus.runtimes.fixture_fault_collector",
+      "rows": 13,
+      "passed": 13,
+      "failed": 0,
+      "blocked": 0
+    },
+    "linux-host": {
+      "collector": "daedalus.runtimes.container_fault_driver",
+      "image": "python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a",
+      "rows": 9,
+      "passed": 5,
+      "failed": 0,
+      "blocked": 4,
+      "blocked_scenarios": [
+        "runtime.egress.unauthorized-endpoint",
+        "runtime.process.oom",
+        "runtime.sandbox.daemon-unavailable",
+        "runtime.secrets.undeclared-access"
+      ],
+      "blocked_detail_code": "docker-cli-unavailable",
+      "scoped_by": "docs/GATE0_LINUX_FAULT_SCOPING_DECISION.md"
+    },
+    "live-runtime": {
+      "collector": "daedalus.runtimes.live_fault_collector",
+      "drivers": "daedalus.runtimes.live_probe_drivers",
+      "rows": 2,
+      "passed": 0,
+      "failed": 0,
+      "blocked": 2,
+      "blocked_scenarios": [
+        "runtime.live-envelope.binary-drift",
+        "runtime.live-envelope.expiry"
+      ],
+      "blocked_detail_code": "live-envelope-unavailable",
+      "provider_binary_measured": "C:/Users/nukei/AppData/Local/Programs/Ollama/ollama.exe",
+      "measured_executable_sha256": "a64341018083a575267896f8117e66cca0a04262a963bfb3053e46ce2fc4acda",
+      "drifted_copy_sha256": "99f45b21aceb2a0a9a6d1c683c1969895d9be9dbddfcd16b48364bc135f1ca56",
+      "why_blocked": "no live conformance envelope exists at any revision; the probes refuse to synthesize one and refuse an offline-fixture bundle in its place. See runs/gate0-live-20260818/receipt.json for the full argument; docs/GATE0_LIVE_RUNTIME_DECISION.md option A: these rows are closed by building, not by scoping."
+    }
+  },
+  "conformance": {
+    "directory": "runs/gate0-closure-20260818/conformance",
+    "receipts": 3,
+    "receipt_status": "passed",
+    "runtimes": ["claude_code_cli", "codex_cli", "ollama_http"],
+    "checks_per_runtime": 8,
+    "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+    "producer": "daedalus.kernel.runtime_conformance.assemble_recorded_conformance + persist_conformance_receipt, reached through the offline-bundle path of tests/runtimes/test_runtime_conformance_profiles.py (real fixture-protocol measurements, authority offline-fixture)",
+    "replaces": "runs/gate0-conformance-20260818-morning/ receipts at 1e681b9b, which the bcc0feaf gate report rejected as stale-revision",
+    "binding_check": "bind_runtime_conformance_receipts against this directory at bcc0feaf: bound=True, failures=(), receipts=3 [MEASURED before commit]"
+  },
+  "attestation": {
+    "status": "NONE - awaiting owner production attestation via docs/recovery/gate0_production_attest.ps1",
+    "why_no_bundles_exist_here": "attestation is deliberately not an agent step in this run. The three column directories are retained unattested; nothing in them was signed with development keys either, so no development-key bundle can be mistaken for closure evidence. Closing the loop requires the owner's production key custody (%USERPROFILE%/.daedalus-keys/gate0-runtime-fault/), which no agent holds or may hold.",
+    "owner_command": "powershell -ExecutionPolicy Bypass -File docs\\recovery\\gate0_production_attest.ps1 -RunDir runs\\gate0-closure-20260818",
+    "what_the_wrapper_then_does": "issues the three column attestations with --key-class production, produces the whole-matrix verdict into a runs/gate0-matrix-* directory where the gate report discovers it, writes a binding receipt beside the verdict, and re-runs the gate report with --conformance-receipts runs/gate0-closure-20260818/conformance/receipts"
+  },
+  "reproduction": {
+    "note": "the collectors are deterministic given the same revision and host capabilities; re-collection needs no key material. The combiner is daedalus.runtimes.whole_fault_matrix.verify_whole_runtime_fault_matrix; its registered thin CLI delegate is runs/gate0-matrix-2026-08-17/verify_whole_matrix.py.",
+    "steps": [
+      "python -m daedalus.runtimes.fixture_fault_collector --run-dir runs/gate0-closure-20260818/fixture --source-revision bcc0feaf501ebe445fd7c6c75de321dd36f02cd5 --repo-root .",
+      "python -m daedalus.runtimes.container_fault_driver --source-revision bcc0feaf501ebe445fd7c6c75de321dd36f02cd5 --output-dir runs/gate0-closure-20260818/linux-host --repo-root .",
+      "python -m daedalus.runtimes.live_fault_collector --run-dir runs/gate0-closure-20260818/live --source-revision bcc0feaf501ebe445fd7c6c75de321dd36f02cd5 --provider-binary C:/Users/nukei/AppData/Local/Programs/Ollama/ollama.exe",
+      "conformance: offline-bundle production per runtime (claude_code_cli, codex_cli, ollama_http) through the helpers of tests/runtimes/test_runtime_conformance_profiles.py with REVISION=bcc0feaf501ebe445fd7c6c75de321dd36f02cd5, persisted via persist_conformance_receipt into runs/gate0-closure-20260818/conformance/receipts",
+      "then, OWNER ONLY: docs/recovery/gate0_production_attest.ps1 -RunDir runs/gate0-closure-20260818"
+    ]
+  },
+  "provenance": "MEASURED"
+}

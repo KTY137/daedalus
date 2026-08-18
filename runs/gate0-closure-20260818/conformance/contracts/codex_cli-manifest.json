@@ -1,0 +1,42 @@
+{
+ "adapter_id": "codex-cli-provider",
+ "adapter_version": "source/31bcb36994f1cdee",
+ "assurance": "declared",
+ "capabilities": {
+  "cancellation": false,
+  "cost_reporting": false,
+  "streaming": false,
+  "structured_output": true,
+  "timeout": true,
+  "tool_events": false,
+  "workspace_isolation": true,
+  "workspace_write": true
+ },
+ "contract_type": "daedalus.runtime-manifest",
+ "contract_version": "1.0.0",
+ "cost_model": "unknown",
+ "declared_tools": [],
+ "egress_transports": [
+  "provider-broker"
+ ],
+ "provenance": {
+  "created_at": "2026-08-18T08:21:44.725485+00:00",
+  "input_digests": [
+   "31bcb36994f1cdeed629becda79c3d0238c493867a0d215311e6bd0eb26672cc",
+   "6b5c48fbba6f4dc1dff465a25bea2b386901b7406618d95bcfb6346795738e2f",
+   "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+   "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+   "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba"
+  ],
+  "origin": "runtimes.materialized-manifest",
+  "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+  "trace_id": "codex_cli"
+ },
+ "runtime_id": "codex_cli",
+ "runtime_version": "offline-contract/3.10.11",
+ "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+ "workspace_modes": [
+  "isolated-worktree",
+  "read-only"
+ ]
+}
