@@ -18,7 +18,7 @@ import json
 import pytest
 
 from . import SCHEMA_ID
-from . import plan_register
+from . import measured_inputs, plan_register
 from .criteria import (
     EVALUATORS,
     INCONCLUSIVE,
@@ -382,6 +382,92 @@ def test_out_of_scope_criteria_are_counted_and_say_why():
         f"the plan lists {n_plan} kill criteria and the evaluator reported "
         f"{len(findings)}; every bullet must appear, decided or not"
     )
+
+
+# ------------------------------------------- can this thing ever say KILL?
+#
+# The synthetic scenarios prove the machinery fires.  They cannot answer the
+# harder question: on the measurements this project actually has, does the
+# evaluator reach a verdict, or does every path end in "not evaluable"?
+# These run the real s08 numbers through it.
+
+
+def _measured(name: str) -> ResultSet:
+    return ResultSet.from_obj(measured_inputs.build(name))
+
+
+def test_the_measured_input_reproduces_the_published_s08_marginals():
+    rs = _measured("s08_graph_structure")
+    hits = {a.role: round(sum(a.scores.values())) for a in rs.arms}
+    assert len(rs.cases) == 600
+    assert hits == {"full": 497, "rewired": 491, "code_only": 491}
+
+
+def test_the_measured_input_reproduces_the_published_s08_pairing():
+    """Not just the totals: the 2x2 must come back out of the per-case data."""
+    rs = _measured("s08_graph_structure")
+    graph = rs.find("full").scores
+    rewired = rs.find("rewired").scores
+    both = sum(1 for c in rs.cases if graph[c] and rewired[c])
+    only_graph = sum(1 for c in rs.cases if graph[c] and not rewired[c])
+    only_rewired = sum(1 for c in rs.cases if rewired[c] and not graph[c])
+    neither = sum(1 for c in rs.cases if not graph[c] and not rewired[c])
+    published = measured_inputs.pair("graph_rewired", "graph_code_only")
+    assert (both, only_rewired, only_graph, neither) == (
+        published.both, published.only_a, published.only_b, published.neither
+    )
+
+
+def test_a_real_measurement_reaches_the_criterion_it_instruments():
+    """14.2 is *asked* of the s08 data -- not skipped as unevaluable."""
+    finding = _finding(_measured("s08_graph_structure"), "14.2")
+    assert finding.verdict != NOT_EVALUABLE
+    comp = finding.comparisons[0]
+    assert comp.n == 600
+    assert (comp.wins, comp.losses) == (13, 7)
+
+
+def test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion():
+    """s08 built no fusion retriever, so 14.3 must not be answered from it.
+
+    The tempting shortcut is to let the nearest available arm stand in for the
+    missing one; that is how a criterion gets 'decided' by a comparison nobody
+    ran.
+    """
+    finding = _finding(_measured("s08_plane_routing"), "14.3")
+    assert finding.verdict == NOT_EVALUABLE
+    assert "fusion|full" in finding.missing
+
+
+def test_a_prior_cannot_reach_keep_while_its_controls_were_never_shipped():
+    """Omission is not a pass.
+
+    A run carrying only the treatment and its two cheap baselines can pass
+    everything it asks and leave every criterion that might have killed the
+    prior unasked.  Counting that as KEEP is the structural bias that makes an
+    evaluator unable to kill anything.
+    """
+    obj = make_run(
+        "controls-omitted",
+        [ArmSpec("full", 0.15), ArmSpec("code_only", 0.0), ArmSpec("bm25", 0.0)],
+        seed=21, noise=0.01,
+    )
+    findings = evaluate(ResultSet.from_obj(obj), CFG)
+    twin = [p for p in roll_up(findings) if p.prior == "four_plane_project_twin"][0]
+    assert [f.verdict for f in findings if f.plan_ref == "14.1"] == [KEEP]
+    assert twin.verdict == INCONCLUSIVE
+    assert "14.2" in twin.uninstrumented
+    assert "never" in twin.rationale
+
+
+def test_a_fully_instrumented_run_can_still_reach_keep():
+    """The guard above must not make KEEP unreachable in principle."""
+    twin = [
+        p for p in roll_up(evaluate(_rs("surviving_prior"), CFG))
+        if p.prior == "four_plane_project_twin"
+    ][0]
+    assert twin.verdict == KEEP
+    assert twin.uninstrumented == ()
 
 
 # ----------------------------------------------------------------- guards

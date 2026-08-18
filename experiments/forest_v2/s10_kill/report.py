@@ -44,6 +44,10 @@ class PriorVerdict:
     total: int
     killed_by: Tuple[str, ...]
     rationale: str
+    #: criteria this run *could* have decided and did not, because it did not
+    #: carry the arms.  Distinct from the criteria this input schema can never
+    #: decide: those are a limit of the instrument, these are a hole in the run.
+    uninstrumented: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,12 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
         group = by_prior[prior]
         decidable = [f for f in group if f.verdict != NOT_EVALUABLE]
         killed = tuple(f.plan_ref for f in decidable if f.verdict == KILL)
+        # A criterion this evaluator implements, that this run left unasked
+        # because it shipped no control arm for it.  Not the same thing as a
+        # criterion the input schema can never carry.
+        gaps = tuple(
+            f.plan_ref for f in group if f.verdict == NOT_EVALUABLE and f.missing
+        )
         if not decidable:
             verdict = NOT_EVALUABLE
             rationale = "no criterion for this prior could be decided from this run"
@@ -97,6 +107,18 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
             rationale = (
                 f"{len(killed)} kill criterion/criteria fired ({', '.join(killed)}); "
                 f"the plan stops or redesigns the track on any single one"
+            )
+        elif all(f.verdict == KEEP for f in decidable) and gaps:
+            # Otherwise a prior survives by being under-instrumented: ship a
+            # run without the rewiring control, the ablations or the
+            # token-matched arm and every criterion that could have killed it
+            # is silently absent from the denominator.  Omission is not a pass.
+            verdict = INCONCLUSIVE
+            rationale = (
+                f"all {len(decidable)} criteria this run could decide passed, but "
+                f"{len(gaps)} implemented criteria ({', '.join(gaps)}) were never "
+                f"asked -- the run carries no control arm for them. A prior that "
+                f"was not tested where it is weakest has not survived a test"
             )
         elif all(f.verdict == KEEP for f in decidable):
             verdict = KEEP
@@ -112,7 +134,9 @@ def roll_up(findings: Sequence[Finding]) -> List[PriorVerdict]:
                 f"this is not a pass"
             )
         out.append(
-            PriorVerdict(prior, verdict, len(decidable), len(group), killed, rationale)
+            PriorVerdict(
+                prior, verdict, len(decidable), len(group), killed, rationale, gaps
+            )
         )
     return out
 
@@ -169,6 +193,7 @@ def to_json(rep: Report) -> Dict[str, object]:
                 "decided": p.decided,
                 "total": p.total,
                 "killed_by": list(p.killed_by),
+                "uninstrumented": list(p.uninstrumented),
                 "rationale": p.rationale,
             }
             for p in rep.priors
@@ -294,6 +319,12 @@ def render(rep: Report) -> str:
         add(f"{_MARK[p.verdict]} {p.prior}  ({p.decided}/{p.total} decidable)")
         for line in _wrap(p.rationale, 74):
             add("      " + line)
+        if p.uninstrumented:
+            for line in _wrap(
+                "not asked by this run (no control arm shipped): "
+                + ", ".join(p.uninstrumented), 74
+            ):
+                add("      " + line)
     add("")
     add("-" * 78)
     add("CRITERIA")

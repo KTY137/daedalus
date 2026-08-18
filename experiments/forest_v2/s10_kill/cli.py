@@ -26,6 +26,7 @@ from typing import List, Optional, Sequence
 from . import SCHEMA_ID
 from .criteria import EvalConfig, evaluate
 from .report import build, render, to_json
+from .measured_inputs import MEASURED_RUNS, build as build_measured
 from .schema import ResultSet, SchemaError
 from .stats import DEFAULT_CONFIDENCE, DEFAULT_MARGIN, DEFAULT_RESAMPLES
 from .synth import SCENARIOS, build as build_scenario
@@ -41,6 +42,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     p.add_argument("path", nargs="?", help=f"result set JSON ({SCHEMA_ID})")
     p.add_argument("--demo", choices=sorted(SCENARIOS), help="evaluate a synthetic run")
+    p.add_argument("--measured", choices=sorted(MEASURED_RUNS),
+                   help="evaluate a run rebuilt from a real published measurement")
     p.add_argument("--demo-seed", type=int, default=None, help="seed for --demo")
     p.add_argument("--list-demos", action="store_true", help="list synthetic scenarios")
     p.add_argument("--json", action="store_true", dest="as_json", help="machine-readable output")
@@ -66,16 +69,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.list_demos:
         for name in sorted(SCENARIOS):
             doc = (SCENARIOS[name].__doc__ or "").strip().splitlines()[0]
-            print(f"{name:22s} {doc}")
+            print(f"{name:22s} {doc}   [synthetic]")
+        for name in sorted(MEASURED_RUNS):
+            doc = (MEASURED_RUNS[name].__doc__ or "").strip().splitlines()[0]
+            print(f"{name:22s} {doc}   [MEASURED, rebuilt from published counts]")
         return 0
 
-    if not args.path and not args.demo:
-        print("give a result set path or --demo <scenario>", file=sys.stderr)
+    if not args.path and not args.demo and not args.measured:
+        print(
+            "give a result set path, --demo <scenario> or --measured <run>",
+            file=sys.stderr,
+        )
         return 2
 
     try:
-        if args.demo:
-            obj = build_scenario(args.demo, args.demo_seed)
+        if args.demo or args.measured:
+            obj = (
+                build_measured(args.measured) if args.measured
+                else build_scenario(args.demo, args.demo_seed)
+            )
             if args.dump_input:
                 print(json.dumps(obj, indent=2, sort_keys=True))
                 return 0
