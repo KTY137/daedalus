@@ -728,3 +728,89 @@ def test_harness_entrypoints_are_classified_not_silent_and_never_blockers(
         and row.subject.startswith("scripts.")
         for row in fixture_report.findings
     )
+
+
+def test_claude_row_stays_the_activation_blocker_but_pins_the_brokered_seam() -> None:
+    """The runtime-provider family: chain landed, activation deliberately not.
+
+    This row's old note said it would stay inventory_only "until that
+    runtime-bound lease/broker chain lands".  That chain HAS landed, so the
+    condition as written had silently already passed and a later reader would
+    have been entitled to call the row stale and flip it.  It must not flip,
+    and this test pins why -- so the reasoning cannot rot into a footnote.
+
+    Flipping it would defeat a blocker the Claude bypass-removal packet left
+    standing on purpose (pinned next to that packet, in the provider-side
+    bypass inventory), whose stated condition has two halves.  The measurable
+    half is caller injection, and it is measurably absent: nothing outside the
+    suite mints a ``RuntimeBoundEffectAuthorization``.  Since
+    ``broker._validate_binding`` refuses non-CENTRAL rows, this single value is
+    what keeps default lease issuance impossible.
+    """
+    row = {spec.id: spec for spec in ENTRYPOINTS}["provider.claude"]
+
+    assert row.wiring is Wiring.INVENTORY_ONLY, (
+        "provider.claude is the activation blocker; it falls only on caller "
+        "injection AND exact-head verification, not on the chain existing"
+    )
+    # begin_effect is the mechanism the stamp controls: while the row is
+    # inventory_only no caller can start it, however good its decisions are.
+    with pytest.raises(EffectStartRefused, match="not central"):
+        begin_effect(
+            "provider.claude",
+            row.effects,
+            (
+                GuardDecision("budget.process_guard", True, "spend net installed"),
+                GuardDecision("provider.write_policy", True, "workspace grant bound"),
+            ),
+        )
+
+    # The row still earns an anchor even while unwired: the brokered seam is
+    # real today, so pin it now.  Without this, run() could quietly regress to
+    # a raw spawn during the wait and nothing would notice.
+    assert any(anchor.call == "run_runtime_provider" for anchor in row.anchors), (
+        "the brokered execution seam exists and must stay mechanically pinned "
+        "while the row waits for activation"
+    )
+    assert row.runtime_id == "claude_code_cli"
+
+    # the note must keep naming a *falsifiable* condition, not a passed one
+    assert "caller injection" in row.notes
+    assert "test_claude_bypass_inventory" in row.notes
+
+
+def test_claude_seam_anchor_is_load_bearing_not_decoration() -> None:
+    """Mutation probe for the runtime-provider family.
+
+    An anchor on an inventory_only row is only worth adding if the conformance
+    pass actually enforces it.  Re-run the check against a copy of the row
+    whose anchor names a call ``run()`` does not make: it must raise the
+    ``registry.guard_anchor_missing`` blocker.
+    """
+    rows = []
+    for spec in ENTRYPOINTS:
+        if spec.id != "provider.claude":
+            rows.append(spec)
+            continue
+        rows.append(
+            EntrypointSpec(
+                id=spec.id,
+                surface=spec.surface,
+                target=spec.target,
+                effects=spec.effects,
+                guard_contracts=spec.guard_contracts,
+                wiring=spec.wiring,
+                runtime_id=spec.runtime_id,
+                anchors=(GuardAnchor(spec.target, "run_runtime_provider_REMOVED"),),
+                notes=spec.notes,
+                migration=spec.migration,
+                discoverable=spec.discoverable,
+            )
+        )
+
+    report = check_conformance(ROOT, registry=tuple(rows))
+    assert any(
+        finding.code == "registry.guard_anchor_missing"
+        and finding.subject == "provider.claude"
+        for finding in report.findings
+    ), "an unenforced anchor is decoration; this one must be mechanical"

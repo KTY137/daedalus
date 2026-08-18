@@ -849,13 +849,37 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard", "provider.write_policy"),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="claude_code_cli",
+        anchors=(
+            GuardAnchor(
+                "daedalus.providers.claude_cli:ClaudeCLIProvider.run",
+                "run_runtime_provider",
+            ),
+        ),
         notes=(
             "Provider delegates to ask_claude; direct Python use bypasses CLI "
-            "spend installation. REASONED REMAINDER 2026-08-18: runtime-bearing "
-            "rows must reach central through the runtime-bound lease/broker "
-            "chain (live-runtime lane, Revision 3); wiring the plain spine "
-            "sluice here would mint a second, weaker start path for a runtime "
-            "row, so this stays inventory_only until that chain lands."
+            "spend installation. SHARPENED REMAINDER 2026-08-18 (supersedes "
+            "the 2026-08-18 'until that chain lands' note, whose condition has "
+            "silently already passed and would now mislead a reader into "
+            "calling this row stale): the runtime-bound lease/broker chain HAS "
+            "landed. run() is fail-closed on runtime-bound Effect-Lease "
+            "authority and brokers its whole execution seam through "
+            "run_runtime_provider -> RuntimeBoundEffectAuthorization."
+            "begin_effect -> EffectLeaseLedger.begin -> begin_effect, and the "
+            "anchor below pins that seam. This row nevertheless stays "
+            "inventory_only ON PURPOSE, because it is the activation blocker "
+            "the Claude bypass-removal packet deliberately left standing: see "
+            "tests/providers/test_claude_bypass_inventory.py::"
+            "test_canonical_registry_activation_remains_an_explicit_blocker, "
+            "which pins this exact value so default lease issuance stays "
+            "impossible. CONDITION UNDER WHICH IT FALLS, both halves required: "
+            "(1) caller injection -- some production caller actually mints a "
+            "RuntimeBoundEffectAuthorization. MEASURED 2026-08-18: zero such "
+            "callers outside tests/, so the lane is unreachable and flipping "
+            "the row would only remove a counted blocker without enabling a "
+            "single real start; (2) exact-head verification, per that packet. "
+            "Flipping this row before both is routing around a guard, not "
+            "wiring a door -- broker._validate_binding refuses non-CENTRAL "
+            "rows, so this value is the last thing holding activation."
         ),
     ),
     EntrypointSpec(
