@@ -1,0 +1,4 @@
+{
+  "note": "a valid JSON document that declares no shape",
+  "values": [1, 2, 3]
+}
