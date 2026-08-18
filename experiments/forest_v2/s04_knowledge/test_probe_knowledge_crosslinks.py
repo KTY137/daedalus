@@ -257,16 +257,20 @@ CORPUS = Path(__file__).resolve().parent / "corpus"
 
 # Every file the corpus is built from.  Pinned so that deleting one shrinks the
 # inventory check instead of silently shrinking the rate.
+# The s04 prefix is load-bearing: the corpus sits inside the repository it
+# documents, and plain names (report.py, attempt.py) collided with real files,
+# turning 12 unrelated references elsewhere in the tree ambiguous.  A fixture
+# must not corrupt the metric it pins.
 CORPUS_FILES = {
-    "guide.md",
-    "index.md",
-    "notes/Alpha.md",
-    "pkg/a/mod/thing.py",
-    "pkg/b/mod/thing.py",
-    "pkg/one/report.py",
-    "pkg/solo.py",
-    "pkg/spine/attempt.py",
-    "pkg/two/report.py",
+    "notes/S04Alpha.md",
+    "pkg/a/s04mod/s04_thing.py",
+    "pkg/b/s04mod/s04_thing.py",
+    "pkg/one/s04_report.py",
+    "pkg/s04_solo.py",
+    "pkg/spine/s04_attempt.py",
+    "pkg/two/s04_report.py",
+    "s04_guide.md",
+    "s04_index.md",
 }
 
 # The published table, verbatim: stage, count, percent of extracted.
@@ -354,7 +358,7 @@ def test_inference_is_never_folded_into_the_verified_count():
     assert retracted not in numbers, "the retracted headline is being published again"
     # and the inferred specimen is listed, so it can be audited by hand
     assert result["inferred_examples"] == [
-        "guide.md -> spine/attempt.py:12 => pkg/spine/attempt.py"
+        "s04_guide.md -> spine/s04_attempt.py:12 => pkg/spine/s04_attempt.py"
     ]
 
 
@@ -362,8 +366,8 @@ def test_ambiguity_is_reported_with_evidence_not_discarded():
     result = probe(CORPUS)
     assert result["waterfall"]["excluded_by_reason"]["ambiguous_target"] == 2
     assert sorted(result["ambiguous_examples"]) == [
-        "guide.md -> mod/thing.py:5 (2 candidates)",
-        "guide.md -> report.py:5 (2 candidates)",
+        "s04_guide.md -> s04_report.py:5 (2 candidates)",
+        "s04_guide.md -> s04mod/s04_thing.py:5 (2 candidates)",
     ]
     # ambiguous and inferred refs are not dead, and must not be filed as dead
     assert "code_ref_ambiguous" not in result["dead_examples"]
