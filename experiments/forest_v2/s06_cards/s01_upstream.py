@@ -52,7 +52,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterator
 
-from node_cards import ProvenanceBook
+from node_cards import ProvenanceBook, sha256_text
 from standin_source import (
     KNOWLEDGE_DIRS,
     _segment,
@@ -69,6 +69,57 @@ S01_ENV_VAR = "F2_S01_PATH"
 #: The named gap.  Emitted ONCE per build when the upstream cannot be reached,
 #: never inlined into a card.
 UPSTREAM_GAP_ID = "s06-upstream-s01-unreachable"
+
+#: The s01 modules this slice actually imports.  ``s01_resolver`` imports only
+#: ``s01_index`` and the stdlib, so these two files ARE the whole upstream
+#: input — digesting them pins it completely, and digesting the rest of s01's
+#: directory would make the pin move for edits s06 never consumed.
+S01_INPUT_MODULES = ("s01_index.py", "s01_resolver.py")
+
+
+def s01_input_digest(path: Path) -> dict:
+    """Content-address the exact upstream input this build consumed.
+
+    Why this exists
+    ---------------
+    s06's code-plane numbers are produced by s01's resolver, which lives in a
+    **sibling worktree**.  Until this block existed, a card recorded only that
+    its records came from ``s01_resolution`` and an ``extractor_version`` of
+    ``"1"`` — a hardcoded constant that does not move when s01 moves.  The
+    consequence is a provenance defect at least as serious as a lost join: the
+    corpus counts could not be recomputed from anything s06 commits, because
+    nothing in s06 said *which* s01 produced them.  A number that cannot be
+    recomputed from its own slice is not evidence.
+
+    The digest goes into the code-plane provenance block, so it reaches every
+    card's ``card_id`` by content address.  Change the upstream and the whole
+    corpus changes identity, loudly, instead of silently reporting different
+    numbers under the same description.
+
+    ``revision`` is the sibling worktree's HEAD when it can be read.  It is
+    reported **alongside** the digest, never instead of it: HEAD says nothing
+    about uncommitted edits, and s01's worktree was in fact dirty when this
+    was written.  The digest is the claim; the revision is a convenience.
+    """
+    files: dict[str, str] = {}
+    for name in S01_INPUT_MODULES:
+        candidate = path / name
+        try:
+            files[name] = file_digest(candidate.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            files[name] = "unreadable"
+
+    combined = sha256_text(
+        "\n".join(f"{name}={files[name]}" for name in sorted(files))
+    )
+    # ``.../<worktree>/experiments/forest_v2/s01_resolution`` -> ``<worktree>``
+    worktree = path.parents[2] if len(path.parents) >= 3 else path
+    return {
+        "input_files": files,
+        "input_digest": combined,
+        "revision": resolve_revision(worktree),
+        "revision_covers_uncommitted_edits": False,
+    }
 
 
 def find_s01(root: Path, explicit: Path | None = None) -> tuple[Path | None, list[str]]:
@@ -524,6 +575,7 @@ def load_upstream(
 
     if found is not None:
         code_records_list, counts = _s01_code_records(root, found)
+        pin = s01_input_digest(found)
         code_ref = book.add(
             {
                 "source": "s01_resolution",
@@ -534,10 +586,15 @@ def load_upstream(
                 "plane": "code",
                 "read_only": True,
                 "promotes": "nothing",
+                # The upstream lives in a sibling worktree, so it is pinned by
+                # content here.  Without this the code-plane counts could not
+                # be recomputed from anything s06 commits.
+                "upstream_pin": pin,
             }
         )
         mode = "s01"
         stats["s01_path"] = found.as_posix()
+        stats["s01_pin"] = pin
         stats.update(counts)
     else:
         code_records_list = _standin_code_records(root)
