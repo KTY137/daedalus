@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -69,28 +70,117 @@ def _signers_digest(text: str) -> str:
     return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
 
 
-def _pin_signers_in_ledger(repo: Path, signers_text: str) -> str:
-    """Write an accepted amendment record pinning this signer set."""
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _guard():
+    """The same chain rules the verifier uses. One implementation, one import."""
+    from daedalus.kernel.signed_approval import _iron_plan_guard
+
+    return _iron_plan_guard()
+
+
+def _real_genesis_record() -> dict:
+    """Record 1 of THIS repository's owner-approved ledger, verbatim.
+
+    The fixture cannot invent a genesis: ``AMENDMENT_GENESIS_RECORD_SHA256``
+    is pinned in code precisely so that a chain rooted anywhere else is
+    refused. Building test ledgers on the real adoption record is what makes
+    the fixture exercise the production rule rather than a relaxed one.
+    """
     from daedalus.kernel.signed_approval import (
+        AMENDMENT_GENESIS_RECORD_SHA256,
         AMENDMENT_LEDGER_PATH,
-        TRUST_ROOT_DIGEST_FIELD,
     )
 
-    digest = _signers_digest(signers_text)
-    ledger = repo / AMENDMENT_LEDGER_PATH
-    ledger.parent.mkdir(parents=True, exist_ok=True)
+    text = (REPO_ROOT / AMENDMENT_LEDGER_PATH).read_text(encoding="utf-8")
+    genesis = _guard().parse_ledger_text(text, AMENDMENT_LEDGER_PATH)[0]
+    assert genesis["record_sha256"] == AMENDMENT_GENESIS_RECORD_SHA256, (
+        "the pinned genesis digest no longer matches record 1 of the real "
+        "ledger; rotating it is an amendment, not a fixture change"
+    )
+    return genesis
+
+
+def _chained_record(previous: dict, **fields) -> dict:
+    """An accepted record that chains correctly onto ``previous``."""
     record = {
-        "schema": "daedalus-master-plan-amendment/1",
-        "plan_id": "daedalus-master-plan",
-        "sequence": 1,
+        "schema": _guard().SCHEMA,
+        "plan_id": _guard().PLAN_ID,
+        "sequence": previous["sequence"] + 1,
         "status": "accepted",
         "approval_ref": "test-fixture",
-        TRUST_ROOT_DIGEST_FIELD: digest,
+        "owner": "repository-owner",
+        "previous_record_sha256": previous["record_sha256"],
+        "base_plan_sha256": previous["result_plan_sha256"],
+        "result_plan_sha256": "d" * 64,
+        "base_revision": previous["result_revision"],
+        "result_revision": previous["result_revision"] + 1,
     }
+    record.update(fields)
+    record["record_sha256"] = _guard().canonical_record_sha256(record)
+    return record
+
+
+def _write_ledger(repo: Path, records: list[dict]) -> list[dict]:
+    """Write the ledger AND a master plan the head of the chain describes.
+
+    The head record is tied to the plan blob committed beside it, so a fixture
+    that writes only a ledger describes a plan that is not there. The plan is
+    the real one with its ``Revision:`` header rewritten to the revision the
+    chain ends at; the head's ``result_plan_sha256`` is then its digest.
+    """
+    import re
+
+    from daedalus.kernel.signed_approval import AMENDMENT_LEDGER_PATH
+
+    guard = _guard()
+    records = [dict(record) for record in records]
+    head = records[-1]
+
+    plan_text = (REPO_ROOT / guard.PLAN_REL).read_text(encoding="utf-8")
+    plan_text = re.sub(
+        r"(?m)^Revision:\s*\d+\s*$",
+        f"Revision: {head['result_revision']}",
+        plan_text,
+        count=1,
+    )
+    plan = repo / guard.PLAN_REL
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(plan_text, encoding="utf-8")
+    head["result_plan_sha256"] = hashlib.sha256(
+        guard.normalized_text(plan_text).encode("utf-8")
+    ).hexdigest()
+    head["record_sha256"] = guard.canonical_record_sha256(head)
+
+    ledger = repo / AMENDMENT_LEDGER_PATH
+    ledger.parent.mkdir(parents=True, exist_ok=True)
     ledger.write_text(
-        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        "".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            for record in records
+        ),
         encoding="utf-8",
     )
+    return records
+
+
+def _pin_signers_in_ledger(repo: Path, signers_text: str) -> str:
+    """Write a VALID amendment chain whose last record pins this signer set.
+
+    The previous version of this helper wrote a single record with no
+    ``record_sha256``, no ``previous_record_sha256`` and no revision fields,
+    and every test in this file asserted that it was accepted. That fixture
+    encoded the F3 defect as intended behaviour: it is exactly the shape an
+    attacker writes when they change the signers file and its pin in one
+    motion, and two forged approvals were executed through it.
+    """
+    from daedalus.kernel.signed_approval import TRUST_ROOT_DIGEST_FIELD
+
+    digest = _signers_digest(signers_text)
+    genesis = _real_genesis_record()
+    pin = _chained_record(genesis, **{TRUST_ROOT_DIGEST_FIELD: digest})
+    _write_ledger(repo, [genesis, pin])
     return digest
 
 
@@ -354,7 +444,10 @@ def test_committed_root_without_principals_refuses(tmp_path: Path) -> None:
     assert _git(repo, "add", "-A").returncode == 0
     assert _git(repo, "commit", "-q", "-m", "seed").returncode == 0
 
-    with pytest.raises(SignedApprovalRootError):
+    # Named, not merely typed: this repository ALSO has no amendment ledger,
+    # so an untyped `raises` still passed with the principals check deleted.
+    # The mutation campaign found that; the assertion now says which refusal.
+    with pytest.raises(SignedApprovalRootError, match="names no owner principal"):
         read_committed_allowed_signers(repo)
 
 
@@ -778,14 +871,17 @@ def test_a_repository_with_no_amendment_pin_refuses(signing_repo) -> None:
 
 
 def test_a_ledger_that_pins_nothing_refuses(signing_repo) -> None:
-    """An amendment chain without a declared signer set authorises nothing."""
-    from daedalus.kernel.signed_approval import AMENDMENT_LEDGER_PATH
+    """A VALID amendment chain that declares no signer set authorises nothing.
 
+    The chain here verifies end to end -- real genesis, correct link, correct
+    ``record_sha256`` -- so the refusal can only come from the absence of the
+    declared digest. Before, this test wrote a chainless record and was
+    satisfied by the same message, which meant it never distinguished "the
+    chain says nothing about signers" from "there is no chain".
+    """
     repo: Path = signing_repo["repo"]
-    (repo / AMENDMENT_LEDGER_PATH).write_text(
-        json.dumps({"status": "accepted", "sequence": 1}, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    genesis = _real_genesis_record()
+    _write_ledger(repo, [genesis, _chained_record(genesis)])
     assert _git(repo, "add", "-A").returncode == 0
     assert _git(repo, "commit", "-q", "-m", "ledger without a pin").returncode == 0
 
@@ -795,31 +891,24 @@ def test_a_ledger_that_pins_nothing_refuses(signing_repo) -> None:
 
 def test_a_pin_in_an_unaccepted_record_does_not_count(signing_repo) -> None:
     """Only ACCEPTED amendments move the trust root."""
-    from daedalus.kernel.signed_approval import (
-        AMENDMENT_LEDGER_PATH,
-        TRUST_ROOT_DIGEST_FIELD,
-    )
+    from daedalus.kernel.signed_approval import TRUST_ROOT_DIGEST_FIELD
 
     repo: Path = signing_repo["repo"]
     attacker_key: Path = signing_repo["attacker_key"]
     rogue = f"evil@x {attacker_key.with_suffix('.pub').read_text().strip()}\n"
     (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
-    (repo / AMENDMENT_LEDGER_PATH).write_text(
-        json.dumps(
-            {
-                "status": "proposed",
-                "sequence": 2,
-                TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue),
-            },
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    # Everything about this record is correct except its status: it chains
+    # onto the real genesis and its own digest is right, so the refusal is
+    # about acceptance and nothing else.
+    genesis = _real_genesis_record()
+    proposal = _chained_record(
+        genesis, status="proposed", **{TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue)}
     )
+    _write_ledger(repo, [genesis, proposal])
     assert _git(repo, "add", "-A").returncode == 0
     assert _git(repo, "commit", "-q", "-m", "propose a rotation").returncode == 0
 
-    with pytest.raises(SignedApprovalRootError):
+    with pytest.raises(SignedApprovalRootError, match="status must be accepted"):
         resolve_trust_root(repo)
 
 
@@ -1161,6 +1250,54 @@ def test_the_tag_name_helper_does_not_claim_to_bind() -> None:
     # And the claim really is unenforced, which is why the text had to change.
     source = inspect.getsource(module.verify_signed_approval)
     assert "approval_tag_for(" not in source
+
+
+def test_the_ledger_comment_credits_only_checks_that_actually_run() -> None:
+    """N4: the third docstring in this module to outrun its own code.
+
+    The note above ``AMENDMENT_LEDGER_PATH`` used to say the ledger is
+    "hash-chained, each record commits to the previous one ... the one link an
+    attacker holding commit rights cannot quietly mutate along with everything
+    else" -- while the module read the file and verified no chain field
+    whatsoever. Same class as F7 and F9, and it was the load-bearing claim of
+    the commit that introduced it.
+
+    This test holds both halves: the chain fields really are read, and the
+    claim is bounded to what that buys.
+    """
+    import daedalus.kernel.signed_approval as module
+
+    source = inspect.getsource(module._verify_amendment_chain)
+    for field_name in (
+        "previous_record_sha256",
+        "record_sha256",
+        "canonical_record_sha256",
+        "AMENDMENT_GENESIS_RECORD_SHA256",
+    ):
+        assert field_name in source, (
+            f"the chain walk no longer reads {field_name}; the comment above "
+            "AMENDMENT_LEDGER_PATH would then be crediting a check that does "
+            "not run"
+        )
+
+    # The plan binding is what makes a WELL-FORMED appended record fail, and
+    # it too must actually run.
+    plan_source = inspect.getsource(module._verify_ledger_head_matches_plan)
+    assert "result_plan_sha256" in plan_source
+    assert "parse_plan_header" in plan_source
+
+    module_source = Path(inspect.getfile(module)).read_text(encoding="utf-8")
+    # Comments are wrapped and prefixed, so compare on collapsed prose.
+    collapsed = " ".join(module_source.replace("#", " ").split())
+    for phrase in (
+        "tamper-EVIDENT, not tamper-PROOF",
+        "recomputes the ENTIRE chain",
+        "anchor held out of band",
+        "rewrite history and the plan",
+    ):
+        assert phrase in collapsed, f"the honest bound no longer states: {phrase!r}"
+    # The overclaim itself must not come back.
+    assert "cannot quietly mutate along with everything else" not in collapsed
 
 
 # --- O1: single use belongs to the approval, not to the directory -----------
@@ -1505,3 +1642,519 @@ def test_the_module_does_not_claim_an_unforgeable_receipt() -> None:
     # ...and the honest bound is stated where the object is defined.
     class_doc = module.VerifiedSignedApproval.__doc__ or ""
     assert "not** a security boundary" in class_doc or "not a security boundary" in class_doc
+
+
+# --------------------------------------------------------------------------
+# F3: the trust root is bound by the amendment CHAIN, not by the last commit.
+#
+# Two forgeries were executed against the previous version of this module, in
+# which the ledger was read but no chain field was ever checked. Both are
+# reproduced here verbatim. Remove the chain walk and these go red by name.
+# --------------------------------------------------------------------------
+
+
+def _rogue_signers(signing_repo) -> str:
+    attacker_key: Path = signing_repo["attacker_key"]
+    return f"attacker@evil {attacker_key.with_suffix('.pub').read_text().strip()}\n"
+
+
+def test_rotating_the_signers_and_its_pin_in_one_commit_is_refused(
+    signing_repo,
+) -> None:
+    """Attack B, executed: the file and the pin change in ONE motion.
+
+    The original finding predicted this in advance and it worked: the rogue
+    signers file plus an appended 'accepted' record naming its digest, with a
+    deliberately broken ``previous_record_sha256`` and an approval reference
+    that names nothing. ``resolve_trust_root`` accepted it and a forged
+    approval came back ``principal='attacker@evil' status=approved
+    assurance=authenticated``.
+    """
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    repo: Path = signing_repo["repo"]
+    rogue = _rogue_signers(signing_repo)
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+    ledger = repo / AMENDMENT_LEDGER_PATH
+    forged = {
+        "schema": "daedalus-master-plan-amendment/1",
+        "plan_id": "daedalus-master-plan",
+        "sequence": 3,
+        "status": "accepted",
+        "approval_ref": "no-such-approval",
+        "previous_record_sha256": "0" * 64,
+        "base_plan_sha256": "9" * 64,
+        "result_plan_sha256": "9" * 64,
+        TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue),
+    }
+    ledger.write_text(
+        ledger.read_text(encoding="utf-8")
+        + json.dumps(forged, sort_keys=True, separators=(",", ":"))
+        + "\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert (
+        _git(
+            repo, "commit", "-q", "-m", "rotate signers AND self-amend in one motion"
+        ).returncode
+        == 0
+    )
+
+    with pytest.raises(SignedApprovalRootError, match="record 3"):
+        resolve_trust_root(repo)
+
+
+def test_a_bare_record_with_no_chain_fields_is_refused(signing_repo) -> None:
+    """Attack C, executed and worse: one line, a status and a digest.
+
+    No ``plan_id``, no ``sequence``, no ``record_sha256``, no chain at all.
+    The previous version accepted it, because its only predicates were
+    ``status == "accepted"`` and "the digest parses as a sha256".
+    """
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    repo: Path = signing_repo["repo"]
+    rogue = _rogue_signers(signing_repo)
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+    bare = {"status": "accepted", TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue)}
+    (repo / AMENDMENT_LEDGER_PATH).write_text(
+        json.dumps(bare, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert (
+        _git(repo, "commit", "-q", "-m", "ledger with one bare record").returncode == 0
+    )
+
+    with pytest.raises(SignedApprovalRootError, match="record 1"):
+        resolve_trust_root(repo)
+
+
+def test_a_well_formed_appended_record_is_still_refused(signing_repo) -> None:
+    """Attack B2: the same one-motion forgery, by an attacker who is not sloppy.
+
+    Attack B failed only on ``sequence``. Anyone who can commit can append a
+    record that chains onto the real last record CORRECTLY -- right
+    ``previous_record_sha256``, right ``record_sha256``, right revisions --
+    and the chain walk alone accepted exactly that. Measured, before the plan
+    binding: ``principal='attacker@evil' status=approved
+    assurance=authenticated``.
+
+    What refuses it now is that the head of the chain must also describe the
+    master plan blob committed beside it. The forgery has to rewrite the
+    constitutional document in the same commit.
+    """
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        TRUST_ROOT_DIGEST_FIELD,
+    )
+
+    repo: Path = signing_repo["repo"]
+    rogue = _rogue_signers(signing_repo)
+    guard = _guard()
+    records = guard.parse_ledger_text(
+        (repo / AMENDMENT_LEDGER_PATH).read_text(encoding="utf-8"),
+        AMENDMENT_LEDGER_PATH,
+    )
+    last = records[-1]
+    forged = {
+        "schema": guard.SCHEMA,
+        "plan_id": guard.PLAN_ID,
+        "sequence": last["sequence"] + 1,
+        "status": "accepted",
+        "approval_ref": "conversation-that-never-happened",
+        "owner": "repository-owner",
+        "previous_record_sha256": last["record_sha256"],
+        "base_plan_sha256": last["result_plan_sha256"],
+        "result_plan_sha256": "a" * 64,
+        "base_revision": last["result_revision"],
+        "result_revision": last["result_revision"] + 1,
+        TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue),
+    }
+    forged["record_sha256"] = guard.canonical_record_sha256(forged)
+
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+    (repo / AMENDMENT_LEDGER_PATH).write_text(
+        "".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            for record in (*records, forged)
+        ),
+        encoding="utf-8",
+    )
+    assert _git(repo, "add", "-A").returncode == 0
+    assert (
+        _git(repo, "commit", "-q", "-m", "a well-formed one-motion forgery").returncode
+        == 0
+    )
+
+    # The chain itself is intact -- that is the uncomfortable part.
+    _guard_chain_is_intact = guard.parse_ledger_text(
+        (repo / AMENDMENT_LEDGER_PATH).read_text(encoding="utf-8"),
+        AMENDMENT_LEDGER_PATH,
+    )
+    from daedalus.kernel.signed_approval import _verify_amendment_chain
+
+    _verify_amendment_chain(_guard_chain_is_intact)
+
+    with pytest.raises(SignedApprovalRootError, match="does not describe the plan"):
+        resolve_trust_root(repo)
+
+
+def test_a_self_consistent_chain_from_a_foreign_genesis_is_refused(
+    signing_repo,
+) -> None:
+    """The anchor. An attacker who writes record 1 is not the owner.
+
+    Every link here is internally correct -- real digests, correct
+    ``previous_record_sha256``, monotone revisions. The only thing wrong is
+    that the history starts somewhere the code does not recognise. Without
+    ``AMENDMENT_GENESIS_RECORD_SHA256`` this chain verifies perfectly, which
+    is why walking the chain alone would not have been enough.
+    """
+    from daedalus.kernel.signed_approval import TRUST_ROOT_DIGEST_FIELD
+
+    repo: Path = signing_repo["repo"]
+    rogue = _rogue_signers(signing_repo)
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+
+    genesis = {
+        "schema": _guard().SCHEMA,
+        "plan_id": _guard().PLAN_ID,
+        "sequence": 1,
+        "status": "accepted",
+        "approval_ref": "attacker-writes-history",
+        "previous_record_sha256": None,
+        "base_plan_sha256": "1" * 64,
+        "result_plan_sha256": "2" * 64,
+        "base_revision": 0,
+        "result_revision": 1,
+    }
+    genesis["record_sha256"] = _guard().canonical_record_sha256(genesis)
+    pin = _chained_record(genesis, **{TRUST_ROOT_DIGEST_FIELD: _signers_digest(rogue)})
+    _write_ledger(repo, [genesis, pin])
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "a whole private history").returncode == 0
+
+    with pytest.raises(SignedApprovalRootError, match="different history"):
+        resolve_trust_root(repo)
+
+
+def test_a_mid_chain_insertion_is_refused(signing_repo) -> None:
+    """Attack D: a record spliced into the middle of an otherwise real chain."""
+    from daedalus.kernel.signed_approval import TRUST_ROOT_DIGEST_FIELD
+
+    repo: Path = signing_repo["repo"]
+    rogue = _rogue_signers(signing_repo)
+    (repo / OWNER_ALLOWED_SIGNERS_PATH).write_text(rogue, encoding="utf-8")
+
+    genesis = _real_genesis_record()
+    legitimate = _chained_record(genesis)
+    spliced = {
+        key: value for key, value in legitimate.items() if key != "record_sha256"
+    }
+    spliced[TRUST_ROOT_DIGEST_FIELD] = _signers_digest(rogue)
+    # The splice keeps its OWN digest honest, so only the successor's
+    # previous-record hash still points at the record it replaced.
+    spliced["record_sha256"] = _guard().canonical_record_sha256(spliced)
+    successor = _chained_record(legitimate)
+    _write_ledger(repo, [genesis, spliced, successor])
+    assert _git(repo, "add", "-A").returncode == 0
+    assert _git(repo, "commit", "-q", "-m", "splice").returncode == 0
+
+    with pytest.raises(SignedApprovalRootError, match="chain is broken"):
+        resolve_trust_root(repo)
+
+
+def test_the_chain_rules_are_the_guard_s_and_not_a_second_copy() -> None:
+    """The anti-drift pin: one set of rules, held to one verdict.
+
+    ``_verify_amendment_chain`` mirrors the walk in the repository guard and
+    computes digests with the guard's own ``canonical_record_sha256``. A
+    second, independently maintained copy of a security check is precisely the
+    defect this lane already had to fix once, so the two are held to the same
+    accept/reject verdict on a corpus of tampered ledgers. If the guard's
+    rules move and this module's do not, this test goes red.
+
+    The agreement is on the CHAIN rules only. The trust root deliberately adds
+    two demands the guard does not make -- the code-pinned genesis and the
+    plan binding -- so those cases are not in this corpus; they have named
+    tests of their own.
+    """
+    import tempfile as _tempfile
+
+    from daedalus.kernel.signed_approval import (
+        AMENDMENT_LEDGER_PATH,
+        _verify_amendment_chain,
+    )
+
+    guard = _guard()
+    genesis = _real_genesis_record()
+    good = _chained_record(genesis)
+
+    def broken(*, reseal: bool = True, **fields):
+        record = dict(good)
+        record.update(fields)
+        if reseal:
+            # Re-seal, so the ONLY defect is the field under test. Without
+            # this every case also breaks ``record_sha256`` and the corpus
+            # cannot tell one predicate from another -- which is exactly how
+            # the sequence check survived its first mutation.
+            record["record_sha256"] = guard.canonical_record_sha256(record)
+        return [genesis, record]
+
+    corpus: dict[str, list[dict]] = {
+        "clean": [genesis, good],
+        "bad-schema": broken(schema="something/else"),
+        "bad-plan-id": broken(plan_id="other-plan"),
+        "not-accepted": broken(status="proposed"),
+        "bad-sequence": broken(sequence=9),
+        "body-changed-under-its-digest": broken(
+            reseal=False, result_plan_sha256="e" * 64
+        ),
+        "broken-link": broken(previous_record_sha256="0" * 64),
+        "no-approval-ref": broken(approval_ref=""),
+        "revision-jump": broken(result_revision=99),
+        "malformed-digest": broken(reseal=False, record_sha256="nope"),
+    }
+
+    disagreements: list[str] = []
+    for label, records in corpus.items():
+        text = "".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            for record in records
+        )
+        try:
+            _verify_amendment_chain(guard.parse_ledger_text(text, "ledger"))
+            module_rejects = False
+        except SignedApprovalRootError:
+            module_rejects = True
+
+        # The guard reads the ledger from disk, so give it one. Errors about
+        # unrelated artifacts are expected in a scratch directory and are
+        # filtered out; only the ledger-record verdict is compared.
+        scratch = Path(_tempfile.mkdtemp(prefix="chain-agreement-"))
+        (scratch / AMENDMENT_LEDGER_PATH).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO_ROOT / guard.PLAN_REL, scratch / guard.PLAN_REL)
+        (scratch / AMENDMENT_LEDGER_PATH).write_text(text, encoding="utf-8")
+        guard_errors = [
+            error
+            for error in guard.verify(scratch)
+            if error.startswith(f"{guard.LEDGER_REL} record")
+        ]
+        shutil.rmtree(scratch, ignore_errors=True)
+
+        if module_rejects != bool(guard_errors):
+            disagreements.append(
+                f"{label}: module_rejects={module_rejects} "
+                f"guard_rejects={bool(guard_errors)} ({guard_errors})"
+            )
+
+    assert disagreements == [], (
+        "the trust root and the guard disagree about what a valid amendment "
+        f"chain is: {disagreements}. They must not drift apart; there is one "
+        "set of chain rules."
+    )
+
+
+# --------------------------------------------------------------------------
+# N1: the additions-only guard was a bare assert, and it was inverted.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("variable", ["GIT_CONFIG_PARAMETERS", "GIT_ALLOW_PROTOCOL"])
+def test_the_scrubbed_variables_being_set_does_not_break_verification(
+    variable: str, signing_repo, monkeypatch
+) -> None:
+    """Measured: setting either one turned every verification into a crash.
+
+    ``baseline`` was snapshotted AFTER the canonical environment, so it held
+    whichever of these was ambiently set, and this module's own deliberate
+    ``pop`` then tripped its own assertion. The result was an
+    ``AssertionError`` from outside the ``SignedApprovalError`` taxonomy: a
+    caller written to ``except SignedApprovalError`` crashed instead of
+    refusing. The test that was supposed to watch the environment passed only
+    because these variables happened to be unset on this box.
+    """
+    import daedalus.kernel.signed_approval as module
+
+    # Signed before the variable is set: the fixture's own git is a plain
+    # subprocess and would choke on a bogus value, which is separately the
+    # reason this module scrubs it.
+    repo: Path = signing_repo["repo"]
+    signing_repo["sign_tag"](
+        "owner-approval/env", _body_json(signing_repo["mechanism"])
+    )
+
+    monkeypatch.setenv(variable, "x")
+
+    env = module._git_env()
+    assert variable not in env, "the overlay exists to remove this variable"
+    assert env["GIT_NO_LAZY_FETCH"] == "1"
+
+    # And the whole path still works, rather than raising outside the taxonomy.
+    verified = verify_signed_approval(
+        repo, "owner-approval/env", expectation=_expectation()
+    )
+    assert verified.signer_principal == "owner@daedalus"
+
+
+def test_the_environment_guard_still_runs_under_python_O() -> None:
+    """An ``assert`` is not a guard: ``-O`` deletes it.
+
+    The docstring said the check "enforces" additions-only. Under ``python -O``
+    or ``PYTHONOPTIMIZE`` it did not execute at all, so a weakened environment
+    would have been used silently. This runs the check in a real ``-O``
+    interpreter and requires a refusal inside the module's own taxonomy.
+    """
+    program = (
+        "import sys;"
+        f"sys.path.insert(0, {str(REPO_ROOT)!r});"
+        "import daedalus.kernel.signed_approval as m;"
+        "assert sys.flags.optimize >= 1, 'not running optimised';"
+        # The canonical environment claims a value the overlay then changes:
+        # exactly the weakening the check exists to catch.
+        "m._canonical_git_env = lambda: {'GIT_NO_LAZY_FETCH': '0'};"
+        "\ntry:\n"
+        "    m._git_env()\n"
+        "    print('NOT-REFUSED')\n"
+        "except m.SignedApprovalError as exc:\n"
+        "    print('REFUSED')\n"
+        "except AssertionError:\n"
+        "    print('ASSERTION')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-O", "-c", program],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(REPO_ROOT),
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "REFUSED", (
+        "the additions-only check did not fire under python -O: "
+        f"{completed.stdout.strip()!r}. A bare assert is not a guard."
+    )
+
+
+def test_the_environment_guard_is_not_an_assert() -> None:
+    """Pins the mechanism, so it cannot quietly become an ``assert`` again."""
+    import daedalus.kernel.signed_approval as module
+
+    tree = ast.parse(inspect.getsource(module._git_env))
+    asserts = [node for node in ast.walk(tree) if isinstance(node, ast.Assert)]
+    assert asserts == [], (
+        "the additions-only check is an assert again; `python -O` removes it "
+        "and the docstring's word 'enforces' becomes false"
+    )
+
+
+# --------------------------------------------------------------------------
+# N3: one stdlib call carried the construction token.
+# --------------------------------------------------------------------------
+
+
+def _receipt_from(verified):
+    return promotion_receipt(
+        verified,
+        promotion_id="promotion-launder",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator="artifact-locator:sha256:" + CANDIDATE,
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator="artifact-locator:sha256:" + EVIDENCE,
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-01-01T00:00:00Z",
+    )
+
+
+def test_dataclasses_replace_cannot_launder_an_approval(signing_repo) -> None:
+    """Executed: ONE stdlib call, no module globals, an approved receipt.
+
+    ``_token`` is a real ``init`` field, so ``dataclasses.replace`` carried it
+    forward while every other field was attacker-chosen. The result was
+    ``status=approved assurance=authenticated`` under
+    ``signer_principal='attacker@evil'`` with the trust-root pins zeroed.
+    """
+    import dataclasses
+
+    _, verified = _verified(signing_repo, "owner-approval/launder")
+    evil_body = SignedApprovalBody.from_json(
+        _body_json(
+            signing_repo["mechanism"],
+            candidate_artifact_sha256="d" * 64,
+            nonce="attacker",
+        )
+    )
+    forged = dataclasses.replace(
+        verified,
+        signer_principal="attacker@evil",
+        body=evil_body,
+        trust_root_commit_oid="0" * 40,
+        trust_root_blob_oid="0" * 40,
+        owner_approval_ref="artifact-locator:sha256:" + "f" * 64,
+    )
+    # The type check the old code relied on still passes -- that is the point.
+    assert isinstance(forged, VerifiedSignedApprovalType())
+    assert forged._token is not None
+
+    with pytest.raises(SignedApprovalSignatureError, match="not produced by"):
+        _receipt_from(forged)
+
+
+def test_deepcopy_cannot_launder_an_approval(signing_repo) -> None:
+    """``copy.deepcopy`` skips ``__post_init__`` and copies the sentinel."""
+    import copy
+
+    _, verified = _verified(signing_repo, "owner-approval/deepcopy")
+    clone = copy.deepcopy(verified)
+
+    assert isinstance(clone, VerifiedSignedApprovalType())
+    with pytest.raises(SignedApprovalSignatureError, match="not produced by"):
+        _receipt_from(clone)
+
+
+def test_a_real_verification_still_produces_an_approved_receipt(
+    signing_repo,
+) -> None:
+    """The mint must not break the legitimate path it is protecting."""
+    _, verified = _verified(signing_repo, "owner-approval/genuine")
+    receipt = promotion_receipt(
+        verified,
+        promotion_id="promotion-genuine",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator="artifact-locator:sha256:" + CANDIDATE,
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator="artifact-locator:sha256:" + EVIDENCE,
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-01-01T00:00:00Z",
+    )
+    assert receipt.promotion_status == "approved"
+    assert receipt.approval_assurance == "authenticated"
+
+
+def test_the_honest_bound_names_dataclasses_replace() -> None:
+    """The stated bound understated the exposure; it must name the real one."""
+    import daedalus.kernel.signed_approval as module
+
+    doc = module.VerifiedSignedApproval.__doc__ or ""
+    assert "dataclasses.replace" in doc, (
+        "the honest bound said only 'code that reaches into this module's "
+        "globals', which understated a one-stdlib-call forgery"
+    )
+    assert "deepcopy" in doc
+
+
+def VerifiedSignedApprovalType():
+    from daedalus.kernel.signed_approval import VerifiedSignedApproval
+
+    return VerifiedSignedApproval

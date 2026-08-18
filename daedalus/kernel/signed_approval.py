@@ -48,14 +48,16 @@ the single one-use consumption authority.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.approvals import ApprovalExpectation, _parse_utc
 from daedalus.schemas import _identifier, _revision, _sha256
@@ -76,13 +78,60 @@ ALLOWED_SIGNERS_REVISION = "HEAD"
 # signers file "somewhere protected" does not help either -- whoever can commit
 # can commit there too.
 #
-# The amendment ledger is different in kind: it is hash-chained, each record
-# commits to the previous one, and section 15 of the master plan requires owner
-# approval to append. Binding the expected digest there makes rotating the
-# owner's keys an AMENDMENT rather than a commit -- the one link an attacker
-# holding commit rights cannot quietly mutate along with everything else.
+# The amendment ledger is different in kind: it is hash-chained -- each record
+# carries ``record_sha256`` over its own canonical body and
+# ``previous_record_sha256`` over its predecessor's -- and section 15 of the
+# master plan requires owner approval to append. Binding the expected digest
+# there makes rotating the owner's keys an AMENDMENT rather than a commit.
+#
+# HONEST BOUND, and it is narrower than the sentence that used to stand here.
+# The chain is tamper-EVIDENT, not tamper-PROOF.
+#
+# What was MEASURED, in order:
+#   * No chain check at all: a rogue signers file plus an appended "accepted"
+#     record naming its digest, in ONE commit, was accepted -- and so was a
+#     single-line ledger with no chain fields whatsoever.
+#   * Chain walk only: the sloppy forgery is refused, but a WELL-FORMED
+#     appended record -- correct ``previous_record_sha256``, correct
+#     ``record_sha256``, correct sequence, correct revisions -- was still
+#     accepted. Anyone who can commit can append correctly. The chain walk
+#     alone stopped bad spelling, not the attack.
+#   * Chain walk plus the plan binding below: the head of the chain must also
+#     describe the master plan blob committed beside it, digest and revision
+#     header. The forgery now has to rewrite the constitutional document in
+#     the same commit, which is the artifact an owner and CODEOWNERS review.
+#
+# It still does NOT defeat an attacker with commit rights who recomputes the
+# ENTIRE chain from the pinned genesis forward and rewrites the plan to match:
+# every link would be internally consistent and nothing in this repository
+# would notice. The only thing that would notice is an anchor held out of
+# band -- a signed ledger tag, a published digest, or the owner's own copy of
+# the last ``record_sha256``. This module does not have one, so it does not
+# claim one. What it claims is: a forgery now has to rewrite history and the
+# plan, rather than append one line.
+#
+# An earlier revision of this module read this file and checked NO chain field
+# whatsoever -- ``status == "accepted"`` plus a well-formed digest was enough.
+# Two forgeries were executed against that: a one-commit file+pin, and a
+# single-line ledger containing nothing but a status and a digest. The
+# comment claimed the chain; the code never read it.
 AMENDMENT_LEDGER_PATH = "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
 TRUST_ROOT_DIGEST_FIELD = "owner_allowed_signers_sha256"
+
+# The genesis link, pinned in code. Without it a chain that is internally
+# consistent but rooted in the attacker's own first record verifies perfectly:
+# "record 1 has no predecessor" is trivially satisfiable by anyone who writes
+# record 1. This digest is the ``record_sha256`` of the adoption record of
+# ``daedalus-master-plan``. Changing it is an amendment, not an edit.
+AMENDMENT_GENESIS_RECORD_SHA256 = (
+    "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea"
+)
+
+# The chain rules are NOT re-implemented here. They are the guard's, loaded
+# from the verifier's own checkout -- not from the repository being inspected,
+# whose ``tools/`` an attacker with commit rights also controls. A second copy
+# of a security check is the defect this lane already had to fix once.
+_IRON_PLAN_GUARD_REL = "tools/iron_plan_guard.py"
 
 # Domain separation. A signature is only an approval inside this purpose.
 APPROVAL_PURPOSE = "daedalus.promotion-approval"
@@ -271,6 +320,23 @@ class VerifiedSignedApproval:
     module's globals can still fabricate an instance. What actually stops a
     forged approval is ``git verify-tag`` against the committed signer set --
     never the existence of this object.
+
+    The token is a real ``init`` field, and that is exactly as leaky as it
+    sounds. ``dataclasses.replace(verified, ...)`` -- ONE stdlib call, no
+    module globals touched -- re-runs ``__init__`` with the token carried over
+    and every other field chosen by the caller; that was executed and produced
+    ``status=approved assurance=authenticated`` under an attacker's principal.
+    ``copy.deepcopy`` produces an instance whose ``_token`` is ``None``, which
+    ``__post_init__`` never sees because deepcopy does not call it.
+
+    So the token is not the identity. :func:`verify_signed_approval` also
+    stamps ``_minted`` on the instance through ``object.__setattr__`` AFTER
+    construction, which ``dataclasses.replace`` cannot carry (it copies fields,
+    and this is not one) and ``deepcopy`` cannot preserve by identity (it
+    copies the sentinel). :func:`promotion_receipt` checks that stamp. The
+    honest bound is unchanged: code that reaches into this module's globals can
+    stamp an object itself. The bound that moved is that it now takes reaching
+    into this module -- not one stdlib call.
     """
 
     tag_name: str
@@ -294,6 +360,22 @@ class VerifiedSignedApproval:
     @property
     def body_sha256(self) -> str:
         return hashlib.sha256(self.body.canonical_bytes()).hexdigest()
+
+
+# The attribute name the mint stamps. Not a dataclass field, on purpose:
+# ``dataclasses.replace`` reconstructs from fields and therefore cannot carry
+# it, which is what closes the one-stdlib-call forgery.
+_MINT_ATTR = "_minted"
+
+
+def _mint(verified: "VerifiedSignedApproval") -> "VerifiedSignedApproval":
+    """Stamp an instance as one THIS module produced by actually verifying."""
+    object.__setattr__(verified, _MINT_ATTR, _CONSTRUCTION_TOKEN)
+    return verified
+
+
+def _is_minted(candidate: object) -> bool:
+    return getattr(candidate, _MINT_ATTR, None) is _CONSTRUCTION_TOKEN
 
 
 def approval_tag_for(candidate_artifact_sha256: str) -> str:
@@ -357,7 +439,21 @@ def _git_env() -> dict[str, str]:
     object store, where all eight pins agreed with each other because they came
     from the same foreign repository.
 
-    Only additions are permitted on top, and the assertion below enforces it.
+    Only additions are permitted on top, and the check below enforces it.
+
+    That check used to be a bare ``assert`` over the WHOLE baseline, snapshotted
+    after the canonical environment was built -- so the baseline contained
+    ``GIT_CONFIG_PARAMETERS`` and ``GIT_ALLOW_PROTOCOL`` whenever they happened
+    to be set in the ambient environment, and this function's own deliberate
+    ``pop`` of them then tripped its own guard. Measured: with either variable
+    set, every verification raised an ``AssertionError`` from outside the
+    :class:`SignedApprovalError` taxonomy, so a caller written to
+    ``except SignedApprovalError`` crashed instead of refusing. Under
+    ``python -O`` the guard did not run at all, and the test that watched it
+    passed only because those variables were unset on the box it ran on.
+
+    So: compare only the keys this overlay does not deliberately remove, and
+    raise a :class:`SignedApprovalError` -- which ``-O`` cannot strip.
     """
     env = _canonical_git_env()
     baseline = dict(env)
@@ -371,12 +467,25 @@ def _git_env() -> dict[str, str]:
     env["GIT_NO_LAZY_FETCH"] = "1"
 
     # The overlay may remove more and pin more; it may never restore a variable
-    # the canonical environment removed, nor change one it set.
+    # the canonical environment removed, nor change one it set. The variables
+    # this overlay removes on purpose are excluded from the comparison --
+    # removing them is the addition, not a weakening of it.
+    deliberately_removed = frozenset(_EXTRA_SCRUBBED_GIT_ENV)
     for name, value in baseline.items():
-        assert env.get(name) == value, (
-            f"the signed-approval git environment weakened {name}: "
-            f"canonical {value!r} became {env.get(name)!r}"
-        )
+        if name in deliberately_removed:
+            continue
+        if env.get(name) != value:
+            raise SignedApprovalError(
+                f"the signed-approval git environment weakened {name}: "
+                f"canonical {value!r} became {env.get(name)!r}. Refusing to "
+                "run git in an environment weaker than the canonical one."
+            )
+    for name in deliberately_removed:
+        if name in env:
+            raise SignedApprovalError(
+                f"the signed-approval git environment still carries {name}, "
+                "which it exists to remove"
+            )
     return env
 
 
@@ -394,11 +503,25 @@ def _git(
             env=_git_env(),
             capture_output=True,
             text=True,
+            # Explicit, because ``text=True`` alone decodes with the platform's
+            # preferred locale codec. On this box that is cp1252: reading the
+            # master plan blob -- which is UTF-8 and contains characters cp1252
+            # has no mapping for -- killed the reader thread and returned
+            # ``stdout=None``, which then crashed the caller with an
+            # AttributeError from outside this module's taxonomy. What a digest
+            # is taken over must not depend on the machine's locale.
+            encoding="utf-8",
+            errors="strict",
             timeout=_GIT_TIMEOUT_S,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
         raise SignedApprovalError(f"{label} could not run: {exc}") from exc
+    if completed.stdout is None or completed.stderr is None:
+        raise SignedApprovalError(
+            f"{label} produced no readable output; refusing rather than "
+            "guessing what git said"
+        )
     if check and completed.returncode != 0:
         raise SignedApprovalError(
             f"{label} failed with exit {completed.returncode}: "
@@ -508,6 +631,178 @@ def resolve_trust_root(repo_root: str | Path) -> TrustRoot:
     return trust_root
 
 
+@lru_cache(maxsize=1)
+def _iron_plan_guard():
+    """The amendment-chain rules, loaded once from the verifier's own checkout.
+
+    Deliberately NOT loaded from the repository under inspection: an attacker
+    who can commit ``configs/owner-allowed-signers`` can commit
+    ``tools/iron_plan_guard.py`` too, and a rules file the attacker supplies is
+    not a rule. The path is resolved from this module's own location, which is
+    the same code the caller already trusted enough to run.
+    """
+    guard_path = Path(__file__).resolve().parents[2] / _IRON_PLAN_GUARD_REL
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "daedalus_signed_approval_iron_plan_guard", guard_path
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"no loader for {guard_path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except (OSError, ImportError, SyntaxError, ValueError) as exc:
+        raise SignedApprovalRootError(
+            f"the amendment-chain rules at {_IRON_PLAN_GUARD_REL} could not be "
+            f"loaded ({exc}); the trust root cannot be checked, so promotion "
+            "stays refused"
+        ) from exc
+    for name in (
+        "canonical_record_sha256",
+        "parse_ledger_text",
+        "normalized_text",
+        "parse_plan_header",
+        "SCHEMA",
+        "PLAN_ID",
+        "PLAN_REL",
+        "SHA256",
+    ):
+        if not hasattr(module, name):
+            raise SignedApprovalRootError(
+                f"{_IRON_PLAN_GUARD_REL} does not expose {name}; refusing to "
+                "fall back to a private copy of the chain rules"
+            )
+    return module
+
+
+def _verify_amendment_chain(records: Sequence[Mapping[str, Any]]) -> None:
+    """Walk the hash chain with the guard's rules, and fail closed on any gap.
+
+    Every predicate below mirrors ``tools/iron_plan_guard.py`` ``verify()``,
+    and the digest is computed by the guard's own
+    ``canonical_record_sha256`` -- so the two cannot disagree about what a
+    record hashes to. ``tests/kernel/test_signed_approval_trust_root.py``
+    holds them to the same verdict on a corpus of tampered ledgers, which is
+    the thing that notices if the guard's rules move and this does not.
+
+    The guard collects errors and reports them all; this raises on the first,
+    because there is nothing useful to do with the second reason a trust root
+    is not trustworthy.
+    """
+    guard = _iron_plan_guard()
+    if not records:
+        raise SignedApprovalRootError(
+            f"{AMENDMENT_LEDGER_PATH} holds no records, so no amendment pins "
+            "the owner signer set; promotion stays refused"
+        )
+
+    def refuse(index: int, detail: str) -> SignedApprovalRootError:
+        return SignedApprovalRootError(
+            f"{AMENDMENT_LEDGER_PATH} record {index}: {detail}. The amendment "
+            "chain is the authority for the owner signer set; a ledger that "
+            "does not verify pins nothing."
+        )
+
+    previous: Mapping[str, Any] | None = None
+    for index, record in enumerate(records, start=1):
+        if not isinstance(record, Mapping):
+            raise refuse(index, "record must be an object")
+        if record.get("schema") != guard.SCHEMA:
+            raise refuse(index, "unexpected schema")
+        if record.get("plan_id") != guard.PLAN_ID:
+            raise refuse(index, "unexpected plan_id")
+        if record.get("status") != "accepted":
+            raise refuse(index, "status must be accepted")
+        if record.get("sequence") != index:
+            raise refuse(index, f"sequence must be {index}")
+        for field_name in ("base_plan_sha256", "result_plan_sha256", "record_sha256"):
+            if not guard.SHA256.fullmatch(str(record.get(field_name) or "")):
+                raise refuse(index, f"{field_name} must be lowercase sha256")
+        if record.get("record_sha256") != guard.canonical_record_sha256(dict(record)):
+            raise refuse(index, "record_sha256 mismatch")
+        if not str(record.get("approval_ref") or "").strip():
+            raise refuse(index, "approval_ref is required")
+        base_revision = record.get("base_revision")
+        result_revision = record.get("result_revision")
+        if not isinstance(base_revision, int) or result_revision != base_revision + 1:
+            raise refuse(index, "revision must increase by exactly one")
+        if previous is None:
+            if record.get("previous_record_sha256") is not None:
+                raise refuse(index, "first previous_record_sha256 must be null")
+            # The anchor. Without it, "I am record 1" is a claim anyone who
+            # writes record 1 can make, and a self-consistent chain rooted in
+            # the attacker's own genesis verifies perfectly.
+            if record.get("record_sha256") != AMENDMENT_GENESIS_RECORD_SHA256:
+                raise refuse(
+                    index,
+                    "genesis record_sha256 "
+                    f"{str(record.get('record_sha256'))[:12]} is not the "
+                    f"pinned {AMENDMENT_GENESIS_RECORD_SHA256[:12]}; this "
+                    "chain starts from a different history",
+                )
+        else:
+            if record.get("previous_record_sha256") != previous.get("record_sha256"):
+                raise refuse(index, "previous-record hash chain is broken")
+            if record.get("base_plan_sha256") != previous.get("result_plan_sha256"):
+                raise refuse(index, "plan digest chain is broken")
+            if base_revision != previous.get("result_revision"):
+                raise refuse(index, "plan revision chain is broken")
+        previous = record
+
+
+def _verify_ledger_head_matches_plan(
+    root: Path, commit_oid: str, head: Mapping[str, Any]
+) -> None:
+    """The head of the chain must describe the plan committed beside it.
+
+    The guard makes the same demand of the working tree; here it is made of
+    the pinned commit, so the two artifacts cannot be read from different
+    revisions. This is the check that turns "append a well-formed record" into
+    "rewrite the master plan and its revision header in the same commit" --
+    the plan being the CODEOWNERS-protected document an owner actually reads.
+
+    It is still not tamper-PROOF. See the note above ``AMENDMENT_LEDGER_PATH``.
+    """
+    guard = _iron_plan_guard()
+    blob = _git(
+        root,
+        ["rev-parse", "--verify", "--quiet", f"{commit_oid}:{guard.PLAN_REL}"],
+        label="pinning the master plan blob",
+        check=False,
+    )
+    blob_oid = blob.stdout.strip()
+    if blob.returncode != 0 or not blob_oid:
+        raise SignedApprovalRootError(
+            f"no committed {guard.PLAN_REL} at {commit_oid[:12]}; the "
+            "amendment chain describes a plan this revision does not have"
+        )
+    content = _git(
+        root,
+        ["cat-file", "blob", blob_oid],
+        label="reading the pinned master plan",
+        check=False,
+    )
+    if content.returncode != 0:
+        raise SignedApprovalRootError(
+            f"master plan blob {blob_oid[:12]} is unreadable; refusing rather "
+            "than fetching it"
+        )
+    normalised = guard.normalized_text(content.stdout)
+    plan_digest = hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+    if head.get("result_plan_sha256") != plan_digest:
+        raise SignedApprovalRootError(
+            f"the amendment chain ends at plan digest "
+            f"{str(head.get('result_plan_sha256'))[:12]}, but {guard.PLAN_REL} "
+            f"at {commit_oid[:12]} hashes to {plan_digest[:12]}. A ledger that "
+            "does not describe the plan committed beside it pins nothing."
+        )
+    revision, _version, _gate = guard.parse_plan_header(normalised)
+    if revision != head.get("result_revision"):
+        raise SignedApprovalRootError(
+            f"{guard.PLAN_REL} declares revision {revision}, but the amendment "
+            f"chain ends at revision {head.get('result_revision')}"
+        )
+
+
 def _amendment_pinned_signers_digest(root: Path, commit_oid: str) -> str:
     """The signer-set digest the amendment chain declares authoritative.
 
@@ -541,26 +836,37 @@ def _amendment_pinned_signers_digest(root: Path, commit_oid: str) -> str:
             "rather than fetching it"
         )
 
+    guard = _iron_plan_guard()
+    try:
+        records = guard.parse_ledger_text(content.stdout, AMENDMENT_LEDGER_PATH)
+    except ValueError as exc:
+        raise SignedApprovalRootError(
+            f"{AMENDMENT_LEDGER_PATH} is not a readable ledger ({exc}); "
+            "refusing to guess which signer set was approved"
+        ) from exc
+
+    # THE binding step. Reading a digest out of this file without walking the
+    # chain is what let a rogue signers file and its own pin land in one
+    # commit, and what let a one-line ledger with no chain fields at all be
+    # accepted. Both are executed attacks, not hypotheses.
+    _verify_amendment_chain(records)
+    # ...and the chain alone is not enough. Walking it refuses a MALFORMED
+    # appended record; it does not refuse a well-formed one, because an
+    # attacker with commit rights can chain onto the real last record
+    # correctly. That was measured: attack B2, a well-formed one-motion
+    # forgery, was accepted by the chain walk alone. Tying the head of the
+    # chain to the committed plan blob is what makes the forgery have to
+    # rewrite the constitutional document itself, in the same commit.
+    _verify_ledger_head_matches_plan(root, commit_oid, records[-1])
+
     pinned: str | None = None
-    for number, line in enumerate(content.stdout.splitlines(), start=1):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            record = json.loads(stripped)
-        except ValueError as exc:
-            raise SignedApprovalRootError(
-                f"{AMENDMENT_LEDGER_PATH}:{number} is not valid JSON ({exc}); "
-                "refusing to guess which signer set was approved"
-            ) from exc
-        if not isinstance(record, Mapping) or record.get("status") != "accepted":
-            continue
+    for number, record in enumerate(records, start=1):
         declared = record.get(TRUST_ROOT_DIGEST_FIELD)
         if declared is None:
             continue
         try:
-            # The last accepted record that names one wins, so a later
-            # amendment rotates the trust root forward.
+            # The last record that names one wins, so a later amendment
+            # rotates the trust root forward.
             pinned = _sha256(declared, TRUST_ROOT_DIGEST_FIELD)
         except (TypeError, ValueError) as exc:
             raise SignedApprovalRootError(
@@ -809,16 +1115,18 @@ def verify_signed_approval(
             "refusing rather than fetching it"
         )
 
-    return VerifiedSignedApproval(
-        tag_name=tag_name,
-        tag_object_sha1=tag_object,
-        tag_target_oid=tag_target,
-        signer_principal=principal,
-        body=body,
-        owner_approval_ref=approval_ref,
-        trust_root_commit_oid=trust_root.commit_oid,
-        trust_root_blob_oid=trust_root.blob_oid,
-        _token=_CONSTRUCTION_TOKEN,
+    return _mint(
+        VerifiedSignedApproval(
+            tag_name=tag_name,
+            tag_object_sha1=tag_object,
+            tag_target_oid=tag_target,
+            signer_principal=principal,
+            body=body,
+            owner_approval_ref=approval_ref,
+            trust_root_commit_oid=trust_root.commit_oid,
+            trust_root_blob_oid=trust_root.blob_oid,
+            _token=_CONSTRUCTION_TOKEN,
+        )
     )
 
 
@@ -1047,18 +1355,39 @@ def promotion_receipt(
     from the presence of a :class:`VerifiedSignedApproval` -- never from an
     argument. There is no parameter that asks for an approved receipt.
 
+    ``isinstance`` alone is NOT enough to decide that, and this function used
+    to think it was. ``dataclasses.replace(verified, ...)`` yields a genuine
+    ``VerifiedSignedApproval`` whose construction token was carried across by
+    the stdlib while every other field is the caller's -- executed, and it
+    produced an approved, authenticated receipt naming an attacker's
+    principal. So the object must also carry the mint stamp
+    :func:`verify_signed_approval` applies after construction, which
+    ``replace`` cannot copy and ``deepcopy`` cannot preserve by identity.
+
+    An object that claims the type but not the stamp is refused loudly rather
+    than downgraded to ``pending-owner``: it is evidence of tampering, not a
+    missing approval.
+
     The strength of that is bounded by how hard the presented object is to
     obtain, and the honest bound is stated on :class:`VerifiedSignedApproval`:
-    its construction token stops accident and casual misuse, not in-process
-    code determined to reach into this module. The authentication a reader
-    should rely on is the signature check recorded in ``reasons`` and the pins
-    recorded in the provenance, which can be re-verified against the
-    repository. Passing ``None`` yields ``pending-owner`` with no approval
-    reference, which is the shape the schema already enforces.
+    the interlock stops accident, casual misuse and the one-stdlib-call
+    forgery -- not in-process code determined to reach into this module. The
+    authentication a reader should rely on is the signature check recorded in
+    ``reasons`` and the pins recorded in the provenance, which can be
+    re-verified against the repository. Passing ``None`` yields
+    ``pending-owner`` with no approval reference, which is the shape the schema
+    already enforces.
     """
     from daedalus.schemas import ContractProvenance, PromotionReceipt
 
-    approved = isinstance(verified, VerifiedSignedApproval)
+    if isinstance(verified, VerifiedSignedApproval) and not _is_minted(verified):
+        raise SignedApprovalSignatureError(
+            "this VerifiedSignedApproval was not produced by "
+            "verify_signed_approval(); it carries the type but not the "
+            "verification. dataclasses.replace() and copy.deepcopy() both "
+            "yield such an object, and neither one checked a signature."
+        )
+    approved = _is_minted(verified) and isinstance(verified, VerifiedSignedApproval)
     if approved and verified.body.candidate_artifact_sha256 != candidate_artifact_sha256:
         raise SignedApprovalBindingMismatch(
             "receipt candidate does not match the signed approval"
