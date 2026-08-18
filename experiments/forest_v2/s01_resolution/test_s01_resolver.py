@@ -21,9 +21,20 @@ for _extra in (_HERE, _HERE.parent):
     if str(_extra) not in sys.path:
         sys.path.insert(0, str(_extra))
 
+import probe_cross_module_resolution as probe  # noqa: E402
+import s01_measure  # noqa: E402
+from s01_heldout import held_out  # noqa: E402
 from s01_index import build_index  # noqa: E402
-from s01_measure import audit_definition, rotation_map  # noqa: E402
-from s01_resolver import Options, Resolution, resolve_module  # noqa: E402
+from s01_measure import (  # noqa: E402
+    DeadSwitchError,
+    ParityError,
+    arm_b0,
+    arm_b1,
+    audit_definition,
+    measure,
+    rotation_map,
+)
+from s01_resolver import FULL, Options, Resolution, resolve_module  # noqa: E402
 
 
 class Tree:
@@ -587,27 +598,217 @@ def test_control_destroys_import_derived_verification(tmp_path: Path) -> None:
     assert controlled.verified() < honest.verified()
 
 
+ABLATION_FILES = {
+    "pkg/__init__.py": "",
+    "pkg/base.py": "class Base:\n    def shared(self):\n        return 1\n",
+    "pkg/lib.py": (
+        "class Engine:\n"
+        "    def start(self):\n"
+        "        return 1\n"
+        "\n"
+        "\n"
+        "def helper():\n"
+        "    return 2\n"
+    ),
+    "pkg/app.py": (
+        "from pkg.base import Base\n"
+        "from pkg.lib import Engine, helper\n"
+        "\n"
+        "\n"
+        "class Child(Base):\n"
+        "    def run(self):\n"
+        "        return self.shared()\n"
+        "\n"
+        "\n"
+        "def go():\n"
+        "    engine = Engine()\n"
+        "    return engine.start() + helper() + Child().run()\n"
+    ),
+}
+
+
 def test_ablations_never_increase_verification(tmp_path: Path) -> None:
-    files = {
-        "pkg/__init__.py": "",
-        "pkg/base.py": "class Base:\n    def shared(self):\n        return 1\n",
-        "pkg/app.py": (
-            "from pkg.base import Base\n"
-            "\n"
-            "\n"
-            "class Child(Base):\n"
-            "    def run(self):\n"
-            "        return self.shared()\n"
-            "\n"
-            "\n"
-            "def go(child: Child):\n"
-            "    return child.run()\n"
-        ),
-    }
-    full = build(tmp_path, files).verified()
+    """Necessary, and on its own worthless: a no-op switch passes this."""
+    full = build(tmp_path, ABLATION_FILES).verified()
     for options in (
         Options(use_imports=False),
         Options(use_hierarchy=False),
         Options(use_receiver_types=False),
     ):
-        assert build(tmp_path, files, options).verified() <= full
+        assert build(tmp_path, ABLATION_FILES, options).verified() <= full
+
+
+# The three tests below are the ones with teeth.  Each demands a STRICT drop
+# plus the disappearance of the specific kind the switch controls, so a switch
+# that has quietly stopped being read cannot pass.
+def test_import_ablation_strictly_reduces_and_removes_import_repo(tmp_path: Path) -> None:
+    full = build(tmp_path, ABLATION_FILES)
+    ablated = build(tmp_path, ABLATION_FILES, Options(use_imports=False))
+    assert "import_repo" in full.kinds()
+    assert "import_repo" not in ablated.kinds(), "the use_imports switch is not read"
+    assert ablated.verified() < full.verified()
+
+
+def test_hierarchy_ablation_strictly_reduces_and_unbinds_the_inherited_method(
+    tmp_path: Path,
+) -> None:
+    full = build(tmp_path, ABLATION_FILES)
+    ablated = build(tmp_path, ABLATION_FILES, Options(use_hierarchy=False))
+    assert full.at("pkg/app.py", 7).target == "pkg.base.Base.shared"
+    assert ablated.at("pkg/app.py", 7).status != "verified", (
+        "the use_hierarchy switch is not read"
+    )
+    assert ablated.verified() < full.verified()
+
+
+def test_receiver_type_ablation_strictly_reduces_and_removes_local_var_method(
+    tmp_path: Path,
+) -> None:
+    full = build(tmp_path, ABLATION_FILES)
+    ablated = build(tmp_path, ABLATION_FILES, Options(use_receiver_types=False))
+    assert "local_var_method" in full.kinds()
+    assert "local_var_method" not in ablated.kinds(), (
+        "the use_receiver_types switch is not read"
+    )
+    assert ablated.verified() < full.verified()
+
+
+# ------------------------------------------------- the measurement harness ---
+@pytest.fixture()
+def measured_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A fixture tree the pre-study probe and the harness both see as ``pkg``."""
+    for rel, text in ABLATION_FILES.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(probe, "PACKAGES", ("pkg",))
+    return tmp_path
+
+
+def test_measure_reproduces_the_probe_on_the_same_denominator(measured_root: Path) -> None:
+    report = measure(measured_root, packages=("pkg",), controls=False)
+    assert report["parity_ok"] is True
+    assert report["parity_enforced"] is True
+    assert report["call_sites"] == report["baseline_probe_totals"]["call_sites"]
+
+
+def test_parity_failure_makes_the_report_unpublishable(
+    measured_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``parity_ok`` must be an assertion, not a decoration.
+
+    Before 2026-08-18 it was computed, stored in the dict and referenced by no
+    test at all, so short-circuiting ``_baseline_site`` left the suite green and
+    published a tripled headline.
+    """
+    monkeypatch.setattr(
+        s01_measure, "_baseline_site", lambda *args, **kwargs: "still_unattributed"
+    )
+    with pytest.raises(ParityError):
+        measure(measured_root, packages=("pkg",), controls=False)
+
+
+def test_main_prints_no_json_when_the_instrument_failed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    def boom(*args, **kwargs):
+        raise ParityError("replica disagreed")
+
+    monkeypatch.setattr(s01_measure, "measure", boom)
+    assert s01_measure.main([]) == 1
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "", "a failed measurement must publish nothing"
+    assert "ParityError" in captured.err
+
+
+def test_report_declares_every_switch_live(measured_root: Path) -> None:
+    report = measure(measured_root, packages=("pkg",), controls=True)
+    liveness = report["ablation_switch_liveness"]
+    assert set(liveness) == {
+        "no_imports",
+        "no_hierarchy",
+        "no_receiver_types",
+        "control_permuted_binding_targets",
+    }
+    for name, state in liveness.items():
+        assert state["live"] is True, name
+        assert state["marginal"] > 0, name
+
+
+def test_a_dead_ablation_switch_is_fatal(
+    measured_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``ablated <= full`` is satisfied by a switch that does nothing.
+
+    Pinning a switch on must therefore stop the report, not pass it.
+    """
+    monkeypatch.setattr(s01_measure, "ABLATIONS", {"full": FULL, "no_imports": FULL})
+    with pytest.raises(DeadSwitchError):
+        measure(measured_root, packages=("pkg",), controls=True)
+
+
+# --------------------------------------------------- the control arms --------
+def test_b0_cannot_attribute_a_same_module_constructor_by_construction(
+    tmp_path: Path,
+) -> None:
+    """The hole 94.4 % of the retracted headline came from."""
+    tree = ast.parse(
+        "class Engine:\n"
+        "    def start(self):\n"
+        "        return 1\n"
+        "\n"
+        "\n"
+        "def go():\n"
+        "    return Engine().start()\n"
+    )
+    assert "Engine" not in arm_b0(tree)
+    assert "start" in arm_b0(tree)
+    assert "Engine" in arm_b1(tree), "B1 is the repair: the class name itself"
+
+
+def test_the_repaired_arm_is_the_default_comparison(measured_root: Path) -> None:
+    report = measure(measured_root, packages=("pkg",), controls=False)
+    assert s01_measure.DEFAULT_ARM == "B1"
+    assert report["default_arm"] == "B1"
+    assert report["baseline"]["arm"] == "B1"
+    assert report["delta"]["measured_against_arm"] == "B1"
+    arms = report["baseline_arms"]
+    assert report["baseline"]["repo_claimed"] == arms["B1"]["repo_claimed"]
+    assert arms["B1"]["repo_claimed"] > arms["B0"]["repo_claimed"]
+    assert report["delta"]["verified_pct_points"] < (
+        report["delta"]["retracted_vs_B0_dominated_control"]["verified_pct_points"]
+    ), "measuring against B0 flatters the slice; that is why it was retracted"
+
+
+def test_the_held_out_runner_reports_every_arm_on_one_denominator(
+    tmp_path: Path,
+) -> None:
+    """The held-out run is the one that fired the kill criterion; keep it alive."""
+    for rel, text in ABLATION_FILES.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    report = held_out(tmp_path, packages=("pkg",))
+    assert report["schema"] == "forest-v2-s01-heldout/1"
+    assert report["default_arm"] == "B1"
+    assert set(report["arms"]) == {"B0", "B1", "B2", "B3"}
+    assert report["call_sites"] > 0
+    for arm, values in report["arms"].items():
+        expected = round(
+            report["s01"]["verified_pct"] - values["repo_claimed_pct"], 2
+        )
+        assert values["s01_lift_pp"] == expected, arm
+    assert report["kill_criterion"]["fired"] == (
+        report["arms"]["B1"]["s01_lift_pp"] <= 0
+    )
+
+
+def test_the_repaired_arm_is_not_bought_with_false_attributions(
+    measured_root: Path,
+) -> None:
+    """B1 must dominate B0: more coverage, no additional contradiction."""
+    arms = measure(measured_root, packages=("pkg",), controls=False)["baseline_arms"]
+    assert (
+        arms["B1"]["contradicted_by_s01_total"] <= arms["B0"]["contradicted_by_s01_total"]
+    )
+    assert arms["B1"]["contradiction_rate_pct"] <= arms["B0"]["contradiction_rate_pct"]

@@ -7,20 +7,32 @@ It answers four questions with raw counts on the same denominator:
 
 1. **What did the pre-study probe attribute?**  The baseline is not re-typed
    here -- ``probe_cross_module_resolution.probe`` is imported and run, and its
-   own helper functions drive a per-call-site replica.  The replica's totals are
-   asserted equal to the probe's (``parity_ok``); without that assertion a
-   "gain" could just be a changed denominator.
+   own helper functions drive a per-call-site replica.  The replica's totals
+   must equal the probe's or :class:`ParityError` is raised and no JSON is
+   printed; without that enforcement a "gain" could just be a changed
+   denominator.  (Until 2026-08-18 ``parity_ok`` was computed, put in the dict
+   and asserted by nothing -- see ``README.md``, "Retraction".)
 2. **What does the s01 resolver verify?**  A site counts as *verified* only when
    the resolver names a definition inside the analysed tree (module, symbol,
    file, line).  ``external`` is reported separately and never folded into the
    headline: a stdlib name is a claim, not a proof.
-3. **Where does the baseline over-claim?**  The probe's same-module rule matches
-   the last dotted segment against every function *and method* name in the file,
-   so ``path.read_text()`` is claimed by a local ``read_text`` method.  The
-   cross-tab counts how often s01 contradicts such a claim with a definition in
-   a different module, or with an external target.  That is a lower bound on the
-   baseline's false attributions, retained as negative evidence.
-4. **Why do the remaining sites fail?**  Every unresolved site carries a named
+3. **Against WHICH baseline?**  Four control arms are computed on one pass, and
+   the comparison arm is ``DEFAULT_ARM`` (B1), not the probe's own rule (B0).
+   B0 walks ``ClassDef`` for its *methods* and never adds the class name, so
+   every same-module constructor call is unattributable to it by construction.
+   B1 repairs exactly that hole and strictly dominates B0 on this corpus (more
+   coverage, an identical contradiction population), so a lift measured against
+   B0 is a lift against a dominated control.
+4. **Where does the baseline over-claim?**  The same-module rule matches the
+   last dotted segment against a flat name set, so ``path.read_text()`` is
+   claimed by a local ``read_text`` method.  The cross-tab counts how often s01
+   contradicts such a claim with a definition in a different module, or with an
+   external target.  That is a lower bound on the arm's false attributions,
+   retained as negative evidence.  It is also the reason a rise in "share of
+   sites bound to a named in-tree definition" proves nothing on its own: the
+   metric is monotone in guessing, so it may only be compared between arms of
+   equal or better contradiction rate.
+5. **Why do the remaining sites fail?**  Every unresolved site carries a named
    reason.  The reason histogram is the Gate-2 work list.
 
 Usage::
@@ -63,6 +75,26 @@ ABLATIONS = {
 }
 
 ACCEPTANCE_FILES = probe.ACCEPTANCE_FILES
+
+
+class ParityError(RuntimeError):
+    """The per-site replica disagreed with the pre-study probe.
+
+    Fatal on purpose.  A report whose replica does not reproduce the probe is
+    comparing two different denominators, and every delta in it is meaningless.
+    """
+
+
+class DeadSwitchError(RuntimeError):
+    """An ablation switch changed nothing, so the ablation table proves nothing.
+
+    ``ablated <= full`` is satisfied by a switch that does nothing at all.  This
+    check demands the stronger property: each switch must be observably live on
+    the measured corpus.  A zero marginal is therefore reported as a broken
+    instrument, not as a quiet zero -- if a mechanism genuinely earns nothing on
+    a future corpus, that is a finding to write down, not to publish silently.
+    """
+
 
 BASELINE_BUCKETS = (
     "same_module_resolvable",
@@ -169,7 +201,15 @@ def verified_count(index, options) -> dict:
     }
 
 
-def _local_functions(tree: ast.Module) -> set[str]:
+def arm_b0(tree: ast.Module) -> set[str]:
+    """B0 -- the pre-study probe's rule, verbatim.  **A dominated control.**
+
+    It walks each ``ClassDef`` for its methods and never adds ``node.name``, so
+    a call to a class defined in the same module can never be attributed to it.
+    Retained because the pre-study reported against it, and because parity with
+    the probe has to be checked against the probe's actual rule.  It must not be
+    the comparison arm; see :data:`DEFAULT_ARM`.
+    """
     names: set[str] = set()
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -179,6 +219,61 @@ def _local_functions(tree: ast.Module) -> set[str]:
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     names.add(child.name)
     return names
+
+
+def arm_b1(tree: ast.Module) -> set[str]:
+    """B1 -- B0 plus the module-level class names.  The repaired control.
+
+    One line of repair, and it is not a courtesy: on this corpus B1 strictly
+    dominates B0 -- it attributes 3,368 more sites and contradicts s01 on
+    exactly as many (109, of which 26 external) as B0 did.
+    """
+    names = arm_b0(tree)
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            names.add(node.name)
+    return names
+
+
+def arm_b2(tree: ast.Module) -> set[str]:
+    """B2 -- every ``def``/``class`` name anywhere in the module, nested included."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+    return names
+
+
+def arm_b3(tree: ast.Module) -> set[str]:
+    """B3 -- B2 plus module-level assignment targets.  The sloppiest arm.
+
+    Rule as implemented: ``Assign``/``AnnAssign`` targets that are plain
+    ``Name`` nodes in ``tree.body``.  A wider reading (every assignment target
+    anywhere in the module) yields 30.50 % instead of 29.61 % on this corpus --
+    reported in the README, because the exact spelling of "sloppier still" moves
+    the number and the reader is owed that.
+    """
+    names = arm_b2(tree)
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+    return names
+
+
+BASELINE_ARMS = {"B0": arm_b0, "B1": arm_b1, "B2": arm_b2, "B3": arm_b3}
+
+#: The arm every headline in this slice is measured against.
+DEFAULT_ARM = "B1"
+#: The arm the pre-study probe implements; parity is checked against this one.
+PARITY_ARM = "B0"
+
+# Historical alias.  ``_local_functions`` was the only name set that existed,
+# which is how a dominated control became "the" control.
+_local_functions = arm_b0
 
 
 def measure(
@@ -195,6 +290,9 @@ def measure(
     }
 
     replica = Counter()
+    arm_buckets = {arm: Counter() for arm in BASELINE_ARMS}
+    arm_contradictions = {arm: Counter() for arm in BASELINE_ARMS}
+    arm_misses_s01_verifies = Counter()
     s01_kinds = Counter()
     s01_status = Counter()
     unresolved_reasons = Counter()
@@ -212,7 +310,7 @@ def measure(
     for module in index.modules.values():
         results = resolve_module(index, module)
         by_id = {id(node): res for node, res in results}
-        local_functions = _local_functions(module.tree)
+        arm_names = {arm: build(module.tree) for arm, build in BASELINE_ARMS.items()}
         bindings = probe._bindings(module.tree, module.name)
         file_counter: Counter = Counter()
 
@@ -223,10 +321,25 @@ def measure(
             if res is None:
                 replica["MISSED_BY_S01"] += 1
                 continue
-            base_bucket = _baseline_site(
-                probe._call_name(node.func), local_functions, bindings, module_symbols
-            )
-            replica[base_bucket] += 1
+            call_name = probe._call_name(node.func)
+            per_arm = {
+                arm: _baseline_site(call_name, names, bindings, module_symbols)
+                for arm, names in arm_names.items()
+            }
+            for arm, bucket in per_arm.items():
+                arm_buckets[arm][bucket] += 1
+                if bucket == "same_module_resolvable":
+                    if res.status == "verified" and res.target_module != module.name:
+                        arm_contradictions[arm]["s01_other_module"] += 1
+                    elif res.status == "external":
+                        arm_contradictions[arm]["s01_external"] += 1
+                elif res.status == "verified" and bucket != "cross_module_repo":
+                    arm_misses_s01_verifies[arm] += 1
+            # The replica exists to reproduce the PROBE, so it must use the
+            # probe's own (dominated) rule.  The comparison arm is a different
+            # question and is DEFAULT_ARM.
+            replica[per_arm[PARITY_ARM]] += 1
+            base_bucket = per_arm[DEFAULT_ARM]
             s01_kinds[res.kind] += 1
             s01_status[res.status] += 1
             file_counter[res.status] += 1
@@ -308,23 +421,81 @@ def measure(
             index, Options(module_map=rotation_map(index, rotate=7))
         )
 
+    switch_liveness = {}
+    if controls:
+        full_verified = ablations["full"]["verified"]
+        for name in ABLATIONS:
+            if name == "full":
+                continue
+            marginal = full_verified - ablations[name]["verified"]
+            switch_liveness[name] = {"marginal": marginal, "live": marginal > 0}
+        control = ablations["control_permuted_binding_targets"]["verified"]
+        switch_liveness["control_permuted_binding_targets"] = {
+            "marginal": full_verified - control,
+            "live": control < full_verified,
+        }
+        dead = sorted(n for n, s in switch_liveness.items() if not s["live"])
+        if dead:
+            raise DeadSwitchError(
+                "ablation/control switches changed nothing on this corpus, so the "
+                f"marginals below them prove nothing: {dead}"
+            )
+
     calls = sum(replica[b] for b in BASELINE_BUCKETS) or 1
     probe_totals = baseline_probe["totals"]
     parity_ok = all(
         replica[bucket] == probe_totals[bucket] for bucket in BASELINE_BUCKETS
     ) and calls == probe_totals["call_sites"]
+    if not parity_ok:
+        raise ParityError(
+            "the per-site replica does not reproduce the pre-study probe, so the "
+            "denominator is not shared and no delta in this report is meaningful; "
+            f"replica={dict(replica)} probe={probe_totals}"
+        )
 
-    baseline_attributed = (
-        replica["same_module_resolvable"]
-        + replica["cross_module_repo"]
-        + replica["cross_module_external"]
-    )
-    baseline_repo = replica["same_module_resolvable"] + replica["cross_module_repo"]
     verified = s01_status["verified"]
     external = s01_status["external"]
 
     def pct(value: int) -> float:
         return round(100.0 * value / calls, 2)
+
+    arms_report = {}
+    for arm, buckets in arm_buckets.items():
+        attributed = (
+            buckets["same_module_resolvable"]
+            + buckets["cross_module_repo"]
+            + buckets["cross_module_external"]
+        )
+        repo = buckets["same_module_resolvable"] + buckets["cross_module_repo"]
+        contradictions = sum(arm_contradictions[arm].values())
+        arms_report[arm] = {
+            "rule": (BASELINE_ARMS[arm].__doc__ or "").strip().splitlines()[0],
+            "buckets": dict(buckets),
+            "attributed": attributed,
+            "attributed_pct": pct(attributed),
+            "repo_claimed": repo,
+            "repo_claimed_pct": pct(repo),
+            "s01_lift_pp": round(pct(verified) - pct(repo), 2),
+            "contradicted_by_s01": dict(arm_contradictions[arm]),
+            "contradicted_by_s01_total": contradictions,
+            "contradiction_rate_pct": round(
+                100.0 * contradictions / (buckets["same_module_resolvable"] or 1), 2
+            ),
+            "sites_this_arm_misses_that_s01_verifies": arm_misses_s01_verifies[arm],
+        }
+
+    default_buckets = arm_buckets[DEFAULT_ARM]
+    baseline_attributed = (
+        default_buckets["same_module_resolvable"]
+        + default_buckets["cross_module_repo"]
+        + default_buckets["cross_module_external"]
+    )
+    baseline_repo = (
+        default_buckets["same_module_resolvable"] + default_buckets["cross_module_repo"]
+    )
+    b0_repo = (
+        arm_buckets["B0"]["same_module_resolvable"] + arm_buckets["B0"]["cross_module_repo"]
+    )
 
     acceptance = {}
     for rel in ACCEPTANCE_FILES:
@@ -350,7 +521,12 @@ def measure(
         "baseline_probe_totals": probe_totals,
         "baseline_replica": dict(replica),
         "parity_ok": parity_ok,
+        "parity_enforced": True,
+        "baseline_arms": arms_report,
+        "default_arm": DEFAULT_ARM,
+        "parity_arm": PARITY_ARM,
         "baseline": {
+            "arm": DEFAULT_ARM,
             "attributed": baseline_attributed,
             "attributed_pct": pct(baseline_attributed),
             "repo_claimed": baseline_repo,
@@ -375,17 +551,28 @@ def measure(
             "receiver_type_origin": dict(var_origins.most_common()),
         },
         "delta": {
+            "measured_against_arm": DEFAULT_ARM,
             "verified_vs_baseline_repo_claim": verified - baseline_repo,
             "verified_pct_points": round(pct(verified) - pct(baseline_repo), 2),
             "attributed_pct_points": round(
                 pct(verified + external) - pct(baseline_attributed), 2
             ),
+            "retracted_vs_B0_dominated_control": {
+                "verified_pct_points": round(pct(verified) - pct(b0_repo), 2),
+                "why_retracted": (
+                    "B0 cannot attribute a same-module constructor call by "
+                    "construction (arm_b0 never adds ClassDef.name); B1 repairs "
+                    "that with no extra contradictions, so B0 is dominated and a "
+                    "lift over it measures the hole, not the resolver"
+                ),
+            },
             "newly_verified_from_baseline_unattributed": cross_tab[
                 "baseline_unattributed/s01_verified"
             ],
             "newly_verified_by_kind": dict(gain_kinds.most_common()),
         },
         "baseline_overclaim": {
+            "arm": DEFAULT_ARM,
             "confirmed_false_same_module": cross_tab["baseline_same_module/s01_other_module"]
             + cross_tab["baseline_same_module/s01_external"],
             "agrees_same_module": cross_tab["baseline_same_module/s01_same_module"],
@@ -393,6 +580,7 @@ def measure(
             "examples": overclaim_examples,
         },
         "ablations": ablations,
+        "ablation_switch_liveness": switch_liveness,
         "definition_audit": {
             "checked": sum(audit.values()),
             "confirmed_def": audit["def"],
@@ -425,11 +613,14 @@ def main(argv: list[str]) -> int:
             controls = False
         elif not item.startswith("--"):
             root = Path(item)
-    print(
-        json.dumps(
-            measure(root, samples=samples, controls=controls), indent=2, sort_keys=True
-        )
-    )
+    try:
+        report = measure(root, samples=samples, controls=controls)
+    except (ParityError, DeadSwitchError) as exc:
+        # No JSON on stdout: a report whose instrument failed must not be
+        # publishable, and a consumer that only reads stdout must get nothing.
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(report, indent=2, sort_keys=True))
     return 0
 
 
