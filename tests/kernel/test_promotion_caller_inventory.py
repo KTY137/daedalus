@@ -77,6 +77,53 @@ def test_the_boundary_is_still_armed_but_untriggered() -> None:
     assert AUTHORIZED_PRODUCTION_CALLERS == frozenset()
 
 
+# The module that DEFINES the trust root. It is not a consumer of itself.
+TRUST_ROOT_MODULE = PACKAGE / "kernel" / "signed_approval.py"
+
+# Production modules reviewed and accepted as consumers of the signed-tag
+# trust root. Empty: the mechanism is armed and nothing in the package
+# consults it. Adding a name here is a security review, not bookkeeping --
+# it is the moment two approval mechanisms become simultaneously live.
+AUTHORIZED_TRUST_ROOT_CONSUMERS: frozenset[str] = frozenset()
+
+
+def _signed_approval_importers() -> dict[str, list[int]]:
+    """Every module in the package that imports the signed-tag trust root.
+
+    Found via the AST, over the WHOLE package, because the boundary is not one
+    file. ``promote_candidates`` is declared in ``kairos/gated_writes.py``
+    while the authorization helpers live in ``kernel/promotion.py``; a pin that
+    reads only one of them is blind to a wiring landing in the other. It was
+    measured blind: wiring the signed root into ``gated_writes.py`` left the
+    lane suite green at 75 passed.
+    """
+    found: dict[str, list[int]] = {}
+    for path in sorted(PACKAGE.rglob("*.py")):
+        if path == TRUST_ROOT_MODULE:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (SyntaxError, UnicodeDecodeError):  # pragma: no cover - defensive
+            continue
+        lines: list[int] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if module == "signed_approval" or module.endswith(
+                    ".signed_approval"
+                ):
+                    lines.append(node.lineno)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "signed_approval" or alias.name.endswith(
+                        ".signed_approval"
+                    ):
+                        lines.append(node.lineno)
+        if lines:
+            found[str(path.relative_to(PACKAGE.parent).as_posix())] = sorted(lines)
+    return found
+
+
 def test_signed_tag_root_is_not_yet_binding_on_the_boundary() -> None:
     """Pins an honest, uncomfortable fact so it cannot drift into a claim.
 
@@ -90,14 +137,33 @@ def test_signed_tag_root_is_not_yet_binding_on_the_boundary() -> None:
     owner signature. When it does change, this test fails, and whoever makes
     it fail is the person who gets to update the assurance wording and the
     ``promotion.owner_approval`` inventory row in the same breath.
-    """
-    authorization = (PACKAGE / "kernel" / "promotion.py").read_text(encoding="utf-8")
 
-    assert "signed_approval" not in authorization, (
-        "the signed-tag trust root is now reachable from the promotion "
-        "boundary. Re-check what approval_assurance and "
-        "promotion.owner_approval are allowed to claim, then update this test."
+    The pin is package-wide on purpose. Naming ``kernel/promotion.py`` alone
+    watched a file the boundary is not defined in; the definition site is
+    ``kairos/gated_writes.py``, which this module already names as
+    ``DEFINITION``. An import anywhere under ``daedalus/`` is the earliest
+    syntactic evidence that the second mechanism became reachable, so that is
+    what is watched.
+    """
+    importers = _signed_approval_importers()
+    unreviewed = sorted(set(importers) - AUTHORIZED_TRUST_ROOT_CONSUMERS)
+
+    assert unreviewed == [], (
+        "the signed-tag trust root is now reachable from the package: "
+        f"{ {name: importers[name] for name in unreviewed} }. "
+        "Re-check what approval_assurance and promotion.owner_approval are "
+        "allowed to claim, then add the module to "
+        "AUTHORIZED_TRUST_ROOT_CONSUMERS."
     )
+    # The two files the wiring would most plausibly land in, named explicitly
+    # so the intent survives a refactor that moves the AST scan.
+    for rel in (PACKAGE / "kernel" / "promotion.py", DEFINITION):
+        text = rel.read_text(encoding="utf-8")
+        assert "signed_approval" not in text, (
+            f"{rel.name} now names the signed-tag trust root; update this test "
+            "and the assurance wording in the same breath."
+        )
+    authorization = (PACKAGE / "kernel" / "promotion.py").read_text(encoding="utf-8")
     assert "owner_keyring" in authorization
 
 
