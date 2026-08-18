@@ -14,9 +14,22 @@ def main() -> int:
     report.add_argument("--gate", type=int, choices=(0,), required=True)
     report.add_argument("--repo-root", type=Path, default=Path.cwd())
     report.add_argument("--source-revision", required=True)
+    report.add_argument(
+        "--conformance-receipts",
+        type=Path,
+        default=None,
+        help=(
+            "directory of persisted runtime-conformance receipt bundles; "
+            "omitting it keeps the fail-closed unbound blocker"
+        ),
+    )
     args = parser.parse_args()
 
-    result = build_gate0_report(args.repo_root, source_revision=args.source_revision)
+    result = build_gate0_report(
+        args.repo_root,
+        source_revision=args.source_revision,
+        runtime_conformance_receipt_dir=args.conformance_receipts,
+    )
     text = json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n"
     print(text, end="")
     return 0
