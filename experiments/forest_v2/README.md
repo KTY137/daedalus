@@ -101,6 +101,121 @@ sees top-level `FunctionDef`s; the baseline's generous last-segment
 same-module rule is kept unchanged for comparability, so the cross-module
 buckets only ever split the baseline's cross_module_or_dynamic mass.
 
+## Slice s03 (2026-08-18): data plane — declared-schema extraction baseline
+
+Sub-spec, frozen before the run. Same frame as the pre-study (stdlib AST/JSON
+only, read-only, no repository imports, no writes, no network, no subprocess,
+one JSON object on stdout, no spend), budget ≤ 2 h, **expiry 2026-09-15**.
+
+- **Hypothesis (falsifiable):** the repository's data plane is already
+  *declared* in machine-readable form (embedded sqlite DDL, JSON Schema, CSV
+  headers), so a Gate-2 data plane can be extracted mechanically with a
+  per-field provenance locator — without executing anything, without a
+  database connection, and without an LLM. If the extraction had needed
+  runtime introspection or heuristics with unverifiable output, the data
+  plane's cost side of the plan §13 frontier would look much worse.
+- **Output contract** (`s03_data/probe_data_plane.py`): `DataNode(node_id,
+  kind, name, locator, fields[], complete, notes)` where `kind ∈ {sqlite.table,
+  json.schema, json.schema.def, csv.table}`, and `Field(name, declared_type,
+  type_source ∈ {declared, inferred, none}, flags, locator)`. A locator is
+  `<repo-relative path>#L<line>` (DDL, CSV) or `<repo-relative path>#/<JSON
+  Pointer>` (schemas). `--nodes` prints the node list, no flag prints the
+  measurement. `probe()` also returns `DataEdge` counts (`sqlite.foreign_key`,
+  `json.ref`). Nothing under `daedalus/` imports this; it only reads.
+- **Frozen scope:** DDL from `daedalus/**/*.py`; JSON from `configs/`,
+  `tests/fixtures/`, `examples/`, `daedalus/`; CSV from `tests/fixtures/`,
+  `examples/`. Loud exclusions, counted in the output rather than hidden:
+  `runs/` (3,540 files — receipt *instances* of these schemas, not shape
+  declarations) and `.claude/skills/` (48 files of vendored third-party data).
+
+### Measured (2026-08-18, this worktree @ 807ec12, plan revision 5) [MEASURED]
+
+`python experiments/forest_v2/s03_data/probe_data_plane.py` →
+
+| quantity | value |
+| --- | ---: |
+| Python files scanned / carrying DDL / unparseable | 285 / 10 / 0 |
+| JSON files scanned / schema documents / plain documents | 48 / 40 / 8 |
+| CSV files scanned | 2 |
+| **data nodes total** | **193** |
+| — sqlite tables (declarations / distinct names) | 24 (23 complete / 22) |
+| — JSON schema roots / `$defs` sub-schemas | 40 / 127 |
+| — CSV tables | 2 |
+| **fields total** | **1,122** |
+| — sqlite / JSON schema / CSV | 158 / 956 / 8 |
+| field types: declared / inferred / none | 1,094 / 8 / 20 |
+| field locators: line-anchored / pointer-anchored / **unanchored** | 166 / 956 / **0** |
+| edges: sqlite foreign key / JSON `$ref` (internal) | 11 / 390 (389) |
+| cross-plane proposals → verified | 8 → **2** |
+
+Nodes with zero fields: 96, of which 93 are `$defs` entries declaring a scalar
+type (`string` + `pattern`, `enum`, …). Those are type declarations, not record
+shapes, and are counted separately rather than dressed up as data nodes.
+
+### What the numbers actually say
+
+1. **Naive DDL extraction recovers 0 of 24 tables.** A one-line regex over raw
+   source sees all 24 `CREATE TABLE` heads and **0** complete column bodies —
+   the DDL in this repository is written as implicitly concatenated string
+   literals and triple-quoted blocks. AST constant folding recovers 24/24 and
+   all 158 columns. The cheap method is not "slightly worse" here, it is
+   empty; that is the measured argument for parsing rather than grepping.
+2. **A real schema-drift hazard, found mechanically.** `provider_observation_
+   bindings` is declared twice — `daedalus/runtimes/provider_observation.py#L545`
+   and `daedalus/runtimes/provider_observation_store.py#L60`. Column names
+   agree, column types agree, **constraint flags do not**: one declares
+   `execution_id TEXT PRIMARY KEY`, the other `execution_id TEXT NOT NULL
+   PRIMARY KEY`. In SQLite a `TEXT PRIMARY KEY` column does not imply
+   `NOT NULL`, so the two declarations are not equivalent. Reported as an
+   observation with locators, not as a proven defect; verifying which path
+   creates the file is Gate-2 production work, not this experiment's.
+3. **One in 24 "tables" is not a declaration.**
+   `daedalus/gates/provider_observation_persistence_inventory.py#L303` holds a
+   DDL *prefix* used as a guard predicate. The extractor marks it
+   `complete=false / no_balanced_body` and gives it no fields instead of
+   inventing them, and it is excluded from the duplicate analysis. A docstring
+   that merely mentions `CREATE TABLE` produces no node at all.
+4. **The schema corpus is total: 956 of 956 properties are `required`.**
+   Counting rule: a property whose name appears in its sibling `required`
+   array. Combined with `additionalProperties: false` this says the Gate-0
+   contracts are closed records — useful for a later type/data cross-plane
+   binding, and a warning that "optional field" carries no signal in this
+   corpus.
+5. **Cross-plane binding, tiny but clean.** Proposing CSV↔schema bindings by
+   field-name overlap yields 8 proposals; verification (header ⊆ properties
+   **and** every inferred column type admissible for the declared type) keeps
+   2 — `examples/fourfold_wiki_app/data/articles.csv` → `article.schema.json`
+   and `tests/fixtures/ignition/voltage/data/events.csv` → `event.schema.json`.
+   Both are the correct pairs and both wrong-file proposals are rejected.
+   **n = 2.** This is a §6-shaped demonstration (propose cheaply, verify before
+   trusting), not a precision measurement; nobody may quote a percentage from
+   two cases.
+
+### Honest caveats
+
+- 100 % locator coverage is coverage of *extracted* fields, not proof that the
+  extractor found every data artifact in the tree. Anything declared at
+  runtime, in an ORM, in YAML, or inside `runs/` instances is out of scope by
+  construction and is not counted as a miss.
+- CSV types are **inferred** from ≤ 50 sampled rows and labelled as such; a
+  CSV header declares names, never types.
+- `json_ref_internal` counts `$ref` strings starting with `#`; the one
+  non-internal ref is not resolved, and no `$ref` target is checked for
+  existence. `$ref` edges are structural claims, not verified bindings.
+- The DDL parser is a column-list splitter, not a SQL parser: `CHECK`,
+  `GENERATED`, and table-level constraints are skipped rather than modelled,
+  and index statements are only counted (0 found in scope).
+- Counts are bound to revision `807ec12`; re-measure before reuse.
+
+### Kill-criterion linkage
+
+This slice supplies the data plane's side of the plan §13 test "a plane has no
+marginal contribution in ablation". Findings 1–3 are things the code plane
+alone cannot state (a table's column set, its constraint divergence across
+modules, a DDL string that is not a declaration). If a Gate-2 ablation shows
+the data plane adds nothing beyond code-plane retrieval, these three are the
+concrete claims to re-examine first.
+
 ## Boundary note
 
 This directory currently contains no effectful entrypoint (the probe's
