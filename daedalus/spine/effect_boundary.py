@@ -389,8 +389,77 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.create_session",
         effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS, Effect.FILESYSTEM_WRITE),
         guard_contracts=("runtime.adapter_profile",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Verified argv profiles exist; cwd/write/egress policy is not centrally leased.",
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.create_session",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Every spawn passes the central boundary with a real adapter-profile "
+            "decision (verified profile vs explicit config, bounded repo root) "
+            "before create_subprocess_exec; the receipt is retained per session."
+        ),
+        migration="complete for the adapter.subprocess entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.send",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Stdin control of a live session starts at the central boundary "
+            "with the same adapter-profile decision as the spawn."
+        ),
+        migration="complete for the adapter.subprocess.send entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.interrupt",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "SIGINT to a tracked live session requires a central effect start; "
+            "unknown or finished sessions remain a no-op without one."
+        ),
+        migration="complete for the adapter.subprocess.interrupt entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.terminate",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Terminate/kill of a tracked session refuses before any process "
+            "control when the central boundary does not accept the start; a "
+            "refused terminate leaves the session tracked."
+        ),
+        migration="complete for the adapter.subprocess.terminate entrypoint",
     ),
     EntrypointSpec(
         id="provider.claude",
@@ -962,27 +1031,6 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
 _LEGACY_ENTRYPOINT_ROWS: tuple[
     tuple[str, Surface, str, tuple[Effect, ...], Wiring], ...
 ] = (
-    (
-        "adapter.subprocess.send",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "adapter.subprocess.interrupt",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "adapter.subprocess.terminate",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
     ("cli.arch_memory", Surface.CLI, "daedalus.arch_memory:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
     (
         "cli.bookkeeper",

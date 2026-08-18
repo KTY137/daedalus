@@ -126,3 +126,121 @@ def test_events_dataclasses():
     assert requested.tool_name == "test"
     assert requested.arguments == {"a": 1}
     assert requested.call_id == "c1"
+
+
+# ---------------------------------------------------------------------------
+# Gate-0 central effect boundary: the adapter family is centrally wired.
+# These tests are the family's fail-closed and mutation probes: deleting the
+# begin_effect call in any of the four entrypoints turns them red.
+# ---------------------------------------------------------------------------
+
+def _spawnless_adapter(tmp_path, **kw):
+    return SubprocessAdapter(
+        RuntimeConfig(
+            command=sys.executable,
+            default_args=("-c", "print('unused')"),
+            prompt_mode="argument",
+        ),
+        repo_root=str(tmp_path),
+        **kw,
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_session_is_refused_fail_closed_without_the_guard_contract(
+    tmp_path, monkeypatch
+):
+    from daedalus.spine import effect_boundary
+    from daedalus.spine.effect_boundary import EffectStartRefused
+
+    adapter = _spawnless_adapter(tmp_path)
+    monkeypatch.setattr(
+        effect_boundary,
+        "GUARD_CONTRACT_IMPLEMENTED",
+        {name: False for name in effect_boundary.GUARD_CONTRACT_IMPLEMENTED},
+    )
+    with pytest.raises(EffectStartRefused):
+        await adapter.create_session({"prompt": "hello"})
+    assert adapter._sessions == {}, "a refused start must not track a session"
+
+
+@pytest.mark.asyncio
+async def test_create_session_is_refused_when_the_profile_decision_denies(
+    tmp_path, monkeypatch
+):
+    from daedalus.spine.effect_boundary import EffectStartRefused, GuardDecision
+
+    adapter = _spawnless_adapter(tmp_path)
+    monkeypatch.setattr(
+        adapter,
+        "_adapter_profile_decision",
+        lambda **_kw: GuardDecision(
+            "runtime.adapter_profile", False, "launch contract failed"
+        ),
+    )
+    with pytest.raises(EffectStartRefused, match="denied by runtime.adapter_profile"):
+        await adapter.create_session({"prompt": "hello"})
+    assert adapter._sessions == {}
+
+
+@pytest.mark.asyncio
+async def test_create_session_retains_a_boundary_receipt_on_the_valid_chain(tmp_path):
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+    adapter = SubprocessAdapter(
+        RuntimeConfig(
+            command=sys.executable,
+            default_args=("-c", "print('{}')"),
+            prompt_mode="argument",
+        ),
+        repo_root=str(tmp_path),
+    )
+    session_id = await adapter.create_session({"cwd": str(worktree)})
+    try:
+        receipt = adapter._effect_receipts[session_id]
+        assert receipt.entrypoint_id == "adapter.subprocess"
+        assert receipt.guard_decisions[0].contract == "runtime.adapter_profile"
+        assert "explicit-config" in receipt.guard_decisions[0].evidence
+    finally:
+        await adapter.terminate(session_id)
+    assert session_id not in adapter._effect_receipts
+
+
+@pytest.mark.asyncio
+async def test_control_methods_refuse_fail_closed_and_leave_the_session_tracked(
+    tmp_path, monkeypatch
+):
+    from daedalus.spine import effect_boundary
+    from daedalus.spine.effect_boundary import EffectStartRefused
+
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+    script = "import time; time.sleep(30)"
+    adapter = SubprocessAdapter(
+        RuntimeConfig(
+            command=sys.executable,
+            default_args=("-c", script),
+            prompt_mode="none",
+            close_stdin_after_prompt=False,
+        ),
+        repo_root=str(tmp_path),
+    )
+    session_id = await adapter.create_session({"cwd": str(worktree)})
+    try:
+        monkeypatch.setattr(
+            effect_boundary,
+            "GUARD_CONTRACT_IMPLEMENTED",
+            {name: False for name in effect_boundary.GUARD_CONTRACT_IMPLEMENTED},
+        )
+        with pytest.raises(EffectStartRefused):
+            await adapter.send(session_id, "ping")
+        with pytest.raises(EffectStartRefused):
+            await adapter.interrupt(session_id)
+        with pytest.raises(EffectStartRefused):
+            await adapter.terminate(session_id)
+        assert session_id in adapter._sessions, (
+            "a refused terminate must not silently drop the tracked session"
+        )
+    finally:
+        monkeypatch.undo()
+        await adapter.terminate(session_id)
