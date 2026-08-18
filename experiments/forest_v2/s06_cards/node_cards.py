@@ -23,6 +23,16 @@ whose identity is stable enough to compare across revisions, while §5's
 revision-atomicity wants a card that cannot silently claim to describe a
 revision it was not built from.  One field cannot do both jobs; two can.
 
+Provenance is carried BY REFERENCE
+---------------------------------
+``card["provenance"]`` is a ``sha256:`` content address, not a block.  The
+build emits each distinct block once in a ``ProvenanceBook``.  Inlining the
+block instead cost 281 canonical bytes in *every* card — for one corpus of
+8,466 cards that was 2.3 MB of a single repeated literal, and it inflated the
+"what does §6 charge before the first useful character" number by a third.
+A reference that does not resolve is a contract violation, so the compression
+does not buy itself with a dangling pointer.
+
 Nothing here promotes anything.  A card is a *proposal carrier* — it never
 becomes evidence, and it never receives a schema-free graph: plane, revision,
 identity and provenance are mandatory and validated.
@@ -44,6 +54,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from collections import Counter
 from typing import Any, Iterable, Sequence
 
 CARD_SCHEMA = "forest-v2-node-card/1"
@@ -89,6 +101,61 @@ def sha256_text(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+
+
+def provenance_ref(block: dict) -> str:
+    """Content address of a provenance block.
+
+    The card carries **this string**, never the block.  A build emits every
+    distinct block once, in a ``ProvenanceBook``; 8,466 cards that share one
+    origin then pay for that origin once instead of 8,466 times.
+
+    This is the same discipline invariant 2 already demands of sources and
+    candidate trees — the authoritative thing is content-addressed, and the
+    thing that points at it carries the address, not a copy.
+    """
+    return sha256_of(block)
+
+
+class ProvenanceBook:
+    """``ref -> block``, emitted once per build.
+
+    A card's provenance is only "by reference" in an honest sense if the
+    reference **resolves**.  A dangling ref is strictly worse than the inlined
+    literal it replaced: it looks like provenance and carries none.  So the
+    book is not a convenience, it is the other half of the contract, and
+    ``validate_card`` fails a card whose ref this book cannot answer.
+    """
+
+    def __init__(self, blocks: dict | None = None) -> None:
+        self._blocks: dict[str, dict] = dict(blocks or {})
+
+    def add(self, block: dict) -> str:
+        """Register a block, return the ref a card should carry."""
+        if not block:
+            raise ValueError("refusing to register an empty provenance block")
+        ref = provenance_ref(block)
+        self._blocks[ref] = dict(block)
+        return ref
+
+    def get(self, ref: str) -> dict | None:
+        return self._blocks.get(ref)
+
+    def resolve(self, card: dict) -> dict | None:
+        """The block a card points at, or None when the ref dangles."""
+        return self._blocks.get(card.get("provenance", ""))
+
+    def as_dict(self) -> dict:
+        return {ref: dict(block) for ref, block in sorted(self._blocks.items())}
+
+    def __len__(self) -> int:
+        return len(self._blocks)
+
+    def __contains__(self, ref: object) -> bool:
+        return ref in self._blocks
+
+
 def node_id(record: dict) -> str:
     """Stable identity.  Line numbers are deliberately NOT part of it."""
     plane = record["plane"]
@@ -107,6 +174,10 @@ def _compact_text(text: str, budget: int) -> dict:
         "text_sha256": sha256_text(full),
         "text_chars": len(full),
         "truncated": len(full) > budget,
+        # The budget travels WITH the content, exactly as it already did with
+        # the neighborhood.  Without it "the budget was respected" is a claim
+        # about a number the card does not carry, so nothing can check it.
+        "budget": budget,
     }
 
 
@@ -154,7 +225,7 @@ def build_card(
     record: dict,
     *,
     revision: str,
-    provenance: dict,
+    provenance: dict | str,
     content_budget: int = DEFAULT_CONTENT_BUDGET,
     neighbor_budget: int = DEFAULT_NEIGHBOR_BUDGET,
     doc_budget: int = DEFAULT_DOC_BUDGET,
@@ -165,10 +236,19 @@ def build_card(
     produce the same ``card_id``.  No wall-clock timestamp is hashed into a
     card — a card that changed identity every run could not be compared across
     revisions, which is the only reason it exists.
+
+    ``provenance`` is either the block (registered here, its ref stored) or an
+    already-computed ref string.  Either way the card stores **the ref**.
     """
     problems = validate_record(record)
     if problems:
         raise ValueError("; ".join(problems))
+    if isinstance(provenance, str):
+        ref = provenance
+    elif provenance:
+        ref = provenance_ref(provenance)
+    else:
+        raise ValueError("card requires a provenance block or ref")
 
     neighborhood, neighbor_total, neighbor_truncated = _normalise_neighbors(
         record.get("neighbors", ()), neighbor_budget
@@ -202,14 +282,21 @@ def build_card(
             "truncated": neighbor_truncated,
             "budget": neighbor_budget,
         },
-        "provenance": dict(provenance),
+        "provenance": ref,
     }
     card["card_id"] = sha256_of(card)
     return card
 
 
-def validate_card(card: dict) -> list[str]:
-    """Contract check.  Returns the list of violations; empty means valid."""
+def validate_card(card: dict, provenance_book: "ProvenanceBook | None" = None) -> list[str]:
+    """Contract check.  Returns the list of violations; empty means valid.
+
+    ``provenance_book`` is optional only because a caller may hold cards
+    without the build that made them.  When it IS supplied the provenance ref
+    must resolve inside it and the resolved block must content-address back to
+    that ref — otherwise "provenance by reference" degrades into a pointer
+    into nothing, which is worse than the literal it replaced.
+    """
     problems: list[str] = []
     for field in REQUIRED_CARD_FIELDS:
         if field not in card:
@@ -224,12 +311,52 @@ def validate_card(card: dict) -> list[str]:
         problems.append("empty revision (a card must be revision-bound)")
     if not card["node_id"]:
         problems.append("empty node_id")
-    if not card["provenance"]:
+
+    # ---- provenance is a resolvable content address, not a blob ----------
+    ref = card["provenance"]
+    if not ref:
         problems.append("empty provenance")
+    elif not isinstance(ref, str):
+        problems.append(f"provenance must be a ref string, got {type(ref).__name__}")
+    elif not _REF_RE.match(ref):
+        problems.append(f"provenance is not a sha256 ref: {ref!r}")
+    elif provenance_book is not None:
+        block = provenance_book.get(ref)
+        if block is None:
+            problems.append(f"provenance ref does not resolve in this build: {ref}")
+        elif provenance_ref(block) != ref:
+            problems.append("provenance block does not content-address to its ref")
+
     locator = card.get("locator") or {}
     for field in ("path", "start_line", "end_line"):
         if field not in locator:
             problems.append(f"locator missing field: {field}")
+
+    # ---- budgets are bounds, so overrunning one is a violation ----------
+    content = card.get("content") or {}
+    budget = content.get("budget")
+    if not isinstance(budget, int):
+        problems.append("content missing an integer budget")
+    else:
+        if len(content.get("text", "")) > budget:
+            problems.append(
+                f"content over budget: {len(content.get('text', ''))} > {budget}"
+            )
+        if bool(content.get("truncated")) != (int(content.get("text_chars", 0)) > budget):
+            problems.append("content truncated flag disagrees with text_chars/budget")
+
+    hood = card.get("neighborhood") or {}
+    hood_budget = hood.get("budget")
+    if not isinstance(hood_budget, int):
+        problems.append("neighborhood missing an integer budget")
+    else:
+        if len(hood.get("edges", ())) > hood_budget:
+            problems.append(
+                f"neighborhood over budget: {len(hood.get('edges', ()))} > {hood_budget}"
+            )
+        if bool(hood.get("truncated")) != (int(hood.get("edge_total", 0)) > hood_budget):
+            problems.append("neighborhood truncated flag disagrees with edge_total/budget")
+
     body = {k: v for k, v in card.items() if k != "card_id"}
     if card["card_id"] != sha256_of(body):
         problems.append("card_id does not address the card body")
@@ -277,6 +404,86 @@ def size_stats(cards: Sequence[dict]) -> dict:
         "bytes_max": sizes[-1],
         "bytes_mean": round(total / len(sizes), 1),
         "histogram_bytes": buckets,
+    }
+
+
+def tally(
+    cards: Sequence[dict],
+    *,
+    rejected: int = 0,
+    provenance_book: "ProvenanceBook | None" = None,
+) -> dict:
+    """The counting code path — used by the corpus run AND by the negative fixtures.
+
+    This function exists so that ``records_rejected`` and ``contract_violations``
+    are not merely *asserted* to be countable.  The negative fixtures feed
+    broken input through **this** function, not through a parallel checker
+    written to agree with it.  A counter that only ever sees clean input is a
+    structural zero, not a measurement; a counter that has been shown to move
+    here has been measured, and its zero over the real corpus then means
+    something.
+    """
+    violations_by_card = [validate_card(card, provenance_book) for card in cards]
+    violations = sum(1 for problems in violations_by_card if problems)
+    violation_reasons = Counter(
+        problem for problems in violations_by_card for problem in problems
+    )
+
+    # ``.get`` throughout: a negative fixture deliberately hands this function
+    # cards with fields removed, and the counter must survive to count them.
+    by_plane = Counter(card.get("plane", "?") for card in cards)
+    by_kind = Counter(
+        f"{card.get('plane', '?')}:{(card.get('content') or {}).get('kind', '?')}"
+        for card in cards
+    )
+    node_ids = Counter(card.get("node_id", "") for card in cards)
+    duplicate_node_ids = sum(count - 1 for count in node_ids.values() if count > 1)
+
+    content_truncated = sum(
+        1 for card in cards if (card.get("content") or {}).get("truncated")
+    )
+    hoods = [card.get("neighborhood") or {} for card in cards]
+    neighbors_truncated = sum(1 for hood in hoods if hood.get("truncated"))
+    edge_total = sum(int(hood.get("edge_total", 0)) for hood in hoods)
+    edges_kept = sum(len(hood.get("edges", ())) for hood in hoods)
+    isolated = sum(1 for hood in hoods if int(hood.get("edge_total", 0)) == 0)
+
+    over_content = sum(
+        1
+        for card in cards
+        if isinstance((card.get("content") or {}).get("budget"), int)
+        and len((card.get("content") or {}).get("text", ""))
+        > (card.get("content") or {})["budget"]
+    )
+    over_neighborhood = sum(
+        1
+        for hood in hoods
+        if isinstance(hood.get("budget"), int)
+        and len(hood.get("edges", ())) > hood["budget"]
+    )
+    dangling = 0
+    if provenance_book is not None:
+        dangling = sum(
+            1 for card in cards if provenance_book.resolve(card) is None
+        )
+
+    return {
+        "cards": len(cards),
+        "records_rejected": rejected,
+        "contract_violations": violations,
+        "distinct_node_ids": len(node_ids),
+        "duplicate_node_ids": duplicate_node_ids,
+        "content_truncated": content_truncated,
+        "content_over_budget": over_content,
+        "neighborhood_truncated": neighbors_truncated,
+        "neighborhood_over_budget": over_neighborhood,
+        "neighborhood_edges_total": edge_total,
+        "neighborhood_edges_kept": edges_kept,
+        "cards_without_edges": isolated,
+        "provenance_refs_dangling": dangling,
+        "_by_plane": by_plane,
+        "_by_kind": by_kind,
+        "_violation_reasons": violation_reasons,
     }
 
 

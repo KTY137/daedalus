@@ -14,7 +14,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import node_cards as nc  # noqa: E402
-import s01_adapter as adapter  # noqa: E402
 
 
 def make_record(**overrides) -> dict:
@@ -44,6 +43,8 @@ def make_record(**overrides) -> dict:
 
 
 PROVENANCE = {"source": "test", "extractor": "s06.test", "extractor_version": "1"}
+BOOK = nc.ProvenanceBook()
+PROVENANCE_REF = BOOK.add(PROVENANCE)
 
 
 def build(record: dict, **kwargs) -> dict:
@@ -63,7 +64,9 @@ def test_card_carries_every_field_section_six_demands():
     assert card["locator"]["start_line"] == 10
     assert card["content"]["text"].startswith("def do_thing")
     assert card["neighborhood"]["edges"][0]["relation"] == "contained_by"
-    assert card["provenance"]["extractor"] == "s06.test"
+    # Provenance is present as a resolvable content address, not as a blob.
+    assert card["provenance"] == PROVENANCE_REF
+    assert BOOK.resolve(card)["extractor"] == "s06.test"
 
 
 def test_card_id_addresses_the_body():
@@ -190,8 +193,15 @@ def test_an_unbound_revision_is_a_contract_violation():
     assert "empty revision (a card must be revision-bound)" in nc.validate_card(card)
 
 
-def test_a_card_without_provenance_is_a_contract_violation():
-    card = nc.build_card(make_record(), revision="git:abc", provenance={})
+def test_a_card_without_provenance_is_refused_at_build_time():
+    with pytest.raises(ValueError, match="provenance"):
+        nc.build_card(make_record(), revision="git:abc", provenance={})
+
+
+def test_an_empty_provenance_on_an_existing_card_is_a_contract_violation():
+    card = build(make_record())
+    card["provenance"] = ""
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
     assert "empty provenance" in nc.validate_card(card)
 
 
@@ -235,48 +245,140 @@ def test_jsonl_round_trips():
     assert [json.loads(line)["card_id"] for line in lines] == [c["card_id"] for c in cards]
 
 
-# --- upstream adapter (s01) ------------------------------------------------
+# --- provenance carried by reference ---------------------------------------
 
 
-def test_adapter_maps_an_upstream_stream_with_foreign_key_names():
-    upstream = {
-        "layer": "code",
-        "node_kind": "function",
-        "file": "pkg/mod.py",
-        "fqn": "pkg.mod.do_thing",
-        "lineno": 10,
-        "end_lineno": 20,
-        "source": "def do_thing(): ...",
+def test_the_card_carries_a_ref_not_the_block():
+    card = build(make_record())
+    assert isinstance(card["provenance"], str)
+    assert card["provenance"].startswith("sha256:")
+    assert len(card["provenance"]) == len("sha256:") + 64
+
+
+def test_two_cards_sharing_an_origin_share_one_block():
+    book = nc.ProvenanceBook()
+    ref = book.add(PROVENANCE)
+    a = nc.build_card(make_record(), revision="r", provenance=ref)
+    b = nc.build_card(make_record(qualname="pkg.mod.other"), revision="r", provenance=ref)
+    assert a["provenance"] == b["provenance"]
+    assert len(book) == 1
+
+
+def test_the_ref_is_the_content_address_of_the_block():
+    ref = nc.provenance_ref(PROVENANCE)
+    assert ref == nc.sha256_of(PROVENANCE)
+    assert nc.provenance_ref({**PROVENANCE, "extractor_version": "2"}) != ref
+
+
+def test_the_ref_costs_a_constant_and_only_pays_off_above_break_even():
+    """The honest version of "provenance by reference is cheaper".
+
+    It is not always cheaper.  A ref is a fixed 73 canonical bytes; a block
+    smaller than that is cheaper inlined.  The claim this slice may make is
+    the narrow one: the ref cost does not grow with the origin description,
+    and the block s06 actually carries is far past break-even.
+    """
+    card = build(make_record())
+    ref_size = nc.card_size_bytes(card)
+
+    tiny = {"s": "t"}
+    real = {
+        "source": "standin_ast_extractor",
+        "extractor": "experiments.forest_v2.s06_cards.standin_source",
+        "extractor_version": "1",
+        "input_contract": "forest-v2-node-record/1",
+        "plane": "code",
+        "read_only": True,
+        "promotes": "nothing",
     }
-    record = adapter.adapt_record(upstream)
-    card = build(record)
+
+    # A ref is the same size whatever it points at.
+    assert nc.card_size_bytes(
+        dict(card, provenance=nc.provenance_ref(tiny))
+    ) == nc.card_size_bytes(dict(card, provenance=nc.provenance_ref(real)))
+
+    # Below break-even the ref LOSES.  Saying otherwise would be the same
+    # kind of overclaim this slice is here to remove.
+    assert nc.card_size_bytes(dict(card, provenance=tiny)) < ref_size
+    # The block s06 really carries is well above it.
+    assert nc.card_size_bytes(dict(card, provenance=real)) > ref_size
+
+
+def test_break_even_is_where_the_measured_claim_comes_from():
+    card = build(make_record())
+    ref_size = nc.card_size_bytes(card)
+    # A ref serialises as 73 bytes: 'sha256:' + 64 hex + two quotes.
+    assert len(nc.canonical_bytes(card["provenance"])) == 73
+    filler = {"k": "x" * 200}
+    saved = nc.card_size_bytes(dict(card, provenance=filler)) - ref_size
+    assert saved > 0
+
+
+def test_a_ref_that_does_not_resolve_is_a_contract_violation():
+    book = nc.ProvenanceBook()
+    book.add(PROVENANCE)
+    card = build(make_record())
+    card["provenance"] = "sha256:" + "0" * 64
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    problems = nc.validate_card(card, book)
+    assert any("does not resolve" in p for p in problems)
+    # ...and without a book to check against, the same card looks fine, which
+    # is exactly why the probe always passes its book.
     assert nc.validate_card(card) == []
-    assert card["node_id"] == "code://pkg/mod.py#function:pkg.mod.do_thing"
 
 
-def test_adapter_refuses_to_invent_a_missing_field():
-    with pytest.raises(adapter.AdapterError) as excinfo:
-        adapter.adapt_record({"layer": "code", "file": "a.py"}, line_no=7)
-    message = str(excinfo.value)
-    assert "line 7" in message and "kind" in message
+def test_a_block_that_does_not_address_its_ref_is_caught():
+    book = nc.ProvenanceBook()
+    ref = book.add(PROVENANCE)
+    card = build(make_record())
+    tampered = nc.ProvenanceBook({ref: {"source": "someone else's origin"}})
+    problems = nc.validate_card(card, tampered)
+    assert any("content-address" in p for p in problems)
 
 
-def test_adapter_reports_the_line_of_bad_json():
-    stream = ['{"plane": "code"}', "not json"]
-    with pytest.raises(adapter.AdapterError) as excinfo:
-        list(adapter.adapt_stream(stream))
-    assert "line 1" in str(excinfo.value)  # line 1 already fails the contract
+def test_a_provenance_ref_that_is_not_a_sha256_is_refused():
+    card = build(make_record())
+    card["provenance"] = "s01 (not available at build time)"
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    assert any("not a sha256 ref" in p for p in nc.validate_card(card))
 
 
-def test_adapter_skips_blank_lines():
-    line = json.dumps(
+def test_an_empty_block_cannot_be_registered():
+    with pytest.raises(ValueError, match="empty provenance block"):
+        nc.ProvenanceBook().add({})
+
+
+# --- budgets are bounds, and a bound that is exceeded is a violation --------
+
+
+def test_content_past_its_declared_budget_is_a_violation():
+    card = build(make_record(text="x" * 40), content_budget=10)
+    assert nc.validate_card(card) == []
+    card["content"]["text"] = "x" * 40
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    assert any("content over budget" in p for p in nc.validate_card(card))
+
+
+def test_a_neighborhood_past_its_declared_budget_is_a_violation():
+    edges = [
         {
-            "plane": "code",
+            "relation": "calls",
+            "direction": "out",
+            "node_id": f"code://m.py#function:m.g{i}",
             "kind": "function",
-            "path": "a.py",
-            "qualname": "a.f",
-            "start_line": 1,
-            "end_line": 2,
+            "name": f"g{i}",
         }
-    )
-    assert len(list(adapter.adapt_stream(["", line, "  "]))) == 1
+        for i in range(5)
+    ]
+    card = build(make_record(neighbors=edges), neighbor_budget=2)
+    assert nc.validate_card(card) == []
+    card["neighborhood"]["edges"] = edges
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    assert any("neighborhood over budget" in p for p in nc.validate_card(card))
+
+
+def test_a_lying_truncation_flag_is_caught():
+    card = build(make_record(text="x" * 40), content_budget=10)
+    card["content"]["truncated"] = False
+    card["card_id"] = nc.sha256_of({k: v for k, v in card.items() if k != "card_id"})
+    assert any("truncated flag disagrees" in p for p in nc.validate_card(card))
