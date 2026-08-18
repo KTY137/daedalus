@@ -95,6 +95,52 @@ Auftrag identisch: Zahlen nachrechnen, Vakuum-Tests suchen, Contract-Drift
 gegen §5/§6/§13). Cross-Vendor-Unabhängigkeit fehlt diesen sieben damit —
 das ist ein schwächeres Signal und wird hier als solches vermerkt.
 
+## Die sieben internen Falsifikationen (13:45) — einer von sieben überlebte
+
+| Slice | Behauptung | Überlebt? | Kern |
+| --- | --- | --- | --- |
+| s01 Code-Plane | Import-Bindung hebt Attribution 21,24 % → 29,16 % | **JA** | Nenner nicht geschönt, geratene/externe Auflösungen aus der Kennzahl gehalten, Parität maschinell gepinnt |
+| s08 Graph-Baselines | „Vier getrennte Indizes sind strikt unterlegen (432 vs. 491)" | nein | **Die Baseline wurde ausgehungert** (s.u.) |
+| s10 Kill-Evaluator | „9 von 15 Kriterien entscheidbar = 60 % Abdeckung" | nein | §14 hat **16** Bullets; real 9/16 = 56,3 %; ein Kriterium fehlt ganz, eines liegt unter falschem Index |
+| s02 Type-Plane | „92,77 % Signaturauflösung vs. 37,16 % Kontrolle = +55,6 pp" | nein | Strohmann-Kontrolle; gegen die natürliche Baseline sind es **0,12 pp** |
+| s07 BM25 | „Lehrbuch-BM25, ehrlicher Nenner" | nein | Formel überlebte eine unabhängige Reimplementierung exakt; der Korpus-Filter hebt die Zahl um +0,056 MRR |
+| s06 Node Cards | „8466 §6-konforme Karten, 0 abgelehnt, 0 Verstöße" | nein | 30,8 % der Envelope-Bytes sind ein konstantes Provenance-Literal; die beiden Null-Zähler sind strukturell garantiert, nicht gemessen |
+
+### Der schwerste Befund: die Messung war zugunsten der eigenen Hypothese verzerrt
+
+s08 vergleicht den Vier-Ebenen-Ansatz gegen „vier unabhängige Indizes ohne
+Fusion" — und teilte dabei ein gemeinsames Trefferbudget im Round-Robin auf
+die vier Indizes auf. Da **jedes Gold-Label ein Code-Dokument ist**, konnte nur
+der Code-Index die Antwort halten — und der bekam effektiv nur die Plätze
+1, 5, 9, also top-3. Gemessen: no-fusion@10 = 432, Code-Index@3 = 430. Gibt man
+jeder Ebene ihr eigenes Budget **ohne jede ebenenübergreifende Wertung**,
+erreicht sie 491 — exakt so viel wie der reine Code-Index. Die „strikte
+Unterlegenheit" war ein Artefakt der Platzaufteilung. Das README sieht es
+halb (Zeile 192-193) und verbucht es dennoch als Evidenz FÜR die Hypothese.
+
+Konsequenzen, beide ernst:
+1. **Ein Kill-Kriterium feuert.** Plan §13: „vier unabhängige Indizes
+   performen äquivalent zu Cross-Plane-Fusion" — genau das zeigt die
+   korrigierte Messung. Der Plan verlangt dann: Track stoppen oder umbauen,
+   Evidenz archivieren, Amendment vorschlagen. **Aber:** Diese Messung läuft
+   auf 600 Anfragen mit 100 % Code-Gold-Labels; ein ebenenübergreifender
+   Retriever kann dort strukturell nur verlieren. Das Kriterium ist mit
+   diesem Aufbau nicht sauber prüfbar — und genau das ist der Befund.
+2. **Der Vergleichspartner wurde ausgetauscht.** Die eingefrorene Spezifikation
+   nennt „ein Index über dieselben Dokumente"; bestätigt wurde gegen einen
+   anderen. Gegen den benannten ist das Ergebnis ein Null-Resultat.
+
+### Die Ironie, die man nicht erfinden könnte
+
+Das Instrument, das geschönte Nenner aufdecken soll (s10, der
+Kill-Kriterien-Evaluator), hat selbst einen: Es zählt 15 Kriterien, wo der
+lebende Plan 16 führt, veröffentlicht 60 % statt 56,3 %, und der Test, der
+genau das schützen sollte, kodiert die falsche Konstante samt falscher
+Begründung fest. Ein Kriterium („Lizenz-/Provenienz- oder Extraktionskosten
+verhindern reproduzierbare Nachnutzung") existiert im Code überhaupt nicht,
+und das Orchestrierungs-Kriterium liegt unter dem freigewordenen Index —
+wer 14.15 aus einem Bericht nachschlägt, landet im Plan bei etwas anderem.
+
 ## Regel für die Fortsetzung
 
 Kein Slice wird geportet, bevor er ein unabhängiges Verdikt hat — besonders
