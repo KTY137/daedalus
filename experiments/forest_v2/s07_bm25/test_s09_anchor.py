@@ -41,7 +41,10 @@ from s09_anchor import (  # noqa: E402
     score_case,
 )
 
-S09_FROZEN_FILE_SHA256 = "fe05b1c155c21c377aed619a2395e36f5ff981feeb223bfffd5747d57437260c"
+# sha256 over the newline-NORMALISED text of the task set s09 froze at 4000f77a.
+# This is the digest of the committed blob (LF); see the test below for why a
+# raw-byte pin was a property of the checkout rather than of the file.
+S09_FROZEN_CONTENT_SHA256 = "e1f850b79189e157abcd65da878b22747968a27a43db36e3029902990d08c0e6"
 
 CORPUS = {
     "daedalus/budget.py": "the ledger enforces a hard ceiling on spend before any call",
@@ -86,17 +89,32 @@ def test_the_copied_taskset_verifies_against_its_own_digest():
     assert sum(len(case["gold"]) for case in record["cases"]) == 35
 
 
-def test_the_copy_is_byte_identical_to_what_s09_froze():
+def test_the_copy_is_content_identical_to_what_s09_froze():
     """The self-consistent digest is necessary but NOT sufficient.
 
-    ``load_taskset`` recomputes the digest from the cases, so it catches an
-    edit that forgets to re-stamp the digest -- but an editor who recomputes
-    both walks straight through.  This pins the bytes of the file s09 actually
-    committed (4000f77a, "the task set freezes before a single retriever
-    exists"), which no local edit can reproduce by accident.
+    ``load_taskset`` recomputes the digest from ``record["cases"]`` alone, so it
+    catches an edit that forgets to re-stamp the digest -- but an editor who
+    recomputes both walks straight through, and that rule never covers the
+    non-case fields at all (``universe_rule``, ``selection``, ``anchor_commit``,
+    ``strata_actual``).  Those are exactly the fields this module reads the
+    universe rule out of instead of re-typing it, so they need a pin of their
+    own.  This one covers the whole file s09 committed at 4000f77a ("the task
+    set freezes before a single retriever exists").
+
+    The digest is taken over the newline-NORMALISED text, not over the raw
+    bytes, and that is the whole point.  A raw-byte digest pins the checkout,
+    not the file: under ``core.autocrlf=true`` this path lands as CRLF and
+    hashes to fe05b1c1..., while the blob s09 committed is LF and hashes to
+    the value above, and no repository line-ending attribute is set for this
+    path to make the two agree.  The previous pin held the CRLF value while
+    its docstring claimed to pin the committed bytes -- so the drift guard
+    passed only by accident of a local git setting, and failed on the very
+    bytes it named.  Normalising first makes the assert checkout-independent
+    and makes the pinned constant the one s09 really froze.
     """
-    actual = hashlib.sha256(TASKSET_PATH.read_bytes()).hexdigest()
-    assert actual == S09_FROZEN_FILE_SHA256
+    normalised = TASKSET_PATH.read_text(encoding="utf-8")
+    actual = hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+    assert actual == S09_FROZEN_CONTENT_SHA256
 
 
 def test_an_edited_taskset_is_refused(tmp_path):
