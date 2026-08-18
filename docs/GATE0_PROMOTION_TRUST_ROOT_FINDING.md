@@ -58,6 +58,53 @@ HMAC-Key.
   und `_promote_locked` — am vollen Lock verifizieren (codex argumentierte
   aus einem Ausschnitt).
 
+## Nachtrag (13:35): Cerberus prüft den Option-B-Bau — GO für den Port, VETO für die Verdrahtung
+
+Der Bau steht in `grind/sealed-approval` (6 Commits, nicht geportet). Cerberus
+gibt **GO-WITH-CHANGES für den Port** — allein weil das neue Modul von KEINEM
+Produktionspfad importiert wird und die Grenze weiter den alten Pfad läuft;
+ein Veto gegen ein inertes Modul wäre Theater. **Der Verdrahtungs-Commit ist
+vorab-vetoed**, bis diese drei geschlossen sind:
+
+- **F1 (CRITICAL, GEMESSEN):** Das Modul erfand ein zweites `_git_env()`, das
+  schwächer ist als das kanonische in `daedalus/spine/attempt.py:410-421`
+  (mit eigener Beweis-Suite). Es poppt `GIT_DIR`/`GIT_WORK_TREE`/
+  `GIT_INDEX_FILE`/`GIT_CONFIG_COUNT` nicht und poppt `GIT_CONFIG_GLOBAL`,
+  was die echte `~/.gitconfig` WIEDERHERSTELLT statt sie zu neutralisieren.
+  Reproduziert: ein geerbtes `GIT_DIR` lenkt alle Aufrufe in ein
+  Angreifer-Repo, alle acht Pins stimmen dort miteinander überein →
+  „Good signature", exit 0, `authenticated`. Der Modul-Docstring behauptet
+  Unabhängigkeit vom Aufrufer; sie fällt, ohne ein einziges Argument.
+- **F2 (CRITICAL):** `ALLOWED_SIGNERS_REVISION = "HEAD"` — die Pins sind
+  AUSGABEN, nicht EINGABEN. Ein Commit, der einen fremden Key einträgt, IST
+  der neue Trust-Root, und der „Pin" meldet dessen OIDs. Auch
+  `approval_mechanism_sha256` hilft nicht: Wer die Liste tauscht, signiert
+  unter der neuen Generation.
+- **F3 (CRITICAL):** `configs/owner-allowed-signers` steht in keiner
+  Schutzliste — der Trust-Root der Promotion ist heute schwächer geschützt
+  als `daedalus/sensitivity.py`. Und Verschieben allein genügt nicht (der
+  Plan disclaimt Hooks selbst, `--no-verify` läuft vorbei, und der Angreifer
+  ändert Datei und Pin in einer Bewegung). **Die Form, die schließt:** der
+  erwartete Signer-Set-Digest als Konstante in einem Artefakt des
+  Amendment-Protokolls (Plan + hash-verkettete `amendments.jsonl`);
+  `resolve_trust_root` refüsiert bei Abweichung. Key-Rotation wird damit ein
+  Amendment statt eines Commits.
+
+Weitere: `approval_assurance="authenticated"` ist fälschbar, weil
+`VerifiedSignedApproval` einen öffentlichen Konstruktor ohne Invarianten hat
+— der Docstring behauptet das Gegenteil und muss vor dem Port weg (F4); der
+Receipt verwirft genau die Provenienz, mit der ein Root-Tausch auffiele (F5);
+das Owner-Skript ruft git ungescrubbt auf und ZEIGT den Tag-Body OHNE
+Signaturprüfung, während das HOWTO den Owner dorthin schickt (F6); dazu
+TOCTOU über den mutablen Tag-Namen (F8) und zwei Docstrings, die Checks
+kreditieren, die nicht laufen (F7, F9).
+
+**§4.1-Grenze, ausdrücklich:** Der Baum hält jetzt zwei Approval-Mechanismen,
+der live geschaltete ist der schwächere. Das ist als Zwischenzustand
+zulässig, WEIL ein Test pinnt, dass die Grenze den neuen nicht ruft — und es
+wird zur Verletzung in dem Moment, wo beide autorisieren können. Die
+Umschaltung muss EIN atomarer, owner-geführter Schritt sein.
+
 ## Provenienz
 
 Momus-Kritik (read-only) 2026-08-18; 30-Opus→3-Fable-Workflow
