@@ -208,7 +208,12 @@ fails the README check. The retracted style would have read (7 + 1) / 14 =
 
 #### Tree-wide, this worktree @ `cd550d21` [MEASURED, revision-bound, NOT pinned]
 
-424 markdown files, 0 unreadable, 2950 headings:
+424 markdown files, 0 unreadable, 2950 headings. Re-measured at `8e18b690`, the
+commit that contains this retraction: **identical in every stage**. The earlier
+observer effect (writing findings down moved the number) was avoided here on
+purpose — the reproduce command sits in a fenced block, and the cited names
+stay inside inline code, so none of this section mints a new edge. Reflexivity
+is manageable when it is designed for; it is only fatal when it is unnoticed.
 
 | stage | count | % of extracted |
 | --- | ---: | ---: |
