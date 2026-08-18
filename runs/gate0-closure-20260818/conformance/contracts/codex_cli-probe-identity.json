@@ -1,0 +1,29 @@
+{
+ "adapter_sha256": "31bcb36994f1cdeed629becda79c3d0238c493867a0d215311e6bd0eb26672cc",
+ "authority": "offline-fixture",
+ "collected_at": "2026-08-18T08:21:44.725485+00:00",
+ "contract_type": "daedalus.runtime-probe-identity",
+ "contract_version": "1.0.0",
+ "environment_sha256": "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+ "executable_sha256": "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba",
+ "fixture_suite_sha256": "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+ "probe_id": "codex_cli-offline-fixture",
+ "profile_sha256": "6b5c48fbba6f4dc1dff465a25bea2b386901b7406618d95bcfb6346795738e2f",
+ "provenance": {
+  "created_at": "2026-08-18T08:21:44.725485+00:00",
+  "input_digests": [
+   "31bcb36994f1cdeed629becda79c3d0238c493867a0d215311e6bd0eb26672cc",
+   "6b5c48fbba6f4dc1dff465a25bea2b386901b7406618d95bcfb6346795738e2f",
+   "70882d38aa6fa59b042e4d5134e96e78704dadbd5490c44efc2cc1c6e87f7431",
+   "72134a443b6821c3267ef4e8108b49f4c8deaa0da85680414e60e210ebc5ff93",
+   "8fd77a22eec98a8ef6b9f408c39cff81b6e35949fd8a8a7422e833e829397a7b",
+   "efe7bd5309ae1a946d199344691312994aa377c7efe15097f8569ee9dc7f20ba"
+  ],
+  "origin": "runtimes.probe-identity",
+  "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+  "trace_id": "codex_cli-offline-fixture"
+ },
+ "runtime_id": "codex_cli",
+ "runtime_manifest_sha256": "70882d38aa6fa59b042e4d5134e96e78704dadbd5490c44efc2cc1c6e87f7431",
+ "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5"
+}

@@ -1,0 +1,24 @@
+{
+ "authority": "offline-fixture",
+ "conformance_receipt_sha256": "6e0ad58aead9ba13678095899a5898e7b02e6632fcc383bac1a7473ac09aab98",
+ "contract_type": "daedalus.runtime-conformance-envelope",
+ "contract_version": "1.0.0",
+ "created_at": "2026-08-18T08:21:48.153120+00:00",
+ "envelope_id": "ollama_http-offline-envelope",
+ "probe_identity_sha256": "d8b16606b78cbf3fc818cdf2b2b277bc3a176425167e2a7da547b17db2276d2b",
+ "provenance": {
+  "created_at": "2026-08-18T08:21:48.153120+00:00",
+  "input_digests": [
+   "16ccdd54589ae66a7c0333a6da59b84fdfdce3baa164ff97d549666f8ffbabff",
+   "6e0ad58aead9ba13678095899a5898e7b02e6632fcc383bac1a7473ac09aab98",
+   "d8b16606b78cbf3fc818cdf2b2b277bc3a176425167e2a7da547b17db2276d2b"
+  ],
+  "origin": "runtimes.conformance-envelope",
+  "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+  "trace_id": "ollama_http-offline-envelope"
+ },
+ "runtime_id": "ollama_http",
+ "runtime_manifest_sha256": "16ccdd54589ae66a7c0333a6da59b84fdfdce3baa164ff97d549666f8ffbabff",
+ "source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+ "status": "passed"
+}
