@@ -26,7 +26,7 @@ def _universe(*paths: str):
 def test_query_view_carries_no_answer_key():
     """A retriever must not be able to reach the gold set through its input."""
     names = {f.name for f in fields(QueryView)}
-    assert names == {"case_id", "text", "variant"}
+    assert names == {"case_id", "text", "variant", "revision"}
     assert not any("gold" in n for n in names)
 
     candidate_names = {f.name for f in fields(Candidate)}

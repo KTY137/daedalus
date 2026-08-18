@@ -8,7 +8,8 @@ lowercased; tokens of length 1 are dropped.
 from __future__ import annotations
 
 import re
-from typing import List, Set
+from collections import Counter
+from typing import Callable, Dict, List, Set
 
 _NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -30,3 +31,36 @@ def word_tokens(text: str) -> List[str]:
 def path_tokens(path: str) -> Set[str]:
     """Tokens a path contributes: directories, stem, and extension."""
     return set(word_tokens(path))
+
+
+class TokenCache:
+    """Blob-keyed token counts, shared by every retriever in a run.
+
+    Blob shas are content addresses, so the same file at two revisions is
+    tokenized once.
+
+    Sharing a cache between retrievers would otherwise make wall-clock a
+    measure of who ran first, so the harness pre-warms this cache for a case
+    before any retriever runs and reports that as one shared indexing cost.
+    Per-retriever timings are therefore warm-cache timings, and the
+    tokenization is charged once, to the run, not to whichever baseline
+    happened to be listed first.
+    """
+
+    def __init__(self, max_entries: int = 20000) -> None:
+        self._counts: Dict[str, Counter] = {}
+        self._max_entries = max_entries
+        self.hits = 0
+        self.misses = 0
+
+    def counts(self, blob: str, text: Callable[[], str]) -> Counter:
+        cached = self._counts.get(blob)
+        if cached is not None:
+            self.hits += 1
+            return cached
+        self.misses += 1
+        counted = Counter(word_tokens(text()))
+        if len(self._counts) >= self._max_entries:
+            self._counts.clear()
+        self._counts[blob] = counted
+        return counted

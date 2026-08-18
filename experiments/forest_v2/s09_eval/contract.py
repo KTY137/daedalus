@@ -55,11 +55,19 @@ class QueryView:
     Deliberately gold-free.  ``variant`` says which frozen query text this
     is (``raw`` or ``scrubbed``) so a retriever may adapt, but it can never
     learn which files the commit touched.
+
+    ``revision`` is the pre-image commit -- the tree the universe was taken
+    from -- so a retriever may use history-derived priors.  It is the *only*
+    revision a retriever may consult: reading anything committed after it is
+    reading the answer.  That rule is a stated norm, not a sandbox; this
+    package cannot stop a retriever with repository access from walking
+    forward, and the plan is explicit that a prompt is not a boundary.
     """
 
     case_id: str
     text: str
     variant: str
+    revision: str = ""
 
 
 @runtime_checkable
