@@ -28,8 +28,12 @@ from daedalus.kernel.signed_approval import (
     SignedApprovalPurposeError,
     SignedApprovalRootError,
     SignedApprovalSignatureError,
+    approval_tag_for,
     canonical_approval_body,
+    claim_signed_approval,
+    promotion_receipt,
     read_committed_allowed_signers,
+    regeneration_voids_approval,
     verify_signed_approval,
 )
 
@@ -442,6 +446,156 @@ def test_a_retyped_body_is_a_different_body(signing_repo) -> None:
     with pytest.raises(SignedApprovalBindingMismatch):
         verify_signed_approval(
             repo, "owner-approval/retyped", expectation=_expectation()
+        )
+
+
+def test_approval_ref_is_the_digest_of_the_verified_tag_object(signing_repo) -> None:
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    raw = subprocess.run(
+        ["git", "cat-file", "tag", verified.tag_object_sha1],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert verified.owner_approval_ref == (
+        "artifact-locator:sha256:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    )
+
+
+def test_approval_tag_name_is_a_function_of_the_candidate() -> None:
+    assert approval_tag_for(CANDIDATE) == f"owner-approval/{CANDIDATE}"
+    assert approval_tag_for(CANDIDATE) != approval_tag_for("d" * 64)
+
+
+def test_an_approval_can_be_spent_only_once(signing_repo, tmp_path) -> None:
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+    spent = tmp_path / "spent"
+
+    first, first_reason = claim_signed_approval(repo, verified, spent_root=spent)
+    second, second_reason = claim_signed_approval(repo, verified, spent_root=spent)
+
+    assert first is True, first_reason
+    assert second is False
+    assert "already spent" in second_reason
+
+
+def test_a_broken_single_use_ledger_refuses_rather_than_assumes_fresh(
+    signing_repo, tmp_path
+) -> None:
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+    blocker = tmp_path / "blocker"
+    blocker.write_text("not a directory", encoding="utf-8")
+
+    claimed, reason = claim_signed_approval(
+        repo, verified, spent_root=blocker / "spent"
+    )
+
+    assert claimed is False
+    assert "ledger unavailable" in reason
+
+
+def test_regeneration_voids_the_approval_and_says_why() -> None:
+    reason = regeneration_voids_approval(CANDIDATE, "d" * 64)
+
+    assert "void" in reason
+    assert "pending-owner" in reason
+    assert CANDIDATE[:12] in reason
+
+
+def test_receipt_is_authenticated_only_from_a_verified_signature(
+    signing_repo,
+) -> None:
+    """The first production construction of the canonical PromotionReceipt."""
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    receipt = promotion_receipt(
+        verified,
+        promotion_id="promotion-1",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator=f"artifact-locator:sha256:{CANDIDATE}",
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator=f"artifact-locator:sha256:{EVIDENCE}",
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-08-18T12:00:00Z",
+    )
+
+    assert receipt.promotion_status == "approved"
+    assert receipt.approval_assurance == "authenticated"
+    assert receipt.owner_approval_ref == verified.owner_approval_ref
+    assert receipt.CONTRACT_TYPE == "daedalus.promotion"
+
+
+def test_receipt_without_a_signature_cannot_claim_authentication() -> None:
+    receipt = promotion_receipt(
+        None,
+        promotion_id="promotion-1",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator=f"artifact-locator:sha256:{CANDIDATE}",
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator=f"artifact-locator:sha256:{EVIDENCE}",
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-08-18T12:00:00Z",
+    )
+
+    assert receipt.promotion_status == "pending-owner"
+    assert receipt.approval_assurance == "not-applicable"
+    assert receipt.owner_approval_ref is None
+
+
+def test_receipt_takes_no_status_or_assurance_argument() -> None:
+    """Structural: a caller cannot ask for a stronger claim than it holds."""
+    parameters = set(inspect.signature(promotion_receipt).parameters)
+
+    assert not parameters & {
+        "promotion_status",
+        "approval_assurance",
+        "approved",
+        "authenticated",
+    }
+
+
+def test_receipt_refuses_a_signature_for_another_candidate(signing_repo) -> None:
+    repo = signing_repo["repo"]
+    signing_repo["sign_tag"]("owner-approval/promotion-1", _body_json())
+    verified = verify_signed_approval(
+        repo, "owner-approval/promotion-1", expectation=_expectation()
+    )
+
+    with pytest.raises(SignedApprovalBindingMismatch):
+        promotion_receipt(
+            verified,
+            promotion_id="promotion-1",
+            nomination_receipt_sha256=NOMINATION,
+            candidate_artifact_sha256="d" * 64,
+            candidate_artifact_locator=f"artifact-locator:sha256:{'d' * 64}",
+            evidence_packet_sha256=EVIDENCE,
+            evidence_locator=f"artifact-locator:sha256:{EVIDENCE}",
+            source_revision=BASE,
+            target_revision=TARGET_HEAD,
+            created_at="2026-08-18T12:00:00Z",
         )
 
 

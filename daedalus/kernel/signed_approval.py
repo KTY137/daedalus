@@ -37,6 +37,7 @@ the single one-use consumption authority.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -89,6 +90,10 @@ _SCRUBBED_GIT_ENV = (
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 )
+
+
+def _artifact_locator_for(digest: str) -> str:
+    return f"artifact-locator:sha256:{digest}"
 
 
 class SignedApprovalError(RuntimeError):
@@ -211,18 +216,35 @@ class SignedApprovalBody:
 
 @dataclass(frozen=True)
 class VerifiedSignedApproval:
-    """Proof that one allowed owner principal signed one exact approval body."""
+    """Proof that one allowed owner principal signed one exact approval body.
+
+    ``owner_approval_ref`` is the content-addressed locator of the signed tag
+    object itself -- the bytes that were verified, not a description of them.
+    It is what a :class:`~daedalus.schemas.PromotionReceipt` cites, so the
+    receipt points at material a reader can re-verify rather than at this
+    module's opinion of it.
+    """
 
     tag_name: str
     tag_object_sha1: str
     signer_principal: str
     body: SignedApprovalBody
+    owner_approval_ref: str
 
     @property
     def body_sha256(self) -> str:
-        import hashlib
-
         return hashlib.sha256(self.body.canonical_bytes()).hexdigest()
+
+
+def approval_tag_for(candidate_artifact_sha256: str) -> str:
+    """The one tag name that can approve a given candidate.
+
+    Deriving the name from the candidate digest means an owner cannot approve
+    candidate A under a name the boundary will later resolve for candidate B,
+    and a caller cannot point the boundary at some other tag it happens to
+    like: the name is a function of the artifact being promoted.
+    """
+    return f"{APPROVAL_TAG_NAMESPACE}{_sha256(candidate_artifact_sha256, 'candidate_artifact_sha256')}"
 
 
 def canonical_approval_body(
@@ -418,11 +440,23 @@ def verify_signed_approval(
             f"signed approval {tag_name} expired at {body.expires_at}"
         )
 
+    # The signed bytes, read as the object Git actually holds, so the digest
+    # cited by a receipt is a digest of the material that was verified.
+    raw = _git(
+        root,
+        ["cat-file", "tag", tag_object],
+        label="reading the approval tag object",
+    )
+    approval_ref = _artifact_locator_for(
+        hashlib.sha256(raw.stdout.encode("utf-8")).hexdigest()
+    )
+
     return VerifiedSignedApproval(
         tag_name=tag_name,
         tag_object_sha1=tag_object,
         signer_principal=principal,
         body=body,
+        owner_approval_ref=approval_ref,
     )
 
 
@@ -481,6 +515,171 @@ def _require_binding(
         )
 
 
+def _spent_root(repo_root: str | Path) -> Path:
+    """Checkout-external, namespaced by checkout identity.
+
+    The single-use ledger must not live anywhere a candidate's declared write
+    paths can reach, or the candidate could erase the record of its own
+    approval having been spent.
+    """
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    base = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
+    digest = hashlib.sha256(
+        str(Path(repo_root).resolve()).encode("utf-8")
+    ).hexdigest()[:12]
+    return base / "daedalus-kernel" / "promotion" / digest / "spent"
+
+
+def claim_signed_approval(
+    repo_root: str | Path,
+    verified: VerifiedSignedApproval,
+    *,
+    spent_root: Path | None = None,
+) -> tuple[bool, str]:
+    """Spend a verified approval exactly once. Returns ``(claimed, reason)``.
+
+    An approval that stays valid after it has been used is a standing
+    authorisation with extra steps. The claim is an atomic
+    ``O_CREAT | O_EXCL`` file creation keyed by the signed nonce and candidate,
+    so on both Windows and POSIX exactly one caller wins -- including two
+    concurrent promotions of the same candidate.
+
+    Fails closed in both directions: a filesystem error is a refusal, never an
+    assumed-fresh approval.
+    """
+    if not isinstance(verified, VerifiedSignedApproval):
+        return False, "only a verified owner signature can be claimed"
+    root = Path(spent_root) if spent_root is not None else _spent_root(repo_root)
+    key = hashlib.sha256(
+        f"{verified.body.nonce}\n{verified.body.candidate_artifact_sha256}".encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    marker = root / f"{key}.claimed"
+    # Creating the ledger directory is kept out of the block below on purpose.
+    # `mkdir(parents=True)` raises FileExistsError when a path component is an
+    # ordinary file, which would otherwise be reported as "already spent" -- a
+    # refusal either way, but only one of the two is true.
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return False, (
+            f"single-use ledger unavailable ({type(exc).__name__}: {exc}); "
+            "refusing to promote on an approval whose reuse cannot be detected"
+        )
+    try:
+        handle = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False, (
+            f"approval {verified.tag_name} was already spent; an approval "
+            "authorises one promotion, not a standing right to promote"
+        )
+    except OSError as exc:
+        return False, (
+            f"single-use ledger unavailable ({type(exc).__name__}: {exc}); "
+            "refusing to promote on an approval whose reuse cannot be detected"
+        )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(f"{verified.tag_name}\n{verified.owner_approval_ref}\n")
+    except OSError:
+        # The marker existing is what makes the approval spent; failing to
+        # annotate it costs an audit note, not the guarantee.
+        pass
+    return True, f"approval {verified.tag_name} claimed for a single promotion"
+
+
+def regeneration_voids_approval(
+    candidate_artifact_sha256: str, regenerated_sha256: str
+) -> str:
+    """The refusal reason for a candidate rebuilt after it was approved.
+
+    The recorded decision is that regeneration VOIDS the approval and the
+    candidate returns to ``pending-owner``. Verification would refuse the
+    regenerated artifact anyway -- a different digest resolves a different tag
+    name, which does not exist -- but reporting that as "no approval tag"
+    would describe the symptom and hide the cause from whoever reads it.
+    """
+    return (
+        f"approval for candidate {str(candidate_artifact_sha256)[:12]} is void: "
+        f"the candidate was regenerated as {str(regenerated_sha256)[:12]} "
+        "against a moved base, and no owner approved that artifact; "
+        "returning to pending-owner"
+    )
+
+
+def promotion_receipt(
+    verified: VerifiedSignedApproval | None,
+    *,
+    promotion_id: str,
+    nomination_receipt_sha256: str,
+    candidate_artifact_sha256: str,
+    candidate_artifact_locator: str,
+    evidence_packet_sha256: str,
+    evidence_locator: str,
+    source_revision: str,
+    target_revision: str,
+    created_at: str,
+    reasons: tuple[str, ...] = (),
+    origin: str = "kernel.signed_approval",
+):
+    """Build the canonical :class:`~daedalus.schemas.PromotionReceipt`.
+
+    ``approval_assurance="authenticated"`` is set here and only here, and only
+    from the presence of a :class:`VerifiedSignedApproval` -- never from an
+    argument. A caller cannot ask for an approved receipt; it can only present
+    a verification that an owner signature produced. Passing ``None`` yields
+    ``pending-owner`` with no approval reference, which is the shape the schema
+    already enforces.
+    """
+    from daedalus.schemas import ContractProvenance, PromotionReceipt
+
+    approved = isinstance(verified, VerifiedSignedApproval)
+    if approved and verified.body.candidate_artifact_sha256 != candidate_artifact_sha256:
+        raise SignedApprovalBindingMismatch(
+            "receipt candidate does not match the signed approval"
+        )
+    digests = [
+        nomination_receipt_sha256,
+        candidate_artifact_sha256,
+        candidate_artifact_locator.rsplit(":", 1)[-1],
+        evidence_packet_sha256,
+        evidence_locator.rsplit(":", 1)[-1],
+    ]
+    if approved:
+        digests.append(verified.owner_approval_ref.rsplit(":", 1)[-1])
+        default_reason = (
+            f"owner signature on {verified.tag_name} verified against the "
+            "committed allowed-signers list"
+        )
+    else:
+        default_reason = "no verified owner signature; awaiting owner approval"
+
+    return PromotionReceipt(
+        promotion_id=promotion_id,
+        nomination_receipt_sha256=nomination_receipt_sha256,
+        candidate_artifact_sha256=candidate_artifact_sha256,
+        candidate_artifact_locator=candidate_artifact_locator,
+        evidence_packet_sha256=evidence_packet_sha256,
+        evidence_locator=evidence_locator,
+        source_revision=source_revision,
+        target_revision=target_revision,
+        promotion_status="approved" if approved else "pending-owner",
+        owner_approval_ref=verified.owner_approval_ref if approved else None,
+        approval_assurance="authenticated" if approved else "not-applicable",
+        reasons=tuple(sorted({default_reason, *reasons})),
+        provenance=ContractProvenance(
+            origin=origin,
+            source_revision=source_revision,
+            created_at=created_at,
+                # Deduplicated: a locator's digest is the artifact digest it
+            # names, so the two coincide by construction and
+            # ContractProvenance rejects a repeated input.
+            input_digests=tuple(sorted(set(digests))),
+        ),
+    )
+
+
 __all__ = [
     "APPROVAL_OPERATION",
     "APPROVAL_PURPOSE",
@@ -494,7 +693,11 @@ __all__ = [
     "SignedApprovalRootError",
     "SignedApprovalSignatureError",
     "VerifiedSignedApproval",
+    "approval_tag_for",
     "canonical_approval_body",
+    "claim_signed_approval",
+    "promotion_receipt",
     "read_committed_allowed_signers",
+    "regeneration_voids_approval",
     "verify_signed_approval",
 ]

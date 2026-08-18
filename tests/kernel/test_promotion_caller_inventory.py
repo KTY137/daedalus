@@ -77,6 +77,30 @@ def test_the_boundary_is_still_armed_but_untriggered() -> None:
     assert AUTHORIZED_PRODUCTION_CALLERS == frozenset()
 
 
+def test_signed_tag_root_is_not_yet_binding_on_the_boundary() -> None:
+    """Pins an honest, uncomfortable fact so it cannot drift into a claim.
+
+    ``daedalus/kernel/signed_approval.py`` exists, is fault-injected and is
+    mutation-proven, but the promotion boundary does not consult it yet.
+    Authorization still authenticates against ``owner_keyring``, which
+    ``promote_candidates`` receives from its caller -- so the trust root of a
+    live promotion is still chosen by whoever calls it.
+
+    Until that changes, no one may describe the boundary as protected by an
+    owner signature. When it does change, this test fails, and whoever makes
+    it fail is the person who gets to update the assurance wording and the
+    ``promotion.owner_approval`` inventory row in the same breath.
+    """
+    authorization = (PACKAGE / "kernel" / "promotion.py").read_text(encoding="utf-8")
+
+    assert "signed_approval" not in authorization, (
+        "the signed-tag trust root is now reachable from the promotion "
+        "boundary. Re-check what approval_assurance and "
+        "promotion.owner_approval are allowed to claim, then update this test."
+    )
+    assert "owner_keyring" in authorization
+
+
 @pytest.fixture()
 def boundary():
     from daedalus.kairos import gated_writes
