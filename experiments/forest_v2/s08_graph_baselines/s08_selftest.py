@@ -158,6 +158,30 @@ def main(argv: list[str]) -> int:
         plane_recall[family] = per_plane
     report["no_fusion_per_plane_recall_at_10"] = plane_recall
 
+    # Construction artefact, measured instead of merely disclosed: a
+    # knowledge_ref query is lifted from a Markdown file that the all-planes
+    # index also contains, so that file can out-rank the code file it talks
+    # about.  This penalises the single-index retriever for a property of the
+    # query set, not of the retriever.
+    ref_queries = families.get("knowledge_ref", [])
+    self_hits = 0
+    self_rank_sum = 0
+    for query in ref_queries:
+        source_locator = query.qid.split(":")[1]
+        hits = bm25_all.query(query.text, k=max(KS))
+        rank = rank_of(hits, f"knowledge:{source_locator}")
+        if rank:
+            self_hits += 1
+            self_rank_sum += rank
+    report["query_set_artefact"] = {
+        "family": "knowledge_ref",
+        "n": len(ref_queries),
+        "source_document_in_top10_of_single_index": self_hits,
+        "fraction": round(self_hits / len(ref_queries), 4) if ref_queries else 0.0,
+        "mean_rank_when_present": round(self_rank_sum / self_hits, 3) if self_hits else 0.0,
+        "note": "the query's own source Markdown file competing with the gold code file",
+    }
+
     # Who rescues whom: the aggregate deltas above are net, these are gross.
     kmax = max(KS)
     ranks = {
