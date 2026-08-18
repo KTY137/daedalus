@@ -229,11 +229,14 @@ REFUSAL_CASES = (
 # --------------------------------------------------------------------------
 
 
-def probe(root: Path) -> dict:
-    revision = rp.read_git_revision(root)
-    revision_source = "git-head" if revision else "fallback"
-    if not revision:
-        revision = "unknown-revision"
+def probe(root: Path, revision: str | None = None) -> dict:
+    if revision:
+        revision_source = "argv"
+    else:
+        revision = rp.read_git_revision(root)
+        revision_source = "git-head" if revision else "fallback"
+        if not revision:
+            revision = "unknown-revision"
 
     t0 = time.perf_counter()
     build_a = build_snapshot(rp.extract_all(root, revision))
@@ -332,7 +335,10 @@ def probe(root: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     root = Path(args[0]) if args else Path(__file__).resolve().parents[3]
-    print(json.dumps(probe(root), indent=2, sort_keys=True))
+    # An explicit revision label separates content drift from HEAD movement:
+    # with the same label, the digest moves only when the scanned tree moves.
+    revision = args[1] if len(args) > 1 else None
+    print(json.dumps(probe(root, revision), indent=2, sort_keys=True))
     return 0
 
 
