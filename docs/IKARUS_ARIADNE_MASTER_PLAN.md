@@ -1,8 +1,8 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 5
-Version: 1.2.2
+Revision: 6
+Version: 1.2.3
 Status: adopted  
 Date: 2026-08-02
 Owner: repository owner  
@@ -22,11 +22,15 @@ evidence. They do not override this document.
 | `.agentenv/agentenv.json`, `.agentenv/tool-allowances.json` | mechanical veto policy | restrict or deny capabilities |
 | root instructions, skills, and hooks | derived projection | load the plan, report drift, block ordinary mutation |
 | tests, receipts, and experiments | evidence | refute status claims and research priors |
+| `docs/DAEDALUS_GESAMTPLAN.md` | program authority | detail the build program within this plan's bounds |
 | ADRs, TODOs, handoffs, inventories | history/backlog | supply evidence and proposals |
 
 A capability policy cannot broaden the plan, and the plan cannot grant a
 capability. For effects, the stricter mechanical policy wins. For product
-meaning and sequencing, only this plan is authoritative.
+meaning and sequencing, this plan is the final authority; the Gesamtplan
+details the build program within these bounds, and where they conflict,
+this plan wins. Measured drift between the Gesamtplan and the tree is
+recorded as work, never papered over.
 
 Rule types are explicit:
 
