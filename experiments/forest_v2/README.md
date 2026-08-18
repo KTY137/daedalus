@@ -187,28 +187,52 @@ extended 738:
 | `union_no_fusion` code-LAST | 3/7/10 | 3/7/14 |
 | `bm25_single_index_all_planes` | 10/39/**49** | 243/436/487 |
 
-Gross rescue/loss at k=10 (net deltas hide which system you have):
+Gross rescue/loss **at every cutoff** (net deltas hide which system you have;
+one cutoff hides which direction you have).  net = only B − only A:
 
-| pair | both | only A | only B | neither |
-| --- | ---: | ---: | ---: | ---: |
-| A=`bm25_code_only`, B=`graph` | 482 | 9 | 15 | 94 |
-| A=`graph rewired`, B=`graph` | 484 | 7 | 13 | 96 |
-| A=`no_fusion`, B=`single index` | 415 | 17 | 23 | 145 |
-| A=`no_fusion`, B=`bm25_code_only` | 432 | 0 | 59 | 109 |
-| A=`union_no_fusion`, B=`bm25_code_only` | 491 | **0** | **0** | 109 |
-| A=`union_no_fusion`, B=`single index` | 438 | **53** | **0** | 109 |
+| pair | k | both | only A | only B | neither | net |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| A=`bm25_code_only`, B=`graph` | 1 | 182 | 147 | 41 | 230 | **−106** |
+| A=`bm25_code_only`, B=`graph` | 5 | 423 | 36 | 21 | 120 | **−15** |
+| A=`bm25_code_only`, B=`graph` | 10 | 482 | 9 | 15 | 94 | +6 |
+| A=`graph rewired`, B=`graph` | 1 | 184 | 102 | 39 | 275 | **−63** |
+| A=`graph rewired`, B=`graph` | 5 | 420 | 31 | 24 | 125 | **−7** |
+| A=`graph rewired`, B=`graph` | 10 | 484 | 7 | 13 | 96 | +6 |
+| A=`no_fusion`, B=`single index` | 1 | 229 | 100 | 4 | 267 | **−96** |
+| A=`no_fusion`, B=`single index` | 5 | 374 | 30 | 23 | 173 | **−7** |
+| A=`no_fusion`, B=`single index` | 10 | 415 | 17 | 23 | 145 | +6 |
+| A=`no_fusion`, B=`bm25_code_only` | 1 | 329 | 0 | 0 | 271 | 0 |
+| A=`no_fusion`, B=`bm25_code_only` | 5 | 404 | 0 | 55 | 141 | +55 |
+| A=`no_fusion`, B=`bm25_code_only` | 10 | 432 | 0 | 59 | 109 | +59 |
+| A=`union_no_fusion`, B=`bm25_code_only` | 1 | 329 | **0** | **0** | 271 | **0** |
+| A=`union_no_fusion`, B=`bm25_code_only` | 5 | 459 | **0** | **0** | 141 | **0** |
+| A=`union_no_fusion`, B=`bm25_code_only` | 10 | 491 | **0** | **0** | 109 | **0** |
+| A=`union_no_fusion`, B=`single index` | 1 | 229 | 100 | 4 | 267 | −96 |
+| A=`union_no_fusion`, B=`single index` | 5 | 396 | 63 | 1 | 140 | −62 |
+| A=`union_no_fusion`, B=`single index` | 10 | 438 | **53** | **0** | 109 | −53 |
+
+The graph pairs are not the only ones that flip: `no_fusion` vs the named
+single joint index is **−96 / −7 / +6** across k=1/5/10, so the +6 that the
+frozen-600 verdict rests on is the one cutoff of three where the joint index is
+ahead.  The `union_no_fusion` tie with `bm25_code_only` is the opposite case and
+is now shown to be a tie at **every** cutoff, 0 discordant queries throughout,
+not only at k=10.
 
 ### What the numbers say, including against the hypothesis
 
-1. **(a) is mostly refuted as stated, with a small surviving remainder.**  The
-   graph buys +6 documents at k=10 (491 → 497, +1.0 pp) and *costs* 106 at
-   k=1 (329 → 223, −17.7 pp); MRR falls 0.6432 → 0.5256.  Propagated mass
-   flows into high-degree modules and pushes the correct answer down.  The
-   remainder is real though: against the degree-preserving rewired control the
-   real graph rescues 13 and loses 7 (net +6 of 600), and the rewired graph
-   lands on exactly the lexical control's 491.  So structure contributes
-   about **one percentage point at k=10**, and nothing at k=1.  A one-point
-   effect is not a foundation; it is a measurement.
+1. **(a) is refuted as stated, and the "surviving remainder" was a
+   single-cutoff artefact.**  The graph buys +6 documents at k=10
+   (491 → 497, +1.0 pp) and *costs* 106 at k=1 (329 → 223, −17.7 pp); MRR falls
+   0.6432 → 0.5256.  Propagated mass flows into high-degree modules and pushes
+   the correct answer down.  Against the degree-preserving rewired control —
+   the comparison plan §14.2 actually names — the sign **flips with the
+   cutoff**: net **−63 at k=1**, **−7 at k=5**, **+6 at k=10**.  The earlier
+   reading ("structure contributes about one percentage point") quoted the last
+   of those three and called it the remainder.  It is the only cutoff at which
+   the real graph beats its own randomised control, and the k=1 effect against
+   that control is **ten times larger in the opposite direction**.  Read across
+   all cutoffs, randomised edges do *not* perform worse than real ones; below
+   k=10 they perform better.
 2. **α = 0 is the best-ranking setting, and it is the control.**  Post-hoc
    sweep over the same 600 queries: α=0.0 → MRR 0.6432 (identical to
    `bm25_code_only`, which is also the consistency check that the two paths
@@ -243,9 +267,10 @@ Gross rescue/loss at k=10 (net deltas hide which system you have):
 
 ### What was withdrawn (2026-08-18)
 
-An adversarial review found two defects in the first reported run.  Both bias
-towards the four-plane hypothesis, so both are retracted here rather than
-reworded.
+An adversarial review found two defects in the first reported run; correcting
+them surfaced a third, of the same class, in the graph half of the slice.  All
+three bias towards the four-plane hypothesis, so all three are retracted here
+rather than reworded.
 
 **Withdrawn claim 1 — "`no_fusion` is *strictly dominated* by
 `bm25_code_only`: 0 queries found that code-only missed, 59 lost."**  That was
@@ -287,6 +312,28 @@ sign at k=1, 5 and 10):
 Against the named comparator, hypothesis (b) is a **null** on the query set it
 was frozen against, and the sub-claim that survives is confirmed only on the
 138 queries whose answer the code plane cannot hold.
+
+**Withdrawn claim 3 — "structure contributes about one percentage point at
+k=10, and nothing at k=1."**  Found while correcting the first two, in the
+graph half of the slice, and it is the same defect one level down: the first
+two runs emitted crosstabs at **k=10 only**, which for the graph pairs is the
+single cutoff where the graph wins.  Against the degree-preserving rewired
+control that plan §14.2 names:
+
+| cutoff | both | only rewired | only graph | neither | net for graph |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| k=1 | 184 | 102 | 39 | 275 | **−63** (−0.1050) |
+| k=5 | 420 | 31 | 24 | 125 | **−7** (−0.0117) |
+| k=10 | 484 | 7 | 13 | 96 | +6 (+0.0100) |
+
+The k=1 effect is an order of magnitude larger than the k=10 effect and points
+the other way.  "A one-point effect is not a foundation; it is a measurement"
+was true as far as it went, but it quoted the one cutoff that favours the
+hypothesis and omitted the two that refute it.  §14.2 ("degree-preserving
+randomized cross-plane edges perform equivalently") is not answered by the
++6 row alone; read across cutoffs, the randomised control is *better* than the
+real graph below k=10.  The self-test can no longer emit a single-cutoff
+crosstab, and a check enforces it.
 
 ### Kill criterion §13 "four independent indices perform equivalently to cross-plane fusion"
 

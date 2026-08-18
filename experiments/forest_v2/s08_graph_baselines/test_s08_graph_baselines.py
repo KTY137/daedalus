@@ -11,6 +11,7 @@ nothing.
 from __future__ import annotations
 
 import ast
+import inspect
 import string
 import sys
 from pathlib import Path
@@ -26,6 +27,12 @@ from s08_corpus import (  # noqa: E402
     data_document_text,
     split_identifier,
     tokenize,
+)
+from s08_selftest import (  # noqa: E402
+    CROSSTAB_PAIRS,
+    KS,
+    crosstab,
+    crosstabs_by_cutoff,
 )
 from s08_queries import (  # noqa: E402
     build_extended_queries,
@@ -562,6 +569,57 @@ def test_slice_imports_no_repository_package() -> None:
             else:
                 continue
             assert not (set(names) & forbidden), f"{path.name} imports repository code: {names}"
+
+
+def test_crosstabs_are_reported_at_every_cutoff() -> None:
+    """A single-cutoff crosstab hid a sign flip; it must not become emittable again.
+
+    Against the degree-preserving rewired control the real graph is -63 at k=1,
+    -7 at k=5 and +6 at k=10.  Reporting only k=10 understates kill criterion
+    14.2 by an order of magnitude, in the direction that favours the hypothesis.
+
+    This asserts on the EMITTED BLOCK, not on the source text.  The first
+    version of this check read the source and looked for any dict comprehension
+    over ``KS``; a mutation that kept the honest key name and pinned the loop to
+    ``(10,)`` passed it, because other comprehensions over ``KS`` exist in the
+    module.  A guard that a mutation walks through is not a guard.
+    """
+    ranks = {
+        "bm25_code_only": [1, 2, 3],
+        "graph_code_only": [3, 1, 2],
+        "graph_rewired": [2, 3, 1],
+        "four_plane_no_fusion": [1, 1, 9],
+        "union_no_fusion": [4, 5, 6],
+        "bm25_single_index_all_planes": [7, 8, 9],
+    }
+    block = crosstabs_by_cutoff(ranks)
+    assert set(block["cutoffs"]) == {str(k) for k in KS}, "a cutoff went missing from the report"
+    for k, row in block["cutoffs"].items():
+        assert set(row) == {name for name, _, _ in CROSSTAB_PAIRS}, f"pairs missing at k={k}"
+        for name, entry in row.items():
+            assert entry["net_b_minus_a"] == entry["only_b"] - entry["only_a"]
+            assert entry["discordant"] == entry["only_a"] + entry["only_b"]
+
+
+def test_crosstab_builder_takes_no_cutoff_argument() -> None:
+    """The pin has to be impossible at the call site too, not only inside."""
+    params = list(inspect.signature(crosstabs_by_cutoff).parameters)
+    assert params == ["ranks"], f"a cutoff argument would let a caller pin it: {params}"
+
+
+def test_reported_cutoffs_are_the_frozen_three() -> None:
+    """``crosstabs_by_cutoff`` reads module ``KS``; narrowing KS must not be quiet."""
+    assert KS == (1, 5, 10)
+
+
+def test_crosstab_sign_can_flip_between_cutoffs() -> None:
+    """Why the checks above exist, as mechanics rather than as a comment."""
+    # B wins at k=2 (rank 2 vs 3) but loses at k=1 (rank 3 vs 1) on the other query
+    a_ranks, b_ranks = [1, 3], [3, 2]
+    assert crosstab(a_ranks, b_ranks, 1)["only_a"] == 1
+    assert crosstab(a_ranks, b_ranks, 1)["only_b"] == 0
+    assert crosstab(a_ranks, b_ranks, 2)["only_a"] == 1
+    assert crosstab(a_ranks, b_ranks, 2)["only_b"] == 1
 
 
 def test_slice_contains_no_write_or_subprocess_call() -> None:

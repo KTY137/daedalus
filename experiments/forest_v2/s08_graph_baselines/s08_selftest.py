@@ -62,6 +62,50 @@ def crosstab(a_ranks: list[int], b_ranks: list[int], k: int) -> dict[str, int]:
     return {"both": both, "only_a": only_a, "only_b": only_b, "neither": neither, "k": k}
 
 
+CROSSTAB_PAIRS: tuple[tuple[str, str, str], ...] = (
+    ("graph_vs_bm25_code_only", "bm25_code_only", "graph_code_only"),
+    ("graph_vs_rewired_control", "graph_rewired", "graph_code_only"),
+    ("no_fusion_vs_single_index", "four_plane_no_fusion", "bm25_single_index_all_planes"),
+    ("no_fusion_vs_code_only", "four_plane_no_fusion", "bm25_code_only"),
+    # The two the earlier correction turned on: the un-starved no-fusion arm
+    # against the code-only control, and against the comparator the spec names.
+    ("union_no_fusion_vs_code_only", "union_no_fusion", "bm25_code_only"),
+    ("union_no_fusion_vs_single_index", "union_no_fusion", "bm25_single_index_all_planes"),
+)
+
+
+def crosstabs_by_cutoff(ranks: dict[str, list[int]]) -> dict:
+    """Every pair at EVERY cutoff in ``KS``.  There is deliberately no ``ks``
+    argument: a caller must not be able to pin this to one flattering cutoff.
+
+    The first two runs of this slice reported crosstabs at k=10 alone.  For the
+    graph pairs that is the one cutoff where the graph wins, and the sign flips
+    below it: against the degree-preserving rewired control the real graph is
+    -63 at k=1, -7 at k=5 and +6 at k=10.  Reporting only the last of those
+    understates kill criterion 14.2 by an order of magnitude, in the direction
+    that favours the hypothesis -- the same defect class as the substituted
+    comparator, one level down.
+    """
+    cutoffs: dict[str, dict] = {}
+    for k in KS:
+        row: dict[str, dict] = {}
+        for name, a, b in CROSSTAB_PAIRS:
+            counts = crosstab(ranks[a], ranks[b], k)
+            row[name] = {
+                "a": a,
+                "b": b,
+                **counts,
+                "net_b_minus_a": counts["only_b"] - counts["only_a"],
+                "discordant": counts["only_a"] + counts["only_b"],
+            }
+        cutoffs[str(k)] = row
+    return {
+        "note": "net = only_b - only_a, positive means B wins. Read every cutoff: for the "
+                "graph pairs the sign flips between k=1 and k=10.",
+        "cutoffs": cutoffs,
+    }
+
+
 def _repo_root(argv: list[str]) -> Path:
     if len(argv) > 1:
         return Path(argv[1]).resolve()
@@ -359,40 +403,7 @@ def main(argv: list[str]) -> int:
         "union_no_fusion": rank_vector(union, queries, kmax),
         "bm25_single_index_all_planes": rank_vector(bm25_all, queries, kmax),
     }
-    report["crosstabs_at_10"] = {
-        "graph_vs_bm25_code_only": {
-            "a": "bm25_code_only",
-            "b": "graph_code_only",
-            **crosstab(ranks["bm25_code_only"], ranks["graph_code_only"], kmax),
-        },
-        "graph_vs_rewired_control": {
-            "a": "graph_rewired",
-            "b": "graph_code_only",
-            **crosstab(ranks["graph_rewired"], ranks["graph_code_only"], kmax),
-        },
-        "no_fusion_vs_single_index": {
-            "a": "four_plane_no_fusion",
-            "b": "bm25_single_index_all_planes",
-            **crosstab(ranks["four_plane_no_fusion"], ranks["bm25_single_index_all_planes"], kmax),
-        },
-        "no_fusion_vs_code_only": {
-            "a": "four_plane_no_fusion",
-            "b": "bm25_code_only",
-            **crosstab(ranks["four_plane_no_fusion"], ranks["bm25_code_only"], kmax),
-        },
-        # The two the correction turns on: the un-starved no-fusion arm against
-        # the code-only control, and against the comparator the spec names.
-        "union_no_fusion_vs_code_only": {
-            "a": "union_no_fusion",
-            "b": "bm25_code_only",
-            **crosstab(ranks["union_no_fusion"], ranks["bm25_code_only"], kmax),
-        },
-        "union_no_fusion_vs_single_index": {
-            "a": "union_no_fusion",
-            "b": "bm25_single_index_all_planes",
-            **crosstab(ranks["union_no_fusion"], ranks["bm25_single_index_all_planes"], kmax),
-        },
-    }
+    report["crosstabs_by_cutoff"] = crosstabs_by_cutoff(ranks)
 
     # Post-hoc sensitivity: NOT a tuned claim, printed so the frozen alpha=0.5
     # cannot be mistaken for a lucky pick.
