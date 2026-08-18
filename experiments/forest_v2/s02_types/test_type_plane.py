@@ -298,6 +298,27 @@ def test_unresolved_name_is_reported_with_a_source_locator(tmp_path: Path) -> No
     assert rows["NotBoundHere"] == ["pkg/m.py:5"]
 
 
+def test_locator_points_at_the_annotation_not_the_def(tmp_path: Path) -> None:
+    write_pkg(
+        tmp_path,
+        "pkg",
+        {
+            "m.py": """
+            def f(
+                a: int,
+                b: MissingOne,
+            ) -> MissingTwo:
+                return None
+            """
+        },
+    )
+    report = build(tmp_path)
+    rows = {row["name"]: row["sites"] for row in report["unresolved_annotation_names"]}
+    # the def opens on line 2; a multi-line signature must not collapse to it
+    assert rows["MissingOne"] == ["pkg/m.py:4"]
+    assert rows["MissingTwo"] == ["pkg/m.py:5"]
+
+
 def test_unresolved_names_are_reported_from_every_annotation_context(
     tmp_path: Path,
 ) -> None:

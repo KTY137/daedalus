@@ -579,9 +579,13 @@ class FileExtractor:
                 control_ok = False
                 continue
             self.totals["params_annotated"] += 1
-            heads, seen = self._annotation(param.annotation, fn.lineno)
+            # locate at the annotation itself, not at the enclosing ``def``:
+            # a multi-line signature would otherwise send every reader to the
+            # wrong line.
+            ann_line = param.annotation.lineno
+            heads, seen = self._annotation(param.annotation, ann_line)
             for head in heads:
-                self.graph.edge(param_sym, head, "param_type", self.rel_file, fn.lineno)
+                self.graph.edge(param_sym, head, "param_type", self.rel_file, ann_line)
             sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
@@ -593,9 +597,10 @@ class FileExtractor:
             control_ok = False
         else:
             self.totals["returns_annotated"] += 1
-            heads, seen = self._annotation(fn.returns, fn.lineno)
+            ret_line = fn.returns.lineno
+            heads, seen = self._annotation(fn.returns, ret_line)
             for head in heads:
-                self.graph.edge(sym, head, "return_type", self.rel_file, fn.lineno)
+                self.graph.edge(sym, head, "return_type", self.rel_file, ret_line)
             sig_buckets |= seen
             if seen & UNRESOLVED_BUCKETS:
                 resolved = False
