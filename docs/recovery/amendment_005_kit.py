@@ -289,6 +289,10 @@ def apply(root: Path) -> int:
     try:
         # 1. guard
         guard_path.write_bytes(guard_src.replace(OLD_BLOCK, NEW_BLOCK).encode("utf-8"))
+        # The module loaded for the preconditions still holds the unpatched
+        # code; reload from the patched file so verify() below runs the
+        # repaired checks instead of reporting the old false positive.
+        guard = _load_guard(root)
         # 2. plan header — bump the parsed revision and patch version once each
         new_plan = plan_src.replace(
             f"Revision: {revision}", f"Revision: {revision + 1}", 1
