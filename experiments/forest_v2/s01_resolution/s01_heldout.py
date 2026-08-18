@@ -5,9 +5,10 @@ network, no subprocess, no model calls.
 
 Why this file exists: the slice's headline was measured on the repository it
 was written against, which is the corpus its author looked at while writing the
-resolver.  Plan section 13 lists *"benefits disappear on held-out
-repositories"* as a kill criterion, so the claim has to be re-run somewhere the
-author never tuned anything.  The corpus is the CPython standard library of the
+resolver.  The plan's kill criteria list *"benefits disappear on held-out
+repositories"* (section 14 in the revision checked out on this branch, section
+13 in revision 1 -- cite it by name), so the claim has to be re-run somewhere
+the author never tuned anything.  The corpus is the CPython standard library of the
 interpreter running this script -- a tree with a different import culture,
 different class-per-module density, and no relationship to this project.
 

@@ -265,8 +265,12 @@ at all. It also declines where the baseline guesses (109 contradictions at home,
 misses**. The retracted headline reported attribution share, which is the one
 thing this slice does not deliver.
 
-**Kill criterion.** Plan §13, *"benefits disappear on held-out repositories"*,
-**fires** (§14 procedure). The evidence is archived here; the code-plane
+**Kill criterion.** The criterion *"benefits disappear on held-out
+repositories"* **fires**. (Section numbers move between plan revisions: it is
+**§14 "Kill criteria" in revision 5**, the revision checked out on this branch,
+and was §13 when the earlier sections of this file were written; the amendment
+protocol is §16 there. Cite the criterion by name, not by number.)
+The evidence is archived here; the code-plane
 attribution-share track is **stopped, not tuned** — the next slice may not
 re-report a share lift, and an amendment replacing the "resolution raises
 attribution" prior is **owed**. This lane does not propose that amendment and
@@ -413,8 +417,9 @@ re-argued rather than assumed.
 **Update 2026-08-18 — the criterion did not stay hypothetical: it FIRED.** On a
 held-out corpus (CPython 3.10.11 stdlib, 201 modules, 18,683 sites) s01's share
 is **below** the baseline's on every arm (−2.85 pp against B0, −6.12 pp against
-the repaired B1). That is plan §13 *"benefits disappear on held-out
-repositories"*. Per §14 the evidence is archived (above), the
+the repaired B1). That is the kill criterion *"benefits disappear on held-out
+repositories"* (§14 "Kill criteria" in the plan revision on this branch). Per
+the alignment/amendment procedure the evidence is archived (above), the
 attribution-share track is stopped rather than tuned, and an amendment
 replacing the "resolution raises attribution" prior is owed from the owner.
 The 29.16 % figure must not be quoted as a target for Gate 2.
