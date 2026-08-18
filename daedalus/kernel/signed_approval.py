@@ -10,14 +10,24 @@ second approval vocabulary -- the signed body is checked against the existing
 Three properties carry the whole design, and each exists because the naive
 version of it was measured and failed:
 
-**The signers list is the trust root, so the caller may not choose it.**
-Verifying an attacker-signed tag against an attacker-supplied signers file
-returns "Good signature" and exit 0. Nothing in this module accepts a signers
-path, a signers blob, a keyring or a public key from its caller. The list is
-read from one fixed repository path, at a pinned revision, through
-``git show`` -- the committed object, never the working-tree file, because a
-process that can write the working tree would otherwise be able to name itself
-a principal.
+**The signers list is not a parameter, but it is not beyond the caller's
+reach either.** Verifying an attacker-signed tag against an attacker-supplied
+signers file returns "Good signature" and exit 0. Nothing in this module
+accepts a signers path, a signers blob, a keyring or a public key from its
+caller. The list is read from one fixed repository path, at a pinned revision,
+as the committed object rather than the working-tree file, because a process
+that can write the working tree would otherwise be able to name itself a
+principal.
+
+The honest limit of that, measured rather than assumed: ``repo_root`` IS a
+caller parameter and ``ALLOWED_SIGNERS_REVISION`` is ``"HEAD"``, so whoever
+controls HEAD of the repository handed to this module controls the trust root
+completely -- a single commit that writes ``configs/owner-allowed-signers``
+becomes the new root, and the pins in the receipt then faithfully report the
+attacker's OIDs. Hardening the API surface does not close that; only binding
+the expected signer-set digest to an artifact the amendment protocol controls
+does. Until that binding exists, read every claim in this module as
+"...given that HEAD of ``repo_root`` is trustworthy".
 
 **Signing capability is never inherited.** This module runs ``git show``,
 ``git rev-parse``, ``git tag -l`` and ``git verify-tag``. It never runs
@@ -720,19 +730,30 @@ def _require_binding(
         )
 
 
-def _spent_root(repo_root: str | Path) -> Path:
-    """Checkout-external, namespaced by checkout identity.
+def _spent_root() -> Path:
+    """One ledger per user -- NOT one per checkout.
 
-    The single-use ledger must not live anywhere a candidate's declared write
-    paths can reach, or the candidate could erase the record of its own
-    approval having been spent.
+    Namespacing this directory by checkout path made an approval spendable once
+    PER PATH. MEASURED: the same signed approval was claimed again from a second
+    worktree of the same repository, and both calls returned "claimed". This
+    project works through worktrees routinely, so that was reachable in ordinary
+    use and not only under attack.
+
+    Single use is a property of the APPROVAL, so the ledger is keyed by the
+    approval's identity (the signed nonce and candidate, see
+    :func:`claim_signed_approval`) and lives at one place per user. It stays
+    outside every checkout: a candidate's declared write paths must not be able
+    to erase the record of its own approval having been spent.
     """
     local_appdata = os.environ.get("LOCALAPPDATA")
-    base = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
-    digest = hashlib.sha256(
-        str(Path(repo_root).resolve()).encode("utf-8")
-    ).hexdigest()[:12]
-    return base / "daedalus-kernel" / "promotion" / digest / "spent"
+    if local_appdata:
+        base = Path(local_appdata)
+    else:
+        try:
+            base = Path.home() / ".local" / "state"
+        except RuntimeError:  # no resolvable home; still checkout-external
+            base = Path(tempfile.gettempdir())
+    return base / "daedalus-kernel" / "promotion" / "spent"
 
 
 def claim_signed_approval(
@@ -749,12 +770,22 @@ def claim_signed_approval(
     so on both Windows and POSIX exactly one caller wins -- including two
     concurrent promotions of the same candidate.
 
+    ``repo_root`` does NOT select the ledger. It used to, and that made one
+    approval spendable once per checkout path; see :func:`_spent_root`. It is
+    retained only so call sites read symmetrically with the rest of the module.
+
     Fails closed in both directions: a filesystem error is a refusal, never an
     assumed-fresh approval.
+
+    Honest bound: ``spent_root`` exists for tests, and an in-process caller that
+    passes a fresh directory on every call defeats single use. Like the
+    construction token on :class:`VerifiedSignedApproval`, this resists accident
+    and ordinary misuse, not code that is trying. The durable protection is that
+    the default ledger is outside every checkout and shared across worktrees.
     """
     if not isinstance(verified, VerifiedSignedApproval):
         return False, "only a verified owner signature can be claimed"
-    root = Path(spent_root) if spent_root is not None else _spent_root(repo_root)
+    root = Path(spent_root) if spent_root is not None else _spent_root()
     key = hashlib.sha256(
         f"{verified.body.nonce}\n{verified.body.candidate_artifact_sha256}".encode(
             "utf-8"

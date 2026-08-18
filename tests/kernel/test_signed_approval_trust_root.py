@@ -957,6 +957,177 @@ def test_the_tag_name_helper_does_not_claim_to_bind() -> None:
     assert "approval_tag_for(" not in source
 
 
+# --- O1: single use belongs to the approval, not to the directory -----------
+
+
+def _verified(signing_repo: dict[str, object], tag: str = "owner-approval/spend"):
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    sign_tag(tag, _body_json(mechanism))
+    return repo, verify_signed_approval(repo, tag, expectation=_expectation())
+
+
+def test_an_approval_cannot_be_spent_once_per_worktree(
+    signing_repo: dict[str, object], tmp_path: Path, monkeypatch
+) -> None:
+    """O1, executed by Odysseus: the ledger was keyed on the checkout PATH.
+
+    The same signed approval was claimed again from a second worktree path and
+    both calls returned "claimed". This repository is worked through worktrees
+    as a matter of course, so this was reachable without an attacker.
+    """
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "state"))
+    repo, verified = _verified(signing_repo)
+
+    claimed_once, _ = claim_signed_approval(repo, verified)
+    assert claimed_once is True
+
+    # A second checkout of the same repository -- a different path entirely.
+    other_worktree = tmp_path / "another-worktree"
+    other_worktree.mkdir()
+    claimed_twice, reason = claim_signed_approval(other_worktree, verified)
+
+    assert claimed_twice is False, "the approval was spent a second time"
+    assert "already spent" in reason
+
+
+def test_the_ledger_location_does_not_depend_on_the_checkout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import daedalus.kernel.signed_approval as module
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "state"))
+    assert inspect.signature(module._spent_root).parameters == {}
+    root = module._spent_root()
+    assert root.is_absolute()
+    # Outside any checkout: a candidate's write roots must not reach it.
+    assert str(tmp_path / "state") in str(root)
+
+
+# --- O2: Odysseus' forged receipt, rebuilt so it cannot come back -----------
+
+
+def test_odysseus_forged_approval_cannot_produce_an_approved_receipt() -> None:
+    """The exact forgery Odysseus executed before the construction token.
+
+    It produced promotion_status="approved", approval_assurance="authenticated"
+    and signer_principal="TOTALLY FORGED" without any signature existing.
+    """
+    from daedalus.kernel.signed_approval import VerifiedSignedApproval
+
+    body = canonical_approval_body(
+        expectation=_expectation(),
+        nonce="nonce-1",
+        expires_at=_future(),
+        approval_mechanism_sha256="e" * 64,
+    )
+    with pytest.raises(SignedApprovalSignatureError):
+        VerifiedSignedApproval(
+            tag_name="owner-approval/forged",
+            tag_object_sha1="0" * 40,
+            tag_target_oid="1" * 40,
+            signer_principal="TOTALLY FORGED",
+            body=body,
+            owner_approval_ref="artifact-locator:sha256:" + "f" * 64,
+            trust_root_commit_oid="2" * 40,
+            trust_root_blob_oid="3" * 40,
+        )
+
+
+# --- O3: guards that shipped without a test --------------------------------
+
+
+@pytest.mark.parametrize(
+    "field, replacement",
+    [
+        ("evidence_packet_sha256", "9" * 64),
+        ("nomination_receipt_sha256", "8" * 64),
+        ("candidate_artifact_sha256", "7" * 64),
+        ("base_revision", "9" * 40),
+        ("expected_target_revision", "8" * 40),
+        ("target_ref", "some-other-branch"),
+    ],
+)
+def test_every_bound_field_is_actually_compared(
+    signing_repo: dict[str, object], field: str, replacement: str
+) -> None:
+    """O3(a): removing the evidence comparison left all 34 checks green.
+
+    Each bound field gets its own case, so a deleted comparison fails loudly
+    instead of being covered incidentally by another field's mismatch.
+    """
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+
+    tag = f"owner-approval/bound-{field}"
+    sign_tag(tag, _body_json(mechanism, **{field: replacement}))
+
+    with pytest.raises(SignedApprovalBindingMismatch) as caught:
+        verify_signed_approval(repo, tag, expectation=_expectation())
+    # The refusal must name the field that actually differed.
+    expected_name = "candidate_artifact_sha256" if field == "candidate_artifact_sha256" else field
+    assert expected_name in str(caught.value)
+
+
+def test_a_tag_name_with_whitespace_is_refused(signing_repo: dict[str, object]) -> None:
+    """O3(d): the whitespace check shipped untested."""
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    with pytest.raises(SignedApprovalSignatureError, match="must not contain spaces"):
+        verify_signed_approval(
+            repo, "owner-approval/has space", expectation=_expectation()
+        )
+
+
+def test_an_approval_expiring_exactly_now_is_refused(
+    signing_repo: dict[str, object]
+) -> None:
+    """O3(e): the boundary between `>=` and `>` shipped untested."""
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+
+    expires = "2030-01-01T00:00:00Z"
+    tag = "owner-approval/at-the-boundary"
+    sign_tag(tag, _body_json(mechanism, expires_at=expires))
+    moment = datetime(2030, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    with pytest.raises(SignedApprovalExpired):
+        verify_signed_approval(repo, tag, expectation=_expectation(), now=moment)
+
+    # One second earlier it is still valid, which is what makes this a boundary.
+    verified = verify_signed_approval(
+        repo, tag, expectation=_expectation(), now=moment - timedelta(seconds=1)
+    )
+    assert verified.body.expires_at == expires
+
+
+def test_a_tag_object_the_repository_does_not_hold_is_refused(
+    signing_repo: dict[str, object], monkeypatch
+) -> None:
+    """O3(c): the "refusing rather than fetching" branch shipped untested."""
+    import daedalus.kernel.signed_approval as module
+
+    repo: Path = signing_repo["repo"]  # type: ignore[assignment]
+    sign_tag = signing_repo["sign_tag"]  # type: ignore[assignment]
+    mechanism: str = signing_repo["mechanism"]  # type: ignore[assignment]
+    tag = "owner-approval/dangling"
+    sign_tag(tag, _body_json(mechanism))
+
+    real_git = module._git
+
+    def failing_target_pin(root, args, **kwargs):
+        # Only the final target pin fails: the object cannot be resolved.
+        if args and args[0] == "rev-parse" and args[-1].endswith("^{}"):
+            return subprocess.CompletedProcess(args, 1, "", "missing object")
+        return real_git(root, args, **kwargs)
+
+    monkeypatch.setattr(module, "_git", failing_target_pin)
+    with pytest.raises(SignedApprovalSignatureError, match="refusing rather than fetching"):
+        verify_signed_approval(repo, tag, expectation=_expectation())
+
+
 def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
     body = canonical_approval_body(
         expectation=_expectation(),
