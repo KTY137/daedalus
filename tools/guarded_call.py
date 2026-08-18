@@ -62,6 +62,39 @@ def main() -> int:
     from daedalus.env import load_env
     load_env()
 
+    # Canonical Gate-0 effect start. The budget decision installs the real
+    # in-process spend net; the egress decision runs the secret floor over
+    # the only outbound payload this door sends. A boundary refusal follows
+    # this door's protocol: valid JSON, exit 0, so the caller can tell a
+    # policy decision from a crash.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.sensitivity import secret_floor_rule
+    from daedalus.spine.effect_boundary import (
+        REGISTRY_BY_ID,
+        EffectBoundaryError,
+        GuardDecision,
+        begin_effect,
+    )
+
+    outbound = objective + "\n" + str(request.get("system") or "")
+    floor_hit = secret_floor_rule("guarded_call.stdin", outbound)
+    egress_decision = GuardDecision(
+        "provider.egress_policy",
+        floor_hit is None,
+        f"secret-floor over outbound payload: {floor_hit or 'clean'}",
+    )
+    try:
+        begin_effect(
+            "tools.guarded_call",
+            REGISTRY_BY_ID["tools.guarded_call"].effects,
+            (process_guard_boundary_decision(), egress_decision),
+        )
+    except EffectBoundaryError as exc:
+        json.dump({"ok": False, "report": None,
+                   "error": f"effect boundary refused: {exc}", "sent": {}},
+                  sys.stdout)
+        return 0
+
     # Imported here, after the request parses: a malformed call should not pay
     # the cost of loading the provider stack, and a missing key should be
     # reported as a refusal rather than an import error.

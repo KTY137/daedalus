@@ -724,6 +724,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--list", action="store_true", help="print the mutants and exit")
     args = ap.parse_args(argv)
 
+    if not args.list:
+        # --list prints the mutant table and stays fail-open; scoring spawns
+        # pytest against mutated trees and starts at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "tools.mutation_score",
+            REGISTRY_BY_ID["tools.mutation_score"].effects,
+            (process_guard_boundary_decision(),),
+        )
     repo = Path(args.repo).resolve()
     source = (repo / args.module).read_text(encoding="utf-8")
     muts = generate_mutations(source, args.module.replace("\\", "/"),

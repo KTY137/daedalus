@@ -448,6 +448,26 @@ def _extract(payload: dict, role: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv if argv is not None else sys.argv)
     role = argv[1] if len(argv) > 1 else "user"
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import (
+        REGISTRY_BY_ID,
+        EffectBoundaryError,
+        begin_effect,
+    )
+
+    try:
+        begin_effect(
+            "runs.council.stream_hook",
+            REGISTRY_BY_ID["runs.council.stream_hook"].effects,
+            (process_guard_boundary_decision(),),
+        )
+    except EffectBoundaryError as exc:
+        # Hook protocol: never raise into the caller. A boundary refusal
+        # writes nothing -- not even an error record.
+        print(f"[stream-hook] effect boundary refused: {exc}", file=sys.stderr)
+        return 0
     try:
         raw = sys.stdin.read()
     except Exception as exc:  # noqa: BLE001

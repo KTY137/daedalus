@@ -138,6 +138,17 @@ def main(argv: list[str] | None = None) -> int:
                          "carries.")
     args = ap.parse_args(argv)
 
+    if args.json or args.lpg:
+        # Index building and the printed summary stay fail-open read-only
+        # inspection; the artifact writes start at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "cli.structcore",
+            REGISTRY_BY_ID["cli.structcore"].effects,
+            (process_guard_boundary_decision(),),
+        )
     idx = build_index(args.repo, max_files=args.max_files, center=args.center,
                       ignore=args.ignore, documents=args.documents,
                       types=args.types)

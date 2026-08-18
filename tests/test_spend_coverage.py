@@ -377,6 +377,16 @@ def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
         # spends REPEATEDLY by design. Its bounds (iterations, wall-clock,
         # spend) are its own; the process guard is the floor under all three.
         "daedalus/loop.py",
+        # WIDENED 2026-08-18 by the Gate-0 central-wiring migration: the
+        # contract module itself now calls install_process_guard() inside
+        # process_guard_boundary_decision(), the canonical way an entrypoint
+        # both RUNS the budget.process_guard contract and hands the resulting
+        # GuardDecision to begin_effect. Roughly forty wired entrypoints
+        # install the ceiling through that one function instead of growing
+        # this pin one file at a time -- the coverage story got stronger, not
+        # looser, and the per-file callers above keep their own direct
+        # installations as depth.
+        "daedalus/budget.py",
     }, (
         f"the set of processes that install the spend ceiling changed: "
         f"{sorted(installers)}. That is the coverage story; update the "

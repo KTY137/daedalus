@@ -150,6 +150,18 @@ def main() -> int:
     ap.add_argument("--max-repairs", type=int, default=2)
     args = ap.parse_args()
 
+    import sys as _sys
+    _repo_root = str(HERE.parents[1])
+    if _repo_root not in _sys.path:
+        _sys.path.insert(0, _repo_root)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runs.ab.run_arm",
+        REGISTRY_BY_ID["runs.ab.run_arm"].effects,
+        (process_guard_boundary_decision(),),
+    )
     arm_dir = AB_ROOT / f"arm{args.arm}"
     receipt: dict = {"arm": args.arm, "model": MODEL, "repo": str(arm_dir),
                      "turns": [], "rework": 0, "human_interventions": 0}

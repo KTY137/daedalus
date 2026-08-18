@@ -948,11 +948,30 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
 
+    def _bind_decision(self):
+        """The web.authenticated_bind decision this request just passed."""
+        from daedalus.spine.effect_boundary import GuardDecision
+
+        token = getattr(self.server, "daedalus_auth_token", "") or ""
+        return GuardDecision(
+            "web.authenticated_bind",
+            True,
+            "loopback bind (no packet leaves the machine)" if not token
+            else "non-loopback opt-in bind; bearer token verified",
+        )
+
     def do_PUT(self) -> None:
         if not self._authorized():
             self._deny()
             return
         try:
+            from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+            begin_effect(
+                "web.mutations_put",
+                REGISTRY_BY_ID["web.mutations_put"].effects,
+                (self._bind_decision(),),
+            )
             self._handle_put()
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
@@ -962,6 +981,13 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._deny()
             return
         try:
+            from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+            begin_effect(
+                "web.mutations",
+                REGISTRY_BY_ID["web.mutations"].effects,
+                (self._bind_decision(),),
+            )
             self._handle_post()
         except Exception as exc:
             self._send_json({"ok": False, "error": str(exc)}, status=500)
@@ -1853,6 +1879,26 @@ def main(argv: list[str] | None = None) -> None:
                              f"Authorization: Bearer header.")
     args = parser.parse_args(argv)
     try:
+        from daedalus.spine.effect_boundary import (
+            REGISTRY_BY_ID,
+            GuardDecision,
+            begin_effect,
+        )
+
+        token = _resolve_bind(args.host, args.allow_remote_clients)
+        begin_effect(
+            "cli.web_api",
+            REGISTRY_BY_ID["cli.web_api"].effects,
+            (
+                GuardDecision(
+                    "web.authenticated_bind",
+                    True,
+                    f"_resolve_bind accepted host={args.host!r} "
+                    + ("(loopback, no token)" if not token
+                       else "(non-loopback opt-in, token set)"),
+                ),
+            ),
+        )
         run(args.host, args.port,
             allow_remote_clients=args.allow_remote_clients)
     except NonLoopbackBindRefused as exc:

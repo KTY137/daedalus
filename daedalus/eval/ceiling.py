@@ -442,6 +442,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="co_change_pairs min_count (default 2; 1 = most "
                          "permissive ceiling, any single prior co-commit).")
     args = ap.parse_args(argv)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.eval_ceiling",
+        REGISTRY_BY_ID["cli.eval_ceiling"].effects,
+        (process_guard_boundary_decision(),),
+    )
     result = temporal_ceiling(min_count=args.min_count)
     text = render_ceiling(result)
     try:

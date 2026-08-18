@@ -221,6 +221,14 @@ def main(argv: list[str] | None = None) -> None:
                                 description="Live Ollama write round-trip (real, repeatable).")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.selftest",
+        REGISTRY_BY_ID["cli.selftest"].effects,
+        (process_guard_boundary_decision(),),
+    )
     res = run()
     _emit(res, args.json)
     raise SystemExit(0 if (res["ok"] or res.get("skipped")) else 1)

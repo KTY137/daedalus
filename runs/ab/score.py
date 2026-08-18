@@ -143,6 +143,18 @@ def score_arm(arm: str) -> dict:
 
 
 def main() -> int:
+    import sys as _sys
+    _repo_root = str(HERE.parents[1])
+    if _repo_root not in _sys.path:
+        _sys.path.insert(0, _repo_root)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runs.ab.score",
+        REGISTRY_BY_ID["runs.ab.score"].effects,
+        (process_guard_boundary_decision(),),
+    )
     out = {"note": ("per-test, module-grouped. Contested tests are excluded from "
                     "'excluding_contested' and listed with the reason. The "
                     "compliance block is EXPLORATORY and decides nothing."),

@@ -200,9 +200,16 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("web.authenticated_bind",),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "_authorized"),),
-        notes="Request auth exists; one canonical per-request effect start does not.",
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "_authorized"),
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_POST", "begin_effect"),
+        ),
+        notes=(
+            "Each POST starts centrally after request auth; the recorded "
+            "decision names the bind class (loopback vs token-verified)."
+        ),
+        migration="complete for the web.mutations entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.enqueue",
@@ -210,8 +217,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.file_bridge:enqueue",
         effects=(Effect.FILESYSTEM_WRITE,),
         guard_contracts=("file_bridge.crash_journal",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Atomic queue publication; dispatch policy is evaluated by the watcher.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:enqueue", "begin_effect"),),
+        notes=(
+            "Atomic queue publication starts at the central boundary after "
+            "the consumer check, with the verified durable-journal decision; "
+            "a refusal still leaves no request file behind."
+        ),
+        migration="complete for the file_bridge.enqueue entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.process",
@@ -224,8 +237,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("file_bridge.crash_journal",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Durable before-dispatch journal exists; no shared effect-start lease exists.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:process_request", "begin_effect"),),
+        notes=(
+            "Exactly-once dispatch starts at the central boundary with the "
+            "verified durable-journal decision for the request key."
+        ),
+        migration="complete for the file_bridge.process entrypoint",
     ),
     EntrypointSpec(
         id="file_bridge.watch",
@@ -238,8 +256,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("file_bridge.crash_journal", "budget.process_guard"),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Direct python -m watcher can run without installing the process spend guard.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:watch", "begin_effect"),),
+        notes=(
+            "The watcher loop starts at the central boundary with the journal "
+            "decision AND the really-installed process spend net, so a direct "
+            "python -m watcher can no longer run unpriced."
+        ),
+        migration="complete for the file_bridge.watch entrypoint",
     ),
     EntrypointSpec(
         id="python.attempt",
@@ -389,8 +413,428 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.create_session",
         effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS, Effect.FILESYSTEM_WRITE),
         guard_contracts=("runtime.adapter_profile",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Verified argv profiles exist; cwd/write/egress policy is not centrally leased.",
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.create_session",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Every spawn passes the central boundary with a real adapter-profile "
+            "decision (verified profile vs explicit config, bounded repo root) "
+            "before create_subprocess_exec; the receipt is retained per session."
+        ),
+        migration="complete for the adapter.subprocess entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.send",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Stdin control of a live session starts at the central boundary "
+            "with the same adapter-profile decision as the spawn."
+        ),
+        migration="complete for the adapter.subprocess.send entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.interrupt",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "SIGINT to a tracked live session requires a central effect start; "
+            "unknown or finished sessions remain a no-op without one."
+        ),
+        migration="complete for the adapter.subprocess.interrupt entrypoint",
+    ),
+    EntrypointSpec(
+        id="adapter.subprocess.terminate",
+        surface=Surface.PYTHON,
+        target="daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
+        effects=(Effect.PROCESS_CONTROL,),
+        guard_contracts=("runtime.adapter_profile",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Terminate/kill of a tracked session refuses before any process "
+            "control when the central boundary does not accept the start; a "
+            "refused terminate leaves the session tracked."
+        ),
+        migration="complete for the adapter.subprocess.terminate entrypoint",
+    ),
+    # CLI mains wired through the central boundary.  The family contract is
+    # budget.process_guard: each main actually installs the process-wide spend
+    # net (daedalus.budget.process_guard_boundary_decision) and passes its
+    # decision to begin_effect before the first effect.  Read-only inspection
+    # paths (status/summary printing) stay fail-open by design.
+    EntrypointSpec(
+        id="cli.enforce",
+        surface=Surface.CLI,
+        target="daedalus.enforce:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.enforce:main", "begin_effect"),),
+        notes="Harness-instruction writes into a target repo start centrally.",
+        migration="complete for the cli.enforce entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.gui_lint",
+        surface=Surface.CLI,
+        target="daedalus.gui.lint:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.gui.lint:main", "begin_effect"),),
+        notes="GUI capture lint report write starts centrally.",
+        migration="complete for the cli.gui_lint entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.runbook",
+        surface=Surface.CLI,
+        target="daedalus.runbook:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.runbook:main", "begin_effect"),),
+        notes="Run-brief creation starts centrally.",
+        migration="complete for the cli.runbook entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.selftest",
+        surface=Surface.CLI,
+        target="daedalus.selftest:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.selftest:main", "begin_effect"),),
+        notes=(
+            "Live Ollama write round-trip; network_egress is hand-declared "
+            "(the request leaves via the provider path the scanner does not "
+            "follow) and the installed spend net prices it."
+        ),
+        migration="complete for the cli.selftest entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.shift",
+        surface=Surface.CLI,
+        target="daedalus.shift:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.shift:main", "begin_effect"),),
+        notes=(
+            "start/note/end state writes begin centrally; the status "
+            "subcommand stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.shift entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.structcore",
+        surface=Surface.CLI,
+        target="daedalus.structcore.__main__:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.structcore.__main__:main", "begin_effect"),),
+        notes=(
+            "Index/LPG artifact writes begin centrally; pure indexing with "
+            "the printed summary stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.structcore entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.structcore_slice",
+        surface=Surface.CLI,
+        target="daedalus.structcore.slice:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.structcore.slice:main", "begin_effect"),),
+        notes=(
+            "Slice/JSON artifact writes begin centrally; slicing with the "
+            "printed report stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.structcore_slice entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.token_monitor",
+        surface=Surface.CLI,
+        target="daedalus.token_monitor:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.token_monitor:main", "begin_effect"),),
+        notes="Checkpoint writes (one-shot and watch loop) begin centrally.",
+        migration="complete for the cli.token_monitor entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.arch_memory",
+        surface=Surface.CLI,
+        target="daedalus.arch_memory:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.arch_memory:main", "begin_effect"),),
+        notes=(
+            "Memory build/save (git probes plus the memory-file write, "
+            "hand-declared) begins centrally; --show stays fail-open."
+        ),
+        migration="complete for the cli.arch_memory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.bookkeeper",
+        surface=Surface.CLI,
+        target="daedalus.bookkeeper:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.bookkeeper:main", "begin_effect"),),
+        notes="architecture.html render plus history snapshot begin centrally.",
+        migration="complete for the cli.bookkeeper entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.dctx",
+        surface=Surface.CLI,
+        target="daedalus.dctx:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.dctx:main", "begin_effect"),),
+        notes=(
+            "Receipt minting begins centrally; --verify stays fail-open "
+            "read-only inspection."
+        ),
+        migration="complete for the cli.dctx entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.doctor",
+        surface=Surface.CLI,
+        target="daedalus.doctor:main",
+        effects=(Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.doctor:main", "begin_effect"),),
+        notes=(
+            "Diagnostic probes really spawn CLIs and reach the local model "
+            "host, so the whole run begins centrally with the spend net on."
+        ),
+        migration="complete for the cli.doctor entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_ceiling",
+        surface=Surface.CLI,
+        target="daedalus.eval.ceiling:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.ceiling:main", "begin_effect"),),
+        notes="Advisory report, but its git history probes spawn processes.",
+        migration="complete for the cli.eval_ceiling entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_correctness",
+        surface=Surface.CLI,
+        target="daedalus.eval.correctness:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.correctness:main", "begin_effect"),),
+        notes=(
+            "verify/run/seed spawn pytest in disposable worktrees and begin "
+            "centrally; --derive stays fail-open (prints, writes nothing)."
+        ),
+        migration="complete for the cli.eval_correctness entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval_graph_delta",
+        surface=Surface.CLI,
+        target="daedalus.eval.graph_delta:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.graph_delta:main", "begin_effect"),),
+        notes="Every mode writes its evidence JSON, so the run begins centrally.",
+        migration="complete for the cli.eval_graph_delta entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.memory",
+        surface=Surface.CLI,
+        target="daedalus.memory.__init__:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.memory.__init__:main", "begin_effect"),),
+        notes=(
+            "add/snapshot/done event writes begin centrally; bare help "
+            "output stays fail-open."
+        ),
+        migration="complete for the cli.memory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.web_api",
+        surface=Surface.CLI,
+        target="daedalus.web_api:main",
+        effects=(Effect.LISTEN_SOCKET,),
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.web_api:main", "begin_effect"),),
+        notes=(
+            "The listen socket starts centrally with the real _resolve_bind "
+            "verdict as its decision; a refused non-loopback bind still "
+            "refuses before the boundary is consulted."
+        ),
+        migration="complete for the cli.web_api entrypoint",
+    ),
+    EntrypointSpec(
+        id="web.mutations_put",
+        surface=Surface.WEB_API,
+        target="daedalus.web_api:DaedalusHandler.do_PUT",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.web_api:DaedalusHandler.do_PUT", "begin_effect"),
+        ),
+        notes=(
+            "Each PUT starts centrally after request auth, mirroring "
+            "web.mutations."
+        ),
+        migration="complete for the web.mutations_put entrypoint",
+    ),
+    EntrypointSpec(
+        id="python.command_gate",
+        surface=Surface.PYTHON,
+        target="daedalus.spine.attempt:command_gate",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("containment.attempt",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.spine.attempt:command_gate", "begin_effect"),),
+        notes=(
+            "Gate construction starts centrally; candidate execution inside "
+            "the gate remains containment-enforced with refusal instead of "
+            "downgrade (no contained=False exists)."
+        ),
+        migration="complete for the python.command_gate entrypoint",
+    ),
+    EntrypointSpec(
+        id="worktree.reap",
+        surface=Surface.WORKTREE,
+        target="daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=("containment.worktree",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor(
+                "daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "Branch reaping starts centrally; deletion still requires this "
+            "manager's in-process allocation record AND git reachability, "
+            "per the method's trust model."
+        ),
+        migration="complete for the worktree.reap entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.file_bridge",
+        surface=Surface.CLI,
+        target="daedalus.file_bridge:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.file_bridge:main", "begin_effect"),),
+        notes=(
+            "watch/enqueue/once/mark-read begin centrally (the delegated "
+            "bridge functions carry their own central rows); the status "
+            "subcommand stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.file_bridge entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_drift",
+        surface=Surface.CLI,
+        target="daedalus.mapping.drift:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.drift:main", "begin_effect"),),
+        notes=(
+            "--refresh/--init baseline writes begin centrally; the drift "
+            "comparison gate stays fail-open read-only inspection."
+        ),
+        migration="complete for the cli.mapping_drift entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_inventory",
+        surface=Surface.CLI,
+        target="daedalus.mapping.inventory:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.inventory:main", "begin_effect"),),
+        notes=(
+            "--refresh inventory rewrite begins centrally; --check/--json "
+            "stay fail-open (they write nothing)."
+        ),
+        migration="complete for the cli.mapping_inventory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.mapping_render",
+        surface=Surface.CLI,
+        target="daedalus.mapping.render:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.mapping.render:main", "begin_effect"),),
+        notes=(
+            "Map/snapshot/inventory rewrites and --accept records begin "
+            "centrally; --json/--check stay fail-open (they write nothing)."
+        ),
+        migration="complete for the cli.mapping_render entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.status",
+        surface=Surface.CLI,
+        target="daedalus.status:main",
+        effects=(Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.status:main", "begin_effect"),),
+        notes=(
+            "Health probes really spawn processes and --probe-remote reaches "
+            "the bench host (network_egress hand-declared), so the run "
+            "begins centrally with the spend net on."
+        ),
+        migration="complete for the cli.status entrypoint",
     ),
     EntrypointSpec(
         id="provider.claude",
@@ -405,7 +849,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard", "provider.write_policy"),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="claude_code_cli",
-        notes="Provider delegates to ask_claude; direct Python use bypasses CLI spend installation.",
+        notes=(
+            "Provider delegates to ask_claude; direct Python use bypasses CLI "
+            "spend installation. REASONED REMAINDER 2026-08-18: runtime-bearing "
+            "rows must reach central through the runtime-bound lease/broker "
+            "chain (live-runtime lane, Revision 3); wiring the plain spine "
+            "sluice here would mint a second, weaker start path for a runtime "
+            "row, so this stays inventory_only until that chain lands."
+        ),
     ),
     EntrypointSpec(
         id="provider.codex",
@@ -426,7 +877,12 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
                 "classify_data",
             ),
         ),
-        notes="Egress is fail-closed and write defaults false; direct write mode remains an unleased path.",
+        notes=(
+            "Egress is fail-closed and write defaults false; direct write "
+            "mode remains an unleased path. REASONED REMAINDER 2026-08-18: "
+            "runtime-bearing row -- central only via the runtime-bound "
+            "lease/broker chain owned by the live-runtime lane."
+        ),
     ),
     EntrypointSpec(
         id="provider.ollama",
@@ -446,7 +902,12 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("provider.egress_policy",),
         wiring=Wiring.INVENTORY_ONLY,
         runtime_id="ollama_http",
-        notes="Low-level HTTP helper accepts a host and has no independent lane decision.",
+        notes=(
+            "Low-level HTTP helper accepts a host and has no independent lane "
+            "decision. REASONED REMAINDER 2026-08-18: runtime-bearing row -- "
+            "central only via the runtime-bound lease/broker chain owned by "
+            "the live-runtime lane."
+        ),
     ),
     EntrypointSpec(
         id="worktree.create",
@@ -513,14 +974,20 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="tools.guarded_call:main",
         effects=(Effect.NETWORK_EGRESS, Effect.SPEND, Effect.SECRETS),
         guard_contracts=("budget.process_guard", "provider.egress_policy"),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("tools.guarded_call:main", "run"),),
-        notes=(
-            "Process-boundary door for external-environment callers; budget and "
-            "secret-floor refusals live in DeepSeekProvider.run (the anchored "
-            "delegated call). The static scanner cannot see this cross-module "
-            "sink, so spend/secrets here are hand-declared."
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("tools.guarded_call:main", "run"),
+            GuardAnchor("tools.guarded_call:main", "begin_effect"),
         ),
+        notes=(
+            "Process-boundary door for external-environment callers. The "
+            "central start installs the real spend net and runs the secret "
+            "floor over the outbound payload; a boundary refusal follows the "
+            "door's JSON protocol. Deeper budget/secret refusals still live "
+            "in DeepSeekProvider.run (the anchored delegated call); "
+            "spend/secrets remain hand-declared for the scanner."
+        ),
+        migration="complete for the tools.guarded_call entrypoint",
     ),
     EntrypointSpec(
         id="tools.audit_swarm",
@@ -534,13 +1001,18 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("tools.audit_swarm:main", "fan_out"),),
-        notes=(
-            "Paid fan-out. The spend guard is installed fail-closed inside the "
-            "anchored fan_out callee (daedalus.lanes.fanout), not by this "
-            "entrypoint itself; no canonical effect start exists yet."
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("tools.audit_swarm:main", "fan_out"),
+            GuardAnchor("tools.audit_swarm:main", "begin_effect"),
         ),
+        notes=(
+            "Paid fan-out starts at the central boundary with the "
+            "really-installed spend net; --plan stays fail-open. The anchored "
+            "fan_out callee keeps its own fail-closed installation as "
+            "defense in depth."
+        ),
+        migration="complete for the tools.audit_swarm entrypoint",
     ),
     EntrypointSpec(
         id="tools.funnel",
@@ -554,16 +1026,19 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor("tools.funnel:main", "fan_out"),
             GuardAnchor("tools.funnel:main", "budget_verdict"),
+            GuardAnchor("tools.funnel:main", "begin_effect"),
         ),
         notes=(
-            "Paid tiered fan-out. Local budget verdict runs before dispatch and "
-            "the spend guard is installed fail-closed inside the anchored "
-            "fan_out callee; no canonical effect start exists yet."
+            "Paid tiered fan-out starts at the central boundary with the "
+            "really-installed spend net; the projection stays fail-open. The "
+            "local budget verdict and the fan_out callee's own installation "
+            "remain as defense in depth."
         ),
+        migration="complete for the tools.funnel entrypoint",
     ),
     # Repository-mutation tier of the effect-boundary inventory.  The scanner
     # can never infer repository_mutation (git argv), so it is hand-declared
@@ -594,9 +1069,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Mutates a tree, runs the corpus, writes a receipt.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gate_discrimination:main", "begin_effect"),),
+        notes=(
+            "Clone/mutate/pytest measurement begins centrally; --dry-run "
+            "anchor validation stays fail-open."
+        ),
+        migration="complete for the tools.gate_discrimination entrypoint",
     ),
     EntrypointSpec(
         id="tools.bootstrap_receipt",
@@ -607,9 +1087,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Bootstrap evidence run that touches git state while producing its receipt.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.bootstrap_receipt:main", "begin_effect"),),
+        notes=(
+            "Bootstrap evidence run (git-touching) begins centrally with the "
+            "really-installed process spend net."
+        ),
+        migration="complete for the tools.bootstrap_receipt entrypoint",
     ),
     EntrypointSpec(
         id="tools.operability_drill",
@@ -620,9 +1105,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Operability drill that exercises git-touching recovery paths.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.operability_drill:main", "begin_effect"),),
+        notes="The end-to-end control drill begins centrally.",
+        migration="complete for the tools.operability_drill entrypoint",
     ),
     EntrypointSpec(
         id="tools.gate_host_preflight",
@@ -633,9 +1120,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Host preflight that probes git and workspace state before gate runs.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gate_host_preflight:main", "begin_effect"),),
+        notes="Host preflight probes begin centrally.",
+        migration="complete for the tools.gate_host_preflight entrypoint",
     ),
     EntrypointSpec(
         id="tools.gui_check",
@@ -647,64 +1136,96 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_CONTROL,
             Effect.PROCESS_SPAWN,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Spawns node/playwright, binds and kills a local dev server.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gui_check:main", "begin_effect"),),
+        notes=(
+            "node/playwright spawns and the local dev-server lifecycle begin "
+            "centrally."
+        ),
+        migration="complete for the tools.gui_check entrypoint",
     ),
     # Write-only / spawn-only tool entrypoints; effects as discovered.
     EntrypointSpec(
         id="tools.mutation_score",
         surface=Surface.CLI,
         target="tools.mutation_score:main",
-        effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Scores mutation runs and writes the report.",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.mutation_score:main", "begin_effect"),),
+        notes=(
+            "Scoring (pytest spawns against mutated trees, hand-declared) "
+            "begins centrally; --list stays fail-open."
+        ),
+        migration="complete for the tools.mutation_score entrypoint",
     ),
     EntrypointSpec(
         id="tools.audit_triage",
         surface=Surface.CLI,
         target="tools.audit_triage:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Triages audit findings into a written worklist.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.audit_triage:main", "begin_effect"),),
+        notes=(
+            "The JSON worklist write begins centrally; the printed triage "
+            "stays fail-open read-only inspection."
+        ),
+        migration="complete for the tools.audit_triage entrypoint",
     ),
     EntrypointSpec(
         id="tools.agent_findings",
         surface=Surface.CLI,
         target="tools.agent_findings:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Collects agent findings and writes the digest.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.agent_findings:main", "begin_effect"),),
+        notes="Findings digest writes begin centrally.",
+        migration="complete for the tools.agent_findings entrypoint",
     ),
     EntrypointSpec(
         id="tools.lane_invariants",
         surface=Surface.CLI,
         target="tools.lane_invariants:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Checks lane invariants and writes the result file.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.lane_invariants:main", "begin_effect"),),
+        notes=(
+            "The JSON result write begins centrally; the printed invariant "
+            "check stays fail-open read-only inspection."
+        ),
+        migration="complete for the tools.lane_invariants entrypoint",
     ),
     EntrypointSpec(
         id="tools.funnel_report",
         surface=Surface.CLI,
         target="tools.funnel_report:main",
         effects=(Effect.PROCESS_SPAWN,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Reads a finished funnel run directory; the fan_out mention in its source is docstring only.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.funnel_report:main", "begin_effect"),),
+        notes=(
+            "Reads a finished funnel run directory (fan_out mention in its "
+            "source is docstring only); its declared spawn begins centrally."
+        ),
+        migration="complete for the tools.funnel_report entrypoint",
     ),
     EntrypointSpec(
         id="tools.run_gate_checks",
         surface=Surface.CLI,
         target="tools.run_gate_checks:main",
         effects=(Effect.PROCESS_SPAWN,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Runs the canonical gate verification profiles via subprocess pytest.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.run_gate_checks:main", "begin_effect"),),
+        notes=(
+            "Gate verification pytest spawns begin centrally; --list stays "
+            "fail-open."
+        ),
+        migration="complete for the tools.run_gate_checks entrypoint",
     ),
     EntrypointSpec(
         id="tools.iron_plan_hook_runner",
@@ -729,14 +1250,17 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_CONTROL,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.system_check:main", "begin_effect"),),
         notes=(
             "End-to-end acceptance probe: clones the working tree, spawns "
             "servers, opens sockets and writes probe files. Dispatch goes "
             "through the CHECKS table, so the static scanner cannot classify "
-            "it -- every effect here is hand-declared."
+            "it -- every effect here is hand-declared. The run (including "
+            "--self-test) begins centrally."
         ),
+        migration="complete for the tools.system_check entrypoint",
     ),
     # daedalus/runtimes/ -- the runtime fault-matrix drivers.  All three are
     # discovered as filesystem_write only: their spawn, containment and secret
@@ -766,7 +1290,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "policy (read-only root, network=none, dropped caps, timeout_s) "
             "both live in daedalus.kernel.sandbox.run_in_docker_sandbox, which "
             "the scanner cannot see across the module edge. The anchor pins "
-            "that containment call so the row cannot rot into a raw spawn."
+            "that containment call so the row cannot rot into a raw spawn. "
+            "REASONED REMAINDER 2026-08-18: fault-matrix collector owned by "
+            "the live-runtime lane (grind/live-column); its central wiring "
+            "lands with that lane's runtime-bound chain."
         ),
     ),
     EntrypointSpec(
@@ -791,7 +1318,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the evidence. The subprocess.run (with its timeout, hence "
             "process_control) sits in a closure returned by "
             "subprocess_pytest_runner, which the scanner does not enter; the "
-            "anchor pins main's use of that runner seam instead."
+            "anchor pins main's use of that runner seam instead. REASONED "
+            "REMAINDER 2026-08-18: fault-matrix collector owned by the "
+            "live-runtime lane (grind/live-column); its central wiring lands "
+            "with that lane's runtime-bound chain."
         ),
     ),
     EntrypointSpec(
@@ -820,7 +1350,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "bundle. It reads the signing key from the environment "
             "(_secret_from_env), so secrets is hand-declared: a signing door "
             "that stayed green while handling a key is exactly the row this "
-            "inventory exists to name. It grants authenticity, never a verdict."
+            "inventory exists to name. It grants authenticity, never a "
+            "verdict. REASONED REMAINDER 2026-08-18: key-ceremony door owned "
+            "by the live-runtime lane (grind/live-column); its central "
+            "wiring lands with that lane's runtime-bound chain."
         ),
     ),
     # runs/ -- production-capable entrypoints that spend money; five of these
@@ -838,12 +1371,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.room:main", "begin_effect"),),
         notes=(
-            "Cross-vendor room: five billable vendors including ssh; every "
-            "ask_* site is priced in BILLABLE_SITES but no canonical effect "
-            "start exists."
+            "Cross-vendor room: every transcript-appending or vendor-asking "
+            "subcommand starts centrally with the really-installed spend "
+            "net; show/who/verify stay fail-open read-only inspection."
         ),
+        migration="complete for the runs.council.room entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.summarize",
@@ -855,8 +1390,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SPEND,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Billable summarisers (cli/ollama); found by the budget drift detector after a hand audit missed it.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.summarize:main", "begin_effect"),),
+        notes=(
+            "Billable summarisers (cli/ollama, found by the budget drift "
+            "detector) start centrally; --dry-run stays fail-open."
+        ),
+        migration="complete for the runs.council.summarize entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.room_server",
@@ -867,40 +1407,63 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.FILESYSTEM_WRITE,
             Effect.SPEND,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.room_server:main", "begin_effect"),),
         notes=(
             "Binds a loopback HTTP server through a ThreadingHTTPServer "
             "SUBCLASS, which defeats the scanner's literal-name sink match -- "
-            "listen_socket is hand-declared. Drives the paid room."
+            "listen_socket is hand-declared. Drives the paid room; the bind "
+            "starts centrally with the spend net installed."
         ),
+        migration="complete for the runs.council.room_server entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.room_server.post",
         surface=Surface.WEB_API,
         target="runs.council.room_server:Handler.do_POST",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Room-server mutation handler; loopback bind, no request-level effect start.",
+        guard_contracts=("web.authenticated_bind",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("runs.council.room_server:Handler.do_POST", "begin_effect"),
+        ),
+        notes=(
+            "Room-server mutation handler: each request starts centrally "
+            "after the existing loopback request guard, whose pass is the "
+            "recorded bind decision."
+        ),
+        migration="complete for the runs.council.room_server.post entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.stream_hook",
         surface=Surface.CLI,
         target="runs.council.stream_hook:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Streams room events into the transcript.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.council.stream_hook:main", "begin_effect"),),
+        notes=(
+            "Streams room events into the transcript; starts centrally and a "
+            "boundary refusal writes nothing (hook protocol: exit 0)."
+        ),
+        migration="complete for the runs.council.stream_hook entrypoint",
     ),
     EntrypointSpec(
         id="runs.council.dead_letter_replay",
         surface=Surface.CLI,
         target="runs.council.dead_letter_replay:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Replays dead-lettered room messages into the transcript.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("runs.council.dead_letter_replay:main", "begin_effect"),
+        ),
+        notes=(
+            "Replays dead-lettered room messages into the transcript; replay "
+            "starts centrally, spool listing stays fail-open."
+        ),
+        migration="complete for the runs.council.dead_letter_replay entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.run_arm",
@@ -913,8 +1476,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.REPOSITORY_MUTATION,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Billable A/B arm (call_claude in BILLABLE_SITES); mutates its arm worktree.",
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.run_arm:main", "begin_effect"),),
+        notes=(
+            "Billable A/B arm (call_claude in BILLABLE_SITES); mutates its "
+            "arm worktree and starts centrally."
+        ),
+        migration="complete for the runs.ab.run_arm entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.score",
@@ -925,27 +1493,36 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Scores A/B arms; touches git state while scoring.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.score:main", "begin_effect"),),
+        notes="Scores A/B arms (git-touching) and starts centrally.",
+        migration="complete for the runs.ab.score entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.oracle_check",
         surface=Surface.CLI,
         target="runs.ab.oracle_check:main",
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Runs the oracle over finished arms and writes the verdict.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.oracle_check:main", "begin_effect"),),
+        notes="Runs the oracle over finished arms centrally.",
+        migration="complete for the runs.ab.oracle_check entrypoint",
     ),
     EntrypointSpec(
         id="runs.ab.blind",
         surface=Surface.CLI,
         target="runs.ab.blind:main",
         effects=(Effect.FILESYSTEM_WRITE,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Writes the blinded comparison sheet.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("runs.ab.blind:main", "begin_effect"),),
+        notes=(
+            "Writes the blinded comparison sheet centrally; an existing seal "
+            "still refuses before the boundary is consulted."
+        ),
+        migration="complete for the runs.ab.blind entrypoint",
     ),
     EntrypointSpec(
         id="runs.gate0_matrix.verify_whole_matrix",
@@ -962,7 +1539,10 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "the next matrix run mints a fresh unregistered blocker and this "
             "row goes stale the day its evidence folder is pruned. Moving the "
             "verifier to a stable path is an owner decision -- the script is "
-            "deliberately retained beside the evidence it produced."
+            "deliberately retained beside the evidence it produced. REASONED "
+            "REMAINDER 2026-08-18: lives inside the live-runtime lane's "
+            "dated evidence directory (runs/gate0-*); untouched by the "
+            "central-wiring mission on the parallel branch."
         ),
     ),
 )
@@ -973,195 +1553,68 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
 # blocker, while deleting one makes its row stale.  These rows are intentionally
 # concise because their next Gate-0 action is consolidation behind the primary
 # rows above, not preservation as separate architecture.
-_LEGACY_ENTRYPOINT_ROWS: tuple[
-    tuple[str, Surface, str, tuple[Effect, ...], Wiring], ...
-] = (
-    (
-        "adapter.subprocess.send",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.send",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "adapter.subprocess.interrupt",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.interrupt",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "adapter.subprocess.terminate",
-        Surface.PYTHON,
-        "daedalus.adapters.subprocess_adapter:SubprocessAdapter.terminate",
-        (Effect.PROCESS_CONTROL,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.arch_memory", Surface.CLI, "daedalus.arch_memory:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.bookkeeper",
-        Surface.CLI,
-        "daedalus.bookkeeper:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    # cli.claude_bridge was deleted from this inventory 2026-08-17: the target
-    # is now a fail-closed stub (parser.error, no effect), so its row declared
-    # effects the code cannot perform and produced the registry's only
-    # entrypoint.not_rediscovered staleness finding.  If the bridge regains an
-    # effectful body the scanner will rediscover it as an unregistered blocker.
-    (
-        "cli.dctx",
-        Surface.CLI,
-        "daedalus.dctx:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.doctor",
-        Surface.CLI,
-        "daedalus.doctor:main",
-        (Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.enforce", Surface.CLI, "daedalus.enforce:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.eval_ceiling", Surface.CLI, "daedalus.eval.ceiling:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.eval_correctness",
-        Surface.CLI,
-        "daedalus.eval.correctness:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.eval_graph_delta",
-        Surface.CLI,
-        "daedalus.eval.graph_delta:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.file_bridge", Surface.CLI, "daedalus.file_bridge:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.gui_lint", Surface.CLI, "daedalus.gui.lint:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.mapping_drift", Surface.CLI, "daedalus.mapping.drift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.mapping_inventory",
-        Surface.CLI,
-        "daedalus.mapping.inventory:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.mapping_render",
-        Surface.CLI,
-        "daedalus.mapping.render:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.memory",
-        Surface.CLI,
-        "daedalus.memory.__init__:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.runbook", Surface.CLI, "daedalus.runbook:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.selftest", Surface.CLI, "daedalus.selftest:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.shift", Surface.CLI, "daedalus.shift:main", (Effect.FILESYSTEM_WRITE,), Wiring.INVENTORY_ONLY),
-    ("cli.status", Surface.CLI, "daedalus.status:main", (Effect.PROCESS_SPAWN,), Wiring.INVENTORY_ONLY),
-    (
-        "cli.structcore",
-        Surface.CLI,
-        "daedalus.structcore.__main__:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.structcore_slice",
-        Surface.CLI,
-        "daedalus.structcore.slice:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "cli.token_monitor",
-        Surface.CLI,
-        "daedalus.token_monitor:main",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
-    (
+# The former legacy tuple block is gone: every direct start now carries a
+# full spec (central where the real begin_effect path exists, inventory_only
+# with a reasoned note where it honestly does not).
+# cli.claude_bridge was deleted from this inventory 2026-08-17: the target
+# is now a fail-closed stub (parser.error, no effect), so its row declared
+# effects the code cannot perform and produced the registry's only
+# entrypoint.not_rediscovered staleness finding.  If the bridge regains an
+# effectful body the scanner will rediscover it as an unregistered blocker.
+_REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
         # Corrected 2026-08-17 per the Gate-0 effect-boundary inventory:
         # run reads DEEPSEEK_API_KEY, and chat_completion is priced through
         # daedalus.budget._guarded_urlopen, so the busiest paid lane declares
         # spend/egress/secrets instead of filesystem_write alone.
-        "provider.deepseek",
-        Surface.PYTHON,
-        "daedalus.providers.deepseek:DeepSeekProvider.run",
-        (
+        id="provider.deepseek",
+        surface=Surface.PYTHON,
+        target="daedalus.providers.deepseek:DeepSeekProvider.run",
+        effects=(
             Effect.FILESYSTEM_WRITE,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
             Effect.SECRETS,
         ),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "provider.deepseek.rollback",
-        Surface.PYTHON,
-        "daedalus.providers.deepseek:DeepSeekProvider.rollback",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "provider.ollama.rollback",
-        Surface.OLLAMA,
-        "daedalus.providers.ollama:OllamaProvider.rollback",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "python.command_gate",
-        Surface.PYTHON,
-        "daedalus.spine.attempt:command_gate",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "web.mutations_put",
-        Surface.WEB_API,
-        "daedalus.web_api:DaedalusHandler.do_PUT",
-        (Effect.FILESYSTEM_WRITE,),
-        Wiring.INVENTORY_ONLY,
-    ),
-    (
-        "worktree.reap",
-        Surface.WORKTREE,
-        "daedalus.kairos.worktree:GitWorktreeManager.reap_branches",
-        (
-            Effect.FILESYSTEM_WRITE,
-            Effect.PROCESS_SPAWN,
-            Effect.REPOSITORY_MUTATION,
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Busiest paid lane. REASONED REMAINDER 2026-08-18: provider run "
+            "methods are the runtime family; central wiring goes through the "
+            "runtime-bound lease/broker chain owned by the live-runtime "
+            "lane, not a second plain sluice here. Its process-boundary door "
+            "(the guarded external-call CLI) IS centrally wired."
         ),
-        Wiring.INVENTORY_ONLY,
+    ),
+    EntrypointSpec(
+        id="provider.deepseek.rollback",
+        surface=Surface.PYTHON,
+        target="daedalus.providers.deepseek:DeepSeekProvider.rollback",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
+            "provider lifecycle as run; it moves to central together with "
+            "the runtime-bound lease chain, not separately."
+        ),
+    ),
+    EntrypointSpec(
+        id="provider.ollama.rollback",
+        surface=Surface.OLLAMA,
+        target="daedalus.providers.ollama:OllamaProvider.rollback",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "REASONED REMAINDER 2026-08-18: rollback belongs to the same "
+            "provider lifecycle as run; it moves to central together with "
+            "the runtime-bound lease chain, not separately."
+        ),
     ),
 )
 
-ENTRYPOINTS += tuple(
-    EntrypointSpec(
-        id=row_id,
-        surface=surface,
-        target=target,
-        effects=effects,
-        guard_contracts=(),
-        wiring=wiring,
-        notes=(
-            "Legacy direct start retained in the Gate-0 inventory; consolidate "
-            "behind a canonical boundary row before declaring Gate 0 closed."
-        ),
-    )
-    for row_id, surface, target, effects, wiring in _LEGACY_ENTRYPOINT_ROWS
-)
+ENTRYPOINTS += _REMAINDER_PROVIDER_ROWS
 
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(

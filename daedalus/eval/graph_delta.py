@@ -501,6 +501,14 @@ def render(rep: dict) -> str:
 
 def main(argv: list[str]) -> int:  # pragma: no cover - thin CLI
     root = argv[0] if argv and not argv[0].startswith("-") else "."
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.eval_graph_delta",
+        REGISTRY_BY_ID["cli.eval_graph_delta"].effects,
+        (process_guard_boundary_decision(),),
+    )
 
     # MEASURED 2026-07-30: `specificity`, `commit_shas` and `measure_commit` are
     # defined BELOW the `if __name__` block and this function is defined above

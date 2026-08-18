@@ -1137,6 +1137,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(rows) - len(bad)}/{len(rows)} anchors present and unique")
         return 1 if bad else 0
 
+    # --dry-run above validates anchors read-only and stays fail-open; the
+    # clone/mutate/pytest measurement starts at the central boundary.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.gate_discrimination",
+        REGISTRY_BY_ID["tools.gate_discrimination"].effects,
+        (process_guard_boundary_decision(),),
+    )
     sandbox_factory = (lambda: HeadOnlySandbox(ROOT)) if args.head_only else None
     gate_paths = SCOPED_GATE_PATHS if args.scoped else FROZEN_GATE_PATHS
     prefer = diff_touched_files(ROOT, args.prefer_diff) if args.prefer_diff else None

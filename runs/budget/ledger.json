@@ -1,28 +1,6 @@
 {
-  "calls": 396,
+  "calls": 1,
   "entries": [
-    {
-      "at": 1785498419.5926743,
-      "estimate_usd": 0.05,
-      "id": "12204572f20745a2a966aa4e42ebe954",
-      "kind": "settle",
-      "label": "urlopen: https://api.deepseek.com/chat/completions",
-      "model": "",
-      "reason": "",
-      "usd": 0.05,
-      "vendor": "deepseek"
-    },
-    {
-      "at": 1785498419.8488836,
-      "estimate_usd": 0.05,
-      "id": "ea1da162e0144779a40226d0428e59ac",
-      "kind": "settle",
-      "label": "urlopen: https://api.deepseek.com/chat/completions",
-      "model": "",
-      "reason": "",
-      "usd": 0.05,
-      "vendor": "deepseek"
-    },
     {
       "at": 1785498420.7757134,
       "basis": "worst_case",
@@ -5500,11 +5478,33 @@
       "reason": "",
       "usd": 0.05,
       "vendor": "deepseek"
+    },
+    {
+      "at": 1786954860.8406754,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "32696dfcbde7459c92ebe992a724c5e6",
+      "kind": "reserve",
+      "label": "subprocess.run: claude --version",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1786954861.0783157,
+      "estimate_usd": 3.0,
+      "id": "32696dfcbde7459c92ebe992a724c5e6",
+      "kind": "settle",
+      "label": "subprocess.run: claude --version",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
     }
   ],
   "open": {},
   "period": "day",
-  "period_key": "2026-07-31",
-  "spent_usd": 19.800000000000146,
+  "period_key": "2026-08-17",
+  "spent_usd": 3.0,
   "version": 1
 }

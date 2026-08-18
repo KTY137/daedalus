@@ -39,6 +39,18 @@ def main() -> int:
     if SEAL.exists():
         print(f"refusing to reseal: {SEAL} already exists")
         return 1
+    import sys as _sys
+    _repo_root = str(HERE.parents[1])
+    if _repo_root not in _sys.path:
+        _sys.path.insert(0, _repo_root)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "runs.ab.blind",
+        REGISTRY_BY_ID["runs.ab.blind"].effects,
+        (process_guard_boundary_decision(),),
+    )
     arms = ["A", "B"]
     random.shuffle(arms)
     mapping = {"X": arms[0], "Y": arms[1]}

@@ -716,6 +716,14 @@ def main(argv: list[str] | None = None) -> int:
                "2 = one could not be exercised, which is NOT a pass.")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(list(argv) if argv is not None else None)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.operability_drill",
+        REGISTRY_BY_ID["tools.operability_drill"].effects,
+        (process_guard_boundary_decision(),),
+    )
     return run(json_out=args.json)
 
 

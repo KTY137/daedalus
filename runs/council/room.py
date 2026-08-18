@@ -1216,6 +1216,20 @@ def main() -> int:
                    help="put the room in addressed-only mode for this speaker")
     args = ap.parse_args()
 
+    if args.cmd not in ("show", "who", "verify"):
+        # show/who/verify stay fail-open read-only inspection; every
+        # transcript-appending or vendor-asking subcommand starts centrally.
+        import sys as _sys
+        if str(REPO_ROOT) not in _sys.path:
+            _sys.path.insert(0, str(REPO_ROOT))
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "runs.council.room",
+            REGISTRY_BY_ID["runs.council.room"].effects,
+            (process_guard_boundary_decision(),),
+        )
     if args.cmd == "show":
         print(transcript())
     elif args.cmd == "who":

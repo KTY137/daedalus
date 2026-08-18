@@ -150,6 +150,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="also exercise the expensive paths (the latent "
                              "router); without it they report `present`")
     args = parser.parse_args(argv)
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.status",
+        REGISTRY_BY_ID["cli.status"].effects,
+        (process_guard_boundary_decision(),),
+    )
     try:
         repo_root = resolve_repo_root(args.repo_root, args.project)
     except ValueError:

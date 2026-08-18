@@ -440,9 +440,10 @@ def test_paid_tools_doors_are_registered_with_spend_and_secrets() -> None:
         assert Effect.SECRETS in row.effects, f"{row_id} must declare secrets"
         assert Effect.NETWORK_EGRESS in row.effects
         assert "budget.process_guard" in row.guard_contracts
-        # inventory_only is the honest wiring: the guards live in callees and
-        # no canonical effect start exists yet.  central would be a lie.
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        # Since the central-wiring migration these doors start at
+        # begin_effect themselves; the callee guards remain as depth.
+        assert row.wiring is Wiring.CENTRAL
+        assert any(a.call == "begin_effect" for a in row.anchors)
 
     # the fan-outs stay anchored to the callee that installs the spend guard
     assert any(a.call == "fan_out" for a in by_id["tools.audit_swarm"].anchors)
@@ -479,12 +480,15 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
     """
     by_id = {row.id: row for row in ENTRYPOINTS}
 
-    for row_id in (
-        "tools.iron_plan_guard",
-        "tools.gate_discrimination",
-        "tools.bootstrap_receipt",
-        "tools.operability_drill",
-        "tools.gate_host_preflight",
+    for row_id, wiring in (
+        # The plan guard is a protected policy artifact: its row inventories
+        # the door without touching the target, so it stays inventory_only
+        # with a reasoned note rather than being bent to central.
+        ("tools.iron_plan_guard", Wiring.INVENTORY_ONLY),
+        ("tools.gate_discrimination", Wiring.CENTRAL),
+        ("tools.bootstrap_receipt", Wiring.CENTRAL),
+        ("tools.operability_drill", Wiring.CENTRAL),
+        ("tools.gate_host_preflight", Wiring.CENTRAL),
     ):
         row = by_id[row_id]
         assert row.surface is Surface.CLI
@@ -492,7 +496,7 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
             f"{row_id} touches git; repository_mutation is hand-maintained"
         )
         assert {Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN} <= set(row.effects)
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        assert row.wiring is wiring
 
     gui = by_id["tools.gui_check"]
     assert {
@@ -531,19 +535,21 @@ def test_remaining_tools_rows_and_the_invisible_system_check_are_registered() ->
     """
     by_id = {row.id: row for row in ENTRYPOINTS}
 
-    for row_id, effect in (
-        ("tools.mutation_score", Effect.FILESYSTEM_WRITE),
-        ("tools.audit_triage", Effect.FILESYSTEM_WRITE),
-        ("tools.agent_findings", Effect.FILESYSTEM_WRITE),
-        ("tools.lane_invariants", Effect.FILESYSTEM_WRITE),
-        ("tools.funnel_report", Effect.PROCESS_SPAWN),
-        ("tools.run_gate_checks", Effect.PROCESS_SPAWN),
-        ("tools.iron_plan_hook_runner", Effect.PROCESS_SPAWN),
+    for row_id, effect, wiring in (
+        ("tools.mutation_score", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.audit_triage", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.agent_findings", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.lane_invariants", Effect.FILESYSTEM_WRITE, Wiring.CENTRAL),
+        ("tools.funnel_report", Effect.PROCESS_SPAWN, Wiring.CENTRAL),
+        ("tools.run_gate_checks", Effect.PROCESS_SPAWN, Wiring.CENTRAL),
+        # Protected policy artifact: inventoried, not wired (see its note).
+        ("tools.iron_plan_hook_runner", Effect.PROCESS_SPAWN,
+         Wiring.INVENTORY_ONLY),
     ):
         row = by_id[row_id]
         assert row.surface is Surface.CLI
         assert effect in row.effects
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        assert row.wiring is wiring
 
     system_check = by_id["tools.system_check"]
     assert {
@@ -584,7 +590,10 @@ def test_runs_package_is_scanned_and_its_billable_doors_are_registered() -> None
         row = by_id[row_id]
         assert Effect.SPEND in row.effects, f"{row_id} is billable and must say so"
         assert "budget.process_guard" in row.guard_contracts
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        # centrally wired since the boundary migration; the effectful
+        # subcommands start at begin_effect with the installed spend net
+        assert row.wiring is Wiring.CENTRAL
+        assert any(a.call == "begin_effect" for a in row.anchors)
 
     assert Effect.SECRETS in by_id["runs.council.room"].effects
     assert Effect.REPOSITORY_MUTATION in by_id["runs.ab.run_arm"].effects

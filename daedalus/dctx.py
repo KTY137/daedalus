@@ -430,6 +430,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.target:
         ap.error("target is required unless --verify is given")
+    # Receipt verification above stays fail-open read-only inspection; the
+    # minting path (worktree/git probes plus the optional receipt write)
+    # starts at the central boundary.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.dctx",
+        REGISTRY_BY_ID["cli.dctx"].effects,
+        (process_guard_boundary_decision(),),
+    )
     receipt = compile(args.repo, args.target, lane=args.lane, max_tokens=args.max_tokens)
     text = json.dumps(receipt, indent=2, sort_keys=True)
     if args.out:

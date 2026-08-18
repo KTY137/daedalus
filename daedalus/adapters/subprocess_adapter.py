@@ -19,6 +19,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Literal
 
+from daedalus.spine.effect_boundary import (
+    REGISTRY_BY_ID,
+    GuardDecision,
+    begin_effect,
+)
+
 from .base import AgentAdapter
 from .events import (
     AgentCapabilities,
@@ -136,6 +142,7 @@ class SubprocessAdapter(AgentAdapter):
             raise ValueError(f"repo_root is not a directory: {root}")
         self._repo_root = root
         self._sessions: dict[str, _Session] = {}
+        self._effect_receipts: dict[str, object] = {}
         self._sink = sink
         self._runtime_name = runtime_name or Path(self._config.command).stem
         self._sequences: dict[str, int] = {}
@@ -171,6 +178,34 @@ class SubprocessAdapter(AgentAdapter):
             hidden_state_access=False,
         )
 
+    def _adapter_profile_decision(self, *, detail: str) -> GuardDecision:
+        """Run the runtime.adapter_profile contract for this adapter instance.
+
+        The mechanical checks are the launch-contract invariants that already
+        exist in this module: the config is either one of the test-exercised
+        verified profiles (identity match against RUNTIME_PROFILES) or an
+        explicitly caller-supplied RuntimeConfig, the command is non-empty,
+        and the bounded repo root is a real directory.  The decision records
+        which of the two provenances applies; it never invents a third.
+        """
+        verified = next(
+            (name for name, cfg in RUNTIME_PROFILES.items() if cfg is self._config),
+            None,
+        )
+        provenance = (
+            f"verified-profile:{verified}"
+            if verified is not None
+            else f"explicit-config:{self._config.command}"
+        )
+        allowed = bool(self._config.command) and self._repo_root.is_dir()
+        evidence = (
+            f"{provenance}; repo_root={self._repo_root}; "
+            f"runtime={self._runtime_name}; {detail}"
+        )
+        if not allowed:
+            evidence = "launch contract failed mechanical checks; " + evidence
+        return GuardDecision("runtime.adapter_profile", allowed, evidence)
+
     async def create_session(self, config: Dict[str, Any]) -> str:
         cwd = Path(config.get("cwd") or self._repo_root).resolve()
         if not cwd.is_dir():
@@ -200,6 +235,13 @@ class SubprocessAdapter(AgentAdapter):
             raise ValueError(f"{self._config.command} profile does not accept a prompt")
 
         session_id = f"{Path(self._config.command).stem}_{uuid.uuid4().hex[:8]}"
+        # Canonical Gate-0 effect start: refuse the spawn unless the central
+        # boundary accepts the declared effects and the real profile decision.
+        receipt = begin_effect(
+            "adapter.subprocess",
+            REGISTRY_BY_ID["adapter.subprocess"].effects,
+            (self._adapter_profile_decision(detail=f"create_session cwd={cwd}"),),
+        )
         env = {**os.environ, **self._config.env}
         logger.info("[%s] spawning %s in %s", session_id, cmd[0], cwd)
         process = await asyncio.create_subprocess_exec(
@@ -219,6 +261,7 @@ class SubprocessAdapter(AgentAdapter):
             timeout_s=timeout_s,
         )
         self._sessions[session_id] = session
+        self._effect_receipts[session_id] = receipt
         self._sequences[session_id] = 0
 
         if prompt and self._config.prompt_mode == "stdin":
@@ -248,6 +291,11 @@ class SubprocessAdapter(AgentAdapter):
         await session.process.stdin.drain()
 
     async def send(self, session_id: str, message: Any) -> None:
+        begin_effect(
+            "adapter.subprocess.send",
+            REGISTRY_BY_ID["adapter.subprocess.send"].effects,
+            (self._adapter_profile_decision(detail=f"send session={session_id}"),),
+        )
         text = message if isinstance(message, str) else json.dumps(message)
         await self._publish(
             session_id,
@@ -405,6 +453,15 @@ class SubprocessAdapter(AgentAdapter):
     async def interrupt(self, session_id: str) -> None:
         session = self._sessions.get(session_id)
         if session and session.process.returncode is None:
+            begin_effect(
+                "adapter.subprocess.interrupt",
+                REGISTRY_BY_ID["adapter.subprocess.interrupt"].effects,
+                (
+                    self._adapter_profile_decision(
+                        detail=f"interrupt session={session_id}"
+                    ),
+                ),
+            )
             try:
                 session.process.send_signal(signal.SIGINT)
             except (ProcessLookupError, OSError):
@@ -425,8 +482,18 @@ class SubprocessAdapter(AgentAdapter):
             return
 
     async def terminate(self, session_id: str) -> None:
+        if session_id not in self._sessions:
+            return
+        # Refusing here leaves the session tracked: fail-closed means the
+        # process-control effect does not happen without a boundary receipt.
+        begin_effect(
+            "adapter.subprocess.terminate",
+            REGISTRY_BY_ID["adapter.subprocess.terminate"].effects,
+            (self._adapter_profile_decision(detail=f"terminate session={session_id}"),),
+        )
         session = self._sessions.pop(session_id, None)
         self._sequences.pop(session_id, None)
+        self._effect_receipts.pop(session_id, None)
         if session is None:
             return
         await self._stop_process(session.process)

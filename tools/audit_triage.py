@@ -253,6 +253,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--top", type=int, default=40)
     args = p.parse_args(argv)
 
+    if args.json:
+        # The printed triage stays fail-open read-only inspection; the JSON
+        # worklist write starts at the central boundary.
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+        begin_effect(
+            "tools.audit_triage",
+            REGISTRY_BY_ID["tools.audit_triage"].effects,
+            (process_guard_boundary_decision(),),
+        )
     in_dir = Path(args.in_dir)
     if not in_dir.is_dir():
         print(f"no results at {in_dir}")

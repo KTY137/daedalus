@@ -927,6 +927,27 @@ def command_gate(argv: Sequence[str], *,
     """
     effective_argv = tuple(str(arg) for arg in argv)
 
+    from daedalus.spine.effect_boundary import (
+        REGISTRY_BY_ID,
+        GuardDecision,
+        begin_effect,
+    )
+
+    begin_effect(
+        "python.command_gate",
+        REGISTRY_BY_ID["python.command_gate"].effects,
+        (
+            GuardDecision(
+                "containment.attempt",
+                True,
+                "gate construction: candidate execution is containment-"
+                f"enforced inside the gate (executes_candidate="
+                f"{executes_candidate}); there is no contained=False and an "
+                "unestablished containment refuses instead of downgrading",
+            ),
+        ),
+    )
+
     def _gate(ctx: RunnerContext) -> GateResult:
         from daedalus.spine import containment
         from daedalus.spine.cancel import CancellationUnavailable, ManagedProcess

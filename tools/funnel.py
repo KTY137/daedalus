@@ -631,6 +631,16 @@ def main(argv: list[str] | None = None) -> int:
         print("\nno calls made. add --run to spend.")
         return 0
 
+    # The projection above stays fail-open; tiered spending starts at the
+    # central boundary with the really-installed spend net.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.funnel",
+        REGISTRY_BY_ID["tools.funnel"].effects,
+        (process_guard_boundary_decision(),),
+    )
     for tier in tiers:
         system = (base / tier["system"]).read_text(encoding="utf-8")
         tasks = build_tasks(tier, base, run_dir, rev)
