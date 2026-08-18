@@ -425,6 +425,109 @@ def test_tools_run_gate_checks_refuses_before_any_spawn(
     assert run_gate_checks.main([profile, "--list"]) == 0
 
 
+def test_tools_audit_swarm_run_refuses_but_plan_stays_fail_open(
+    monkeypatch, contracts_disabled, capsys
+):
+    import tools.audit_swarm as audit_swarm
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("fan_out must not run after a refused boundary")
+
+    monkeypatch.setattr(audit_swarm, "fan_out", _exploded)
+    monkeypatch.setattr(audit_swarm, "build_tasks", lambda *_a, **_kw: [])
+    assert audit_swarm.main(["--plan"]) == 0
+    with pytest.raises(EffectStartRefused):
+        audit_swarm.main(["--run"])
+
+
+def test_tools_funnel_run_refuses_before_any_tier_spend(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    import tools.funnel as funnel
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("fan_out must not run after a refused boundary")
+
+    monkeypatch.setattr(funnel, "fan_out", _exploded)
+    monkeypatch.setattr(
+        funnel, "load_spec",
+        lambda _n: ({"name": "probe", "tiers": [{"name": "t", "system": "s",
+                                                 "source": {"kind": "x"}}]},
+                    tmp_path),
+    )
+    with pytest.raises(EffectStartRefused):
+        funnel.main(["probe", "--run"])
+
+
+def test_tools_gate_discrimination_refuses_but_dry_run_stays_fail_open(
+    monkeypatch, contracts_disabled, capsys
+):
+    import tools.gate_discrimination as gate_discrimination
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("run_corpus must not start after a refused boundary")
+
+    monkeypatch.setattr(gate_discrimination, "run_corpus", _exploded)
+    monkeypatch.setattr(gate_discrimination, "check_anchors", lambda *_a: [])
+    assert gate_discrimination.main(["--dry-run"]) == 0
+    with pytest.raises(EffectStartRefused):
+        gate_discrimination.main([])
+
+
+def test_tools_gui_check_refuses_before_any_spawn(
+    tmp_path, monkeypatch, contracts_disabled
+):
+    import tools.gui_check as gui_check
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("gui_run must not start after a refused boundary")
+
+    monkeypatch.setattr(gui_check, "gui_run", _exploded)
+    with pytest.raises(EffectStartRefused):
+        gui_check.main(["--repo-root", str(tmp_path), "--web-root", str(tmp_path)])
+
+
+def test_tools_operability_drill_refuses_before_the_drill(
+    monkeypatch, contracts_disabled
+):
+    import tools.operability_drill as operability_drill
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("the drill must not start after a refused boundary")
+
+    monkeypatch.setattr(operability_drill, "run", _exploded)
+    with pytest.raises(EffectStartRefused):
+        operability_drill.main([])
+
+
+def test_tools_system_check_refuses_before_any_check(
+    monkeypatch, contracts_disabled
+):
+    import tools.system_check as system_check
+
+    def _exploded(*_a, **_kw):  # pragma: no cover - must never run
+        raise AssertionError("acceptance_run must not start after a refusal")
+
+    monkeypatch.setattr(system_check, "acceptance_run", _exploded)
+    with pytest.raises(EffectStartRefused):
+        system_check.main([])
+
+
+def test_tools_guarded_call_refuses_as_json_per_its_protocol(
+    monkeypatch, contracts_disabled, capsys
+):
+    import io
+    import tools.guarded_call as guarded_call
+
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({"objective": "say hi"}))
+    )
+    assert guarded_call.main() == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+    assert "effect boundary refused" in out["error"]
+
+
 def test_the_valid_chain_mints_a_real_process_guard_decision(tmp_path, monkeypatch):
     """The family decision is the executed contract, not an assertion."""
     import daedalus.budget as budget

@@ -880,14 +880,20 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         target="tools.guarded_call:main",
         effects=(Effect.NETWORK_EGRESS, Effect.SPEND, Effect.SECRETS),
         guard_contracts=("budget.process_guard", "provider.egress_policy"),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("tools.guarded_call:main", "run"),),
-        notes=(
-            "Process-boundary door for external-environment callers; budget and "
-            "secret-floor refusals live in DeepSeekProvider.run (the anchored "
-            "delegated call). The static scanner cannot see this cross-module "
-            "sink, so spend/secrets here are hand-declared."
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("tools.guarded_call:main", "run"),
+            GuardAnchor("tools.guarded_call:main", "begin_effect"),
         ),
+        notes=(
+            "Process-boundary door for external-environment callers. The "
+            "central start installs the real spend net and runs the secret "
+            "floor over the outbound payload; a boundary refusal follows the "
+            "door's JSON protocol. Deeper budget/secret refusals still live "
+            "in DeepSeekProvider.run (the anchored delegated call); "
+            "spend/secrets remain hand-declared for the scanner."
+        ),
+        migration="complete for the tools.guarded_call entrypoint",
     ),
     EntrypointSpec(
         id="tools.audit_swarm",
@@ -901,13 +907,18 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
-        anchors=(GuardAnchor("tools.audit_swarm:main", "fan_out"),),
-        notes=(
-            "Paid fan-out. The spend guard is installed fail-closed inside the "
-            "anchored fan_out callee (daedalus.lanes.fanout), not by this "
-            "entrypoint itself; no canonical effect start exists yet."
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("tools.audit_swarm:main", "fan_out"),
+            GuardAnchor("tools.audit_swarm:main", "begin_effect"),
         ),
+        notes=(
+            "Paid fan-out starts at the central boundary with the "
+            "really-installed spend net; --plan stays fail-open. The anchored "
+            "fan_out callee keeps its own fail-closed installation as "
+            "defense in depth."
+        ),
+        migration="complete for the tools.audit_swarm entrypoint",
     ),
     EntrypointSpec(
         id="tools.funnel",
@@ -921,16 +932,19 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
-        wiring=Wiring.INVENTORY_ONLY,
+        wiring=Wiring.CENTRAL,
         anchors=(
             GuardAnchor("tools.funnel:main", "fan_out"),
             GuardAnchor("tools.funnel:main", "budget_verdict"),
+            GuardAnchor("tools.funnel:main", "begin_effect"),
         ),
         notes=(
-            "Paid tiered fan-out. Local budget verdict runs before dispatch and "
-            "the spend guard is installed fail-closed inside the anchored "
-            "fan_out callee; no canonical effect start exists yet."
+            "Paid tiered fan-out starts at the central boundary with the "
+            "really-installed spend net; the projection stays fail-open. The "
+            "local budget verdict and the fan_out callee's own installation "
+            "remain as defense in depth."
         ),
+        migration="complete for the tools.funnel entrypoint",
     ),
     # Repository-mutation tier of the effect-boundary inventory.  The scanner
     # can never infer repository_mutation (git argv), so it is hand-declared
@@ -961,9 +975,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Mutates a tree, runs the corpus, writes a receipt.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gate_discrimination:main", "begin_effect"),),
+        notes=(
+            "Clone/mutate/pytest measurement begins centrally; --dry-run "
+            "anchor validation stays fail-open."
+        ),
+        migration="complete for the tools.gate_discrimination entrypoint",
     ),
     EntrypointSpec(
         id="tools.bootstrap_receipt",
@@ -992,9 +1011,11 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Operability drill that exercises git-touching recovery paths.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.operability_drill:main", "begin_effect"),),
+        notes="The end-to-end control drill begins centrally.",
+        migration="complete for the tools.operability_drill entrypoint",
     ),
     EntrypointSpec(
         id="tools.gate_host_preflight",
@@ -1021,9 +1042,14 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_CONTROL,
             Effect.PROCESS_SPAWN,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes="Spawns node/playwright, binds and kills a local dev server.",
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.gui_check:main", "begin_effect"),),
+        notes=(
+            "node/playwright spawns and the local dev-server lifecycle begin "
+            "centrally."
+        ),
+        migration="complete for the tools.gui_check entrypoint",
     ),
     # Write-only / spawn-only tool entrypoints; effects as discovered.
     EntrypointSpec(
@@ -1130,14 +1156,17 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_CONTROL,
             Effect.REPOSITORY_MUTATION,
         ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.system_check:main", "begin_effect"),),
         notes=(
             "End-to-end acceptance probe: clones the working tree, spawns "
             "servers, opens sockets and writes probe files. Dispatch goes "
             "through the CHECKS table, so the static scanner cannot classify "
-            "it -- every effect here is hand-declared."
+            "it -- every effect here is hand-declared. The run (including "
+            "--self-test) begins centrally."
         ),
+        migration="complete for the tools.system_check entrypoint",
     ),
     # daedalus/runtimes/ -- the runtime fault-matrix drivers.  All three are
     # discovered as filesystem_write only: their spawn, containment and secret

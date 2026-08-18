@@ -440,9 +440,10 @@ def test_paid_tools_doors_are_registered_with_spend_and_secrets() -> None:
         assert Effect.SECRETS in row.effects, f"{row_id} must declare secrets"
         assert Effect.NETWORK_EGRESS in row.effects
         assert "budget.process_guard" in row.guard_contracts
-        # inventory_only is the honest wiring: the guards live in callees and
-        # no canonical effect start exists yet.  central would be a lie.
-        assert row.wiring is Wiring.INVENTORY_ONLY
+        # Since the central-wiring migration these doors start at
+        # begin_effect themselves; the callee guards remain as depth.
+        assert row.wiring is Wiring.CENTRAL
+        assert any(a.call == "begin_effect" for a in row.anchors)
 
     # the fan-outs stay anchored to the callee that installs the spend guard
     assert any(a.call == "fan_out" for a in by_id["tools.audit_swarm"].anchors)
@@ -484,9 +485,9 @@ def test_repo_mutating_tools_declare_repository_mutation_by_hand() -> None:
         # the door without touching the target, so it stays inventory_only
         # with a reasoned note rather than being bent to central.
         ("tools.iron_plan_guard", Wiring.INVENTORY_ONLY),
-        ("tools.gate_discrimination", Wiring.INVENTORY_ONLY),
+        ("tools.gate_discrimination", Wiring.CENTRAL),
         ("tools.bootstrap_receipt", Wiring.CENTRAL),
-        ("tools.operability_drill", Wiring.INVENTORY_ONLY),
+        ("tools.operability_drill", Wiring.CENTRAL),
         ("tools.gate_host_preflight", Wiring.CENTRAL),
     ):
         row = by_id[row_id]

@@ -1100,6 +1100,14 @@ def main(argv=None) -> int:
                     help="break things in the clone and prove the checks go RED")
     args = ap.parse_args(argv)
 
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.system_check",
+        REGISTRY_BY_ID["tools.system_check"].effects,
+        (process_guard_boundary_decision(),),
+    )
     if args.self_test:
         from self_test import run_self_test  # noqa: E402  (tools/ is on sys.path)
         return run_self_test(only=args.only)

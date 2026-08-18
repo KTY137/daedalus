@@ -452,6 +452,14 @@ def main(argv=None) -> int:
     repo_root = Path(args.repo_root).resolve()
     web_root = Path(args.web_root).resolve()
 
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.gui_check",
+        REGISTRY_BY_ID["tools.gui_check"].effects,
+        (process_guard_boundary_decision(),),
+    )
     if not args.json:
         print(f"daedalus GUI acceptance -- a real browser against a real server")
         print(f"  serving : {repo_root}")

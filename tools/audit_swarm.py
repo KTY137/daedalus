@@ -311,6 +311,16 @@ def main(argv: list[str] | None = None) -> int:
         print("\n--plan only. Nothing was sent. Re-run with --run.")
         return 0
 
+    # The plan above stays fail-open; the paid fan-out starts at the
+    # central boundary with the really-installed spend net.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "tools.audit_swarm",
+        REGISTRY_BY_ID["tools.audit_swarm"].effects,
+        (process_guard_boundary_decision(),),
+    )
     summary = fan_out(
         tasks, OUT_DIR,
         repo_root=str(REPO),
