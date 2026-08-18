@@ -108,15 +108,21 @@ Still unproven:
   currently means "run again from scratch". Authoritative restart = crash
   after Attempt-begin, restart process, replay to a consistent state with the
   same attempt identity and no duplicated effects.
-- [ ] Crash INSIDE materialization (between `_replace` calls) is only
-  indirectly covered: the debris-refusal test simulates the aftermath, but no
-  fault injection kills the run mid-write and asserts the invariant "partial
-  candidate is never evaluable".
+- [x] Crash INSIDE materialization (between `_replace` calls): covered
+  2026-08-18 by
+  `tests/ignition/test_voltage_ignition_faults.py::test_crash_between_rename_writes_leaves_no_evaluable_candidate`
+  — kills the run after the third of six rename writes, asserts the mixed
+  tree is refused on restart, the source stays byte-identical, and the
+  fresh-root replay is digest-identical.
 - [ ] Concurrent double-start on the same candidate root (two processes) —
   the exists-check is not atomic (TOCTOU between `candidate.exists()` and
   `copytree`); harmless for a test fixture, a real race for an authoritative
   workspace. The attempt-workspace path already owns this concern; the
   checklist item is: route ignition through it.
+  *Assessed 2026-08-18: not machine-doable ahead of order — 
+  `IsolatedAttemptCoordinator.prepare` requires an `AttemptContract` and a
+  CAS `StoredSourceTree`, i.e. §4 steps 1–2. Routing now would mean
+  inventing placeholder contracts, which §2.1 exists to eliminate.*
 
 ### 2.6 Approval and sealing (invariant 5)
 

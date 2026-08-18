@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from daedalus.gates.evidence import FaultMatrixEvidence
+from daedalus.runtimes.fault_matrix import RUNTIME_FAULT_CATALOG, RuntimeFaultCatalog
 from daedalus.runtimes.whole_fault_matrix import (
     PRODUCTION_KEY_CLASS,
     VERDICT_FILENAME,
@@ -36,6 +38,7 @@ from daedalus.runtimes.whole_fault_matrix import (
     discover_whole_matrix_verdicts,
     load_whole_matrix_verdict,
 )
+from daedalus.schemas import ContractProvenance
 
 
 RECEIPT_FILENAME = "receipt.json"
@@ -294,6 +297,53 @@ def bind_fault_matrix_evidence(
     )
 
 
+def fault_matrix_evidence_from_verdict(
+    verdict: WholeRuntimeFaultMatrixVerdict,
+    *,
+    matrix_id: str,
+    executed_at: str,
+    catalog: RuntimeFaultCatalog = RUNTIME_FAULT_CATALOG,
+) -> FaultMatrixEvidence:
+    """Bridge the whole-matrix verdict into the existing release-path evidence row.
+
+    The row's ``matrix_sha256`` is the digest from the verdict contract, so the
+    strict verifier's ``trusted_fault_matrix_sha256s`` check binds exactly the
+    matrix the verdict observed.  ``status`` claims ``passed`` only for a closed
+    verdict signed under production key custody; a development-key verdict is
+    retained but marked as such in its provenance origin and mapped to
+    ``failed``, so it can never carry a closure claim through the release path.
+    """
+    if not isinstance(verdict, WholeRuntimeFaultMatrixVerdict):
+        raise ValueError("fault-matrix bridging requires an exact whole-matrix verdict")
+    if not isinstance(catalog, RuntimeFaultCatalog):
+        raise ValueError("fault-matrix bridging requires an exact runtime fault catalog")
+    if catalog.digest != verdict.catalog_sha256:
+        raise ValueError(
+            "verdict catalog digest does not match the supplied catalog: "
+            f"verdict={verdict.catalog_sha256} catalog={catalog.digest}"
+        )
+    production = verdict.production_key_material
+    key_class_mark = (
+        PRODUCTION_KEY_CLASS if production else "-".join(sorted(verdict.key_classes))
+    )
+    return FaultMatrixEvidence(
+        matrix_id=matrix_id,
+        source_revision=verdict.source_revision,
+        status="passed" if (verdict.closed and production) else "failed",
+        matrix_sha256=verdict.matrix_sha256,
+        scenario_ids=tuple(row.scenario_id for row in catalog.scenarios),
+        executed_at=executed_at,
+        provenance=ContractProvenance(
+            origin=f"runtimes.whole-fault-matrix.{_safe(key_class_mark)}",
+            source_revision=verdict.source_revision,
+            created_at=executed_at,
+            input_digests=tuple(
+                sorted({verdict.matrix_sha256, verdict.catalog_sha256, verdict.digest})
+            ),
+        ),
+    )
+
+
 __all__ = [
     "BLOCKED_CLASS",
     "FaultMatrixBinding",
@@ -302,4 +352,5 @@ __all__ = [
     "RECEIPT_SCHEMA",
     "UNBOUND_PREFIX",
     "bind_fault_matrix_evidence",
+    "fault_matrix_evidence_from_verdict",
 ]

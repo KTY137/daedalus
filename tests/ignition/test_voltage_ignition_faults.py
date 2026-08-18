@@ -164,3 +164,52 @@ def test_source_mutation_during_materialization_is_detected(
     monkeypatch.setattr(runner, "materialize_voltage_rename", mutating)
     with pytest.raises(IgnitionError, match="source fixture changed"):
         _run(source, tmp_path / "candidate")
+
+
+def test_crash_between_rename_writes_leaves_no_evaluable_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A kill mid-materialization leaves debris, never an evaluable candidate.
+
+    The materialization performs six `_replace` writes.  Killing the run after
+    the third leaves a candidate that mixes renamed and unrenamed files while
+    claiming one identity.  The invariant is that this partial tree can never
+    reach evaluation: the next run over it refuses at the pre-existing-root
+    check, the source fixture stays byte-identical, and the supported restart
+    (fresh root) reproduces the original digests exactly.
+    """
+    control = _run(FIXTURE, tmp_path / "control")
+
+    original_replace = runner._replace
+    calls = {"count": 0}
+
+    def crashing(path, old, new, *, expected=None):
+        calls["count"] += 1
+        if calls["count"] > 3:
+            raise OSError("simulated crash between rename writes")
+        return original_replace(path, old, new, expected=expected)
+
+    monkeypatch.setattr(runner, "_replace", crashing)
+    fixture_before = _tree_digest(FIXTURE)
+    candidate_root = tmp_path / "crashed"
+    with pytest.raises(OSError, match="simulated crash"):
+        _run(FIXTURE, candidate_root)
+    monkeypatch.setattr(runner, "_replace", original_replace)
+
+    # the crash left a genuinely mixed tree: code renamed, knowledge not
+    assert candidate_root.exists()
+    models = (candidate_root / "src/ignition_app/models.py").read_text(encoding="utf-8")
+    fourfold = (candidate_root / "fourfold.json").read_text(encoding="utf-8")
+    assert "bias_voltage" in models
+    assert '"voltage"' in fourfold
+
+    # partial candidate is never evaluable: restart over it refuses...
+    with pytest.raises(IgnitionError, match="must not already exist"):
+        _run(FIXTURE, candidate_root)
+    # ...the source fixture was never touched...
+    assert _tree_digest(FIXTURE) == fixture_before
+    # ...and the fresh-root restart replays digest-identically.
+    replay = _run(FIXTURE, tmp_path / "fresh")
+    assert replay.candidate_source_bundle_sha256 == control.candidate_source_bundle_sha256
+    assert replay.candidate_snapshot.digest == control.candidate_snapshot.digest
+    assert replay.evidence_packet.digest == control.evidence_packet.digest

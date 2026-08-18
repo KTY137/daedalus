@@ -180,3 +180,90 @@ EXPERIMENT with measured baseline. Commits: ab078b3, 812ca60, f04e46c,
 41c3cf3, 74c10b0, 05d5ba3, + final experiment/status commit. Gate 0 remains
 open (78 not-central gaps, live receipts, fault matrix, owner decisions) —
 by design, not by omission.
+
+---
+
+# Watchdog mission 3 — grind/watchdog-mission3 (base 4fb2251), Nachtschicht 2026-08-17/18
+
+Iron Plan: ALIGNED · Iron Gate: 0. Serena workspace umfasst nur agent_env;
+Memory-Tools für long_horizon_work_state, Code-Arbeit mit Built-in-Tools.
+(Korrektur: dieser Abschnitt hat beim ersten Landen 8e5b3023 die Mission-2-
+Historie überschrieben; hier wiederhergestellt und angehängt — append-only
+verletzt, gemessen an 182 Deletions, sofort repariert.)
+
+## Slice 1 — Phase 1: Conformance-Receipt-Persistenz (a515bf7)
+
+persist_conformance_receipt im kanonischen Produzenten: Receipt landet als
+<digest>.json (kanonische Bytes, idempotent, Kollision → Refusal). Binding
+_load_bundle verweigert jede Bundle-Datei, deren Bytes nicht mehr auf den
+eigenen Namen hashen (receipt-bundle:digest-mismatch); Exec-Mutant-Probe
+belegt, dass der Digest-Check allein die Manipulation abfängt. Gap-Diagnose
+umbenannt (Persistenzpfad existiert jetzt), UNBOUND_ROW unverändert.
+Vertragsverschärfung: Bundle-Dateien MÜSSEN digest-benannt sein; der alte
+one.json-Test wurde zum Refusal-Test (strenger, nichts abgeschwächt).
+RAW: `1 failed, 20 passed in 51.42s` (Erstlauf; Mutant brauchte
+sys.modules-Registrierung für dataclass-exec) → danach
+`16 passed in 55.43s` (Binding-Suite). Report-Ebene: produce→persist→bind→
+UNBOUND_ROW verschwindet, getestet gegen echten build_gate0_report.
+
+## Slice 2 — Phase 2: FaultMatrixEvidence-Brücke (9937e33)
+
+fault_matrix_evidence_from_verdict in daedalus/gates/fault_matrix_binding.py:
+Verdikt → bestehende FaultMatrixEvidence-Zeile, kein neues Subsystem.
+Katalog-Digest wird gegen verdict.catalog_sha256 geprüft (Mismatch → Refusal
+vor jeder Zeile); matrix_sha256 = Digest aus dem Verdikt-Contract, läuft
+exakt in den trusted_fault_matrix_sha256s-Check des strikten Verifiers;
+Dev-Key-Verdikt → status="failed" + Origin-Markierung
+(runtimes.whole-fault-matrix.<key-class>), mechanisch kein Closure-Claim
+(fault-matrix:<id>:status-failed). Negativbefund: Verdikt-from_dict verlangt
+kanonische Payloads — Timestamps brauchen Mikrosekunden.
+RAW: `6 passed in 2.58s` (Brücke) · `35 passed in 448.98s`
+(fault_matrix_binding + gate_report_matrix_binding, exit 0).
+
+## Slice 3 — Phase 3 (Memo) + Phase 4 (Crash-Probe) (7e950d44)
+
+docs/GATE0_LIVE_RUNTIME_DECISION.md: Entscheidungsvorlage für die zwei
+live-runtime-Zeilen — was ein Collector konkret bräuchte (Live-Host,
+Owner-Key-Zeremonie für Produktions-Signatur-Autorität, zwei Probe-Treiber,
+dritte Spalte), Option A/B mit Wortlaut nach Docker-Präzedenz, Empfehlung
+(B kurzfristig, A Zielzustand), Rollback. Nichts entschieden, nichts gebaut.
+G1-Checkliste §2.5: fehlende Mid-Write-Crash-Probe ergänzt
+(test_crash_between_rename_writes_leaves_no_evaluable_candidate) —
+gemischter Kandidat nie evaluierbar, Quelle byte-identisch,
+Fresh-Root-Replay digest-identisch. RAW: `10 passed in 6.85s`.
+
+## Slice 4 — Status-Ledger + G1-TOCTOU-Bewertung (8e5b3023, repariert hier)
+
+G1-Checkliste TOCTOU-Zeile annotiert: nicht vorziehbar, weil
+IsolatedAttemptCoordinator.prepare AttemptContract + CAS-StoredSourceTree
+verlangt (= Checklisten-Schritte 1–2 "once unblocked"); Platzhalter-Verträge
+wären genau das, was §2.1 beseitigen soll.
+
+## Regressionssignal nach allen Slices
+
+`python -m pytest tests/gates/ tests/kernel/ tests/runtimes/test_runtime_conformance_profiles.py -q`
+→ RAW: `1221 passed, 2 skipped in 1030.91s (0:17:10)`, exit 0.
+
+## Slice 5 — Phase 5: Forest-v2-Experiment-Fortsetzung (e4734dd7)
+
+Im deklarierten Experiment-Rahmen (read-only, stdlib-AST, kein Repo-Import,
+kein Spend, Budget ≤2h, gleiche Zählregel): zweite Sonde
+probe_cross_module_resolution.py misst, was Import-Binding-Auflösung über
+den Same-Module-Fixpunkt hinaus attribuiert. Baseline an diesem HEAD neu
+gemessen (44,115 Sites, 15.5%). Ergebnis: Attribution 15.5% → 30.3%
+(2,413 repo-verifiziert + 4,098 extern attribuiert); alle drei gemessenen
+Invisibility-Klassen mechanisch detektierbar — room_server-Subclass-Basen
+lösen nach http.server auf, system_check-Registry-Decorator (@check→CHECKS,
+18 Funktionen) strukturell gefunden, und guarded_call ist entgegen der
+Pre-Study-Erwartung attributierbar (Sink-Importe sind function-level,
+Zeilen 62/68): "statically invisible" heißt gemessen nur "invisible für den
+Same-Module-Fixpunkt". Korrektur im Experiment-README festgehalten;
+Inventory-Pin-Revision ist Gate-2-Produktionsarbeit, nicht Sache dieses
+Experiments. Keine Produktionsverdrahtung.
+RAW: Sonde druckt ein JSON (attributed_pct 30.3, cross_module_repo 2413).
+
+## Abschlussverifikation (nach e4734dd7)
+
+Plan-Guard verify → `Iron Plan OK: revision 5, Gate 0 … ce4335e1…`, exit 0.
+`python -m pytest tests/test_effect_boundary.py -q` → RAW:
+`26 passed in 115.65s (0:01:55)` (experiments/-Zugang bleibt boundary-sauber).
