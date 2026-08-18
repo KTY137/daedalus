@@ -42,7 +42,7 @@ import json
 import os
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -221,6 +221,13 @@ class SignedApprovalBody:
         return cls(**{name: payload[name] for name in APPROVAL_BODY_FIELDS})
 
 
+# Held by this module and passed only by :func:`verify_signed_approval`. It
+# makes "I hold a VerifiedSignedApproval" mean "verification ran", so the
+# ordinary way to obtain one is to earn it rather than to type it. See the
+# honesty note on :class:`VerifiedSignedApproval` for what this does NOT claim.
+_CONSTRUCTION_TOKEN = object()
+
+
 @dataclass(frozen=True)
 class VerifiedSignedApproval:
     """Proof that one allowed owner principal signed one exact approval body.
@@ -230,6 +237,14 @@ class VerifiedSignedApproval:
     It is what a :class:`~daedalus.schemas.PromotionReceipt` cites, so the
     receipt points at material a reader can re-verify rather than at this
     module's opinion of it.
+
+    Construction requires a token this module holds, so the class cannot be
+    instantiated by a caller that would simply like to be approved. That is an
+    interlock against accident and casual misuse, **not** a security boundary:
+    Python has no private state, and in-process code that reaches into this
+    module's globals can still fabricate an instance. What actually stops a
+    forged approval is ``git verify-tag`` against the committed signer set --
+    never the existence of this object.
     """
 
     tag_name: str
@@ -240,6 +255,15 @@ class VerifiedSignedApproval:
     owner_approval_ref: str
     trust_root_commit_oid: str
     trust_root_blob_oid: str
+    _token: Any = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._token is not _CONSTRUCTION_TOKEN:
+            raise SignedApprovalSignatureError(
+                "a VerifiedSignedApproval is produced by verify_signed_approval() "
+                "and cannot be constructed directly; declaring that a signature "
+                "was checked does not check one"
+            )
 
     @property
     def body_sha256(self) -> str:
@@ -563,6 +587,7 @@ def verify_signed_approval(
         owner_approval_ref=approval_ref,
         trust_root_commit_oid=trust_root.commit_oid,
         trust_root_blob_oid=trust_root.blob_oid,
+        _token=_CONSTRUCTION_TOKEN,
     )
 
 
@@ -733,10 +758,16 @@ def promotion_receipt(
 
     ``approval_assurance="authenticated"`` is set here and only here, and only
     from the presence of a :class:`VerifiedSignedApproval` -- never from an
-    argument. A caller cannot ask for an approved receipt; it can only present
-    a verification that an owner signature produced. Passing ``None`` yields
-    ``pending-owner`` with no approval reference, which is the shape the schema
-    already enforces.
+    argument. There is no parameter that asks for an approved receipt.
+
+    The strength of that is bounded by how hard the presented object is to
+    obtain, and the honest bound is stated on :class:`VerifiedSignedApproval`:
+    its construction token stops accident and casual misuse, not in-process
+    code determined to reach into this module. The authentication a reader
+    should rely on is the signature check recorded in ``reasons`` and the pins
+    recorded in the provenance, which can be re-verified against the
+    repository. Passing ``None`` yields ``pending-owner`` with no approval
+    reference, which is the shape the schema already enforces.
     """
     from daedalus.schemas import ContractProvenance, PromotionReceipt
 

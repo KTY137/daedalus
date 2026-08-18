@@ -707,3 +707,79 @@ def test_canonical_body_round_trips_the_exact_signed_bytes() -> None:
     restored = SignedApprovalBody.from_json(body.canonical_bytes().decode("utf-8"))
     assert restored == body
     assert b"\n" not in body.canonical_bytes()
+
+
+# --- F4: the type must not be a free-floating claim of authentication -------
+
+
+def test_a_caller_cannot_construct_its_own_verified_approval() -> None:
+    """The gap Cerberus found: a public constructor on the "proof" object.
+
+    Before the construction token, any in-process caller could build a
+    VerifiedSignedApproval out of thin air and hand it to promotion_receipt(),
+    which would stamp approval_assurance="authenticated" on it. No signature,
+    no tag, no owner.
+    """
+    from daedalus.kernel.signed_approval import VerifiedSignedApproval
+
+    body = canonical_approval_body(
+        expectation=_expectation(),
+        nonce="nonce-1",
+        expires_at=_future(),
+        approval_mechanism_sha256="e" * 64,
+    )
+    with pytest.raises(SignedApprovalSignatureError, match="cannot be constructed"):
+        VerifiedSignedApproval(
+            tag_name=approval_tag_for(CANDIDATE),
+            tag_object_sha1="d" * 40,
+            tag_target_oid="e" * 40,
+            signer_principal="owner@daedalus",
+            body=body,
+            owner_approval_ref="artifact-locator:sha256:" + "f" * 64,
+            trust_root_commit_oid="0" * 40,
+            trust_root_blob_oid="1" * 40,
+        )
+
+
+def test_a_forged_approval_cannot_reach_an_authenticated_receipt() -> None:
+    """The same gap, at the boundary that actually mints the claim."""
+    from daedalus.kernel.signed_approval import VerifiedSignedApproval
+
+    class NotVerified:
+        """What a caller can still build: something that merely looks right."""
+
+        tag_name = "owner-approval/forged"
+        owner_approval_ref = "artifact-locator:sha256:" + "f" * 64
+
+    receipt = promotion_receipt(
+        NotVerified(),  # type: ignore[arg-type]
+        promotion_id="promotion-forged",
+        nomination_receipt_sha256=NOMINATION,
+        candidate_artifact_sha256=CANDIDATE,
+        candidate_artifact_locator="artifact-locator:sha256:" + CANDIDATE,
+        evidence_packet_sha256=EVIDENCE,
+        evidence_locator="artifact-locator:sha256:" + EVIDENCE,
+        source_revision=BASE,
+        target_revision=TARGET_HEAD,
+        created_at="2026-01-01T00:00:00Z",
+    )
+    assert receipt.promotion_status == "pending-owner"
+    assert receipt.approval_assurance == "not-applicable"
+    assert receipt.owner_approval_ref is None
+    assert not isinstance(NotVerified(), VerifiedSignedApproval)
+
+
+def test_the_module_does_not_claim_an_unforgeable_receipt() -> None:
+    """F4: the docstring promised more than the type can deliver.
+
+    The removed sentence read "A caller cannot ask for an approved receipt; it
+    can only present a verification that an owner signature produced." A
+    guarantee a reviewer will rely on must not overstate a Python dataclass.
+    """
+    import daedalus.kernel.signed_approval as module
+
+    doc = module.promotion_receipt.__doc__ or ""
+    assert "it can only present a verification" not in doc
+    # ...and the honest bound is stated where the object is defined.
+    class_doc = module.VerifiedSignedApproval.__doc__ or ""
+    assert "not** a security boundary" in class_doc or "not a security boundary" in class_doc
