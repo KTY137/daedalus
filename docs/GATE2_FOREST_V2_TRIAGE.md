@@ -46,6 +46,31 @@ Egress-Gate und Secret-Floor ist der sanktionierte Weg und trug die übrigen
 Angriffe; hier griff eine Ebene darüber. Der Block wurde respektiert, nicht
 umgangen; der Slice bleibt ungeprüft und damit auf `hold`.
 
+## Nachtrag (13:20): die sieben offenen Slices haben KEIN Verdikt
+
+Eine Ernte über alle 29 Bus-Transkripte (`bus.verify_chain`, 29/29 ok, null
+Chain-Fehler) zeigt: Für s01, s02, s06, s07, s08, s09, s10 existiert **kein
+einziger Angriff**. Vier Seats zwischen 11:01 und 11:08 schrieben einen
+Roster-Open und danach nichts — kein Turn, kein Timeout-Receipt, kein
+Close; ihre Slice-Identität ist nicht einmal rekonstruierbar, weil sie am
+nie geschriebenen Turn-Record hing. Kein Seat läuft noch.
+
+**Infrastruktur-Defekt, hier benannt statt später wiederentdeckt:** Ein
+hängender Vendor-Call fällt stumm aus dem Protokoll. Die 09:57-Charge starb
+sauber (`status=unavailable, reason=not_on_path` plus Close, diagnostizierbar);
+diese vier hinterließen keine Quittung. Ein Council, dessen Hänger unsichtbar
+sind, kann „degraded quorum" nicht ehrlich melden — die Doktrin verlangt
+genau das als erste Meldung. Fix: ein Watchdog, der nach Fristablauf einen
+`status=timeout`-Turn plus Roster-Close anhängt. Dazu: PATH-Vorabprüfung der
+codex-CLI, denn der `not_on_path`-Modus hat schon einmal zehn Seats auf
+einen Schlag entwertet.
+
+Ersatzmaßnahme: Da der Egress-Classifier Slice-Diffs an externe Vendors hart
+ablehnt, laufen die sieben Prüfungen intern-adversarisch (voller Codezugriff,
+Auftrag identisch: Zahlen nachrechnen, Vakuum-Tests suchen, Contract-Drift
+gegen §5/§6/§13). Cross-Vendor-Unabhängigkeit fehlt diesen sieben damit —
+das ist ein schwächeres Signal und wird hier als solches vermerkt.
+
 ## Regel für die Fortsetzung
 
 Kein Slice wird geportet, bevor er ein unabhängiges Verdikt hat — besonders
