@@ -27,9 +27,11 @@ from s08_retrievers import (  # noqa: E402
     FourPlaneNoFusionRetriever,
     LexicalRetriever,
     SinglePlaneOracleRetriever,
+    UnionNoFusionRetriever,
 )
 
 KS = (1, 5, 10)
+STARVATION_KS = (1, 2, 3, 4, 5, 10)
 SENSITIVITY_ALPHAS = (0.0, 0.25, 0.5, 0.75)
 
 
@@ -117,6 +119,9 @@ def main(argv: list[str]) -> int:
     graph = CodeGraphRetriever(corpus)
     graph_rewired = CodeGraphRetriever(corpus, rewire=True)
     no_fusion = FourPlaneNoFusionRetriever(corpus)
+    union = UnionNoFusionRetriever(corpus)
+    union_truncated = UnionNoFusionRetriever(corpus, truncate=True)
+    union_code_last = UnionNoFusionRetriever(corpus, order=("type", "data", "knowledge", "code"))
     oracle = SinglePlaneOracleRetriever(no_fusion)
     index_seconds = time.perf_counter() - t1
     report["index_build_seconds"] = round(index_seconds, 3)
@@ -128,7 +133,16 @@ def main(argv: list[str]) -> int:
         "params": {"alpha": graph.alpha, "hops": graph.hops, "seeds": graph.seeds},
     }
 
-    retrievers = [bm25_code, graph, graph_rewired, no_fusion, bm25_all]
+    retrievers = [
+        bm25_code,
+        graph,
+        graph_rewired,
+        no_fusion,
+        union,
+        union_truncated,
+        union_code_last,
+        bm25_all,
+    ]
     results: list[dict] = []
     for retriever in retrievers:
         for family, family_queries in sorted(families.items()):
@@ -157,6 +171,89 @@ def main(argv: list[str]) -> int:
             }
         plane_recall[family] = per_plane
     report["no_fusion_per_plane_recall_at_10"] = plane_recall
+
+    # --- CORRECTION 1: the round-robin arm was starved, and this measures it.
+    # Round-robin over four planes hands the code index slots 1, 5, 9 out of
+    # ten.  Because every gold label here is a code document, that arm can
+    # never do better than the code index's own top-3.  Both sides of that
+    # identity are printed so the claim is checkable and not merely asserted.
+    code_by_k = evaluate(bm25_code, queries, STARVATION_KS, family="all").as_dict(STARVATION_KS)
+    rr_ranks = rank_vector(no_fusion, queries, kmax=max(KS))
+    union_ranks_all = rank_vector(union, queries, kmax=max(KS))
+    code_ranks_all = rank_vector(bm25_code, queries, kmax=max(KS))
+    report["round_robin_starvation"] = {
+        "claim": "four_plane_no_fusion@10 is bounded by bm25_code_only@3, because "
+                 "round-robin gives the only answer-bearing plane 3 of 10 slots",
+        "bm25_code_only_hits_by_cutoff": code_by_k["hits_at"],
+        "four_plane_no_fusion_hits_at_10": sum(1 for r in rr_ranks if 1 <= r <= max(KS)),
+        "union_no_fusion_hits_at_10": sum(1 for r in union_ranks_all if 1 <= r <= max(KS)),
+        "bm25_code_only_hits_at_10": sum(1 for r in code_ranks_all if 1 <= r <= max(KS)),
+        "union_rank_equals_code_rank_for_n_queries": sum(
+            1 for u, c in zip(union_ranks_all, code_ranks_all) if u == c
+        ),
+        "union_rank_differs_for_n_queries": sum(
+            1 for u, c in zip(union_ranks_all, code_ranks_all) if u != c
+        ),
+        "note": "the union arm reads 4k documents to answer a cutoff-k question; "
+                "R@k is unaffected, MRR over the full list is generous to it "
+                "(see the ',truncated' row for the clipped comparison)",
+    }
+
+    # --- CORRECTION 2: hypothesis (b) is re-reported against the comparator the
+    # frozen sub-spec NAMES ("one index over the same documents" =
+    # bm25_single_index_all_planes), not against the code-only subset index.
+    def _hits(result_name: str, ranks: list[int]) -> dict[str, int]:
+        return {str(k): sum(1 for r in ranks if 1 <= r <= k) for k in KS}
+
+    single_ranks = rank_vector(bm25_all, queries, kmax=max(KS))
+    named = {
+        "spec_text": "four independent BM25 indices with no cross-plane scoring reach "
+                     "materially less than one index over the same documents",
+        "named_comparator": "bm25_single_index_all_planes",
+        "comparator_used_in_the_landed_report": "bm25_code_only (NOT the named one)",
+        "materiality_rule": "declared in THIS correction, not at freeze time: material = "
+                            "|delta hits@10| >= 30 of 600 (5 pp) AND the same sign at k=1, 5 and 10",
+        "direction_rule": "the spec claim is DIRECTIONAL ('reach materially less'), so "
+                          "delta = no_fusion - single_index: materially negative CONFIRMS, "
+                          "materially positive REFUTES, anything else is a NULL",
+        "arms": {
+            "four_plane_no_fusion": _hits("rr", rr_ranks),
+            "union_no_fusion": _hits("union", union_ranks_all),
+            "bm25_single_index_all_planes": _hits("single", single_ranks),
+        },
+    }
+    for arm, ranks in (("four_plane_no_fusion", rr_ranks), ("union_no_fusion", union_ranks_all)):
+        deltas = {
+            str(k): sum(1 for r in ranks if 1 <= r <= k) - sum(1 for r in single_ranks if 1 <= r <= k)
+            for k in KS
+        }
+        signs = {1 if v > 0 else (-1 if v < 0 else 0) for v in deltas.values()}
+        consistent = len(signs - {0}) == 1 and 0 not in signs
+        material = abs(deltas["10"]) >= 30 and consistent
+        if material and deltas["10"] < 0:
+            verdict = "CONFIRMED (materially less, as the spec claims)"
+        elif material:
+            verdict = "REFUTED (material, but the OPPOSITE direction to the spec claim)"
+        else:
+            verdict = "NULL (no material difference in either direction)"
+        named[f"{arm}_vs_named_comparator"] = {
+            "delta_hits": deltas,
+            "same_sign_across_cutoffs": consistent,
+            "verdict": verdict,
+        }
+    report["hypothesis_b_vs_named_comparator"] = named
+
+    report["kill_criterion_14_3"] = {
+        "criterion": "four independent indices perform equivalently to cross-plane fusion",
+        "fusion_arm_present": False,
+        "verdict": "NOT CLEANLY DECIDABLE ON THIS QUERY SET",
+        "reason": "every gold label in the frozen 600 is a code document, so a cross-plane "
+                  "method can only lose slots to planes that cannot hold the answer; and no "
+                  "fusion retriever exists in this slice, so the criterion has no second arm",
+        "what_the_named_comparison_does_say": "against bm25_single_index_all_planes the "
+                                              "no-fusion arms are a NULL, which is the direction "
+                                              "the kill criterion points",
+    }
 
     # Construction artefact, measured instead of merely disclosed: a
     # knowledge_ref query is lifted from a Markdown file that the all-planes
@@ -189,6 +286,7 @@ def main(argv: list[str]) -> int:
         "graph_code_only": rank_vector(graph, queries, kmax),
         "graph_rewired": rank_vector(graph_rewired, queries, kmax),
         "four_plane_no_fusion": rank_vector(no_fusion, queries, kmax),
+        "union_no_fusion": rank_vector(union, queries, kmax),
         "bm25_single_index_all_planes": rank_vector(bm25_all, queries, kmax),
     }
     report["crosstabs_at_10"] = {
@@ -211,6 +309,18 @@ def main(argv: list[str]) -> int:
             "a": "four_plane_no_fusion",
             "b": "bm25_code_only",
             **crosstab(ranks["four_plane_no_fusion"], ranks["bm25_code_only"], kmax),
+        },
+        # The two the correction turns on: the un-starved no-fusion arm against
+        # the code-only control, and against the comparator the spec names.
+        "union_no_fusion_vs_code_only": {
+            "a": "union_no_fusion",
+            "b": "bm25_code_only",
+            **crosstab(ranks["union_no_fusion"], ranks["bm25_code_only"], kmax),
+        },
+        "union_no_fusion_vs_single_index": {
+            "a": "union_no_fusion",
+            "b": "bm25_single_index_all_planes",
+            **crosstab(ranks["union_no_fusion"], ranks["bm25_single_index_all_planes"], kmax),
         },
     }
 

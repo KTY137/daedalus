@@ -8,11 +8,13 @@ into kill criteria.  This module implements exactly those two, honestly:
   query token touches can still surface because it sits next to one that does.
   Its control is ``LexicalRetriever`` over the same code plane with the graph
   switched off, so any difference is the graph and nothing else.
-* **(b) four separate single-plane indices without fusion** —
-  ``FourPlaneNoFusionRetriever``.  Four independent BM25 indices, four
-  independent score scales, and a plane round-robin as the *only* combination
-  rule.  Cross-plane score comparison is deliberately not implemented: the
-  point of this baseline is that it cannot route a query to the right plane.
+* **(b) four separate single-plane indices without fusion** — two arms, because
+  "no fusion" does not fix how the answer slots are shared.
+  ``FourPlaneNoFusionRetriever`` splits ONE budget of k slots round-robin;
+  ``UnionNoFusionRetriever`` gives each plane its own top-k and concatenates.
+  Neither compares a score across planes — that is the invariant of the
+  baseline — but the round-robin arm additionally starves whichever plane
+  holds the answer, so only the pair of them says what no-fusion costs.
   ``SinglePlaneOracleRetriever`` reports the unreachable upper bound of that
   design (it is handed the gold label — it is a measuring stick, not a system).
 
@@ -207,6 +209,56 @@ class FourPlaneNoFusionRetriever:
                         break
             depth += 1
         return out
+
+
+class UnionNoFusionRetriever:
+    """(b') The un-starved no-fusion arm: per-plane top-k, concatenated.
+
+    ``FourPlaneNoFusionRetriever`` splits ONE budget of k slots across four
+    planes round-robin.  Because every gold label in the frozen query set is a
+    code document, only the code index can hold the answer, and round-robin
+    hands it slots 1, 5, 9 — i.e. its top-3.  That arm therefore measures a
+    *slot allocation*, not the absence of fusion, and reporting it as the
+    no-fusion baseline understates no-fusion and flatters any cross-plane
+    method.  This arm removes that confound: each plane answers with its own
+    top-k, the lists are laid end to end, and **no score from one plane is
+    ever compared with a score from another**.
+
+    Two honest costs, stated rather than argued away:
+
+    * **Budget.** It returns up to ``4k`` documents to answer a cutoff-``k``
+      question.  R@k is unaffected (positions beyond k cannot count), but MRR
+      over the full list is generous to this arm; ``truncated`` gives the
+      apples-to-apples clip.
+    * **Order.** Concatenation order is not a score comparison, but it does
+      decide rank.  A fixed order is a *declared prior* over planes, and with a
+      code-only gold set the code-first order is exactly the favourable one.
+      ``order`` is therefore a constructor argument and the order sensitivity
+      is measured, not assumed.
+    """
+
+    def __init__(
+        self,
+        corpus: Corpus,
+        order: Sequence[str] = PLANES,
+        name: str | None = None,
+        truncate: bool = False,
+    ) -> None:
+        self.order = tuple(order)
+        self.truncate = truncate
+        self.indices = {plane: Bm25Index(corpus.by_plane.get(plane, [])) for plane in self.order}
+        self.name = name or (
+            f"union_no_fusion({'-'.join(self.order)}{',truncated' if truncate else ''})"
+        )
+
+    def query(self, text: str, k: int = 10) -> list[Hit]:
+        out: list[Hit] = []
+        for plane in self.order:
+            for doc, score in self.indices[plane].search(text, k):
+                out.append(
+                    Hit(doc_id=doc.doc_id, score=score, plane=doc.plane, locator=doc.locator, why=f"bm25[{plane}]")
+                )
+        return out[:k] if self.truncate else out
 
 
 class SinglePlaneOracleRetriever:

@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from s08_api import Document, EvalResult, Hit, Query, evaluate, rank_of  # noqa: E402
 from s08_corpus import (  # noqa: E402
+    Corpus,
     build_corpus,
     data_document_text,
     split_identifier,
@@ -33,6 +34,7 @@ from s08_retrievers import (  # noqa: E402
     FourPlaneNoFusionRetriever,
     LexicalRetriever,
     SinglePlaneOracleRetriever,
+    UnionNoFusionRetriever,
     _degree_preserving_rewire,
 )
 
@@ -259,6 +261,103 @@ def test_oracle_is_at_least_as_good_as_any_single_plane(tiny_repo: Path) -> None
     for plane in no_fusion.order:
         plane_rank = rank_of(no_fusion.query_plane(plane, "stable integer signature", k=10), gold)
         assert plane_rank == 0 or oracle_rank <= plane_rank
+
+
+# ------------------------------------------------ no-fusion: slot allocation
+#
+# These four encode the two defects an adversarial review found in the landed
+# slice.  They are written so that reverting the fix turns them red.
+
+
+def _starvation_corpus() -> "Corpus":
+    """Six code documents ranked 1..6 for "widget", three docs in every other plane.
+
+    Same length everywhere, decreasing term frequency, so the code index's
+    ranking is deterministic and the gold sits at code-rank 4 — outside the
+    three slots a four-way round-robin can spend on the code plane within a
+    cutoff of ten.
+    """
+    corpus = Corpus(root=Path("."))
+    for i in range(1, 7):
+        text = " ".join(["widget"] * (7 - i) + [f"pad{i}x{j}" for j in range(i - 1 + 4)])
+        corpus.add(
+            Document(
+                doc_id=f"code:c{i}.py",
+                plane="code",
+                locator=f"c{i}.py",
+                text=text,
+                tokens=tuple(tokenize(text)),
+            )
+        )
+    for plane, suffix in (("type", "pyi"), ("data", "json"), ("knowledge", "md")):
+        for j in range(1, 4):
+            text = "widget " * 3
+            corpus.add(
+                Document(
+                    doc_id=f"{plane}:{plane}{j}.{suffix}",
+                    plane=plane,
+                    locator=f"{plane}{j}.{suffix}",
+                    text=text,
+                    tokens=tuple(tokenize(text)),
+                )
+            )
+    return corpus
+
+
+def test_round_robin_starves_the_only_answer_bearing_plane() -> None:
+    """CRITICAL 1: a shared budget split four ways is not "no fusion", it is a handicap.
+
+    The gold is the code index's 4th hit.  A four-way round-robin inside a
+    cutoff of ten reaches only the code index's top-3, so it misses a document
+    that the very same index ranks 4th.  The union arm, given each plane its
+    own top-k, finds it at exactly its code-index rank.
+    """
+    corpus = _starvation_corpus()
+    gold = "code:c4.py"
+    code_only = LexicalRetriever.over("code_only", corpus.by_plane["code"])
+    code_rank = rank_of(code_only.query("widget", k=10), gold)
+    assert code_rank == 4, f"fixture drifted: expected code-rank 4, got {code_rank}"
+
+    round_robin = FourPlaneNoFusionRetriever(corpus)
+    union = UnionNoFusionRetriever(corpus)
+    assert rank_of(round_robin.query("widget", k=10), gold) == 0  # starved out
+    assert rank_of(union.query("widget", k=10), gold) == code_rank  # not starved
+
+
+def test_union_no_fusion_gives_every_plane_its_own_top_k() -> None:
+    corpus = _starvation_corpus()
+    union = UnionNoFusionRetriever(corpus)
+    hits = union.query("widget", k=3)
+    assert [h.plane for h in hits] == ["code"] * 3 + ["type"] * 3 + ["data"] * 3 + ["knowledge"] * 3
+    code_only = LexicalRetriever.over("code_only", corpus.by_plane["code"])
+    assert [h.doc_id for h in hits[:3]] == [h.doc_id for h in code_only.query("widget", k=3)]
+
+
+def test_union_no_fusion_never_compares_scores_across_planes() -> None:
+    """A later plane outscoring the first must NOT be able to jump the queue."""
+    corpus = _starvation_corpus()
+    union = UnionNoFusionRetriever(corpus)
+    hits = union.query("widget", k=6)
+    best_code = max(h.score for h in hits if h.plane == "code")
+    best_other = max(h.score for h in hits if h.plane != "code")
+    assert best_other > best_code, "fixture drifted: no cross-plane score inversion to defend against"
+    assert hits[0].plane == "code", "the concatenation order decided rank, not the score column"
+
+
+def test_union_no_fusion_plane_order_decides_rank() -> None:
+    """The order is a declared prior over planes, and it is worth everything here."""
+    corpus = _starvation_corpus()
+    gold = "code:c1.py"
+    code_first = UnionNoFusionRetriever(corpus, order=("code", "type", "data", "knowledge"))
+    code_last = UnionNoFusionRetriever(corpus, order=("type", "data", "knowledge", "code"))
+    assert rank_of(code_first.query("widget", k=10), gold) == 1
+    # code-last pushes the code block down by exactly the number of documents the
+    # other three planes returned first (3 + 3 + 3 here, not 3 x k: the fixture's
+    # non-code planes hold fewer than k documents).
+    hits_last = code_last.query("widget", k=10)
+    preceding = sum(1 for h in hits_last if h.plane != "code")
+    assert preceding == 9
+    assert rank_of(hits_last, gold) == preceding + 1 == 10
 
 
 def test_every_retriever_answers_the_shared_query_call(tiny_repo: Path) -> None:
