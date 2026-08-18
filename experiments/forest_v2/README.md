@@ -107,9 +107,12 @@ buckets only ever split the baseline's cross_module_or_dynamic mass.
 code, so that stopping a research track becomes a computed proposal with a
 stated uncertainty instead of a judgement call made under sunk cost.
 
-**Section numbering:** the kill criteria are **section 14** in plan revision 5.
-They were section 13 in earlier revisions; section 13 is now "Forbidden
-default directions". The code cites the live numbering.
+**Section numbering:** the kill criteria are **section 14** in plan revisions 5
+and 6. They were section 13 in earlier revisions; section 13 is now "Forbidden
+default directions". The code no longer *cites* the live numbering, it reads
+it: `plan_register.py` matches the section by title and takes the number from
+the heading, so the next renumbering is a red check rather than a wrong
+citation. Section 14 is byte-identical in revisions 5 and 6 [MEASURED].
 
 ### Frozen specification
 
@@ -128,19 +131,58 @@ default directions". The code cites the live numbering.
   Its exit code says whether the evaluation ran, never what it found.
 - **Scope:** pure stdlib, read-only, no repository imports, no network, no
   subprocess, no writes. Consumes serialised results, so it never imports the
-  harness it grades.
-- **Budget:** one package, ~1.9k lines of implementation plus ~0.5k of
+  harness it grades. It reads exactly one repository file, the master plan,
+  and only to derive and verify the criteria register.
+- **Budget:** one package, ~2.6k lines of implementation plus ~0.7k of
   self-check, re-runnable in seconds. No model calls, no spend.
-- **Expiry: 2026-09-15.** After that, re-derive the criteria from the live
-  plan revision before trusting a verdict -- the plan's own section numbering
-  has already moved once, and a stale kill list is worse than none.
+- **Expiry: 2026-09-15.** After that, re-measure before reuse. The criteria
+  themselves no longer expire quietly: they are re-derived from the live plan
+  on every check run, and a drifted register is a red check rather than a
+  stale list nobody noticed. This bullet used to say "re-derive the criteria
+  from the live plan before trusting a verdict" and left the doing to a
+  future reader -- who was, predictably, nobody.
+
+### RETRACTED (2026-08-18): the published coverage was 60%, the truth is 56.3%
+
+**Withdrawn claim:** "Nine of the plan's *fifteen* kill criteria are decidable"
+— i.e. 9/15 = 60% coverage, as printed by `report.py` and by this README.
+
+**What the error was.** Section 14 of the living plan lists **sixteen**
+bullets. The criteria register was copied by hand and had lost one:
+*"corpus licensing/provenance or extraction cost prevents reproducible reuse"*
+(14.15) appeared nowhere — neither as a predicate nor as a declared
+out-of-scope entry. Because the remaining entries were then numbered by hand,
+the orchestration criterion slid into the freed index, so the code cited it as
+`14.15` when the plan numbers it `14.16`: anyone checking a `14.15` citation
+against the plan read a **different criterion** than the report meant. Nine
+decided criteria divided by a denominator that had silently shrunk gave 60%
+instead of 56.3%, and the check that existed to prevent exactly this pinned
+the wrong constant with a confident reason (`"the plan lists 15 kill
+criteria"`).
+
+The number was not rounded, mis-typed or stale — it was computed from a
+register that no longer matched the document it claimed to mirror. So the
+repair is not a corrected constant. `plan_register.py` now parses section 14
+out of the living plan at check time and compares the code register to it one
+to one — count, order, `plan_ref`, and verbatim wording — and coverage is
+`n_decided / n_registered`, computed. A plan that gains, loses, renumbers or
+rewords a bullet turns
+`test_the_register_matches_the_living_plan_one_to_one` red.
+
+**Corrected figure: 9 of 16 = 56.3%.**
+
+Two side effects of doing it this way, both worth having: the section number
+is read from the plan too (it has already moved once, 13 → 14), and the
+comparison spans revisions — section 14 is byte-identical in plan revisions 5
+and 6, checked, so this register is valid against both [MEASURED].
 
 ### What it decides, and what it refuses to
 
-Nine of the plan's fifteen kill criteria are decidable from a retrieval result
-set. Six are not, and are reported as `NOT_EVALUABLE` **with the reason and
-counted in a coverage line**, because shipping nine checks under the name "the
-kill criteria" would be the dishonest version.
+Nine of the plan's sixteen kill criteria are decidable from a retrieval result
+set (**9/16 = 56.3%**). Seven are not, and are reported as `NOT_EVALUABLE`
+**with the reason and counted in the denominator**, because shipping nine
+checks under the name "the kill criteria" would be the dishonest version —
+and dividing them by fifteen is the same dishonesty with a decimal point.
 
 | decided from retrieval results | needs evidence this format does not carry |
 | --- | --- |
@@ -149,10 +191,18 @@ kill criteria" would be the dishonest version.
 | 14.3 four indices vs fusion | 14.11 embedding precision after verification |
 | 14.4 per-plane ablation | 14.13 motif composition vs direct generation |
 | 14.6 graph-conditioned prioritization | 14.14 Genesis round-trip conformance |
-| 14.7 gain survives leakage scrubbing | 14.15 orchestration transfer |
-| 14.8 extra tokens explain the gain | |
+| 14.7 gain survives leakage scrubbing | **14.15 corpus licensing / provenance** |
+| 14.8 extra tokens explain the gain | 14.16 orchestration transfer |
 | 14.9 quality/cost frontier | |
 | 14.12 held-out transfer | |
+
+14.15 is out of scope for a reason stronger than "not yet": it is not a
+retrieval question at all. Deciding it needs per-document corpus ingestion
+metadata — source repository, revision, license, temporal cutoff, extraction
+version and extraction cost (plan sections 5 and 9.1) — so *no* result set of
+this schema can ever decide it. That is recorded in the register with the
+reason attached, which is the difference between a stated limit and the
+silent omission that produced the 60%.
 
 Three design decisions carry the honesty of the whole slice:
 
@@ -170,7 +220,8 @@ Three design decisions carry the honesty of the whole slice:
 
 ### Self-test result (2026-08-18, synthetic ground truth) [MEASURED]
 
-`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **44 passed in 7.84s**.
+`python -m pytest experiments/forest_v2/s10_kill/ -q` -> **59 passed in 10.18s**
+(2026-08-18, after the register repair; was 44 passed in 7.84s before it).
 
 Nine scenarios with constructed ground truth, all scores drawn at runtime from
 a seeded PRNG (no fixture tables). Default config: CI95 percentile bootstrap,
@@ -213,12 +264,93 @@ number of passes, since the plan stops the track on any single one.
 on 14.2 alone, while `surviving_prior` reaches `KEEP (7/9)` only because
 every decidable criterion passed.
 
+### Can this evaluator ever say KILL? [MEASURED]
+
+The question the slice has to ask about itself. Synthetic scenarios prove the
+machinery fires, which is not the same as a verdict being reachable from the
+measurements this project actually has. Verdict: **it can, and one structural
+bias toward KEEP was found and removed. On today's real numbers it withholds
+— and the withholding is correct.**
+
+**The bias that was there.** A criterion whose control arm a run never shipped
+came back `NOT_EVALUABLE`, and `NOT_EVALUABLE` never blocked a KEEP. So a
+prior could survive by being under-instrumented: ship `full`, `code_only` and
+`bm25`, omit the rewiring control, the ablations, the scrubbed variant and the
+token-matched arm, and every criterion that might have killed the prior is
+simply absent — the fewer controls a run carried, the safer its prior looked.
+The rollup now separates a *limit of the instrument* (a criterion this input
+schema can never carry, e.g. 14.15) from a *hole in the run* (a criterion
+implemented here that the run did not ask), and a prior with holes cannot
+reach KEEP. `test_a_prior_cannot_reach_keep_while_its_controls_were_never_shipped`
+pins it; `surviving_prior`, which ships every control, still reaches KEEP.
+
+**On real data it withholds.** Slice s08's landed 600-query run, rebuilt from
+its published 2x2 counts (`measured_inputs.py`; both marginals and the pairing
+come back out exactly, no score invented):
+
+```
+python -m experiments.forest_v2.s10_kill.cli --measured s08_graph_structure
+```
+
+| criterion | verdict | mean diff | CI95 | n | rescued/lost |
+| --- | --- | ---: | --- | ---: | --- |
+| 14.2 graph vs its degree-preserving rewiring | INCONCLUSIVE | +0.0100 | [-0.0050, +0.0250] | 600 | 13 / 7 |
+
+The interval reaches 0.0250 against a ±0.02 margin, so it is neither a win nor
+demonstrable equivalence — and the evaluator says so instead of reading "not
+significant" as "equivalent". This is a real limit worth stating: **with a
+binary per-query metric, 600 paired queries cannot resolve inside a ±0.02
+band.** An equivalence-shaped kill (14.2, 14.3, 14.8) needs either a graded
+metric (MRR, nDCG) or roughly 2–4× the queries. Every verdict from this run
+also carries `run declares 1 seed(s)`; s08 was a single run with no repeated
+trials.
+
+**14.3 is refused, not answered.** The s08 plane-routing run
+(`--measured s08_plane_routing`) reports `0 of 16` criteria decidable. s08
+measured the *cost of not routing* — a round-robin over four independent
+indices, strictly dominated by the code-only index (0 rescued, 59 lost) — but
+built no cross-plane **fusion** retriever, so 14.3 has no treatment arm:
+`missing: fusion|full`. The tempting shortcut is to let the nearest available
+arm stand in; that is how a criterion gets "decided" by a comparison nobody
+ran, and it is pinned shut by
+`test_a_run_without_a_fusion_arm_refuses_to_decide_the_fusion_criterion`.
+Independently of the arms, s08's query set carries **100% code gold labels**,
+so the type/data/knowledge indices score zero by arithmetic rather than by
+measurement — the fusion question is not cleanly decidable on that query set
+whatever arms are added.
+
+So: no criterion fires on the evidence available today, and the reason is
+insufficient resolution and missing controls, not a KEEP-shaped evaluator.
+
+### Mutation probe (2026-08-18) [MEASURED]
+
+Checks that cannot fail are decoration. Each mutation was applied, the suite
+run, and the tree restored.
+
+| mutation | result |
+| --- | --- |
+| remove criterion 14.9 from `REGISTER` | **6 failed, 53 passed** — `test_the_register_matches_the_living_plan_one_to_one` red: `count: the plan lists 16 kill criteria, the code registers 15`, plus `position 16: ... the code registers nothing -- a criterion is missing, not out of scope` |
+| reword plan bullet 14.3 (on a copy) | red: `14.3: wording differs / plan: 'four independent indices are basically fine' / code: 'four independent indices perform equivalently to cross-plane fusion'` |
+| add a 17th bullet to the plan (on a copy) | red: `count: the plan lists 17 kill criteria, the code registers 16` + 15 misfiled-citation reports |
+| drop 14.15, slide later refs up (**the landed defect**) | red: `misfiled citation: the register cites 14.15 for a criterion the plan numbers 14.16; anyone looking up 14.15 in the plan reads a different criterion` |
+
+The real plan file is never modified: plan-side mutations are applied to a
+copy in a temporary directory, and the helper asserts the tamper anchor still
+matched, so a probe that mutates nothing fails instead of passing quietly.
+
 ### Honest caveats
 
-- **Every number above is synthetic.** This slice measures the *evaluator*,
-  not the Project Twin. It has never seen a real Forest result; the first real
-  input will come from the s09 harness, and nothing here should be read as
-  evidence about the priors themselves.
+- **Every number in the scenario tables is synthetic.** This slice measures the
+  *evaluator*, not the Project Twin. The `--measured` runs are real s08
+  numbers, but they are a *rebuild* from published aggregate counts, not a
+  live re-run, and s08's own graph is a code graph — nothing here is evidence
+  about the four-plane Twin. The first end-to-end real input will come from
+  the s09 harness.
+- **The s08 rebuild reproduces published pairings, not unpublished ones.**
+  Where s08 printed a 2x2 the reconstruction is exact; where it did not, the
+  joint is filled deterministically and no criterion consumes that pairing.
+  The two runs are deliberately kept apart for this reason rather than merged
+  into one five-arm result set that would imply pairings nobody measured.
 - **The margin is a judgement, not a measurement.** +/-0.02 absolute on a 0..1
   metric decides the difference between `tiny_win` being a KILL and a KEEP. It
   should be pre-registered per campaign, not defaulted.
@@ -230,8 +362,16 @@ every decidable criterion passed.
 - **Bootstrap CIs on 40 paired cases are not a substitute for seeds.** The
   evaluator warns below 5 declared seeds; it cannot manufacture the repetitions
   the plan asks for.
-- **The `NOT_EVALUABLE` six are not "fine".** They are unmeasured. A prior whose
-  only decidable criteria pass is a prior that survived a partial exam.
+- **The `NOT_EVALUABLE` seven are not "fine".** They are unmeasured. A prior
+  whose only decidable criteria pass is a prior that survived a partial exam —
+  which is now enforced rather than merely written here: a run missing the
+  controls for criteria this evaluator implements cannot roll up to KEEP.
+- **A verified register is not a verified evaluator.** The check proves the
+  code's criteria list matches the plan's wording, order and numbering. It
+  says nothing about whether each predicate is a *faithful operationalisation*
+  of its bullet — that judgement stays with a reader, and 14.1's mapping of
+  "the full representation" onto whatever arm a run labels `full` is the
+  loosest joint in the whole slice.
 
 ## Boundary note
 
