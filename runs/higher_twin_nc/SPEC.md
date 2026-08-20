@@ -224,6 +224,22 @@ L4 digest (SHA-256 des Pipeline-Outputs als Verhaltensfingerprint).
     Messkonstruktionsregel gilt unverändert).
   Suite 46/46 grün.
 
+- 2026-08-21 (Watchdog-Slice 2, Fixture 3 `chemlab`): Spezifitäts-Fixture —
+  rein additive Kalibrierung (`A_COEF*reagent_a + B_COEF*reagent_b +
+  C_COEF*catalyst + OFFSET`), Kontrakt VOLLSTÄNDIG dokumentiert, keine
+  versteckte Kopplung, `temperature` inert. Profil zielt auf paarweise
+  verschiedene Felder → maximale Zertifikatabdeckung. Erwartungen
+  vorregistriert in `tests/test_chemlab.py` (TDD, 5 RED):
+  Kontrakt-Vollständigkeit (reagent_b speist, temperature inert) als
+  Ground-Truth-Test verankert. MEASURED `runs/chemlab-20260821/`
+  (38 Läufe, head 8f16e081…, count 40, verify_analysis True): VOLLE
+  Null-Tabelle — alle 15 Paare beidseitig komponierbar, baumidentisch,
+  k=0.0 überall; 9/15 Paare zertifiziert-disjunkt (vs. 7 bei
+  sensorlab/pumplab); 0 Anomalien; Sham = Verhaltensnull. Spezifität des
+  Anomaliedetektors auf kopplungsfreiem Fixture: 0 Falschalarme bei 9
+  zertifizierten Gelegenheiten (Autor-Fixture-Vorbehalt gilt).
+  Suite 51/51 grün.
+
 ## Nächste Schritte (BACKLOG, nicht autoritativ)
 
 Fixtures 3–4 (`chemlab` additiv-kommutativ als Spezifitäts-Fixture,

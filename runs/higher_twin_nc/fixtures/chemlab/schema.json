@@ -1,0 +1,29 @@
+{
+  "fields": [
+    {
+      "name": "sample_id",
+      "type": "number",
+      "unit": ""
+    },
+    {
+      "name": "reagent_a",
+      "type": "number",
+      "unit": "mL"
+    },
+    {
+      "name": "reagent_b",
+      "type": "number",
+      "unit": "mL"
+    },
+    {
+      "name": "catalyst",
+      "type": "number",
+      "unit": "mg"
+    },
+    {
+      "name": "temperature",
+      "type": "number",
+      "unit": "C"
+    }
+  ]
+}

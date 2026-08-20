@@ -423,6 +423,15 @@ PROFILES = {
         "add": ("viscosity", "1.0", "number", "cP"),
         "tighten": ("pressure",),
     },
+    # chemlab: pairwise distinct fields -> maximal certificate coverage,
+    # expected null table (the detector's specificity side)
+    "chemlab": {
+        "rename": ("reagent_a", "acid_a"),
+        "scale": ("reagent_b", 1000.0, "uL"),
+        "clip": ("catalyst", 25.0),
+        "add": ("solvent", "5.0", "number", "mL"),
+        "tighten": ("sample_id",),
+    },
 }
 
 
