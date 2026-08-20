@@ -1,0 +1,32 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "record": "commuting-squares",
+  "receipt_head": "36a3f7d8ee79c697af2789aeb8ebc208272cb0f2224b520eccb978efa161d37c",
+  "receipt_count": 4,
+  "baseline_tree_sha": "458a286de51a575537d2f1bc58576129afc08b458a834dc25663e55bd4323411",
+  "squares": [
+    {
+      "name": "square_voltage__pressure",
+      "word": [
+        "rename_voltage_to_bias_voltage",
+        "scale_pressure_x10",
+        "rename_bias_voltage_to_voltage",
+        "scale_pressure_x0.1"
+      ],
+      "control_word": [
+        "rename_voltage_to_bias_voltage",
+        "rename_bias_voltage_to_voltage",
+        "scale_pressure_x10",
+        "scale_pressure_x0.1"
+      ],
+      "composable": true,
+      "control_composable": true,
+      "classification": "tree",
+      "k_value": 0.0,
+      "digest_equal": true,
+      "second_order": "zero"
+    }
+  ]
+}

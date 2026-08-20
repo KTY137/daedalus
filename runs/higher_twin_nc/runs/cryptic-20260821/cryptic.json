@@ -1,0 +1,601 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "record": "cryptic-expansion",
+  "ladder": [
+    0,
+    2,
+    4,
+    8,
+    16
+  ],
+  "variants": 2,
+  "fixtures": {
+    "sensorlab": {
+      "l0_ok": true,
+      "acceptance_rate": 1.0,
+      "walks": [
+        {
+          "L": 0,
+          "variant": 0,
+          "edits": [],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7",
+            "comment_checks_0.8",
+            "blank_checks_0.9",
+            "comment_calib_0.10",
+            "comment_checks_0.11",
+            "comment_calib_0.12",
+            "blank_calib_0.13",
+            "comment_checks_0.14",
+            "blank_checks_0.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7",
+            "blank_checks_1.8",
+            "comment_calib_1.9",
+            "comment_checks_1.10",
+            "comment_calib_1.11",
+            "blank_calib_1.12",
+            "comment_checks_1.13",
+            "blank_checks_1.14",
+            "comment_calib_1.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        }
+      ]
+    },
+    "pumplab": {
+      "l0_ok": true,
+      "acceptance_rate": 1.0,
+      "walks": [
+        {
+          "L": 0,
+          "variant": 0,
+          "edits": [],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7",
+            "comment_checks_0.8",
+            "blank_checks_0.9",
+            "comment_calib_0.10",
+            "comment_checks_0.11",
+            "comment_calib_0.12",
+            "blank_calib_0.13",
+            "comment_checks_0.14",
+            "blank_checks_0.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7",
+            "blank_checks_1.8",
+            "comment_calib_1.9",
+            "comment_checks_1.10",
+            "comment_calib_1.11",
+            "blank_calib_1.12",
+            "comment_checks_1.13",
+            "blank_checks_1.14",
+            "comment_calib_1.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        }
+      ]
+    },
+    "chemlab": {
+      "l0_ok": true,
+      "acceptance_rate": 1.0,
+      "walks": [
+        {
+          "L": 0,
+          "variant": 0,
+          "edits": [],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7",
+            "comment_checks_0.8",
+            "blank_checks_0.9",
+            "comment_calib_0.10",
+            "comment_checks_0.11",
+            "comment_calib_0.12",
+            "blank_calib_0.13",
+            "comment_checks_0.14",
+            "blank_checks_0.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7",
+            "blank_checks_1.8",
+            "comment_calib_1.9",
+            "comment_checks_1.10",
+            "comment_calib_1.11",
+            "blank_calib_1.12",
+            "comment_checks_1.13",
+            "blank_checks_1.14",
+            "comment_calib_1.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        }
+      ]
+    },
+    "textlab": {
+      "l0_ok": true,
+      "acceptance_rate": 1.0,
+      "walks": [
+        {
+          "L": 0,
+          "variant": 0,
+          "edits": [],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 2,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 4,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 8,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 0,
+          "edits": [
+            "comment_calib_0.0",
+            "blank_calib_0.1",
+            "comment_checks_0.2",
+            "blank_checks_0.3",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_0.6",
+            "blank_calib_0.7",
+            "comment_checks_0.8",
+            "blank_checks_0.9",
+            "comment_calib_0.10",
+            "comment_checks_0.11",
+            "comment_calib_0.12",
+            "blank_calib_0.13",
+            "comment_checks_0.14",
+            "blank_checks_0.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        },
+        {
+          "L": 16,
+          "variant": 1,
+          "edits": [
+            "blank_calib_1.0",
+            "comment_checks_1.1",
+            "blank_checks_1.2",
+            "reorder_calib_imports",
+            "reorder_checks_imports",
+            "comment_calib_1.5",
+            "blank_calib_1.6",
+            "comment_checks_1.7",
+            "blank_checks_1.8",
+            "comment_calib_1.9",
+            "comment_checks_1.10",
+            "comment_calib_1.11",
+            "blank_calib_1.12",
+            "comment_checks_1.13",
+            "blank_checks_1.14",
+            "comment_calib_1.15"
+          ],
+          "neutral_certified": true,
+          "flips": [],
+          "flip_rate": 0.0
+        }
+      ]
+    }
+  },
+  "receipt_head": "a7f5b8064d68592c2233d6dc14bff7772fd4543d035efa09b56ae0d82984ad86",
+  "receipt_count": 275
+}
