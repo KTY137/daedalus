@@ -105,6 +105,100 @@ def run_loops(fixture: Path, out_dir: Path) -> dict:
     return analysis
 
 
+# ------------------------------------------------- commuting squares (2nd order)
+
+SQUARE_PAIRS = {
+    # fixture -> (A-factory args, B-factory args): certified-disjoint,
+    # invertible pair per fixture; scale roundtrip chosen so the numeric
+    # format loss lands in a different channel per fixture (pre-registered).
+    "sensorlab": (("voltage", "bias_voltage"), ("pressure", 10.0, "hPa", 0.1, "kPa")),
+    "pumplab": (("flow_rate", "mass_flow"), ("pressure", 10.0, "hPa", 0.1, "kPa")),
+    "chemlab": (("reagent_a", "acid_a"), ("reagent_b", 1000.0, "uL", 0.001, "mL")),
+    "textlab": (("weight", "mass"), ("score", 10.0, "dpt", 0.1, "pt")),
+}
+
+
+def commuting_squares(profile: str) -> list:
+    """Square word [A, B, A^-1, B^-1] plus sequential control
+    [A, A^-1, B, B^-1] for one certified-disjoint invertible pair."""
+    (old, new), (fldb, k, unit_fwd, k_inv, unit_back) = SQUARE_PAIRS[profile]
+    a = operators.rename_field(old, new)
+    a_inv = operators.rename_field(new, old)
+    b = operators.scale_values(fldb, k, unit_fwd)
+    b_inv = operators.scale_values(fldb, k_inv, unit_back)
+    return [(
+        f"square_{old}__{fldb}",
+        [a, b, a_inv, b_inv],
+        [a, a_inv, b, b_inv],
+    )]
+
+
+def run_squares(fixture: Path, out_dir: Path, profile: str) -> dict:
+    fixture = Path(fixture)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    receipts_path = out_dir / "receipts.jsonl"
+    if receipts_path.exists():
+        raise FileExistsError(f"receipts already exist at {receipts_path}")
+    chain = assay.ReceiptChain(receipts_path)
+    chain.append(assay.provenance_record(fixture))
+    work = out_dir / "work"
+
+    baseline = assay.run_word(fixture, [], work / "baseline", chain)
+    square_results = []
+    for name, square_word, control_word in commuting_squares(profile):
+        sq = assay.run_word(fixture, square_word, work / name, chain)
+        ctrl = assay.run_word(fixture, control_word, work / f"{name}_ctrl", chain)
+        if not sq["composable"]:
+            classification = "noncomposable"
+            k_value = None
+        elif sq["tree_sha"] == baseline["tree_sha"]:
+            classification = "trivial"
+            k_value = 0.0
+        elif sq["Y"] == baseline["Y"]:
+            classification = "tree"
+            k_value = 0.0
+        else:
+            classification = "behavior"
+            k_value = assay.value_distance(
+                sq["Y"]["values"], baseline["Y"]["values"])
+        # second order: does interleaving add holonomy beyond the
+        # component roundtrips? zero iff square and control end identical.
+        if sq["composable"] and ctrl["composable"]:
+            second_order = "zero" if sq["tree_sha"] == ctrl["tree_sha"] \
+                else "nonzero"
+        else:
+            second_order = "noncomposable"
+        square_results.append({
+            "name": name,
+            "word": sq["word"],
+            "control_word": ctrl["word"],
+            "composable": sq["composable"],
+            "control_composable": ctrl["composable"],
+            "classification": classification,
+            "k_value": k_value,
+            "digest_equal": bool(
+                sq["composable"]
+                and sq["Y"]["digest"] == baseline["Y"]["digest"]),
+            "second_order": second_order,
+        })
+
+    analysis = {
+        "experiment": assay.EXPERIMENT,
+        "spec_rev": assay.SPEC_REV,
+        "fixture": fixture.name,
+        "record": "commuting-squares",
+        "receipt_head": chain.prev,
+        "receipt_count": chain.seq,
+        "baseline_tree_sha": baseline["tree_sha"],
+        "squares": square_results,
+    }
+    with open(out_dir / "squares.json", "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(analysis, fh, indent=2)
+        fh.write("\n")
+    return analysis
+
+
 if __name__ == "__main__":
     here = Path(__file__).parent
     result = run_loops(here / "fixtures" / "sensorlab", here / "runs" / "loops-pilot")
