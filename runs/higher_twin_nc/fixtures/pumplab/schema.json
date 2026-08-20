@@ -1,0 +1,29 @@
+{
+  "fields": [
+    {
+      "name": "sample_id",
+      "type": "number",
+      "unit": ""
+    },
+    {
+      "name": "flow_rate",
+      "type": "number",
+      "unit": "L/min"
+    },
+    {
+      "name": "pressure",
+      "type": "number",
+      "unit": "kPa"
+    },
+    {
+      "name": "temperature",
+      "type": "number",
+      "unit": "C"
+    },
+    {
+      "name": "rpm",
+      "type": "number",
+      "unit": "rpm"
+    }
+  ]
+}

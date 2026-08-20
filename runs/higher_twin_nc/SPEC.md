@@ -187,9 +187,47 @@ L4 digest (SHA-256 des Pipeline-Outputs als Verhaltensfingerprint).
   git ist der Anker, die Kette bleibt Manipulations-Indikator;
   (e) der Footprint-Audit misst Datei-Writes, keine Reads.
 
+- 2026-08-21 (Watchdog-Slice 1, Fixture 2 `pumplab`): 5 Felder, ECHTE
+  versteckte Kopplung im Fixture-Code — `calib.py` liest `pressure` als
+  multiplikative Korrektur um `P_REF` in die Flow-Kalibrierung; der
+  dokumentierte Kontrakt (README, checks) präsentiert die Kalibrierung als
+  reine `flow_rate`-Funktion. `standard_ops(profile)` profilparametrisiert
+  (PROFILES sensorlab/pumplab; Default bleibt sensorlab, Rev-1-Artefakte
+  reproduzierbar). Changelog: Operatorfamilie um `retune_offset` erweitert —
+  führt die Fixture-Pipeline deterministisch als Blackbox aus (kein Modell,
+  kein RNG, keine Uhr) und schreibt OFFSET zurück; die Operatorklasse ist
+  damit nicht mehr rein textuell, der Scope-Satz gilt fortan als
+  „deterministische Baumtransformationen"; die Evaluator-Versiegelung ist
+  unberührt (die Pipeline ist Fixture-Code, nicht der Evaluator).
+  Erwartungen vorregistriert in `tests/test_pumplab.py` (TDD, 6 RED vor
+  Implementierung); beide Kampagnen MEASURED, Ketten anker-verifiziert:
+  - `runs/pumplab-20260821/` Standard-Matrix (38 Läufe, head 097553f1…,
+    count 40, verify_analysis True): Struktur spiegelt sensorlab —
+    scale+clip auf demselben Feld = konstruierte
+    Verhaltens-Nichtkommutation (k=0.1754); alle 7 als disjunkt
+    zertifizierten Paare baumidentisch kommutierend, auch
+    tighten_pressure gegen flow-Ops (spaltenlokale Edits kommutieren,
+    obwohl `pressure` die Kopplung speist); 0 Anomalien — die
+    Fixture-Code-Kopplung ist für spaltenlokale Standard-Ops
+    unsichtbar (vorregistriert erwartet und jetzt gemessen).
+  - `runs/pumplab-anomaly-20260821/` NICHT-ZIRKULÄRE H-ANOM-Validierung
+    (11 Läufe, head 4950f228…, count 13, verify_analysis True):
+    `retune_offset(flow_rate)` deklariert ehrlich nach dokumentiertem
+    Kontrakt (nur `field:flow_rate`) → Paar mit scale_pressure
+    deklariert-disjunkt, gemessen noncommute-behavior k=0.1915 →
+    ANOMALIE: Detektion einer Kopplung, die im Fixture-Code liegt, ohne
+    Lügner-Deklaration — adressiert Grenze (b) des Codex-Reviews.
+    Spezifität: retune+scale_temperature und
+    scale_pressure+scale_temperature baumidentisch, 0 Falschalarme.
+    Detektionsrate 1/1, Falschalarm 0/2 Gelegenheiten (n=1 Fixture:
+    Kalibrierung, kein Wirksamkeitsbeweis; Autor-Fixture-Vorbehalt der
+    Messkonstruktionsregel gilt unverändert).
+  Suite 46/46 grün.
+
 ## Nächste Schritte (BACKLOG, nicht autoritativ)
 
-Fixtures 2–4 (externe/variierte Profile gegen Autoren-Zirkularität),
+Fixtures 3–4 (`chemlab` additiv-kommutativ als Spezifitäts-Fixture,
+`textlab` knowledge-lastig als Footprint-Stressor),
 reichere Neutral-Edit-Familie + größere L für H-CRYPT, Loop-Familie
 erweitern (kommutierende Quadrate), Descent-Check-Prototyp mit
 O(n²)→O(M)-Bilanz, History-Replay-Korpusaufbau mit Kontaminationsattest.

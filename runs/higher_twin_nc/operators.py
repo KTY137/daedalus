@@ -13,7 +13,10 @@ An empty footprint (sham) is disjoint from everything.
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -347,13 +350,95 @@ def sham() -> Op:
     )
 
 
-def standard_ops() -> dict:
-    """The six typed operators of the sensorlab pilot, in canonical order."""
+_OFFSET_RE = re.compile(r"^OFFSET = ([0-9eE.+-]+)$", re.MULTILINE)
+
+
+def retune_offset(field: str = "voltage", target: float = 10.0) -> Op:
+    """Re-baseline the calibration OFFSET so the mean calibrated value
+    equals `target`, computed from the live pipeline output.
+
+    A realistic maintenance operator and the NON-CIRCULAR H-ANOM
+    instrument: its footprint declaration follows the fixture's DOCUMENTED
+    contract (calibration is a function of `field` alone), so it innocently
+    omits any column the fixture code secretly reads. Unlike the liar
+    operator, the false disjointness here originates in fixture code, not
+    in a deliberately wrong self-report. The pipeline is executed as a
+    black box — deterministic (no models, no randomness, no clock reads);
+    it is fixture code, not the sealed evaluator.
+    """
+    def pre(tree: Path) -> Optional[str]:
+        if field not in _schema_names(tree):
+            return f"field '{field}' not in schema"
+        if _OFFSET_RE.search(_read(tree / "calib.py")) is None:
+            return "no OFFSET constant in calib.py"
+        return None
+
+    def run(tree: Path) -> None:
+        env = dict(
+            os.environ,
+            PYTHONDONTWRITEBYTECODE="1",
+            PYTHONIOENCODING="utf-8",
+            PYTHONUTF8="1",
+            PYTHONHASHSEED="0",
+        )
+        proc = subprocess.run(
+            [sys.executable, "calib.py"],
+            cwd=str(tree),
+            env=env,
+            capture_output=True,
+            timeout=60,
+            check=True,
+        )
+        tail = proc.stdout.decode("utf-8").strip().splitlines()[-1].split()
+        n = int(tail[0].split("=")[1])
+        total = float(tail[1].split("=")[1])
+        source = _read(tree / "calib.py")
+        offset = float(_OFFSET_RE.search(source).group(1))
+        base_mean = (total - n * offset) / n
+        new_offset = round(target - base_mean, 6)
+        _write(tree / "calib.py",
+               _OFFSET_RE.sub(f"OFFSET = {new_offset!r}", source, count=1))
+
+    return Op(
+        name=f"retune_offset_{field}",
+        reads=frozenset({f"field:{field}"}),
+        writes=frozenset({f"field:{field}"}),
+        pre=pre,
+        run=run,
+    )
+
+
+PROFILES = {
+    "sensorlab": {
+        "rename": ("voltage", "bias_voltage"),
+        "scale": ("voltage", 1000.0, "mV"),
+        "clip": ("voltage", 2.5),
+        "add": ("temperature", "20.0", "number", "C"),
+        "tighten": ("sample_id",),
+    },
+    "pumplab": {
+        "rename": ("flow_rate", "mass_flow"),
+        "scale": ("flow_rate", 2.0, "au"),
+        "clip": ("flow_rate", 6.0),
+        "add": ("viscosity", "1.0", "number", "cP"),
+        "tighten": ("pressure",),
+    },
+}
+
+
+def standard_ops(profile="sensorlab") -> dict:
+    """The six typed standard operators, parameterized by fixture profile.
+
+    `profile` is a profile name from PROFILES or a mapping of the same
+    shape. The no-arg default stays the sensorlab pilot set so revision-1
+    artifacts remain reproducible.
+    """
+    p = PROFILES[profile] if isinstance(profile, str) else profile
     return {
-        "rename": rename_field(),
-        "scale": scale_values(),
-        "clip": clip_values(),
-        "add": add_field(),
-        "tighten": tighten_type(),
+        "rename": rename_field(*p["rename"]),
+        "scale": scale_values(*p["scale"]),
+        "clip": clip_values(*p["clip"]),
+        "add": add_field(*p["add"]),
+        "tighten": tighten_type(*p["tighten"]),
         "regen": regen_docs(),
     }
