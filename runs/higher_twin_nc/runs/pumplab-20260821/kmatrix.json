@@ -1,0 +1,645 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "pumplab",
+  "runs": 38,
+  "baseline": {
+    "word": [],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "a9a4e2fc6b620de94ddaefbaaeb961d48575f19f2ff3e1fea5404e676abb8f78",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+      "values": [
+        9.87496,
+        15.07664,
+        17.04328,
+        7.88648,
+        27.37384,
+        22.2588,
+        8.68024,
+        33.70888,
+        21.07496,
+        31.73624,
+        14.2808,
+        18.66472
+      ]
+    },
+    "ops_applied": [],
+    "precondition_mutations": []
+  },
+  "sham": {
+    "word": [
+      "sham"
+    ],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "7cc34ad981e604575f4da2063e58b09c2a6afbcce5fac27ca2550bbb740759bd",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+      "values": [
+        9.87496,
+        15.07664,
+        17.04328,
+        7.88648,
+        27.37384,
+        22.2588,
+        8.68024,
+        33.70888,
+        21.07496,
+        31.73624,
+        14.2808,
+        18.66472
+      ]
+    },
+    "ops_applied": [
+      {
+        "name": "sham",
+        "files_changed": [
+          "calib.py"
+        ],
+        "failed": false
+      }
+    ],
+    "precondition_mutations": []
+  },
+  "singles": {
+    "rename": {
+      "word": [
+        "rename_flow_rate_to_mass_flow"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "8b482c7107581fd6257d435d100d791425fb5193b39465eac4f3708a53f9076a",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "e7e35c4d906f2ebb124b28c333bca213d3b83926cbc9db3f014d11296db513de",
+        "values": [
+          9.87496,
+          15.07664,
+          17.04328,
+          7.88648,
+          27.37384,
+          22.2588,
+          8.68024,
+          33.70888,
+          21.07496,
+          31.73624,
+          14.2808,
+          18.66472
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "rename_flow_rate_to_mass_flow",
+          "files_changed": [
+            "calib.py",
+            "checks.py",
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "scale": {
+      "word": [
+        "scale_flow_rate_x2"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "f82acf031050d626bf04f9e3aefe6e902e2678a5bf8fa1a4d81183eb55446da5",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "b5ec952446d974724afaaabdf143af1e15aa82c28ca42415779ef386e80c5b14",
+        "values": [
+          19.49992,
+          29.90328,
+          33.83656,
+          15.52296,
+          54.49768,
+          44.2676,
+          17.11048,
+          67.16776,
+          41.89992,
+          63.22248,
+          28.3116,
+          37.07944
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "scale_flow_rate_x2",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "clip": {
+      "word": [
+        "clip_flow_rate_at6"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "e2d429cc8f2bb51c3dc8e8b7125b22353bbbf5ff5d2a02dce8b636c98da3563b",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "6cb65a9415caf674da2128a07d41ebd66e6de3bf6649cbb20cdbfa6d184f6331",
+        "values": [
+          9.87496,
+          15.07664,
+          17.04328,
+          7.88648,
+          24.1828,
+          22.2588,
+          8.68024,
+          24.1492,
+          21.07496,
+          24.1636,
+          14.2808,
+          18.66472
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "clip_flow_rate_at6",
+          "files_changed": [
+            "data/events.csv"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "add": {
+      "word": [
+        "add_viscosity"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "c5feff9645e4a378a909c13d349c9ffceb4a5814e74d31d9c8296bbd30a664b9",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+        "values": [
+          9.87496,
+          15.07664,
+          17.04328,
+          7.88648,
+          27.37384,
+          22.2588,
+          8.68024,
+          33.70888,
+          21.07496,
+          31.73624,
+          14.2808,
+          18.66472
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "add_viscosity",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "tighten": {
+      "word": [
+        "tighten_pressure_to_integer"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "927c36c4eef7fd9209323da02f96230970d70c9874395323110e8e591342928f",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "859cef186302dc3f2a62fdeff08589eec5570aadb6a04139ece4591efb855425",
+        "values": [
+          9.8692,
+          15.05,
+          17.0164,
+          7.8804,
+          27.3412,
+          22.25,
+          8.6668,
+          33.6484,
+          21.05,
+          31.7236,
+          14.278,
+          18.65
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "tighten_pressure_to_integer",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "regen": {
+      "word": [
+        "regen_docs"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "a9a4e2fc6b620de94ddaefbaaeb961d48575f19f2ff3e1fea5404e676abb8f78",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+        "values": [
+          9.87496,
+          15.07664,
+          17.04328,
+          7.88648,
+          27.37384,
+          22.2588,
+          8.68024,
+          33.70888,
+          21.07496,
+          31.73624,
+          14.2808,
+          18.66472
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "regen_docs",
+          "files_changed": [],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    }
+  },
+  "pairs": [
+    {
+      "pair": [
+        "rename",
+        "scale"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "scale_flow_rate_x2: field 'flow_rate' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": null,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "clip"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "clip_flow_rate_at6: field 'flow_rate' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": null,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "clip"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": 0.1754220463600524,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "add",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "add",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "tighten",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    }
+  ],
+  "receipt_head": "097553f14eea39e4941fbe120dbc166d0fa18630a6e74dd50878e7ab95f709e9",
+  "receipt_count": 40
+}
