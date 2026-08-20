@@ -1,0 +1,19 @@
+{
+  "fields": [
+    {
+      "name": "sample_id",
+      "type": "number",
+      "unit": ""
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "unit": "pt"
+    },
+    {
+      "name": "weight",
+      "type": "number",
+      "unit": "kg"
+    }
+  ]
+}

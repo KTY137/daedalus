@@ -317,6 +317,73 @@ def normalize_by_pressure(honest: bool, voltage: str = "voltage",
     )
 
 
+def annotate_field(name: str, note: str) -> Op:
+    """Insert a note line at the end of one field's doc section.
+
+    Section-scoped by construction: the insertion point is just before the
+    next `## ` heading (or EOF), so annotations on different fields — and
+    annotations vs. tail appendices — edit disjoint regions. The declared
+    footprint (that field's slice) is therefore honest.
+    """
+    def pre(tree: Path) -> Optional[str]:
+        if name not in _schema_names(tree):
+            return f"field '{name}' not in schema"
+        if f"## `{name}`" not in _read(tree / "docs" / "fields.md"):
+            return f"no doc section for field '{name}'"
+        return None
+
+    def run(tree: Path) -> None:
+        docs = tree / "docs" / "fields.md"
+        lines = _read(docs).split("\n")
+        start = lines.index(f"## `{name}`")
+        end = len(lines)
+        for i in range(start + 1, len(lines)):
+            if lines[i].startswith("## "):
+                end = i
+                break
+        while end > start + 1 and lines[end - 1] == "":
+            end -= 1
+        lines.insert(end, f"Note: {note}.")
+        _write(docs, "\n".join(lines))
+
+    return Op(
+        name=f"annotate_{name}",
+        reads=frozenset({f"field:{name}"}),
+        writes=frozenset({f"field:{name}"}),
+        pre=pre,
+        run=run,
+    )
+
+
+def add_appendix(topic: str, text: str) -> Op:
+    """Append a non-field knowledge section at the end of docs/fields.md.
+
+    The declared write is `concept:<topic>` — a knowledge-plane resource
+    OUTSIDE the field vocabulary, deliberately so: the `field:*` wildcard
+    does not intersect it, and two different appendices are declared
+    disjoint although both append to the same file tail. This is the
+    pre-registered completeness stressor of the footprint rule.
+    """
+    heading = f"## Appendix: {topic}"
+
+    def pre(tree: Path) -> Optional[str]:
+        if heading in _read(tree / "docs" / "fields.md"):
+            return f"appendix '{topic}' already present"
+        return None
+
+    def run(tree: Path) -> None:
+        docs = tree / "docs" / "fields.md"
+        _write(docs, _read(docs) + f"\n{heading}\n\n{text}\n")
+
+    return Op(
+        name=f"appendix_{topic}",
+        reads=frozenset(),
+        writes=frozenset({f"concept:{topic}"}),
+        pre=pre,
+        run=run,
+    )
+
+
 def regen_docs() -> Op:
     def pre(tree: Path) -> Optional[str]:
         return None
