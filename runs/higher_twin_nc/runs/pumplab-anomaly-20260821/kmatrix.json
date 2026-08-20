@@ -1,0 +1,267 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "pumplab",
+  "runs": 11,
+  "baseline": {
+    "word": [],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "a9a4e2fc6b620de94ddaefbaaeb961d48575f19f2ff3e1fea5404e676abb8f78",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+      "values": [
+        9.87496,
+        15.07664,
+        17.04328,
+        7.88648,
+        27.37384,
+        22.2588,
+        8.68024,
+        33.70888,
+        21.07496,
+        31.73624,
+        14.2808,
+        18.66472
+      ]
+    },
+    "ops_applied": [],
+    "precondition_mutations": []
+  },
+  "sham": {
+    "word": [
+      "sham"
+    ],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "7cc34ad981e604575f4da2063e58b09c2a6afbcce5fac27ca2550bbb740759bd",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+      "values": [
+        9.87496,
+        15.07664,
+        17.04328,
+        7.88648,
+        27.37384,
+        22.2588,
+        8.68024,
+        33.70888,
+        21.07496,
+        31.73624,
+        14.2808,
+        18.66472
+      ]
+    },
+    "ops_applied": [
+      {
+        "name": "sham",
+        "files_changed": [
+          "calib.py"
+        ],
+        "failed": false
+      }
+    ],
+    "precondition_mutations": []
+  },
+  "singles": {
+    "retune": {
+      "word": [
+        "retune_offset_flow_rate"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "4a15be46b6fb2d9132c6c60c57833d6d61cc859fe3de2ba992d40647ba5e7c96",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "931adea4859ebd897423b935e0104bbfba412ee68168a8d39f01608ee63a515e",
+        "values": [
+          0.903307,
+          6.104987,
+          8.071627,
+          -1.085173,
+          18.402187,
+          13.287147,
+          -0.291413,
+          24.737227,
+          12.103307,
+          22.764587,
+          5.309147,
+          9.693067
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "retune_offset_flow_rate",
+          "files_changed": [
+            "calib.py"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "scalep": {
+      "word": [
+        "scale_pressure_x1.25"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "2343a7432e28f12ecccfaa5764499f6df6cc8ffff6e08e0ca7bd03c9d1beb8f0",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "098c4f86b5a6b968ea4034c71cfbd59f9e5fc6f8ce3fc05ee179e9364ed54e74",
+        "values": [
+          10.3612,
+          15.8233,
+          17.8816,
+          8.2756,
+          28.7148,
+          23.361,
+          9.1078,
+          35.3536,
+          22.1212,
+          33.2878,
+          14.9885,
+          19.5884
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "scale_pressure_x1.25",
+          "files_changed": [
+            "data/events.csv"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "scalet": {
+      "word": [
+        "scale_temperature_x10"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "22fd3039593bb9a49c86059a4b240fd8467ce386e6f789643b3fe70e2d41ade4",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "3ae1a06067ff113c5e629793416b38add0aac4a47d02c514f30e4b75b59fc1a6",
+        "values": [
+          9.87496,
+          15.07664,
+          17.04328,
+          7.88648,
+          27.37384,
+          22.2588,
+          8.68024,
+          33.70888,
+          21.07496,
+          31.73624,
+          14.2808,
+          18.66472
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "scale_temperature_x10",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    }
+  },
+  "pairs": [
+    {
+      "pair": [
+        "retune",
+        "scalep"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": 0.19151347874367597,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": true,
+      "anomaly": true,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "retune",
+        "scalet"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scalep",
+        "scalet"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    }
+  ],
+  "receipt_head": "4950f228c27b72e14e83e31140f7c8295d8877a40f6d808ed628ab324c380365",
+  "receipt_count": 13
+}
