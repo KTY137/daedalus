@@ -1,0 +1,32 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "pumplab",
+  "record": "commuting-squares",
+  "receipt_head": "5ec16418f96b25350412cc4d5636c59db72d0545f0f5e68a01088418e10e5e66",
+  "receipt_count": 4,
+  "baseline_tree_sha": "a9a4e2fc6b620de94ddaefbaaeb961d48575f19f2ff3e1fea5404e676abb8f78",
+  "squares": [
+    {
+      "name": "square_flow_rate__pressure",
+      "word": [
+        "rename_flow_rate_to_mass_flow",
+        "scale_pressure_x10",
+        "rename_mass_flow_to_flow_rate",
+        "scale_pressure_x0.1"
+      ],
+      "control_word": [
+        "rename_flow_rate_to_mass_flow",
+        "rename_mass_flow_to_flow_rate",
+        "scale_pressure_x10",
+        "scale_pressure_x0.1"
+      ],
+      "composable": true,
+      "control_composable": true,
+      "classification": "trivial",
+      "k_value": 0.0,
+      "digest_equal": true,
+      "second_order": "zero"
+    }
+  ]
+}

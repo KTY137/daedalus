@@ -1,0 +1,32 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "chemlab",
+  "record": "commuting-squares",
+  "receipt_head": "56512ab4996418961404e4caf3ae17e8b33fe7821a81248e48bede90a1595b37",
+  "receipt_count": 4,
+  "baseline_tree_sha": "f20c37355e52562f94e9b0ed1f19164da7713acf5d7c724daa320c71a6947d86",
+  "squares": [
+    {
+      "name": "square_reagent_a__reagent_b",
+      "word": [
+        "rename_reagent_a_to_acid_a",
+        "scale_reagent_b_x1000",
+        "rename_acid_a_to_reagent_a",
+        "scale_reagent_b_x0.001"
+      ],
+      "control_word": [
+        "rename_reagent_a_to_acid_a",
+        "rename_acid_a_to_reagent_a",
+        "scale_reagent_b_x1000",
+        "scale_reagent_b_x0.001"
+      ],
+      "composable": true,
+      "control_composable": true,
+      "classification": "tree",
+      "k_value": 0.0,
+      "digest_equal": true,
+      "second_order": "zero"
+    }
+  ]
+}

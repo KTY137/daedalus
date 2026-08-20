@@ -1,0 +1,32 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "textlab",
+  "record": "commuting-squares",
+  "receipt_head": "9d077ef9c8c7865e3025eb172f4117061c98c35fa664f4ce1bab425503e0ad9d",
+  "receipt_count": 4,
+  "baseline_tree_sha": "c0f2423eb6f13d6f0df473e138d1a4fb6cd96c99e5a62e05e1417514fd10bb69",
+  "squares": [
+    {
+      "name": "square_weight__score",
+      "word": [
+        "rename_weight_to_mass",
+        "scale_score_x10",
+        "rename_mass_to_weight",
+        "scale_score_x0.1"
+      ],
+      "control_word": [
+        "rename_weight_to_mass",
+        "rename_mass_to_weight",
+        "scale_score_x10",
+        "scale_score_x0.1"
+      ],
+      "composable": true,
+      "control_composable": true,
+      "classification": "behavior",
+      "k_value": 0.0,
+      "digest_equal": false,
+      "second_order": "zero"
+    }
+  ]
+}
