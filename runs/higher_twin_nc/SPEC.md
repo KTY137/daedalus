@@ -269,6 +269,66 @@ L4 digest (SHA-256 des Pipeline-Outputs als Verhaltensfingerprint).
     Wissensebene ist verhaltensneutral).
   Suite 55/55 grün.
 
+- 2026-08-21 (Watchdog-Slice 4, H-CRYPT-Ausbau): Neutral-Edit-Familie
+  erweitert auf deterministisch nummerierte Walks (`walk_edits(L, variant)`:
+  Kommentar-, Whitespace- und Import-Reorder-Varianten in calib.py UND
+  checks.py; One-Shot-Reorders werden bei Wiederholung deterministisch
+  durch frische Kommentar-Edits ersetzt, damit L ehrlich bleibt).
+  `run_expansion` fährt Leiter L ∈ {0,2,4,8,16} × nummerierte Varianten
+  über beliebige Fixtures mit einer Kette und Analysis-Bindung wie
+  run_matrix. MEASURED `runs/cryptic-20260821/` (head a7f5b806…,
+  count 275, Kette anker-verifiziert; 2 Varianten je L aus
+  Evaluator-Budget-Disziplin, ~280 Calls): alle 4 Fixtures
+  (sensorlab, pumplab inkl. retune-Probe, chemlab, textlab mit
+  Doc-Op-Proben) — L0-Selbsttest bestanden, Akzeptanzrate 1.0 (kein
+  Sampler-Tod), Flip-Rate 0 über ALLE L bis 16. Verstärktes
+  Null-Ergebnis, als negative Evidenz archiviert. Kein Null-Tod-Ruf:
+  die Familie bleibt layoutbeschränkt; deterministische Spalten-/
+  Doc-Proben lesen kein Code-Layout (vorregistriert erwartet).
+  Suite 58/58 grün.
+
+- 2026-08-21 (Watchdog-Slice 5, kommutierende Quadrate): Loop-Familie um
+  Holonomie zweiter Ordnung erweitert: Quadratwort [A, B, A⁻¹, B⁻¹]
+  (Rückweg in vertauschter Reihenfolge = echter Kommutator) gegen das
+  sequenzielle Kontrollwort [A, A⁻¹, B, B⁻¹]; Paar je Fixture =
+  zertifiziert-disjunktes invertierbares Paar (rename × scale).
+  MEASURED `runs/squares-20260821/<fixture>/` (4 Ketten
+  anker-verifiziert, heads 36a3f7d8/5ec16418/56512ab4/9d077ef9):
+  Dreikanal-Trennung der Erstordnungs-Holonomie exakt wie
+  (korrigiert) vorregistriert — pumplab trivial (Formatverlust-frei),
+  sensorlab & chemlab tree (Formatverlust off-output: sensorlab
+  „101.0"→„101" — KORREKTUR einer falschen Erst-Vorregistrierung
+  „trivial", vom RED-Lauf falsifiziert und dokumentiert; chemlab
+  „4.20"→„4.2"), textlab behavior mit k_value 0.0 (Formatverlust in
+  der gedruckten Spalte: reine Label-Holonomie, Werteebene äquivalent).
+  ZWEITE Ordnung überall ZERO: Quadrat- und Kontroll-Endpunkt
+  baumidentisch — der Kommutator fügt zertifiziert-disjunkten Paaren
+  nichts hinzu (H-HOL-konsistent: Holonomie stammt aus den
+  Komponenten-Roundtrips, nicht aus der Verschränkung).
+  Suite 61/61 grün.
+
+- 2026-08-21 (Watchdog-Slice 6, Descent-Prototyp): `descent.py` — pro
+  Überdeckung (Feld-Partition) EIN Gluing-Assay (zellenweise vs.
+  Round-Robin-verschränkte Anwendung der lokalen Ops) statt aller
+  paarweisen Cross-Cell-K-Assays; Ops mit layout-, Wildcard-, concept:-
+  oder Mehrzellen-Footprint werden als benannte OBSTRUKTIONEN geführt,
+  nie still verworfen. MEASURED `runs/descent-20260821/` (3 Ketten
+  anker-verifiziert):
+  - chemlab: Descent HÄLT (Glue baumidentisch), Bilanz 6 Descent-Läufe
+    ersetzen 6 paarweise Läufe (Break-even bei 3 lokalen Ops in 3
+    Zellen) — konsistent mit der gemessenen chemlab-Volltabelle.
+  - pumplab (Standard-Ops): HÄLT, Bilanz 5:4 (bei nur 2 Zellen kostet
+    Descent MEHR als es spart — ehrlich ausgewiesen; die O(n²)→O(M)-
+    Ökonomie beginnt erst oberhalb der Spielzeuggröße zu greifen,
+    H-DESC-Kill-Kriterium 2 ist bei Pilotgröße nicht entscheidbar).
+  - pumplab + retune (unschuldig lokal deklariert): Descent SCHEITERT —
+    das Glue-Assay ist reihenfolgesensitiv, weil retune die versteckte
+    pressure-Kopplung durch tighten_pressure hindurch liest: EIN Assay
+    lokalisiert dieselbe Kopplung, die Slice 1 paarweise als Anomalie
+    fand (Descent-Obstruktion = Kopplungsdetektor zweiter Art,
+    vorregistriert erwartet).
+  Suite 63/63 grün.
+
 ## Nächste Schritte (BACKLOG, nicht autoritativ)
 
 Fixtures 3–4 (`chemlab` additiv-kommutativ als Spezifitäts-Fixture,

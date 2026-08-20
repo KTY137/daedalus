@@ -1,0 +1,87 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "chemlab",
+  "record": "descent",
+  "partition": [
+    [
+      "reagent_a"
+    ],
+    [
+      "reagent_b"
+    ],
+    [
+      "catalyst"
+    ],
+    [
+      "sample_id"
+    ],
+    [
+      "temperature"
+    ]
+  ],
+  "local_ops": {
+    "clip": 2,
+    "scale": 1,
+    "tighten": 3
+  },
+  "obstructions": [
+    [
+      "add",
+      "resource field:solvent not covered by the partition; layout is a shared resource across every cell"
+    ],
+    [
+      "regen",
+      "field:* wildcard is not cell-local; layout is a shared resource across every cell"
+    ],
+    [
+      "rename",
+      "resource field:acid_a not covered by the partition; layout is a shared resource across every cell"
+    ]
+  ],
+  "cells": {
+    "1": {
+      "ops": [
+        "scale"
+      ],
+      "composable": true,
+      "fail_reason": null
+    },
+    "2": {
+      "ops": [
+        "clip"
+      ],
+      "composable": true,
+      "fail_reason": null
+    },
+    "3": {
+      "ops": [
+        "tighten"
+      ],
+      "composable": true,
+      "fail_reason": null
+    }
+  },
+  "glue": {
+    "sequential_word": [
+      "scale_reagent_b_x1000",
+      "clip_catalyst_at25",
+      "tighten_sample_id_to_integer"
+    ],
+    "interleaved_word": [
+      "scale_reagent_b_x1000",
+      "clip_catalyst_at25",
+      "tighten_sample_id_to_integer"
+    ],
+    "both_composable": true,
+    "tree_equal": true
+  },
+  "descent_holds": true,
+  "balance": {
+    "descent_runs_used": 6,
+    "cross_cell_pairs": 3,
+    "pairwise_runs_replaced": 6
+  },
+  "receipt_head": "ac92c77d9819964c74fa8b4108c06aae19ebfe4d938cfa32583674d426582719",
+  "receipt_count": 8
+}
