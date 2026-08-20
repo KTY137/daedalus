@@ -1,0 +1,267 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "runs": 11,
+  "baseline": {
+    "word": [],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "458a286de51a575537d2f1bc58576129afc08b458a834dc25663e55bd4323411",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+      "values": [
+        3.1,
+        4.725,
+        5.35,
+        2.475,
+        8.6,
+        6.975,
+        2.725,
+        10.6,
+        6.6,
+        9.975,
+        4.475,
+        5.85
+      ]
+    },
+    "ops_applied": [],
+    "precondition_mutations": []
+  },
+  "sham": {
+    "word": [
+      "sham"
+    ],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "5d66fb795dbf1e9ace71c546bed1e2623722cd89be1cb74131ae6acc96359d7a",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+      "values": [
+        3.1,
+        4.725,
+        5.35,
+        2.475,
+        8.6,
+        6.975,
+        2.725,
+        10.6,
+        6.6,
+        9.975,
+        4.475,
+        5.85
+      ]
+    },
+    "ops_applied": [
+      {
+        "name": "sham",
+        "files_changed": [
+          "calib.py"
+        ],
+        "failed": false
+      }
+    ],
+    "precondition_mutations": []
+  },
+  "singles": {
+    "liar": {
+      "word": [
+        "normalize_voltage_by_pressure_liar"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "90dec128da7fce5a4ba8a33f3a248a14dd1ace9522b71cbb1995f171b636756d",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "91ee1b13b264f4dd9adc1f0ee5765a1f0ebc8f57d17b3aecc6d3624590f82246",
+        "values": [
+          0.129615,
+          0.145747,
+          0.152032,
+          0.123376,
+          0.18483,
+          0.168204,
+          0.125888,
+          0.205211,
+          0.164677,
+          0.198651,
+          0.143317,
+          0.1571
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "normalize_voltage_by_pressure_liar",
+          "files_changed": [
+            "data/events.csv"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "honest": {
+      "word": [
+        "normalize_voltage_by_pressure_honest"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "90dec128da7fce5a4ba8a33f3a248a14dd1ace9522b71cbb1995f171b636756d",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "91ee1b13b264f4dd9adc1f0ee5765a1f0ebc8f57d17b3aecc6d3624590f82246",
+        "values": [
+          0.129615,
+          0.145747,
+          0.152032,
+          0.123376,
+          0.18483,
+          0.168204,
+          0.125888,
+          0.205211,
+          0.164677,
+          0.198651,
+          0.143317,
+          0.1571
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "normalize_voltage_by_pressure_honest",
+          "files_changed": [
+            "data/events.csv"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "scalep": {
+      "word": [
+        "scale_pressure_x10"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "7596b496567d0bfebddbe3841d0dab4faaa5d7ef4bdc3f70751782b72744fe97",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          8.6,
+          6.975,
+          2.725,
+          10.6,
+          6.6,
+          9.975,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "scale_pressure_x10",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    }
+  },
+  "pairs": [
+    {
+      "pair": [
+        "liar",
+        "honest"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "liar",
+        "scalep"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": 0.19126005909153473,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": true,
+      "anomaly": true,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "honest",
+        "scalep"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": 0.19126005909153473,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    }
+  ],
+  "receipt_head": "0113610a4d1d53ef9cef44d5365714b84f773e060d153437ba5c38221da34502",
+  "receipt_count": 13
+}
