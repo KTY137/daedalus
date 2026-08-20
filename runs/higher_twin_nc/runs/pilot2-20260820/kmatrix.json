@@ -1,0 +1,645 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "runs": 38,
+  "baseline": {
+    "word": [],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "458a286de51a575537d2f1bc58576129afc08b458a834dc25663e55bd4323411",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+      "values": [
+        3.1,
+        4.725,
+        5.35,
+        2.475,
+        8.6,
+        6.975,
+        2.725,
+        10.6,
+        6.6,
+        9.975,
+        4.475,
+        5.85
+      ]
+    },
+    "ops_applied": [],
+    "precondition_mutations": []
+  },
+  "sham": {
+    "word": [
+      "sham"
+    ],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "5d66fb795dbf1e9ace71c546bed1e2623722cd89be1cb74131ae6acc96359d7a",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+      "values": [
+        3.1,
+        4.725,
+        5.35,
+        2.475,
+        8.6,
+        6.975,
+        2.725,
+        10.6,
+        6.6,
+        9.975,
+        4.475,
+        5.85
+      ]
+    },
+    "ops_applied": [
+      {
+        "name": "sham",
+        "files_changed": [
+          "calib.py"
+        ],
+        "failed": false
+      }
+    ],
+    "precondition_mutations": []
+  },
+  "singles": {
+    "rename": {
+      "word": [
+        "rename_voltage_to_bias_voltage"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "3966a5fc9f7c6135cea3bf63c06b83fc7840f0dfdbc87834132bc4961ec89233",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "d929fd271e7353cd6f45870d53bbc035340c7e791644c29df32e20f46b7efb56",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          8.6,
+          6.975,
+          2.725,
+          10.6,
+          6.6,
+          9.975,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "rename_voltage_to_bias_voltage",
+          "files_changed": [
+            "calib.py",
+            "checks.py",
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "scale": {
+      "word": [
+        "scale_voltage_x1000"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "9188bf630600eb9f17020efa533122a4030dca2646f78e74878b3854364e38f6",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "1b671876b37100137f73a2460990822db46869c4a0f98fc6b39d825622de9e9b",
+        "values": [
+          3000.1,
+          4625.1,
+          5250.1,
+          2375.1,
+          8500.1,
+          6875.1,
+          2625.1,
+          10500.1,
+          6500.1,
+          9875.1,
+          4375.1,
+          5750.1
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "scale_voltage_x1000",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "clip": {
+      "word": [
+        "clip_voltage_at2.5"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "1be9f014132a41253aa75f5193fe2240c3de0775e9502183c837f13e32568fd9",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "9c3a1087b2fa1a5a170399565c17075ea690c71d0f7dcb8c108e83cd5280824d",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          6.35,
+          6.35,
+          2.725,
+          6.35,
+          6.35,
+          6.35,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "clip_voltage_at2.5",
+          "files_changed": [
+            "data/events.csv"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "add": {
+      "word": [
+        "add_temperature"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "279bc7bbb10da397d328b4229a80c1ec2a5face338f763b93fda106843a90aa1",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          8.6,
+          6.975,
+          2.725,
+          10.6,
+          6.6,
+          9.975,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "add_temperature",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "tighten": {
+      "word": [
+        "tighten_sample_id_to_integer"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "7b806ad7f8cb8b8089c24d8bfdf6e1e9d66e19a4a2573d4ccb7aaedbfb9131ae",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "cadd25821b68b1ea4714ca364efc8080abba4e8103d9bacb23fe69c8b8afc928",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          8.6,
+          6.975,
+          2.725,
+          10.6,
+          6.6,
+          9.975,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "tighten_sample_id_to_integer",
+          "files_changed": [
+            "data/events.csv",
+            "docs/fields.md",
+            "schema.json"
+          ],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    },
+    "regen": {
+      "word": [
+        "regen_docs"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "458a286de51a575537d2f1bc58576129afc08b458a834dc25663e55bd4323411",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f",
+        "values": [
+          3.1,
+          4.725,
+          5.35,
+          2.475,
+          8.6,
+          6.975,
+          2.725,
+          10.6,
+          6.6,
+          9.975,
+          4.475,
+          5.85
+        ]
+      },
+      "ops_applied": [
+        {
+          "name": "regen_docs",
+          "files_changed": [],
+          "failed": false
+        }
+      ],
+      "precondition_mutations": []
+    }
+  },
+  "pairs": [
+    {
+      "pair": [
+        "rename",
+        "scale"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "scale_voltage_x1000: field 'voltage' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": null,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "clip"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "clip_voltage_at2.5: field 'voltage' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": null,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "rename",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "clip"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "k_value": 0.9971003412886547,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "scale",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "clip",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "add",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "add",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    },
+    {
+      "pair": [
+        "tighten",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "k_value": 0.0,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false,
+      "harness_alert": false
+    }
+  ],
+  "receipt_head": "02fe65c4d98287aaad292d5f82b9205b96a1d2077fdad881fbe779a33a41920c",
+  "receipt_count": 40
+}

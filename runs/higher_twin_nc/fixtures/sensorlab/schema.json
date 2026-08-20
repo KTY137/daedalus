@@ -1,0 +1,19 @@
+{
+  "fields": [
+    {
+      "name": "sample_id",
+      "type": "number",
+      "unit": ""
+    },
+    {
+      "name": "voltage",
+      "type": "number",
+      "unit": "V"
+    },
+    {
+      "name": "pressure",
+      "type": "number",
+      "unit": "kPa"
+    }
+  ]
+}

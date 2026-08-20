@@ -1,0 +1,47 @@
+{
+  "record": "priorart-sweep",
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "date": "2026-08-20",
+  "method": "5 parallel web sweeps (workflow wf_7ab8a113-674), each URL opened via WebFetch and title-matched before url_verified=true was set",
+  "sweeps": {
+    "traces": [
+      {"title": "Understanding Darcs / Patch theory (Wikibooks)", "url": "https://en.wikibooks.org/wiki/Understanding_Darcs/Patch_theory", "url_verified": true},
+      {"title": "A Categorical Theory of Patches (Mimram & Di Giusto)", "url": "https://arxiv.org/abs/1311.3903", "url_verified": true},
+      {"title": "Part 1: Merging and patches (jneem, Pijul theory)", "url": "https://jneem.github.io/merging/", "url_verified": true},
+      {"title": "Dynamic Reductions for Model Checking Concurrent Software", "url": "https://arxiv.org/abs/1611.09318", "url_verified": true},
+      {"title": "Verifying Semantic Conflict-Freedom in Three-Way Program Merges (SafeMerge)", "url": "https://arxiv.org/abs/1802.06551", "url_verified": true},
+      {"title": "Detecting Semantic Conflicts with Unit Tests (SAM)", "url": "https://arxiv.org/html/2310.02395", "url_verified": true}
+    ],
+    "lenses": [
+      {"title": "Benchmarking bidirectional transformations (SoSyM 2020, Benchmarx)", "url": "https://link.springer.com/article/10.1007/s10270-019-00752-x", "url_verified": true},
+      {"title": "Towards a Complete Picture of Lens Laws (Nakano)", "url": "https://arxiv.org/abs/1910.10421", "url_verified": true},
+      {"title": "General supervised learning as change propagation with delta lenses (Diskin)", "url": "https://arxiv.org/abs/1911.12904", "url_verified": true},
+      {"title": "Bidirectional Transformations with QVT-R: Round-trip UML/Java (Greiner et al.)", "url": "https://tbuchmann.github.io/publication/2016-GreinerBW16", "url_verified": true},
+      {"title": "Bidirectionalization For The Common People (Bifrons)", "url": "https://arxiv.org/abs/2502.18954", "url_verified": true}
+    ],
+    "coupling": [
+      {"title": "Causal Program Dependence Analysis (Lee et al.)", "url": "https://arxiv.org/abs/2104.09107", "url_verified": true},
+      {"title": "Detecting Semantic Conflicts with Unit Tests (SAM)", "url": "https://arxiv.org/abs/2310.02395", "url_verified": true},
+      {"title": "Detecting Semantic Conflicts Via Automated Behavior Change Detection (SPG)", "url": "https://spgroup.github.io/papers/semantic-conflicts-testing.html", "url_verified": true},
+      {"title": "Effectively Sampling Higher Order Mutants Using Causal Effect (SSHOM)", "url": "https://arxiv.org/abs/2104.11005", "url_verified": true},
+      {"title": "Change Coupling Between Software Artifacts (Gerosa et al.)", "url": "https://www.ime.usp.br/~gerosa/papers/changecoupling.pdf", "url_verified": true}
+    ],
+    "oed": [
+      {"title": "Active Learning for Optimal Intervention Design in Causal Models (Zhang et al.)", "url": "https://arxiv.org/abs/2209.04744", "url_verified": true},
+      {"title": "OED via Bayesian optimization: active causal structure learning (von Kuegelgen et al.)", "url": "https://arxiv.org/abs/1910.03962", "url_verified": true},
+      {"title": "Active Bayesian Causal Inference (Toth et al.)", "url": "https://arxiv.org/abs/2206.02063", "url_verified": true},
+      {"title": "FLINT: Fault localization prioritization (Yoo, Harman, Clark; TOSEM)", "url": "https://doi.org/10.1145/2491509.2491513", "url_verified": true},
+      {"title": "A Bayesian Framework for Automated Debugging (BAPP)", "url": "https://arxiv.org/abs/2212.13773", "url_verified": true}
+    ],
+    "replay": [
+      {"title": "SWE-bench (ICLR 2024)", "url": "https://arxiv.org/abs/2310.06770", "url_verified": true},
+      {"title": "SWE-rebench", "url": "https://arxiv.org/abs/2505.20411", "url_verified": true},
+      {"title": "SWE-MERA", "url": "https://arxiv.org/abs/2507.11059", "url_verified": true},
+      {"title": "A Time-Consistent Benchmark for Repository-Level SE Evaluation", "url": "https://arxiv.org/abs/2603.26137", "url_verified": true},
+      {"title": "SWE-Future: Forecast-Conditioned Data Synthesis", "url": "https://arxiv.org/abs/2606.18733", "url_verified": true},
+      {"title": "LiveCodeBench", "url": "https://arxiv.org/abs/2403.07974", "url_verified": true}
+    ]
+  },
+  "caveat": "url_verified was asserted by the sweep agents at fetch time; this receipt records their claims and the run id, it does not re-verify them offline."
+}

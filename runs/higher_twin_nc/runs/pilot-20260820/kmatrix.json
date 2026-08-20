@@ -1,0 +1,421 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "runs": 38,
+  "baseline": {
+    "word": [],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "cbf2b7cb559f0117ac8af7fe931e82622b687ae8c6538b827bc00ec9fb29deb0",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f"
+    }
+  },
+  "sham": {
+    "word": [
+      "sham"
+    ],
+    "composable": true,
+    "fail_reason": null,
+    "tree_sha": "aca9409c09b298d884566018a4c31d66dd12e6cef2eb11fd34d4a5a3e8101fef",
+    "Y": {
+      "parse_ok": true,
+      "schema_ok": true,
+      "docs_ok": true,
+      "checks_passed": 4,
+      "checks_total": 4,
+      "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f"
+    }
+  },
+  "singles": {
+    "rename": {
+      "word": [
+        "rename_voltage_to_bias_voltage"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "52c30f494eb436509666ced366e846a6d30a0019cc0fd6427a52287f59bace50",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "d929fd271e7353cd6f45870d53bbc035340c7e791644c29df32e20f46b7efb56"
+      }
+    },
+    "scale": {
+      "word": [
+        "scale_voltage_x1000"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "e4db1e626df5711b745d556ff11cc5bab5bb5552ebbf4347b90fbb46e19f78b2",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "1b671876b37100137f73a2460990822db46869c4a0f98fc6b39d825622de9e9b"
+      }
+    },
+    "clip": {
+      "word": [
+        "clip_voltage_at2.5"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "08af6b3a207825fe02e198b229815fc124dd263516fe4b2b3bc9f0e8820f7478",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "9c3a1087b2fa1a5a170399565c17075ea690c71d0f7dcb8c108e83cd5280824d"
+      }
+    },
+    "add": {
+      "word": [
+        "add_temperature"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "bdffb8463c02da92012f7f8127dce3820d1598c94a1205618494a64de83f0900",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f"
+      }
+    },
+    "tighten": {
+      "word": [
+        "tighten_sample_id_to_integer"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "2157cfdc3f6b44928ba119a4515c103e3de88664d669336dbde10cf37f579ac6",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "cadd25821b68b1ea4714ca364efc8080abba4e8103d9bacb23fe69c8b8afc928"
+      }
+    },
+    "regen": {
+      "word": [
+        "regen_docs"
+      ],
+      "composable": true,
+      "fail_reason": null,
+      "tree_sha": "cbf2b7cb559f0117ac8af7fe931e82622b687ae8c6538b827bc00ec9fb29deb0",
+      "Y": {
+        "parse_ok": true,
+        "schema_ok": true,
+        "docs_ok": true,
+        "checks_passed": 4,
+        "checks_total": 4,
+        "digest": "f9b56a25c3524a86ce082b79a3d2725957c6e818e3a147edec1724bfb3b04c9f"
+      }
+    }
+  },
+  "pairs": [
+    {
+      "pair": [
+        "rename",
+        "scale"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "scale_voltage_x1000: field 'voltage' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "rename",
+        "clip"
+      ],
+      "ab_composable": false,
+      "ba_composable": true,
+      "fail_reasons": [
+        "clip_voltage_at2.5: field 'voltage' not in schema",
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "classification": "noncomposable-asym",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "rename",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "rename",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "rename",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "scale",
+        "clip"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": false,
+      "behavior_equal": false,
+      "digest_equal": false,
+      "classification": "noncommute-behavior",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "scale",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "scale",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "scale",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "clip",
+        "add"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "clip",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "clip",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "add",
+        "tighten"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": false,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": true,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "add",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false
+    },
+    {
+      "pair": [
+        "tighten",
+        "regen"
+      ],
+      "ab_composable": true,
+      "ba_composable": true,
+      "fail_reasons": [
+        null,
+        null
+      ],
+      "footprint_conflict": true,
+      "tree_equal": true,
+      "behavior_equal": true,
+      "digest_equal": true,
+      "classification": "commute-tree",
+      "certificate_predicted": false,
+      "anomaly": false
+    }
+  ]
+}
