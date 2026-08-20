@@ -240,6 +240,35 @@ L4 digest (SHA-256 des Pipeline-Outputs als Verhaltensfingerprint).
   zertifizierten Gelegenheiten (Autor-Fixture-Vorbehalt gilt).
   Suite 51/51 grün.
 
+- 2026-08-21 (Watchdog-Slice 3, Fixture 4 `textlab`):
+  Vollständigkeits-Stressor der Footprint-Regel. Knowledge-lastiges Fixture
+  (3 Felder, triviale Kalibrierung) + zwei neue Doc-Operatorfamilien:
+  `annotate_field` (sektionsgebundene Notiz, ehrliche field-Deklaration)
+  und `add_appendix` (Tail-Append einer Nicht-Feld-Sektion, deklariert als
+  `concept:<topic>` AUSSERHALB des Feld-Vokabulars; `field:*` schneidet
+  `concept:*` nicht). Erwartungen vorregistriert in `tests/test_textlab.py`
+  (TDD, 4 RED). MEASURED `runs/textlab-20260821/` (38 Läufe, 6 Ops, head
+  cb06092f…, count 40, verify_analysis True), Tabelle exakt wie
+  vorregistriert:
+  - 3 ZERTIFIKAT-VERLETZUNGEN (erste gemessene Unsoundness des
+    Bernstein-Zertifikats im Experiment): appendix+appendix und
+    appendix+regen_docs ×2 — deklariert-disjunkt, baumverschieden,
+    verhaltensgleich (commute-behavior; Reihenfolge der Tail-Appends bzw.
+    regen wirft Appendices weg). Adjudikation per vorregistrierter
+    H-CERT-Regel: gemessener Footprint (beide schreiben fields.md) weicht
+    von der Deklaration ab → Falschdeklarations-/Vokabellücken-Stratum
+    (H-ANOM-Treffer-Klasse), KEIN H-CERT-Kill. Die Lücke ist benennbar:
+    dem Vokabular fehlt eine Ressource für den Datei-Tail bzw. eine
+    `knowledge:`-Abdeckung durch den Wildcard.
+  - 2 echte Positive: annotate+regen (Wildcard-Konflikt, real
+    nichtkommutierend — regen wischt Notizen).
+  - 2 konservative Misses: annotate_score+scale_score und regen+scale
+    (deklariert Konflikt, baumidentisch kommutierend).
+  - 8 gehaltene Zertifikate; 0 Anomalien, 0 harness_alerts, Sham-Null —
+    kein Verhaltens-Reihenfolgeeffekt im gesamten Fixture (erwartet:
+    Wissensebene ist verhaltensneutral).
+  Suite 55/55 grün.
+
 ## Nächste Schritte (BACKLOG, nicht autoritativ)
 
 Fixtures 3–4 (`chemlab` additiv-kommutativ als Spezifitäts-Fixture,
