@@ -1,0 +1,40 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "record": "cryptic-pilot",
+  "receipt_head": "4f367a66d7bcd234babf1bd8c529163b60c7b1ce9ac4a8a406104ae095dda94f",
+  "receipt_count": 29,
+  "l0_ok": true,
+  "walks": [
+    {
+      "L": 0,
+      "edits": [],
+      "neutral_certified": true,
+      "flips": [],
+      "flip_rate": 0.0
+    },
+    {
+      "L": 2,
+      "edits": [
+        "n1_comment_calib",
+        "n2_blankline_after_offset"
+      ],
+      "neutral_certified": true,
+      "flips": [],
+      "flip_rate": 0.0
+    },
+    {
+      "L": 4,
+      "edits": [
+        "n1_comment_calib",
+        "n2_blankline_after_offset",
+        "n3_import_reorder",
+        "n4_comment_checks"
+      ],
+      "neutral_certified": true,
+      "flips": [],
+      "flip_rate": 0.0
+    }
+  ]
+}

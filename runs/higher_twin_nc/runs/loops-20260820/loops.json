@@ -1,0 +1,38 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "sensorlab",
+  "record": "loops",
+  "receipt_head": "c84ccd2052f3e3b6fd3617541550e8a95483e504464385248cafff9b692d6404",
+  "receipt_count": 4,
+  "excluded_non_invertible": [
+    "clip",
+    "add",
+    "tighten"
+  ],
+  "baseline_tree_sha": "458a286de51a575537d2f1bc58576129afc08b458a834dc25663e55bd4323411",
+  "loops": [
+    {
+      "name": "rename_roundtrip",
+      "word": [
+        "rename_voltage_to_bias_voltage",
+        "rename_bias_voltage_to_voltage"
+      ],
+      "composable": true,
+      "classification": "trivial",
+      "k_value": 0.0,
+      "digest_equal": true
+    },
+    {
+      "name": "scale_roundtrip",
+      "word": [
+        "scale_voltage_x1000",
+        "scale_voltage_x0.001"
+      ],
+      "composable": true,
+      "classification": "behavior",
+      "k_value": 0.0,
+      "digest_equal": false
+    }
+  ]
+}
