@@ -1,6 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-
   "permissions": {
     "allow": [
       "Bash(git status:*)",
@@ -13,7 +12,6 @@
       "Bash(git rev-parse:*)",
       "Bash(git stash list:*)",
       "Bash(git worktree list:*)",
-
       "Bash(python -m pytest:*)",
       "Bash(pytest:*)",
       "Bash(python -m unittest:*)",
@@ -21,7 +19,6 @@
       "Bash(python -m ruff:*)",
       "Bash(ruff:*)",
       "Bash(npx tsc:*)",
-
       "Bash(python --version)",
       "Bash(python -c:*)",
       "Bash(uv pip list:*)",
@@ -34,12 +31,10 @@
       "Bash(rm -rf /:*)"
     ]
   },
-
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "teammateMode": "in-process",
-
   "hooks": {
     "SessionStart": [
       {
@@ -74,6 +69,17 @@
             "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
             "timeout": 10,
             "statusMessage": "Guarding the Iron Plan..."
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
+            "timeout": 10,
+            "statusMessage": "Routing symbol work through Serena..."
           }
         ]
       }
