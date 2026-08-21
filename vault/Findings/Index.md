@@ -14,5 +14,6 @@ autoritativen Artefakt im Repo. Nie kopieren — `docs/` bleibt die Quelle.
 - [[Branch-Cleanup-20260817]] — Branch-Aufräumaktion: Manifest + absorbierte Branches
 - [[Gate0-Recovery-Patches]] — drei Recovery-Patches (fsync/readonly, release-CLI-Import, Fixtures)
 - [[Higher-Twin-NC-Erstmessung-20260820]] — erste K-Matrix des Interventions-Assays (38 Läufe, Kette verifiziert)
+- [[Vet-Py-Adversarial-Review-20260821]] — vet.py GO-WITH-CHANGES: Frontmatter ungescannt, MCP nie BLOCK, 3 Guards ungetestet
 
 Neue Findings: Template [[../Templates/Finding|Finding]] nutzen.
