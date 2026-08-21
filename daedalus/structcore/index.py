@@ -37,6 +37,7 @@ Type nodes NEVER enter ``modules``, ``import_edges``, ``dependencies``,
 from __future__ import annotations
 
 import os
+import stat
 import threading
 from collections import defaultdict
 from pathlib import Path
@@ -66,6 +67,34 @@ _IGNORE_DIRS = {
 }
 
 
+def _is_traversal_link(path: str) -> bool:
+    """True for a directory that is a LINK to elsewhere (POSIX symlink or a
+    Windows reparse point/junction). ``os.walk(followlinks=False)`` refuses
+    the former but descends the latter, so a junction such as ``vault/docs ->
+    docs`` doubled the whole doc tree in every published metric (G-03).
+
+    ONE lstat per directory (islink would be a second). Cost is deliberate:
+    correctness of every published count over one syscall per directory.
+    DELIBERATELY BROAD on Windows: any directory reparse point — including a
+    volume mount point — is treated as a link and pruned. A mount that IS
+    project material should be scanned by pointing the root at it directly;
+    silently walking across volume boundaries is the worse failure."""
+    try:
+        st = os.stat(path, follow_symlinks=False)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    return bool(getattr(st, "st_file_attributes", 0)
+                & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
+
+def _prune_dirnames(dirpath: str, dirnames: list) -> list:
+    return [d for d in dirnames
+            if d not in _IGNORE_DIRS and not d.startswith(".")
+            and not _is_traversal_link(os.path.join(dirpath, d))]
+
+
 def backend_status() -> dict:
     return {"tree_sitter": tree_sitter_available(), "lizard": lizard_available()}
 
@@ -73,7 +102,7 @@ def backend_status() -> dict:
 def _collect(root: Path, max_files: int) -> list[tuple[Path, str, LanguageSpec]]:
     out: list[tuple[Path, str, LanguageSpec]] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith(".")]
+        dirnames[:] = _prune_dirnames(dirpath, dirnames)
         for fn in filenames:
             spec = spec_for(fn)
             if spec is None:
@@ -225,7 +254,7 @@ def _collect_docs(root: Path, max_files: int) -> list[tuple[Path, str, DocumentS
     """
     out: list[tuple[Path, str, DocumentSpec]] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith(".")]
+        dirnames[:] = _prune_dirnames(dirpath, dirnames)
         for fn in filenames:
             spec = doc_spec_for(fn)
             if spec is None:
@@ -621,6 +650,11 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     spec_by_lang: dict[str, LanguageSpec] = {}
     lang_summary: dict[str, dict] = defaultdict(lambda: {"files": 0, "loc": 0})
     dep_edges: dict[str, set[str]] = defaultdict(set)
+    # dotted spelling -> the ONE file it resolves to across all views, or None
+    # once two views claim the same spelling for different files (refused).
+    # Consumed only by the fan_in fold below; dep_edges itself keeps the
+    # importer's-eye spellings by design.
+    dotted_file_ids: dict[str, str | None] = {}
     # Unified rel->rel internal import map (ALL languages) — powers the Move-4
     # symbol resolver; distinct from ``dep_edges`` whose Python keys are dotted.
     import_targets_by_rel: dict[str, set[str]] = defaultdict(set)
@@ -681,6 +715,16 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
                     tgt_rel = view.rel_by_dotted.get(tgt)
                     if tgt_rel and tgt_rel != rel:
                         import_targets_by_rel[rel].add(tgt_rel)
+                        # Cross-VIEW identity map for fan_in: a center file
+                        # names this target package-relatively, a shell file
+                        # repo-rootly. Both spellings are canonical in their
+                        # own view; fan_in must fold them onto one file.
+                        # A dotted name claimed by two DIFFERENT files across
+                        # views is poisoned (None) — refuse, don't guess.
+                        if dotted_file_ids.get(tgt, tgt_rel) != tgt_rel:
+                            dotted_file_ids[tgt] = None
+                        else:
+                            dotted_file_ids[tgt] = tgt_rel
         else:
             # All other languages: best-effort, keyed by rel path (no dotted id).
             for raw, kind in a.raw_imports:
@@ -836,9 +880,30 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
         for tgt in tgts:
             import_sources_by_rel[tgt].add(src)
 
+    # fan_in counts FILE targets from the view-independent rel map, named by
+    # the file's own canonical dotted name — one module, one published row.
+    # Without this fold, a scoped scan listed the same module under both view
+    # spellings (structcore.parse: 13 + 12). When two DIFFERENT files share a
+    # canonical spelling (multi-center collision), the row is published per
+    # rel path: refuse to merge, never guess (Codex round two).
     fan_in: dict[str, int] = defaultdict(int)
+    by_key: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    for tgt_rel, sources in import_sources_by_rel.items():
+        key = py_naming.name(tgt_rel) if tgt_rel.endswith(".py") else tgt_rel
+        by_key[key].append((tgt_rel, len(sources)))
+    for key, entries in by_key.items():
+        if len(entries) == 1:
+            fan_in[key] += entries[0][1]
+        else:
+            for tgt_rel, n in entries:
+                fan_in[tgt_rel] += n
+    # Non-file dotted targets (packages, known-but-unresolved names) keep
+    # their dep_edges spelling; file-backed spellings are already counted
+    # above (dotted_file_ids marks them, poisoned included).
     for targets in dep_edges.values():
         for t in targets:
+            if t in dotted_file_ids or t in import_sources_by_rel:
+                continue
             fan_in[t] += 1
 
     # ONE memo shared by all three passes. They are independent functions over

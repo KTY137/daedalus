@@ -10,8 +10,8 @@
 
 [CmdletBinding()]
 param(
-    [string]$ProjectPath = "C:\Users\nukei\Desktop\gw_watchdog-mission",
-    [string]$PromptFile  = "C:\Users\nukei\Desktop\gw_watchdog-mission\claude-mission-gate-arc.md",
+    [string]$ProjectPath = "C:\Users\nukei\Desktop\agent_env.worktrees\watchdog-mission",
+    [string]$PromptFile  = "C:\Users\nukei\Desktop\agent_env.worktrees\watchdog-mission\claude-mission-gate-arc.md",
     [int]$MaxHours = 48,
     [switch]$NewMission
 )

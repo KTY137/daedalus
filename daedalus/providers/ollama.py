@@ -452,30 +452,17 @@ class OllamaProvider(Provider):
     def rollback(self) -> list[str]:
         """Undo every write this instance made: restore originals, delete new
         files, remove dirs we created. Any path that can't be reverted is
-        recorded in ``rollback_failures`` (the escalation is then 'dirty')."""
-        restored: list[str] = []
-        self.rollback_failures = []
-        for path, original in self._backups.items():
-            p = Path(path)
-            try:
-                if original is None:
-                    if p.exists():
-                        p.unlink()
-                else:
-                    p.write_bytes(original)
-                restored.append(path)
-            except OSError:
-                self.rollback_failures.append(path)
-        for d in sorted(self._created_dirs, key=len, reverse=True):  # deepest first
-            try:
-                dp = Path(d)
-                if dp.is_dir() and not any(dp.iterdir()):
-                    dp.rmdir()
-            except OSError:
-                pass
-        self._backups.clear()
-        self._created_dirs.clear()
-        return restored
+        recorded in ``rollback_failures`` (the escalation is then 'dirty').
+
+        The restore loop itself is :meth:`Provider._rollback_writes` -- ONE
+        implementation, shared with ``DeepSeekProvider.rollback``, which used
+        to hold a byte-identical copy of it. This method stays as the named
+        public entrypoint: ``offload`` refuses to grant write rights at all to
+        a provider without a callable ``rollback()``, and the Gate-0 effect
+        registry resolves ``provider.ollama.rollback`` to this exact
+        module-and-qualname by static AST lookup.
+        """
+        return self._rollback_writes()
 
     # -- guarded filesystem tools (confined to repo_root) -----------------
 

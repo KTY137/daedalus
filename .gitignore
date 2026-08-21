@@ -31,8 +31,14 @@ inbox/*.json
 .DS_Store
 Thumbs.db
 node_modules/
+*.stackdump
 vscode-agent-env/*.vsix
 runs/drafts/
+runs/funnel/**
+runs/eval/**
+runs/audit_swarm/**
+runs/audit_swarm_v1_invalid/**
+runs/plan_critique/**
 
 # Rust build output (structcore-rs) -- ~0.6 GB of compiled artifacts
 target/

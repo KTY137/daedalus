@@ -196,7 +196,11 @@ class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
         act rather than something nobody can measure either way.
         """
         from daedalus.structcore import cycle_report
-        report = cycle_report(repo_root=str(AGENT_ENV_ROOT))
+        from daedalus.structcore.index import build_index
+        # center=[] pins the WHOLE-repo fact this test has always asserted:
+        # since .daedalusignore declares a default center (G-02), an unscoped
+        # look must now be requested explicitly.
+        report = cycle_report(build_index(str(AGENT_ENV_ROOT), center=[]))
         self.assertGreaterEqual(
             report["n_cyclic_components"], 1,
             "structcore must be able to report the cycles in its own import "
