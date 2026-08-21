@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -42,6 +43,66 @@ class Provider(abc.ABC):
         """Execute the task and return {"provider", "agent", "report"}."""
 
     # -- shared helpers ---------------------------------------------------
+
+    def _rollback_writes(self) -> list[str]:
+        """THE restore loop, for every write-capable provider. One copy.
+
+        Undo every write the instance made: restore originals, delete files it
+        created, remove directories it created. Any path that cannot be
+        reverted is recorded in ``rollback_failures`` (the escalation is then
+        'dirty'), and one unrestorable path never aborts the rest.
+
+        The instance supplies the state, and the contract is the same wherever
+        this is used:
+
+        * ``_backups``: absolute path -> original bytes, or ``None`` for a file
+          that did not exist before (rollback deletes it rather than restoring
+          it). It must be populated BEFORE the write, with the exact pre-write
+          bytes -- the verifier's prose before-image reads originals out of
+          this dict, so a late or lossy entry corrupts more than the undo.
+        * ``_created_dirs``: absolute paths of directories the write created;
+          pruned deepest-first and only while empty.
+        * ``rollback_failures``: rebound to a fresh list per call, then filled
+          with the paths that could not be reverted.
+
+        This lived twice -- ``DeepSeekProvider.rollback`` and
+        ``OllamaProvider.rollback`` held AST- and bytecode-identical bodies in
+        two files, differing only in their docstrings. That is the undo path
+        for the external write lane that, on 2026-07-30, wrote one file's
+        content into another and destroyed three of five modules while
+        reporting success; a second copy of it is a second thing to get wrong
+        in the one place that has to be right when everything else already
+        went wrong. ``tests/test_provider_rollback_single_source.py`` keeps the
+        copy from coming back.
+
+        Its existence is load-bearing beyond tidiness: ``offload`` refuses to
+        grant write rights at all to a provider without a callable
+        ``rollback()``, so a provider that loses it routes "write" and is then
+        silently downgraded to advisory.
+        """
+        restored: list[str] = []
+        self.rollback_failures = []
+        for path, original in self._backups.items():
+            p = Path(path)
+            try:
+                if original is None:
+                    if p.exists():
+                        p.unlink()
+                else:
+                    p.write_bytes(original)
+                restored.append(path)
+            except OSError:
+                self.rollback_failures.append(path)
+        for d in sorted(self._created_dirs, key=len, reverse=True):  # deepest first
+            try:
+                dp = Path(d)
+                if dp.is_dir() and not any(dp.iterdir()):
+                    dp.rmdir()
+            except OSError:
+                pass
+        self._backups.clear()
+        self._created_dirs.clear()
+        return restored
 
     def _enforce_read_only(self, report: dict[str, Any]) -> dict[str, Any]:
         """A read-only provider can neither edit files nor run tests. Any change

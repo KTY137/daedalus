@@ -1092,13 +1092,48 @@ class ContainedProcess:
         cannot reach -- the exact regression this reaches into a private for.
         A test pins the coupling, so a rename in ``cancel`` breaks loudly here
         instead of quietly dropping the sweep.
+
+        FAIL-CLOSED. If this registry cannot be joined, the child is the one
+        process the kill switch cannot reach, so it must not be left running:
+        same discipline as the assign/resume failure path above ("a child we
+        cannot contain must never be left running"). Swallowing the failure
+        here made the docstring's promised loud break silently untrue at
+        runtime (invariant 8 surface).
         """
         try:
             from daedalus.spine import cancel as _cancel
             with _cancel._LIVE_LOCK:
                 _cancel._LIVE.add(self)
-        except Exception:                       # noqa: BLE001
-            pass
+        except Exception as exc:                # noqa: BLE001
+            terminated = False
+            try:
+                terminated = bool(
+                    _kernel32.TerminateProcess(wintypes.HANDLE(self.handle), 1))
+            except Exception:                   # noqa: BLE001
+                pass
+            if not terminated:
+                # The child may still be running: say so, and KEEP the
+                # handles open — closing them would make the live child
+                # unreachable while the message claims it is gone.
+                raise RuntimeError(
+                    "kill-switch registry unavailable and TerminateProcess "
+                    f"FAILED; child pid={self.pid} may still be running "
+                    "(handles kept open)"
+                ) from exc
+            for handle in (self.handle, self.thread, self._job):
+                if handle:
+                    try:
+                        _kernel32.CloseHandle(wintypes.HANDLE(handle))
+                    except Exception:           # noqa: BLE001
+                        pass
+            # retire the fields so no later cleanup path double-closes
+            self.handle = 0
+            self.thread = 0
+            self._job = None
+            self._closed = True
+            raise RuntimeError(
+                "kill-switch registry unavailable; contained child terminated"
+            ) from exc
 
     def _unregister(self) -> None:
         try:

@@ -22,7 +22,7 @@ python -m daedalus.doctor          # must say READY
 ## 3. Dry-run first (no writes) — sanity-check routing
 
 ```powershell
-python -m daedalus.ikarus          # spawn plan: who'd run where
+python -m daedalus.kairos.scheduler  # spawn plan: who'd run where
 python -m daedalus.benchmark       # projected token/cost picture
 ```
 
@@ -50,8 +50,8 @@ python -m daedalus.metrics          # fallback-rate; alarms if the bench isn't p
 ## 6. Fan-out a batch (optional)
 
 ```python
-from daedalus.ikarus import Ikarus
-Ikarus(max_workers=3).dispatch(r"C:\Users\nukei\Desktop\project_tct", tasks, dry_run=False)
+from daedalus.kairos.scheduler import KairosScheduler
+KairosScheduler(max_workers=3).dispatch(r"C:\Users\nukei\Desktop\project_tct", tasks, dry_run=False)
 ```
 
 ## Write-mode verification gate

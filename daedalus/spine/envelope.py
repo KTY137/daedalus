@@ -622,6 +622,25 @@ CONVERTED_PRODUCERS = {
 #: visible instead of being rediscovered by someone grepping for a trace id
 #: that was never written.
 UNCONVERTED_PRODUCERS = {
+    # -- ISOLATED EXPERIMENT, sealed by its own spec. ----------------------- #
+    "runs/higher_twin_nc/assay.py":
+        "ISOLATED Gate-0 EXPERIMENT (higher-twin-nc-v1, runs/higher_twin_nc/"
+        "SPEC.md): the intervention assay writes its own hash-chained receipt "
+        "files with provenance records, deliberately importing NOTHING from "
+        "daedalus/. Threading envelope.current_trace_id() through it would "
+        "couple the candidate workload to kernel state — the exact coupling "
+        "the experiment's isolation invariant forbids. Conversion cost: "
+        "UNKNOWN until (and unless) the instrument is promoted through the "
+        "sealed path; before that, converting would be a policy violation, "
+        "not a to-do.",
+    "runs/higher_twin_nc/cryptic.py":
+        "Same isolation contract as runs/higher_twin_nc/assay.py: the "
+        "cryptic-variance pilot appends to the experiment's own sealed "
+        "receipt chain. Conversion cost: UNKNOWN until promotion.",
+    "runs/higher_twin_nc/tests/test_codex_round.py":
+        "NOT A RUN RECORD: test fixture writer for the experiment's receipt "
+        "chain (builds throwaway chains under tmp_path to prove tamper "
+        "detection); nothing it writes survives the test process.",
     # -- MEASUREMENT ARTEFACTS, not run records. Listed first because the
     #    distinction matters: these are corpus-level reports about the tree,
     #    reproducible from the tree alone, and NOT records of something that

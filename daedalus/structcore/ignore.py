@@ -61,9 +61,17 @@ class _Rule:
     anchored: bool    # 'a/b' is repo-root-relative; 'b' matches at any depth
 
 
+#: Directive prefix inside ``.daedalusignore``: ``center: a, b`` DECLARES the
+#: project scope in the repo itself. Parsed by ``file_center``; skipped by the
+#: pattern parser so the directive never becomes an (absurd) ignore rule.
+CENTER_DIRECTIVE = "center:"
+
+
 def _parse_line(raw: str) -> _Rule | None:
     line = raw.rstrip("\n").rstrip()
     if not line or line.lstrip().startswith("#"):
+        return None
+    if line.lstrip().lower().startswith(CENTER_DIRECTIVE):
         return None
     negated = line.startswith("!")
     if negated:
@@ -251,6 +259,27 @@ def env_center() -> tuple[str, ...]:
     return _norm_center(raw.split(os.pathsep))
 
 
+def file_center(root) -> tuple[str, ...]:
+    """Center roots declared in ``.daedalusignore`` via ``center: a, b``.
+
+    Weakest precedence tier (explicit arg > DAEDALUS_CENTER > this), so a repo
+    can carry its own scope truth without disabling any caller's override.
+    Multiple directive lines accumulate; the scope fingerprint already covers
+    the raw file bytes, so editing the directive invalidates cached indexes.
+    """
+    path = Path(root) / IGNORE_FILENAME
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ()
+    roots: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.lower().startswith(CENTER_DIRECTIVE):
+            roots.extend(line[len(CENTER_DIRECTIVE):].split(","))
+    return _norm_center(roots)
+
+
 # Tests are real, first-class code -- but they are not DISTILLATION TARGETS, and
 # they dominate the rankings they pollute: on project_tct's TCT_app, two of the
 # top six hotspots were test files. "What should I refactor?" should not answer
@@ -283,8 +312,9 @@ def project_scope(root, center=None, extra_ignore=None) -> ProjectScope:
     """Resolve the scope for ``root``.
 
     ``center`` precedence: explicit argument (project config / CLI flag) over
-    ``DAEDALUS_CENTER``. Ignore rules compose in a fixed order -- center says
-    which tree is yours, ignore carves exceptions *within* it:
+    ``DAEDALUS_CENTER`` over a ``center:`` directive in ``.daedalusignore``.
+    Ignore rules compose in a fixed order -- center says which tree is yours,
+    ignore carves exceptions *within* it:
 
         .daedalusignore  ->  DAEDALUS_IGNORE  ->  extra_ignore (project config)
 
@@ -293,7 +323,13 @@ def project_scope(root, center=None, extra_ignore=None) -> ProjectScope:
     which is the only way a shared repo file and a per-project override can
     coexist.
     """
-    chosen = _norm_center(center) if center else env_center()
+    # `is not None`, not truthiness: an explicit [] means "no center, and do
+    # not fall back" — the CLI passes None when --center is absent, so the
+    # unset path is unchanged (Codex round two).
+    if center is not None:
+        chosen = _norm_center(center)
+    else:
+        chosen = env_center() or file_center(root)
     rules = effective_rules(root)
     extra = expand_presets(extra_ignore)
     if extra:

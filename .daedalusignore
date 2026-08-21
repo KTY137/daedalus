@@ -1,0 +1,13 @@
+# Project scope declaration (G-02). Weakest tier: an explicit --center or
+# DAEDALUS_CENTER still overrides. Everything outside the center is SHELL:
+# indexed and import-resolvable, withheld from metrics and clone passes.
+center: daedalus, tools, apps/web/src
+
+# Not this project's code: run artifacts, the knowledge vault, recovery kits,
+# vendored/reference material, build output, agent-harness state.
+runs/
+vault/
+docs/recovery/
+references/
+structcore-rs/target/
+.claude/worktrees/
