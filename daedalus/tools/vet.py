@@ -163,7 +163,15 @@ _SYNTHETIC_RULE_SEVERITY = {
     "meta.allowed_tools_request": REVIEW,
     "mcp.remote_fetch": REVIEW,
     "mcp.unpinned": REVIEW,
-    "mcp.egress": REVIEW,
+    # BLOCK, not REVIEW -- Odysseus 2026-08-21 F2/F3. An MCP server is the harder
+    # class (a process AND a socket), and this finding is emitted ONLY when
+    # `lane_for_host` calls the destination non-trusted, i.e. the bytes leave
+    # this machine. Egress off-box on an untrusted lane is a refusal, not an ask.
+    # Keeping it at REVIEW also made `mcp_spec_digest` / the body_sha256 pin
+    # unreachable, because `apply_allowances` only ever downgrades a BLOCK: a
+    # wrong pin had no effect to have. A trusted-lane (loopback) destination
+    # produces no finding at all, so this never fires for this machine.
+    "mcp.egress": BLOCK,
     "mcp.env_injected": REVIEW,
 }
 
@@ -610,6 +618,11 @@ def _scan_file(path: Path, rel: str) -> tuple[list[Finding], str | None]:
         raw = path.read_bytes()
     except OSError as exc:
         return [], f"{rel}: cannot read ({exc.__class__.__name__})"
+    # A UTF-8 BOM decodes to U+FEFF, which is in `_INVISIBLE`, so every file
+    # PowerShell's `Set-Content` writes would otherwise raise a false
+    # obfuscation.invisible_chars finding (Odysseus 2026-08-21 F6). skills.py:409
+    # strips it before its own scan; match that here so the two agree.
+    raw = raw.removeprefix(b"\xef\xbb\xbf")
     if b"\x00" in raw[:4096]:
         return [], f"{rel}: looks binary (NUL byte in the first 4 KiB)"
     try:
@@ -629,6 +642,15 @@ def vet_skill(skill, *, allowances=None) -> Verdict:
     cannot disagree with it about what a skill is.
     """
     findings: list[Finding] = list(scan_text(skill.body, "SKILL.md"))
+    # The body is not the only text a model reads. `skills.render_catalog`
+    # surfaces `description` (and `compatibility`) into the listing a model sees
+    # BEFORE it ever opens the body -- Odysseus 2026-08-21 F1: a payload placed
+    # there reached `scan_text` from nowhere, so the description was the one
+    # field most likely to reach a model and the one field never scanned. Each
+    # gets its own frontmatter locator so a human can find it.
+    findings += scan_text(skill.description or "", "<frontmatter:description>")
+    if skill.compatibility:
+        findings += scan_text(skill.compatibility, "<frontmatter:compatibility>")
     skipped: list[str] = []
     notes: list[str] = []
     scanned = 1
@@ -1107,7 +1129,11 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
     for u in urls:
         lane = lane_for_host(u)
         if lane != "trusted":
-            findings.append(Finding("mcp.egress", REVIEW, f"<mcp:{name}>", 0, u,
+            # BLOCK, not REVIEW: this branch is only reached for a non-trusted
+            # lane, i.e. bytes that leave this machine. See _SYNTHETIC_RULE_
+            # SEVERITY["mcp.egress"]. A body_sha256-pinned allowance can downgrade
+            # it to REVIEW; nothing else can.
+            findings.append(Finding("mcp.egress", BLOCK, f"<mcp:{name}>", 0, u,
                                     f"reaches {u}, which sensitivity.lane_for_host "
                                     f"calls {lane}"))
         else:
