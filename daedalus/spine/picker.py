@@ -2897,6 +2897,28 @@ def main(argv: Sequence[str] | None = None, *,
     run in a worktree -- the destructive-by-default reading of an ambiguous
     command is the one that has to be wrong.
     """
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape, so
+    # both doors pass it: `daedalus improve` through cli.main's dispatch and
+    # `python -m daedalus.spine.picker` around it. Above the dry-run default
+    # too: the default being safe is a property of the current flag table, and
+    # the boundary has to be a property of the function.
+    #
+    # With --once --live this reaches _default_attempt -> run_attempt, which
+    # creates a git worktree, deposits artifacts, spawns the gate child and
+    # calls a provider. python.attempt and python.offload keep their own
+    # boundaries under their own leases; this is the console start above them,
+    # and it declares the union those inner rows deliberately refuse because
+    # it installs the process-wide spend net for the whole run and therefore
+    # does meter what it names.
+    from ..budget import process_guard_boundary_decision
+    from .effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.picker",
+        REGISTRY_BY_ID["cli.picker"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     import sys as _sys
 
     args = _build_parser().parse_args(

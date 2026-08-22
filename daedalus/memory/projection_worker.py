@@ -918,6 +918,25 @@ def _format_human(report: WorkerReport) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape, so
+    # both doors pass it: `daedalus project-memory` through cli.main's
+    # dispatch and `python -m daedalus.memory.projection_worker` around it.
+    # Above --dry-run too, deliberately: a run that only starts centrally on
+    # some argument vectors is guarded by its caller, not by this function.
+    #
+    # The projection writes a versioned sqlite index and POSTs journal text to
+    # an embedding host. The POST has its own row (memory.embeddings) taking
+    # the endpoint-admission decision at the socket; this is the START of the
+    # run above it, not a second copy of that decision.
+    from ..budget import process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.project_memory",
+        REGISTRY_BY_ID["cli.project_memory"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(
         prog="python -m daedalus.memory.projection_worker",
         description=(

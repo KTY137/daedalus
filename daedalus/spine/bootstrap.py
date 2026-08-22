@@ -644,6 +644,24 @@ def shadow_run(repo_root: str | Path, *,
 def main(argv: Sequence[str] | None = None) -> int:
     import argparse
 
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. There
+    # is no subcommand for the self-improvement circle, so this tail is the
+    # only door: refresh sources, pick, attempt, gate. shadow_run builds the
+    # picker queue (a git child), then runs offload_runner through the attempt
+    # path -- a worktree, artifacts and a provider call with --live.
+    #
+    # Promotion is refused inside shadow_run and this call does not soften
+    # that: begin_effect performs no effect, it authorises a START, and the
+    # sealed promotion path is unchanged.
+    from ..budget import process_guard_boundary_decision
+    from .effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.bootstrap",
+        REGISTRY_BY_ID["cli.bootstrap"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     p = argparse.ArgumentParser(
         prog="daedalus.spine.bootstrap",
         description="One SHADOW iteration of the self-improvement circle.",

@@ -241,6 +241,21 @@ def _print_live(rows: list[dict], summary: dict) -> None:
 
 
 def main() -> None:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape, so
+    # both doors pass it: `daedalus benchmark` and `python -m
+    # daedalus.benchmark`. Above --live on purpose. A cost benchmark is the
+    # door most likely to be run casually and least likely to be assumed
+    # expensive, and with --live every task goes through offload(live=True) to
+    # a real provider.
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.benchmark",
+        REGISTRY_BY_ID["cli.benchmark"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(description="Provider-routing token/cost benchmark.")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--live", action="store_true",

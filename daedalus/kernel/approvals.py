@@ -783,6 +783,31 @@ def _cli_verify(
 def main() -> int:
     import argparse
 
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. This
+    # tail is the console door that MINTS owner approvals, the capability
+    # invariant 5 makes promotion depend on, and it had no row: the one door
+    # in the tree where forgetting the boundary costs trust rather than money.
+    #
+    # It writes nothing and spawns nothing; its only effect is SECRETS,
+    # because the signing key enters THIS process from the environment inside
+    # _cli_issue/_cli_verify and is used to compute or check the HMAC. That is
+    # cli.doctor's rule (the value crosses into this process), not inheritance
+    # from a child that authenticates itself.
+    #
+    # budget.process_guard is the only decision actually taken here, and it
+    # guards spend rather than key custody -- an honest Gate-0 gap recorded in
+    # the row note, not a claim that the key is protected. No
+    # promotion.owner_approval decision is presented because this door ISSUES
+    # approvals; requiring the contract it implements would be circular.
+    from daedalus.budget import process_guard_boundary_decision
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.approvals",
+        REGISTRY_BY_ID["cli.approvals"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(
         prog="python -m daedalus.kernel.approvals"
     )

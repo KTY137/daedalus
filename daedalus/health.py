@@ -1934,6 +1934,27 @@ def _p_acceptance(ctx: Ctx) -> Report:
 # cli                                                                          #
 # --------------------------------------------------------------------------- #
 def main(argv: Sequence[str] | None = None) -> int:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. This
+    # module has two doors, `daedalus health` through cli.main's dispatch and
+    # `python -m daedalus.health` straight past it, and the static scanner
+    # rediscovers neither: main()'s own AST holds no sink, because every probe
+    # reaches its effect through a helper. So it looked read-only and is not --
+    # _git and _ssh_powershell spawn children, _http_json opens a socket.
+    #
+    # process_guard_boundary_decision installs the process-wide spend net and
+    # returns the GuardDecision naming what it interposed; begin_effect
+    # performs no effect, it authorises one, and refuses unless the cli.health
+    # row, the declared effects and that decision agree. The registry anchor
+    # pins this call.
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.health",
+        REGISTRY_BY_ID["cli.health"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     ap = argparse.ArgumentParser(
         description="What is working, what is merely present, and what nobody "
                     "checked.")

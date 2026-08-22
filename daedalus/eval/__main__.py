@@ -51,6 +51,26 @@ def _print_ascii(text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. This
+    # is the eval package's advertised front door and was the only one of its
+    # four mains without a registry row (ceiling, correctness and graph_delta
+    # all have one). The static scanner does not rediscover it because main()
+    # holds no sink of its own: the baseline write is in harness, the mint
+    # write and its git child are in mint, the model call is in
+    # providers._openai_compat.
+    #
+    # Above the flag branches on purpose. --update-baseline and --mint-commit
+    # are the two that persist anything, and the mint store is a task corpus,
+    # so an unguarded write there is a leakage surface as well as a write.
+    from ..budget import process_guard_boundary_decision
+    from ..spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.eval",
+        REGISTRY_BY_ID["cli.eval"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     ap = argparse.ArgumentParser(
         prog="python -m daedalus.eval",
         description="Private directional eval: distillation vs concatenation vs "

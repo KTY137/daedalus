@@ -724,6 +724,24 @@ def to_payload(snaps: Sequence[UnitProgress]) -> dict:
 # cli                                                                          #
 # --------------------------------------------------------------------------- #
 def main(argv: Sequence[str] | None = None) -> int:
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape.
+    #
+    # This module reads and renders; it never calls ProgressLog.append, which
+    # is its only writer, so it reads as a pure reporter and was very nearly
+    # left unregistered on that basis. --ledger disproves it: it opens
+    # SpineLedger(read_only=True), and a read-only WAL open still creates the
+    # -wal/-shm sidecars (ledger.py says so itself). cli.token_monitor
+    # declares exactly that write for exactly that reason, so this door does
+    # too rather than letting two neighbours disagree about what a sidecar is.
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.progress",
+        REGISTRY_BY_ID["cli.progress"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     ap = argparse.ArgumentParser(
         description="Honest in-flight progress: what was OBSERVED, vs what "
                     "merely STARTED.")

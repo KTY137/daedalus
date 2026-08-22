@@ -1248,6 +1248,24 @@ class WaveExecutor:
 def main() -> None:
     import argparse
 
+    # THE BOUNDARY COMES FIRST -- above parse_args, the c67fd116 shape. This
+    # module has NO subcommand at all: `daedalus build` only plans, and the
+    # tail is the only way to execute a plan. One invocation can start a whole
+    # multi-wave run through KairosScheduler, which makes it the highest-fanout
+    # console door in the tree -- and it was the least visible, because main()
+    # holds no sink of its own and the scanner therefore never classified it.
+    #
+    # Above --live deliberately: the dry-run default is a property of the
+    # current flag table, not of this function.
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.build_exec",
+        REGISTRY_BY_ID["cli.build_exec"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     parser = argparse.ArgumentParser(
         prog="python -m daedalus.build_exec",
         description=("Execute a saved build session's waves through KairosScheduler.dispatch. "

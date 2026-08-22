@@ -1160,6 +1160,34 @@ class _WatchScope:
 # operator CLI -- `python -m daedalus.spine.killswitch <verb>`                  #
 # --------------------------------------------------------------------------- #
 def _main(argv: Iterable[str]) -> int:
+    # THE BOUNDARY COMES FIRST -- before the argv walk, in the c67fd116 shape.
+    # There is no `daedalus killswitch` subcommand, so this tail is the ONLY
+    # door onto the switch: `stop` writes the marker and the permit, `arm`
+    # unlinks the marker and probes the control root with a child process,
+    # `clear` unlinks. Every one of those is an effect, and until now none of
+    # them started at the canonical boundary -- an unregistered door standing
+    # in front of the mechanism invariant 8 names.
+    #
+    # Above the verb dispatch on purpose. `status` is a read and would not
+    # need it, but a boundary that only some argument vectors reach is a
+    # property of today's branches rather than of this function, and the
+    # branch that matters is the one an operator types at 3am.
+    #
+    # process_guard_boundary_decision installs the process-wide spend net and
+    # returns the GuardDecision naming what it interposed, so the receipt
+    # cannot cite a guard that never ran. begin_effect performs no effect --
+    # it authorises one -- and refuses unless the cli.killswitch row, the
+    # declared effects and that decision agree. The registry anchor pins this
+    # call, so deleting it is a conformance blocker, not a silent regression.
+    from ..budget import process_guard_boundary_decision
+    from .effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    begin_effect(
+        "cli.killswitch",
+        REGISTRY_BY_ID["cli.killswitch"].effects,
+        (process_guard_boundary_decision(),),
+    )
+
     args = list(argv)
     verb = args[0] if args else "status"
     path: str | None = None

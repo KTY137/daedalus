@@ -1984,6 +1984,398 @@ _IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
 ENTRYPOINTS += _IKARUS_CHAT_ROWS
 
 
+# Phase 4 of the giga plan: "register or remove surviving unregistered doors".
+#
+# The doors below are module tails -- ``python -m daedalus.<module>`` -- that
+# the static scanner does NOT rediscover, and that is the whole reason they
+# survived.  ``discover_entrypoints`` drops a CLI ``main`` whose *module-local*
+# AST shows no sink (``if not effects and surface is Surface.CLI: continue``),
+# and every one of these mains delegates its effects across a module boundary:
+# ``health.main`` spawns git through ``_git``, ``picker.main`` reaches a
+# worktree through ``run_attempt``, ``eval.__main__`` writes the baseline
+# through ``harness.write_baseline``.  So they raised no
+# ``entrypoint.unregistered`` blocker while being exactly the doors the
+# blocker exists to catch.  Registering them costs an
+# ``entrypoint.not_rediscovered`` REVIEW finding each -- the registry's own
+# honest label for "a registered target the conservative scanner cannot
+# classify" -- which is the correct trade: a named review line beats silence.
+#
+# HOW THE EFFECT SETS WERE DERIVED, and why they are not painted on.  Each
+# effect below is justified by a NAMED function whose own AST contains the
+# sink, reached from the door through repository-local calls;
+# ``tests/test_registry_new_doors.py`` re-derives every one of them with
+# ``_direct_effects`` -- the scanner's own sink table -- and fails in BOTH
+# directions: an effect with no reachable sink is a painted label, and a
+# reachable sink with no declared effect is an under-declaration.  SPEND has
+# no AST sink at all (no call shape means "money"), so it is derived from
+# ``daedalus.budget.BILLABLE_SITES`` -- the repository's own list of paid call
+# sites -- and never from judgement.
+#
+# WIRING.  Every row is CENTRAL against a ``begin_effect`` call at the TOP of
+# the entry function, above argument parsing, in the c67fd116 shape:
+# ``process_guard_boundary_decision()`` installs the process-wide spend net
+# and returns the decision naming what it interposed, so the receipt cannot
+# cite a guard that never ran.  For the five doors that are ALSO reachable as
+# a ``daedalus`` subcommand (health, benchmark, project-memory, improve,
+# metrics) that placement means both doors pass the same boundary rather than
+# the subcommand being guarded and the tail not.
+#
+# FIVE OF THE FOURTEEN CANDIDATES GOT NO ROW, and each refusal is checked by a
+# test rather than asserted here:
+#   * ``daedalus.memory.__init__:main`` -- already registered as ``cli.memory``
+#     since the memory door landed; a second row would be a duplicate target.
+#   * ``daedalus.metrics:main`` and ``daedalus.progress:main`` -- read-only
+#     reporters.  ``metrics.record`` and ``ProgressLog.append`` write, and
+#     neither main calls them; the registry's own rule drops an effect-free
+#     CLI main from the matrix, and Gate 0 exits on fail-OPEN read-only
+#     inspection.  Painting a row on a reporter would make the matrix say
+#     less, not more.
+#   * ``daedalus.claude_bridge:main`` -- a fail-closed stub (``parser.error``
+#     after ``parse_args``, no reachable effect).  Its row was deliberately
+#     DELETED on 2026-08-17 for exactly this reason; re-adding one would
+#     re-create the staleness finding that deletion removed.
+#   * ``daedalus.structcore.index`` -- a library with no tail.  Its effectful
+#     runners (``build_index``/``cached_index`` -> ``churn.git_churn``) are
+#     reached only through doors that already carry a row: ``cli.daedalus``,
+#     ``cli.picker``, ``cli.benchmark``, ``cli.eval``, ``cli.bootstrap``.
+_PHASE4_DOOR_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="cli.killswitch",
+        surface=Surface.CLI,
+        target="daedalus.spine.killswitch:_main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.spine.killswitch:_main", "begin_effect"),),
+        notes=(
+            "The operator's stop command, and the one door in this registry "
+            "whose whole job is to end effects. There is no `daedalus "
+            "killswitch` subcommand, so `python -m daedalus.spine.killswitch "
+            "stop|arm|clear` is the ONLY way in -- an unregistered door in "
+            "front of invariant 8's kill switch. FILESYSTEM_WRITE: stop() "
+            "writes marker and permit through _atomic_write -> "
+            "daedalus.atomic:write_text_atomic (mkdir/write_text), arm() and "
+            "clear() os.unlink the marker. PROCESS_SPAWN: arm() consults "
+            "control_check -> verify_control_root -> _cross_process_visible, "
+            "which runs `cmd /c type` (or `cat`) through subprocess.run to "
+            "prove a second process can see the control root. No SPEND: the "
+            "probe spawns a shell built-in against a file this module wrote "
+            "and no vendor is reachable from it."
+        ),
+        migration="complete for the cli.killswitch entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.health",
+        surface=Surface.CLI,
+        target="daedalus.health:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.health:main", "begin_effect"),),
+        notes=(
+            "Two doors, one boundary: `daedalus health` and `python -m "
+            "daedalus.health`. PROCESS_SPAWN: _git runs git through "
+            "subprocess.run and _ssh_powershell runs ssh. NETWORK_EGRESS: "
+            "_http_json urlopens the model host, reached from _ollama_alive, "
+            "_embed_probe and hand_state. "
+            "FILESYSTEM_WRITE, and this one is a CORRECTION worth recording "
+            "because the first draft of this row denied it: the probes work "
+            "hard not to create what they observe -- _p_ledger opens the "
+            "spine read-only precisely because the normal constructor mkdirs "
+            "and migrates -- so 'a status read writes nothing' reads as "
+            "obviously true and is false. _p_picker calls picker.build_queue, "
+            "which reaches structcore.cache:FileCache.__init__: that mkdirs "
+            "the cache root and opens a sqlite index read-write. The "
+            "derivation in tests/test_registry_new_doors.py found it; reading "
+            "the probes did not. No SPEND: no reachable function appears in "
+            "daedalus.budget.BILLABLE_SITES, and the bench probes talk to a "
+            "local/lab host over ssh and /api/tags. No SECRETS: the "
+            "credential-read derivation finds none on this door, unlike the "
+            "four doors below that reach doctor:check."
+        ),
+        migration="complete for the cli.health entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.progress",
+        surface=Surface.CLI,
+        target="daedalus.progress:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.progress:main", "begin_effect"),),
+        notes=(
+            "This row exists because the derivation refused the verdict the "
+            "reading gave. `python -m daedalus.progress` renders observed "
+            "in-flight progress and looked like a pure reporter -- it never "
+            "calls ProgressLog.append, which is the module's only writer -- "
+            "so the first pass put it in the no-row column beside "
+            "daedalus.metrics. It is not: --ledger reaches "
+            "progress_sources:open_attempts, which opens SpineLedger with "
+            "read_only=True, and ledger.py's own docstring records the honest "
+            "limit that a read-only WAL open still creates the -wal/-shm "
+            "sidecars. That is the SAME write cli.token_monitor declares for "
+            "the same reason, and declaring it here keeps the two rows "
+            "consistent rather than having one door call the sidecars a write "
+            "and its neighbour call them nothing. Nothing else: no spawn, no "
+            "socket, no credential -- the ledger is opened query_only, so "
+            "SQLite refuses a content write at the engine."
+        ),
+        migration="complete for the cli.progress entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.project_memory",
+        surface=Surface.CLI,
+        target="daedalus.memory.projection_worker:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.memory.projection_worker:main", "begin_effect"),
+        ),
+        notes=(
+            "`daedalus project-memory` and the module tail. FILESYSTEM_WRITE: "
+            "ProjectionWorker.run constructs EventVectorStore, whose __init__ "
+            "mkdirs the parent and opens the sqlite index read-write, and "
+            "then calls record_journal_watermark. NETWORK_EGRESS: a batch is "
+            "one POST from OllamaEmbeddingBackend.embed. That egress ALSO "
+            "carries its own row (memory.embeddings) taking the "
+            "ollama_endpoint_admission decision at the socket; this row is "
+            "the START of the run, not a second copy of that decision -- "
+            "different target, different id, no duplicate. --dry-run touches "
+            "no backend, but the boundary is above the flag on purpose: a "
+            "start that is only guarded on some argument vectors is guarded "
+            "by the caller, not by the function."
+        ),
+        migration="complete for the cli.project_memory entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.eval",
+        surface=Surface.CLI,
+        target="daedalus.eval.__main__:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.eval.__main__:main", "begin_effect"),),
+        notes=(
+            "The missing sibling of cli.eval_ceiling/correctness/graph_delta: "
+            "`python -m daedalus.eval` is the eval package's advertised "
+            "front door and was the only one of the four without a row. "
+            "FILESYSTEM_WRITE: --update-baseline reaches harness.write_baseline "
+            "(open(..., 'w')) and --mint-commit reaches mint.save_minted_tasks "
+            "-- the two flags that persist anything, and the mint store is a "
+            "task corpus, so an unguarded write there is a leakage surface as "
+            "well as a write. PROCESS_SPAWN: mint runs git through "
+            "subprocess.run, and every tier reaches structcore.churn:git_churn "
+            "through cached_index. NETWORK_EGRESS: harness.detect_provider "
+            "urlopens /api/tags. SPEND: --tier2 reaches "
+            "providers._openai_compat:chat_completion, which "
+            "daedalus.budget.BILLABLE_SITES lists as billable BECAUSE the "
+            "vendor arrives as base_url at runtime -- the default host is a "
+            "local Ollama and costs nothing, but the row cannot know that and "
+            "must not pretend to."
+        ),
+        migration="complete for the cli.eval entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.approvals",
+        surface=Surface.CLI,
+        target="daedalus.kernel.approvals:main",
+        effects=(Effect.SECRETS,),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.kernel.approvals:main", "begin_effect"),),
+        notes=(
+            "The console door that MINTS owner approvals -- the capability "
+            "invariant 5 makes promotion depend on. It writes no file, spawns "
+            "nothing and opens no socket: the only effect is SECRETS, and it "
+            "is earned under cli.doctor's rule rather than inherited. The "
+            "signing key enters THIS process at approvals.py:732 "
+            "(`os.environ.get(secret_env)` in _cli_issue) and again at :767 "
+            "in _cli_verify, and is used to compute or check the HMAC. "
+            "MEASURED GAP, named rather than hidden: "
+            "tests/test_provider_secrets_rows.py derives SECRETS from "
+            "credential-SHAPED LITERAL environment names, and this door takes "
+            "the variable name from --secret-env, so that rule cannot see "
+            "this read -- which is why tests/test_registry_new_doors.py pins "
+            "it separately. No promotion.owner_approval contract is declared "
+            "because this door ISSUES approvals rather than presenting one; "
+            "declaring the contract it implements would be circular. That "
+            "leaves budget.process_guard as the only decision actually taken "
+            "here, and it guards spend, not key custody -- an honest Gate-0 "
+            "gap, the same one runtimes.fault_attestation_issuer records."
+        ),
+        migration="complete for the cli.approvals entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.picker",
+        surface=Surface.CLI,
+        target="daedalus.spine.picker:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+            Effect.NETWORK_EGRESS,
+            Effect.REPOSITORY_MUTATION,
+            Effect.SECRETS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.spine.picker:main", "begin_effect"),),
+        notes=(
+            "`daedalus improve` and `python -m daedalus.spine.picker`. The "
+            "default is a dry run and the row still declares the whole set, "
+            "because a row describes what the door CAN start: --once --live "
+            "reaches _default_attempt -> spine.attempt:run_attempt, which "
+            "creates a git worktree (REPOSITORY_MUTATION -- `git worktree "
+            "add -b` writes a branch ref into the primary .git), deposits "
+            "artifacts (FILESYSTEM_WRITE), spawns the gate child and git "
+            "(PROCESS_SPAWN), and runs offload_runner -> offload, which "
+            "reaches a provider (NETWORK_EGRESS, SPEND). Those inner "
+            "boundaries stay where they are: python.attempt and python.offload "
+            "each take their own decisions under their own leases. This row "
+            "is the CONSOLE start above them, which is why it declares the "
+            "union python.attempt deliberately refuses -- it installs the "
+            "process-wide spend net for the whole run, so unlike python.attempt "
+            "it does meter what it names. "
+            "PROCESS_CONTROL and SECRETS are both CORRECTIONS the derivation "
+            "made against this row's first draft, and neither is inheritance. "
+            "PROCESS_CONTROL: spine.cancel:ManagedProcess spawns the gate "
+            "child through subprocess.Popen and kills it, which is the sink "
+            "table's own process-control shape. SECRETS: offload reaches "
+            "doctor:check, which reads DEEPSEEK_API_KEY out of the "
+            "environment at doctor.py:93, and providers.deepseek's "
+            "constructor reads it again -- both IN THIS PROCESS, which is "
+            "cli.doctor's rule for earning the label rather than inheriting "
+            "it from a child that authenticates itself. cli.eval reaches "
+            "neither and does not declare it, which is how the rule stays "
+            "worth having."
+        ),
+        migration="complete for the cli.picker entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.benchmark",
+        surface=Surface.CLI,
+        target="daedalus.benchmark:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SECRETS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.benchmark:main", "begin_effect"),),
+        notes=(
+            "`daedalus benchmark` and the module tail. Without --live it is a "
+            "projection and writes nothing; with --live every task goes "
+            "through offload(live=True), so FILESYSTEM_WRITE (kairos.drafts:"
+            "save_draft mkdir/write_text), NETWORK_EGRESS (doctor:check -> "
+            "_ollama_models), PROCESS_SPAWN (structcore.churn:git_churn via "
+            "select_provider's reachability precheck) and SPEND (offload "
+            "dispatches the selected provider's run, and BILLABLE_SITES lists "
+            "those). SECRETS for the same reason cli.picker earns it: offload "
+            "reaches doctor:check, which pulls DEEPSEEK_API_KEY into THIS "
+            "process at doctor.py:93. A cost benchmark is the door most "
+            "likely to be run casually and least likely to be believed "
+            "expensive, which is the argument for the boundary sitting above "
+            "the flag rather than inside the --live branch. No "
+            "REPOSITORY_MUTATION: offload's write mode edits files in the "
+            "target checkout, and no reachable function creates a worktree or "
+            "writes a ref -- the derivation looked and found none, which is "
+            "why this row is shorter than cli.build_exec's."
+        ),
+        migration="complete for the cli.benchmark entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.build_exec",
+        surface=Surface.CLI,
+        target="daedalus.build_exec:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.REPOSITORY_MUTATION,
+            Effect.SECRETS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.build_exec:main", "begin_effect"),),
+        notes=(
+            "The wave executor: the half of the build-session abstraction "
+            "that actually runs things, and it has no subcommand at all -- "
+            "`daedalus build` only PLANS. --live dispatches each wave through "
+            "KairosScheduler, whose write path gates every write task in its "
+            "own TaskAttempt worktree (REPOSITORY_MUTATION) and whose accepted "
+            "tasks reach offload (FILESYSTEM_WRITE, NETWORK_EGRESS, "
+            "PROCESS_SPAWN, SPEND, and SECRETS via doctor:check's read of "
+            "DEEPSEEK_API_KEY). One invocation can start a whole multi-wave "
+            "run, so this is the highest-fanout console door in the tree and "
+            "was the least visible. "
+            "REPOSITORY_MUTATION IS THE ONE EFFECT HERE THAT NO .py SCAN CAN "
+            "SEE, and it is declared with its bridge named rather than "
+            "asserted: run_wave hands the write path to "
+            "kairos.gated_writes:run_write_wave, which lives in the RETAINED "
+            "LEGACY SOURCE daedalus/kairos/_gated_writes_legacy.py.src -- "
+            "loaded through importlib.resources behind a sha1 verification, "
+            "and invisible to SCAN_PACKAGES because its suffix is not `.py`. "
+            "That blob imports GitWorktreeManager and calls run_attempt "
+            "(lines 83 and 391). tests/test_registry_new_doors.py parses the "
+            "`.src` file itself and fails if either disappears, so the bridge "
+            "is checked rather than believed."
+        ),
+        migration="complete for the cli.build_exec entrypoint",
+    ),
+    EntrypointSpec(
+        id="cli.bootstrap",
+        surface=Surface.CLI,
+        target="daedalus.spine.bootstrap:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+            Effect.NETWORK_EGRESS,
+            Effect.REPOSITORY_MUTATION,
+            Effect.SECRETS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.spine.bootstrap:main", "begin_effect"),),
+        notes=(
+            "One SHADOW iteration of the self-improvement circle: refresh "
+            "sources, pick, attempt, gate. No subcommand; the tail is the "
+            "only door. shadow_run builds the picker queue (PROCESS_SPAWN via "
+            "structcore.churn:git_churn) and runs "
+            "spine.attempt:offload_runner through the attempt path, which "
+            "means a worktree (REPOSITORY_MUTATION), artifacts "
+            "(FILESYSTEM_WRITE), the gate child under spine.cancel:"
+            "ManagedProcess (PROCESS_CONTROL) and a provider call "
+            "(NETWORK_EGRESS, SPEND, and SECRETS via doctor:check's read of "
+            "DEEPSEEK_API_KEY) with --live. Same effect set as cli.picker, "
+            "because it is the same attempt path with a source-refresh step "
+            "in front of it. Promotion is refused inside shadow_run and this "
+            "row does not soften that: it declares the start, not a "
+            "permission."
+        ),
+        migration="complete for the cli.bootstrap entrypoint",
+    ),
+)
+
+ENTRYPOINTS += _PHASE4_DOOR_ROWS
+
+
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(
     {row.id: row for row in ENTRYPOINTS}
 )
