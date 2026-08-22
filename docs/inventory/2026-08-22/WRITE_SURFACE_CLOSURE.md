@@ -286,3 +286,202 @@ green:
 | classification-schema blocker removed | 1 |
 | census-consistency blocker removed | 1 |
 | door id dropped from the failure row | 1 |
+
+## 9. The first honest declaration (2026-08-22, lane HERACLES-DECLARE)
+
+Section 8 wired the chain and measured `unclassified:410` because no
+declaration bound this head. This section is the first declaration, and the
+measured answer to "what does a registered CENTRAL door actually let you
+declare".
+
+**Artifact.** `runs/gates/write-surface-classification/4fd2daa718c7304984c01fb6685a0d15aeac0d8f/`
+— `classification-input.json` (29 rows), `cas/` (29 evidence objects, each file
+named by the sha256 of its own bytes), `derivation.json` (the per-door
+accounting). Regenerate with `python scripts/declare_write_surfaces.py`.
+
+**Method, and why it is not the working tree.** The declaration binds
+`source_revision` **and** `inventory_digest`, so it must be derived from bytes
+a later reader can reproduce. It was derived on an isolated `git archive HEAD`
+snapshot at `4fd2daa7`, the same isolation method as sections 3 and 8. A scan
+of the *working tree* at the same moment refused with `base inventory changed
+while composing generation 2` and, when it did complete, produced a different
+digest (`4f8199c8…` against HEAD's `35e54672…`) — a concurrent lane was editing
+`daedalus/`. A declaration derived from a dirty tree is stale the second it is
+written. `[MEASURED]`
+
+**A declaration is a receipt for one commit, and only that commit.** It binds a
+40-hex `source_revision`, so it can only be minted *after* the commit it
+describes exists, and any later commit touching `daedalus/` refuses it with
+`classification:input-refused` — by design (section 8). The artifact here is
+the receipt for `4fd2daa7`. This lane's own additive edit to
+`daedalus/gates/repository_write_classification.py` is inside the scanned
+package, so the commit that lands this section needs its own receipt: run
+`python scripts/declare_write_surfaces.py` once on a clean checkout of that
+commit. Nothing regenerates it automatically today, and nothing in `report_v3`
+looks for it by convention — the caller still has to pass the path. Both are
+named here so the next lane does not mistake the receipt for a live input.
+
+### 9.1 What the chain requires before it will say "authenticated"
+
+Nothing, at any revision. This is a structural fact, not a missing receipt:
+
+1. `report_v3._classify_repository_write_surfaces` reads
+   `payload.get("evidence_authenticated")` off the classification projection.
+2. In `RepositoryWriteClassificationReport._payload` that key is the bare
+   literal `False`, and so is its twin in all seven sibling chain modules plus
+   `guard_implementation_manifest`. There is **no code path in the tree that
+   produces `True`**: the only occurrences of `"evidence_authenticated": True`
+   are the *mutation strings* in six `scripts/run_*_mutations.py` runners,
+   which flip the literal precisely to prove the suite goes red. `[MEASURED]`
+3. Therefore `classification:evidence-unauthenticated:<n>` is unconditional for
+   any non-zero cleared count. Producing a receipt cannot lift it.
+
+So the answer to "which receipt kind is missing" is: **none of them is the
+blocker.** The blocker is that `evidence_authenticated` is a declared constant
+rather than a field derived by composing lease → materialization → origin →
+anchor semantics → guard structure → runtime conformance. Making it derived is
+a packet of its own, and it has to land *with* the mutation runners that
+currently pin the constant, or the guard those runners protect is silently
+removed. **This is the measured blocker; this lane stops here.**
+
+Three receipt kinds have no producer either, which is why the declaration does
+not claim them:
+
+| evidence kind | producer at this head |
+| --- | --- |
+| `source_anchor` | **this generator** — payload is `path`, `line`, `column`, `source_sha256`, all measured |
+| `guard_contract` | `guard_implementation_manifest` verifies one; nothing mints one |
+| `effect_lease_receipt` | none. `daedalus-effect-lease-receipt/1` occurs only inside its own verifier `[MEASURED]` |
+| `runtime_conformance_receipt` | `daedalus/kernel/runtime_conformance.py` mints `RuntimeConformanceReceipt` and 3 exist under `runs/gate0-*/conformance/receipts/`, but they attest **adapter runtimes** (start/stream/cost/cancellation/timeout/structured-output/workspace), not repository-write surfaces. `tools/effect_boundary_check.py` is a 46-line static drift check that writes nothing at all |
+| `primary_checkout_disjointness_receipt` | none. `disjointness` occurs only in the verifiers that consume it |
+
+### 9.2 Why every row is `unknown` / `inventory_only`, and not `central`
+
+`GuardDisposition.CENTRAL` in the classification contract is not "the door is
+centrally wired". `SurfaceClassification.__post_init__` refuses a CENTRAL row
+whose target is `primary_checkout` or `unknown`, and demands all four of
+`guard_contract`, `effect_lease_receipt`, `runtime_conformance_receipt` and
+`primary_checkout_disjointness_receipt`. Two of those four have no producer,
+and a disjoint target needs the third. **No surface in this tree can be
+declared `central` without fabricating a receipt**, so none is.
+
+`local_guards` was rejected for the same kind of reason: it requires a guard
+contract evidenced *per surface*, and the only contract these doors name is
+`budget.process_guard`, which interposes `subprocess.run`, `subprocess.Popen`
+and `urllib.request.urlopen` against the spend ceiling. It is a spend net.
+`daedalus/spine/effect_boundary.py` already says so in its own words — "there
+is no filesystem-write contract in `GUARD_CONTRACT_IMPLEMENTED` to make a
+stronger claim with" — so claiming it certifies a filesystem write would
+contradict the registry. Every row is therefore `target=unknown,
+guard=inventory_only, production_reachable=true`, carrying one real
+`source_anchor` evidence object.
+
+The vocabulary has no rung for *"centrally started, but no contract covers this
+effect"*. That gap is worth an amendment proposal; it is not worth an
+overclaim, and `inventory_only` is the registry's own word for a Gate-0 gap.
+
+### 9.3 Dominance: what a door can actually vouch for
+
+A surface is declared only when its exact `(line, column)` AST node descends
+from a statement the anchor provably dominates. Two levels, both sound modulo
+dynamic dispatch:
+
+- **L1** — inside the anchor function, after the statement holding the
+  `begin_effect` call (or inside the body of a `with begin_effect(...)`).
+- **L2** — inside a module-private `_helper` that (a) is named nowhere else in
+  the repository's Python sources, (b) is absent from `__all__`, and (c) is
+  referenced inside its own module only from already-dominated code. Iterated
+  to a fixpoint. 8 helpers were admitted across 6 doors.
+
+**Counts `[MEASURED]` at `4fd2daa7`:** 97 registry rows, 78 CENTRAL, 51 CENTRAL
+anchors resolving to a `begin_effect` start inside `daedalus/`; 27 skipped (25
+anchored outside the scanned package — all `tools.*`, `runs.*` — and 2 on
+`daedalus/spine/attempt.py`, held by another lane). Of the 51, **18 doors
+declare 29 surfaces**; 33 declare nothing.
+
+The ten Phase-4 doors registered at `4fd2daa7` yield **6 of the 29**:
+
+| door | module | blocking surfaces in module | declared |
+| --- | --- | ---: | ---: |
+| cli.eval | `daedalus/eval/__main__.py` | 2 | 2 |
+| cli.project_memory | `daedalus/memory/projection_worker.py` | 3 | 1 |
+| cli.picker | `daedalus/spine/picker.py` | 2 | 1 |
+| cli.benchmark | `daedalus/benchmark.py` | 1 | 1 |
+| cli.build_exec | `daedalus/build_exec.py` | 2 | 1 |
+| cli.killswitch | `daedalus/spine/killswitch.py` | 6 | 0 |
+| cli.health | `daedalus/health.py` | 4 | 0 |
+| cli.progress | `daedalus/progress.py` | 3 | 0 |
+| cli.approvals | `daedalus/kernel/approvals.py` | 2 | 0 |
+| cli.bootstrap | `daedalus/spine/bootstrap.py` | 1 | 0 |
+
+**Why the five zeroes are the real finding.** The anchor dominates each door's
+argument parsing and dispatch; the *effects* live somewhere no anchor reaches:
+
+- `progress.py` — all 3 writes sit in an `append` **method**. Any holder of the
+  object can call it.
+- `approvals.py` — both in `__init__` and `_connect`, methods again.
+- `health.py` — `_git`, `_ssh_powershell`, `_p_vectors`, `_p_room`: private,
+  but each is called from many probe functions, not only from post-anchor code.
+  The row's own note already predicted this ("main()'s own AST holds no sink,
+  because every probe reaches its effect through a helper").
+- `killswitch.py` — `_cross_process_visible` and `_verify_control_root_uncached`
+  sit behind `control_check`/`verify_control_root`, which are library API; the
+  two `os.unlink` calls are in `arm()` and `clear()`, importable functions.
+- `bootstrap.py` — the one `subprocess.run` is in a shared `_run` helper.
+
+This is section 1's rule measured from the other side: a door does not clear
+what is behind it, because most of what is behind it **is not only behind it**.
+Across the 51 door modules, 142 blocking surfaces are reachable by a path no
+anchor dominates. Closing those needs the effect moved behind the door, or a
+per-surface target/guard declaration a human signs — not another registry row.
+
+### 9.4 Reporter before/after
+
+`build_gate0_report_v3` on the isolated `4fd2daa7` snapshot, the only variable
+being `repository_write_classification_input`:
+
+| | schema | surfaces_total | failures | verdicts |
+| --- | --- | ---: | ---: | --- |
+| before (no declaration) | `daedalus-gate0-repository-write-classification/1` | 410 | 410 | `unclassified:410` |
+| after (29-row declaration) | same | 410 | 410 | `unclassified:381`, `blocked:write-target-unknown+production-write-inventory_only:29` |
+
+`unclassified` falls by **exactly 29**, the declared count. **Failures do not
+move, and no `classification:` row appears** — because an honest declaration
+clears nothing, the unauthenticated aggregate of section 8 never fires. The
+declaration bought names, not absolution: 29 surfaces now say *why* they are
+blockers instead of saying nobody looked. `[MEASURED]`
+
+All 29 minted evidence objects were replayed through
+`materialize_repository_write_evidence`: 29 records, 0 missing locators, every
+`cas/<sha>.json` hashing to its own filename. The generator refuses to write
+anything if that self-check fails.
+
+### 9.5 Verification
+
+`tests/test_declare_write_surfaces.py`, 15 cases (written this lane, not run
+here — this lane was barred from invoking pytest). Three guards were disabled
+in-process against the fixture module and the dominance set re-measured:
+
+| mutant | effect `[MEASURED]` |
+| --- | --- |
+| cross-module name check defeated (another module names `_after_helper`) | the helper's write leaves the declared set — pins `test_a_private_helper_named_by_another_module_is_not_dominated` |
+| `_anchor_regions` returns the whole anchor body | the write **before** `begin_effect` enters the declared set — pins `test_the_write_before_begin_effect_is_not_dominated` |
+| `_references_are_dominated` forced `True` | `_shared_helper`, also called from `public_helper`, enters the declared set — pins `test_a_private_helper_reachable_from_undominated_code_is_not_dominated` |
+
+Two independent generator runs over the same tree produced byte-identical
+`classification-input.json`, `derivation.json` and CAS object sets, so the
+artifact is reproducible rather than merely repeatable. `[MEASURED]`
+
+All nine mutation anchors in `scripts/run_repository_write_classification_mutations.py`
+still resolve exactly once against the edited module. The one change there is
+additive: `CLASSIFICATION_INPUT_SCHEMA`, exported for producers and
+deliberately *not* substituted into the verifier's own literal, so the two
+spellings keep catching drift in each other.
+
+All 51 anchors in this tree are the plain-statement shape, so the
+`with begin_effect(...)` branch of the dominance rule fires nowhere at
+`4fd2daa7`. It is therefore pinned by its own fixture
+(`test_a_with_begin_effect_body_is_dominated`) rather than by a real door: an
+unexercised branch in a soundness rule is the one place a fixture earns its
+keep. `[MEASURED]`: the with-body write is dominated, the write above the
+`with` is not.

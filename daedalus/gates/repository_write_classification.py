@@ -31,6 +31,18 @@ _CONTRACT = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 # consumer as a declared mismatch instead of passing silently.
 CLASSIFICATION_SCHEMA = "daedalus-gate0-repository-write-classification/1"
 
+# The wire id a *declaration* must carry to be accepted by
+# ``project_classification_input``.  It is exported for producers -- a
+# generator that mints a declaration should build it against this name rather
+# than repeat the literal -- and it is deliberately NOT substituted into the
+# check inside ``project_classification_input`` below.  That check keeps its
+# own literal for the same reason ``_payload`` does: two independent spellings
+# mean a drift on the verifier side surfaces as a refused document at the
+# producer, instead of both sides moving together and nobody noticing.
+CLASSIFICATION_INPUT_SCHEMA = (
+    "daedalus-gate0-repository-write-classification-input/1"
+)
+
 # Verdict vocabulary.  It belongs to this chain, not to its consumers: a
 # consumer may only report a verdict this module can produce.  A surface the
 # projection did not classify is ``unclassified`` and stays a blocker; a
