@@ -1,10 +1,21 @@
 """Sealed promotion authorization for Gate 0.
 
 The existing Kairos integration-worktree machinery is retained, but it may not
-start until this module proves that one persisted and re-authenticated
-OwnerApproval consumption, one passed EvidencePacket, the exact ordered
-candidate batch, and the live target HEAD all name the same immutable promotion
-subject.
+start until this module proves that one owner-signed approval, one passed
+EvidencePacket, the exact ordered candidate batch, and the live target HEAD all
+name the same immutable promotion subject.
+
+D5 (owner decision, ``hybrid with B as root``) makes
+:mod:`daedalus.kernel.promotion_trust_root` the authority for "did the owner
+approve this". This module is its ONE canonical caller: the structural test
+``tests/test_promotion_trust_root_single_caller.py`` fails if any second module
+reaches the root, because two callers of a trust root are two promotion paths
+wearing one name.
+
+The HMAC approval ledger in :mod:`daedalus.kernel.approvals` is retained as the
+demoted second factor. It is re-authenticated on every promotion and every
+outcome is written down, but it cannot grant: see the truth table in the trust
+root module.
 """
 from __future__ import annotations
 
@@ -12,11 +23,18 @@ import hashlib
 import hmac
 import re
 import subprocess
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Sequence
 
 from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
+from daedalus.kernel.promotion_trust_root import (
+    PREAUTHORIZATION_STAGE,
+    SEALED_STAGE,
+    PromotionTrustDecision,
+    _append_record,
+    evaluate_promotion_trust,
+)
 from daedalus.schemas import EvidencePacket, _identifier, _revision
 from daedalus.spine.envelope import canonical_sha
 
@@ -25,6 +43,12 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 class PromotionAuthorizationError(RuntimeError):
     """Fail-closed refusal before any promotion-side effect."""
+
+    def __init__(self, message: str, *, deny_receipt: Mapping[str, Any] | None = None):
+        super().__init__(message)
+        #: Populated when the D5 trust root refused. Names the failing factor,
+        #: which the truth table requires of every REJECT.
+        self.deny_receipt = dict(deny_receipt or {})
 
 
 def _canonical_sha256(value: Any, name: str) -> str:
@@ -80,8 +104,15 @@ class PromotionAuthorization:
     live_target_revision: str
     approval_consumption_sha256: str
     authorization_sha256: str
+    #: The content-addressed locator of the signed tag object the D5 root
+    #: verified. Empty only for :func:`authorize_promotion`, the pure binding
+    #: primitive, which is never a promotion authority on its own.
+    owner_approval_ref: str = ""
+    #: The evaluated truth-table cell, both factor outcomes and the record
+    #: digest. Present on every persisted authorization.
+    trust: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "promotion_id": self.promotion_id,
             "candidate_artifact_sha256": self.candidate_artifact_sha256,
@@ -91,6 +122,8 @@ class PromotionAuthorization:
             "live_target_revision": self.live_target_revision,
             "approval_consumption_sha256": self.approval_consumption_sha256,
             "authorization_sha256": self.authorization_sha256,
+            "owner_approval_ref": self.owner_approval_ref,
+            "trust": dict(self.trust),
         }
 
 
@@ -360,6 +393,84 @@ def authorize_promotion(
     )
 
 
+def _authorize_from_root(
+    *,
+    decision: PromotionTrustDecision,
+    evidence_packet: EvidencePacket,
+    snapshots: Sequence[PromotionCandidateSnapshot],
+    candidate_sha: str,
+    packet_sha: str,
+    target_ref: str,
+    live_target_revision: str | None,
+) -> dict[str, str]:
+    """Bind the promotion subject to what the OWNER SIGNED, not to a receipt.
+
+    The pure :func:`authorize_promotion` anchors every comparison on the
+    ``VerifiedOwnerApproval`` inside a consumption receipt -- that is, on the
+    HMAC factor. Under D5 the HMAC factor cannot grant, so it cannot bind
+    either: an approval whose binding is checked against a forgeable receipt is
+    bound to a forgeable receipt. Every comparison here is anchored on the
+    signed tag instead.
+
+    The signed body carries no target ref, and it does not need one: it names
+    the exact ``source_revision`` the owner reviewed, and the live target HEAD
+    read under the promotion lock must BE that revision. An approval therefore
+    cannot land on a tree that moved after it was signed.
+    """
+    root = decision.root
+    ref = _canonical_identifier(target_ref, "target_ref")
+    if live_target_revision is None:
+        # Before the promotion lock the live HEAD is genuinely unknown, and
+        # reading it there would be a sample the lock then invalidates. The
+        # preauthorization therefore binds everything except the live head and
+        # substitutes the revision the owner signed. Only that stage may do so.
+        if decision.stage != PREAUTHORIZATION_STAGE:
+            raise PromotionAuthorizationError(
+                "a sealed promotion authorization requires the live target "
+                "revision read under the promotion lock",
+                deny_receipt=decision.deny_receipt(),
+            )
+        live_target_revision = root.source_revision
+    live_revision = _canonical_revision(live_target_revision, "live_target_revision")
+
+    mismatches: list[str] = []
+    comparisons = {
+        "candidate_root": (root.candidate_sha256, candidate_sha),
+        "evidence_root": (root.evidence_sha256, packet_sha),
+        "candidate_packet": (evidence_packet.candidate_artifact_sha256, candidate_sha),
+        "subject_packet": (evidence_packet.subject_sha256, candidate_sha),
+        "source_revision": (evidence_packet.source_revision, root.source_revision),
+        "target_head": (live_revision, root.source_revision),
+    }
+    mismatches.extend(
+        name for name, (actual, expected) in comparisons.items() if actual != expected
+    )
+    if evidence_packet.evaluation_status != "passed":
+        mismatches.append("evaluation_status")
+    if (
+        evidence_packet.candidate_artifact_locator
+        != f"artifact-locator:sha256:{candidate_sha}"
+    ):
+        mismatches.append("candidate_locator")
+    base_revisions = {snapshot.result.artifact.base_revision for snapshot in snapshots}
+    if base_revisions != {root.source_revision}:
+        mismatches.append("candidate_base_revision")
+    if mismatches:
+        raise PromotionAuthorizationError(
+            "promotion authorization mismatch against the owner-signed root: "
+            + ", ".join(sorted(set(mismatches))),
+            deny_receipt=decision.deny_receipt(),
+        )
+
+    return {
+        "candidate_artifact_sha256": candidate_sha,
+        "evidence_packet_sha256": packet_sha,
+        "source_revision": root.source_revision or "",
+        "target_ref": ref,
+        "live_target_revision": live_revision,
+    }
+
+
 def authorize_persisted_promotion(
     *,
     approval_ledger: ApprovalLedger,
@@ -368,61 +479,139 @@ def authorize_persisted_promotion(
     evidence_packet: EvidencePacket,
     candidates: Sequence[Any],
     target_ref: str,
-    live_target_revision: str,
+    live_target_revision: str | None,
+    repo_root: str | Path,
+    promotion_stage: str = SEALED_STAGE,
 ) -> PromotionAuthorization:
-    """Require persisted authenticated approval authority before authorization.
+    """THE canonical call into the D5 trust root. Nothing else may call it.
 
-    A self-consistent :class:`ConsumedOwnerApproval` is not authority. The
-    exact receipt must be present in the supplied approval ledger, its retained
-    signed OwnerApproval must authenticate under the independently supplied
-    owner keyring, and every persisted canonical byte/column binding must match
-    before the pure candidate/evidence/HEAD binding is evaluated.
+    ``repo_root`` is required because the root is a git-signed tag verified
+    against an allowed-signers file read from the COMMITTED tree: there is no
+    trust root without a repository to read it out of, and a default would
+    quietly choose one.
 
-    This function performs no Git, worktree, provider or repository mutation.
-    A dependent Work Packet must make it mandatory inside the live promotion
-    lock immediately before the integration worktree is created.
+    ``promotion_stage`` distinguishes the effect-free preauthorization that
+    :func:`daedalus.kairos.gated_writes.promote_candidates` performs before any
+    lock from the sealed evaluation inside it. Only the sealed stage spends the
+    approval's single use, so the preflight cannot burn the owner's approval on
+    a promotion that then refuses for an unrelated reason. The default is the
+    sealed stage: an unknown caller gets the strict path.
+
+    This function performs no worktree, provider or repository mutation. It
+    reads git (tag objects, the committed allowed-signers blob) and appends to
+    the checkout-external second-factor record.
     """
-    if not isinstance(approval_ledger, ApprovalLedger):
+    snapshots = tuple(snapshot_promotion_candidates(candidates))
+    if not isinstance(evidence_packet, EvidencePacket):
         raise PromotionAuthorizationError(
-            "persisted promotion authorization requires an ApprovalLedger"
+            "promotion requires a canonical EvidencePacket"
         )
-    if not isinstance(owner_keyring, Mapping) or not owner_keyring:
+    candidate_sha = _candidate_batch_sha256_from_snapshots(snapshots)
+    packet_sha = evidence_packet.digest
+
+    # The root's source_revision comes from the EvidencePacket rather than from
+    # the consumption receipt on purpose: the receipt is the demoted factor, so
+    # taking the revision from it would let the demoted factor choose which
+    # revision the root is asked about.
+    decision = evaluate_promotion_trust(
+        repo_root=repo_root,
+        candidate_artifact_sha256=candidate_sha,
+        evidence_packet_sha256=packet_sha,
+        source_revision=evidence_packet.source_revision,
+        approval_ledger=approval_ledger,
+        owner_keyring=owner_keyring,
+        consumed_approval=consumed_approval,
+        stage=promotion_stage,
+    )
+    if decision.seams_used:
+        # The trust root exposes test seams so the truth-table suite can
+        # exercise all four cells without minting an owner signature. A
+        # production authorization that used one is not an authorization.
         raise PromotionAuthorizationError(
-            "persisted promotion authorization requires a non-empty owner keyring"
+            "trust-root test seams are not a promotion authority: "
+            + ", ".join(decision.seams_used),
+            deny_receipt=decision.deny_receipt(),
         )
-    if not isinstance(consumed_approval, ConsumedOwnerApproval):
+    if not decision.promote:
         raise PromotionAuthorizationError(
-            "persisted promotion authorization requires a ConsumedOwnerApproval"
+            decision.deny_reason or "sealed promotion refused by the D5 trust root",
+            deny_receipt=decision.deny_receipt(),
         )
 
-    trusted_keyring = dict(owner_keyring)
-    try:
-        persisted = approval_ledger.verify_consumption(
-            consumed_approval,
-            keyring=trusted_keyring,
-        )
-    except Exception as exc:
-        raise PromotionAuthorizationError(
-            "approval consumption is not authenticated persisted authority"
-        ) from exc
-    if persisted != consumed_approval:
-        raise PromotionAuthorizationError(
-            "approval ledger returned a different consumption capability"
-        )
-
-    return authorize_promotion(
-        consumed_approval=persisted,
+    body = _authorize_from_root(
+        decision=decision,
         evidence_packet=evidence_packet,
-        candidates=candidates,
+        snapshots=snapshots,
+        candidate_sha=candidate_sha,
+        packet_sha=packet_sha,
         target_ref=target_ref,
         live_target_revision=live_target_revision,
     )
 
+    # THE SECOND FACTOR, RECORDED AND NEVER OBEYED. When the HMAC factor
+    # authenticated, its own binding view is computed too. A disagreement is
+    # written down as a divergence -- "never silently dropped" -- and changes
+    # no verdict, because a factor that can veto is a factor that can grant by
+    # withholding a veto.
+    second_factor_binding = "not-evaluated: second factor invalid"
+    if decision.second_factor.valid:
+        try:
+            authorize_promotion(
+                consumed_approval=consumed_approval,
+                evidence_packet=evidence_packet,
+                candidates=snapshots,
+                target_ref=target_ref,
+                live_target_revision=body["live_target_revision"],
+            )
+            second_factor_binding = "agrees"
+        except Exception as exc:  # noqa: BLE001 - advisory, recorded, not fatal
+            second_factor_binding = f"diverges: {type(exc).__name__}: {exc}"
+            _append_record(
+                repo_root,
+                {
+                    "trust_root_mode": "hybrid-b-as-root",
+                    "stage": str(promotion_stage),
+                    "candidate_artifact_sha256": candidate_sha,
+                    "evidence_packet_sha256": packet_sha,
+                    "record_note": "second-factor-binding-divergence",
+                    "detail": second_factor_binding,
+                    "root_owner_approval_ref": decision.root.owner_approval_ref,
+                },
+            )
+
+    trust = decision.to_dict()
+    trust["second_factor_binding"] = second_factor_binding
+    digest_body = dict(body)
+    digest_body["promotion_id"] = _identifier(
+        getattr(consumed_approval, "promotion_id", "promotion-unbound"),
+        "promotion_id",
+    )
+    digest_body["owner_approval_ref"] = decision.root.owner_approval_ref or ""
+    digest_body["trust_record_sha256"] = decision.record_sha256 or ""
+    digest_body["approval_consumption_sha256"] = (
+        decision.second_factor.consumption_sha256
+        or "absent:second-factor-invalid"
+    )
+    return PromotionAuthorization(
+        promotion_id=digest_body["promotion_id"],
+        candidate_artifact_sha256=body["candidate_artifact_sha256"],
+        evidence_packet_sha256=body["evidence_packet_sha256"],
+        source_revision=body["source_revision"],
+        target_ref=body["target_ref"],
+        live_target_revision=body["live_target_revision"],
+        approval_consumption_sha256=digest_body["approval_consumption_sha256"],
+        authorization_sha256=canonical_sha(digest_body),
+        owner_approval_ref=decision.root.owner_approval_ref or "",
+        trust=trust,
+    )
+
 
 __all__ = [
+    "PREAUTHORIZATION_STAGE",
     "PromotionAuthorization",
     "PromotionAuthorizationError",
     "PromotionCandidateSnapshot",
+    "SEALED_STAGE",
     "authorize_persisted_promotion",
     "authorize_promotion",
     "candidate_batch_sha256",

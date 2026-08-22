@@ -228,7 +228,10 @@ def promote_candidates(
     # only for this effect-free preauthorization; it is replaced by a fresh Git
     # ref read under the lock and rechecked immediately before mutation.
     try:
-        from daedalus.kernel.promotion import authorize_persisted_promotion
+        from daedalus.kernel.promotion import (
+            PREAUTHORIZATION_STAGE,
+            authorize_persisted_promotion,
+        )
 
         authorize_persisted_promotion(
             approval_ledger=approval_ledger,
@@ -237,9 +240,15 @@ def promote_candidates(
             evidence_packet=evidence_packet,
             candidates=sealed_candidates,
             target_ref=target_ref,
-            live_target_revision=(
-                consumed_approval.verified.expected_target_revision
-            ),
+            # The owner-bound expected target is no longer read from the
+            # consumption receipt here: under D5 that receipt is the demoted
+            # second factor, so letting it name the revision would let the
+            # demoted factor choose what the root is asked about. The
+            # preauthorization stage binds everything except the live head,
+            # which is read fresh under the lock below.
+            live_target_revision=None,
+            repo_root=root,
+            promotion_stage=PREAUTHORIZATION_STAGE,
         )
     except Exception as exc:  # noqa: BLE001 - no effect has occurred
         return _promotion_refusal(sealed_candidates, exc)
@@ -265,6 +274,7 @@ def promote_candidates(
             # target so stale or replaced authority cannot cross the mutation
             # boundary.
             from daedalus.kernel.promotion import (
+                SEALED_STAGE,
                 authorize_persisted_promotion,
                 resolve_live_target_revision,
             )
@@ -283,6 +293,8 @@ def promote_candidates(
                 candidates=sealed_candidates,
                 target_ref=target_ref,
                 live_target_revision=live_target_revision,
+                repo_root=root,
+                promotion_stage=SEALED_STAGE,
             )
             if artifact.base_revision != authorization.live_target_revision:
                 raise PromotionAuthorizationError(

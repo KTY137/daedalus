@@ -406,8 +406,15 @@ def _git_env() -> dict:
 
     ``GIT_EXTERNAL_DIFF`` and friends are dropped rather than emptied: an empty
     value for some of these is a *valid command*, not an absence.
+
+    Promotion secrets are stripped first (Phase-0 case A9a, MEASURED: a plain
+    child of the verifier read ``DAEDALUS_OWNER_APPROVAL_SECRET_CANARY``
+    verbatim out of an inherited environment). Git has no use for one, and a
+    hook or a ``filter.*`` command git spawns is a child like any other.
     """
-    env = dict(os.environ)
+    from daedalus.kernel.promotion_trust_root import scrubbed_child_env
+
+    env = scrubbed_child_env()
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_CONFIG_GLOBAL"] = os.devnull
     env["GIT_ATTR_NOSYSTEM"] = "1"
@@ -862,7 +869,15 @@ def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
        and exactly that one handle is allowlisted into the child. See
        :mod:`daedalus.spine.containment` for what was measured about each of
        those words.
+    4. NO PROMOTION SECRET REACHES THE CHILD. Phase-0 case A9a measured a plain
+       child reading ``DAEDALUS_OWNER_APPROVAL_SECRET_CANARY`` straight out of
+       an inherited environment. This is the process that runs CANDIDATE CODE,
+       so it is the one child for which that leak is not a hypothetical: a
+       candidate that can read the approval secret can mint the approval for
+       its own promotion. The D5 root needs no secret to verify, and after this
+       neither does anything the child can see.
     """
+    from daedalus.kernel.promotion_trust_root import scrubbed_child_env
     from daedalus.spine import containment
 
     containment.label_low_integrity(worktree)
@@ -873,7 +888,7 @@ def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
 
     log = containment.open_low_append_log(out_path)
     try:
-        env = dict(os.environ)
+        env = scrubbed_child_env()
         env["TEMP"] = env["TMP"] = str(low_temp)
         proc = containment.spawn_contained(
             argv, cwd=worktree, env=env, log=log,

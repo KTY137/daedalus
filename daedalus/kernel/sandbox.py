@@ -212,6 +212,29 @@ def _receipt(
     )
 
 
+#: Substrings the Docker CLI prints when it cannot reach an engine at all.
+#: Matched case-insensitively against stderr, and only when the exit code is
+#: non-zero, so a container whose own output happens to contain one of these
+#: phrases still classifies as a completed attempt.
+_ENGINE_UNREACHABLE_MARKERS = (
+    "cannot connect to the docker daemon",
+    "error during connect",
+    "the system cannot find the file specified",
+    "docker daemon is not running",
+    "open //./pipe/docker_engine",
+    "dial unix /var/run/docker.sock",
+    "is the docker daemon running",
+)
+
+
+def _engine_unreachable(stderr: bytes | None) -> bool:
+    """Did the CLI fail because no engine answered, rather than the command?"""
+    if not stderr:
+        return False
+    text = stderr.decode("utf-8", "replace").lower()
+    return any(marker in text for marker in _ENGINE_UNREACHABLE_MARKERS)
+
+
 def run_in_docker_sandbox(
     policy: DockerSandboxPolicy,
     command: Iterable[str],
@@ -281,6 +304,27 @@ def run_in_docker_sandbox(
             stderr=proc.stderr,
             launch_state="refused-before-start",
             error_code="docker-cli-refused",
+        )
+    if proc.returncode != 0 and _engine_unreachable(proc.stderr):
+        # Phase-0 case A9c1, MEASURED: with the Docker engine pipe absent, the
+        # CLI exits 1 -- not 125 -- and this function classified that as a
+        # COMPLETED attempt with returncode 1. An attempt that never started is
+        # not an attempt that failed: the difference decides whether a fault
+        # receipt is evidence about the candidate or evidence about the host,
+        # and treating "no engine" as a completed run lets an unreachable
+        # sandbox read as a real isolated execution.
+        #
+        # ``returncode=None`` is required, not cosmetic: the receipt schema
+        # already says a refused receipt "must not represent an attempt
+        # result", and the CLI's exit 1 is the CLI's, not the container's.
+        return _receipt(
+            argv,
+            returncode=None,
+            timed_out=False,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+            launch_state="refused-before-start",
+            error_code="runtime-engine-unreachable",
         )
     return _receipt(
         argv,
