@@ -1,3 +1,5 @@
+> **TOMBSTONE (2026-08-22).** Era-3 snapshot, kept as history at this path; the live architecture is [docs/architecture-narrative.md](architecture-narrative.md) + [docs/architecture-state.json](architecture-state.json), under [the master plan](IKARUS_ARIADNE_MASTER_PLAN.md). Era-3 context: [docs/ERA3_PLAN.md](ERA3_PLAN.md).
+
 # Daedalus — Architecture
 
 *A deep summary: what it is, how it's built, what it can do today, and what it's

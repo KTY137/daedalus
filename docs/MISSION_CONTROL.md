@@ -1,3 +1,5 @@
+> **TOMBSTONE (2026-08-22).** The surface described here is DEAD, not shipped: `dashboardHtml` in the VS Code extension has no callers and is pinned as unreachable by `tests/test_ui_governance.py::test_dead_mission_control_template_is_labelled_not_believed`. Kept at this path, unmerged, as the record of what it was; the live webview renders `agentOsHtml`. Do not read it as a feature list.
+
 # Mission Control v1
 
 Mission Control is a tabbed VS Code dashboard that provides real-time visibility into multi-agent orchestration, queue state, and resource health across all active projects.
