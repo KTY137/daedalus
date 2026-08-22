@@ -1190,36 +1190,23 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
     # Repository-mutation tier of the effect-boundary inventory.  The scanner
     # can never infer repository_mutation (git argv), so it is hand-declared
     # here; the discovered fs-write/spawn effects stay declared alongside.
-    EntrypointSpec(
-        id="tools.iron_plan_guard",
-        surface=Surface.CLI,
-        target="tools.iron_plan_guard:main",
-        effects=(
-            Effect.FILESYSTEM_WRITE,
-            Effect.PROCESS_SPAWN,
-            Effect.REPOSITORY_MUTATION,
-        ),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes=(
-            "The plan guard itself: runs git plumbing and installs/serves the "
-            "commit hooks. Protected policy artifact -- this row inventories it "
-            "without touching the target. SHARPENED REMAINDER 2026-08-18: two "
-            "reasons, and the second outlives the first. (1) The target is a "
-            "protected artifact; an ordinary task may not edit it at all, only "
-            "an owner-approved amendment may. (2) Even with that permission it "
-            "should not be wired: this guard is one of the mechanisms that "
-            "keeps the registry itself honest, so routing its start through "
-            "the registry would be a sluice before the sluice -- a refusal "
-            "here disables the very check that detects tampering, i.e. the "
-            "protection path would fail closed into being absent. It would "
-            "also make the guard depend at runtime on the module it exists to "
-            "protect. CONDITION UNDER WHICH IT FALLS: only an owner-approved "
-            "amendment (section 15) that first resolves the circular "
-            "dependency -- e.g. by giving the guard a boundary that cannot "
-            "veto it, only receipt it."
-        ),
-    ),
+    #
+    # RETIRED 2026-08-22, one row removed from this tier: ``tools.iron_plan_guard``
+    # (target ``tools.iron_plan_guard:main``, effects filesystem_write +
+    # process_spawn + repository_mutation, wiring inventory_only).  Commit
+    # 79825b57 -- "unify(2026-08-22): main is the g0 trunk, the iron guard is
+    # retired by owner decision" -- DELETED ``tools/iron_plan_guard.py``, and a
+    # registry row whose target no longer exists is a false door: it reads as
+    # coverage of a mechanism nobody can run, and ``check_conformance`` reported
+    # it as a permanent ``registry.target_missing`` blocker that no amount of
+    # correct wiring could clear.  The removal is not a weakening: the door it
+    # inventoried is gone, so there is nothing left to inventory.  Its long note
+    # (protected artifact; "a sluice before the sluice"; the guard must not
+    # depend at runtime on the module it exists to protect) survives in git
+    # history at 57a2e7cb and is the record to read if an owner-approved
+    # amendment ever restores a plan guard -- a restored guard needs a NEW row,
+    # argued from scratch, not this one resurrected.  The tier is now four
+    # git-touching tool entrypoints, not five.
     EntrypointSpec(
         id="tools.gate_discrimination",
         surface=Surface.CLI,
@@ -1387,28 +1374,18 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         ),
         migration="complete for the tools.run_gate_checks entrypoint",
     ),
-    EntrypointSpec(
-        id="tools.iron_plan_hook_runner",
-        surface=Surface.CLI,
-        target="tools.iron_plan_hook_runner:main",
-        effects=(Effect.PROCESS_SPAWN,),
-        guard_contracts=(),
-        wiring=Wiring.INVENTORY_ONLY,
-        notes=(
-            "Hook shim that re-executes the plan guard. Protected policy "
-            "artifact -- this row inventories it without touching the target. "
-            "SHARPENED REMAINDER 2026-08-18: inherits both of "
-            "tools.iron_plan_guard's reasons (protected artifact; sluice "
-            "before the sluice) and adds a third specific to a hook shim. Its "
-            "single effect is re-executing the guard from a git hook. A "
-            "boundary that can refuse would, on refusal, stop the hook from "
-            "running the guard -- so a failure here does not block a risky "
-            "commit, it silently stops checking commits. That is fail-open on "
-            "the protection path, dressed as a guarded start. CONDITION UNDER "
-            "WHICH IT FALLS: same owner-approved amendment as the guard, and "
-            "only with a non-vetoing (receipt-only) boundary."
-        ),
-    ),
+    # RETIRED 2026-08-22, second of the two plan-guard rows removed in this
+    # sweep: ``tools.iron_plan_hook_runner`` (target
+    # ``tools.iron_plan_hook_runner:main``, effects process_spawn, wiring
+    # inventory_only).  Same cause as ``tools.iron_plan_guard`` above -- commit
+    # 79825b57 deleted ``tools/iron_plan_hook_runner.py`` by owner decision, so
+    # ``check_conformance`` reported a second permanent
+    # ``registry.target_missing`` blocker.  Its note argued a third reason
+    # beyond the guard's two: a refusable boundary in front of a hook shim
+    # fails OPEN on the protection path (a refusal there does not block a risky
+    # commit, it silently stops checking commits).  That argument is worth
+    # re-reading in git history at 57a2e7cb before any future hook shim is
+    # wired, but it describes a file that no longer exists.
     EntrypointSpec(
         id="tools.system_check",
         surface=Surface.CLI,

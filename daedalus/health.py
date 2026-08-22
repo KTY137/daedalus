@@ -1340,12 +1340,43 @@ def _hand_host(host: str | None = None) -> str:
 HandState = namedtuple("HandState", "state detail host")
 
 
+def hand_admission(host: str | None = None) -> tuple[bool, str, str]:
+    """May this process open a socket to the Hand's endpoint at all?
+
+    THE DECISION IS NOT TAKEN HERE. It delegates to
+    :func:`daedalus.providers.ollama.ollama_endpoint_admission`, the one
+    implementation of "may bytes reach this endpoint" for everything that
+    speaks the Ollama HTTP transport — ``lane_for_host`` plus exact-endpoint
+    operator consent via ``DAEDALUS_OLLAMA_REMOTE_OK``. ``ikarus_os``'s
+    ``_egress_decision`` and ``memory.embeddings`` already call it; a second
+    copy of that answer living in the health module would be free to drift, and
+    the drift would be silent in exactly the direction that matters (health
+    says "reachable" about a host the write lane refuses, or the reverse).
+
+    Returns the admission tuple unchanged: ``(allowed, lane, why)``.
+
+    Imported inside the function, not at module top: ``daedalus.providers``
+    pulls the provider stack in, and ``health`` must stay importable — and
+    answerable — on a machine where that stack is broken. A health module that
+    cannot load because the thing it reports on is sick is the one failure mode
+    it may not have.
+    """
+    from .providers.ollama import ollama_endpoint_admission
+
+    return ollama_endpoint_admission(_hand_host(host))
+
+
 def hand_state(host: str | None = None, timeout_s: float = 4.0) -> HandState:
     """Is the tool-bearing local executor there, in the five-word vocabulary?
 
     Composed from :func:`_ollama_alive`, never a second liveness check.
 
       ``working``  it answered ``/api/version`` just now — MEASURED, this call
+      ``degraded`` the endpoint was REFUSED before connect by
+                   ``provider.egress_policy`` (see :func:`hand_admission`).
+                   Nothing left this process, so nothing is known about whether
+                   the executor is up; what IS known is that ``OLLAMA_HOST``
+                   names a host this machine may not speak to.
       ``absent``   a definitive rejection from a known endpoint (refused,
                    unreachable, no route). That is evidence, not an absence of
                    evidence, exactly as ``_embed_probe`` already treats a failed
@@ -1354,10 +1385,37 @@ def hand_state(host: str | None = None, timeout_s: float = 4.0) -> HandState:
                    about whether the executor exists, only that we did not find
                    out. ``unknown`` is never ``absent`` and never green.
 
-    ``present``/``degraded`` are not producible here on purpose: this asks one
-    yes/no question and has no way to observe a half-working executor.
+    ``present`` is not producible here on purpose: this asks one yes/no
+    question and has no way to observe a half-working executor.
+
+    WHY ``degraded`` AND NOT A RAISE, AND NOT ``absent``. This module is
+    read-only status; every probe answers a question and none of them may
+    become the reason a caller crashes, so the refusal is a state, never an
+    exception. It is not ``absent`` because ``absent`` is a claim ABOUT THE
+    EXECUTOR ("nothing answers there"), and a refused probe never asked — the
+    executor may be perfectly healthy behind a host nobody consented to. It is
+    not ``unknown`` either: ``unknown`` means the check could not conclude,
+    while this check concluded firmly and the conclusion is a policy refusal an
+    operator can act on. ``degraded`` is also the only one of the three that
+    :func:`verdict` scores as EXIT_BAD regardless of ``required``, which is
+    right: a misconfigured egress lane is a fault, not a legitimate shape.
+
+    Ordering is load-bearing: admission runs BEFORE :func:`_ollama_alive`, so a
+    disallowed host reaches no ``urlopen`` and opens no socket. A check that
+    connects first and judges after has already leaked the thing it refuses.
     """
     resolved = _hand_host(host)
+    allowed, lane, why = hand_admission(resolved)
+    if not allowed:
+        # The deny receipt, in the shape the embedding backend's refusal uses:
+        # contract, host, lane, evidence, and the fact that no connection was
+        # made -- a refusal whose host a reader cannot see is one nobody can fix.
+        return HandState(
+            DEGRADED,
+            f"refused before connect by provider.egress_policy "
+            f"(host={resolved!r}, lane={lane}, connected=false): {why}",
+            resolved,
+        )
     alive, detail, kind = _ollama_alive(resolved, timeout_s)
     if alive:
         return HandState(WORKING, detail, resolved)
@@ -1379,6 +1437,24 @@ def _p_hand_executor(ctx: Ctx) -> Report:
     facts = [measured("host", st.host), measured("/api/version", st.detail)]
     if st.state == WORKING:
         return working("hand.executor", f"the executor answers at {st.host}", facts)
+    if st.state == DEGRADED:
+        # A refusal must not print as `absent`. `absent` says "nothing answers
+        # there"; this probe never asked, and the executor behind that host may
+        # be perfectly healthy. Reporting the refusal as absence would send the
+        # operator to `ollama serve` for a problem that lives in OLLAMA_HOST.
+        return degraded(
+            "hand.executor",
+            f"the egress policy refused {st.host} before connect, so this "
+            f"probe opened no socket and knows nothing about the executor",
+            facts,
+            remedy=(
+                "either point OLLAMA_HOST at this machine, or name that exact "
+                "endpoint in DAEDALUS_OLLAMA_REMOTE_OK (a HOST, never =1) to "
+                "declare the egress lane. Until one of those, every ollama "
+                "lane in this process refuses the same host for the same "
+                "reason -- this probe is not the only thing being stopped"
+            ),
+        )
     if st.state == UNKNOWN:
         return unknown("hand.executor",
                        f"the check could not conclude: {st.detail}", facts,
