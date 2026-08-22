@@ -1,0 +1,607 @@
+{
+  "schema": "atalanta.ignition.blocker/1",
+  "lane": "ATALANTA-IGNITION",
+  "mission_item": "Q4 Ignition (docs/missions/MISSION_2026-08-22.md)",
+  "written_at": "2026-08-22T10:15:00Z",
+  "provenance": "MEASURED",
+  "source_sha": "9887a98ecd74d49ba7f78df0553ad485c2afbd32",
+  "source_sha_note": "HEAD of agent_env_g0/main captured immediately before run 1; other lanes commit concurrently, so HEAD had already moved by the time this file was written. The runs themselves used the tree at this sha.",
+  "command": "PYTHONPATH=C:/Users/nukei/Desktop/agent_env_g0 python <scratchpad>/atalanta-ignition-wrapper.py --trace <trace>.jsonl -- --repo-root C:/Users/nukei/Desktop/agent_env_g0 --arm --max-iterations 1 --max-attempts-per-candidate 1 --max-wall-clock-s 1200 --max-spend-usd 0.25 --queue-limit 5 --json",
+  "entrypoint_note": "`daedalus loop` DOES NOT EXIST as a subcommand: `python -m daedalus.cli --help` lists no `loop` verb and daedalus/cli.py contains no loop dispatch. The only loop entrypoint is `python -m daedalus.loop` (daedalus/loop.py:1222 main / :1302 __main__ tail). This is the same gap the mission records as Q3.2.",
+  "loop_invocations": 2,
+  "guard_install_events": 4,
+  "picker_calls": 2,
+  "attempted_work_count": 2,
+  "wall_seconds": {
+    "run1": 226.625,
+    "run2": 173.563,
+    "stamp": "MEASURED-UNDER-LOAD",
+    "load_note": "12 python.exe and 31 node.exe processes were live on the box at measurement time (five other lanes). These are NOT performance numbers."
+  },
+  "audit_events": {
+    "run1_total": 132877,
+    "run2_total": 119026,
+    "run1_effect_records": 5912,
+    "run2_effect_records": 5892,
+    "run1_names": {
+      "builtins.id": 119186,
+      "os.remove": 5521,
+      "open": 2778,
+      "exec": 1354,
+      "os.scandir": 1314,
+      "compile": 1210,
+      "import": 313,
+      "os.rmdir": 287,
+      "marshal.loads": 260,
+      "object.__getattr__": 223,
+      "object.__setattr__": 145,
+      "os.mkdir": 42,
+      "_winapi.CreatePipe": 40,
+      "msvcrt.open_osfhandle": 40,
+      "sys._getframe": 34,
+      "os.listdir": 31,
+      "subprocess.Popen": 20,
+      "_winapi.CreateProcess": 20,
+      "ctypes.dlsym": 14,
+      "pathlib.Path.glob": 12,
+      "msvcrt.locking": 10,
+      "os.rename": 6,
+      "marshal.dumps": 3,
+      "sqlite3.connect": 3,
+      "sqlite3.connect/handle": 3,
+      "ctypes.dlopen": 2,
+      "os.link": 2,
+      "os.putenv": 1,
+      "pathlib.Path.rglob": 1,
+      "os.walk": 1,
+      "os.unsetenv": 1
+    },
+    "first_20_run1": [
+      {
+        "seq": 1,
+        "mono": 0.0,
+        "kind": "marker",
+        "event": "wrapper.hook_installed",
+        "detail": {
+          "pid": 5496,
+          "argv": [
+            "--repo-root",
+            "C:/Users/nukei/Desktop/agent_env_g0",
+            "--arm",
+            "--max-iterations",
+            "1",
+            "--max-attempts-per-candidate",
+            "1",
+            "--max-wall-clock-s",
+            "1200",
+            "--max-spend-usd",
+            "0.25",
+            "--queue-limit",
+            "5",
+            "--json"
+          ]
+        }
+      },
+      {
+        "seq": 2,
+        "mono": 0.0,
+        "kind": "marker",
+        "event": "wrapper.import_begin",
+        "detail": {
+          "module": "daedalus.loop"
+        }
+      },
+      {
+        "seq": 3,
+        "mono": 0.64,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc.2644389124784",
+          "mode": "None"
+        }
+      },
+      {
+        "seq": 4,
+        "mono": 0.656,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "4",
+          "mode": "wb"
+        }
+      },
+      {
+        "seq": 5,
+        "mono": 0.656,
+        "kind": "effect",
+        "event": "os.rename",
+        "detail": [
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc.2644389124784",
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc",
+          "-1",
+          "-1"
+        ]
+      },
+      {
+        "seq": 6,
+        "mono": 1.187,
+        "kind": "marker",
+        "event": "wrapper.import_end",
+        "detail": {
+          "daedalus_file": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__init__.py",
+          "loop_file": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\loop.py"
+        }
+      },
+      {
+        "seq": 7,
+        "mono": 1.203,
+        "kind": "marker",
+        "event": "loop.main:enter",
+        "detail": {
+          "argv": [
+            "--repo-root",
+            "C:/Users/nukei/Desktop/agent_env_g0",
+            "--arm",
+            "--max-iterations",
+            "1",
+            "--max-attempts-per-candidate",
+            "1",
+            "--max-wall-clock-s",
+            "1200",
+            "--max-spend-usd",
+            "0.25",
+            "--queue-limit",
+            "5",
+            "--json"
+          ]
+        }
+      },
+      {
+        "seq": 8,
+        "mono": 1.312,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc.2644393102912",
+          "mode": "None"
+        }
+      },
+      {
+        "seq": 9,
+        "mono": 1.312,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "4",
+          "mode": "wb"
+        }
+      },
+      {
+        "seq": 10,
+        "mono": 1.312,
+        "kind": "effect",
+        "event": "os.rename",
+        "detail": [
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc.2644393102912",
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc",
+          "-1",
+          "-1"
+        ]
+      },
+      {
+        "seq": 11,
+        "mono": 1.344,
+        "kind": "marker",
+        "event": "guard.install_process_guard:enter",
+        "detail": {
+          "call": 1
+        }
+      },
+      {
+        "seq": 12,
+        "mono": 1.344,
+        "kind": "marker",
+        "event": "guard.install_process_guard:exit",
+        "detail": {
+          "returned": "<function uninstall_process_guard at 0x00000267B1E10790>"
+        }
+      },
+      {
+        "seq": 13,
+        "mono": 1.344,
+        "kind": "marker",
+        "event": "guard.install_process_guard:enter",
+        "detail": {
+          "call": 2
+        }
+      },
+      {
+        "seq": 14,
+        "mono": 1.344,
+        "kind": "marker",
+        "event": "guard.install_process_guard:exit",
+        "detail": {
+          "returned": "<function uninstall_process_guard at 0x00000267B1E10790>"
+        }
+      },
+      {
+        "seq": 15,
+        "mono": 1.515,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\providers\\__pycache__\\ollama.cpython-310.pyc.2644393178528",
+          "mode": "None"
+        }
+      },
+      {
+        "seq": 16,
+        "mono": 1.515,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "4",
+          "mode": "wb"
+        }
+      },
+      {
+        "seq": 17,
+        "mono": 1.515,
+        "kind": "effect",
+        "event": "os.rename",
+        "detail": [
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\providers\\__pycache__\\ollama.cpython-310.pyc.2644393178528",
+          "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\providers\\__pycache__\\ollama.cpython-310.pyc",
+          "-1",
+          "-1"
+        ]
+      },
+      {
+        "seq": 18,
+        "mono": 2.453,
+        "kind": "effect",
+        "event": "os.mkdir",
+        "detail": [
+          "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4",
+          "511",
+          "-1"
+        ]
+      },
+      {
+        "seq": 19,
+        "mono": 2.469,
+        "kind": "effect",
+        "event": "open:write",
+        "detail": {
+          "path": "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\killswitch.143ccdc8.tmp",
+          "mode": "w"
+        }
+      },
+      {
+        "seq": 20,
+        "mono": 2.469,
+        "kind": "effect",
+        "event": "os.rename",
+        "detail": [
+          "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\killswitch.143ccdc8.tmp",
+          "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\killswitch",
+          "-1",
+          "-1"
+        ]
+      }
+    ]
+  },
+  "guard_ordering": {
+    "question": "does install_process_guard precede every effect in the process?",
+    "run1": {
+      "guard_enter_seq": 11,
+      "effects_total": 5912,
+      "effects_before_guard": 6,
+      "effects_before_guard_records": [
+        {
+          "seq": 3,
+          "mono": 0.64,
+          "t": "2026-08-22T10:01:11.291068+00:00",
+          "kind": "effect",
+          "event": "open:write",
+          "detail": {
+            "path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc.2644389124784",
+            "mode": "None"
+          }
+        },
+        {
+          "seq": 4,
+          "mono": 0.656,
+          "t": "2026-08-22T10:01:11.314970+00:00",
+          "kind": "effect",
+          "event": "open:write",
+          "detail": {
+            "path": "4",
+            "mode": "wb"
+          }
+        },
+        {
+          "seq": 5,
+          "mono": 0.656,
+          "t": "2026-08-22T10:01:11.314970+00:00",
+          "kind": "effect",
+          "event": "os.rename",
+          "detail": [
+            "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc.2644389124784",
+            "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\__pycache__\\loop.cpython-310.pyc",
+            "-1",
+            "-1"
+          ]
+        },
+        {
+          "seq": 8,
+          "mono": 1.312,
+          "t": "2026-08-22T10:01:11.969343+00:00",
+          "kind": "effect",
+          "event": "open:write",
+          "detail": {
+            "path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc.2644393102912",
+            "mode": "None"
+          }
+        },
+        {
+          "seq": 9,
+          "mono": 1.312,
+          "t": "2026-08-22T10:01:11.969343+00:00",
+          "kind": "effect",
+          "event": "open:write",
+          "detail": {
+            "path": "4",
+            "mode": "wb"
+          }
+        },
+        {
+          "seq": 10,
+          "mono": 1.312,
+          "t": "2026-08-22T10:01:11.971378+00:00",
+          "kind": "effect",
+          "event": "os.rename",
+          "detail": [
+            "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc.2644393102912",
+            "C:\\Users\\nukei\\Desktop\\agent_env_g0\\daedalus\\spine\\__pycache__\\effect_boundary.cpython-310.pyc",
+            "-1",
+            "-1"
+          ]
+        }
+      ]
+    },
+    "run2": {
+      "guard_enter_seq": 5,
+      "effects_total": 5892,
+      "effects_before_guard": 0,
+      "effects_before_guard_records": []
+    },
+    "verdict": "YES for every daedalus-authored effect in both runs. Run 1's six pre-guard effects are CPython's own __pycache__ bytecode writes during `import daedalus.loop`; run 2, importing warm, had zero. No daedalus code path produced an effect before the guard in either run.",
+    "counterexample_measured": {
+      "where": "daedalus/loop.py:1232-1245",
+      "what": "main() calls _load_dotenv() BEFORE install_process_guard(), by documented intent. A control run of the SAME wrapper against the sibling checkout C:/Users/nukei/Desktop/agent_env -- which HAS a `.env` -- recorded subprocess.Popen(['git','ls-files','--error-unmatch','.env']) at seq 5, one event BEFORE the guard at seq 6.",
+      "why_g0_was_clean": "agent_env_g0 has no `.env`, so that branch never ran.",
+      "claim_bound": "'guard precedes every effect' is therefore TRUE for this tree as configured and FALSE in general: add a `.env` to agent_env_g0 and one process spawn moves ahead of the guard."
+    },
+    "guard_called_twice": {
+      "count": 2,
+      "sites": [
+        "daedalus/loop.py:1246 (main)",
+        "daedalus/budget.py:1297 (the contract module's own guard evidence helper, reached during driver construction)"
+      ],
+      "note": "install_process_guard is documented idempotent; both calls returned the same uninstall_process_guard function object."
+    }
+  },
+  "first_failure": {
+    "kind": "refusal_return_value",
+    "exception_type": null,
+    "exception_note": "NO Python exception was raised in either run; both exited 0. The failure is a refusal returned as a value, which is why an exception-shaped field would be a false report.",
+    "message": "effect_lease_required -- 'refusing live offload without a persisted Effect Lease and exact execution request for python.offload'",
+    "file_line": "daedalus/offload.py:745-752",
+    "caller_file_line": "daedalus/kairos/scheduler.py:185",
+    "caller_source": "res = offload(a.objective, repo_root, a.paths, live=True, availability=avail, project=self.project, isolate_paths=isolate)",
+    "chain": [
+      "daedalus/loop.py LoopDriver.run -> build_exec.WaveExecutor.run_wave",
+      "-> daedalus/kairos/scheduler.py:185 _run_one calls offload(live=True) with NO effect_authorization= and NO effect_execution=",
+      "-> daedalus/offload.py:745 returns {'action': 'effect_lease_required', 'wrote': []}",
+      "-> the runner produced no change; the write gate rejects with status 'write_gate_failed', reason 'the runner produced no change to gate'",
+      "-> artifact_sha256 e3b0c442...b855 == sha256 of the EMPTY blob, i.e. an empty candidate patch was content-addressed and held"
+    ],
+    "structural_evidence": "`grep -rn 'effect_authorization=' daedalus/ --include=*.py` returns ZERO production call sites. issue_effect_lease exists (daedalus/kernel/effects.py:337) and is reachable via daedalus/kernel/runtime_effects.py:253, but only tests construct leases (tests/kernel/test_leased_offload.py et al.). No production path can reach a live write through offload(). The blocker is structural, not candidate-specific."
+  },
+  "reproduced": true,
+  "reproduction_evidence": {
+    "run1": {
+      "run_id": "loop-20260822-120112-9179af",
+      "candidate_id": "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9",
+      "outcome": "no_change",
+      "status": "write_gate_failed",
+      "provider_receipt": {
+        "action": "effect_lease_required",
+        "wrote": []
+      },
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "duration_s": 207.016,
+      "spend_usd": 0.0
+    },
+    "run2": {
+      "run_id": "loop-20260822-120910-67510d",
+      "candidate_id": "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9",
+      "outcome": "no_change",
+      "status": "write_gate_failed",
+      "provider_receipt": {
+        "action": "effect_lease_required",
+        "wrote": []
+      },
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "duration_s": 159.89,
+      "spend_usd": 0.0
+    },
+    "identical_fields": [
+      "candidate_id",
+      "outcome",
+      "status",
+      "reason",
+      "lane",
+      "provider_receipt.action",
+      "artifact_sha256",
+      "promoted",
+      "spend_usd"
+    ]
+  },
+  "promotion_boundary": {
+    "promotion_allowed": false,
+    "mode": "nominating_locked",
+    "governance_state": "degraded",
+    "governance_verdict": "promotion is REFUSED: the gate was last shown to discriminate at fe634b58d3f7158ddcc2925f215ba2079989521f, but HEAD is 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c",
+    "promoted": 0,
+    "integration_branches": [],
+    "reading": "the loop ran pick -> attempt -> gate and promoted NOTHING; governance was already 'degraded' so mode was 'nominating_locked'. The owner-approval seal was never approached, let alone crossed.",
+    "stale_head_note": "governance_verdict names HEAD 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c while the real HEAD at run time was 9887a98ecd74d49ba7f78df0553ad485c2afbd32. The governance HEAD reading is stale or read from another source; worth a separate measurement, and it does not change the promotion outcome (locked either way)."
+  },
+  "receipts_written_by_the_product": [
+    "C:\\Users\\nukei\\Desktop\\agent_env_g0\\runs\\loop\\loop-20260822-120112-9179af.json",
+    "C:\\Users\\nukei\\Desktop\\agent_env_g0\\runs\\loop\\loop-20260822-120910-67510d.json"
+  ],
+  "audit_trace": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\runs\\loop\\ignition_trace_9887a98e.jsonl",
+  "audit_trace_note": "1.9 MB; 5521 of its 5912 effect records are os.remove calls from the isolated attempt worktree teardown under %LOCALAPPDATA%/daedalus/worktrees/. Filter kind=='marker' for the twelve-line skeleton.",
+  "loop_report_run1": {
+    "schema": "daedalus.loop.report/2",
+    "run_id": "loop-20260822-120112-9179af",
+    "trace_id": "tr-20260822T120112-b9151b3f",
+    "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env_g0",
+    "project": null,
+    "bounds": {
+      "max_iterations": 1,
+      "max_wall_clock_s": 1200.0,
+      "max_spend_usd": 0.25,
+      "max_attempts_per_candidate": 1
+    },
+    "dry_run": false,
+    "mode": "nominating_locked",
+    "promotion_allowed": false,
+    "governance_state": "degraded",
+    "governance_verdict": "promotion is REFUSED: the gate was last shown to discriminate at fe634b58d3f7158ddcc2925f215ba2079989521f, but HEAD is 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c",
+    "stop_reason": "max_iterations",
+    "stop_detail": "1 iteration(s) completed, bound is 1",
+    "iterations_run": 1,
+    "gated_clean": 0,
+    "promoted": 0,
+    "integration_branches": [],
+    "iterations": [
+      {
+        "index": 0,
+        "candidate_id": "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9",
+        "instruction": "docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md contains 3 reference(s) to code that does not exist in this tree. Correct the PROSE to match the tree, or correct the reference to name what the code is actually called now.\n\nEvery sentence, paragraph and file must SURVIVE the edit: the verifier counts the RESOLVING references before it judges the broken one, so a withdrawn claim lowers that count and fails the gate. Correcting the wording is the only accepted move -- a statement that quietly vanishes is treated as evidence destroyed, not as a fix.\n\nBroken references:\n  line 37: render.StatusWord  -- daedalus/mapping/render.py defines no 'StatusWord'\n  line 37: gated_writes._artifact_root_functions  -- daedalus/kairos/gated_writes.py defines no '_artifact_root_functions'\n  line 48: daedalus/kairos/gated_writes.py::_PromotionLock  -- daedalus/kairos/gated_writes.py defines no '_PromotionLock'",
+        "source": "docref",
+        "score": 512.0,
+        "outcome": "no_change",
+        "status": "write_gate_failed",
+        "promoted": false,
+        "reason": "the runner produced no change to gate",
+        "lane": "ollama",
+        "worker": "Lucia",
+        "model": "",
+        "provider_receipt": {
+          "action": "effect_lease_required",
+          "wrote": []
+        },
+        "artifact_path": "C:\\Users\\nukei\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\artifacts\\2ea46e496ce4\\patches\\blobs\\sha256\\e3\\b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "attempt_task_ids": [
+          "kairos-ollama-91cda39572"
+        ],
+        "integration_branch": null,
+        "duration_s": 207.016,
+        "spend_usd": 0.0,
+        "counted": true,
+        "dry_run": false,
+        "claimed_paths": [],
+        "claim_basis": "declared"
+      }
+    ],
+    "skipped": [],
+    "notes": [
+      "NOMINATING WITH PROMOTION LOCKED: governance state='degraded' blocks promotion. This loop still picks, attempts, gates, and persists clean candidate artifacts; it never promotes them. Verdict: promotion is REFUSED: the gate was last shown to discriminate at fe634b58d3f7158ddcc2925f215ba2079989521f, but HEAD is 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c"
+    ],
+    "started_ts": "2026-08-22T10:01:13.556692+00:00",
+    "finished_ts": "2026-08-22T10:04:58.466993+00:00",
+    "wall_clock_s": 224.812,
+    "spend_usd": 0.0,
+    "ledger_path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\runs\\loop\\loop-20260822-120112-9179af.json",
+    "killswitch_path": "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\killswitch"
+  },
+  "loop_report_run2": {
+    "schema": "daedalus.loop.report/2",
+    "run_id": "loop-20260822-120910-67510d",
+    "trace_id": "tr-20260822T120910-342fdf76",
+    "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env_g0",
+    "project": null,
+    "bounds": {
+      "max_iterations": 1,
+      "max_wall_clock_s": 1200.0,
+      "max_spend_usd": 0.25,
+      "max_attempts_per_candidate": 1
+    },
+    "dry_run": false,
+    "mode": "nominating_locked",
+    "promotion_allowed": false,
+    "governance_state": "degraded",
+    "governance_verdict": "promotion is REFUSED: the gate was last shown to discriminate at fe634b58d3f7158ddcc2925f215ba2079989521f, but HEAD is 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c",
+    "stop_reason": "max_iterations",
+    "stop_detail": "1 iteration(s) completed, bound is 1",
+    "iterations_run": 1,
+    "gated_clean": 0,
+    "promoted": 0,
+    "integration_branches": [],
+    "iterations": [
+      {
+        "index": 0,
+        "candidate_id": "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9",
+        "instruction": "docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md contains 3 reference(s) to code that does not exist in this tree. Correct the PROSE to match the tree, or correct the reference to name what the code is actually called now.\n\nEvery sentence, paragraph and file must SURVIVE the edit: the verifier counts the RESOLVING references before it judges the broken one, so a withdrawn claim lowers that count and fails the gate. Correcting the wording is the only accepted move -- a statement that quietly vanishes is treated as evidence destroyed, not as a fix.\n\nBroken references:\n  line 37: render.StatusWord  -- daedalus/mapping/render.py defines no 'StatusWord'\n  line 37: gated_writes._artifact_root_functions  -- daedalus/kairos/gated_writes.py defines no '_artifact_root_functions'\n  line 48: daedalus/kairos/gated_writes.py::_PromotionLock  -- daedalus/kairos/gated_writes.py defines no '_PromotionLock'",
+        "source": "docref",
+        "score": 512.0,
+        "outcome": "no_change",
+        "status": "write_gate_failed",
+        "promoted": false,
+        "reason": "the runner produced no change to gate",
+        "lane": "ollama",
+        "worker": "Lucia",
+        "model": "",
+        "provider_receipt": {
+          "action": "effect_lease_required",
+          "wrote": []
+        },
+        "artifact_path": "C:\\Users\\nukei\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\artifacts\\2ea46e496ce4\\patches\\blobs\\sha256\\e3\\b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "attempt_task_ids": [
+          "kairos-ollama-b3ec61220a"
+        ],
+        "integration_branch": null,
+        "duration_s": 159.89,
+        "spend_usd": 0.0,
+        "counted": true,
+        "dry_run": false,
+        "claimed_paths": [],
+        "claim_basis": "declared"
+      }
+    ],
+    "skipped": [],
+    "notes": [
+      "NOMINATING WITH PROMOTION LOCKED: governance state='degraded' blocks promotion. This loop still picks, attempts, gates, and persists clean candidate artifacts; it never promotes them. Verdict: promotion is REFUSED: the gate was last shown to discriminate at fe634b58d3f7158ddcc2925f215ba2079989521f, but HEAD is 6225d3e4f1feeed6aa2d8e10db75cdaa8d82894c"
+    ],
+    "started_ts": "2026-08-22T10:09:12.479441+00:00",
+    "finished_ts": "2026-08-22T10:12:04.474510+00:00",
+    "wall_clock_s": 171.984,
+    "spend_usd": 0.0,
+    "ledger_path": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\runs\\loop\\loop-20260822-120910-67510d.json",
+    "killswitch_path": "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\killswitch"
+  },
+  "proposed_fix_NOT_APPLIED": {
+    "rule": "this lane never edits daedalus/ source; the diff is reported only",
+    "not_a_one_liner": "scheduler.py:185 needs a lease it cannot mint for itself -- issue_effect_lease requires an EffectLeaseRequest, a PolicyDecision, a lease_id, an issuer key id and an issuer secret. Handing scheduler._run_one the power to mint its own authorization would make the entrypoint discover its own capability, which is exactly what daedalus/offload.py's docstring forbids ('never discovers issuer secrets or mints its own lease from ambient configuration'). The lease must be threaded DOWN from whoever starts the attempt.",
+    "shape": "WaveExecutor.run_wave (daedalus/build_exec.py) acquires one python.offload lease + EffectExecutionRequest per attempt from the canonical issuer, passes it through Scheduler into _run_one, and _run_one forwards it: offload(..., live=True, effect_authorization=auth, effect_execution=req). The execution request must bind the COMPLETE declared effect set {FILESYSTEM_WRITE, PROCESS_SPAWN, NETWORK_EGRESS, SPEND} (daedalus/spine/effect_boundary.py:347-372) or offload returns effect_lease_refused instead."
+  },
+  "next_step_for_the_loop": "Thread one persisted python.offload Effect Lease from the attempt starter (build_exec.WaveExecutor.run_wave) through kairos.scheduler._run_one into offload(). Until that exists, EVERY loop iteration on this tree ends in no_change/write_gate_failed with an empty-blob artifact, at zero spend, no matter which candidate the picker returns."
+}

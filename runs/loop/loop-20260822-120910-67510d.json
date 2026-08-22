@@ -1,0 +1,53 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260822-120910-67510d.json",
+      "digest": {
+        "sha256": "45d1b2bfba956149e426a0bd0ebe620618ffd4c9be08df4b0e0a0da06f2131df"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-b3ec61220a"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260822T120910-342fdf76"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "the runner produced no change to gate",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "",
+            "provider_receipt": {
+              "action": "effect_lease_required",
+              "wrote": []
+            },
+            "artifact_path": "C:\\Users\\nukei\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\artifacts\\2ea46e496ce4\\patches\\blobs\\sha256\\e3\\b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260822T120910-342fdf76"
+  },
+  "trace_id": "tr-20260822T120910-342fdf76"
+}
