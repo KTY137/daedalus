@@ -1009,6 +1009,10 @@ class LoopDriver:
             repo_root=self.repo_root, project=self.project,
             waves=[Wave(index=0, tasks=[task])],
             slug=self.run_id, created="", max_workers=foreman.max_workers,
+            # THE LEASE AND THE SESSION NAME ONE MISSION. EffectBounds already
+            # carries run_id as its mission_id; letting the session derive its
+            # own would be a second name for the same run.
+            mission_id=self.run_id,
         )
 
     @staticmethod
@@ -1049,6 +1053,7 @@ class LoopDriver:
         # means "let run_wave choose the safe path", which is the gated,
         # isolated-worktree one. See WaveExecutor.run_wave's own error text.
         wave_kwargs: dict[str, Any] = {
+            "session": session,
             "dry_run": self.dry_run,
             "parallel": False,
             "cancel": self.switch,

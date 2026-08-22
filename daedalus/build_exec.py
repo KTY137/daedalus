@@ -280,6 +280,9 @@ class WaveResult:
     #: report carries the money actually spent NEXT TO the money that was
     #: authorised, instead of only the declaration.
     spend_envelope: dict[str, Any] | None = None
+    #: THE MISSION THIS WAVE SERVES (plan §7). Read off the session, which
+    #: binds it at construction, so a receipt and its rows cannot name two.
+    mission_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -288,7 +291,7 @@ class WaveResult:
             "landed_tasks": self.landed_tasks, "bounced_tasks": self.bounced_tasks,
             "forced_sequential_reason": self.forced_sequential_reason,
             "path_conflicts": self.path_conflicts, "results": self.results,
-            "spend_envelope": self.spend_envelope,
+            "spend_envelope": self.spend_envelope, "mission_id": self.mission_id,
         }
 
 
@@ -302,6 +305,7 @@ class BuildRunReport:
     waves: list[WaveResult] = field(default_factory=list)
     skipped_waves: list[int] = field(default_factory=list)   # already-terminal, skipped by resume
     snapshot_path: str | None = None
+    mission_id: str = ""
 
     def summary(self) -> dict[str, int]:
         return {
@@ -316,7 +320,7 @@ class BuildRunReport:
             "feature": self.feature, "slug": self.slug, "repo_root": self.repo_root,
             "dry_run": self.dry_run, "summary": self.summary(),
             "skipped_waves": self.skipped_waves, "snapshot_path": self.snapshot_path,
-            "waves": [w.to_dict() for w in self.waves],
+            "waves": [w.to_dict() for w in self.waves], "mission_id": self.mission_id,
         }
 
 
@@ -384,7 +388,8 @@ class WaveExecutor:
         already rely on throughout this file (and which run_wave length-checks
         after dispatch), so it introduces no new alignment assumption.
         """
-        out = [{"objective": t.objective, "paths": list(t.paths)} for t in wave.tasks]
+        out = [{"objective": t.objective, "paths": list(t.paths),
+                "work_item_id": t.work_item_id} for t in wave.tasks]
         for pos, gate in (curated_gates or {}).items():
             if gate and 0 <= int(pos) < len(out):
                 out[int(pos)]["gate"] = dict(gate)
@@ -444,6 +449,7 @@ class WaveExecutor:
 
     def _acquire_wave_lease(self, scheduler: KairosScheduler, wave: Wave,
                             assignments: list[Assignment], repo_root: str, *,
+                            session: Any = None,
                             task_dicts: list[dict[str, Any]],
                             attempt_id: str, gated: bool, has_writes: bool,
                             parallel: bool = False) -> Any:
@@ -531,8 +537,9 @@ class WaveExecutor:
         return acquire_wave_offload_lease(
             repo_root,
             source_revision=revision,
-            mission_id=(bounds.mission_id if bounds and bounds.mission_id
-                        else f"build-wave-{wave.index}"),
+            mission_id=(getattr(session, "mission_id", "")
+                        or (bounds.mission_id if bounds else "")
+                        or f"build-wave-{wave.index}"),
             attempt_id=attempt_id,
             # THE WAVE'S REAL CONCURRENCY, not its size. See
             # _wave_concurrency: `positions` is the issuer's name for the
@@ -710,7 +717,7 @@ class WaveExecutor:
                            "dry_run": dry_run})
 
     def run_wave(self, scheduler: KairosScheduler, wave: Wave, repo_root: str, *,
-                 dry_run: bool = True, parallel: bool = True,
+                 session: Any = None, dry_run: bool = True, parallel: bool = True,
                  cancel: Any = None,
                  curated_gates: Mapping[int, Mapping[str, Any]] | None = None
                  ) -> WaveResult:
@@ -812,7 +819,7 @@ class WaveExecutor:
         envelope = None
         if not dry_run:
             lease = self._acquire_wave_lease(
-                scheduler, wave, assignments, repo_root, task_dicts=tasks,
+                scheduler, wave, assignments, repo_root, session=session, task_dicts=tasks,
                 attempt_id=f"w{wave.index}-{nonce}",
                 gated=gated_write_wave, has_writes=has_writes,
                 parallel=wave_parallel)
@@ -829,8 +836,10 @@ class WaveExecutor:
                      "effect_lease": receipt}
                     for a in assignments
                 ]
-                for t in wave.tasks:
+                for pos, t in enumerate(wave.tasks):
                     t.mark("bounced")
+                    if pos < len(refused):
+                        refused[pos]["work_item"] = t.work_item_stamp()
                 return WaveResult(
                     index=wave.index, mode="lease_denied", dry_run=dry_run,
                     write_tasks=write_n, advisory_tasks=advisory_n,
@@ -838,7 +847,8 @@ class WaveExecutor:
                     forced_sequential_reason=(
                         "no python.offload Effect Lease was issued for this wave: "
                         + "; ".join(lease.reasons)),
-                    path_conflicts=conflicts, results=refused)
+                    path_conflicts=conflicts, results=refused,
+                    mission_id=getattr(session, "mission_id", ""))
 
             # ---- THE MONEY, RESERVED AT THE LEASE'S CEILING --------------- #
             # Immediately after the grant and before anything is dispatched,
@@ -861,8 +871,10 @@ class WaveExecutor:
                      "budget_refusal": spend_refusal["detail"]}
                     for a in assignments
                 ]
-                for t in wave.tasks:
+                for pos, t in enumerate(wave.tasks):
                     t.mark("bounced")
+                    if pos < len(refused):
+                        refused[pos]["work_item"] = t.work_item_stamp()
                 return WaveResult(
                     index=wave.index, mode="spend_denied", dry_run=dry_run,
                     write_tasks=write_n, advisory_tasks=advisory_n,
@@ -872,7 +884,8 @@ class WaveExecutor:
                         "budget ledger: " + spend_refusal["reason"]),
                     path_conflicts=conflicts, results=refused,
                     spend_envelope={"cap_usd": spend_refusal["cap_usd"],
-                                    "spent_usd": 0.0, "opened": False})
+                                    "spent_usd": 0.0, "opened": False},
+                    mission_id=getattr(session, "mission_id", ""))
 
         if not dry_run:
             for t in wave.tasks:
@@ -1117,6 +1130,8 @@ class WaveExecutor:
                 duration_s=elapsed, dry_run=dry_run,
                 gated=gated_write_wave, curated=bool(tasks[pos].get("gate")))
             if dry_run:
+                if isinstance(result, dict) and task.work_item_id:
+                    result.setdefault("work_item", task.work_item_stamp())
                 continue
             coarse = _task_status(str(result.get("status", "")))
             task.mark(coarse, result)
@@ -1144,6 +1159,7 @@ class WaveExecutor:
             landed_tasks=landed_n, bounced_tasks=bounced_n,
             forced_sequential_reason=forced_reason, path_conflicts=conflicts, results=raw,
             spend_envelope=spend_envelope,
+            mission_id=getattr(session, "mission_id", ""),
         )
 
     def run(self, session: BuildSession, *, repo_root: str | None = None,
@@ -1197,7 +1213,7 @@ class WaveExecutor:
             has_writes = any(a.accepted and a.mode == "write" for a in assignments)
             wave_parallel = bool(parallel_advisory and not has_writes)
 
-            result = self.run_wave(scheduler, wave, root, dry_run=dry_run, parallel=wave_parallel)
+            result = self.run_wave(scheduler, wave, root, session=session, dry_run=dry_run, parallel=wave_parallel)
             wave_results.append(result)
 
             if checkpoint_every_wave and not dry_run:
@@ -1225,6 +1241,7 @@ class WaveExecutor:
         return BuildRunReport(
             feature=session.feature, slug=session.slug, repo_root=root, dry_run=dry_run,
             waves=wave_results, skipped_waves=skipped, snapshot_path=snapshot_path,
+            mission_id=getattr(session, "mission_id", ""),
         )
 
 

@@ -59,6 +59,10 @@ UNCALLED_PRODUCERS = {
     # decides what to work on next. That hunk is delivered as an unapplied diff
     # because the picker is outside this change's edit boundary.
     "mission_contract_for_candidate": "picker call site delivered as a diff, not applied",
+    # The build path's mission. Its only honest call site is build_exec's wave
+    # runner, which is outside the vocabulary change's edit boundary; the hunk
+    # is delivered as a diff (HUNK 1) instead of applied.
+    "mission_contract_for_build_session": "build_exec call site delivered as a diff, not applied",
 }
 
 
