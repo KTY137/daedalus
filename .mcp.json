@@ -1,36 +1,42 @@
 {
   "mcpServers": {
     "serena": {
-      "command": "uvx",
+      "command": "C:/Users/nukei/.local/bin/serena.exe",
       "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
         "start-mcp-server",
         "--context",
-        "ide-assistant",
+        "claude-code",
         "--project",
-        "c:/Users/nukei/Desktop/agent_env"
+        "c:/Users/nukei/Desktop/agent_env_g0"
       ]
     },
     "playwright": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest"]
+      "args": [
+        "@playwright/mcp@latest"
+      ]
     },
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
     },
     "shadcn": {
       "command": "npx",
-      "args": ["-y", "shadcn@latest", "mcp"]
+      "args": [
+        "-y",
+        "shadcn@latest",
+        "mcp"
+      ]
     },
     "obsidian-vault": {
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "C:/Users/nukei/Desktop/agent_env/vault"
+        "C:/Users/nukei/Desktop/agent_env_g0/vault"
       ]
     }
   }
