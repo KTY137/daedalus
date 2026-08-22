@@ -25,3 +25,22 @@ PY
 Then `python -m daedalus.spine.killswitch status` should report the new path
 and `read_state` must see a STOP written by another process (the verifier
 checks that itself).
+
+## Second owner action: the sealed lease hand-down patch
+
+`docs/decisions-pending/gated_writes_lease_handdown.patch` (8 hunks, pin
+e7acc630271146c4d84b9643a2047f0bb7960c8f) threads the wave's Effect Lease
+into the offload call inside the sealed write path and adds the governance
+head check there. Odysseus 2026-08-22: APPLY-WITH-FIX, preconditions fe716cb0
+and f7d51056 both landed; refuted that it leaks the lease to candidate code.
+The harness classifier refused to let an agent touch the sealed source. Run:
+
+```powershell
+git apply -p1 docs/decisions-pending/gated_writes_lease_handdown.patch
+git hash-object daedalus/kairos/_gated_writes_legacy.py.src   # must print e7acc630271146c4d84b9643a2047f0bb7960c8f
+# then set _RETAINED_SOURCE_GIT_BLOB_SHA1 in daedalus/kairos/gated_writes.py to that value
+python -c "import daedalus.kairos.gated_writes"                 # integrity check must pass
+```
+
+Afterwards flip tests/test_loop_governance_head.py::test_the_sealed_write_path_fix_is_pending_and_applies
+and tests/test_loop_lease.py::test_gated_write_wave_gets_the_lease_the_day_it_accepts_one.
