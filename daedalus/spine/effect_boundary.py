@@ -704,13 +704,22 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         id="cli.doctor",
         surface=Surface.CLI,
         target="daedalus.doctor:main",
-        effects=(Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN),
+        effects=(Effect.NETWORK_EGRESS, Effect.PROCESS_SPAWN, Effect.SECRETS),
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.CENTRAL,
         anchors=(GuardAnchor("daedalus.doctor:main", "begin_effect"),),
         notes=(
             "Diagnostic probes really spawn CLIs and reach the local model "
-            "host, so the whole run begins centrally with the spend net on."
+            "host, so the whole run begins centrally with the spend net on. "
+            "SECRETS is not decoration and not inheritance: main() -> check() "
+            "reads DEEPSEEK_API_KEY out of the environment at doctor.py:93, "
+            "INSIDE the door, and prints its presence. The value enters this "
+            "process, which is the whole distinction -- a row that merely "
+            "spawns a child that authenticates itself does NOT earn this "
+            "effect, or secrets would become a synonym for process_spawn. "
+            "Secrets stays hand-declared for the scanner (see the "
+            "adapter.mcp_stdio note); the AST rule that keeps this row honest "
+            "is tests/test_provider_secrets_rows.py."
         ),
         migration="complete for the cli.doctor entrypoint",
     ),
