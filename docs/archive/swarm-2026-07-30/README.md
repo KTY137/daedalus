@@ -6,12 +6,40 @@ Raw tiered-swarm output from a controlled research round on 2026-07-30. **None o
 
 Subdirectories:
 - `rounds/round1/` — 50 MEASURED files: first-pass research notes and problem formulations
-- `rounds/round2/` — 49 MEASURED files: follow-up exploration and cross-validation attempts (v-evolution-island.md retained in place)
+- `rounds/round2/` — 50 MEASURED files: follow-up exploration and cross-validation attempts
 - `census/` — 43 MEASURED files: thematic synthesis and priority analysis across both rounds
 
 ## Why retained
 
 Per AGENTS.md: "Retain negative experimental evidence." This archive captures the full output of the 2026-07-30 swarm, including observations that led nowhere, cross-referenced failures, and local maxima that were not pursued further. Archiving rather than deleting preserves the scientific record and makes regression visible if similar directions are explored later.
+
+## Path map (old -> new)
+
+Every file arrived here by `git mv`; nothing was deleted, and `git log
+--follow <new path>` reaches the pre-archive history of each one.
+
+| before | after | files | commit |
+| --- | --- | ---: | --- |
+| `docs/research/rounds/round1/*.md` | `docs/archive/swarm-2026-07-30/rounds/round1/` | 50 | `2352c545` |
+| `docs/research/rounds/round2/*.md` | `docs/archive/swarm-2026-07-30/rounds/round2/` | 49 | `2352c545` |
+| `docs/research/rounds/round2/v-evolution-island.md` | `docs/archive/swarm-2026-07-30/rounds/round2/` | 1 | this commit |
+| `docs/research/census/shard*.md` | `docs/archive/swarm-2026-07-30/census/` | 20 | `2352c545` |
+| `docs/research/census/SYNTH-*.md` | `docs/archive/swarm-2026-07-30/census/` | 3 | `2352c545` |
+| `docs/research/reviews/rv*.md` | `docs/archive/swarm-2026-07-30/census/reviews/` | 20 | `2352c545` |
+
+143 files, [MEASURED 2026-08-22 by `git ls-files docs/archive/swarm-2026-07-30`
+minus this README]. `docs/research/rounds/round3/s-*.md` (25 files) stays under
+`docs/research/` by plan: it is the synthesis round, not raw swarm output.
+
+Two divergences from the Phase-5 spec, recorded rather than repaired:
+
+- the spec said to keep `census/SYNTH-*.md` under `docs/research/`; the
+  2026-08-22 archive commit `2352c545` moved all three here. They are moves,
+  reversible by `git mv`, and no citation of them was found outside this
+  archive [MEASURED 2026-08-22, `grep -rn "SYNTH-" --include=*.md --include=*.py`].
+- `rv19.md` is load-bearing for the 2026-08-21 inventory and now lives at
+  `census/reviews/rv19.md`; citations written against the old path resolve
+  through `git log --follow`, not through the filesystem.
 
 ## How to cite
 
@@ -37,4 +65,4 @@ Do not cite the archive as evidence for architectural choices. Archive output ma
 
 **Archive created:** 2026-08-22  
 **Method:** MEASURED (manual file count and git mv history)  
-**Scope:** 142 unverified research files, structured by round  
+**Scope:** 143 unverified research files, structured by round  
