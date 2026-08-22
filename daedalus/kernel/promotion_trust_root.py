@@ -78,6 +78,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from daedalus.spine.killswitch import profile_root_disagreement
+
 #: Which of D5's three options this module implements. A test pins it, so an
 #: implementation cannot quietly become option A or option B-without-record.
 TRUST_ROOT_MODE = "hybrid-b-as-root"
@@ -837,6 +839,12 @@ def claim_approval(repo_root: str | Path, verdict: ApprovalVerdict,
             f"fresh ledger at {_promotion_state_root(repo_root)} would read "
             "every approval the old one recorded as spent as unspent again -- "
             "a replay window. Move or delete the old state deliberately.")
+
+    # Guard: profile root must not be relocated in-process before accessing
+    # the promotion state ledger outside the repository.
+    profile_disagreement = profile_root_disagreement()
+    if profile_disagreement:
+        return False, f"profile.root_relocated: {profile_disagreement}"
 
     root = _promotion_state_root(repo_root) / "spent"
     key = replay_key(verdict.nonce, verdict.candidate_sha256)

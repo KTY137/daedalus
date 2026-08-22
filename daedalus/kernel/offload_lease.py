@@ -64,7 +64,7 @@ from daedalus.spine.effect_boundary import (
     registry_sha256,
 )
 from daedalus.spine.envelope import canonical_sha
-from daedalus.spine.killswitch import KillSwitch, LoopHalted
+from daedalus.spine.killswitch import KillSwitch, LoopHalted, profile_root_disagreement
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, never an import cycle
     from daedalus.sensitivity import Policy
@@ -892,6 +892,22 @@ def acquire_wave_offload_lease(
             trace_id=trace_id,
         ),
     )
+
+    # Guard: profile root must not be relocated in-process before accessing
+    # the lease ledger and issuer key outside the repository.
+    profile_disagreement = profile_root_disagreement()
+    if profile_disagreement:
+        return _deny(
+            reasons=(f"profile.root_relocated: {profile_disagreement}",),
+            guard_decisions=guards,
+            source_revision=source_revision,
+            trace_id=trace_id,
+            subject_id=request_id,
+            subject_sha256=policy_sha256,
+            policy_sha256=policy_sha256,
+            now=instant,
+            write_policy=policy_source,
+        )
 
     keyring = issuer_keyring(root)
     ttl = min(max(_MIN_TTL_S, timeout), _MAX_TTL_S)

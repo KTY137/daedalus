@@ -169,8 +169,6 @@ def test_every_evidence_locator_resolves_to_stored_bytes(slice_result, tmp_path)
 
     store = ArtifactStore(slice_result.receipt_path.parent / "store")
     for item in slice_result.packet.items:
-        if item.evaluator == "fourfold.snapshot-binding":
-            continue  # the snapshot's locator is minted by the kernel, not stored here
         digest = item.evidence_locator.rsplit(":", 1)[-1]
         assert store.locator_path(digest).exists(), item.evidence_id
 
