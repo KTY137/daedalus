@@ -48,7 +48,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
 from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
@@ -65,6 +65,9 @@ from daedalus.spine.effect_boundary import (
 )
 from daedalus.spine.envelope import canonical_sha
 from daedalus.spine.killswitch import KillSwitch, LoopHalted
+
+if TYPE_CHECKING:  # pragma: no cover - typing only, never an import cycle
+    from daedalus.sensitivity import Policy
 
 #: The registry row this module issues for. Never parameterised: a helper that
 #: can issue for "whichever entrypoint you name" is a general-purpose capability
@@ -213,6 +216,180 @@ def kill_switch_generation(switch: KillSwitch) -> int:
     return int(hashlib.sha256(material).hexdigest()[:12], 16)
 
 
+# --------------------------------------------------------------------------- #
+# which policy text decides the write fence                                    #
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class WritePolicySource:
+    """The policy that answered "may this wave write here", and its identity.
+
+    WHY THIS EXISTS (MEASURED). ``sensitivity.path_write_blocked(path, None)``
+    falls back to :data:`daedalus.sensitivity.DEFAULT_POLICY`, whose
+    ``write_allow`` is empty -- which means UNCONFINED. Against this checkout::
+
+        path_write_blocked('.agentenv/agentenv.json', None)            -> False
+        path_write_blocked('daedalus/sensitivity.py', None)            -> False
+        path_write_blocked('docs/IKARUS_ARIADNE_MASTER_PLAN.md', None) -> False
+
+    and under the repository's own ``.agentenv/agentenv.json`` all three are
+    ``True``. So a loop iteration run WITHOUT ``--project`` handed the issuer an
+    empty ``write_policy_blocked`` list, the ``provider.write_policy`` contract
+    allowed, and the receipt recorded "cleared every declared path" -- a guard
+    that had never run, written down as a guard that had passed.
+
+    An absent policy is therefore NOT a permission here. When none can be
+    loaded, :attr:`policy` is ``None`` and the contract REFUSES; the lease is
+    denied with the reason on the receipt. And when one is loaded, the receipt
+    names WHICH file (path + sha256 of its exact bytes) cleared the paths, so a
+    reader can fetch that file and recompute the verdict instead of trusting
+    the sentence.
+    """
+
+    policy: "Policy | None"
+    origin: str
+    sha256: str
+    error: str = ""
+
+    @property
+    def usable(self) -> bool:
+        return self.policy is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "origin": self.origin,
+            "sha256": self.sha256,
+            "error": self.error or None,
+        }
+
+
+#: Identity stamped on a policy the CALLER supplied as an object. There are no
+#: bytes on disk to digest, so the digest is over the exact fields
+#: :func:`~daedalus.sensitivity.path_write_blocked` reads -- nothing else about
+#: a Policy can change its verdict, and a digest over fields it ignores would
+#: change without the decision changing.
+CALLER_POLICY_ORIGIN = "caller-supplied:daedalus.sensitivity.Policy"
+
+
+def resolve_write_policy(
+    repo_root: str | Path, policy: "Policy | None" = None
+) -> WritePolicySource:
+    """Name the policy that will decide this wave's write fence.
+
+    With ``policy`` given, it is used and identified by a digest over the three
+    fields ``path_write_blocked`` consults. With ``policy`` omitted -- the loop
+    run WITHOUT ``--project``, which is how this hole was reached -- the
+    repository's own ``.agentenv/agentenv.json`` is loaded through
+    :func:`daedalus.config._repo_local_policy`, the one existing reader of that
+    file, rather than a second parser written here.
+
+    Every failure mode (no file, unreadable, malformed JSON, no ``policy``
+    block) returns ``policy=None`` with the reason on :attr:`WritePolicySource.error`.
+    It never falls back to ``DEFAULT_POLICY``: that fallback IS the bug.
+    """
+    from daedalus.config import REPO_CONFIG, _repo_local_policy
+    from daedalus.sensitivity import load_policy
+
+    if policy is not None:
+        return WritePolicySource(
+            policy=policy,
+            origin=CALLER_POLICY_ORIGIN,
+            sha256=canonical_sha(
+                {
+                    "write_allow": list(getattr(policy, "write_allow", ()) or ()),
+                    "deny_substrings": list(
+                        getattr(policy, "deny_substrings", ()) or ()
+                    ),
+                    "high_risk_path_substrings": list(
+                        getattr(policy, "high_risk_path_substrings", ()) or ()
+                    ),
+                }
+            ),
+        )
+
+    path = Path(repo_root) / REPO_CONFIG
+    origin = str(path)
+    block = _repo_local_policy(str(repo_root))
+    if not block:
+        return WritePolicySource(
+            policy=None,
+            origin=origin,
+            sha256="",
+            error=(
+                f"no usable 'policy' block at {origin} (absent, unreadable, "
+                f"malformed, or without one)"
+            ),
+        )
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        return WritePolicySource(
+            policy=None,
+            origin=origin,
+            sha256="",
+            error=f"{origin} could not be digested ({exc})",
+        )
+    return WritePolicySource(
+        policy=load_policy({"policy": block}), origin=origin, sha256=digest
+    )
+
+
+def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
+    """Does THIS checkout's isolation machinery really land outside it?
+
+    WHY THE ISSUER DERIVES THIS (MEASURED, Odysseus F2). ``contained`` and
+    ``containment_evidence`` are caller-supplied, and the caller was believed::
+
+        acquire_wave_offload_lease(repo, ..., contained=True,
+                                   containment_evidence="")
+          -> granted, signed, persisted; receipt reason
+             "containment.attempt: wave containment was asserted by the caller
+              with no evidence"
+
+    from any script that can ``import daedalus``. A capability issued on the
+    strength of a boolean the requester set is a capability with no contract
+    behind it, and a receipt that says "asserted with no evidence" in the ALLOW
+    column is worse than no receipt: it reads as a guard that ran.
+
+    What the issuer CAN check without the caller is the structural half:
+    ``daedalus.kairos.gated_writes.run_write_wave`` isolates each write task in
+    a ``TaskAttempt`` worktree allocated by
+    :class:`daedalus.kairos.worktree.GitWorktreeManager`, whose ``worktree_root``
+    is outside the checkout by construction -- unless it is not, on this
+    machine, under this environment, which is exactly the fact worth checking.
+    :func:`daedalus.primary_tree.overlap_reason` is the one implementation of
+    that comparison and it is bidirectional, so a root that CONTAINS the
+    checkout fails too.
+
+    This is a precondition, not the whole contract: it says candidate checkouts
+    can land outside the primary tree, not that this particular wave routed
+    through them. The caller still has to name the mechanism it used, and
+    :func:`acquire_wave_offload_lease` now refuses an empty name.
+    """
+    from daedalus.kairos.worktree import GitWorktreeManager
+    from daedalus.primary_tree import nearest_existing, overlap_reason
+
+    root = Path(repo_root).resolve()
+    try:
+        worktree_root = GitWorktreeManager(root).worktree_root
+        ground = nearest_existing(Path(worktree_root))
+    except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
+        return False, (
+            f"the isolation root for {root} could not be resolved "
+            f"({type(exc).__name__}: {exc}), so containment cannot be derived"
+        )
+    overlap = overlap_reason(ground, root)
+    if overlap is not None:
+        return False, (
+            f"the attempt isolation root {worktree_root} overlaps the primary "
+            f"checkout: {overlap}"
+        )
+    return True, (
+        f"primary_tree.overlap_reason({ground}, {root}) is None: TaskAttempt "
+        f"worktrees allocated under {worktree_root} land outside the primary "
+        f"checkout in both directions"
+    )
+
+
 def lane_endpoint(lane: str) -> str:
     """The endpoint a dispatch lane speaks, or ``""`` when none is declared."""
     if lane == "ollama":
@@ -238,6 +415,10 @@ class WaveLeaseDenied:
     policy_decision: PolicyDecision
     reasons: tuple[str, ...]
     guard_decisions: tuple[GuardDecision, ...] = ()
+    #: WHICH policy text refused (or could not be found). Defaulted so the one
+    #: hand-built denial in ``build_exec`` -- a missing source revision, decided
+    #: before any policy is consulted -- keeps its exact shape.
+    write_policy: WritePolicySource | None = None
 
     @property
     def granted(self) -> bool:
@@ -256,6 +437,9 @@ class WaveLeaseDenied:
                 for d in self.guard_decisions
             ],
             "registry_sha256": registry_sha256(),
+            "write_policy": (
+                None if self.write_policy is None else self.write_policy.to_dict()
+            ),
             "lease_id": None,
             "requested_effects": [],
             "security_boundary_claimed": False,
@@ -273,6 +457,8 @@ class WaveOffloadLease:
     policy_decision: PolicyDecision
     ledger: EffectLeaseLedger = field(repr=False)
     ledger_path: str = ""
+    #: The policy that cleared the declared roots, named on the receipt.
+    write_policy: WritePolicySource | None = None
     _executions: dict[int, EffectExecutionRequest] = field(
         default_factory=dict, repr=False
     )
@@ -358,6 +544,12 @@ class WaveOffloadLease:
                 self._executions[k].execution_id for k in sorted(self._executions)
             ],
             "registry_sha256": self.lease.registry_sha256,
+            # WHICH policy cleared `writable_paths`. Without this the receipt
+            # said "cleared every declared path" and a reader had no way to
+            # discover that the clearing policy was the unconfined default.
+            "write_policy": (
+                None if self.write_policy is None else self.write_policy.to_dict()
+            ),
             "ledger_path": self.ledger_path,
             "security_boundary_claimed": False,
         }
@@ -376,6 +568,7 @@ def _deny(
     subject_sha256: str,
     policy_sha256: str,
     now: datetime,
+    write_policy: WritePolicySource | None = None,
 ) -> WaveLeaseDenied:
     decision = PolicyDecision(
         decision_id=f"{subject_id}-deny",
@@ -391,7 +584,13 @@ def _deny(
             origin="kernel.wave-offload-lease",
             source_revision=source_revision,
             created_at=_timestamp(now),
-            input_digests=(subject_sha256, policy_sha256),
+            # DEDUPED. On this path the subject digest IS the policy digest
+            # (there is no EffectLeaseRequest to hash, see the call site), and
+            # ContractProvenance refuses duplicate input digests -- so the
+            # canonical deny record could not be built at all the moment the
+            # write contract started refusing for itself. Measured: ValueError
+            # "provenance.input_digests must not contain duplicates".
+            input_digests=tuple(sorted({subject_sha256, policy_sha256})),
             trace_id=trace_id,
         ),
     )
@@ -399,6 +598,7 @@ def _deny(
         policy_decision=decision,
         reasons=tuple(sorted(reasons)),
         guard_decisions=tuple(guard_decisions),
+        write_policy=write_policy,
     )
 
 
@@ -417,6 +617,7 @@ def acquire_wave_offload_lease(
     contained: bool = True,
     containment_evidence: str = "",
     write_policy_blocked: Sequence[str] = (),
+    write_policy: "Policy | None" = None,
     switch: KillSwitch | None = None,
     trace_id: str | None = None,
     lease_id: str | None = None,
@@ -435,6 +636,18 @@ def acquire_wave_offload_lease(
     module owns everything a caller must not be trusted with: the issuer key,
     the generation, the ledger location, and the refusal to issue for any row
     other than ``python.offload``.
+
+    THE WRITE FENCE IS RUN HERE, NOT ACCEPTED FROM THE CALLER.
+    ``write_policy_blocked`` used to BE the ``provider.write_policy`` contract:
+    a list the caller computed, which the issuer copied into a receipt. A
+    caller with no ``--project`` computed it against ``policy=None``, which is
+    the UNCONFINED default, so the list came back empty and the receipt said
+    "cleared every declared path" (see :class:`WritePolicySource` for the
+    measurement). The issuer now resolves the policy itself -- ``write_policy``
+    when given, otherwise the repository's own ``.agentenv/agentenv.json`` --
+    runs ``path_write_blocked`` over the declared roots, and DENIES when no
+    policy can be loaded at all. The caller's list is still honoured, unioned
+    in as corroboration; it can only ever add a refusal, never remove one.
     """
     instant = now or _utc_now()
     root = str(Path(repo_root).resolve())
@@ -486,34 +699,89 @@ def acquire_wave_offload_lease(
         GuardDecision("provider.egress_policy", egress_ok, "; ".join(egress_reasons))
     )
 
-    blocked = tuple(str(p) for p in write_policy_blocked)
-    guards.append(
-        GuardDecision(
-            "provider.write_policy",
-            not blocked,
-            (
-                f"sensitivity.path_write_blocked refuses {len(blocked)} declared "
-                f"path(s): {', '.join(sorted(blocked)[:5])}"
-            )
-            if blocked
-            else (
-                "sensitivity.path_write_blocked cleared every declared path; the "
-                "leased roots are a DECLARATION, enforced by offload's own write "
-                "guard and the isolated attempt worktree, not by this receipt"
-            ),
-        )
-    )
+    # The exact roots this lease would grant, computed BEFORE the write
+    # contract so the contract judges the same strings the scope will carry.
+    # ``(".",)`` is the whole checkout: under a confining policy that reads as
+    # a refusal, which is the right answer for "this wave declared no bound".
+    declared_paths = tuple(
+        sorted({str(p).strip() for p in writable_paths if str(p).strip()})
+    ) or (".",)
 
+    policy_source = resolve_write_policy(root, write_policy)
+    caller_blocked = tuple(str(p) for p in write_policy_blocked)
+    if not policy_source.usable:
+        # NEVER ALLOW BY ABSENCE. An issuer that cannot find the fence has not
+        # cleared the paths; it failed to ask. Refusing is the only reading
+        # that does not record an unrun guard as a passed one.
+        blocked = caller_blocked
+        guards.append(
+            GuardDecision(
+                "provider.write_policy",
+                False,
+                f"{policy_source.error}; a write lease is refused rather than "
+                "issued under sensitivity.DEFAULT_POLICY, whose empty "
+                "write_allow means UNCONFINED",
+            )
+        )
+    else:
+        from daedalus.sensitivity import path_write_blocked
+
+        blocked = tuple(
+            sorted(
+                set(caller_blocked)
+                | {
+                    p
+                    for p in declared_paths
+                    if path_write_blocked(p, policy_source.policy)
+                }
+            )
+        )
+        stamp = (
+            f"{policy_source.origin} (sha256={policy_source.sha256[:16]})"
+            if policy_source.sha256
+            else policy_source.origin
+        )
+        guards.append(
+            GuardDecision(
+                "provider.write_policy",
+                not blocked,
+                (
+                    f"sensitivity.path_write_blocked, under {stamp}, refuses "
+                    f"{len(blocked)} declared path(s): "
+                    f"{', '.join(sorted(blocked)[:5])}"
+                )
+                if blocked
+                else (
+                    f"sensitivity.path_write_blocked, under {stamp}, cleared "
+                    f"all {len(declared_paths)} declared path(s); the leased "
+                    "roots are a DECLARATION, enforced by offload's own write "
+                    "guard and the isolated attempt worktree, not by this receipt"
+                ),
+            )
+        )
+
+    # THE CALLER'S FLAG IS NOT THE CONTRACT. It is one of three conjuncts,
+    # and the only one the requester controls; see `derive_wave_containment`
+    # for the measured grant this replaces.
+    declared_mechanism = str(containment_evidence or "").strip()
+    derived_ok, derived_evidence = derive_wave_containment(root)
+    containment_refusals: list[str] = []
+    if not contained:
+        containment_refusals.append("the caller could not establish containment")
+    if not declared_mechanism:
+        containment_refusals.append(
+            "the caller named no containment mechanism; an unevidenced "
+            "assertion is not a containment boundary, so no capability is issued"
+        )
+    if not derived_ok:
+        containment_refusals.append(derived_evidence)
     guards.append(
         GuardDecision(
             "containment.attempt",
-            bool(contained),
-            containment_evidence
-            or (
-                "wave containment was asserted by the caller with no evidence"
-                if contained
-                else "wave containment could not be established"
-            ),
+            not containment_refusals,
+            "; ".join(containment_refusals)
+            if containment_refusals
+            else f"{derived_evidence}; caller mechanism: {declared_mechanism}",
         )
     )
 
@@ -523,9 +791,6 @@ def acquire_wave_offload_lease(
     if cost_microusd < 0:
         cost_microusd = 0
     timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
-    declared_paths = tuple(
-        sorted({str(p).strip() for p in writable_paths if str(p).strip()})
-    ) or (".",)
     declared_tools = tuple(
         sorted(
             {str(t) for t in (*BASE_TOOLS, *tools, *lanes) if str(t).strip()}
@@ -547,6 +812,10 @@ def acquire_wave_offload_lease(
                 for d in sorted(guards, key=lambda d: d.contract)
             ],
             "kill_switch_generation": generation,
+            # The write fence's IDENTITY travels inside the digest, so a
+            # decision recomputed under a different policy file does not
+            # reproduce this sha: the drift is visible rather than silent.
+            "write_policy": policy_source.to_dict(),
             "max_cost_microusd": cost_microusd,
             "timeout_s": timeout,
             "writable_paths": list(declared_paths),
@@ -572,6 +841,7 @@ def acquire_wave_offload_lease(
             subject_sha256=policy_sha256,
             policy_sha256=policy_sha256,
             now=instant,
+            write_policy=policy_source,
         )
 
     scope = EffectScope(
@@ -659,10 +929,12 @@ def acquire_wave_offload_lease(
         policy_decision=policy,
         ledger=ledger,
         ledger_path=str(ledger_path),
+        write_policy=policy_source,
     )
 
 
 __all__ = [
+    "CALLER_POLICY_ORIGIN",
     "ENTRYPOINT_ID",
     "ISSUER_KEY_ID",
     "KILL_SWITCH_REF",
@@ -670,10 +942,13 @@ __all__ = [
     "WaveLeaseDenied",
     "WaveLeaseKillSwitchEngaged",
     "WaveOffloadLease",
+    "WritePolicySource",
     "acquire_wave_offload_lease",
     "control_root",
+    "derive_wave_containment",
     "issuer_keyring",
     "kill_switch_generation",
     "lane_endpoint",
     "lease_ledger_path",
+    "resolve_write_policy",
 ]
