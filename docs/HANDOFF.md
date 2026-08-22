@@ -15,6 +15,16 @@ tree that is no longer where the work happens.
 --show-current` → `main`.] The iron guard was retired (record 7 in ledger, owner
 decision recorded at 2026-08-22). The mission for this session is recorded at
 `docs/missions/MISSION_2026-08-22.md` — read it before making significant architectural decisions.
+
+**Mission summary:** 20 hours of implementation; main gained 40+ commits since the pre-ruling checkpoint.
+Base 7e7bfa7d; Q1–Q5 porting + delivery; Q4 ignition blocker at scheduler effect-lease boundary.
+Ledger: `runs/watchdog/mission-20260822/PROGRESS.md` (13 hours, 39 line items, last row 11:49Z).
+
+**Pending owner actions** (in `docs/decisions-pending/`):
+1. `promotion_allowed_signers.proposed` — signed approval root for promotion decisions.
+2. `control_root_migration.md` — the control-root migration; **loop refuses to arm until this runs**.
+3. `gated_writes_lease_handdown.patch` — sealed source pin bump for promotion seam.
+
 ---
 
 # HISTORY: Pre-ruling documents below (checkpoint/2026-07-20-session archived)

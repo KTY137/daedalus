@@ -75,8 +75,8 @@ EGRESS
   currently marks ``codex_cli`` trusted-with-IP and ``openai_api`` not -- same
   company, opposite verdict -- so no default here inherits that.
 
-Council records are NEVER an input to memory recall, and nothing in this module
-touches ``memstore``.
+Council records are NEVER an input to memory recall, and this module enforces
+that isolation at the kernel boundary.
 """
 
 from __future__ import annotations

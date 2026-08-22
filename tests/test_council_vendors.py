@@ -669,6 +669,7 @@ def test_run_managed_missing_binary_is_a_spawn_error_not_an_exception():
 # --------------------------------------------------------------------------
 
 
+# TOMBSTONE GUARD: memstore module deleted in 7a1553d7; this test now verifies the isolation is still stated in docstrings.
 def test_council_vendors_never_import_or_write_memstore():
     source = (REPO_ROOT / "daedalus" / "council" / "vendors.py").read_text(encoding="utf-8")
     body = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))

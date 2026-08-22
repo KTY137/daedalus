@@ -3,7 +3,7 @@
 THE BUS IS CANONICAL; THE PR IS A RENDERING
 -------------------------------------------
 The council's own record is the append-only, hash-chained JSONL bus at
-``runs/council/<council_id>.jsonl`` (``bus.py``, the memstore pattern). This
+``runs/council/<council_id>.jsonl`` (``bus.py``, the hash-chain journal pattern). This
 module NEVER writes to that record and never derives authority from GitHub. It
 does two things:
 
@@ -29,7 +29,7 @@ EGRESS GATE
 Every string that would leave this machine for GitHub -- the whole rendered
 comment body, the PR reference, the repo slug, and any evidence path -- runs
 through ``sensitivity.secret_floor_rule`` BEFORE the runner is touched. The floor
-is the same unconditional every-lane rule ``memstore.append_entry`` uses; it
+is the same unconditional every-lane rule that the spine enforces on all writes; it
 cannot be weakened by project policy. A hit is a STATUS (``refused_secret``), not
 an exception, and the offending string never reaches the runner, the argv, or the
 child's stdin. The refusal detail names the CHANNEL and the RULE only -- never the

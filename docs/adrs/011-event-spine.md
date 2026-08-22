@@ -86,6 +86,14 @@ The rationale is capability, not seniority:
   receipt may cite it. This is what makes bypasses gap 3 tolerable rather than
   fixed: the weak store is no longer on a trust path.
 
+### 2b. Attestation role fulfilled
+
+The attestation sidecar role described in section 2 — holding `landed_edit`,
+`gate_outcome`, and `receipt_ref` attestations — is now filled by the spine
+itself: conversation turns became spine intents (commit 83e41fcc, 2026-08-22).
+The separation between mutable order (spine) and tamper-evident proof (ledger)
+remains; the attestation mechanism is now unified at the spine's write boundary.
+
 ### 3. Tamper-evidence: where it is and where it is not
 
 - The **memory ledger carries tamper-evidence** — per-line `body_sha`,

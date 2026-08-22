@@ -10,19 +10,18 @@ transcript and re-checked on every verify.
 
 SEPARATE STORE, ON PURPOSE
 --------------------------
-This is ``dcouncil/1``. It deliberately REIMPLEMENTS ``memstore.py``'s two-SHA
-discipline instead of importing it, and it must never write to the memory
-ledger. Reason, in one line: ``memstore.fold_state`` promotes an entry to
-``primary`` after three independent confirmations, and four models discussing a
-patch generate confident prose about the codebase -- three agreeing turns would
-be three confirmations. A mechanism that promotes model opinion to certified
-memory and then recalls it as fact is the fabrication failure this project
-treats as the worst one. COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL.
+This is ``dcouncil/1``. It uses a two-SHA discipline (body and entry hash-chain)
+and must never write to the memory ledger. Reason, in one line: a council
+transcript records vendor deliberations, not certified model conclusions. Four
+vendors discussing a patch generate confident prose about the codebase, but
+promoting model opinion to certified memory and then recalling it as fact is
+the fabrication failure this project treats as the worst one. COUNCIL RECORDS
+ARE NEVER AN INPUT TO MEMORY RECALL.
 Any store path under ``<repo>/memory/`` is refused loudly by :func:`_resolve_store`.
 
 WHAT IS IN A HASH, AND WHERE THE BOUNDARY IS
 --------------------------------------------
-Two SHAs per line, mirroring ``memstore``/``dctx`` (one place, one answer to
+Two SHAs per line, following the two-hash discipline (one place, one answer to
 "is this field in the hash?"):
 
   * ``body_sha`` -- ``sha256`` over ``json.dumps(canonical_body, sort_keys=True,
@@ -33,8 +32,8 @@ Two SHAs per line, mirroring ``memstore``/``dctx`` (one place, one answer to
     link. Genesis ``prev`` is ``None`` and folds in as ``""`` (unambiguous: a
     real ``prev`` is always a 64-hex digest).
 
-Unlike ``memstore``, a turn's ``id`` is ``entry_sha[:16]``, not ``body_sha[:16]``,
-and there is NO dedupe. A council transcript is a log of EVENTS: two
+A turn's ``id`` is ``entry_sha[:16]``, not ``body_sha[:16]``, and there is NO
+dedupe. A council transcript is a log of EVENTS: two
 participants may legitimately emit byte-identical bodies, and deduping the
 second away would erase a voice from the record.
 

@@ -33093,18 +33093,6 @@
       "purpose": "Center-naming override for repo focus."
     },
     {
-      "name": "DAEDALUS_CONVERSATION_DB",
-      "read_in": [
-        "daedalus/conversation.py"
-      ],
-      "kind": "path",
-      "state": "OFF",
-      "default": "''",
-      "dark": false,
-      "documented": false,
-      "purpose": ""
-    },
-    {
       "name": "DAEDALUS_FANOUT_CONCURRENCY",
       "read_in": [
         "daedalus/lanes/fanout.py"
