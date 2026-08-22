@@ -424,6 +424,39 @@ class LoopLedger:
         return self.path
 
 
+def _head_revision(repo_root: str | Path) -> str:
+    """``git rev-parse HEAD`` for THIS loop's checkout, or ``""``.
+
+    Read here rather than taken from ``core.get_governance``: that payload
+    resolves its repository from the project registry, so its ``head`` is the
+    revision of whichever project is registered first, which is not this
+    loop's repository unless someone named it. Two different questions, two
+    reads, both published.
+    """
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=20, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    head = (proc.stdout or "").strip().lower()
+    if len(head) == 40 and all(c in "0123456789abcdef" for c in head):
+        return head
+    return ""
+
+
+def _same_checkout(a: str, b: str) -> bool:
+    if not a or not b:
+        return False
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return str(a).replace("\\", "/").rstrip("/").lower() == (
+            str(b).replace("\\", "/").rstrip("/").lower())
+
+
 def _curated_gate(candidate: Any) -> dict[str, Any]:
     """The per-candidate execution hints the picker carries, or ``{}``.
 
@@ -544,6 +577,13 @@ class IterationResult:
     #: requested window actually ran or why it was skipped; prompts and file
     #: content are deliberately excluded upstream.
     provider_receipt: dict[str, Any] | None = None
+    #: THE CAPABILITY THIS ATTEMPT RAN UNDER: lease id, the exact effect set,
+    #: the execution id, the spend/kill-switch bounds, and the policy decision
+    #: that issued it -- or, for a refused wave, the deny decision that did not.
+    #: Read from the wave result, which is stamped by the wave's own lease
+    #: object; never re-derived here, because a receipt a reader cannot join to
+    #: the effect ledger is a receipt that proves nothing about the effect.
+    effect_lease: dict[str, Any] | None = None
     #: Durable raw patch bytes for a clean candidate that governance held.
     #: This lives outside the primary checkout; the attempt branch is reaped.
     artifact_path: str | None = None
@@ -565,6 +605,7 @@ class IterationResult:
             "promoted": self.promoted, "reason": self.reason,
             "lane": self.lane, "worker": self.worker, "model": self.model,
             "provider_receipt": self.provider_receipt,
+            "effect_lease": self.effect_lease,
             "artifact_path": self.artifact_path,
             "artifact_sha256": self.artifact_sha256,
             "attempt_task_ids": list(self.attempt_task_ids),
@@ -595,6 +636,22 @@ class LoopReport:
     promotion_allowed: bool = False
     governance_state: str = "unknown"
     governance_verdict: str = ""
+    #: WHICH TREE THE GOVERNANCE VERDICT IS ABOUT, and at which revision.
+    #: Recorded because they are not necessarily this loop's:
+    #: ``core.get_governance`` resolves its repository from the PROJECT
+    #: REGISTRY (the first registered project when none is named), so a loop
+    #: started with ``--repo-root X`` and no ``--project`` was quoting a
+    #: verdict about some other checkout entirely -- MEASURED 2026-08-22:
+    #: the run receipt named HEAD 6225d3e4 (Desktop/agent_env) while the loop
+    #: was working at 9887a98e (agent_env_g0). Unnamed, that is a receipt that
+    #: lies; named, it is a fact a reader can check.
+    governance_repo_root: str = ""
+    governance_head: str = ""
+    #: THE REVISION THIS RUN STARTED AT, read once from the loop's OWN
+    #: ``repo_root`` before any iteration. Every capability this run issues
+    #: binds it as provenance, so it is the join key between the receipt and
+    #: the effect ledger.
+    source_revision: str = ""
     stop_reason: str = "error"
     stop_detail: str = ""
     iterations: list[IterationResult] = field(default_factory=list)
@@ -642,6 +699,9 @@ class LoopReport:
             "promotion_allowed": self.promotion_allowed,
             "governance_state": self.governance_state,
             "governance_verdict": self.governance_verdict,
+            "governance_repo_root": self.governance_repo_root,
+            "governance_head": self.governance_head,
+            "source_revision": self.source_revision,
             "stop_reason": self.stop_reason, "stop_detail": self.stop_detail,
             "iterations_run": len(self.iterations),
             "gated_clean": self.gated_clean, "promoted": self.promoted,
@@ -727,14 +787,35 @@ class LoopDriver:
         self.switch = switch if switch is not None else KillSwitch(
             repo_root=self.repo_root)
 
+        # THE RUN'S REVISION, READ ONCE, FROM THIS LOOP'S OWN CHECKOUT. Every
+        # Effect Lease this run issues binds it as provenance, and the report
+        # publishes it beside the governance verdict's revision precisely so
+        # the two can be compared instead of confused (see LoopReport
+        # .governance_head for the measurement that made that necessary).
+        self.source_revision = _head_revision(self.repo_root)
+
         if executor is None:
-            from .build_exec import WaveExecutor
+            from .build_exec import EffectBounds, WaveExecutor
 
             # ONE LOG FOR THE WHOLE RUN. The executor emits the attempt-level
             # lifecycle and this driver emits the iteration-level one; handing
             # it this loop's log keeps both in a single file, so "what happened
             # in iteration 3" is one read rather than a join across two.
-            executor = WaveExecutor(progress_log=self._progress_log)
+            #
+            # AND ONE SET OF BOUNDS. The wave's lease is bounded by the SAME
+            # numbers the loop stops itself with -- the operator typed
+            # --max-spend-usd once and it must mean one thing -- and by the
+            # same KillSwitch object the loop cancels with, so the permit that
+            # stops the loop is the permit that invalidates its capability.
+            executor = WaveExecutor(
+                progress_log=self._progress_log,
+                effect_bounds=EffectBounds(
+                    mission_id=self.run_id,
+                    source_revision=self.source_revision,
+                    max_spend_usd=self.bounds.max_spend_usd,
+                    timeout_s=self.bounds.max_wall_clock_s,
+                    trace_id=self.trace_id,
+                    switch=self.switch))
         self.executor = executor
 
         base = Path(runs_dir) if runs_dir else Path(self.repo_root) / "runs" / "loop"
@@ -949,6 +1030,9 @@ class LoopDriver:
         provider_receipt = (dict(raw["provider_receipt"])
                             if isinstance(raw.get("provider_receipt"), Mapping)
                             else None)
+        effect_lease = (dict(raw["effect_lease"])
+                        if isinstance(raw.get("effect_lease"), Mapping)
+                        else None)
         outcome = self._outcome_of(raw)
         status = str(raw.get("status") or "")
         promoted = status == "gated_promoted"
@@ -1014,6 +1098,7 @@ class LoopDriver:
             lane=str(raw.get("lane") or ""), worker=str(raw.get("worker") or ""),
             model=_model_of(raw),
             provider_receipt=provider_receipt,
+            effect_lease=effect_lease,
             artifact_path=(str(raw["artifact_path"])
                            if raw.get("artifact_path") else None),
             artifact_sha256=str(raw.get("artifact_sha256") or ""),
@@ -1030,6 +1115,18 @@ class LoopDriver:
 
         gov = core.get_governance(self.project)
         promotion_allowed = bool(gov.get("promotion_allowed"))
+        gov_repo_root = str(gov.get("repo_root") or "")
+        gov_head = str(gov.get("head") or "")
+        # FAIL CLOSED WHEN THE VERDICT IS ABOUT ANOTHER TREE. `get_governance`
+        # resolves its repository from the project registry, so a loop pointed
+        # at a checkout nobody registered was quoting a gate result measured
+        # somewhere else -- and if that result had said "working", this loop
+        # would have called promotion allowed on evidence from a different
+        # repository. Narrowing only: a mismatch can lock promotion, never
+        # unlock it.
+        governance_is_ours = _same_checkout(gov_repo_root, self.repo_root)
+        if not governance_is_ours:
+            promotion_allowed = False
         report = LoopReport(
             run_id=self.run_id, trace_id=self.trace_id,
             repo_root=self.repo_root, project=self.project,
@@ -1038,9 +1135,22 @@ class LoopDriver:
             promotion_allowed=promotion_allowed,
             governance_state=str(gov.get("state") or "unknown"),
             governance_verdict=str(gov.get("verdict") or ""),
+            governance_repo_root=gov_repo_root,
+            governance_head=gov_head,
+            source_revision=self.source_revision,
             started_ts=progress.now_iso(),
             killswitch_path=str(self.switch.path),
         )
+        if not governance_is_ours:
+            report.notes.append(
+                f"GOVERNANCE IS ABOUT ANOTHER CHECKOUT: the verdict below was "
+                f"computed for {gov_repo_root or '<unresolved>'} at HEAD "
+                f"{gov_head or '<unknown>'}, while this loop is running in "
+                f"{self.repo_root} at {self.source_revision or '<unknown>'}. "
+                "core.get_governance resolves its repository from the project "
+                "registry, not from --repo-root, so name --project (or register "
+                "this checkout) to get a verdict about this tree. Promotion is "
+                "held closed for this run regardless of what that verdict says.")
         if not promotion_allowed:
             report.notes.append(
                 f"NOMINATING WITH PROMOTION LOCKED: governance state="
@@ -1109,6 +1219,16 @@ class LoopDriver:
                                     "worker": iteration.worker,
                                     "model": iteration.model,
                                     "provider_receipt": iteration.provider_receipt,
+                                    # THE CAPABILITY, IN THE ATTEMPT LEDGER
+                                    # ITSELF. attempt_task_ids says which
+                                    # attempt and trace_id says which run; this
+                                    # says under whose authority, which is the
+                                    # question an effect ledger row is the
+                                    # other half of. Recorded here rather than
+                                    # only in the report because the report is
+                                    # one file per run and this ledger is the
+                                    # thing a later run reads back.
+                                    "effect_lease": iteration.effect_lease,
                                     "artifact_path": iteration.artifact_path,
                                     "artifact_sha256": iteration.artifact_sha256})
                         self.ledger.save()

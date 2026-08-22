@@ -1,0 +1,93 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260822-124627-bd9a26.json",
+      "digest": {
+        "sha256": "f145b74993ae7483a66058fe3b62b085e4c57de74a3a7e212c9c748f7ccb21fe"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-f20b8daf2c"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260822T124627-8846f4da"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "the runner produced no change to gate",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "",
+            "provider_receipt": {
+              "action": "effect_lease_required",
+              "wrote": []
+            },
+            "effect_lease": {
+              "verdict": "allow",
+              "entrypoint_id": "python.offload",
+              "lease_id": "loop-20260822-124627-bd9a26-wave-offload-w0-480ea598-59af5b24",
+              "lease_sha256": "d89aebf872fca78bc5728f32a9daf7bf2af6d7d22d07b25845ad7b462e7d64de",
+              "requested_effects": [
+                "filesystem_write",
+                "network_egress",
+                "process_spawn",
+                "spend"
+              ],
+              "policy_decision_id": "loop-20260822-124627-bd9a26-wave-offload-w0-480ea598-allow",
+              "policy_decision_sha256": "9b606a71303fb2d02cab562b2f67114337c03b3b5c85966c991f1c2542f4eef6",
+              "policy_version": "daedalus.wave-offload-lease/1",
+              "issuer_key_id": "daedalus.local.effect-issuer",
+              "issued_at": "2026-08-22T10:47:50.829582+00:00",
+              "expires_at": "2026-08-22T11:02:50.829582+00:00",
+              "kill_switch_ref": "daedalus.spine.killswitch",
+              "kill_switch_generation": 672302651844,
+              "max_cost_microusd": 250000,
+              "max_concurrency": 1,
+              "timeout_s": 900,
+              "writable_paths": [
+                "docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md"
+              ],
+              "egress_endpoints": [
+                "http://127.0.0.1:11434"
+              ],
+              "tools": [
+                "git",
+                "ollama",
+                "python",
+                "python.exe"
+              ],
+              "execution_ids": [],
+              "registry_sha256": "f12b32c0431081e52b6d508c4d7dad652d3b4baf119be9ec1fa57911fcf43d6b",
+              "ledger_path": "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\2ea46e496ce4\\effect-leases.sqlite3",
+              "security_boundary_claimed": false,
+              "execution_id": null
+            },
+            "artifact_path": "C:\\Users\\nukei\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\artifacts\\2ea46e496ce4\\patches\\blobs\\sha256\\e3\\b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260822T124627-8846f4da"
+  },
+  "trace_id": "tr-20260822T124627-8846f4da"
+}

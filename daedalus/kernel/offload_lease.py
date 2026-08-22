@@ -1,0 +1,679 @@
+"""One persisted ``python.offload`` Effect Lease per wave -- the issuer side.
+
+WHY THIS MODULE EXISTS. ``daedalus/offload.py`` refuses every ``live=True``
+call that arrives without an already-issued, already-persisted authorization,
+and its docstring forbids the entrypoint from minting one for itself ("it never
+discovers issuer secrets or mints its own lease from ambient configuration").
+Until this module landed, NOTHING in production minted one: ``grep -rn
+'effect_authorization=' daedalus/`` returned zero non-test call sites, so every
+live loop iteration ended in ``{"action": "effect_lease_required", "wrote": []}``
+and gated an empty patch (MEASURED twice; ``runs/loop/blocker_9887a98e.json``).
+
+THE SHAPE, AND WHY IT IS THIS SHAPE. The lease is acquired ONCE PER WAVE by
+the wave's starter (:meth:`daedalus.build_exec.WaveExecutor.run_wave`) and
+threaded down through :meth:`daedalus.kairos.scheduler.KairosScheduler.dispatch`
+into each ``offload()`` call. Not per candidate, because then the number of
+capabilities in flight would be decided by how many tasks a picker happened to
+return; not inside ``offload``, because an entrypoint that can authorise itself
+is not bounded by anything. One wave, one lease, N narrowed executions inside
+it -- and the lease's ``max_concurrency`` is the ceiling on how many of those
+may be STARTED at once, enforced by the ledger, not by convention.
+
+WHAT IS AND IS NOT A BOUNDARY HERE (plan section 1). The issuer key is a local
+32-byte file under the checkout-external control root, created on first use.
+It keeps a candidate that can write the repository from forging a lease,
+because the key is not in the repository and is not in the environment. It does
+NOT defend against anything that can already read that directory as this user.
+The spend ceiling recorded on the lease is DECLARATIVE: the money is actually
+stopped by ``daedalus.budget.install_process_guard``, which this module asserts
+(and installs) as the ``budget.process_guard`` contract rather than restating.
+Likewise ``writable_paths`` records what the wave DECLARED; the enforcement is
+the isolated attempt worktree plus ``offload``'s own write guard, because an
+agentic writer is not bound by the strings it was handed.
+
+THE KILL SWITCH IS THE GENERATION. ``daedalus.spine.killswitch`` has no
+generation counter, so one is derived from the permit's exact bytes. Any arm,
+stop, or rewrite changes those bytes, therefore changes the generation,
+therefore invalidates every lease issued under the old one -- which is what
+makes a mid-wave stop revoke authority instead of merely asking for it. A
+STOPPED permit yields no generation at all: the reader raises, and the raise is
+a :class:`~daedalus.spine.killswitch.LoopHalted` subclass so the loop driver's
+existing handler classifies it as ``killswitch`` rather than ``error``.
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from daedalus.kernel.authorization import NonRuntimeEffectAuthorization
+from daedalus.kernel.contracts import EffectLease, EffectLeaseRequest
+from daedalus.kernel.effects import (
+    EffectExecutionRequest,
+    EffectLeaseLedger,
+    issue_effect_lease,
+)
+from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
+from daedalus.spine.effect_boundary import (
+    REGISTRY_BY_ID,
+    GuardDecision,
+    registry_sha256,
+)
+from daedalus.spine.envelope import canonical_sha
+from daedalus.spine.killswitch import KillSwitch, LoopHalted
+
+#: The registry row this module issues for. Never parameterised: a helper that
+#: can issue for "whichever entrypoint you name" is a general-purpose capability
+#: minter, which is precisely what the boundary exists to prevent.
+ENTRYPOINT_ID = "python.offload"
+
+#: Identifier of the local issuer key. One id, so a lease signed by a previous
+#: key file fails verification loudly instead of being silently re-signed.
+ISSUER_KEY_ID = "daedalus.local.effect-issuer"
+
+#: Names the switch a lease is bound to, recorded on both scope and execution.
+KILL_SWITCH_REF = "daedalus.spine.killswitch"
+
+POLICY_VERSION = "daedalus.wave-offload-lease/1"
+
+#: Tools every offload attempt may spawn regardless of lane. `git` is the
+#: snapshot/diff machinery offload uses to measure what changed; `python` is
+#: the gate runner. Declared, not discovered.
+BASE_TOOLS = ("git", "python")
+
+#: Lane -> the endpoint that lane speaks. A lane absent from this map cannot be
+#: leased: naming an endpoint we have not verified would put a claim in a
+#: receipt that nobody measured.
+LANE_ENDPOINTS: Mapping[str, str] = {
+    "ollama": "",  # resolved live from the provider's own host, see below
+    "deepseek": "https://api.deepseek.com",
+}
+
+_KEY_BYTES = 32
+_MIN_TTL_S = 60
+_MAX_TTL_S = 86_399  # the lease layer refuses a TTL of 24h or more
+
+
+class WaveLeaseKillSwitchEngaged(LoopHalted):
+    """The permit is not armed, so no capability may be issued or used.
+
+    A :class:`LoopHalted` subclass on purpose: ``LoopDriver.run`` already
+    classifies that exception as ``stop_reason='killswitch'`` (exit code 3).
+    Raising a fresh exception type would have reported an operator's own stop
+    as an internal error.
+    """
+
+    def __init__(self, message: str, *, deny_receipt: Mapping[str, Any] | None = None):
+        super().__init__(message)
+        self.deny_receipt = dict(deny_receipt or {})
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+# --------------------------------------------------------------------------- #
+# checkout-external state: the control root, the issuer key, the lease ledger  #
+# --------------------------------------------------------------------------- #
+def control_root(repo_root: str | Path | None) -> Path:
+    """The kill switch's own directory, reused rather than reinvented.
+
+    Deriving it from :func:`daedalus.spine.killswitch.default_switch_path`
+    keeps the lease ledger, the issuer key and the permit in ONE directory
+    namespaced by the same repository digest, so an operator who can find one
+    can find the others -- and so ``DAEDALUS_KILLSWITCH`` moves all three
+    together in a test instead of splitting them across two roots.
+    """
+    from daedalus.spine.killswitch import default_switch_path
+
+    return default_switch_path(repo_root).parent
+
+
+def lease_ledger_path(repo_root: str | Path | None) -> Path:
+    return control_root(repo_root) / "effect-leases.sqlite3"
+
+
+def issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
+    """Load, or create on first use, the local lease-signing key.
+
+    NOT from the environment. The promotion trust root measured (case A9a/A10)
+    that an env-carried secret is inherited by every child this process spawns,
+    which includes the candidate's own worker -- so a secret in the environment
+    is a secret the candidate holds. A file outside the checkout is not a
+    security boundary either, but it is not handed to children, and that is the
+    difference that matters against the threat this repository actually has.
+    """
+    path = control_root(repo_root) / "effect-lease-issuer.key"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        material = path.read_bytes()
+    except FileNotFoundError:
+        material = b""
+    if len(material) < _KEY_BYTES:
+        fresh = os.urandom(_KEY_BYTES)
+        # O_EXCL so two concurrent waves cannot both believe they created it;
+        # the loser re-reads the winner's bytes. The 0o600 mode is honoured on
+        # POSIX and largely cosmetic on win32 -- stated, not claimed away.
+        try:
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            material = path.read_bytes()
+        else:
+            try:
+                os.write(fd, fresh)
+            finally:
+                os.close(fd)
+            material = fresh
+    if len(material) < _KEY_BYTES:
+        raise ValueError(
+            f"the effect-lease issuer key at {path} is too short to sign with"
+        )
+    return {ISSUER_KEY_ID: material}
+
+
+def kill_switch_generation(switch: KillSwitch) -> int:
+    """The current generation, or raise if the permit is not armed.
+
+    The generation is the permit's identity, not a counter: ``verify_effect_lease``
+    only ever compares it for EQUALITY, so what it must express is "the switch
+    is in the same state it was in when this lease was issued". A digest of the
+    permit bytes says exactly that and needs no new file to maintain.
+    """
+    # THE LATCH FIRST, THEN THE DISK. `read_state` deliberately reads the
+    # permit fresh and does NOT consult the in-process latch, so a switch that
+    # already tripped -- because a stop was requested, or because the permit
+    # was once unreadable, which this module's own rule counts as STOP --
+    # would hand out a capability again the moment the file looked healthy.
+    # `should_stop` is sticky by construction and never raises, so consulting
+    # it makes the lease follow the same stop the loop's cancel token follows.
+    if getattr(switch, "should_stop", None) is not None and switch.should_stop():
+        raise WaveLeaseKillSwitchEngaged(
+            f"kill switch engaged: {switch.reason or 'stop latched'} "
+            f"[{switch.path}]"
+        )
+    state = switch.read_state()
+    if not state.running:
+        raise WaveLeaseKillSwitchEngaged(
+            f"kill switch engaged: {state.reason} [{switch.path}]"
+        )
+    try:
+        material = Path(switch.path).read_bytes()
+    except OSError as exc:  # unreadable permit is STOP, same as read_state's rule
+        raise WaveLeaseKillSwitchEngaged(
+            f"kill switch permit could not be read ({exc}) [{switch.path}]"
+        ) from exc
+    return int(hashlib.sha256(material).hexdigest()[:12], 16)
+
+
+def lane_endpoint(lane: str) -> str:
+    """The endpoint a dispatch lane speaks, or ``""`` when none is declared."""
+    if lane == "ollama":
+        from daedalus.providers.ollama import DEFAULT_HOST
+
+        return (os.environ.get("OLLAMA_HOST") or DEFAULT_HOST).strip().rstrip("/")
+    return LANE_ENDPOINTS.get(lane, "")
+
+
+# --------------------------------------------------------------------------- #
+# the results                                                                  #
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class WaveLeaseDenied:
+    """No capability was issued, and the canonical reason why.
+
+    The deny :class:`~daedalus.schemas.PolicyDecision` IS the receipt: it is a
+    digest-bearing, provenance-bearing contract that ``issue_effect_lease``
+    itself refuses to turn into a lease ("deny policy decisions cannot issue
+    leases"), so the refusal and the record cannot drift apart.
+    """
+
+    policy_decision: PolicyDecision
+    reasons: tuple[str, ...]
+    guard_decisions: tuple[GuardDecision, ...] = ()
+
+    @property
+    def granted(self) -> bool:
+        return False
+
+    def receipt(self) -> dict[str, Any]:
+        return {
+            "verdict": "deny",
+            "entrypoint_id": ENTRYPOINT_ID,
+            "policy_decision_id": self.policy_decision.decision_id,
+            "policy_decision_sha256": self.policy_decision.digest,
+            "policy_version": self.policy_decision.policy_version,
+            "reasons": list(self.reasons),
+            "guard_decisions": [
+                {"contract": d.contract, "allowed": d.allowed, "evidence": d.evidence}
+                for d in self.guard_decisions
+            ],
+            "registry_sha256": registry_sha256(),
+            "lease_id": None,
+            "requested_effects": [],
+            "security_boundary_claimed": False,
+            "at": _timestamp(_utc_now()),
+        }
+
+
+@dataclass(frozen=True)
+class WaveOffloadLease:
+    """One granted, persisted lease plus the narrowed executions inside it."""
+
+    authorization: NonRuntimeEffectAuthorization
+    lease: EffectLease
+    request: EffectLeaseRequest
+    policy_decision: PolicyDecision
+    ledger: EffectLeaseLedger = field(repr=False)
+    ledger_path: str = ""
+    _executions: dict[int, EffectExecutionRequest] = field(
+        default_factory=dict, repr=False
+    )
+
+    @property
+    def granted(self) -> bool:
+        return True
+
+    @property
+    def lease_id(self) -> str:
+        return self.lease.lease_id
+
+    @property
+    def requested_effects(self) -> tuple[str, ...]:
+        return tuple(self.lease.requested_effects)
+
+    def execution_for(
+        self, position: int, writable_paths: Sequence[str] = ()
+    ) -> EffectExecutionRequest:
+        """The narrowed execution request for one task position in the wave.
+
+        Derived, never supplied: position is the same 1:1 index the wave's
+        tasks/assignments/results already share, so two candidates can never
+        collide on one execution identity and one candidate re-dispatched in
+        the same wave is correctly refused as a replay rather than run twice.
+        """
+        key = int(position)
+        cached = self._executions.get(key)
+        if cached is not None:
+            return cached
+        scope = self.lease.effect_scope
+        declared = tuple(str(p) for p in writable_paths if str(p).strip())
+        execution = EffectExecutionRequest(
+            execution_id=f"{self.lease.lease_id}-exec-{key}",
+            idempotency_key=f"{self.lease.idempotency_namespace}-{key}",
+            requested_effects=tuple(self.lease.requested_effects),
+            # The lease's own roots when the task declared none. A write
+            # execution MUST name paths (the lease layer refuses otherwise),
+            # and inventing a narrower claim than the wave can honour would put
+            # a false bound in the receipt.
+            writable_paths=declared or scope.writable_paths,
+            egress_endpoints=scope.egress_endpoints,
+            tools=scope.tools,
+            max_cost_microusd=scope.max_cost_microusd or 0,
+            kill_switch_ref=scope.kill_switch_ref,
+            kill_switch_generation=self.lease.kill_switch_generation,
+        )
+        self._executions[key] = execution
+        return execution
+
+    def issued_execution(self, position: int) -> EffectExecutionRequest | None:
+        """The execution ALREADY derived for ``position``, or None.
+
+        Read-only on purpose: a receipt writer must be able to report what was
+        issued without causing another execution identity to come into being.
+        """
+        return self._executions.get(int(position))
+
+    def receipt(self) -> dict[str, Any]:
+        """What the loop receipt and the attempt ledger carry about this lease."""
+        scope = self.lease.effect_scope
+        return {
+            "verdict": "allow",
+            "entrypoint_id": self.lease.entrypoint_id,
+            "lease_id": self.lease.lease_id,
+            "lease_sha256": self.lease.digest,
+            "requested_effects": list(self.lease.requested_effects),
+            "policy_decision_id": self.policy_decision.decision_id,
+            "policy_decision_sha256": self.policy_decision.digest,
+            "policy_version": self.policy_decision.policy_version,
+            "issuer_key_id": self.lease.issuer_key_id,
+            "issued_at": self.lease.issued_at,
+            "expires_at": self.lease.expires_at,
+            "kill_switch_ref": scope.kill_switch_ref,
+            "kill_switch_generation": self.lease.kill_switch_generation,
+            "max_cost_microusd": scope.max_cost_microusd,
+            "max_concurrency": scope.max_concurrency,
+            "timeout_s": scope.timeout_s,
+            "writable_paths": list(scope.writable_paths),
+            "egress_endpoints": list(scope.egress_endpoints),
+            "tools": list(scope.tools),
+            "execution_ids": [
+                self._executions[k].execution_id for k in sorted(self._executions)
+            ],
+            "registry_sha256": self.lease.registry_sha256,
+            "ledger_path": self.ledger_path,
+            "security_boundary_claimed": False,
+        }
+
+
+# --------------------------------------------------------------------------- #
+# the issuer                                                                   #
+# --------------------------------------------------------------------------- #
+def _deny(
+    *,
+    reasons: Sequence[str],
+    guard_decisions: Sequence[GuardDecision],
+    source_revision: str,
+    trace_id: str | None,
+    subject_id: str,
+    subject_sha256: str,
+    policy_sha256: str,
+    now: datetime,
+) -> WaveLeaseDenied:
+    decision = PolicyDecision(
+        decision_id=f"{subject_id}-deny",
+        subject_id=subject_id,
+        subject_sha256=subject_sha256,
+        policy_version=POLICY_VERSION,
+        policy_sha256=policy_sha256,
+        verdict="deny",
+        reasons=tuple(reasons),
+        # A deny decision may not carry grants -- the contract enforces it.
+        effect_scope=EffectScope(),
+        provenance=ContractProvenance(
+            origin="kernel.wave-offload-lease",
+            source_revision=source_revision,
+            created_at=_timestamp(now),
+            input_digests=(subject_sha256, policy_sha256),
+            trace_id=trace_id,
+        ),
+    )
+    return WaveLeaseDenied(
+        policy_decision=decision,
+        reasons=tuple(sorted(reasons)),
+        guard_decisions=tuple(guard_decisions),
+    )
+
+
+def acquire_wave_offload_lease(
+    repo_root: str | Path,
+    *,
+    source_revision: str,
+    mission_id: str,
+    attempt_id: str,
+    positions: int,
+    writable_paths: Sequence[str] = (),
+    lanes: Sequence[str] = (),
+    tools: Sequence[str] = (),
+    max_spend_usd: float | None = None,
+    timeout_s: float | None = None,
+    contained: bool = True,
+    containment_evidence: str = "",
+    write_policy_blocked: Sequence[str] = (),
+    switch: KillSwitch | None = None,
+    trace_id: str | None = None,
+    lease_id: str | None = None,
+    now: datetime | None = None,
+) -> WaveOffloadLease | WaveLeaseDenied:
+    """Run the four ``python.offload`` guard contracts, then issue or deny.
+
+    Returns a :class:`WaveOffloadLease` when every contract allows, and a
+    :class:`WaveLeaseDenied` -- never an exception, never a partial grant --
+    when one refuses. The one exception it DOES raise is
+    :class:`WaveLeaseKillSwitchEngaged`, because a revoked permit is not a
+    verdict about this wave: it is an instruction to stop the run.
+
+    The caller supplies what only it can know (which lanes this wave routes to,
+    which paths the tasks declared, whether the attempts are contained). This
+    module owns everything a caller must not be trusted with: the issuer key,
+    the generation, the ledger location, and the refusal to issue for any row
+    other than ``python.offload``.
+    """
+    instant = now or _utc_now()
+    root = str(Path(repo_root).resolve())
+    live_switch = switch if switch is not None else KillSwitch(repo_root=root)
+    spec = REGISTRY_BY_ID[ENTRYPOINT_ID]
+    effects = tuple(sorted(effect.value for effect in spec.effects))
+
+    # -- 1. the kill switch, before anything is computed for this wave ------ #
+    # Raises. See WaveLeaseKillSwitchEngaged for why this one is not a verdict.
+    generation = kill_switch_generation(live_switch)
+
+    # -- 2. the four declared guard contracts ------------------------------- #
+    from daedalus.budget import process_guard_boundary_decision
+
+    guards: list[GuardDecision] = [process_guard_boundary_decision()]
+
+    endpoints: list[str] = []
+    egress_reasons: list[str] = []
+    egress_ok = True
+    for lane in sorted({str(l) for l in lanes if str(l).strip()}):
+        endpoint = lane_endpoint(lane)
+        if not endpoint:
+            egress_ok = False
+            egress_reasons.append(
+                f"lane {lane!r} declares no endpoint, so its egress cannot be leased"
+            )
+            continue
+        if lane == "ollama":
+            from daedalus.providers.ollama import ollama_endpoint_admission
+
+            allowed, _lane, evidence = ollama_endpoint_admission(endpoint)
+            egress_reasons.append(f"{lane}: {evidence}")
+            if not allowed:
+                egress_ok = False
+                continue
+        else:
+            egress_reasons.append(
+                f"{lane}: declared endpoint {endpoint} (no admission contract "
+                f"implements this lane yet, so it is leased only as a declaration)"
+            )
+        endpoints.append(endpoint)
+    if not endpoints:
+        egress_ok = False
+        egress_reasons.append(
+            "no admissible endpoint for this wave; a network-effect lease must "
+            "name at least one"
+        )
+    guards.append(
+        GuardDecision("provider.egress_policy", egress_ok, "; ".join(egress_reasons))
+    )
+
+    blocked = tuple(str(p) for p in write_policy_blocked)
+    guards.append(
+        GuardDecision(
+            "provider.write_policy",
+            not blocked,
+            (
+                f"sensitivity.path_write_blocked refuses {len(blocked)} declared "
+                f"path(s): {', '.join(sorted(blocked)[:5])}"
+            )
+            if blocked
+            else (
+                "sensitivity.path_write_blocked cleared every declared path; the "
+                "leased roots are a DECLARATION, enforced by offload's own write "
+                "guard and the isolated attempt worktree, not by this receipt"
+            ),
+        )
+    )
+
+    guards.append(
+        GuardDecision(
+            "containment.attempt",
+            bool(contained),
+            containment_evidence
+            or (
+                "wave containment was asserted by the caller with no evidence"
+                if contained
+                else "wave containment could not be established"
+            ),
+        )
+    )
+
+    # -- 3. the request, and the policy digest over what decided ------------ #
+    request_id = f"{mission_id}-wave-offload-{attempt_id}"
+    cost_microusd = 0 if max_spend_usd is None else int(round(float(max_spend_usd) * 1e6))
+    if cost_microusd < 0:
+        cost_microusd = 0
+    timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
+    declared_paths = tuple(
+        sorted({str(p).strip() for p in writable_paths if str(p).strip()})
+    ) or (".",)
+    declared_tools = tuple(
+        sorted(
+            {str(t) for t in (*BASE_TOOLS, *tools, *lanes) if str(t).strip()}
+        )
+    )
+
+    # The digest of the exact material this verdict was computed from. Not a
+    # document hash of a policy file -- there is no such file for this decision
+    # -- so it names what it really is: the inputs, so a receipt reader can
+    # recompute it and see whether the decision drifted.
+    policy_sha256 = canonical_sha(
+        {
+            "policy_version": POLICY_VERSION,
+            "entrypoint_id": ENTRYPOINT_ID,
+            "registry_sha256": registry_sha256(),
+            "effects": list(effects),
+            "guard_decisions": [
+                {"contract": d.contract, "allowed": d.allowed, "evidence": d.evidence}
+                for d in sorted(guards, key=lambda d: d.contract)
+            ],
+            "kill_switch_generation": generation,
+            "max_cost_microusd": cost_microusd,
+            "timeout_s": timeout,
+            "writable_paths": list(declared_paths),
+            "egress_endpoints": sorted(set(endpoints)),
+            "tools": list(declared_tools),
+            "max_concurrency": max(1, int(positions)),
+        }
+    )
+
+    refusals = tuple(
+        f"{d.contract}: {d.evidence}" for d in guards if not d.allowed
+    )
+    if refusals:
+        return _deny(
+            reasons=refusals,
+            guard_decisions=guards,
+            source_revision=source_revision,
+            trace_id=trace_id,
+            subject_id=request_id,
+            # No EffectLeaseRequest exists on this path (its scope would have to
+            # claim grants the policy just refused), so the subject digest is
+            # over the decision material itself.
+            subject_sha256=policy_sha256,
+            policy_sha256=policy_sha256,
+            now=instant,
+        )
+
+    scope = EffectScope(
+        read_only=False,
+        writable_paths=declared_paths,
+        egress_endpoints=tuple(sorted(set(endpoints))),
+        tools=declared_tools,
+        max_cost_microusd=cost_microusd,
+        max_concurrency=max(1, int(positions)),
+        timeout_s=timeout,
+        kill_switch_ref=KILL_SWITCH_REF,
+    )
+    provenance = ContractProvenance(
+        origin="kernel.wave-offload-lease",
+        source_revision=source_revision,
+        created_at=_timestamp(instant),
+        trace_id=trace_id,
+    )
+    request = EffectLeaseRequest(
+        request_id=request_id,
+        mission_id=mission_id,
+        attempt_id=attempt_id,
+        entrypoint_id=ENTRYPOINT_ID,
+        requested_effects=effects,
+        effect_scope=scope,
+        idempotency_namespace=f"{mission_id}-{attempt_id}",
+        kill_switch_generation=generation,
+        runtime_manifest_sha256=None,
+        runtime_conformance_sha256=None,
+        provenance=provenance,
+    )
+    policy = PolicyDecision(
+        decision_id=f"{request_id}-allow",
+        subject_id=request.request_id,
+        subject_sha256=request.digest,
+        policy_version=POLICY_VERSION,
+        policy_sha256=policy_sha256,
+        verdict="allow",
+        reasons=tuple(
+            sorted({f"{d.contract}: {d.evidence}" for d in guards})
+        ),
+        effect_scope=scope,
+        provenance=ContractProvenance(
+            origin="kernel.wave-offload-lease-policy",
+            source_revision=source_revision,
+            created_at=_timestamp(instant),
+            input_digests=(request.digest, policy_sha256),
+            trace_id=trace_id,
+        ),
+    )
+
+    keyring = issuer_keyring(root)
+    ttl = min(max(_MIN_TTL_S, timeout), _MAX_TTL_S)
+    lease = issue_effect_lease(
+        request,
+        policy,
+        lease_id=lease_id or f"{request_id}-{uuid.uuid4().hex[:8]}",
+        issuer_key_id=ISSUER_KEY_ID,
+        issued_at=instant,
+        expires_at=instant + timedelta(seconds=ttl),
+        secret=keyring[ISSUER_KEY_ID],
+    )
+    ledger_path = lease_ledger_path(root)
+    ledger = EffectLeaseLedger(ledger_path)
+    authorization = NonRuntimeEffectAuthorization(
+        lease=lease,
+        request=request,
+        policy_decision=policy,
+        effect_ledger=ledger,
+        lease_keyring=keyring,
+        guard_decisions=tuple(guards),
+        # LIVE, not captured: the facade re-reads this at every boundary, so an
+        # operator's stop during a running wave invalidates the lease at the
+        # next start/finish instead of being noticed only after the spend.
+        kill_switch_generation_reader=lambda: kill_switch_generation(live_switch),
+    )
+    # PERSIST BEFORE ANY EXECUTION MAY START. `EffectLeaseLedger.begin` refuses
+    # a lease it has never seen ("effect lease was not persisted before start"),
+    # so this is the line that makes the capability real.
+    authorization.grant()
+    return WaveOffloadLease(
+        authorization=authorization,
+        lease=lease,
+        request=request,
+        policy_decision=policy,
+        ledger=ledger,
+        ledger_path=str(ledger_path),
+    )
+
+
+__all__ = [
+    "ENTRYPOINT_ID",
+    "ISSUER_KEY_ID",
+    "KILL_SWITCH_REF",
+    "POLICY_VERSION",
+    "WaveLeaseDenied",
+    "WaveLeaseKillSwitchEngaged",
+    "WaveOffloadLease",
+    "acquire_wave_offload_lease",
+    "control_root",
+    "issuer_keyring",
+    "kill_switch_generation",
+    "lane_endpoint",
+    "lease_ledger_path",
+]

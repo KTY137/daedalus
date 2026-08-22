@@ -162,14 +162,75 @@ def _cancel_requested(cancel: Any) -> bool:
     return bool(_as_predicate(cancel)())
 
 
-def _accepts_cancel(fn: Any) -> bool:
-    """Does ``fn`` take a ``cancel`` keyword? Asked of the callable, never
-    assumed, so this seam starts working the instant the parameter lands
+def _accepts_kwarg(fn: Any, name: str) -> bool:
+    """Does ``fn`` take a keyword called ``name``? Asked of the callable, never
+    assumed, so a seam starts working the instant the parameter lands
     downstream and needs no flag day to coordinate."""
     try:
-        return "cancel" in inspect.signature(fn).parameters
+        return name in inspect.signature(fn).parameters
     except (TypeError, ValueError):  # builtins, C callables, odd wrappers
         return False
+
+
+def _accepts_cancel(fn: Any) -> bool:
+    """Does ``fn`` take a ``cancel`` keyword? See :func:`_accepts_kwarg`."""
+    return _accepts_kwarg(fn, "cancel")
+
+
+@dataclass(frozen=True)
+class EffectBounds:
+    """What a wave's Effect Lease is bounded BY, supplied by whoever owns the run.
+
+    Passed to :class:`WaveExecutor` at construction rather than to
+    :meth:`WaveExecutor.run_wave`, deliberately: ``run_wave``'s signature is a
+    protocol that injected executor adapters implement (see ``LoopDriver``'s
+    ``executor=`` seam), and adding a mandatory-looking keyword to it would
+    break every adapter that already implements the old one. A constructor
+    keyword is invisible to an adapter that was handed in ready-made.
+
+    ``source_revision`` is the revision the RUN started at, captured once by the
+    driver -- not re-read per wave, because a lease's provenance must name the
+    tree the run was reasoning about even if another lane commits mid-run.
+    """
+
+    mission_id: str
+    source_revision: str
+    max_spend_usd: float | None = None
+    timeout_s: float | None = None
+    trace_id: str | None = None
+    #: The run's own KillSwitch. Shared so the lease's generation and the
+    #: loop's cancel token read ONE permit; two switches could disagree.
+    switch: Any = None
+
+
+def _leaseable_paths(paths: Any, repo_root: str) -> tuple[list[str], list[str]]:
+    """``(repository-relative paths, rejected)`` for an effect scope.
+
+    The canonical contracts refuse absolute or drive-qualified paths outright
+    (``schemas._repo_path``), so an absolute declaration is rewritten relative
+    to the checkout when it is inside it and REPORTED when it is not, rather
+    than crashing a wave over a declaration that was only ever a hint.
+    """
+    keep: list[str] = []
+    rejected: list[str] = []
+    root = Path(repo_root).resolve()
+    for raw in (paths or []):
+        text = str(raw).strip().replace("\\", "/")
+        if not text:
+            continue
+        candidate = Path(text)
+        if candidate.is_absolute() or (len(text) > 1 and text[1] == ":"):
+            try:
+                text = candidate.resolve().relative_to(root).as_posix()
+            except (ValueError, OSError):
+                rejected.append(str(raw))
+                continue
+        if not text or text.startswith("../") or text == "..":
+            rejected.append(str(raw))
+            continue
+        if text not in keep:
+            keep.append(text)
+    return keep, rejected
 
 
 def _task_status(dispatch_status: str) -> str:
@@ -257,8 +318,14 @@ class WaveExecutor:
     """
 
     def __init__(self, availability: dict | None = None,
-                 progress_log: Any = None) -> None:
+                 progress_log: Any = None,
+                 effect_bounds: "EffectBounds | None" = None) -> None:
         self.availability = availability
+        # WHAT THIS WAVE'S CAPABILITY IS BOUNDED BY. None means "not supplied",
+        # and that is not the same as "unbounded": _acquire_wave_lease then
+        # leases ZERO spend and reads the run's revision from the checkout, so
+        # the missing declaration narrows the grant instead of widening it.
+        self.effect_bounds = effect_bounds
         # WHERE THE ATTEMPT-LIFECYCLE EVENTS GO. Defaulted to None (=
         # daedalus.progress.default_log()) so every existing construction is
         # unchanged. A driver that already owns a log -- LoopDriver does --
@@ -297,6 +364,143 @@ class WaveExecutor:
             if gate and 0 <= int(pos) < len(out):
                 out[int(pos)]["gate"] = dict(gate)
         return out
+
+    def _source_revision(self, repo_root: str) -> str | None:
+        """The run's revision, declared if the driver declared one, else read.
+
+        Read-only and best effort: a checkout whose HEAD cannot be resolved
+        gets no lease at all (a provenance-bearing contract may not carry a
+        made-up revision), which is why the failure returns None instead of a
+        placeholder.
+        """
+        bounds = self.effect_bounds
+        if bounds is not None and bounds.source_revision:
+            return bounds.source_revision
+        import subprocess
+
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=20, check=False)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        head = (proc.stdout or "").strip().lower()
+        return head if len(head) == 40 and all(
+            c in "0123456789abcdef" for c in head) else None
+
+    def _acquire_wave_lease(self, scheduler: KairosScheduler, wave: Wave,
+                            assignments: list[Assignment], repo_root: str, *,
+                            task_dicts: list[dict[str, Any]],
+                            attempt_id: str, gated: bool, has_writes: bool) -> Any:
+        """Acquire the ONE ``python.offload`` Effect Lease this wave runs under.
+
+        Once per wave, here, because this is the last scope that knows the whole
+        wave: which lanes it routes to, which paths it declared, and whether the
+        attempts below it are contained. ``_run_one`` cannot know any of that,
+        and an entrypoint that mints its own authorization is not authorised by
+        anything -- see ``daedalus.offload.offload``'s docstring, which forbids
+        exactly that, and ``daedalus.kernel.offload_lease`` for the issuer.
+
+        Returns a ``WaveOffloadLease``, a ``WaveLeaseDenied``, or None when
+        the wave has no live work to lease. Raises
+        ``WaveLeaseKillSwitchEngaged`` (a ``LoopHalted``) when the permit is
+        not armed -- a revoked permit is an instruction to stop the run, not a
+        verdict about this wave.
+        """
+        from .kernel.offload_lease import acquire_wave_offload_lease
+
+        live = [a for a in assignments if a.accepted]
+        if not live:
+            return None
+        revision = self._source_revision(repo_root)
+        bounds = self.effect_bounds
+
+        declared: list[str] = []
+        rejected: list[str] = []
+        for task in wave.tasks:
+            keep, drop = _leaseable_paths(getattr(task, "paths", ()), repo_root)
+            declared.extend(p for p in keep if p not in declared)
+            rejected.extend(drop)
+
+        # The write-policy contract, run rather than asserted. `path_write_blocked`
+        # is this repository's ONE implementation of "may this path be written",
+        # so calling it is the difference between a receipt that names a guard
+        # and a receipt whose guard actually ran.
+        from .sensitivity import path_write_blocked
+
+        blocked = [p for p in declared
+                   if path_write_blocked(p, scheduler.policy)]
+        blocked.extend(f"{p} (outside the checkout)" for p in rejected)
+
+        # The curated gate's own program is a tool this wave may spawn, and a
+        # process-effect lease has to name its exact tools. argv[0] only: the
+        # arguments are not tools.
+        tools: list[str] = []
+        for row in task_dicts:
+            for word in ((row.get("gate") or {}).get("argv") or ())[:1]:
+                name = Path(str(word)).name
+                if name and name not in tools:
+                    tools.append(name)
+
+        if revision is None:
+            from .kernel.offload_lease import WaveLeaseDenied
+            from .schemas import ContractProvenance, EffectScope, PolicyDecision
+            import hashlib as _hashlib
+
+            reason = (f"the revision of {repo_root} could not be read, so no "
+                      "provenance-bearing capability can be issued for it")
+            # A denial still has to be a canonical record; with no revision to
+            # bind, it is the one case this module builds by hand.
+            zero = "0" * 40
+            subject = _hashlib.sha256(reason.encode("utf-8")).hexdigest()
+            return WaveLeaseDenied(
+                policy_decision=PolicyDecision(
+                    decision_id=f"{attempt_id}-deny",
+                    subject_id=attempt_id,
+                    subject_sha256=subject,
+                    policy_version="daedalus.wave-offload-lease/1",
+                    policy_sha256=subject,
+                    verdict="deny",
+                    reasons=(reason,),
+                    effect_scope=EffectScope(),
+                    provenance=ContractProvenance(
+                        origin="build_exec.wave-lease",
+                        source_revision=zero,
+                        created_at=progress.now_iso(),
+                        input_digests=(subject,),
+                    ),
+                ),
+                reasons=(reason,),
+            )
+
+        return acquire_wave_offload_lease(
+            repo_root,
+            source_revision=revision,
+            mission_id=(bounds.mission_id if bounds and bounds.mission_id
+                        else f"build-wave-{wave.index}"),
+            attempt_id=attempt_id,
+            positions=len(wave.tasks),
+            writable_paths=declared,
+            lanes=sorted({a.lane for a in live}),
+            tools=tools,
+            max_spend_usd=(bounds.max_spend_usd if bounds else None),
+            timeout_s=(bounds.timeout_s if bounds else None),
+            contained=(gated or not has_writes),
+            containment_evidence=(
+                f"{len(live)} write task(s) run through gated_writes.run_write_wave, "
+                "each in its own TaskAttempt worktree; the primary checkout is "
+                "never written by this path"
+                if gated else
+                f"wave {wave.index} routes {len(live)} advisory attempt(s) through "
+                "KairosScheduler.dispatch; no write-mode assignment is present, so "
+                "no attempt can mutate the primary checkout"
+                if not has_writes else
+                "a write-mode assignment would reach the unisolated dispatch path"
+            ),
+            write_policy_blocked=blocked,
+            switch=(bounds.switch if bounds else None),
+            trace_id=(bounds.trace_id if bounds else None),
+        )
 
     def classify_wave(self, scheduler: KairosScheduler, wave: Wave, repo_root: str) -> list[Assignment]:
         """Read-only: route every task in ``wave`` without executing anything.
@@ -477,6 +681,46 @@ class WaveExecutor:
                 f"wave was started, so nothing here was spent and no task was "
                 f"marked 'dispatched'")
 
+        # ---- THE CAPABILITY, ACQUIRED ONCE, BEFORE ANY TASK IS DISPATCHED - #
+        # A live wave that cannot obtain its lease is refused HERE, above the
+        # "dispatched" marks and above the lifecycle events, so a refused wave
+        # leaves no half-open attempt behind and nothing downstream has to
+        # distinguish "was never authorised" from "was attempted and failed".
+        # This is also the reason the refusal is not left to offload(): by the
+        # time offload refuses, the wave has already paid for routing, marked
+        # its tasks dispatched, and gated an empty patch as a candidate --
+        # which is precisely what runs/loop/blocker_9887a98e.json measured.
+        nonce = uuid.uuid4().hex[:8]
+        lease = None
+        if not dry_run:
+            lease = self._acquire_wave_lease(
+                scheduler, wave, assignments, repo_root, task_dicts=tasks,
+                attempt_id=f"w{wave.index}-{nonce}",
+                gated=gated_write_wave, has_writes=has_writes)
+            if lease is not None and not getattr(lease, "granted", False):
+                receipt = lease.receipt()
+                refused = [
+                    {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                     "owner": a.owner, "objective": a.objective,
+                     "paths": list(a.paths),
+                     "status": "effect_lease_denied",
+                     "reason": "; ".join(lease.reasons),
+                     "wrote": [], "changed_paths": [],
+                     "provider_receipt": receipt,
+                     "effect_lease": receipt}
+                    for a in assignments
+                ]
+                for t in wave.tasks:
+                    t.mark("bounced")
+                return WaveResult(
+                    index=wave.index, mode="lease_denied", dry_run=dry_run,
+                    write_tasks=write_n, advisory_tasks=advisory_n,
+                    landed_tasks=0, bounced_tasks=len(refused),
+                    forced_sequential_reason=(
+                        "no python.offload Effect Lease was issued for this wave: "
+                        + "; ".join(lease.reasons)),
+                    path_conflicts=conflicts, results=refused)
+
         if not dry_run:
             for t in wave.tasks:
                 t.mark("dispatched")
@@ -495,7 +739,6 @@ class WaveExecutor:
         # decides, it reports a status) and it is the ONLY way to watch this
         # machinery without spending money -- muting it would make the cheap
         # path the unobservable one, which is backwards.
-        nonce = uuid.uuid4().hex[:8]
         batch_id = f"wave-{wave.index}-{nonce}"
         units = [_attempt_unit_id(wave.index, i, nonce)
                  for i in range(len(wave.tasks))]
@@ -581,14 +824,37 @@ class WaveExecutor:
             # believing it.
             extra = {"cancel": cancel} if (
                 cancel is not None and _accepts_cancel(run_write_wave)) else {}
+            # SAME CONDITIONAL HAND-DOWN, SAME REASON, for the lease. The gated
+            # write path reaches offload() through TaskAttempt/run_attempt and
+            # therefore needs the capability too, but gated_writes.py is owned
+            # elsewhere and does not take one yet -- so this asks the callable
+            # instead of assuming either answer. Until it lands, a live WRITE
+            # wave still ends in offload's `effect_lease_required` refusal; the
+            # advisory dispatch path below is what this change unblocks, and the
+            # receipt says which of the two ran.
+            if lease is not None and _accepts_kwarg(run_write_wave,
+                                                    "effect_authorization"):
+                extra["effect_authorization"] = lease.authorization
+                extra["effect_executions"] = {
+                    pos: lease.execution_for(
+                        pos, _leaseable_paths(t.paths, repo_root)[0])
+                    for pos, t in enumerate(wave.tasks)}
 
             def _dispatch() -> list[dict[str, Any]]:
                 return run_write_wave(scheduler, repo_root, tasks, assignments,
                                       auto_promote=write_wave_policy, **extra)
         else:
+            executions = {
+                pos: lease.execution_for(
+                    pos, _leaseable_paths(t.paths, repo_root)[0])
+                for pos, t in enumerate(wave.tasks)} if lease is not None else None
+
             def _dispatch() -> list[dict[str, Any]]:
-                return scheduler.dispatch(repo_root, tasks, dry_run=dry_run,
-                                          parallel=wave_parallel)
+                return scheduler.dispatch(
+                    repo_root, tasks, dry_run=dry_run, parallel=wave_parallel,
+                    effect_authorization=(lease.authorization
+                                          if lease is not None else None),
+                    effect_executions=executions)
 
         # ONE stop point for the beat, on EVERY exit including a raise. The
         # thread is a daemon, so a leak would not hold the interpreter open --
@@ -617,7 +883,19 @@ class WaveExecutor:
 
         landed_n = bounced_n = 0
         elapsed = time.monotonic() - dispatch_started
+        # THE LEASE RIDES ON EVERY RESULT. Stamped from the wave's own lease
+        # object rather than read back out of a provider receipt, so a result
+        # can never claim a capability that was not the one actually issued --
+        # and so an operator reading runs/loop/loop-*.json can join a spend to
+        # the exact lease id, effect set and execution that authorised it.
+        lease_receipt = lease.receipt() if lease is not None else None
         for pos, (task, result) in enumerate(zip(wave.tasks, raw)):
+            if lease_receipt is not None and isinstance(result, dict):
+                stamped = dict(lease_receipt)
+                execution = lease.issued_execution(pos)
+                stamped["execution_id"] = (execution.execution_id
+                                           if execution is not None else None)
+                result["effect_lease"] = stamped
             task.last_result = result
             # ---- ATTEMPT LIFECYCLE: CLOSE -------------------------------- #
             # Before the `dry_run` short-circuit below, so a dry run closes

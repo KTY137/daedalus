@@ -149,9 +149,33 @@ class KairosScheduler:
         }
 
     def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True,
-                 parallel: bool = False) -> list[dict]:
+                 parallel: bool = False, *,
+                 effect_authorization: Any = None,
+                 effect_executions: Any = None) -> list[dict]:
         """Run the accepted work. dry_run stops at the spawn plan; live actually
         invokes each bench worker through the provider seam.
+
+        ``effect_authorization``/``effect_executions`` carry ONE wave's already
+        issued and already persisted ``python.offload`` Effect Lease down to the
+        one place that calls ``offload(live=True)``. This scheduler never mints
+        one: ``daedalus.offload``'s contract is that the entrypoint consumes a
+        capability it was handed and "never discovers issuer secrets or mints
+        its own lease from ambient configuration", and a scheduler that could
+        authorise its own dispatch would be exactly that discovery. See
+        :func:`daedalus.kernel.offload_lease.acquire_wave_offload_lease` for
+        the issuer and :meth:`daedalus.build_exec.WaveExecutor.run_wave` for the
+        one production caller that acquires it, once per wave.
+
+        ``effect_executions`` maps a task POSITION (its index in ``tasks``, the
+        same 1:1 index accept() preserves) to that task's own narrowed
+        :class:`~daedalus.kernel.effects.EffectExecutionRequest`. Per position,
+        not one shared request: the lease ledger treats a repeated execution
+        identity as a replay and refuses the second effect, so sharing one
+        request across a two-task wave would silently run only the first task.
+
+        Absent both, every live call still reaches ``offload`` and is still
+        refused there with ``effect_lease_required`` -- the refusal semantics
+        are unchanged by this parameter, only reachable-past.
 
         Sequential by default (``parallel=False``): each live write is verified
         by diffing a WHOLE-repo content-hash snapshot around that one run
@@ -180,11 +204,25 @@ class KairosScheduler:
                         "paths": a.paths, "status": "planned"}
             return None
 
-        def _run_one(a: "Assignment", isolate: bool) -> dict:
+        def _run_one(a: "Assignment", isolate: bool, position: int = 0) -> dict:
             from ..offload import offload
+            # THE LEASE IS CONSUMED HERE AND ISSUED NOWHERE NEAR HERE. Handed
+            # down whole; this function does not construct, narrow, extend or
+            # re-sign any part of it, and when it was handed nothing it passes
+            # nothing -- so offload's own refusal, not a guess made here,
+            # decides what happens to an unauthorised live call.
+            execution = None
+            if effect_authorization is not None and effect_executions is not None:
+                try:
+                    execution = effect_executions[position]
+                except (KeyError, IndexError, TypeError):
+                    execution = None
             res = offload(a.objective, repo_root, a.paths, live=True,
                           availability=avail, project=self.project,
-                          isolate_paths=isolate)
+                          isolate_paths=isolate,
+                          effect_authorization=(
+                              effect_authorization if execution is not None else None),
+                          effect_execution=execution)
             return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
                     "owner": a.owner, "objective": a.objective, "paths": a.paths,
                     "status": res.get("action"),
@@ -240,9 +278,17 @@ class KairosScheduler:
         if can_parallel and len(live_tasks) > 1:
             from concurrent.futures import ThreadPoolExecutor
             done: dict[int, dict] = {}
-            pending = [a for a in accepted if (_bounced_or_planned(a) is None)]
+            # (task position, assignment). The POSITION is carried, not the
+            # pending index, because it is the key an effect execution request
+            # is derived from -- and it is also the wave position every other
+            # result in this tree is matched on. Two indices that agree today
+            # and diverge the first time a bounced task appears mid-wave would
+            # attribute one candidate's capability to another.
+            pending = [(i, a) for i, a in enumerate(accepted)
+                       if (_bounced_or_planned(a) is None)]
             with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-                futs = {pool.submit(_run_one, a, True): i for i, a in enumerate(pending)}
+                futs = {pool.submit(_run_one, a, True, pos): k
+                        for k, (pos, a) in enumerate(pending)}
                 for f in futs:
                     done[futs[f]] = f.result()
             # preserve input order in the output
@@ -253,9 +299,10 @@ class KairosScheduler:
             return results
 
         # sequential (default, or forced by a path conflict)
-        for a in accepted:
+        for pos, a in enumerate(accepted):
             bp = _bounced_or_planned(a)
-            results.append(bp if bp is not None else _run_one(a, isolate=False))
+            results.append(bp if bp is not None
+                           else _run_one(a, isolate=False, position=pos))
         return results
 
     def gate_concurrent_writes(self, repo_root: str, tasks: list[dict],
