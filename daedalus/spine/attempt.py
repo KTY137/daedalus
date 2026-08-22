@@ -1219,6 +1219,11 @@ class TaskAttempt:
         self.branch = (f"{BRANCH_PREFIX}-{_slug(task.task_id)}-"
                        f"{task.digest[:8]}-{uuid.uuid4().hex[:6]}")
         self.effect_key = self.branch
+        #: The ``begin_effect`` receipt for THIS attempt, set by :meth:`run`
+        #: before any effect. ``None`` means the boundary was never entered --
+        #: which, since :meth:`run` is the only way to perform anything here,
+        #: means nothing was performed.
+        self._boundary_receipt = None
         # CANONICAL IDENTITY (see daedalus.spine.receipts). The attempt id IS
         # the effect key: one string names the branch in the world, the ledger
         # row, and the AttemptContract, so no join table can drift.
@@ -1291,7 +1296,51 @@ class TaskAttempt:
                           base_revision=base_revision,
                           error=f"spine ledger unavailable: {e}")
 
+        # 2. THE CENTRAL EFFECT BOUNDARY, and this is the last moment it can
+        #    honestly be entered. Everything above is a READ or a check
+        #    (storage watermark, cancel token, base revision) plus opening the
+        #    durable ledger the intent-ledger contract is ABOUT; everything
+        #    below is the effect -- the intent write, the worktree, the runner,
+        #    the gate subprocess. The row used to be LOCAL_GUARDS with the note
+        #    "direct Python callers do not yet obtain a boundary receipt", so
+        #    `begin_effect` REFUSED it and the canonical PolicyDecision was
+        #    assembled from a hand-written list of guard names instead of from
+        #    a receipt. Now the receipt is the source and the list is
+        #    corroboration -- see `receipts.attempt_policy_decision`.
+        #
+        #    It lives in `run`, not in the module-level `run_attempt` the
+        #    registry names, because `TaskAttempt(...).run()` is a live call
+        #    shape (the loop, the tests) and a boundary a caller can walk
+        #    around by choosing a different constructor is not a boundary. The
+        #    registry anchor points here for the same reason.
+        from daedalus.spine.effect_boundary import (
+            REGISTRY_BY_ID,
+            EffectBoundaryError,
+            begin_effect,
+        )
+        from daedalus.spine.receipts import ATTEMPT_ENTRYPOINT_ID
+
         try:
+            self._boundary_receipt = begin_effect(
+                ATTEMPT_ENTRYPOINT_ID,
+                REGISTRY_BY_ID[ATTEMPT_ENTRYPOINT_ID].effects,
+                self._boundary_guard_decisions(ledger),
+            )
+        except EffectBoundaryError as e:
+            # A refused start is a STATE, like every other failure here: the
+            # attempt never began, so nothing was created to clean up.
+            result = finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
+                            error=f"effect boundary refused this attempt: {e}")
+        except Exception as e:            # noqa: BLE001 - run() NEVER raises
+            # A contract that cannot be EVALUATED is not a contract that
+            # passed. An injected worktree manager without a `worktree_root`,
+            # a ledger object that is a stub -- either way nothing has been
+            # created yet, so refusing here is free and fail-closed. Broad on
+            # purpose: this method's whole contract is that it returns.
+            result = finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
+                            error=(f"effect boundary could not be evaluated: "
+                                   f"{type(e).__name__}: {e}"))
+        else:
             result = self._run_with_ledger(ledger, base_revision, finish)
         finally:
             if self._owns_ledger:
@@ -1796,6 +1845,12 @@ class TaskAttempt:
             # comment a reader of the record would never see.
             usage=ResourceUsage(wall_time_ms=gate_ms),
             budget=self.budget,
+            # THE SOURCE OF THE PolicyDecision, not a decoration on it. Without
+            # it `canonicalise_attempt` re-states the guard names in prose and
+            # binds the registry digest by reaching for it a second time; with
+            # it, the decision carries the receipt this attempt actually
+            # started under.
+            boundary_receipt=self._boundary_receipt,
             created_at=result.finished_ts,
             spend_grant_microusd=self.spend_grant_microusd,
             campaign_id=self.campaign_id,
@@ -1865,6 +1920,89 @@ class TaskAttempt:
                        contracts=contract_body,
                        contracts_error=contracts.error)
 
+    # -- the central effect boundary ---------------------------------------- #
+    def _boundary_guard_decisions(self, ledger: SpineLedger) -> tuple:
+        """Run the four ``python.attempt`` contracts and report their decisions.
+
+        RUN, not asserted. Each of these can come back False on a real tree,
+        which is the only thing that separates a boundary from a sentence:
+
+        * ``spine.intent_ledger`` -- the Gate-0 durable writer is OPEN (WAL +
+          synchronous=FULL with a machine readback), so the intent that
+          precedes the worktree has somewhere durable to land. The caller
+          already opened it; passing it in is what makes this a report on the
+          real handle rather than a second, unrelated open.
+        * ``containment.worktree`` -- :func:`daedalus.primary_tree.overlap_reason`
+          over the ground this manager's worktrees will land on. Bidirectional:
+          an ANCESTOR of the checkout is not inside it, and a manager handing
+          back ``repo_root.parent`` would otherwise pass.
+        * ``containment.attempt`` -- :class:`RunnerContext` still exposes no
+          field naming the primary checkout. That absence is property 2 of the
+          four in this module's docstring, and it was prose until here: this
+          reads the dataclass fields, so re-adding ``repo_root`` to the runner's
+          context refuses the attempt instead of quietly widening it.
+        * ``budget.process_guard`` -- the process-wide spend net is really
+          interposed on ``subprocess``/``urlopen`` before the gate spawns.
+        """
+        from dataclasses import fields as _fields
+
+        from daedalus.budget import process_guard_boundary_decision
+        from daedalus.spine.effect_boundary import GuardDecision
+
+        ledger_path = getattr(ledger, "path", None) or self._ledger_path
+        ledger_decision = GuardDecision(
+            "spine.intent_ledger",
+            True,
+            f"gate-0 durable spine writer open at {ledger_path}; intent "
+            f"kind={INTENT_KIND!r} effect_key={self.effect_key!r} is committed "
+            "before the worktree and before the runner, so a crash leaves a "
+            "findable branch rather than an unrecorded effect",
+        )
+
+        ground = nearest_existing(Path(self._manager.worktree_root))
+        overlap = _overlap_reason(ground, self.repo_root)
+        worktree_decision = GuardDecision(
+            "containment.worktree",
+            overlap is None,
+            (
+                f"primary_tree.overlap_reason({ground}, {self.repo_root}) is "
+                f"None: candidate checkouts land outside the primary checkout "
+                f"in both directions"
+            )
+            if overlap is None
+            else f"worktree root overlaps the primary checkout: {overlap}",
+        )
+
+        exposed = tuple(f.name for f in _fields(RunnerContext))
+        leaks = tuple(
+            name
+            for name in exposed
+            if name in {"repo_root", "repo", "checkout", "primary_root"}
+        )
+        attempt_decision = GuardDecision(
+            "containment.attempt",
+            not leaks,
+            (
+                f"RunnerContext exposes {list(exposed)} and nothing naming the "
+                f"primary checkout; the injected runner and gate are handed the "
+                f"worktree path only, and every mutating git verb outside "
+                f"{sorted(READ_ONLY_REPO_VERBS)} is refused by _git before "
+                f"subprocess is reached"
+            )
+            if not leaks
+            else (
+                f"RunnerContext now exposes {list(leaks)}, so candidate code "
+                f"can name the primary checkout"
+            ),
+        )
+
+        return (
+            ledger_decision,
+            worktree_decision,
+            attempt_decision,
+            process_guard_boundary_decision(),
+        )
+
     def _get_ledger(self) -> SpineLedger:
         if self._ledger is None:
             # Gate-0 writer seam: the durability factory is the only sanctioned
@@ -1878,5 +2016,13 @@ class TaskAttempt:
 
 
 def run_attempt(task: TaskSpec, **kwargs: Any) -> AttemptResult:
-    """Construct and run one :class:`TaskAttempt`. Returns, never raises."""
+    """Construct and run one :class:`TaskAttempt`. Returns, never raises.
+
+    The registered target of the ``python.attempt`` row. The central effect
+    boundary is entered one frame down, at the top of :meth:`TaskAttempt.run`
+    and before the intent, the worktree, the runner and the gate -- deliberately
+    NOT here, because ``TaskAttempt(...).run()`` is a live call shape and a
+    boundary this two-line wrapper owned could be walked around by not calling
+    it. The registry anchor therefore names ``TaskAttempt.run``.
+    """
     return TaskAttempt(task, **kwargs).run()

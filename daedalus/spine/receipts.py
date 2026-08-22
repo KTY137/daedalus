@@ -57,12 +57,14 @@ from daedalus.schemas import (
 
 
 #: The effect-boundary row this spine is registered under. Its ``wiring`` is
-#: LOCAL_GUARDS, not CENTRAL, so ``begin_effect`` REFUSES it and there is no
-#: boundary receipt to convert. The decision recorded here is therefore the
-#: decision the spine itself makes with the guards it really runs, bound to the
-#: declared registry digest so a reader can see which policy text it was made
-#: under. Upgrading the row to CENTRAL is the follow-up that would let this
-#: come from ``begin_effect`` instead; until then the honest label is below.
+#: CENTRAL. ``TaskAttempt.run`` enters ``begin_effect`` before the intent, the
+#: worktree, the runner and the gate, so a boundary receipt EXISTS for this path
+#: and :func:`attempt_policy_decision` takes it as its source: the reasons are
+#: the receipt's own guard evidence and ``policy_sha256`` is the receipt's
+#: registry digest, not a second independent read of the same registry. The
+#: locally-derived reason list below stays as corroboration -- it names the
+#: bounds this projection itself asserts (spend, wall time), which the boundary
+#: does not decide.
 ATTEMPT_ENTRYPOINT_ID = "python.attempt"
 
 ATTEMPT_ORIGIN = "daedalus.spine.attempt.TaskAttempt"
@@ -192,8 +194,27 @@ def attempt_policy_decision(
     timeout_s: int | None = None,
     spend_grant_microusd: int = 0,
     trace_id: str | None = None,
+    boundary_receipt: Any = None,
 ) -> PolicyDecision:
     """Record the decision the attempt spine itself made.
+
+    THE BOUNDARY RECEIPT IS THE SOURCE WHEN THERE IS ONE. ``boundary_receipt``
+    is the :class:`~daedalus.spine.effect_boundary.EffectStartReceipt` that
+    ``TaskAttempt.run`` obtained from ``begin_effect`` before the first effect.
+    When it is present, every guard decision it carries is written into
+    ``reasons`` verbatim -- contract name and the evidence the contract itself
+    produced -- and ``policy_sha256`` is the registry digest THAT RECEIPT was
+    computed against, so the decision and the boundary can never name two
+    different policy texts. The receipt's own ``receipt_sha256`` joins
+    ``provenance.input_digests``, which is what lets a reader tie this record
+    back to the exact start.
+
+    ``None`` is still accepted and still produces a well-formed record: this
+    function is also called for attempts refused before the boundary was
+    reached, and by callers outside the spine. In that case the digest is read
+    from the declared registry directly and the reasons are the caller's -- an
+    honest, weaker record, distinguishable by the absence of the
+    ``effect boundary:`` reason.
 
     The guards named in ``reasons`` are the ones that really run before the
     effect: the intent ledger write (no durable record, no effect), the storage
@@ -216,7 +237,27 @@ def attempt_policy_decision(
         )
     else:
         scope = EffectScope(read_only=True)
-    policy_sha = _policy_registry_sha256()
+    all_reasons = list(reasons)
+    digests = [subject_sha256]
+    receipt_sha = str(getattr(boundary_receipt, "receipt_sha256", "") or "")
+    registry_sha = str(getattr(boundary_receipt, "registry_sha256", "") or "")
+    if receipt_sha and registry_sha:
+        # THE RECEIPT DECIDES, and it decides first: its evidence leads the
+        # reason list and its registry digest IS policy_sha256.
+        all_reasons = [
+            f"effect boundary: begin_effect({ATTEMPT_ENTRYPOINT_ID}) receipt "
+            f"{receipt_sha}",
+            *(
+                f"{row.contract}: {row.evidence}"
+                for row in getattr(boundary_receipt, "guard_decisions", ())
+            ),
+            *all_reasons,
+        ]
+        policy_sha = registry_sha
+        digests.append(receipt_sha)
+    else:
+        policy_sha = _policy_registry_sha256()
+    digests.append(policy_sha)
     return PolicyDecision(
         decision_id=decision_id,
         subject_id=subject_id,
@@ -224,13 +265,19 @@ def attempt_policy_decision(
         policy_version=f"effect-boundary:{ATTEMPT_ENTRYPOINT_ID}",
         policy_sha256=policy_sha,
         verdict=verdict,
-        reasons=tuple(reasons),
+        # DEDUPED, because ``PolicyDecision`` refuses a repeated reason and the
+        # receipt's ``containment.attempt`` evidence can restate what the local
+        # list already says. Losing the whole record to a collision between two
+        # true statements would be absurd.
+        reasons=tuple(dict.fromkeys(all_reasons)),
         effect_scope=scope,
         provenance=ContractProvenance(
             origin=ATTEMPT_ORIGIN,
             source_revision=source_revision,
             created_at=created_at,
-            input_digests=(subject_sha256, policy_sha),
+            # Same reason: on the pre-boundary path subject and policy digests
+            # can coincide, and ContractProvenance refuses duplicates.
+            input_digests=tuple(dict.fromkeys(digests)),
             trace_id=trace_id,
         ),
     )
@@ -343,6 +390,7 @@ def canonicalise_attempt(
     campaign_id: str | None = None,
     trace_id: str | None = None,
     assurance: str | None = None,
+    boundary_receipt: Any = None,
 ) -> AttemptContractSet:
     """Turn one finished :class:`AttemptResult` into the canonical records.
 
@@ -409,6 +457,7 @@ def canonicalise_attempt(
             timeout_s=timeout_s,
             spend_grant_microusd=spend_grant_microusd,
             trace_id=trace_id,
+            boundary_receipt=boundary_receipt,
         )
         if denied:
             return AttemptContractSet(
