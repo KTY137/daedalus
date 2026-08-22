@@ -30,6 +30,7 @@ from typing import Any, Mapping, Sequence
 from daedalus.kernel.approvals import ApprovalLedger, ConsumedOwnerApproval
 from daedalus.kernel.promotion_trust_root import (
     PREAUTHORIZATION_STAGE,
+    PROMOTION_STAGES,
     SEALED_STAGE,
     PromotionTrustDecision,
     _append_record,
@@ -497,10 +498,25 @@ def authorize_persisted_promotion(
     a promotion that then refuses for an unrelated reason. The default is the
     sealed stage: an unknown caller gets the strict path.
 
+    "The default is the sealed stage" was true and insufficient: a caller who
+    PASSED something -- ``'SEALED'``, ``'sealed '``, a typo -- did not get the
+    default and did not get the sealed path either, because the trust root
+    selected the single-use claim by exact string equality and every other
+    string fell through to the branch that skips it. The stage is therefore
+    validated here as well as there: rejected at the public keyword, where the
+    caller's own name for the value still appears in the error.
+
     This function performs no worktree, provider or repository mutation. It
     reads git (tag objects, the committed allowed-signers blob) and appends to
     the checkout-external second-factor record.
     """
+    if str(promotion_stage) not in PROMOTION_STAGES:
+        raise PromotionAuthorizationError(
+            f"unknown promotion_stage {promotion_stage!r}: expected one of "
+            + ", ".join(repr(s) for s in PROMOTION_STAGES)
+            + ". An unrecognised stage is not a milder stage -- it skipped the "
+            "single-use claim while still authorising a promotion."
+        )
     snapshots = tuple(snapshot_promotion_candidates(candidates))
     if not isinstance(evidence_packet, EvidencePacket):
         raise PromotionAuthorizationError(
@@ -608,6 +624,7 @@ def authorize_persisted_promotion(
 
 __all__ = [
     "PREAUTHORIZATION_STAGE",
+    "PROMOTION_STAGES",
     "PromotionAuthorization",
     "PromotionAuthorizationError",
     "PromotionCandidateSnapshot",
