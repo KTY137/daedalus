@@ -1,0 +1,458 @@
+{
+  "slice": "daedalus/*.py, basenames a-l (39 root modules: accelerators..loop)",
+  "summary": "This half of the root package is the historical Daedalus harness: a lazy-dispatch CLI (daedalus/cli.py), a Python HTTP surface (web_api.py) and the file bridge, with policy modules (budget.py, config.py, atomic.py, dotenv.py) that Gate 0 actually leans on. Roughly two thirds is genuinely wired; the rest splits into three groups: four pure compatibility shims left over from the Ikarus->Kairos rename (ikarus.py, decompose.py, drafts.py, plus langgraph_adapter.py which never had a caller), three hook scripts that no settings.json installs (arch_hook.py, crew_hook.py and their shift_hook sibling), and a set of Agent-OS/GUI projections (control_plane.py, hierarchy.py, gui_catalogue.py, ikarus_chat.py) whose vocabulary predates the master plan's three-concept rule. The single most consequential finding is that loop.py -- the unattended self-improvement driver, the one module that spends money without a human per iteration -- has a `python -m daedalus.loop` entrypoint that is NOT in daedalus/spine/effect_boundary.py's registry, while eight far less dangerous CLI mains are listed there as INVENTORY_ONLY. Overall health: the safety modules are unusually well documented and well tested, but the registry that Gate 0 exits on does not yet cover the loop, and about 15% of the slice is dead weight that consolidation should delete rather than rewire.",
+  "modules": [
+    {
+      "path": "daedalus/accelerators.py",
+      "purpose": "Evidence-based inventory of optional NVIDIA/CUDA compute lanes that separates hardware presence from actual semantic capability.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims) - it explicitly refuses to turn a detected GPU into a performance claim",
+      "issues": [
+        "Reachable from daedalus/cli.py:178 and daedalus/web_api.py:17-26; only test coverage is indirect (tests/test_host_predicate.py, tests/test_budget.py)."
+      ]
+    },
+    {
+      "path": "daedalus/agents_registry.py",
+      "purpose": "Runtime CRUD for agent-role JSON, writing per-repo overrides under .agentenv/agents/ that router.load_agents reads.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 - configuration surface, not an effect path",
+      "issues": [
+        "Imported by daedalus/cli.py:305, daedalus/web_api.py:17-26, daedalus/categories.py:22."
+      ]
+    },
+    {
+      "path": "daedalus/arch_hook.py",
+      "purpose": "Per-turn hook that prints the architecture delta from arch_memory into an agent's context.",
+      "status": "island",
+      "plan_mapping": "none (agent-harness ergonomics, outside the kernel)",
+      "issues": [
+        "No Python importer and no reference in .claude/settings.json; the only config that mentions it is docs/recovery/settings_beast.json, an owner-run recovery kit, so the hook is written but not installed.",
+        "22 lines that swallow every exception (arch_hook.py:21-22) - if it were installed, a broken arch_memory would be invisible."
+      ]
+    },
+    {
+      "path": "daedalus/arch_memory.py",
+      "purpose": "Builds and renders the compressed, freshness-stamped architecture snapshot an agent carries into a turn.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance) - the snapshot states the commit it was measured at",
+      "issues": [
+        "Registered in daedalus/spine/effect_boundary.py:480 as `cli.arch_memory` with Wiring.INVENTORY_ONLY, i.e. known to the registry but not routed through begin_effect.",
+        "Its own docstring is quoted in daedalus/atomic.py:19-20 as an example of a publisher that documents itself as atomic and then does the bare os.replace; verify whether save() now uses atomic.write_text_atomic."
+      ]
+    },
+    {
+      "path": "daedalus/atomic.py",
+      "purpose": "Atomic small-file publish with the win32 retry loop that makes the atomicity claim actually true under concurrent readers.",
+      "status": "wired",
+      "plan_mapping": "Invariant 6 (atomic revisions) / Invariant 8 (bounded effects - the kill switch depends on it)",
+      "issues": [
+        "11 importers including daedalus/spine/killswitch.py and daedalus/storage.py; the docstring (atomic.py:9-22) carries the measured ERROR_ACCESS_DENIED evidence, which is exactly the standard the plan asks for."
+      ]
+    },
+    {
+      "path": "daedalus/benchmark.py",
+      "purpose": "Dry (zero-token) projection of token/cost savings from routing work to cheap or free provider lanes.",
+      "status": "wired",
+      "plan_mapping": "Gate 3 (baseline lab) adjacent, but it is an estimate not a measurement",
+      "issues": [
+        "Reached from daedalus/cli.py:1095, daedalus/kairos/scheduler.py, daedalus/mapping/reach.py.",
+        "Honest by construction (docstring says 'dry estimate') but its prices are hardcoded and dated; any comparative claim built on it would violate Invariant 9 without re-measurement."
+      ]
+    },
+    {
+      "path": "daedalus/bookkeeper.py",
+      "purpose": "Renders docs/ARCHITECTURE.md into a styled HTML artifact and files timestamped snapshots into docs/architecture_history/.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance of the architecture record)",
+      "issues": [
+        "Reached from daedalus/cli.py:1146 and daedalus/build.py; registered in effect_boundary.py:484 as INVENTORY_ONLY despite performing filesystem writes."
+      ]
+    },
+    {
+      "path": "daedalus/bootstrap_prompt.py",
+      "purpose": "Generates the session bootstrap prompt handed to external runtimes (Claude) so they know the harness root and active crew.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 - Agent Contract / session envelope, prompt side only",
+      "issues": [
+        "Imported by daedalus/web_api.py:27, covered by tests/test_web_api.py.",
+        "It is prompt text, and the plan is explicit that a prompt is not a security boundary; nothing here should be counted as policy."
+      ]
+    },
+    {
+      "path": "daedalus/budget.py",
+      "purpose": "Ledger-backed, cross-process, fail-closed hard ceiling on vendor spend, offered both as an explicit reserve/guard call and as a process-wide subprocess/urlopen interposer.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects - spend) and Gate 0 exit criteria",
+      "issues": [
+        "The widest-used module in the slice (19 Python importers) and installed at daedalus/cli.py:1074 via install_process_guard.",
+        "Its own docstring (budget.py:12-15) states there is no single chokepoint and that four subsystems spend independently - the interposer manufactures the chokepoint by monkeypatching. That is a pragmatic mitigation, not the centralized start/guard path Gate 0 asks for, and it should be named as such in the Gate 0 exit evidence.",
+        "1283 lines; the largest policy module in the slice, which makes it a review bottleneck."
+      ]
+    },
+    {
+      "path": "daedalus/build.py",
+      "purpose": "Plans one feature objective into a multi-wave, frontier-first build session written to runs/build/*.json; plans only, runs nothing.",
+      "status": "wired",
+      "plan_mapping": "Gate 1 (mission -> work items) in spirit, but it predates MissionContract and does not emit one",
+      "issues": [
+        "Reached from daedalus/cli.py:117 and daedalus/loop.py.",
+        "Docstring references `daedalus.kairos.scheduler.Ikarus.spawn` and `class daedalus.kairos.scheduler.Ikarus` (build.py:4, build.py:16) but daedalus/kairos/scheduler.py:73 defines KairosScheduler; the Ikarus name survives only as an alias in the daedalus/ikarus.py shim.",
+        "BuildSession/Wave/BuildTask is a parallel work-decomposition vocabulary next to the plan's MissionContract -> WorkItems -> Attempts chain (plan section 7)."
+      ]
+    },
+    {
+      "path": "daedalus/build_exec.py",
+      "purpose": "Wave executor: takes a saved BuildSession, dispatches each wave through KairosScheduler, and refuses concurrent write tasks against a shared checkout.",
+      "status": "wired",
+      "plan_mapping": "Invariant 3 (isolation) and Invariant 5 (sealed promotion - it hands writes to kairos.gated_writes)",
+      "issues": [
+        "Imported by daedalus/build.py and daedalus/loop.py; tests/test_loop.py covers it.",
+        "Docstring (build_exec.py:16-22) documents a real defect in a dependency: KairosScheduler.dispatch silently downgrades parallel=True to sequential on a write batch and returns a list of len(tasks)+1. That is a live off-by-one trap for any other caller.",
+        "Same stale Ikarus/KairosScheduler naming as build.py."
+      ]
+    },
+    {
+      "path": "daedalus/categories.py",
+      "purpose": "Additive role-category taxonomy supplying suggested {lane, tier} presets for the UI; explicitly makes no routing decision.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 - it is careful to stay non-authoritative over the fail-closed lane gate",
+      "issues": [
+        "Imported by daedalus/build.py, daedalus/loop.py, daedalus/web_api.py:17-26.",
+        "The docstring's guarantee ('nothing here can override the fail-closed lane gate in core.process_bridge_payload') is asserted, not tested; worth a coverage test since it is the load-bearing claim."
+      ]
+    },
+    {
+      "path": "daedalus/claude_bridge.py",
+      "purpose": "Spawns the Claude CLI for a routed task and validates the returned report against the report schema.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects - process spawn/spend) via effect_boundary anchors",
+      "issues": [
+        "7 importers including daedalus/core.py:14, daedalus/providers/claude_cli.py, daedalus/spine/effect_boundary.py, daedalus/spine/envelope.py.",
+        "Its `main` is registered at effect_boundary.py:491 as INVENTORY_ONLY, so the direct CLI path is inventoried but not centrally guarded.",
+        "No module docstring (claude_bridge.py:1 starts at `from __future__`), unusual for this codebase and unhelpful for a spend-bearing module."
+      ]
+    },
+    {
+      "path": "daedalus/claude_detect.py",
+      "purpose": "Stdlib-only parser that discovers Claude Code subagents from a repo's .claude/agents/*.md frontmatter.",
+      "status": "wired",
+      "plan_mapping": "none (harness introspection)",
+      "issues": [
+        "Imported by daedalus/cli.py:962, daedalus/control_plane.py:14, daedalus/core.py:15; covered by tests/test_claude_detect.py.",
+        "Read-only, no effects - correctly outside the effect registry."
+      ]
+    },
+    {
+      "path": "daedalus/cli.py",
+      "purpose": "The single `daedalus` command; lazily dispatches to doctor, offload, dctx, metrics, benchmark, status, health, selftest, bookkeeper, web_api, enforce, build, config, accelerators, context-plan, agents, categories, drafts, council.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 - the canonical CLI entrypoint; registered at effect_boundary.py:168 with the install_process_guard anchor",
+      "issues": [
+        "1165 lines with every import done lazily inside handlers, which defeats static importer analysis and is why several modules in this slice look unreferenced to a naive grep.",
+        "It does NOT expose `loop`, so the unattended driver is invoked outside the guarded entrypoint (see loop.py).",
+        "20 Python referrers and 24 doc referrers - the highest-fan-in surface in the slice."
+      ]
+    },
+    {
+      "path": "daedalus/config.py",
+      "purpose": "Portable per-repo policy resolution (registry project -> .agentenv/agentenv.json -> fail-closed read-only), including the verify-gate test timeout.",
+      "status": "wired",
+      "plan_mapping": "Plan section 0 - .agentenv/agentenv.json is the mechanical veto policy; Invariant 8",
+      "issues": [
+        "21 Python importers - a genuine hub.",
+        "Docstring (config.py:20-22) records that write_wave_policy resolves only to 'never' and that historical values are treated as denied input; that is the right posture for Invariant 5 and should be asserted by a test if it is not already."
+      ]
+    },
+    {
+      "path": "daedalus/context_plan.py",
+      "purpose": "Hybrid context planner over the Knowledge Forest: BM25 lexical seeds plus optional latent-memory search, with DSS propagation and token packing.",
+      "status": "wired",
+      "plan_mapping": "Prior in plan sections 5-6 (Project Twin retrieval + latent atlas) and Gate 4 (graph-conditioned representation search)",
+      "issues": [
+        "Reached from daedalus/cli.py:221, daedalus/web_api.py:28, daedalus/health.py, daedalus/memory/projection_worker.py; five dedicated tests.",
+        "The docstring correctly refuses the 'one universal coordinate system' claim, which is the honest reading of the section 6 prior.",
+        "This is the closest existing module to the Gate 4 hypothesis, but there is no frozen ExperimentSpec or budget-equal baseline attached to it, so it is currently a feature, not evidence."
+      ]
+    },
+    {
+      "path": "daedalus/control_plane.py",
+      "purpose": "Projects Daedalus + Claude Code config into one 'control plane' view of agents, capabilities, and autonomy mode for the web UI.",
+      "status": "drifted",
+      "plan_mapping": "conflicts with plan section 12 (no parallel control planes) and section 3 (only Daedalus/Ikarus/Ariadne are public concepts)",
+      "issues": [
+        "Reachable only via daedalus/web_api.py:17-26 (the multiline `from . import (...)` block) - a naive grep for `from .control_plane` finds nothing, which is how it reads as dead.",
+        "It defines AUTONOMY_MODES and CAPABILITY_GATES (control_plane.py:18-22), a second capability vocabulary next to .agentenv/tool-allowances.json and spine/effect_boundary.py's Effect enum. Two capability vocabularies is exactly the drift Invariant 1 exists to prevent.",
+        "Name and framing predate the master plan; if kept it should be renamed to a projection/read-model, not a plane."
+      ]
+    },
+    {
+      "path": "daedalus/conversation.py",
+      "purpose": "Durable, resumable multi-turn conversation state for the Ikarus seam: conversation ids, appended turns, and dispatch->turn attribution.",
+      "status": "drifted",
+      "plan_mapping": "conflicts with Invariant 1 (one event spine) and plan section 7 ('chat is an interface, not the workflow database')",
+      "issues": [
+        "Its own docstring (conversation.py:14) admits it is 'A FOURTH APPEND-ONLY LOG' and argues the other three do not fit. The plan's answer to that argument is consolidation onto the canonical event spine, not a fourth store.",
+        "It links dispatched work back to a chat turn (conversation.py:10-12), which makes chat state load-bearing for orchestration attribution - the specific thing section 7 forbids.",
+        "Imported by daedalus/ikarus_os.py, daedalus/web_api.py:831/875/1625/1647, daedalus/spine/envelope.py. 810 lines, so consolidation is real work, but it is the clearest Invariant-1 item in the slice."
+      ]
+    },
+    {
+      "path": "daedalus/core.py",
+      "purpose": "The legacy hub: team config, governance, bridge payload processing (process_bridge_payload), envelopes, provider health.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 - core.process_bridge_payload is described elsewhere as the fail-closed lane gate",
+      "issues": [
+        "26 Python importers, the highest in the slice; effectively a second nucleus alongside daedalus/spine/.",
+        "No module docstring (core.py:1) despite being the most-imported module here, and 1141 lines.",
+        "The fail-closed lane gate living in an undocumented legacy hub rather than in spine/ is a consolidation target for Gate 0."
+      ]
+    },
+    {
+      "path": "daedalus/crew_hook.py",
+      "purpose": "Per-turn hook that counts actually-running subagents and names where to send work when the fleet is idle.",
+      "status": "island",
+      "plan_mapping": "none (agent-harness ergonomics)",
+      "issues": [
+        "No Python importer and no entry in .claude/settings.json; like arch_hook.py it appears only in docs/recovery/settings_beast.json.",
+        "Counting is explicitly best-effort from the task transcript directory (crew_hook.py:21-22), so its number is an indicator, not a measurement - fine for a hook, but it must not be cited as evidence."
+      ]
+    },
+    {
+      "path": "daedalus/dctx.py",
+      "purpose": "Certified Context Artifact: a content-addressed, offline-verifiable receipt over a StructCore semantic slice.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance) and Invariant 4 (evidence boundary) - the receipt is checkable evidence about a context blob",
+      "issues": [
+        "Reached from daedalus/cli.py:1089 and referenced by daedalus/spine/effect_boundary.py:498 (INVENTORY_ONLY); tests/test_dctx.py and tests/test_dctx_policy_egress.py cover it.",
+        "The docstring's rule that the SHA covers structural claims only and excludes environment-dependent numbers (dctx.py:14-22) is exactly the reproducibility discipline Gate 5 will need."
+      ]
+    },
+    {
+      "path": "daedalus/decompose.py",
+      "purpose": "12-line compatibility wrapper re-exporting daedalus.kairos.decompose.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "No real importer. The apparent hits (daedalus/kairos/scheduler.py, tests/test_picker_spectral_enrichment.py) are `from .decompose import` inside the kairos package, i.e. they resolve to daedalus/kairos/decompose.py, not this shim.",
+        "It re-exports five private names (_ask_model, _coerce_item, _fallback, _parse_subtasks, _user_prompt) as part of a compatibility surface, which freezes internals nobody is calling.",
+        "Delete candidate."
+      ]
+    },
+    {
+      "path": "daedalus/doctor.py",
+      "purpose": "Read-only readiness probe: can the local bench (Ollama/Claude/Codex) actually execute right now?",
+      "status": "wired",
+      "plan_mapping": "Gate 0 - fail-open read-only inspection, the correct half of the fault-injection matrix",
+      "issues": [
+        "13 importers including daedalus/cli.py:1079, daedalus/core.py, daedalus/selftest.py, daedalus/mapping/reach.py.",
+        "daedalus/health.py:15-18 documents that doctor's two-symbol output is read by operators as 'the lane works' when it only means 'the binary is present' - doctor is superseded in intent by health.py but still fronted by the CLI."
+      ]
+    },
+    {
+      "path": "daedalus/dotenv.py",
+      "purpose": "Loads .env into the process environment, never overriding real env vars, and refuses loudly when .env is git-tracked.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (secrets)",
+      "issues": [
+        "Imported by daedalus/cli.py:1063 and daedalus/loop.py; tests/test_dotenv.py covers it.",
+        "Duplicates the .env loading in daedalus/env.py, which has no tracked-file refusal - see env.py."
+      ]
+    },
+    {
+      "path": "daedalus/drafts.py",
+      "purpose": "23-line compatibility wrapper re-exporting daedalus.kairos.drafts.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Both live consumers bypass it: daedalus/web_api.py:16 and daedalus/cli.py:452 both do `from .kairos import drafts`.",
+        "Delete candidate."
+      ]
+    },
+    {
+      "path": "daedalus/enforce.py",
+      "purpose": "Writes the AGENT_ENV_ENFORCED marker block into a target repo's agent instructions so external tools route through the file bridge.",
+      "status": "wired",
+      "plan_mapping": "Plan section 0 - 'root instructions are a derived projection'; this is the writer of that projection",
+      "issues": [
+        "Reached from daedalus/cli.py:1152; registered at effect_boundary.py:509 as INVENTORY_ONLY with FILESYSTEM_WRITE.",
+        "It writes instruction text into another repository. The plan is explicit (section 1) that instruction text is not a security boundary, so the enforced block must not be presented as containment.",
+        "No module docstring for a module whose whole purpose is mutating another repo's agent contract."
+      ]
+    },
+    {
+      "path": "daedalus/env.py",
+      "purpose": "Server-side .env loading plus redacted readiness metadata, so the web UI never receives secret values.",
+      "status": "drifted",
+      "plan_mapping": "Invariant 8 (secrets)",
+      "issues": [
+        "Second .env loader in the same package alongside daedalus/dotenv.py. env.py has the redaction the web UI needs but not dotenv.py's refusal to load a git-tracked .env; dotenv.py has the refusal but no redaction. Two half-policies over the same file is a real secrets-handling gap, not just duplication.",
+        "Imported by daedalus/web_api.py:29, daedalus/runtime_registry.py, tools/funnel.py, tools/guarded_call.py - so the weaker loader is the one on the network-facing path."
+      ]
+    },
+    {
+      "path": "daedalus/fallback.py",
+      "purpose": "Pure decision function for how work proceeds given Claude's status (primary/optional, review gate, retry TODO).",
+      "status": "wired",
+      "plan_mapping": "none directly; a routing policy helper",
+      "issues": [
+        "Imported by daedalus/claude_bridge.py:9 and daedalus/kairos/orchestrate.py; tests/test_agent_env.py covers it.",
+        "DEFAULT_POLICY (fallback.py:6-12) is a hardcoded module constant, i.e. a policy default that lives in code rather than in .agentenv/ where the mechanical veto policy belongs."
+      ]
+    },
+    {
+      "path": "daedalus/file_bridge.py",
+      "purpose": "The inbox/outbox task bridge: enqueue, process_request, watch - the file-based path by which external agents hand work to the harness.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 - registered centrally at effect_boundary.py:209/218/232 (enqueue, process_request, watch) with a dedicated allow-list at effect_boundary.py:1095",
+      "issues": [
+        "23 Python importers, second only to core.py; genuinely canonical.",
+        "1026 lines and no module docstring (file_bridge.py:1), which is out of step with the rest of the safety-critical modules here.",
+        "Correctly uses atomic.write_text_atomic (file_bridge.py:14) after being named in atomic.py's docstring as one of the four publishers that claimed atomicity without it."
+      ]
+    },
+    {
+      "path": "daedalus/gui_catalogue.py",
+      "purpose": "A StructCore-shaped searchable catalogue of GUI component parts, absorbing shadcn/ui's registry-item.json format as data (no runtime, no vendored source).",
+      "status": "island",
+      "plan_mapping": "none (product/UI tooling, no gate)",
+      "issues": [
+        "1010 lines with exactly one referrer in the whole repo: tests/test_gui_catalogue.py. Neither cli.py nor web_api.py imports it.",
+        "It follows docs/ABSORPTION.md's rule correctly (absorb formats, not runtimes), so it is well-built dead weight rather than a violation.",
+        "Largest island in the slice; either wire it to the GUI surface or archive it."
+      ]
+    },
+    {
+      "path": "daedalus/health.py",
+      "purpose": "Five-state operator surface (working / present-but-unexercised / degraded / absent / unknown) that refuses to collapse 'the code is here' into 'it works'.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims) and the Gate 0 exit criterion that present/unknown are not passes",
+      "issues": [
+        "1893 lines - the largest module in the slice. Reached from daedalus/cli.py:1102, web_api.py:1444, conversation.py, ikarus_os.py, progress.py, status.py; four dedicated tests.",
+        "Its docstring (health.py:6-11) enumerates five specific past escapes including 'spine/containment.py shipped 11 measured properties and 0 callers' and 'docs/architecture-state.json described a tree 30 commits behind' - those claims are dated and should be re-verified before being cited.",
+        "This is the module the rest of the inventory should be judged against: it is the existing, working answer to 'wired vs merely present'."
+      ]
+    },
+    {
+      "path": "daedalus/hierarchy.py",
+      "purpose": "Projects agents and a hardcoded CAPABILITIES list into a hierarchy graph for the Agent OS webapp.",
+      "status": "drifted",
+      "plan_mapping": "overlaps control_plane.py; a third capability vocabulary against Invariant 1",
+      "issues": [
+        "Reached only through daedalus/web_api.py:17-26 and daedalus/ikarus_chat.py:13.",
+        "CAPABILITIES (hierarchy.py:12-22) with risk labels like 'external_read' is a third independent capability/risk taxonomy next to control_plane.CAPABILITY_GATES and spine.effect_boundary.Effect.",
+        "One-line docstring for a module that ships a policy-shaped constant."
+      ]
+    },
+    {
+      "path": "daedalus/ikarus.py",
+      "purpose": "33-line backward-compatible shim aliasing Ikarus and MetronScheduler to daedalus.kairos.scheduler.KairosScheduler.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Zero Python importers repo-wide. It keeps two superseded names (Ikarus, MetronScheduler) alive with no consumer.",
+        "Actively harmful to clarity: the plan reserves 'Ikarus' for the assistant/orchestration surface (section 3), while this shim binds the name to the scheduler. Several docstrings (build.py:4/16, build_exec.py:8) still write `kairos.scheduler.Ikarus`, which resolves only because of this file.",
+        "Delete candidate - deleting it would force those stale docstrings to be corrected."
+      ]
+    },
+    {
+      "path": "daedalus/ikarus_act.py",
+      "purpose": "may_act - the second, capability-grade predicate deciding whether a message may reach a tool-bearing executor, deliberately independent of classify().",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects) - a genuine effect predicate with its own test suite",
+      "issues": [
+        "Imported by daedalus/ikarus_os.py; tests/test_ikarus_act.py and tests/test_ikarus_shells.py cover it.",
+        "The docstring's reasoning (ikarus_act.py:3-22 - opposite error costs, so no shared return value with classify) is the clearest example in the slice of a correctly separated safety predicate.",
+        "It is not registered in spine/effect_boundary.py; if it is a required guard decision for the ikarus_os path, it should appear as a GuardAnchor."
+      ]
+    },
+    {
+      "path": "daedalus/ikarus_chat.py",
+      "purpose": "Deterministic operator chat that turns a message into a reviewable agent-network draft, applied only on explicit request.",
+      "status": "drifted",
+      "plan_mapping": "plan section 7 - Ikarus should compile intent into a typed MissionContract; this compiles it into an ad-hoc BLUEPRINTS draft instead",
+      "issues": [
+        "Reached only via daedalus/web_api.py:17-26; no dedicated test.",
+        "BLUEPRINTS (ikarus_chat.py:17-22) hardcodes agent definitions including model_tier and external_ok - config living in code.",
+        "Its confirm-before-apply design is right; its output type is the drift."
+      ]
+    },
+    {
+      "path": "daedalus/ikarus_os.py",
+      "purpose": "The assistant seam: ask()/ask_stream() classify a message, route it to a deterministic intent or a freeform brain, across three capability-split shells.",
+      "status": "wired",
+      "plan_mapping": "plan section 3/7 - this is the module that actually earns the Ikarus name",
+      "issues": [
+        "1241 lines; imported by daedalus/budget.py, conversation.py, progress_sources.py, eval/tasks.py, web_api.py:33; five dedicated tests.",
+        "daedalus/budget.py:12-15 names ikarus_os.py as one of the four independent subsystems that spend vendor money without a shared chokepoint - so this module is a spend path that predates the guard.",
+        "It is not a registered row in spine/effect_boundary.py despite being a network-egress and spend surface; only the providers it calls are registered."
+      ]
+    },
+    {
+      "path": "daedalus/langgraph_adapter.py",
+      "purpose": "26-line stub that reports whether LangGraph is installed and raises if asked to build a graph without it.",
+      "status": "dead",
+      "plan_mapping": "none; build_graph() would be a second orchestration model, which plan section 12 forbids",
+      "issues": [
+        "Zero importers repo-wide, no test, no CLI path. langgraph is not a dependency anywhere.",
+        "build_graph() raises unconditionally in practice (langgraph_adapter.py:21-22).",
+        "Delete candidate - it is a placeholder for a direction the plan has already ruled out."
+      ]
+    },
+    {
+      "path": "daedalus/loop.py",
+      "purpose": "The unattended driver: pick -> attempt -> gate -> nominate -> re-pick, bounded by iteration count, wall clock, spend, and the kill switch.",
+      "status": "island",
+      "plan_mapping": "Gate 0 (centralized start/guard path for every effectful entrypoint) and Invariants 5 + 8 - and it is the module those invariants matter most for",
+      "issues": [
+        "GATE-0 GAP: loop.py:1222 defines main() and loop.py:1302 has the `if __name__ == '__main__'` block, so `python -m daedalus.loop` is an externally reachable start with spend, process-spawn and filesystem-write effects - but there is NO row for daedalus.loop in daedalus/spine/effect_boundary.py. The registry lists 20+ far less dangerous CLI mains (arch_memory, runbook, selftest, shift, status...) as INVENTORY_ONLY; the autonomous loop is absent entirely, and effect_boundary.py's own docstring says Gate 0 is not closed until every production-capable row is wired through begin_effect.",
+        "It is not a daedalus CLI subcommand either (no `loop` handler in cli.py), so it never passes cli.py:1074's install_process_guard; its spend ceiling depends on it importing daedalus.budget itself.",
+        "daedalus/web_api.py:118-146 exposes the loop READ-ONLY by reading its ledger files, so the cockpit can watch it but nothing canonical starts it. daedalus/spine/envelope.py:606-607 knows its ledger schema (daedalus.loop.ledger/2) but not its entrypoint.",
+        "Architecturally it is well-behaved (it delegates picking to spine.picker, attempts to build_exec.WaveExecutor, writes via kairos.gated_writes, and the docstring at loop.py:12-15 states it cannot auto-promote) - the problem is purely that the registry does not know it exists.",
+        "Covered by tests/test_loop.py, tests/test_envelope_join.py, tests/test_spend_coverage.py."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/GUI_CATALOGUE.md",
+      "verdict": "keep",
+      "reason": "The only doc that primarily describes a module in this slice (daedalus/gui_catalogue.py) and it carries the FETCHED licence/format evidence for the absorbed shadcn registry-item.json schema. If gui_catalogue.py is archived as an island, this goes with it."
+    },
+    {
+      "path": "docs/COMMS_PROTOCOL.md",
+      "verdict": "keep",
+      "reason": "Describes the file_bridge/core inbox-outbox protocol, which is canonical and centrally registered in spine/effect_boundary.py:209-232. Worth re-checking against the current bridge payload shape, but the subject matter is live."
+    },
+    {
+      "path": "docs/MISSION_CONTROL.md",
+      "verdict": "merge",
+      "reason": "Describes the control_plane.py / claude_detect.py cockpit vocabulary that predates the master plan's three-concept rule. Its live content should fold into the Ikarus surface docs rather than keep 'Mission Control' as a fourth name."
+    },
+    {
+      "path": "docs/ABSORPTION.md",
+      "verdict": "authority",
+      "reason": "Its rule ('absorb formats and ideas, do not absorb runtimes') is cited verbatim as binding by daedalus/gui_catalogue.py:13 and referenced by file_bridge; it functions as a design constraint this slice actually obeys."
+    }
+  ],
+  "integration_gaps": [
+    "daedalus/loop.py has an externally reachable `python -m daedalus.loop` entrypoint (loop.py:1222, loop.py:1302) with spend, process-spawn and filesystem-write effects, and no row in daedalus/spine/effect_boundary.py. It is also not a cli.py subcommand, so it never crosses cli.py:1074's install_process_guard. This is the single largest Gate 0 exit blocker in the slice: the registry's own docstring says Gate 0 is not closed until every production-capable row is wired through begin_effect.",
+    "daedalus/ikarus_os.py is a network-egress and vendor-spend surface (named as such in budget.py:12-15) but has no row and no GuardAnchor in spine/effect_boundary.py; only the providers underneath it are registered. daedalus/ikarus_act.py:may_act, which is the capability gate on that path, is likewise not declared as a required guard decision.",
+    "Eight CLI mains in this slice are registered as Wiring.INVENTORY_ONLY rather than CENTRAL (effect_boundary.py:480 arch_memory, :484 bookkeeper, :491 claude_bridge, :498 dctx, :505 doctor, :509 enforce, :525 file_bridge main, :550 selftest). Several of these perform filesystem writes into other repositories (enforce) or spawn vendors (claude_bridge), so the inventory-only status is a knowingly open door, not a formality.",
+    "Two independent .env loaders with disjoint safety properties: daedalus/dotenv.py refuses a git-tracked .env but does not redact; daedalus/env.py redacts for the web UI but does not refuse a tracked file. The weaker one (env.py) is the one on the network-facing path (web_api.py:29). Invariant 8 (secrets) is only half-enforced on whichever path a caller happens to take.",
+    "Three parallel capability/risk vocabularies: spine.effect_boundary.Effect (the canonical one), control_plane.CAPABILITY_GATES (control_plane.py:21-22), and hierarchy.CAPABILITIES (hierarchy.py:12-22). Invariant 1 asks for one canonical contract; the two web-UI projections invented their own.",
+    "daedalus/conversation.py is, by its own admission (conversation.py:14), a fourth append-only log, and it carries dispatch->turn attribution - making chat state load-bearing for orchestration provenance, which plan section 7 explicitly rules out.",
+    "daedalus/build.py's BuildSession/Wave/BuildTask is a second work-decomposition vocabulary next to the plan's MissionContract -> WorkItems -> Attempts chain; the loop drives builds through it, so the Gate 1 ignition slice will have to reconcile the two rather than extend one.",
+    "Four zero-importer compatibility shims survive the Ikarus->Kairos rename (daedalus/ikarus.py, daedalus/decompose.py, daedalus/drafts.py) plus one never-used adapter (daedalus/langgraph_adapter.py). daedalus/ikarus.py in particular keeps the name 'Ikarus' bound to the scheduler, contradicting plan section 3."
+  ],
+  "notable": [
+    "STALE DOCSTRING: daedalus/build.py:4 and :16 reference `daedalus.kairos.scheduler.Ikarus.spawn` and `class daedalus.kairos.scheduler.Ikarus`, and daedalus/build_exec.py:8 references `daedalus.kairos.scheduler.KairosScheduler` correctly but :7 still names Ikarus. daedalus/kairos/scheduler.py:73 defines only KairosScheduler - the Ikarus name resolves solely through the dead daedalus/ikarus.py shim.",
+    "STALE DOCSTRING: daedalus/health.py:6-11 cites five specific past escapes as fact, including 'spine/containment.py shipped 11 measured properties and 0 callers', 'memory/vectors.db has never existed, and a planner weighted it at 0.35', and 'docs/architecture-state.json described a tree 30 commits behind'. These are dated measurements presented in the present tense in the flagship honesty module; each needs re-verification or a date stamp.",
+    "STALE DOCSTRING: daedalus/atomic.py:19-20 names daedalus/arch_memory.py:save as a publisher that 'names the exact concurrent-reader scenario that breaks it, then does the bare replace'. If arch_memory.save was since fixed to use write_text_atomic, the accusation is stale; if it was not, atomic.py is documenting a live bug that nobody filed.",
+    "STALE DOCSTRING: daedalus/build_exec.py:16-22 documents a concrete defect in KairosScheduler.dispatch (silent parallel->sequential downgrade on write batches, returning len(tasks)+1 entries with a prepended note dict). That is a real trap for any other caller of dispatch and is recorded only inside a consumer's docstring.",
+    "STALE DOCSTRING: daedalus/budget.py:12-15 asserts 'THERE IS NO SINGLE CHOKEPOINT IN THIS REPO' and lists providers/, council/vendors.py, ikarus_os.py, runs/ as independent spend paths. Since spine/effect_boundary.py now exists as the intended chokepoint, this either needs updating or it is the honest current state and Gate 0's spend claim needs to say so.",
+    "MISSING DOCSTRINGS on the four highest-risk modules in the slice: daedalus/core.py (1141 lines, 26 importers, hosts the fail-closed lane gate), daedalus/file_bridge.py (1026 lines, canonical bridge), daedalus/claude_bridge.py (spawns a vendor, spends money), daedalus/enforce.py (writes instruction text into other repositories). Every low-risk module here has an essay; the four that most need one have none.",
+    "GOOD PATTERN worth propagating: daedalus/atomic.py, daedalus/ikarus_act.py, daedalus/dctx.py and daedalus/health.py each state the measurement or the error-cost asymmetry that justifies their existence, rather than describing what the code does. That is the documentation standard the plan's evidence culture implies, and it is already present in a third of this slice.",
+    "daedalus/cli.py imports every handler lazily inside functions, so static importer analysis under-reports reachability badly (control_plane.py, hierarchy.py, ikarus_chat.py, categories.py, agents_registry.py, accelerators.py all look dead to a `from .X import` grep but are reached through web_api.py's multiline `from . import (...)` block at web_api.py:17-26). Any future automated dead-code sweep over this package must resolve multiline and function-local imports or it will delete live code.",
+    "daedalus/context_plan.py is the module closest to the Gate 4 hypothesis (graph-conditioned representation search), and it is already wired and tested - but it carries no frozen ExperimentSpec, no budget-equal baseline, and no ablation harness, so it is currently a shipped feature rather than evidence for the section 5-6 prior."
+  ]
+}

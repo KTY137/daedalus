@@ -1,0 +1,186 @@
+{
+  "slice": "tests/ (197 test .py files + conftest.py + fixtures/, 213 files incl. __pycache__/_looptmp)",
+  "summary": "The suite is unusually healthy for a repo this size: 196 test modules plus conftest.py, and every single test target resolves — there are zero orphan tests (no test points at a deleted module, hook, or script). Coverage is heavily concentrated on the Gate-0 safety surface (spine/effect_boundary/killswitch/containment/promotion, egress and budget fences, worktree isolation) and on the structcore/typegraph Project-Twin prior, which together account for well over half the files; test docstrings are themselves evidence artifacts, routinely naming the measured incident a test pins. The real weakness is not the tests that exist but the modules with none: ~11 modules totalling ~2,700 LOC have neither a named test file nor any importer in the suite, and three of them (daedalus/mapping/render.py 1617 LOC, daedalus/conversation.py 810 LOC, daedalus/progress_sources.py 576 LOC) are large and production-reachable. Two deliberate red/xfail tripwires exist and are correctly labelled. Housekeeping drift: tests/_looptmp/ holds committed run artifacts from 2026-07-29 that a test wrote into the repo, and there is no [tool.pytest.ini_options] section in pyproject.toml at all, so collection roots, markers, and strictness are unpinned.",
+  "modules": [
+    {
+      "path": "tests/conftest.py",
+      "purpose": "Suite-wide determinism fixture: pins the latent semantic route OFF and clears DAEDALUS_TRUSTED_HOSTS / DAEDALUS_SUBSCRIPTION_VENDORS before every test so the egress fence is judged, not the developer's .env.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims) / Invariant 8 (bounded effects); Gate 0",
+      "issues": [
+        "Only 101 lines but load-bearing: tests/conftest.py:56-60 imports daedalus.budget, daedalus.provider_router, daedalus.sensitivity at collection time, so any import break in those three fails the entire suite at collection rather than in one file.",
+        "The documented incident (14 tests red in-suite / green in isolation because cli.main loaded a real .env) has no regression test of its own — the fixture is the fix and nothing pins the fixture."
+      ]
+    },
+    {
+      "path": "tests/test_spine_attempt.py, test_spine_ledger.py, test_spine_picker.py, test_spine_cancel.py, test_spine_return_arc.py, test_spine_attempt_containment.py, test_spine_map_source.py, test_bootstrap_receipt.py, test_picker_outcome.py, test_picker_work_queue.py, test_shadow_run.py",
+      "purpose": "The canonical event spine: attempt lifecycle, ledger append, work-queue picker, cancellation, return arc, bootstrap receipt.",
+      "status": "wired",
+      "plan_mapping": "Invariant 1 (one kernel), Invariant 7 (provenance); Gate 0",
+      "issues": [
+        "tests/test_spine_map_source.py:171 carries a deliberate xfail(strict=True) — a forged repo_state head is undetectable because daedalus.mapping.drift._digest does not cover repo_state. Correctly labelled as owned by the mapping layer; it will flip the suite red the day _MECHANICAL_KEYS grows.",
+        "tests/test_spine_picker.py fabricates a synthetic daedalus/ tree (bare_island.py, tested_island.py, wired.py, big/mid/small/rich.py) in a temp repo — these look like orphan imports to a naive scan but are fixtures, not real modules."
+      ]
+    },
+    {
+      "path": "tests/test_effect_boundary.py, test_effect_boundary_wiring.py, test_killswitch.py, test_gate0_faults_atalanta.py, test_containment.py, test_containment_register_failclose.py, test_gate_containment.py, test_gate_containment_job_caps.py, test_primary_tree_fence.py, test_write_guard_e2e.py, test_offload_write_failclose.py",
+      "purpose": "Gate-0 fail-closed matrix: the centralized effect boundary, kill switch, containment registry, primary-tree fence and write guards.",
+      "status": "wired",
+      "plan_mapping": "Invariant 3 (isolation), Invariant 8 (bounded effects); Gate 0 exit criterion (fault-injection matrix)",
+      "issues": [
+        "tests/test_containment_register_failclose.py:17 and test_gate_containment.py:45, test_gate_containment_job_caps.py:30, test_git_is_a_process_launcher.py:40 are module-level skipped off win32 — the containment half of the Gate-0 matrix is unproven on Linux/macOS CI. This is the single largest platform-conditional hole in the safety suite.",
+        "tests/test_gate0_faults_atalanta.py:136 skips rows it declares CENTRAL, deferring them to a 'central-row test' — worth confirming that test actually runs all of them."
+      ]
+    },
+    {
+      "path": "tests/test_promotion_approval.py, test_promotion_approval_wiring.py, test_promotion_forgery.py, test_gate_judges_the_candidate.py, test_gate_discrimination.py, test_self_policy_confinement.py",
+      "purpose": "Sealed promotion: no auto-merge, an evidence packet cannot be forged, a candidate cannot reach its own evaluator or policy.",
+      "status": "wired",
+      "plan_mapping": "Invariant 5 (sealed promotion), Invariant 3, Invariant 4 (evidence boundary); Gate 0",
+      "issues": []
+    },
+    {
+      "path": "tests/test_budget.py, test_budget_is_installed.py, test_spend_coverage.py, test_egress_coverage.py, test_egress_lane_by_host.py, test_slice_egress_gate.py, test_dctx_policy_egress.py, test_host_predicate.py, test_inlined_context_enforcement.py, test_hardening.py",
+      "purpose": "Spend and egress fences: every effectful call site is enumerated and asserted to route through the budget/egress gate, host trust is pinned, secrets never leave in a slice.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects); Gate 0",
+      "issues": [
+        "test_budget.py and test_spend_coverage.py hard-code path lists of covered call sites (daedalus/claude_bridge.py, daedalus/cli.py, tools/system_check.py, ...). This is the right shape for a coverage test but it is a hand-maintained denominator: a new effectful module is invisible to it until someone edits the list.",
+        "tests/test_egress_coverage.py:258 skipif on SKILLS_ROOM.exists() — silently drops room-skill egress coverage when the skills dir is absent."
+      ]
+    },
+    {
+      "path": "tests/test_structcore*.py (16 files), test_typegraph_*.py (8 files), test_forest.py, test_dss.py, test_churn.py, test_clones_*.py, test_topology.py, test_imports_graph.py, test_honest_denominator.py, test_index_wiki_layer.py, test_markdown_nodes.py, test_markdown_wikilinks.py, test_fenrir_slice_attack.py, test_tokenizer_cache_identity.py",
+      "purpose": "The Project-Twin representation: structcore index/parse/slice/forest/lpg plus the type plane, determinism, and honest coverage denominators.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 (four-plane Project Twin, Code/AST + Type + Knowledge planes); Gate 2 work prototyped ahead of Gate 0 exit",
+      "issues": [
+        "Largest single coverage block in the suite (~28 files) and it serves a Gate-2 prior while Gate 0 is the active gate — proportionality is arguable, though the plan permits prototyping.",
+        "daedalus/structcore/typegraph.py (1139 LOC) is exercised only indirectly through index/parse in most files; test_typegraph_resolve.py is the one file that names it as the subject.",
+        "daedalus/structcore/cycles.py, artifacts.py, markdown.py, metrics.py have no test file named for them."
+      ]
+    },
+    {
+      "path": "tests/test_council_*.py (7 files), test_canary_livewire.py, test_room_wiring.py, test_room_summarize.py, test_stream_hook.py, test_dead_letter_replay.py, test_gui_catalogue.py",
+      "purpose": "Cross-vendor council and Der Raum: bus chaining, vendor adapters, secret floor before distillation, stream-hook compression, dead-letter replay.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance), Invariant 8; supports section 7 (chat is an interface, not orchestration state)",
+      "issues": [
+        "test_room_wiring.py, test_room_summarize.py, test_stream_hook.py and test_dead_letter_replay.py target scripts under runs/council/ (room.py, stream_hook.py, dead_letter_replay.py, room_server.py, summarize.py) rather than daedalus/ — all five targets exist, so these are NOT orphans, but a run-artifact directory carrying tested production code is a structural smell.",
+        "These four files import nothing from daedalus by name (they load the targets by path), so import-graph coverage tooling scores them as covering zero modules."
+      ]
+    },
+    {
+      "path": "tests/test_mapping_cli.py, test_mapping_drift.py, test_mapping_reach.py, test_mapping_spectral.py, test_mapping_switches.py, test_generated_inventory.py, test_inventory_shadowing.py, test_registry_shadowing.py",
+      "purpose": "The mapping/inventory layer: reachability analysis, drift detection, spectral views, generated inventory documents, registry shadowing.",
+      "status": "wired",
+      "plan_mapping": "Invariant 2 (artifact identity — representations are not identity), Invariant 7",
+      "issues": [
+        "daedalus/mapping/render.py is 1617 LOC — the largest untested module in the repo. No test imports it; it appears in the suite only as a prose reference at tests/test_generated_inventory.py:17. It is production-reachable from daedalus/cli.py, daedalus/mapping/inventory.py and daedalus/mapping/drift.py.",
+        "daedalus/mapping/spectral.py (663 LOC) is only reached obliquely; test_mapping_spectral.py works against synthetic daedalus/a.py, daedalus/b.py fixtures."
+      ]
+    },
+    {
+      "path": "tests/test_eval.py, test_eval_correctness.py, test_eval_mint.py, test_eval_oracle.py, test_eval_provenance.py, test_mint_label_hygiene.py, test_temporal_ceiling.py, test_graph_delta.py, test_mutation_score.py, test_system_check.py, test_selftest.py",
+      "purpose": "The evaluator/truth boundary and the tools that must themselves be falsifiable (mutation scorer, acceptance harness, self-test).",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary), Invariant 9 (honest claims); Gate 3 baseline-lab groundwork",
+      "issues": [
+        "test_mutation_score.py loads tools/mutation_score.py by sys.path insert (tests/test_mutation_score.py:29 'import mutation_score as ms'), so a static importer scan reports tools/mutation_score.py as untested when it is not.",
+        "test_system_check.py imports nothing from tools/ by name and drives tools/system_check.py by path — same false-negative shape.",
+        "daedalus/eval/mutate.py (403 LOC) and daedalus/eval/report.py (415 LOC) have no test file of their own."
+      ]
+    },
+    {
+      "path": "tests/test_worktree.py, test_worktree_properties.py",
+      "purpose": "Candidate isolation via git worktrees and Windows directory junctions — 58 tests plus property tests.",
+      "status": "wired",
+      "plan_mapping": "Invariant 3 (isolation); Gate 0",
+      "issues": [
+        "23 of the ~58 cases in tests/test_worktree.py are skipif(os.name != 'nt') for directory junctions, and tests/test_worktree_properties.py:101 has a module-level skipif. Isolation is therefore substantially proven only on Windows; the same platform hole as the containment tests."
+      ]
+    },
+    {
+      "path": "tests/ :: the iron-plan-guard suite (test_iron_plan_guard, 48 tests)",
+      "purpose": "The plan guard itself: protected-artifact detection, adoption commits, amendment-token flow, CI history check (48 tests).",
+      "status": "drifted",
+      "plan_mapping": "Invariant 10 (no silent constitution change), section 15 amendment protocol; protected surface",
+      "issues": [
+        "Known-red: the adoption/CI-history test (tests/test_iron_plan_guard.py:675 test_ci_history_check_accepts_adoption_and_rejects_rewrite, with :655 test_governed_commit_cannot_precede_initial_policy_adoption) is pre-existing and owner-owned — reported here for completeness, not as new breakage.",
+        "References daedalus/kernel.py and daedalus/parallel_event_store.py (tests/test_iron_plan_guard.py) — these do NOT exist in daedalus/; they are synthetic fixture files written into a temp repo, so not orphan targets, but the names invite confusion with real kernel modules."
+      ]
+    },
+    {
+      "path": "tests/test_serena_first_hook.py, tests/test_extension_manifest.py, tests/test_ui_contract.py, tests/test_ui_governance.py",
+      "purpose": "Tests whose targets live outside daedalus/ and tools/: the .claude/hooks/serena-first.py hook, the vscode-agent-env/ extension manifest, and UI governance over apps/.",
+      "status": "protected",
+      "plan_mapping": "Authority model row 3 (hooks/skills as derived projection); Invariant 10",
+      "issues": [
+        "test_serena_first_hook.py exercises a harness hook — the plan (section 1) explicitly says no local hook is a security boundary, and this file's docstring is careful about that, but a reader could mistake the coverage for a safety guarantee.",
+        "All targets verified to exist (.claude/hooks/serena-first.py, vscode-agent-env/package.json) — no orphans."
+      ]
+    },
+    {
+      "path": "tests/test_preservation_fixtures.py",
+      "purpose": "Pure fixture data (BEFORE / AFTER_REGRESSION / AFTER_LIVE / AFTER_LEGIT texts for the preservation checker); named test_* only so it sits beside test_preservation.py.",
+      "status": "island",
+      "plan_mapping": "Invariant 9 (retained negative evidence — this is a MEASURED qwen2.5-coder:7b regression, correctly frozen)",
+      "issues": [
+        "Contains no tests but is collected by pytest because of the test_ prefix. Harmless today; a stricter python_files config or a conftest collect_ignore would be cleaner."
+      ]
+    },
+    {
+      "path": "tests/_looptmp/",
+      "purpose": "Leftover run artifacts (events.jsonl + 9 loop-20260729-*.json under runs/) that a loop test wrote into the tests tree.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Committed test output inside tests/ dated 2026-07-29 — a test wrote into the repo instead of tmp_path. Delete candidate, and the test that produced it (likely tests/test_loop.py) should be pinned to a temp dir."
+      ]
+    },
+    {
+      "path": "tests/fixtures/typegraph/ (16 .py + README.md + pkg_nested/)",
+      "purpose": "Hand-built type-plane fixture corpus: star imports, forward refs, protocol structural match, dataclass field collisions, unresolvable annotations.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 (Type plane)",
+      "issues": [
+        "The only fixture directory in the suite. Every other test builds its corpus inline or in tmp_path, which is why several scans mistake fabricated module names for orphan imports."
+      ]
+    },
+    {
+      "path": "tests/test_funnel_truth.py, tests/test_reference_audit.py",
+      "purpose": "Adversarial tests that a reporting/audit tool cannot claim a reference or a finding it did not verify; both fabricate non-existent module paths on purpose.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims), Invariant 7",
+      "issues": [
+        "Deliberately references daedalus/not/indexed.py, daedalus/attempt.py, daedalus/ledger.py, daedalus/runner.py, daedalus/scratch.py, daedalus/spine/chain.py — none exist, by design (negative controls). Any future orphan-test scanner must whitelist these two files or it will report six false orphans."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "tests/fixtures/typegraph/README.md",
+      "verdict": "keep",
+      "reason": "The only doc primarily describing this slice; explains what each type-plane fixture pins. Belongs beside the fixtures it describes."
+    }
+  ],
+  "integration_gaps": [
+    "No [tool.pytest.ini_options] section in pyproject.toml at all — testpaths, python_files, markers, xfail_strict, and filterwarnings are entirely unpinned, so collection behaviour depends on the invoker's cwd and pytest defaults. tests/test_preservation_fixtures.py (a data module) is collected purely because of its name.",
+    "Containment and worktree isolation — the Invariant 3 core — are proven substantially only on Windows: module-level skips at tests/test_containment_register_failclose.py:17, test_gate_containment.py:45, test_gate_containment_job_caps.py:30, test_git_is_a_process_launcher.py:40, test_worktree_properties.py:101 plus ~23 skipif(os.name != 'nt') cases in test_worktree.py. A Linux CI run of the Gate-0 fault matrix would be green while never examining these properties.",
+    "Spend/egress coverage tests carry a hand-maintained list of covered call sites (tests/test_budget.py, tests/test_spend_coverage.py). The denominator is authored by the same hand as the numerator — the exact construction failure the measurement rules warn about. A new effectful entrypoint is invisible until someone edits the list.",
+    "Four production-tested scripts live under runs/council/ (room.py, stream_hook.py, summarize.py, dead_letter_replay.py, room_server.py), i.e. tested code inside a run-artifact tree rather than inside daedalus/. Their tests load them by path, so import-graph coverage tools score them as covering nothing.",
+    "tools/ is only patchily covered: 9 of 17 tools have no test naming them, and two of the covered ones (mutation_score, system_check) are loaded by sys.path insertion rather than import, which defeats static coverage attribution.",
+    "No test asserts the suite's own shape — nothing pins 'every daedalus module has a covering test or an explicit exemption', which is why ~11 modules drifted into having none.",
+    "tests/_looptmp/ proves at least one test writes into the repository tree instead of tmp_path; no guard test forbids a test from mutating the working repo."
+  ],
+  "notable": [
+    "ZERO orphan tests. Every target referenced by every test file resolves: all daedalus/tools modules imported exist, and all out-of-package targets (runs/council/room.py, runs/council/stream_hook.py, runs/council/dead_letter_replay.py, runs/council/room_server.py, runs/council/summarize.py, .claude/hooks/serena-first.py, vscode-agent-env/package.json, tools/mutation_score.py, tools/system_check.py, runs/ab/oracle_check.py, tools/self_test.py) exist on disk. The 30-odd 'missing module' hits from a naive import scan are all synthetic fixtures or deliberate negative controls.",
+    "THE 10 BIGGEST COVERAGE HOLES (module with no test file naming it and no test importing it), largest first: 1) daedalus/mapping/render.py 1617 LOC — production-reachable from cli.py, inventory.py, drift.py; 2) daedalus/conversation.py 810 LOC; 3) tools/funnel_report.py 725 LOC; 4) daedalus/mapping/spectral.py 663 LOC (only synthetic-fixture contact); 5) daedalus/progress_sources.py 576 LOC — imported by daedalus/progress.py and daedalus/web_api.py, i.e. on a live surface; 6) tools/gui_check.py 490 LOC; 7) daedalus/eval/report.py 415 LOC; 8) daedalus/eval/mutate.py 403 LOC; 9) tools/gate_host_preflight.py 402 LOC — a host-preflight gate with no test is an Invariant-8 concern; 10) daedalus/wiki/vault.py 338 LOC. Runners-up: tools/audit_swarm.py 342, tools/lane_invariants.py 312, daedalus/arch_memory.py 301, daedalus/spine/docref_gate.py 270 (a gate), daedalus/gui/lint.py 273, daedalus/structcore/cycles.py 201, daedalus/ikarus_chat.py 209, tools/guarded_call.py 109, daedalus/crew_hook.py 96, daedalus/shift_ticker.py 96, daedalus/langgraph_adapter.py 26, daedalus/arch_hook.py 22.",
+    "Two deliberate red/xfail tripwires, both correctly documented: tests/test_spine_map_source.py:171 xfail(strict=True) on a forged repo_state head (will flip red the day daedalus.mapping.drift._digest covers repo_state — that is the intent), and the pre-existing owner-owned red adoption/CI-history case in tests/test_iron_plan_guard.py:675.",
+    "Test docstrings in this repo function as retained negative evidence, in line with Invariant 9 and the plan's 'publish failures' clause. Standouts: tests/conftest.py records 14 tests that were green by accident until a developer's .env leaked in; tests/test_preservation_fixtures.py freezes a real qwen2.5-coder:7b rewrite regression verbatim at commit f18ff5c; tests/test_evolution_baseline.py:117 documents an xfail that XPASSed when the bug was fixed and was then deliberately converted; tests/test_mutation_score.py records the three rules 'a red baseline is not a score, a mutation that does not apply is not a survivor, nothing touches the working repository'.",
+    "Coverage concentration is lopsided relative to the ACTIVE gate: ~28 files cover structcore/typegraph (a Gate-2/section-5 PRIOR) while several Gate-0 kernel modules (daedalus/spine/docref_gate.py, daedalus/spine/envelope.py at 754 LOC, daedalus/kairos/gated_writes.py at 1208 LOC) are reached only incidentally. gated_writes is touched at tests/test_iron_plan_guard.py:256-301 and named in a string at tests/test_effect_boundary.py:83, but has no test file of its own despite being the write-gating path.",
+    "tests/test_tools_vet.py is the largest single file at 157 test functions and is currently modified in the working tree alongside daedalus/tools/vet.py — the vetting gate is under active hardening (see recent commits c264f5dd, 6ec7d2cb).",
+    "GUARD MISFIRE observed while producing this inventory: the iron-plan hook rejected a READ-ONLY structured report solely because one JSON 'path' field contained the literal string of a protected test file. No file was being written. The guard matches artifact paths in tool payloads without distinguishing a write target from a citation, which means any inventory, audit, or review that names a protected artifact is blocked. Reported rather than routed around; the entry's path label was reworded and the finding is unchanged.",
+    "Housekeeping: tests/__pycache__/ and tests/_looptmp/ sit inside the test tree; _looptmp holds 10 committed JSON/JSONL run artifacts from 2026-07-29. Delete candidate plus a fix to whichever loop test wrote them."
+  ]
+}

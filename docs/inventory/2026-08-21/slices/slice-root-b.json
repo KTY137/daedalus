@@ -1,0 +1,330 @@
+{
+  "slice": "daedalus/*.py basenames m-z plus __init__.py (root modules, second half) — 29 files",
+  "summary": "This half of the root package holds the live offload cascade (offload -> provider_router -> sensitivity -> verifier -> preservation) and the Gate-0 contract/primitive layer (schemas, storage, primary_tree). The cascade is genuinely wired and heavily tested; the Gate-0 contract layer is almost entirely unconsumed. Seven of the eight canonical contracts in daedalus/schemas.py (MissionContract, AttemptContract, EvidencePacket, CampaignContract, PolicyDecision, RuntimeManifest, AttemptReceipt) have zero production importers — only tests/test_kernel_contracts.py — so the effectful path and the canonical contract path do not meet. Around that core sit a set of honest islands (memstore, runbook, token_monitor, shift_ticker, skills, semantic_route) and two self-declared compatibility shims to daedalus.kairos (mission_control, orchestrate). Health overall: the safety mechanics are real and measured, the kernel wiring named by Gate 0 is not yet closed.",
+  "modules": [
+    {
+      "path": "daedalus/__init__.py",
+      "purpose": "Package facade re-exporting route_task and the legacy AgentTask/AgentReport/RunState/validate_report contracts.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 / Invariant 1 (one kernel contract)",
+      "issues": [
+        "daedalus/__init__.py:4 exports only the LEGACY half of schemas.py (AgentTask/AgentReport/RunState). None of the Gate-0 canonical contracts are exported from the package surface, so the public API of the package is the pre-plan contract generation."
+      ]
+    },
+    {
+      "path": "daedalus/memstore.py",
+      "purpose": "Append-only hash-chained JSONL memory ledger with tamper-evident verify_ledger and fold state.",
+      "status": "island",
+      "plan_mapping": "Invariant 7 (provenance) — but no production consumer",
+      "issues": [
+        "Zero production importers. Grep over daedalus/, tools/, scripts/ finds only prose mentions (daedalus/council/bus.py:13-36, daedalus/conversation.py:28, daedalus/spine/envelope.py:135,230,694). The only executable consumer is tests/test_memstore.py.",
+        "Functionally superseded on both sides: product memory now lives in the daedalus/memory/ package (MEMORY_DIR, events.local.jsonl) and kernel provenance in daedalus/spine/ledger.py. memstore is a third ledger implementation of the same shape.",
+        "daedalus/council/bus.py:13 states outright that it 'deliberately REIMPLEMENTS memstore.py's two-SHA discipline' rather than importing it — a knowingly duplicated invariant."
+      ]
+    },
+    {
+      "path": "daedalus/metrics.py",
+      "purpose": "Append-only JSONL escalation metering that surfaces the silent-escalation / fallback-rate alarm for the offload cascade.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 / Invariant 9 (honest claims), Invariant 7 (provenance)",
+      "issues": [
+        "Registered in daedalus/spine/envelope.py:139 as having NO id at all ('Seven-key dict, no id at all today'), so its rows cannot be joined to spine attempts."
+      ]
+    },
+    {
+      "path": "daedalus/mission_control.py",
+      "purpose": "Self-declared compatibility wrapper re-exporting daedalus.kairos.control's dashboard/squads/watcher functions.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Pure re-export shim (daedalus/mission_control.py:1-3). Nothing in daedalus/, tools/ or scripts/ imports it; tests reach daedalus.kairos.control directly (tests/test_comms.py:22).",
+        "tests/test_mapping_drift.py:320 names it explicitly as one of 'three real shims (decompose.py, drafts.py, mission_control.py) that nothing reaches and nothing tests'.",
+        "Its documented product surface is also dead: tests/test_ui_governance.py:331 asserts the VS Code dashboardHtml template is unreachable and must be LABELLED unreachable so readers stop counting it as shipping."
+      ]
+    },
+    {
+      "path": "daedalus/offload.py",
+      "purpose": "The single seam that hands work to the free bench, runs the verifier gate, and rolls back plus escalates to Claude on failure.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (centralized effect path), Invariant 4 (evidence boundary), Invariant 8 (bounded effects)",
+      "issues": [
+        "It is the live write path but imports NOTHING from daedalus.spine.effect_boundary and none of the canonical contracts — grep for 'spine|effect_boundary|MissionContract|AttemptContract|EvidencePacket' in daedalus/offload.py returns zero hits. Gate 0 requires a centralized start/guard path for every effectful entrypoint; this one carries its own local guards instead.",
+        "Reached from six places (daedalus/cli.py:1081, benchmark.py:176, selftest.py:126, spine/attempt.py:1069, mapping/reach.py:32, tools/bootstrap_receipt.py:390), i.e. spine/attempt calls INTO offload rather than offload routing through the spine."
+      ]
+    },
+    {
+      "path": "daedalus/orchestrate.py",
+      "purpose": "Self-declared compatibility CLI re-exporting daedalus.kairos.orchestrate's prepare_task/main.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "8-line shim (daedalus/orchestrate.py:1-9). No importer anywhere in daedalus/, tools/ or tests/; only referenced as a path string in tests/test_skills.py:975.",
+        "Not dispatched from daedalus/cli.py (no 'orchestrate' branch in the command chain at cli.py:1078-1157)."
+      ]
+    },
+    {
+      "path": "daedalus/preservation.py",
+      "purpose": "Asymmetric syntactic tripwire that checks fact-bearing tokens survived a prose rewrite.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary — explicitly a tripwire, NOT a gate)",
+      "issues": [
+        "Single production consumer: daedalus/verifier.py:22. If the prose lane ever bypasses verifier, the tripwire silently stops applying.",
+        "The module docstring is unusually careful about NOT being a gate — that honesty is the reason it is not a review defect."
+      ]
+    },
+    {
+      "path": "daedalus/primary_tree.py",
+      "purpose": "Device/inode-level fence answering 'does this path land inside the primary checkout?' so self-modification only happens in a worktree.",
+      "status": "wired",
+      "plan_mapping": "Invariant 3 (isolation), Invariant 5 (sealed promotion)",
+      "issues": [
+        "Consumed by daedalus/spine/attempt.py:128 and daedalus/eval/correctness.py:117 only. offload.py — the live local-write path — does not import it, so worktree confinement on that path rests on sensitivity.path_write_blocked (policy-based, explicitly weaker) rather than on the filesystem-identity fence."
+      ]
+    },
+    {
+      "path": "daedalus/progress.py",
+      "purpose": "Separates OBSERVED work from merely STARTED work: running != progressing, finished != succeeded, wrote != verified.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance), Invariant 9 (honest claims)",
+      "issues": [
+        "Consumed by daedalus/loop.py:84, daedalus/build_exec.py:79 and daedalus/web_api.py:657,1090. Its distinctions are not projected into any canonical schema — nothing maps a ProgressEvent onto an AttemptContract or EvidenceItem."
+      ]
+    },
+    {
+      "path": "daedalus/progress_sources.py",
+      "purpose": "Read-only adapters turning signals the repo already emits (ikarus_os streams, offload, spine.attempt, spine.ledger) into ProgressEvent records.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance)",
+      "issues": [
+        "Only two consumers: daedalus/progress.py:746 (lazy) and daedalus/web_api.py:658,1120,1554. No test file references it (0 hits under tests/), so its adapter behaviour is untested."
+      ]
+    },
+    {
+      "path": "daedalus/projects.py",
+      "purpose": "Loads projects/*.json and resolves repo_root for every project-scoped command.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (workspace/write-root resolution)",
+      "issues": [
+        "17 production importers, the widest fan-in in this slice; it is de facto the workspace-root authority but has no docstring and no stated contract (daedalus/projects.py:1 begins directly with imports)."
+      ]
+    },
+    {
+      "path": "daedalus/provider_router.py",
+      "purpose": "Stage-2 routing: given a role and task, choose the provider on the data-sensitivity and change-risk axes.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 / Invariant 8 (bounded effects: egress and write authority)",
+      "issues": [
+        "Consumed by daedalus/offload.py:29, daedalus/kairos/scheduler.py:25, daedalus/benchmark.py:20.",
+        "Depends on daedalus/semantic_route.py:33 for the latent route, which by its own comment (semantic_route.py:261-263) 'was fully wired ... and had MEASURED never run in production: 0 of 5 live probes'. The routing decision is therefore keyword-based in practice."
+      ]
+    },
+    {
+      "path": "daedalus/router.py",
+      "purpose": "Stage-1 routing: pick the specialist agent role from agents/*.json, with per-repo .agentenv/agents and templates/agents overrides.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (mission -> role compilation)",
+      "issues": [
+        "15+ importers including daedalus/__init__.py:3, core.py:18, loop.py:871, kairos/orchestrate.py:11. It is a second, pre-plan dispatch surface parallel to MissionContract — role selection happens here and never produces a canonical contract record."
+      ]
+    },
+    {
+      "path": "daedalus/runbook.py",
+      "purpose": "Creates a run directory from an objective: routes a task, builds AgentTask/RunState, writes runs/.",
+      "status": "island",
+      "plan_mapping": "Gate 0 / Invariant 1 (mission spine) — registered but unreached",
+      "issues": [
+        "Registered as an effectful entrypoint 'cli.runbook' -> daedalus.runbook:main with Effect.FILESYSTEM_WRITE at daedalus/spine/effect_boundary.py:549, but with Wiring.INVENTORY_ONLY (inventoried, not routed through the central guard).",
+        "Not dispatched from daedalus/cli.py — there is no 'runbook' branch in cli.py:1078-1157. No production importer; one test file.",
+        "It builds the LEGACY AgentTask/RunState (runbook.py:9), i.e. it is a mission-spine prototype predating MissionContract."
+      ]
+    },
+    {
+      "path": "daedalus/runtime_registry.py",
+      "purpose": "CLI-first, API-ready registry of runtime capabilities (status/test surface per runtime).",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (vendor-neutral Agent Contract / Runtime Manifest)",
+      "issues": [
+        "Reached only via the web surface (daedalus/web_api.py:25,1249,1694), not from the CLI.",
+        "daedalus/schemas.py:1277 carries a 'Conservative adapter for runtime_registry.RuntimeSpec declarations' — but the resulting RuntimeManifest has no production consumer (see the schemas entry), so the registry never actually becomes a Runtime Manifest at runtime."
+      ]
+    },
+    {
+      "path": "daedalus/schemas.py",
+      "purpose": "Holds both the Gate-0 canonical kernel contracts (Mission/Attempt/Evidence/Campaign/Policy/Manifest/Receipts) and the legacy AgentTask/AgentReport/RunState records.",
+      "status": "island",
+      "plan_mapping": "Gate 0 / Invariant 1 (one canonical contract) — defined, not adopted",
+      "issues": [
+        "THE central finding of this slice: 7 of 8 canonical contracts have ZERO production importers. MissionContract (schemas.py:520), AttemptContract (:579), EvidencePacket (:769), CampaignContract (:1011), PolicyDecision (:1125), RuntimeManifest (:1184), AttemptReceipt (:1318) appear nowhere outside schemas.py except tests/test_kernel_contracts.py. Only PromotionReceipt (:1524) has a real consumer, daedalus/spine/promotion_approval.py:567.",
+        "Two contract generations coexist in one 71KB file: canonical contracts at lines 217-1789, legacy AgentTask/AgentReport/RunState/validate_report at 1791-1880. Only the legacy half is re-exported from daedalus/__init__.py:4 and only the legacy half has live callers (claude_bridge.py:11, verifier.py:23, runbook.py:9).",
+        "core.py:382 imports the module lazily and only to touch the legacy side."
+      ]
+    },
+    {
+      "path": "daedalus/selftest.py",
+      "purpose": "Live end-to-end Ollama round-trip through the real offload cascade, asserting only model-agnostic facts; skips cleanly when the bench is down.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (real adapter fixtures / conformance)",
+      "issues": [
+        "Dispatched at daedalus/cli.py:1144. Registered as 'cli.selftest' with FILESYSTEM_WRITE and Wiring.INVENTORY_ONLY at spine/effect_boundary.py:550 — it performs real writes without the central guard.",
+        "It produces no receipt in any canonical form; the capability result is printed, not recorded as a RuntimeConformanceReceipt (schemas.py:1675) even though that contract exists."
+      ]
+    },
+    {
+      "path": "daedalus/semantic_route.py",
+      "purpose": "Embedding-based stage-1 routing via local Ollama, with explicit reason codes and hard fallback to the keyword router.",
+      "status": "drifted",
+      "plan_mapping": "Latent-atlas prior (section 6) — the only latent-retrieval code on the live routing path",
+      "issues": [
+        "Its own comment at daedalus/semantic_route.py:261-263 records the measurement: 'fully wired into provider_router.route_and_select, fully tested, and had MEASURED never run in production: 0 of 5 live probes' — a cold-start timeout degraded every first call to the keyword router.",
+        "A cold-timeout knob (EMBED_COLD_TIMEOUT_ENV, :270) was added as the fix, but no post-fix live-probe measurement is recorded in the module, so the route's production status is currently unmeasured rather than confirmed working.",
+        "Consumers: provider_router.py:33 and health.py:1568."
+      ]
+    },
+    {
+      "path": "daedalus/sensitivity.py",
+      "purpose": "Three disjoint gates — data egress (fail-closed), write confinement (NOT fail-closed by default), and change-risk classification.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects: egress, write roots)",
+      "issues": [
+        "Widest fan-in in the slice (~28 production importers plus tools/audit_swarm.py:55) and the most-tested. The asymmetry it documents at sensitivity.py:1-20 is real and load-bearing: write_allow empty means UNCONFINED, so write confinement is only as strong as the project policy actually loaded — which is precisely why offload.py refuses live writes without a policy.",
+        "It is the de facto effect policy, but it is not the PolicyDecision contract (schemas.py:1125): decisions it makes are never emitted as canonical policy records."
+      ]
+    },
+    {
+      "path": "daedalus/shift.py",
+      "purpose": "A declared working window (goal, start, deadline, checkpoints) so an agent cannot lose the wall clock.",
+      "status": "wired",
+      "plan_mapping": "none (agent-ergonomics guardrail, outside the kernel)",
+      "issues": [
+        "Registered as 'cli.shift' -> daedalus.shift:main with FILESYSTEM_WRITE, Wiring.INVENTORY_ONLY (spine/effect_boundary.py:551), but there is no 'shift' branch in daedalus/cli.py.",
+        "Real consumers are shift_hook.py:36, shift_ticker.py:33 and daedalus/lanes/checks.py:348."
+      ]
+    },
+    {
+      "path": "daedalus/shift_hook.py",
+      "purpose": "Claude Code UserPromptSubmit hook that injects current time, goal and remaining window into every turn.",
+      "status": "island",
+      "plan_mapping": "none (harness ergonomics)",
+      "issues": [
+        "No Python importer. Its only wiring is a harness config OUTSIDE the package: docs/recovery/settings_beast.json:41 references it by absolute path 'c:/Users/nukei/Desktop/agent_env/daedalus/shift_hook.py' — a machine-specific path in a recovery doc, not in the repo's active settings.",
+        "docs/research/census/reviews/rv19.md:7 flags it as having CLAIMS but no symbols in the census, so its guarantees are unverifiable from the census."
+      ]
+    },
+    {
+      "path": "daedalus/shift_ticker.py",
+      "purpose": "Human-facing terminal pane printing time, goal, remaining window and checkpoints on a cadence.",
+      "status": "island",
+      "plan_mapping": "none (human observability)",
+      "issues": [
+        "Zero importers and zero test files (grep over tests/ returns nothing). Reachable only as `python -m daedalus.shift_ticker`, documented at shift_ticker.py:5-6.",
+        "Flagged in docs/research/census/reviews/rv19.md:7 alongside shift_hook as claim-without-symbol."
+      ]
+    },
+    {
+      "path": "daedalus/skills.py",
+      "purpose": "Parses Agent Skills SKILL.md files as pure DATA (format-only adoption per ADR-018); runs nothing.",
+      "status": "wired",
+      "plan_mapping": "Invariant 12-adjacent (explicitly REFUSES a second scheduler/ledger per ADR-002/ADR-017)",
+      "issues": [
+        "Exactly one production consumer: daedalus/tools/inventory.py:26, whose own docstring (inventory.py:3) records that 'skills.py could parse a SKILL.md and had no consumer but its own tests' — i.e. it was an island until inventory.py was written for it. 44KB of parser behind one read-only consumer.",
+        "Its restraint (no process, no socket, no dispatch) is the correct posture under section 12 and should be preserved."
+      ]
+    },
+    {
+      "path": "daedalus/status.py",
+      "purpose": "`daedalus status` — distinguishes what is WORKING from what is merely PRESENT, with counters kept for back-compat.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims)",
+      "issues": [
+        "Dispatched at cli.py:1100 and consumed by core.py:19 (collect_status). Registered as 'cli.status' with Effect.PROCESS_SPAWN, Wiring.INVENTORY_ONLY (spine/effect_boundary.py:552).",
+        "Its docstring says the real answer moved to daedalus.health, so status.py is a deliberately retained legacy surface whose counters remain frozen for the VS Code extension."
+      ]
+    },
+    {
+      "path": "daedalus/storage.py",
+      "purpose": "Fail-closed storage watermark plus the content-addressed artifact store (create-once, atomic, digest-verified) emitting immutable locators.",
+      "status": "wired",
+      "plan_mapping": "Invariant 2 (artifact identity), Gate 0 (content-addressed artifact store)",
+      "issues": [
+        "Only two production consumers: daedalus/spine/attempt.py:148 and daedalus/kairos/worktree.py:87 (require_storage). Candidate source trees produced by the offload path are NOT published into it — offload.py has no storage import — so Invariant 2's 'candidate source trees are content-addressed artifacts' holds only for the spine/attempt path.",
+        "Correctly scoped in its docstring: 'not an archive index, event store, promotion mechanism, or graph authority'."
+      ]
+    },
+    {
+      "path": "daedalus/token_monitor.py",
+      "purpose": "Samples Claude usage logs from ~/.claude, summarises token spend and checkpoints into the memory ledger.",
+      "status": "island",
+      "plan_mapping": "Invariant 8 (spend bounds) — inventoried, not enforced",
+      "issues": [
+        "Registered as 'cli.token_monitor' -> daedalus.token_monitor:main with FILESYSTEM_WRITE, Wiring.INVENTORY_ONLY (spine/effect_boundary.py:566-572), but there is no 'token-monitor' branch in daedalus/cli.py:1078-1157.",
+        "No production importer inside daedalus/ (mentions at sensitivity.py:91 and envelope.py:727 are prose/registry entries). Consumers are tests only (tests/test_agent_env.py:15, tests/test_hardening.py:33).",
+        "It measures spend but does not feed the budget enforcement in daedalus/budget.py — reading it is observability, not a bound."
+      ]
+    },
+    {
+      "path": "daedalus/token_policy.py",
+      "purpose": "Static token-frugality constants and the Bridge Protocol prompt prefix; trim_paths/trim_text helpers.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects: spend) — advisory only",
+      "issues": [
+        "Consumed by daedalus/claude_bridge.py:12. It is prompt text plus constants; the plan is explicit (section 4.8) that bounds must be enforced at effect boundaries, 'not entrusted to prompts'. This module is exactly the prompt-side hint, so it must never be counted as a budget bound.",
+        "DEFAULT_MODEL/HIGH_RISK_MODEL/CHEAP_MODEL string constants here duplicate tier naming that provider_router also decides."
+      ]
+    },
+    {
+      "path": "daedalus/verifier.py",
+      "purpose": "The cascade's deterministic quality gate: report-schema validity plus Python syntax of written files, with opt-in project test command.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary: deterministic evaluators decide)",
+      "issues": [
+        "Exactly one production consumer, daedalus/offload.py:30 — the gate exists only on the offload path. Any other write path (e.g. spine/attempt's own flows, web_api mutations) is not verified by it.",
+        "It validates against the LEGACY report schema (verifier.py:23 -> schemas.validate_report), never against EvidencePacket/EvidenceItem, so cascade verdicts never become canonical evidence records."
+      ]
+    },
+    {
+      "path": "daedalus/web_api.py",
+      "purpose": "Local HTTP API and static host for the Daedalus Agent OS webapp; the widest effectful surface in the package.",
+      "status": "drifted",
+      "plan_mapping": "Gate 0 (policy coverage for the Web/API entrypoint), Invariant 8 (bounded effects)",
+      "issues": [
+        "92KB single-module HTTP server importing ~15 subsystems directly (web_api.py:19-40), acting as a de facto second control plane beside the CLI.",
+        "'web.mutations_put' -> daedalus.web_api:DaedalusHandler.do_PUT is registered with Effect.FILESYSTEM_WRITE and Wiring.INVENTORY_ONLY (spine/effect_boundary.py:605-611): a network-reachable write surface that is inventoried but not centrally guarded. 'cli.web_api' with Effect.LISTEN_SOCKET is likewise INVENTORY_ONLY (:573).",
+        "Its only spine contact is a lazy SpineLedger read at web_api.py:345 — it consumes the ledger but does not write mutations through it."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/MISSION_CONTROL.md",
+      "verdict": "archive",
+      "reason": "Describes the tabbed VS Code Mission Control dashboard in the present tense as a shipping surface, but tests/test_ui_governance.py:331 asserts the underlying dashboardHtml template is UNREACHABLE and must be labelled so, and daedalus/mission_control.py is a shim nothing imports. The doc is the strongest remaining reason a reader would believe this surface is live."
+    },
+    {
+      "path": "docs/adrs/018-skill-format.md",
+      "verdict": "keep",
+      "reason": "The narrow format-only adoption decision that daedalus/skills.py implements and cites; it is the reason skills.py correctly refuses to become a second scheduler. Still accurate."
+    }
+  ],
+  "integration_gaps": [
+    "GATE-0 CENTRAL GAP: daedalus/schemas.py defines the canonical Gate-0 contracts but 7 of 8 have zero production consumers — MissionContract (schemas.py:520), AttemptContract (:579), EvidencePacket (:769), CampaignContract (:1011), PolicyDecision (:1125), RuntimeManifest (:1184), AttemptReceipt (:1318) appear only in schemas.py and tests/test_kernel_contracts.py. Only PromotionReceipt reaches production (spine/promotion_approval.py:567). Gate 0's 'canonical Mission, Attempt, Evidence, Campaign, policy, and receipt schemas' exist as definitions, not as the spine.",
+    "The live effect path bypasses the effect boundary: daedalus/offload.py performs guarded local-model writes and contains no reference to daedalus.spine.effect_boundary or any canonical contract. Gate 0 requires a 'centralized start/guard path for every effectful runtime entrypoint'; offload carries its own local guards instead.",
+    "In daedalus/spine/effect_boundary.py the registry is 40x Wiring.INVENTORY_ONLY, 8x CENTRAL, 6x LOCAL_GUARDS, 4x UNGUARDED, 1x ABSENT. Registration is not routing — inventoried effectful entrypoints from this slice (cli.runbook:549, cli.selftest:550, cli.shift:551, cli.status:552, cli.token_monitor:566, cli.web_api:573, web.mutations_put:605) are named but not centrally guarded.",
+    "Routing produces no canonical record: router.py picks the role, provider_router.py picks the provider and the egress/write authority, sensitivity.py makes the actual allow/deny call — and none of them emit a PolicyDecision (schemas.py:1125). Invariant 8's decisions are made but not recorded in canonical form.",
+    "Verification produces no canonical evidence: verifier.py:23 validates against the legacy schemas.validate_report, so accept/escalate verdicts never become EvidenceItem/EvidencePacket records.",
+    "Candidate bytes from the offload cascade are never content-addressed: daedalus/storage.py's artifact store is reached only from spine/attempt.py:148 and kairos/worktree.py:87, not from offload.py. Invariant 2 holds on one path only.",
+    "The worktree fence is path-dependent: daedalus/primary_tree.py (device/inode identity, undeniable) is imported only by spine/attempt.py:128 and eval/correctness.py:117; offload's write confinement rests on the weaker, policy-dependent sensitivity.path_write_blocked.",
+    "Three parallel append-only hash-chained ledgers of the same shape: daedalus/memstore.py (no consumers), daedalus/council/bus.py (which states at bus.py:13 that it deliberately reimplements memstore rather than importing it), and daedalus/spine/ledger.py. Invariant 1 asks for one event spine.",
+    "runtime_registry.py has a declared adapter into RuntimeManifest (schemas.py:1277) but, since RuntimeManifest has no production consumer, no Runtime Manifest is ever produced at runtime — the Gate-0 'vendor-neutral Agent Contract / Runtime Manifest' deliverable stops at the type."
+  ],
+  "notable": [
+    "STALE MODULE DOCSTRING / stale package copy: build/lib/daedalus/ contains a 68-file copy of the whole package from an old `pip install .` run. build/lib/daedalus/schemas.py is 3167 bytes dated Jul 5 (the pre-Gate-0 legacy-only version) against the live 71525-byte file — a full second copy of every module in this slice, importable if the path is ever wrong, and a false hit for every future grep.",
+    "STALE DOCSTRING: daedalus/semantic_route.py:261-263 preserves a measurement ('MEASURED never run in production: 0 of 5 live probes') that describes the module BEFORE the cold-timeout fix at :270 was applied. As written a reader cannot tell whether the latent route runs today; the negative evidence is correctly retained but is not dated or superseded by a post-fix probe.",
+    "STALE DOCSTRING: daedalus/status.py's opening tells the story of a redesign and points readers to daedalus.health as 'the answer', while the module still ships the six counters it argues against — accurate but written as a changelog, so a reader learns the history before learning what the module does.",
+    "STALE DOCSTRING: daedalus/tools/inventory.py:3 still says skills.py 'had no consumer but its own tests' — true when written, now false, since inventory.py itself is that consumer (inventory.py:26).",
+    "Honest self-reporting is a real strength of this slice: preservation.py explicitly refuses to be called a gate ('A gate people believe is stronger than it is, is worse than no gate'), sensitivity.py names its own non-fail-closed default for write confinement, progress.py enumerates three past incidents where a claim was reported as a measurement, and shift.py/shift_hook.py document the exact 2026-07-30 clock failure they close. These are the docstrings to preserve verbatim in any consolidation.",
+    "tests/test_mapping_drift.py:316-333 encodes the island count as a PROPERTY rather than a magic number and names decompose.py, drafts.py and mission_control.py as real shims nothing reaches — the repo already measures its own dead weight, which makes the shims in this slice deletable with mechanical confidence.",
+    "docs/research/census/reviews/rv19.md:7 independently flags shift_hook.py, arch_hook.py and shift_ticker.py as files with CLAIMS but no symbols in the census, i.e. their guarantees are unverifiable — matching the island verdicts here.",
+    "daedalus/schemas.py is a single 71KB file holding two contract GENERATIONS (canonical at 217-1789, legacy AgentTask/AgentReport/RunState at 1791-1880). The package's public API (daedalus/__init__.py:4) exports only the legacy half. Splitting these would make the adoption gap visible instead of implicit.",
+    "daedalus/projects.py resolves repo_root for 17 importers and is effectively the workspace/write-root authority, yet has no docstring and no stated contract (the file opens directly with imports at line 1)."
+  ]
+}

@@ -1,0 +1,562 @@
+[
+ {
+  "lens": "A — Constitution & Gate 0 (10 invariants, Gate-0 exit criteria, one-kernel discipline)",
+  "headline": "Gate 0 is not blocked by unwired modules; it is blocked by a forked constitution: one repo now carries two live plan revisions (2 on this checkpoint line, 6 on the g0 trunk), two kernels (spine vs gates+kernel), two incompatible promotion trust roots, and this council was convened on the line that is 1,228 commits behind the real Gate-0 closure work.",
+  "top_findings": [
+   {
+    "title": "Constitutional fork: two divergent amendment chains for one Plan-ID. This checkout's master-plan header reads Revision 2 / Version 1.0.0 (amended to rev 2 mid-council-session, 2026-08-21T21:18, base_revision 1, base sha a47d84ee...); the g0 trunk's copy reads Revision 6 / Version 1.2.3, dated 2026-08-02, and adds a 'Gesamtplan program authority' row to the authority table. Two chains, both rooted at revision 1, both claiming plan-id daedalus-master-plan, with colliding revision numbers. Invariant 10 assumes one monotonic chain; the repository no longer has one sole semantic authority.",
+    "evidence": "agent_env master-plan doc header line 4 ('Revision: 2') + amendments-chain .jsonl tail record (accepted_at 2026-08-21T21:18:13, base_revision 1) + commit 3e758392; agent_env_g0 master-plan doc header lines 4-5 ('Revision: 6', 'Version: 1.2.3') and authority-table line 25; guard hook banner observed switching sha a47d84ee->d0756fa3 during this session",
+    "severity": "critical"
+   },
+   {
+    "title": "Invariant 1 ('one kernel') is violated at branch level, not module level: work/g0-trunk-20260817 carries daedalus/kernel + daedalus/gates + daedalus/spine side by side, while checkpoint/2026-07-20-session carries spine only. The two lines have diverged 1,228 commits (g0-only) vs 36 (checkpoint-only); main is frozen at 2026-07-13 and neither line merges to it. Both lines still receive commits (checkpoint: vet-gate hardening c264f5dd 2026-08-21 + amendment 003 tonight; g0: forest_v2 slices through 2026-08-18 17:58).",
+    "evidence": "git rev-list --count checkpoint ^g0=36, g0 ^checkpoint=1228 (run this session); ls agent_env_g0/daedalus shows gates+kernel+spine; git log -1 main = 2026-07-13; g0 HEAD 93f11adf 2026-08-18 17:58",
+    "severity": "critical"
+   },
+   {
+    "title": "Sealed promotion (Invariant 5) has two incompatible trust roots and the trunk implements the one the repo's own decision paper argues against: kernel/approvals.py uses a symmetric HMAC with the secret read from an environment variable (whoever can verify can forge; any process reading that env can mint an approval), while this line's spine/promotion_approval.py implements the recommended asymmetric git-signed-tag root (option B) — and has zero production callers here (grep across daedalus/ and tools/ returns only the module itself). No amendment record explains the trunk's divergence from the recorded recommendation.",
+    "evidence": "docs/GATE0_PROMOTION_TRUST_ROOT_CONFLICT.md lines 10-39 (table + 'implements neither B nor A') and 45-56 (approvals.py:292, :361-363, :732, :767); grep verify_promotion_approval in agent_env daedalus/+tools/ = no production caller (run this session)",
+    "severity": "critical"
+   },
+   {
+    "title": "The council is auditing the stale line: the ten-slice inventory's central Gate-0 findings (7/8 canonical contracts with zero importers — reconfirmed: grep MissionContract outside schemas.py in daedalus/ is empty; registry mostly INVENTORY_ONLY; promotion verifier unwired) are measurements of the checkpoint tree. On the g0 trunk the measured blocker list went 60 (2026-08-17 @60b2bfeb) -> 20 named lines (2026-08-18 @bcc0feaf: 6 declared-blocked fault lines + 13 justified inventory_only doors + 1 security_boundary_claimed), with the fault matrix 24/24 production-HMAC-signed. Acting on this tree's module findings re-does closed work.",
+    "evidence": "docs/recovery/fable/gate0-exit-delta.md:83-96 (60 blockers, live CLI run) and :168-187 (P0 table); memory gate0-closure-status.md 2026-08-18 (20 lines, matrix signed); g0 branches grind/last-doors, grind/closure-run, grind/sealed-approval all 2026-08-18",
+    "severity": "major"
+   },
+   {
+    "title": "What actually still blocks Gate-0 exit (verified against docs, matching owner memory): (1) owner decision on the 13 justified inventory_only doors (notes live in the trunk effect-boundary registry); (2) owner decision + build lane for the sealed-approval trust root — the options paper is decided-on-paper but unimplemented on the trunk (PromotionReceipt schema exists, nothing constructs it, promote_candidates takes no approval parameter); (3) the 6 declared-blocked fault-matrix lines need a Linux host/CI run; (4) security_boundary_claimed:false until the boundary claim is stated honestly (win32 MIC containment is write-bounded, CONFIDENTIALITY: NONE — not a sandbox).",
+    "evidence": "memory gate0-closure-status.md 2026-08-18 items 1-2; gate0-exit-delta.md P0-1 (report.py:433), P0-2/P0-3 sentinels (report.py:468-471); spine containment ceiling per slice-3 inventory (containment.py docstring)",
+    "severity": "major"
+   },
+   {
+    "title": "Three honesty gaps that would make a Gate-0 stamp an overclaim if not resolved: (a) SECRETS effect is claimed by 0 of 53 registry rows while four provider rows demonstrably handle API credentials — invisible to the gate report (Invariant 8); (b) the closed predicate (report.py:203-209) can reach true while 11 LOCAL_GUARDS rows never migrate to CENTRAL — weaker than the plan's 'centralized start/guard path for every effectful runtime entrypoint'; (c) the v3 repository-write scanner crashes at HEAD on 7 duplicated .replace callsites, so repository-write evidence is currently unobtainable.",
+    "evidence": "gate0-exit-delta.md:144-150 (SECRETS=0/53), :128-136 (closed predicate vs plan text), :102-122 (v3 ValueError, duplicate callsites listed incl. budget.py:1013:24, spine/ledger.py:147:12)",
+    "severity": "major"
+   },
+   {
+    "title": "On this line, live unregistered doors persist and are real Invariant-8 gaps if this line stays active: python -m daedalus.loop is an externally reachable start with spend/spawn/write effects and no registry row (verified loop.py:1222 main, :1302 __main__), plus 15 unregistered tools.* mains including the plan-guard tooling itself. Competing-control-plane islands vs debris: web_api PUT surface (network-reachable write, INVENTORY_ONLY), conversation.py's fourth log carrying dispatch->turn attribution (section 7 violation), council/bus.py's second hash-chained ledger, and kairos shadow_shell/evolution's second isolation path are competing planes; the rename shims (ikarus/decompose/drafts/mission_control/orchestrate/langgraph_adapter), tests/_looptmp, stale .vsix are harmless debris.",
+    "evidence": "daedalus/loop.py:1222,1302 (verified this session); gate0-exit-delta.md:94 (15 tools.* rows); slice inventories: conversation.py:14, council/bus.py:13, effect_boundary registry rows for web.mutations_put",
+    "severity": "major"
+   },
+   {
+    "title": "The plan guard misfires on read-only work: it rejected two read-only Bash invocations this session solely for containing protected path literals, and multiple slice inventory agents report StructuredOutput rejections for the same reason. A guard that blocks naming (not writing) protected artifacts trains agents to obfuscate paths in evidence — an anti-provenance incentive that directly degrades Invariant 7 compliance in reports.",
+    "evidence": "two Bash rejections this session ('Protected Iron Plan artifact(s) cannot change in ordinary work' on read-only git/ls commands); slice-1, slice-2, slice-8, slice-10 tooling notes reporting identical rejections of read-only reports",
+    "severity": "minor"
+   },
+   {
+    "title": "Counter-finding (defends the trunk): forest_v2 slices s01-s10 landing on the g0 trunk while Gate 0 is active are NOT a gate-order violation — they land under experiments/forest_v2/ with their own tests, which is exactly the section-10 allowance for later-gate prototyping that does not create a competing kernel. Likewise amendment 003 tonight followed the protocol (owner-executed kit, record appended, monotonic on its own chain) — the amendment machinery works; the defect is that there are two chains, not that either chain is being abused.",
+    "evidence": "git show --stat 93f11adf (all 13 files under experiments/forest_v2/s10_kill/); commit 3e758392 + docs/recovery/amendment_003_* kit files + chain tail record base sha a47d84ee",
+    "severity": "minor"
+   }
+  ],
+  "recommendations": [
+   {
+    "action": "Owner declares ONE trunk (work/g0-trunk-20260817, plan revision 6) and freezes checkpoint/2026-07-20-session to read-only harvest status. Reconcile the constitutional fork explicitly: replay this line's amendment 003 (serena-first) as a new record on the trunk chain, and append a reconciliation record stating which chain is authoritative. Rollback-forward only, no history rewrite (section 15).",
+    "classification": "AMENDMENT",
+    "priority": "now"
+   },
+   {
+    "action": "Owner decision 1: accept-with-recorded-justification or wire each of the 13 remaining inventory_only doors on the trunk registry (justifications already exist as notes in the trunk effect-boundary registry). Whichever way each door goes, blocker-ize or amend the closed predicate so LOCAL_GUARDS/non-CENTRAL rows cannot silently satisfy 'centralized start/guard path'.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Owner decision 2: pick the sealed-approval trust root. Evidence favors option B (asymmetric git-signed tag): port this line's spine/promotion_approval.py verifier onto the trunk promotion path, add the approval parameter to promote_candidates, construct PromotionReceipt, and either retire the symmetric HMAC path or demote it to a ledgered second factor with the divergence recorded. Touches protected promotion policy.",
+    "classification": "AMENDMENT",
+    "priority": "now"
+   },
+   {
+    "action": "Convert the 6 declared-blocked fault-matrix lines to measured lines by running them on a Linux host/CI, and state the security boundary honestly at stamp time: win32 MIC write-bounded containment with CONFIDENTIALITY: NONE, not a sandbox. Fix the v3 duplicate-callsite scanner crash first so repository-write evidence is obtainable, and add SECRETS rows to the registry before closing (Invariant 8).",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Re-run the census on the trunk at 93f11adf before spending on ANY module-level fix from this council's inventory; produce a harvest list of checkpoint-line assets to port via the established blob-port lane pattern (candidates verified valuable: tools/vet gate hardening + its 207 test lines, structcore gardener distillates G-01/G-02, promotion_approval verifier, amendment-003 hook).",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "On the surviving trunk only: register or remove the python -m daedalus.loop door and the 15 tools.* mains; delete the debris class (rename shims ikarus/decompose/drafts/mission_control/orchestrate/langgraph_adapter, tests/_looptmp, stale .vsix); consolidate the fourth log (conversation.py) and the second hash-chained ledger (council/bus.py) onto the canonical spine per Invariant 1.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Propose a guard change: match protected-artifact enforcement on write intent, not on literal path substrings in read-only tool payloads, so inventories and councils can name what they audited. Until then, publish the sanctioned path-decoder convention used by slices 7/10 so evidence is non-literal but decodable (protects Invariant 7).",
+    "classification": "AMENDMENT",
+    "priority": "next"
+   },
+   {
+    "action": "Gate-1 ignition strictly after the stamp: rehearsal green + G1 activation checklist, using the trunk's MissionContract path (not this line's legacy AgentTask/BuildSession vocabulary). Reconcile build.py's BuildSession/Wave with MissionContract->WorkItems->Attempts as part of the ignition slice, not before.",
+    "classification": "ALIGNED",
+    "priority": "later"
+   },
+   {
+    "action": "Isolated experiments stay where they are: runs/higher_twin_nc and experiments/forest_v2 are correctly filed and labeled; add the one missing mechanical control — an experiment registry with expiry checks (higher_twin_nc declares Expiry 2026-10-31 but nothing enforces it) — wired through the canonical kernel, not a new subsystem.",
+    "classification": "EXPERIMENT",
+    "priority": "later"
+   }
+  ],
+  "dissent": [
+   "Against the likely majority ranking: the module islands this council inventoried (unconsumed canonical contracts, INVENTORY_ONLY registry rows, unwired promotion verifier) are NOT the Gate-0 critical path. They are measurements of a line 1,228 commits behind the closure work; on the trunk the blocker list is 20 named lines and two owner decisions. Spending council-driven lanes on wiring THIS tree is token burn on a frozen line — harvest and port instead.",
+   "Against calling forest_v2-on-trunk a gate-order violation: it is filed under experiments/ with tests, which section 10 explicitly permits. The violation is the fork, not the prototyping.",
+   "Against treating the guard's read-only misfires as acceptable strictness: three misfires in one read-only session is a measured defect, and its practical effect (agents obfuscating paths in evidence) is anti-provenance — worse than the marginal protection gained.",
+   "Against 'delete the shims now' as priority hygiene: deletions on a frozen line are churn that widens the diff the port has to reason about. Delete only on the surviving trunk.",
+   "Partial dissent from the owner memory's framing that exactly two owner decisions remain: the exit-delta adds three honesty gaps (SECRETS unmodeled, closed-predicate weaker than plan text, v3 scanner crash) that are not owner decisions but must land before a stamp is honest — otherwise closed:true asserts things the report cannot see."
+  ],
+  "for_codex": [
+   "The repo holds two amendment chains rooted at the same revision-1 sha (checkpoint: rev 2, accepted 2026-08-21; trunk: rev 6, 2026-08-02). Under section 15, what is the legal reconciliation that is not a history rewrite — and can a plan legitimately claim 'sole semantic authority' during the interval when two adopted revisions coexist? Attack my AMENDMENT-now recommendation if you think a pure ALIGNED merge-of-records suffices.",
+   "Is the trunk's symmetric HMAC owner-approval (secret in an environment variable, approvals.py:732/767) compatible with Invariants 3+5 at all, given any process that reads that env can mint a verifying approval? Or is 'depends on whether a candidate ever sees the var' (the conflict doc's hedge) an acceptable residual for a Gate-0 stamp?",
+   "The gate report's closed predicate (report.py:203-209) tolerates 11 LOCAL_GUARDS rows never reaching CENTRAL, and 0/53 rows model SECRETS. Argue whether closing Gate 0 on that predicate falsifies the plan's own exit text — or whether blocker-izing everything makes the gate unreachable and the plan text should be amended instead.",
+   "Can a fault-injection matrix 'demonstrate fail-closed' when 6 of 24 lines are declared-blocked-with-reason rather than executed (Docker scoping + live envelope)? Define the minimum evidence standard under which the 24/24 signed claim is honest, and what the Linux CI run must show.",
+   "Attack the staleness thesis itself: enumerate which of this council's ten-slice findings SURVIVE on the trunk at 93f11adf (two capability vocabularies? conversation.py fourth log? loop.py unregistered door? vet gate unwired?). Any finding that survives the port is real; any that doesn't was audit-of-a-ghost. What is the cheapest census that answers this?",
+   "Is a workflow guard that rejects read-only payloads for containing protected path literals a net safety positive or negative, given the measured effect (agents writing path decoders to smuggle evidence past it)? Propose the narrowest match rule that still blocks actual writes."
+  ]
+ },
+ {
+  "lens": "B — Research direction: tensor embeddings + category theory pivot (schizo check against the repo's own measurement discipline)",
+  "headline": "The categorical strand already runs as the repo's best experiment — embedding-free, pre-registered, killed-criteria'd; the tensor pivot is honest in exactly two forms: (1) the ceiling classification that was written 2026-07-30 and never run, and (2) an operator-embedding K-predictor supervised by higher_twin_nc's interventional commutators — everything else is occupied literature (RESCAL/TuckER, DisCoCat/TPR, Hansen–Ghrist sheaves) or word salad the plan already bans.",
+  "top_findings": [
+   {
+    "title": "The pre-registered gate for ANY latent expansion — the ceiling classification — has never been run; the corpus is on disk and it costs one classification pass, no vector store",
+    "evidence": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md:3-4 ('Not yet run'), :40-54 (bucket (b) is the only bucket latent can claim), :57-72 (corpus already measured 29/30 July), :111-119 (a high ceiling licenses ONE experiment, not infrastructure)",
+    "severity": "critical"
+   },
+   {
+    "title": "The categorical strand is not a pivot target — it already exists as the repo's most disciplined experiment (fibrations, Cech obstructions, descent, lens laws, adjunction residuals), and its strength is precisely that it is embedding-free: every categorical word is cashed into a deterministic assay with a kill criterion",
+    "evidence": "runs/higher_twin_nc/SPEC.md:18-21, 46-106 (H-CERT/H-ANOM/H-DESC/H-HOL kill criteria), 310-330 (descent prototype MEASURED incl. honest 5:4 negative economy); docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md:15-43, 52-64 (novelty table with verified URLs)",
+    "severity": "major"
+   },
+   {
+    "title": "The repo's own interventional data falsifies additive/flat intervention-embedding models: measured behavioral non-commutation k=0.1754 (pumplab scale+clip) and k=0.1915 (retune anomaly) where any intervention-as-vector-offset model predicts K identically 0 — this is the one honest steelman for operator-valued (matrix/tensor) representations",
+    "evidence": "runs/higher_twin_nc/SPEC.md:206-224 (k=0.1754, k=0.1915, anomaly detection 1/1); caveat: HIGHER_TWIN_NC_LAYER2_2026-08-20.md:72-73 (pass 31 rejected learned-matrix commutator NORMS as basis-dependent — prediction against interventional ground truth is different but inherits a gauge-identifiability question)",
+    "severity": "major"
+   },
+   {
+    "title": "Measured hub structure preempts naive plane-product tensors: top-8 types carry 83.6% of all type edges, 53.63% of function pairs are 2-hop connected uncapped, and post-cap the type plane on daedalus/ is sparse and near tree-like — a code-x-type product space would mostly encode 'touches str'",
+    "evidence": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md:117-141 (1,276,024 hub pairs; '85% der Typkanten dieses Repos sind die Woerter str und None'), :142-150 (cap inert on daedalus/, max fan-in 33)",
+    "severity": "major"
+   },
+   {
+    "title": "Data starvation kills any tensor fit today: the total measured K corpus is roughly 40 pairs over 4 author-written fixtures, one of which (chemlab) is all-zero by construction, and the Messkonstruktionsregel forbids effect claims on author fixtures — the history-replay corpus that would make a learned predictor testable is backlog only",
+    "evidence": "runs/higher_twin_nc/SPEC.md:108-113 (author-fixture rule), :227-241 (chemlab full null table), :332-338 (history-replay corpus = BACKLOG); measurement-construction rules memory (factor-4 self-authorship effect)",
+    "severity": "major"
+   },
+   {
+    "title": "The existing flat latent layer is measured near-unused and self-disclaiming: the semantic route had MEASURED 0 of 5 live probes in production; embeddings.py's staleness is 'unanchored in production'; context_plan.py explicitly disclaims 'one universal coordinate system' — infrastructure appetite for a richer latent layer must be calibrated by this",
+    "evidence": "daedalus/semantic_route.py:261-263 ('MEASURED never run in production: 0 of 5 live probes'); daedalus/memory/embeddings.py:60-65 (freshness unanchored), :43-47 (host not in spec identity); daedalus/context_plan.py:13-15",
+    "severity": "minor"
+   },
+   {
+    "title": "Word-salad guardrails for this exact pivot are already codified and must be cited in any pivot doc: universal curvature/intelligence scalars are banned, and the plan's latent atlas is a hypothesis machine under a verifier, never an authority",
+    "evidence": "docs/IKARUS_ARIADNE_MASTER_PLAN.md sec.12 (universal graph score forbidden); HIGHER_TWIN_NC_LAYER2_2026-08-20.md:102-103 (pass 43: universal curvature scalar verboten), :45-50 (Kruemmung is metaphor, not definition); daedalus/structcore/dss.py:50-60 (type/field deliberately not budget items)",
+    "severity": "minor"
+   }
+  ],
+  "recommendations": [
+   {
+    "action": "Run the latent ceiling classification exactly as pre-registered (LATENT_CEILING_SHARED_REPRESENTATION.md sec.2-4): classify the on-disk failure corpus into (a) covered-by-brief / (b) present-but-not-expressible / (c) absent, respecting the sec.5 sequencing rule (never concurrent with gate_discrimination). This is the gate for EVERY latent proposal, tensor or flat. Pre-register the tensor-go threshold before the run (e.g. bucket-(b) >= 15%).",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Write the novelty-narrowing table for the tensor pivot BEFORE any code, in the LAYER2 sec.2 style: multi-relational factorization = RESCAL/DistMult/ComplEx/TuckER/RotatE; non-commutative compositional embeddings = Smolensky TPR, Rudolph-Giesbrecht CMSM, DisCoCat (Coecke-Sadrzadeh-Clark); vector-stalk descent = Hansen-Ghrist cellular sheaves / sheaf NNs (Bodnar); code-graph embeddings = code2vec, GraphCodeBERT, CodexGraph/RepoGraph/LocAgent. Every categorical term must name its operational cash-out (what is the tensor-product of two Node Cards, measured how) or be struck.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Build the history-replay corpus with per-model contamination attest (already SPEC backlog, runs/higher_twin_nc/SPEC.md:332-338). It is the shared critical path: higher_twin_nc's confirmation phase AND any learned-representation claim are both untestable without it. Corpus-building, not tensor math, is where the next research unit of spend belongs.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Register operator-embedding K-prediction as a NEW frozen ExperimentSpec (do not fold into higher_twin_nc's alpha family): fit per-operator matrices (or low-rank tensors) to predict continuous K_behave on held-out pairs, supervised by the existing anchor-verified kmatrix receipts. Mandatory baselines: (a) always-zero additive model, (b) declared-footprint overlap, (c) measured-footprint overlap, (d) co-change, (e) the strongest FLAT baseline — embed the composed diff texts AB vs BA directly and use their distance. Kill: no advantage over measured-footprint overlap; or predictions reduce to the certificate (only fires where footprints overlap); or fitted matrices are gauge-unidentifiable (pass-31 hazard). Calibration-only until the history-replay corpus exists.",
+    "classification": "EXPERIMENT",
+    "priority": "next"
+   },
+   {
+    "action": "Plane-mode-structured embedding ablation (Tucker core / mode-tagged Node Cards vs flat concatenation under equal dimension and token budget), judged by the existing eval harness (eval/graph_delta.py --held-out fitness). Blocked on the ceiling run reporting bucket-(b) above the pre-registered threshold; expect the hub measurement to cap the useful rank. Kill: no gain over flat concat at equal budget, per Gate-2 ablation rules.",
+    "classification": "EXPERIMENT",
+    "priority": "later"
+   },
+   {
+    "action": "Vector-stalk sheaf over the footprint site (the 'tensorized descent' idea) only if descent-at-scale produces obstruction-localization failures the digest-level gluing assays cannot address; the spec must name Hansen-Ghrist as occupied territory and state why the sealed-evaluator constraint (behavior observable only via assay calls) does not make spectral methods inapplicable. Suspect answer today: it does; refuse until shown otherwise.",
+    "classification": "EXPERIMENT",
+    "priority": "later"
+   },
+   {
+    "action": "Refuse, now and explicitly, any elevation of a tensor/latent space to canonical status (a fifth plane, a universal coordinate system, an embedding-gated promotion) — that would require an owner-approved AMENDMENT against Invariant 4 and section 12, and is premature until the ceiling, corpus, and K-predictor experiments have reported. Record the refusal so the pivot pressure has a named answer.",
+    "classification": "AMENDMENT",
+    "priority": "later"
+   },
+   {
+    "action": "Keep higher_twin_nc's next spend on the external-fixture confirmation phase, not on a fifth author fixture: by the repo's own Messkonstruktionsregel (SPEC.md:108-113), instrument-polishing on author fixtures can never become an effect claim, and the expiry clock (2026-10-31, SPEC.md:8) is running with nothing mechanical checking it.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   }
+  ],
+  "dissent": [
+   "Against the expected kernel-councillor line 'freeze all research until Gate 0 exits': the ceiling classification is read-only, cheap, pre-registered by the repo itself, and the plan explicitly permits read-only critique and isolated experiments during Gate 0. Blocking a one-pass measurement behind kernel wiring wastes the repo's strongest asset — its measurement discipline — and higher_twin_nc proves the isolated-experiment pattern works under Gate 0.",
+   "Against the owner's pivot framing itself: the categorical strand does NOT need tensors or embeddings to progress — its embedding-freeness is why it survived adversarial review (Momus/Refuter/Codex) intact. Fusing a learned representation INTO higher_twin_nc would corrupt the one exemplary experiment; tensors should CONSUME its receipts as supervision in a separate frozen spec, never co-evolve with it (forbidden co-evolution, plan sec.8/12).",
+   "Against latent-infrastructure enthusiasm generally: the honest prior is a LOW ceiling. The ceiling doc's own recorded prediction is that most failures land in bucket (a) because 'the graph already knows' (LATENT_CEILING:83-93), semantic_route measured 0/5 production use, and the biggest measured win of the whole research program (graph_brief, daedalus/lanes/graph_brief.py:3-17) was deterministic text, not vectors.",
+   "Mild dissent against higher_twin_nc's own momentum: six watchdog slices in one day, all on author fixtures, is instrument calibration compounding — impressive engineering, zero effect-claim progress by the experiment's own rules. The council should not read '63/63 green' as research advance; only the external corpus can produce a finding."
+  ],
+  "for_codex": [
+   "Attack the falsification argument in finding 3: a flat embedding of whole-tree STATES with a nonlinear readout can represent order effects; only intervention-as-vector-offset models are structurally commutative. Is baseline (e) — embed the composed diff texts AB vs BA and use their distance — already sufficient to predict K_behave, making the operator-matrix experiment redundant before it starts?",
+   "Power analysis: with ~40 measured pairs across 4 author fixtures and severe class imbalance (chemlab all-zero by construction, textlab behavior-neutral), can ANY learned K-predictor be statistically distinguished from the measured-footprint-overlap heuristic? Compute the minimum corpus size before the spec is registered — if it exceeds what history-replay can plausibly deliver by expiry, the experiment is dead on arrival.",
+   "Gauge freedom: LAYER2 pass 31 rejected learned-matrix commutator norms as basis-dependent. Does the same argument contaminate the K-predictor even when scored against interventional ground truth (fitted W_A, W_B unidentifiable up to conjugation, so ||[W_A,W_B]|| is not a stable feature)? Is there a gauge-invariant parameterization — e.g., predicting K only through evaluator-space observables — and if not, is the experiment ill-posed?",
+   "Is higher_twin_nc's descent machinery formally a cellular sheaf with 0-dimensional (digest-valued) stalks over the footprint site? If yes, does Hansen-Ghrist spectral obstruction theory give a cheaper localizer than gluing assays — or does the sealed evaluator (behavior observable ONLY via budgeted assay calls, no gradient, no spectrum) make the entire sheaf-Laplacian toolbox inapplicable? Name the exact obstruction.",
+   "Contamination firewall: nomic-embed-text's training corpus is undisclosed. Can a contamination attest (model cutoff vs repo timestamp, required by SPEC.md:110-113 and the two-judge expedition) be produced for ANY off-the-shelf embedding backbone on public-repo history-replay data — or does the firewall rule out every pretrained embedding for K-prediction, forcing from-scratch features and changing the cost calculus entirely?",
+   "Does the hub measurement (top-8 types = 83.6% of edges; post-cap plane near tree-like at 2599 edges/2067 nodes) bound the useful rank of any Tucker/mode-structured factorization over the four planes to something trivially small — i.e., is the 'tensor structure' of this repo's Twin empirically indistinguishable from a handful of stopword dimensions plus a sparse remainder that BM25 already captures?"
+  ]
+ },
+ {
+  "lens": "C — Docs debt: authority, duplication, archive discipline across 265 md files in docs/",
+  "headline": "The docs problem is not 265 files, it is two constitutions: the amendment chain has forked between agent_env (Revision 2 as of tonight 21:18) and agent_env_g0 (Revision 6), and 64% of docs/ md files are raw swarm output stamped \"NONE of this is verified\" sitting where authority should live. Consolidation is a half-day of moves — but only AFTER the owner rules which chain is the chain.",
+  "top_findings": [
+   {
+    "title": "FORKED CONSTITUTION: two divergent amendment chains claim the same plan-id. agent_env chain seq2 = serena-first (accepted 2026-08-21T21:18, result_revision 2, result sha d0756fa...); g0 chain has 6 records whose seq2 scope is ['fourfold-project-twin','repository-atlas','genesis','llm-proposal-operators'], plan header Revision 6 / Version 1.2.3 / Date 2026-08-02. Both chains share record 1 (result sha a47d84ee...) then diverge. Plan section 15 says 'append exactly one record', 'rollback is a new amendment, never a history rewrite' — reconciling a fork it never anticipated requires rewriting one history.",
+    "evidence": "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl (2 records, seq2 accepted_at 2026-08-21T21:18:13+02:00) vs C:/Users/nukei/Desktop/agent_env_g0/docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl (6 records); g0 plan header lines 3-9; agent_env plan header now 'Revision: 2' (verified sha d0756fa3 matches chain record 2 result)",
+    "severity": "critical"
+   },
+   {
+    "title": "The docs-home repo disclaims being the truth: HANDOFF.md line 7 states 'this repository is not the truth anymore' and points code+tests at agent_env_g0 work/g0-trunk-20260817. g0/docs carries 49 md including newer Gate-0 decision records absent here (GATE0_OWNER_DECISIONS_20260817.md, GATE0_LINUX_CONTAINER_FAULT_RUN.md, GATE2_FOREST_V2_TRIAGE.md, plus a second ADR namespace docs/adr/ with ADR-0001/0002 colliding with docs/adrs/ 001-019). Any consolidation done only in agent_env reorganizes the stale half.",
+    "evidence": "docs/HANDOFF.md:7-13; ls agent_env_g0/docs (49 md, incl. GATE0_OWNER_DECISIONS_20260817.md); agent_env_g0/docs/adr/ADR-0001-FOREST-FOURFOLD-AUTHORITY.md vs agent_env docs/adrs/001-019",
+    "severity": "critical"
+   },
+   {
+    "title": "Dangling receipt: docs/SPEND_AND_EGRESS_COVERAGE.md is cited nine times as 'the receipt' and 'the decision record' by the two coverage suites, and the file has never existed — no git history in any branch of agent_env, absent from agent_env_g0 as well. The hand-maintained spend/egress denominator (already flagged by the tests slice as author-owns-numerator-and-denominator) has its sole justification document pointing at nothing. Invisible to spine/docrefs.py, which only checks code-symbol references, never doc-to-doc.",
+    "evidence": "tests/test_spend_coverage.py:21,74,186,213,255,307; tests/test_egress_coverage.py:21,155,269; `git log --all --follow -- docs/SPEND_AND_EGRESS_COVERAGE.md` returns empty; daedalus/spine/docrefs.py:104 DOC_GLOBS scans md but only judges code symbols",
+    "severity": "major"
+   },
+   {
+    "title": "64% of docs/ md files (170 of 265; ~1.2 MB of 2.8 MB) are raw one-shot swarm run artifacts: research/rounds round1-3 (127 files) + census shards/reviews (40 files), each headed 'Produced by 1 independent review agent(s) ... NONE of this is verified.' No code reads or writes them. Round1 even contains same-module duplicate reviews under colliding names (gated-writes.md vs gated_writes.md, vet.md vs vet-gate.md). They are run output living in the authority tree — the exact source-vs-output violation the runs/ slice found in reverse.",
+    "evidence": "docs/research/rounds/round1/gated-writes.md:1-3 and round1/gated_writes.md:1-3; docs/research/census/SYNTH-priorities.md frontmatter 'status: draft'; du: rounds 513K + census 719K of docs 2.8M; grep for 'research/rounds' across daedalus/ tools/ .claude/skills/ = no writer, no reader",
+    "severity": "major"
+   },
+   {
+    "title": "DAEDALUS_GESAMTPLAN.md (1582 lines) is an owner-decreed 'ultimativer Leitfaden' in constitutional limbo: its own header says it must enter via the amendment protocol as a plan revision and that until then Revision 1 remains the protected constitution — meanwhile the g0 chain (seq2 scope 'genesis','repository-atlas') has already absorbed its direction. In agent_env it sits as a parallel 1582-line quasi-authority a reader can mistake for the plan.",
+    "evidence": "docs/DAEDALUS_GESAMTPLAN.md:1-20 (STATUS/GOVERNANCE header, 'Vom Owner am 2026-08-17 als ultimativer Leitfaden eingebracht', 'als Revision des bestehenden Masterplans über das Amendment-Protokoll'); g0 amendments record 2 scope list",
+    "severity": "major"
+   },
+   {
+    "title": "HANDOFF.md is simultaneously the repo's READ-THIS-FIRST status doc and a pinned measurement corpus: 72 references repo-wide, including 2 minted eval tasks in daedalus/eval/minted_tasks.json, a size-pinned offload measurement (ollama.py measured 'docs/HANDOFF.md (2496 lines / 148_291 bytes)' — it is now 2652 lines, so the pin is already stale), and gate_discrimination.py citing its 'Round 1'/'Round 2' sections. It cannot be split or trimmed without invalidating evidence, and it cannot keep accreting without burying the current-state pointer under 2600 lines of history.",
+    "evidence": "docs/HANDOFF.md (2652 lines); daedalus/providers/ollama.py:83; daedalus/eval/minted_tasks.json (2 refs); tools/gate_discrimination.py:202,222; daedalus/spine/docrefs.py:19 uses it as the canonical example",
+    "severity": "major"
+   },
+   {
+    "title": "README.md — the actual entry point — routes readers to dead or never-existent docs: MISSION_CONTROL.md (surface asserted unreachable by tests/test_ui_governance.py:331), CODEX_QUEUE.md (no git history ever, yet presented as the codex-lane protocol), and Phase-3-era COMMS_PROTOCOL framing.",
+    "evidence": "README.md:258 (MISSION_CONTROL link), README.md:289-291 (CODEX_QUEUE protocol), `git log --all -- docs/CODEX_QUEUE.md` empty; daedalus/file_bridge.py:289-293 enforces the CODEX_QUEUE convention in code",
+    "severity": "major"
+   },
+   {
+    "title": "Stale generated authority + residue directories: docs/architecture-state.json records head 7955317 dirty=true against HEAD c264f5dd (confirming periphery slice); docs/iron-plan/amendments/ is an empty untracked directory whose name mimics the protected amendment chain location — a trap for a future writer; docs/recovery/ holds three untracked amendment-003 kit files from tonight's amendment run; docs/architecture_history/ holds two 2026-07-06 HTML snapshots nothing references.",
+    "evidence": "docs/architecture-state.json repo_state.head=7955317284ec... dirty=true; `git ls-files docs/iron-plan` = 0 files, dir exists empty; git status: ?? docs/recovery/amendment_003_commitmsg.txt, amendment_003_serena_first_kit.py, serena_mcp_timeout_kit.py; docs/architecture_history/ (2 timestamped html + manifest)",
+    "severity": "minor"
+   },
+   {
+    "title": "vault/docs is a Windows junction (reparse point) onto docs/ — not a copy, so no divergence risk, but it pipes all 170 unverified swarm files straight into the Obsidian knowledge graph, blurring the product-memory vs research-noise separation of plan section 7 inside the vault the owner actually reads.",
+    "evidence": "os.lstat('vault/docs') reparse attribute 0x400 set, islink False, 0 git-tracked files; filecmp: vault/docs/HANDOFF.md byte-identical to docs/HANDOFF.md",
+    "severity": "minor"
+   }
+  ],
+  "recommendations": [
+   {
+    "action": "SEQUENCE GATE: owner adjudicates the forked amendment chain FIRST (which of agent_env seq2 / g0 seq2-6 is canonical, and how the losing chain's content re-enters as new amendments per section 15). Every other docs action below is provisional until this ruling — reorganizing docs against the losing plan revision is wasted and confusing work.",
+    "classification": "AMENDMENT",
+    "priority": "now"
+   },
+   {
+    "action": "Write docs/SPEND_AND_EGRESS_COVERAGE.md from the two coverage suites' own docstrings (they contain the 14/14 deletion measurement and the rationale), or repoint the nine citations to an existing receipt. A test that cites a nonexistent receipt is an unverifiable claim under the AGENTS.md review rules.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Delete the empty untracked docs/iron-plan/ directory tree (0 tracked files) — its name mimics the amendment chain location and invites a misplaced amendment record. Also remove or commit the three untracked amendment-003 kit files under docs/recovery/ (owner decision — recovery kit is protected, so propose, don't touch).",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Regenerate docs/architecture-state.json via the canonical map command (currently head 7955317/dirty vs HEAD c264f5dd) and fix README.md's three dead pointers (MISSION_CONTROL.md link, CODEX_QUEUE.md protocol paragraph, Phase-3 COMMS framing).",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Move the 167 raw swarm files (docs/research/rounds/round1+round2, census/shard*+reviews/rv*) to docs/archive/swarm-2026-07-30/ with a one-page README stating what they are, the 'NONE of this is verified' caveat, and why they are retained (AGENTS.md rule 5). Keep round3/s-*.md and census/SYNTH-*.md accessible under docs/research/ as the distilled product. Do NOT delete: rv19.md:7 is already cited as evidence by this council's own inventory.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Archive with in-place tombstone stubs (path preserved, one-line banner + archive link) the superseded top-level docs: ARCHITECTURE.md (Era-3, 2026-07-06), MISSION_CONTROL.md (surface measured dead — archive, do NOT merge into living Ikarus docs; merging launders dead-surface prose), HANDOFF_2026-07-30_NIGHT.md, FALLBACK.md, IMPROVEMENTS_RESEARCH.md / PROVIDERS_RESEARCH.md / RESEARCH_LOCAL_EDITING.md (2026-07-05 pre-plan research; IMPROVEMENTS has 17 code refs so banner-in-place, not move), PROPOSED_SELF_POLICY.md (keep its CORRECTION banner verbatim — exemplary negative evidence), vscode-agent-env/DESIGN.md, docs/design/prototypes/*.html.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Freeze HANDOFF.md as append-only history at its current path (it is a pinned eval corpus: minted_tasks.json, ollama.py:83, gate_discrimination.py:202) and create a thin docs/STATUS.md (<100 lines) holding only the current-state pointer table that HANDOFF's top section now carries; README links STATUS.md first. Alternative — re-minting the 2 eval tasks to unpin HANDOFF — costs evidence and should be refused.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "After the chain ruling: archive DAEDALUS_GESAMTPLAN.md as the verbatim owner submission (provenance artifact) once its content is confirmed absorbed into the winning plan revision; until then add a top-of-file pointer to the plan's current revision so no reader mistakes it for operative authority. It must never be deleted — it is the approval-reference source for the genesis-scope amendments.",
+    "classification": "AMENDMENT",
+    "priority": "next"
+   },
+   {
+    "action": "Target structure (reader finds truth in <=5 hops): README.md -> docs/IKARUS_ARIADNE_MASTER_PLAN.md (+ amendments.jsonl) -> docs/STATUS.md -> docs/architecture-narrative.md (+ regenerated architecture-state.json) -> docs/adrs/. Everything else lands in exactly one of: docs/reference/ (ABSORPTION, GUI_CATALOGUE, PROJECT_SCOPE, GATE_DISCRIMINATION, FITNESS_SIGNAL, LOCAL_MODELS, COMMS_PROTOCOL, ENGINE_PARITY, bypasses — the code-adjacent receipts), docs/decisions-pending/ (AMENDMENT_PROPOSAL_002/004/005, the open GATE0_* trust-root docs; 003 archives once its executed-tonight status is stamped), docs/research/ (13 syntheses + SYNTH + round3), docs/archive/ (all history), docs/recovery/ (protected, untouched).",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Decide docs/wiki/ (10 files, dormant since 2026-07-30, the only tree carrying real [[code:...]]/[[type:...]] cross-plane edges): either declare it the Gate-2 Knowledge-plane seed corpus with a frontmatter status stamp, or archive it. Keeping it ambiguously live next to vault/ leaves two knowledge trees, and the wiki module that parses its edge syntax has zero production importers (periphery slice).",
+    "classification": "EXPERIMENT",
+    "priority": "later"
+   },
+   {
+    "action": "Extend the docref discipline to doc-to-doc references (a nightly check that every docs/**/*.md path cited inside docs/, tests/ docstrings, and README resolves) — but as a report, not a picker work source, to avoid the docs-vanity loop docrefs.py:11 warns about.",
+    "classification": "EXPERIMENT",
+    "priority": "later"
+   }
+  ],
+  "dissent": [
+   "Against the likely 'delete the dead weight' majority: nothing in docs/research/rounds or census may be deleted, only moved. AGENTS.md rule 5 (retain negative experimental evidence) plus plan section 2 (publish failures) apply, and this council's own slice inventories cite rv19.md:7 as load-bearing evidence — deletion would break the council's evidence chain about itself.",
+   "Against slice 1's 'merge MISSION_CONTROL.md into Ikarus docs' verdict: tests/test_ui_governance.py:331 requires the dead dashboard template to be LABELLED unreachable so readers stop counting it as shipped. Merging its prose into living docs does the opposite — it launders a measured-dead surface into current truth. Archive with tombstone, merge nothing.",
+   "Against treating docs cleanup as parallelizable hygiene work: the amendment-chain fork makes 'which docs are authority' formally undecidable right now, and the fork MOVED during this council session (agent_env went Revision 1 -> 2 at 21:18 while councillors were reading). Any councillor whose findings cite 'Revision 1' invariant text is already citing a superseded constitution. Sequencing is the finding: adjudicate the chain, then touch the tree.",
+   "Against the reflex to rewrite HANDOFF.md into a clean current-state doc: it is a measurement corpus three separate instruments pin by size, section name, and minted task. The repo's own documentation standard (docstrings that state measurements) implies the converse duty: documents that ARE measurements must be frozen, not tidied. Tidiness here destroys evidence.",
+   "Partial dissent on the '<5 files to truth' brief itself: it is achievable for product truth (README -> plan -> STATUS -> narrative -> adrs), but research truth deliberately cannot be compressed to 5 files under Invariant 7/9 — receipts, failures, and negative results must stay findable in full. The right goal is 5 files to the MAP, not 5 files containing everything."
+  ],
+  "for_codex": [
+   "The amendment chains share record 1 and then fork: agent_env seq2 (serena-first, result_revision 2, accepted 2026-08-21T21:18) vs g0 seq2 (fourfold/genesis, part of revisions 2-6). Plan section 15 forbids history rewrite and demands 'append exactly one record'. Construct the concrete reconciliation: can EITHER tree adopt the other's records without a rewrite, given both chains hash-link previous_record_sha256? If not, is the only lawful move a NEW amendment on the winning chain that declares the losing chain void — and what stops the same fork happening again while two writable worktrees both carry the protected files?",
+   "docs/SPEND_AND_EGRESS_COVERAGE.md is cited 9 times as 'the receipt' by test suites and has never existed in any branch. Under the AGENTS.md review rule 'unverifiable claims ... are release-blocking defects', are those two test suites currently release-blocking defects themselves? Attack the cheap fix (write the doc from the docstrings): does a receipt authored after the fact, by the same hand as the tests, from the tests, have any evidentiary value at all — or does it just satisfy a grep?",
+   "The plan's authority table calls ADRs 'history/backlog' that 'do not override this document', yet g0 has grown a SECOND ADR namespace (docs/adr/ADR-0001-FOREST-FOURFOLD-AUTHORITY.md) whose very filename claims AUTHORITY over the Forest. Is that a mere naming collision with docs/adrs/001-019, or a fourth authority surface incubating exactly the parallel-source-of-truth AGENTS.md forbids? What mechanical check would prevent an ADR from claiming authority in its title?",
+   "HANDOFF.md doubles as eval corpus (minted_tasks.json) and status doc. The proposed fix is freeze + thin STATUS.md pointer. Attack it: a frozen 2652-line file whose top says 'READ THIS FIRST' and whose content says 'this repository is not the truth' will still be the first thing agents read via the 72 existing references. Is a tombstone-that-stays-load-bearing coherent, or must the minted tasks be re-minted (cost: invalidating recorded eval results) to ever make the docs entry point honest?",
+   "44% of docs/ bytes are unverified swarm output; the proposal is move-to-archive with a caveat README, justified by 'retain negative evidence'. Attack the retention premise: these are not FAILED experiments — they are unVERIFIED claims (round files literally open with 'NONE of this is verified'). Does Invariant 9 / AGENTS.md rule 5 actually protect unverified model speculation, or is keeping 167 files of it a category error that dilutes the very concept of retained evidence? What is the principled deletion criterion this repo lacks?",
+   "The vault/docs junction feeds every raw swarm file into the owner's Obsidian graph while plan section 7 mandates separated product and research memory stores. Is a filesystem junction from the knowledge vault into docs/ a section-7 violation in spirit, in letter, or neither — and if the archive-move happens, the junction silently changes what the vault sees: who owns THAT projection rule?"
+  ]
+ },
+ {
+  "lens": "D — Integration gaps & ignition (islands, wiring order, one-commit vs real work, Gate-1 readiness)",
+  "headline": "The Gate-1 ignition mission (voltage -> bias_voltage across py/md/csv) already runs in miniature inside the higher_twin_nc experiment, but the loop this session wants to promote is blind and unregistered: the architecture map's regeneration edge is missing (the claimed post-commit hook does not exist), the picker correctly refuses the stale map, and the canonical contracts that would carry an ignition receipt have zero production producers. Five one-commit wirings plus two owner amendments separate today from a receipted ignition run.",
+  "top_findings": [
+   {
+    "title": "Gate-1's exact mission exists as a sealed-evaluator experiment operator, not as a kernel path",
+    "evidence": "runs/higher_twin_nc/operators.py:136 rename_field(old='voltage', new='bias_voltage'); fixture runs/higher_twin_nc/fixtures/sensorlab/{calib.py, docs/fields.md, data/events.csv, schema.json, checks.py}; nothing under daedalus/ references bias_voltage (repo grep: all 40 hits are under runs/higher_twin_nc and vault/)",
+    "severity": "major"
+   },
+   {
+    "title": "arch_memory staleness loop is broken at the regeneration edge, not the detection edge: the promised post-commit hook does not exist anywhere",
+    "evidence": "daedalus/arch_memory.py docstring ('regenerated on commit by hooks/post-commit') vs Glob: no hooks/ directory exists and the installed git-hooks directory contains only pre-commit and commit-msg; docs/architecture-state.json repo_state = {head: 7955317, dirty: true} vs HEAD c264f5dd; daedalus/loop.py has zero mapping/regeneration references (grep: only an unrelated comment at loop.py:938)",
+    "severity": "critical"
+   },
+   {
+    "title": "Correction to the inventory: the picker already fails closed on the stale map — the loop runs blind, not misled, and nothing in the loop path regenerates the map",
+    "evidence": "daedalus/spine/picker.py:1014-1036 (digest_ok + _repo_state_freshness both mandatory; 'reporting I have no trustworthy map beats ranking work from a tree that is gone'); daedalus map exists at cli.py:1147 but no caller automates it",
+    "severity": "major"
+   },
+   {
+    "title": "daedalus.loop is an externally reachable spend/spawn/write entrypoint with no effect-boundary row and no CLI guard",
+    "evidence": "loop.py tail: `if __name__ == '__main__': raise SystemExit(main())`; grep 'daedalus.loop' in daedalus/spine/effect_boundary.py = zero matches; no 'loop' branch in cli.py command dispatch, so it never passes cli.py:1074 install_process_guard",
+    "severity": "critical"
+   },
+   {
+    "title": "Canonical contracts are producer-less: an ignition run today could not emit a MissionContract or EvidencePacket from any live path",
+    "evidence": "grep MissionContract across daedalus/ matches exactly one file, daedalus/schemas.py (definition site, schemas.py:520); spine/attempt.py imports only ContractProvenance (attempt.py:136 per spine slice); verifier.py validates against legacy schemas.validate_report (verifier.py:23 per slice m-z)",
+    "severity": "critical"
+   },
+   {
+    "title": "Registration is not routing: the effect-boundary registry section holds 1 CENTRAL row against ~41 INVENTORY_ONLY and 2 UNGUARDED",
+    "evidence": "grep Wiring.* in daedalus/spine/effect_boundary.py: CENTRAL at :249 (python.attempt) is the only registry-section CENTRAL; UNGUARDED at :290 (python.offload) and :314 (python.promote_candidates); INVENTORY_ONLY rows :202-:619",
+    "severity": "critical"
+   },
+   {
+    "title": "The one structcore retrieval product on the default local lane is silently shed exactly when the window is tight, so the Gate-4 prior is applied unmeasurably",
+    "evidence": "daedalus/providers/ollama.py:822-827 ('Shed the brief FIRST'), with no record of shed/not-shed in any attempt or lane artifact",
+    "severity": "major"
+   },
+   {
+    "title": "Four zero-importer legacy shims survive the Ikarus->Kairos rename; every live consumer already bypasses them",
+    "evidence": "grep: build.py:42, cli.py:452, web_api.py:16, kairos/scheduler.py:311 all import via .kairos.*; no file imports daedalus.ikarus, daedalus.decompose, daedalus.drafts, daedalus.mission_control, daedalus.orchestrate",
+    "severity": "minor"
+   },
+   {
+    "title": "Watchdog: 11 of 13 attempts lost to network unavailability, and its run receipts sit untracked and unignored one `git add -A` from the history",
+    "evidence": ".claude/watchdog/ shows `??` in git status (untracked, not ignored); attempt logs 1-11 ENOTFOUND / 12 timeout / only 13 productive (.claude/watchdog/43e2809c-.../attempt-*.log per harness slice); runs/loop/ has no run records newer than 2026-07-30",
+    "severity": "major"
+   },
+   {
+    "title": "Live fail-closed guard datapoint: a read-only inspection command naming the protected git-hooks directory was denied mid-session",
+    "evidence": "This session's Bash denial: 'Protected Iron Plan artifact(s) cannot change in ordinary work' triggered by `ls`/`grep` merely naming those paths — evidence both that the fence holds and that the arch_memory post-commit fix genuinely requires the amendment path",
+    "severity": "minor"
+   }
+  ],
+  "recommendations": [
+   {
+    "action": "Close the map-regeneration edge inside the loop (unprotected code): before each pick, loop.py invokes the same generation path as `daedalus map` (cli.py:1147) when picker's freshness gate reports untrusted, and records the regen cost in the run record. One commit. This un-blinds the loop without touching any protected artifact.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Register daedalus.loop in the effect-boundary registry and add a `daedalus loop` CLI subcommand routed through cli.py:1074 install_process_guard, so the module the session wants to promote passes the centralized start path. One commit.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Delete the five zero-importer shims (daedalus/ikarus.py, decompose.py, drafts.py, mission_control.py, orchestrate.py root wrappers, plus langgraph_adapter.py) and fix the stale docstrings the deletion exposes (build.py:4/:16 naming the dead Ikarus scheduler class). One commit, pure deletion, forced honesty.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Add shed-telemetry to the local write lane: record brief_shed true/false plus est_in in the lane/attempt record at ollama.py:822-827 so graph-conditioning presence becomes a recorded covariate instead of an unmeasured treatment. One commit; prerequisite for ever testing the Gate-4 prior on the default lane.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Correct the false claim in arch_memory.py's docstring (the post-commit hook it names does not exist), and separately propose the real post-commit regeneration hook to the owner as an amendment to the protected git-hooks directory. Docstring fix is one commit ALIGNED; the hook itself is the amendment.",
+    "classification": "AMENDMENT",
+    "priority": "next"
+   },
+   {
+    "action": "Produce the first canonical contract on a live path: verifier.py emits EvidenceItem/EvidencePacket instead of only legacy validate_report, and spine/attempt.py stamps an AttemptContract alongside its own record. Real work (days, not hours) — but do it before the ignition run so the receipt is a canonical artifact, not another bespoke JSON.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Build the Gate-1 ignition slice by REBUILDING the voltage->bias_voltage fixture from the plan text (do not import higher_twin_nc code or its evaluator): one MissionContract from Ikarus, two typed WorkItems from the planes, attempts through python.attempt (the one CENTRAL row), an independent pytest/schema/link checker, one EvidencePacket, no merge. The experiment proves the task is executable; the kernel run must be independently constructed to avoid evaluator co-development leakage.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "Wire verify_promotion_approval into the promote path — package this as the owner AMENDMENT that is already pending per the Gate-0 closure status (approval trust root + rest doors), since the wiring lands inside a protected policy artifact and the sealed-promotion invariant is currently implemented-but-unenforced (UNGUARDED at effect_boundary.py:314).",
+    "classification": "AMENDMENT",
+    "priority": "next"
+   },
+   {
+    "action": "Watchdog hygiene: add the watchdog state directory to .gitignore, add a network preflight (fail fast, no attempt spawn on ENOTFOUND) to the watchdog script, and record the 11/13-lost availability number in the vault as the honest baseline for any autonomy claim. One commit.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "Create a minimal experiment registry (runs/experiments.json: spec path, scope, budget, evaluator, expiry) checked by health.py; register higher_twin_nc with its 2026-10-31 expiry, rename runs/ab/SPEC.md to reflect that it is a build brief, and register or explicitly discard the runs/funnel/codebase-500 arms. Small real work, closes the plan-section-14 recording gap before a second experiment appears.",
+    "classification": "ALIGNED",
+    "priority": "later"
+   },
+   {
+    "action": "Invert the tracking polarity of evidence: stop tracking the mutable spend ledger (runs/budget/ledger.json, dirty in this session's git status) and start tracking the Gate-0 exit evidence currently hidden by the runs/spine/ ignore rule (gate_discrimination.json, operability_drill.json). Gate 0 cannot exit on evidence that git ignores.",
+    "classification": "ALIGNED",
+    "priority": "next"
+   }
+  ],
+  "dissent": [
+   "Against the inventory's own framing (slice periphery): the picker does NOT 'rank work from a snapshot several commits old' — picker.py:1014-1036 fails closed on both digest and freshness. The defect is upstream (no regeneration edge), and the fix is regeneration in the loop, not more detection machinery. Adding another freshness checker would be solving the solved half.",
+   "Against the likely majority verdict 'wire the islands': most islands should NOT be wired now. gui_catalogue, wiki/, observe/, cycles.py, lpg.py, vet.py are all well-built, but none is on the Gate-0 exit path or the Gate-1 ignition path. Wiring them before Gate 0 exits is scope creep dressed as diligence; freeze them with one-line status headers and move on. The only wirings that matter this month are the five in my 'now' list.",
+   "Against 'structcore-rs needs CI and a parity harness now': it has zero callers, known index-shape divergence, and 12 missing languages. A parity harness is Gate-2-adjacent work. The honest action is an explicit freeze marker, not investment.",
+   "Against treating higher_twin_nc's fixture overlap with Gate 1 as pure convenience: lifting the experiment's fixture AND its checks.py into the ignition run would mean the ignition evaluator was co-developed with the operators it grades — a leakage the plan's own section 13 forbids. My recommendation deliberately requires rebuilding the fixture and using an independent checker, which is slower than the majority will want.",
+   "Against any councillor proposing to 'just add the post-commit hook' or 'just wire promotion': both land inside protected artifacts, and this very session produced a live denial for merely naming those paths in a read-only command. Pretending an ALIGNED path exists through protected files is exactly the drift the guard exists to stop. Two of my ten recommendations are honestly AMENDMENT, and the owner queue (two pending decisions per the Gate-0 closure memory) is the real critical path — no amount of councillor consensus substitutes for it."
+  ],
+  "for_codex": [
+   "picker.py's freshness gate (picker.py:1030, _repo_state_freshness): does it compare the snapshot head against the LIVE repo HEAD at call time, or against a value that can itself be stale or dirty-masked? If the loop regenerates the map pre-pick as recommended, can a dirty working tree make freshness permanently unsatisfiable, deadlocking the loop the opposite way?",
+   "If the Gate-1 ignition fixture is rebuilt from plan text but structurally identical to runs/higher_twin_nc/fixtures/sensorlab, what concretely distinguishes 'independent checker' from 'checks.py rewritten by the same hands'? Specify a falsifiable independence criterion for the ignition evaluator, or show the leakage is immaterial for a deterministic rename task.",
+   "Routing loop.py through cli.py:1074 install_process_guard: does that guard actually bound spend and writes for grandchildren spawned by WaveExecutor and the provider lanes, or only the parent process? If only the parent, the registration recommendation upgrades paperwork, not containment — attack the difference.",
+   "The 41 INVENTORY_ONLY rows: given the spine slice's finding that begin_effect() enforces nothing about spend or the kill switch itself, would converting rows to CENTRAL produce any mechanically different failure behavior, or is the entire Wiring taxonomy currently a self-reported label? Propose the one fault-injection test that would tell.",
+   "Contract wiring order: I recommend EvidencePacket-from-verifier before MissionContract-from-Ikarus, on the theory that evidence without intent is auditable but intent without evidence is theater. Argue the reverse ordering and identify which stalled half leaves the worse lie in the repo.",
+   "Brief-shed telemetry (ollama.py:822-827): is recording shed/not-shed sufficient for a Gate-4 comparison, or does est_in-driven shedding confound treatment assignment with task size so badly that the default lane can never yield a valid graph-conditioning measurement, telemetry or not — i.e., must the Gate-4 experiment run on a lane with a guaranteed-fit brief budget?",
+   "Shim deletion risk on Windows: cli.py imports handlers lazily inside functions and at least two tools load modules by sys.path insertion; name a concrete mechanism (importlib by string, pickle, settings JSON naming module paths, stale build/lib copies shadowing) by which deleting the five root shims could break a runtime path that static grep cannot see, and the cheapest test that rules it out."
+  ]
+ },
+ {
+  "lens": "E — Tooling & semantic retrieval (Serena, structcore/arch_memory, embeddings; one default retrieval stack for the crew)",
+  "headline": "The crew's retrieval problem is availability and wiring, not capability: Serena loses a 28s-cold-start-vs-30s-timeout race whose fix already exists in the watchdog script but never landed in the tracked default path, and the structural graph (graph_brief/arch_memory) is served to every consumer EXCEPT the Claude crew — while every measured artifact in the repo says structural retrieval beats latent/embedding retrieval at current maturity, so 'more embeddings' is the wrong reading of the owner's complaint.",
+  "top_findings": [
+   {
+    "title": "Serena works when alive — verified live this session: the serena-first hook denied my whole-file Read and forced the symbol route; get_symbols_overview returned arch_memory.py's full symbol table (7 constants, 10 functions, 1 class) in ~250 chars vs a 301-line file read (~10-40x token reduction on 'what is in this file'), and find_referencing_symbols covers the caller-blindness grep structurally has (graph_brief.py:23-25 measured: 202 of 526 internal edges visible only inside function bodies)",
+    "evidence": ".claude/hooks/serena-first.py:2-27 (fail-open design, deny-only-when-reachable); live hook denial + Serena overview in this session's run; daedalus/lanes/graph_brief.py:23-25",
+    "severity": "major"
+   },
+   {
+    "title": "The Serena fix exists in three places and the tracked default path has none of them: the watchdog sets MCP_TIMEOUT=60000 if unset, the untracked local overlay carries 120000 (per project memory), and a fresh checkout gets the 30s default that loses to the measured 28.35s cold start — while serena-first.py's deliberate fail-open means the race silently converts 'mandatory Serena' into 'never Serena' with zero recorded signal; no counter anywhere measures deny/pass/inert rates",
+    "evidence": "claude-serena-watchdog.ps1:404-405 (MCP_TIMEOUT=60000 if unset); .mcp.json:3-11 (per-session serena.exe launch); serena-first.py:14-27 (fail-open, no logging of inert state); memory/serena-startup-race (28.35s cold vs 30s timeout, 'claude mcp list lies')",
+    "severity": "critical"
+   },
+   {
+    "title": "The in-repo semantic retrieval already exists and the crew is the only consumer class with no surface to it: graph_brief.py records the measured root cause ('the agents never see the graph' — three hallucinated symbol names passed a syntax gate; ~6.5k chars of index output answers all three), yet the brief is wired only into the ollama and fanout lanes, has no cli.py subcommand (grep 'brief' in cli.py: zero; only structcore.churn/cached_index at :223-224), no skill, no hook — and the one lane that gets it drops it FIRST on context overflow",
+    "evidence": "daedalus/lanes/graph_brief.py:1-38 (MEASURED 2026-07-30 root cause + 6.5k-char answer); consumers grep = providers/ollama.py, lanes/fanout.py, lanes/__init__.py only; providers/ollama.py:822-827 (brief shed first); daedalus/cli.py:223-224 (no brief surface)",
+    "severity": "critical"
+   },
+   {
+    "title": "arch_memory is the designed per-turn fix and it is uninstalled: a freshness-first few-hundred-token architecture delta, regenerated on commit, with arch_hook.py as injector — but arch_hook has no importer and no entry in the tracked hook config (only the owner-run recovery kit references it), so the state files churn (runs/arch_memory.json 1450 bytes gitignored, runs/arch_memory.shown tracked+dirty) while no agent turn ever receives the delta",
+    "evidence": "daedalus/arch_memory.py:1-41 (design rationale, derived-never-hand-maintained); slice-1 inventory: arch_hook.py island, referenced only by docs/recovery/settings_beast.json; git status: runs/arch_memory.shown modified",
+    "severity": "major"
+   },
+   {
+    "title": "Embeddings: the repo's own measurements argue against making a latent index the crew default — the one production embedding route was 'fully wired, fully tested, and had MEASURED never run in production: 0 of 5 live probes' with no post-fix re-probe recorded; lane A2's clean ceiling closed at 2.3%; and the 1687-line vector store reports freshness 'unanchored' in production because no shipped caller records watermarks",
+    "evidence": "daedalus/semantic_route.py:261-263 (0/5 measured), :270-271 (fix present, unmeasured); daedalus/memory/embeddings.py:60-65 (unanchored freshness); memory/daedalus-code-evolution-direction (A2 closed at 2.3%, reopen = eval/ceiling.py)",
+    "severity": "major"
+   },
+   {
+    "title": "Stale verification record: v-embeddings.md (last touched 62c113da, 2026-07-30) still lists search_report and record_journal_watermark as MISSING IMPLEMENTATION, while the live module docstring documents both as implemented and enforced — the verification doc went stale the moment the fix landed, so 'embeddings status' cannot be answered from docs without re-reading code; same defect class (doc drift) the repo hunts elsewhere",
+    "evidence": "docs/research/rounds/round2/v-embeddings.md:9-10,17-18 vs daedalus/memory/embeddings.py:15-18,36-38; git log: doc unchanged since 62c113da",
+    "severity": "minor"
+   },
+   {
+    "title": "Wiring an embedding index into the crew default before Gate 0 covers it would put an unregistered egress-capable call on the default path: the Ollama embedding backend POSTs to a caller-supplied host with no lane_for_host consultation, and host is not part of index identity (two hosts, same index_id) — an Invariant 8 gap already flagged in the periphery slice",
+    "evidence": "daedalus/memory/embeddings.py:43-47 (host not in spec identity, stated limit); slice-6 inventory: raw urllib POST at embeddings.py:340-347 with no sensitivity-lane check; tests/test_egress_lane_by_host.py exists for lanes but not for the embedding backend",
+    "severity": "major"
+   }
+  ],
+  "recommendations": [
+   {
+    "action": "NOW / Serena availability: owner lands MCP_TIMEOUT (>=60000, value copied from claude-serena-watchdog.ps1:404-405) in the tracked project settings env block and adds a Serena prewarm step to the session launcher, so the cold start never races the timeout on a fresh checkout. Owner-run because the settings file is a protected artifact (harness guard-edit boundary); the diff is one env line, prepared for the owner as a snippet in the proposals island.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "NOW / the ONE wiring for structcore adoption: add a `daedalus brief <paths>` CLI subcommand wrapping daedalus/lanes/graph_brief.graph_brief (read-only, registered in the effect registry so it is not another unregistered door), plus a thin repo skill instructing the crew to run it before any write-touching work. Chosen over a hook (hook install is owner-gated in protected settings and the proposals island has been pending since 2026-08-17 — a wiring that waits on the owner's calendar has measured adoption of zero) and over an MCP server (a second long-running server recreates the exact cold-start race that killed Serena adoption, and the index has no warm process — index.py:1179 in-process cache, clone clustering ~96% of build cost per ignore.py:22-27).",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "NOW / measure adoption instead of asserting it: serena-first.py is already the choke point — have it append one JSONL line per decision (deny / pass / inert-because-Serena-down) under runs/, and count `daedalus brief` invocations from transcripts. Adoption criteria, pre-registered with dynamic range per the measurement rules: (a) hook-inert sessions <5% over 2 weeks (current value unknown — that is itself the finding); (b) >=1 brief call in >50% of write-touching sessions within 2 weeks of the skill landing; (c) zero recurrences of the hallucinated-symbol class in gated writes (symbol-survival guard logs); (d) kill criterion: if brief+Serena does not reduce tokens-per-verified-gate-passing-write vs a grep baseline over N>=20 tasks, drop the mandate.",
+    "classification": "ALIGNED",
+    "priority": "now"
+   },
+   {
+    "action": "NEXT / install arch_hook.py per-turn delta injection via the sanctioned owner-run recovery-kit path (it is already present in docs/recovery/settings_beast.json), measuring token cost per turn before/after — this supersedes part of the brief skill once live, and the two share the freshness-first discipline (arch_memory.py:15-17).",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "NEXT / close the embedding egress gap before any new embedding consumer: route the Ollama embedding backend's host through the sensitivity lane check (lane_for_host) like every other lane, and record a post-fix live-probe measurement for semantic_route (the 0/5 finding has a fix but no re-measurement — its production status is currently unmeasured, not fixed).",
+    "classification": "ALIGNED",
+    "priority": "next"
+   },
+   {
+    "action": "NEXT / minimal embedding index over daedalus/ ONLY as a registered isolated experiment with SPEC (budget, expiry, kill criteria, sealed evaluation): frozen query set drawn from real crew retrieval needs, budget-equal comparison against graph_brief+Serena and against plain grep/BM25, pre-registered precision threshold. Mechanical cost is small (~local Ollama, minutes of GPU, infra already exists in the 1687-line store) — the enable is what is unproven, and section 13's kill criteria (full representation must beat BM25/code-only) apply verbatim.",
+    "classification": "EXPERIMENT",
+    "priority": "next"
+   },
+   {
+    "action": "LATER / persist the structcore index as a warm artifact (the missing piece named in the structcore slice: no persisted index, every CLI call re-folds, clone clustering ~96% of the time) so brief calls become sub-second; this is the precondition for ever revisiting an MCP-server-over-structcore, not the other way round.",
+    "classification": "ALIGNED",
+    "priority": "later"
+   },
+   {
+    "action": "LATER / docs hygiene: stamp v-embeddings.md as superseded-by-fix with the closing commit reference, and add the post-fix status line to semantic_route.py's measurement comment — stale verification records are the doc-drift defect class this repo hunts, sitting in its own verification directory.",
+    "classification": "ALIGNED",
+    "priority": "later"
+   }
+  ],
+  "dissent": [
+   "Against the expected 'build an MCP server over structcore' consensus: a second in-repo MCP server is the wrong move at current maturity — it recreates the 28s-vs-30s cold-start race that already killed Serena adoption, adds an unregistered long-running process during Gate 0, and blocks on the warm-index work anyway. CLI subcommand + skill gets measurable adoption this week without touching protected settings.",
+   "Against the owner's own framing: 'the crew underuses semantic retrieval' is, on this repo's evidence, actually 'the crew underuses STRUCTURAL retrieval'. Every latent artifact measured here underperformed or never ran (semantic_route 0/5 live probes, A2 ceiling 2.3%, freshness unanchored), while the measured failure class (hallucinated symbol names, unseen function-body import edges) is answered exactly by graph_brief and Serena. Conflating the two would spend a lane on the weaker prior.",
+   "Against treating serena-first's fail-open as adequate: fail-open without a counter is silent drift by construction — the exact vocabulary the iron plan uses. The hook's design is right (amendment proposal 002 point B), but shipping it without an inert-rate measurement means nobody can say whether the mandatory-Serena policy has ever been in force for a majority of sessions. I expect others to call this fine; I call it a guard-honesty defect.",
+   "Against 'install the hook first' (likely from the harness-lens councillor): arch_hook is the better end state but is owner-gated behind protected settings, and the proposals island shows owner-gated harness changes sit for days-to-weeks. Sequencing the crew-reachable CLI+skill first is the difference between measured adoption in two weeks and another built-but-inert artifact — the repo's most common failure mode (graph built, measured, never connected to the consumer: graph_brief.py:16).",
+   "Partial dissent on Gate-4 hygiene: making brief+Serena the crew default quietly turns every crew session into a graph-conditioned arm with no control, which could contaminate the later Gate 4 comparison (graph-conditioned representation search vs retrieval baselines). I still recommend it — product reliability now outweighs a research-design convenience — but the council should log it as a known confound rather than discover it at Gate 4."
+  ],
+  "for_codex": [
+   "serena-first.py proves Serena liveness by probing the dashboard port (127.0.0.1:24282, 0.15s timeout) because 'the MCP transport itself is not observable from a hook' (serena-first.py:39-44). Attack this proxy: can Serena be half-up — dashboard listening, LSP backend dead or still indexing — so the hook DENIES the Read fallback while Serena cannot actually answer, inverting the fail-open guarantee exactly when it matters?",
+   "graph_brief's 12k-char default budget was sized from this repo's symbol layer at 6,479 chars (graph_brief.py:55-59), and the ollama lane sheds the brief FIRST on overflow (ollama.py:822-827). Is prepend-and-shed-first the right priority order, and does truncation-honesty actually survive on a repo 10x this size — or does the brief degrade into exactly the 'quietly stops listing files' hallucination source it was written to prevent?",
+   "If brief+Serena becomes the crew default, every future crew-produced result is graph-conditioned with no control arm. Does this contaminate the Gate 4 protocol (graph-conditioned representation search vs budget-equal retrieval baselines), and what is the minimal pre-registration NOW — e.g. logging brief-bytes-injected per task — that keeps the later comparison honest?",
+   "The embedding store's identity anchor is trust-on-first-use (embeddings.py:48-53): an index written before anchoring ADOPTS an existing projection as its anchor. Attack the adoption path: can a poisoned or wrong-host first write silently define the coordinate system that all later drift detection then confirms as 'correct'?",
+   "Is tokens-per-verified-gate-passing-write a gameable adoption metric (agents steering toward smaller writes, or the gate itself moving), and what would a non-gameable retrieval-value measurement look like given this repo's measurement-construction rules — author of the question must not author the answer, dynamic range before any number?",
+   "The watchdog sets MCP_TIMEOUT=60000 (ps1:404-405) while the local overlay reportedly carries 120000 against a measured 28.35s cold start. Which number is defensible, on what tail-latency evidence — and is a static timeout the right mechanism at all versus a prewarm that makes the race unlosable?"
+  ]
+ }
+]
