@@ -688,6 +688,18 @@ def run_gate1_ignition(
                 instruction=task.objective,
                 base_revision=base_revision,
                 target_paths=tuple(task.paths),
+                # Where each gate's criterion lives INSIDE the candidate tree.
+                # The code/type gate runs the seeded conformance test, which
+                # the work item may not write -- so its verdict is sealed from
+                # the candidate (93489855). The data/knowledge gate compares
+                # the schema against the CSV, and the rename edits both, so
+                # its criterion is inside the write scope and it declares none:
+                # that packet honestly stays inconclusive.
+                gate_criterion_paths=(
+                    (ignition_checks.CONFORMANCE_TEST_PATH,)
+                    if "code" in planned_item.planes or "type" in planned_item.planes
+                    else ()
+                ),
                 gate_timeout_s=float(gate_timeout_s),
                 metadata={
                     "mission_id": mission.mission_id,
@@ -1238,6 +1250,7 @@ def _attempt_assurance_blocker(binding: Mapping[str, Any]) -> dict[str, Any] | N
     blocker nobody has to remove by hand.
     """
 
+    api_present = "gate_criterion_paths" in getattr(TaskSpec, "__dataclass_fields__", {})
     weak = [
         {
             "work_item_id": row["work_item_id"],
@@ -1250,6 +1263,30 @@ def _attempt_assurance_blocker(binding: Mapping[str, Any]) -> dict[str, Any] | N
     ]
     if not weak:
         return None
+    if api_present:
+        # The kernel API landed (93489855). What remains inconclusive is not a
+        # missing seam but a criterion the candidate itself may write: the
+        # data/knowledge gate judges schema-against-CSV, and the rename edits
+        # both, so no tree path outside the write scope states it.
+        return {
+            "missing_api": None,
+            "symptom": (
+                "an attempt whose gate criterion lives inside its own write "
+                "scope reads 'inconclusive'/'unverified' by design"
+            ),
+            "measured": weak,
+            "consequence": (
+                "the Gate-1 packet binds that attempt's packet by digest with "
+                "its real status and derives the slice-level assurance from "
+                "the composed checks; see the gate1-attempt-binding item"
+            ),
+            "remaining_gap": (
+                "a second, spine-authored reading of the schema/CSV relation "
+                "(a frozen FAIL_TO_PASS receipt or a target-scope gate) would "
+                "make the data/knowledge attempt conclusive"
+            ),
+            "owner": "daedalus/ignition/gate1.py data_knowledge_gate",
+        }
     return {
         "missing_api": (
             "daedalus.spine.attempt.TaskSpec has no way to declare which paths "
