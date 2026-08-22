@@ -289,3 +289,29 @@ def run_voltage_ignition(
         primary_tree_before_sha256=before,
         primary_tree_after_sha256=after,
     )
+
+
+# --------------------------------------------------------------------------- #
+# public names for the sibling Gate-1 slice                                    #
+# --------------------------------------------------------------------------- #
+#: :mod:`daedalus.ignition.gate1` reuses these three measurements verbatim
+#: rather than re-deriving them. They were written private because this module
+#: was the only caller; a second caller in the same package is a reason to name
+#: them, not a reason to copy them -- a second tree digest or a second graph
+#: delta would be exactly the drift the Fourfold delta exists to detect.
+tree_digest = _tree_digest
+candidate_behavior = _behavior
+fourfold_graph_delta = _graph_delta
+
+__all__ = [
+    "IgnitionError",
+    "IgnitionGraphDelta",
+    "IgnitionResult",
+    "IgnitionWorkItem",
+    "WORK_ITEMS",
+    "candidate_behavior",
+    "fourfold_graph_delta",
+    "materialize_voltage_rename",
+    "run_voltage_ignition",
+    "tree_digest",
+]
