@@ -53,6 +53,11 @@
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
     daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
+    daedalus tokens [--json] [--watch]  what this session has burned: local Claude
+                                        token usage, the spend ledger and the
+                                        intent spine. OBSERVATION ONLY -- it
+                                        reads the ledger and decides nothing;
+                                        the ceiling is enforced in budget.py
     daedalus bookkeeper update          refresh docs/architecture.html (+ history snapshot)
     daedalus map [--json] [--check] [--accept ITEM --why TEXT]
                                         generate docs/architecture-map.html: the
@@ -1158,6 +1163,14 @@ def main() -> None:
         _drafts(rest)
     elif cmd == "selftest":
         from .selftest import main as m; m(rest)
+    elif cmd == "tokens":
+        # Observability, not enforcement. It READS the budget ledger and the
+        # intent spine and writes only its own report under memory/; the spend
+        # ceiling installed above is what actually stops a call. Dispatched
+        # here so the monitor is reachable the way every other verb is -- it
+        # was registered on the effect boundary with no console door, which is
+        # how a monitor ends up trusted and never run.
+        from .token_monitor import main as m; raise SystemExit(m(rest))
     elif cmd == "bookkeeper":
         from .bookkeeper import main as m; m(rest)
     elif cmd == "map":

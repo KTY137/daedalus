@@ -615,8 +615,25 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.CENTRAL,
         anchors=(GuardAnchor("daedalus.token_monitor:main", "begin_effect"),),
-        notes="Checkpoint writes (one-shot and watch loop) begin centrally.",
-        migration="complete for the cli.token_monitor entrypoint",
+        notes=(
+            "Checkpoint writes (one-shot and watch loop) begin centrally, at "
+            "the top of main() BEFORE argument parsing, so both doors pass "
+            "it: the `daedalus tokens` subcommand in daedalus/cli.py and the "
+            "`python -m daedalus.token_monitor` module tail. WRITE ROOTS, "
+            "exhaustively: memory/ -- token_status.local.json, the event "
+            "journal, the TODO snapshot -- is the report it produces. The "
+            "budget lock file beside runs/budget/ledger.json and the WAL "
+            "sidecars beside runs/spine/spine.sqlite3 are touched only as a "
+            "consequence of READING those two stores: the ledger through "
+            "Ledger.state(), the spine opened read_only=True so SQLite "
+            "refuses a write at the engine. No spend and no promotion is "
+            "declared because the monitor decides nothing -- "
+            "should_checkpoint() sees the token summary and nothing else."
+        ),
+        migration=(
+            "complete for the cli.token_monitor entrypoint; reachable as "
+            "`daedalus tokens` since the dispatch row landed"
+        ),
     ),
     EntrypointSpec(
         id="cli.arch_memory",
