@@ -1297,6 +1297,56 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._send_json(core.envelope(None, env=env_status()))
         elif path == "/api/capabilities":
             self._send_json(hierarchy.capabilities())
+        elif path == "/api/catalogue":
+            # GET /api/catalogue -> daedalus.gui_catalogue: the parts a GUI can
+            # be built from, as DATA. This is the one reader of that module
+            # outside its test; docs/GUI_CATALOGUE.md is the contract.
+            #
+            # PURE READ, deliberately. load_catalogue() only read_text()s
+            # catalogue/gui/*.json, and ranking is the repo's existing BM25 via
+            # gui_catalogue.search(). The LATENT half is NOT exposed here: it
+            # would open the vector store, and do_GET carries no
+            # effect_boundary row (unlike do_POST/do_PUT, which call
+            # begin_effect). A GET that opened a store would be an undeclared
+            # effect, so `use_latent` stays False and is not a query parameter.
+            #
+            # `rejected` rides along with `entries` because the refusal path is
+            # the point of this module: a reader must see what was REFUSED and
+            # why, not just what was admitted. Every row carries `licence` and
+            # the code-derived `use_mode`, so no caller ever sees a component
+            # without seeing whether its licence lets them copy it.
+            query = (qs.get("q") or [""])[0].strip()
+            if len(query) > 2000:
+                self._send_json(
+                    {"ok": False, "error": "q must be at most 2000 characters"},
+                    status=400,
+                )
+                return
+            try:
+                limit = int((qs.get("limit") or ["8"])[0])
+            except ValueError:
+                self._send_json(
+                    {"ok": False, "error": "limit must be an integer"},
+                    status=400,
+                )
+                return
+            if not 1 <= limit <= 100:
+                self._send_json(
+                    {"ok": False, "error": "limit must be between 1 and 100"},
+                    status=400,
+                )
+                return
+            from . import gui_catalogue
+
+            catalogue = gui_catalogue.load_catalogue()
+            payload: dict[str, Any] = {"catalogue": catalogue.to_dict()}
+            if query:
+                # Ranked names + the ranking receipt. The caller resolves each
+                # hit against `catalogue.entries`, which it already has.
+                payload["search"] = gui_catalogue.search(
+                    catalogue, query, limit=limit, use_latent=False,
+                ).to_dict()
+            self._send_json(core.envelope(None, **payload))
         elif path == "/api/events":
             self._handle_events((qs.get("project") or [None])[0])
         elif path == "/api/ikarus/stream":
