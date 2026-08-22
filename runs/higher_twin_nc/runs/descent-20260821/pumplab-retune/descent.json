@@ -1,0 +1,85 @@
+{
+  "experiment": "higher-twin-nc-v1",
+  "spec_rev": 2,
+  "fixture": "pumplab",
+  "record": "descent",
+  "partition": [
+    [
+      "flow_rate"
+    ],
+    [
+      "pressure"
+    ],
+    [
+      "temperature"
+    ],
+    [
+      "rpm"
+    ],
+    [
+      "sample_id"
+    ]
+  ],
+  "local_ops": {
+    "clip": 0,
+    "retune": 0,
+    "scale": 0,
+    "tighten": 1
+  },
+  "obstructions": [
+    [
+      "add",
+      "resource field:viscosity not covered by the partition; layout is a shared resource across every cell"
+    ],
+    [
+      "regen",
+      "field:* wildcard is not cell-local; layout is a shared resource across every cell"
+    ],
+    [
+      "rename",
+      "resource field:mass_flow not covered by the partition; layout is a shared resource across every cell"
+    ]
+  ],
+  "cells": {
+    "0": {
+      "ops": [
+        "scale",
+        "clip",
+        "retune"
+      ],
+      "composable": true,
+      "fail_reason": null
+    },
+    "1": {
+      "ops": [
+        "tighten"
+      ],
+      "composable": true,
+      "fail_reason": null
+    }
+  },
+  "glue": {
+    "sequential_word": [
+      "scale_flow_rate_x2",
+      "clip_flow_rate_at6",
+      "retune_offset_flow_rate",
+      "tighten_pressure_to_integer"
+    ],
+    "interleaved_word": [
+      "scale_flow_rate_x2",
+      "tighten_pressure_to_integer",
+      "clip_flow_rate_at6",
+      "retune_offset_flow_rate"
+    ],
+    "both_composable": true,
+    "tree_equal": false
+  },
+  "descent_holds": false,
+  "balance": {
+    "descent_runs_used": 5,
+    "cross_cell_pairs": 3,
+    "pairwise_runs_replaced": 6
+  },
+  "receipt_head": "75c0a2b14fc41d66e1a9355c7d291c83f1cf6e5e4e32db09bc6f86c9dd671286",
+  "receipt_count": 7
+}
