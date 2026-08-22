@@ -109,6 +109,21 @@ def _pin_latent_route_off(tmp_path_factory):
         os.environ["DAEDALUS_SPINE_DB"] = str(
             tmp_path_factory.mktemp("spine") / "spine.sqlite3"
         )
+    # Since fd314dd5 ikarus_os.ask installs the budget process guard and reads
+    # the ledger named by DAEDALUS_BUDGET_LEDGER; without a pin a suite run
+    # would meter against the operator's runs/budget/ledger.json.
+    had_ledger = "DAEDALUS_BUDGET_LEDGER" in os.environ
+    if not had_ledger:
+        os.environ["DAEDALUS_BUDGET_LEDGER"] = str(
+            tmp_path_factory.mktemp("budget") / "ledger.json"
+        )
     yield
+    try:
+        from daedalus import budget as _budget
+        _budget.uninstall_process_guard()
+    except Exception:  # noqa: BLE001 - teardown must never fail a test
+        pass
     if not had_spine:
         os.environ.pop("DAEDALUS_SPINE_DB", None)
+    if not had_ledger:
+        os.environ.pop("DAEDALUS_BUDGET_LEDGER", None)
