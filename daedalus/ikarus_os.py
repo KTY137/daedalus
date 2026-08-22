@@ -241,6 +241,12 @@ def _prior_turn(conversation_id: str | None):
     rules when the store is unavailable, and that degrade can only make it MORE
     restrictive (a bare confirmation stops clearing anything), never less. The
     fail direction is the whole reason this is allowed to be best-effort.
+
+    CHAT CONTEXT, NOT ORCHESTRATION STATE. What this reads back is "what did the
+    user just say, and what did we offer", so that a bare "ja" can be resolved
+    against the offer it answers. No policy, budget, promotion or dispatch
+    decision is read out of a turn; the capability answer is recomputed from the
+    message every time, and the row only supplies the sentence it refers to.
     """
     if not conversation_id:
         return None
@@ -326,7 +332,9 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
 
 
 # --------------------------------------------------------------------------- #
-# Durable conversation state (opt-in) -- see daedalus/conversation.py          #
+# Durable conversation state (opt-in) -- see daedalus/conversation.py, which   #
+# owns no store: every turn is a ``conversation.turn`` intent on the single     #
+# canonical event spine (daedalus/spine/ledger.py).                            #
 # --------------------------------------------------------------------------- #
 def _turn_status(envelope: dict):
     """Map a chat envelope's ``intent`` to conversation.py's closed turn-status

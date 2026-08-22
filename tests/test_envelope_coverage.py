@@ -16,9 +16,13 @@ producer appears in neither table. It asserts nothing about whether a producer
 adds one. It asserts only that the judgement was MADE and written down.
 
 WHAT THE SCAN CANNOT SEE, stated rather than glossed:
-  * SQLite producers (``conversation.py``, and the spine ledger itself) do not
-    serialise through ``json.dumps``, so the heuristic cannot find them. The
-    spine ledger is converted; ``conversation.py`` is declared by hand.
+  * SQLite producers (the spine ledger itself) do not serialise through
+    ``json.dumps``, so the heuristic cannot find them. The spine ledger is
+    converted. ``conversation.py`` used to be the second such producer with its
+    own SQLite file; since 2026-08-22 it writes typed intents on the spine
+    instead and produces no records of its own, and its hand-written entry says
+    so rather than being dropped -- a reader who greps for it must land on the
+    reason, not on silence.
   * A producer that builds its path entirely from variables with no ``runs/``
     or ``.jsonl`` literal anywhere in the module is invisible. Nothing in the
     tree looks like that today.
@@ -91,7 +95,7 @@ def test_the_scan_finds_the_producers_that_were_actually_converted():
     about the fourteenth. Calibration before drift-detection."""
     found = record_producers(ROOT)
     for known in ("daedalus/loop.py", "daedalus/file_bridge.py",
-                  "daedalus/council/bus.py", "daedalus/memstore.py"):
+                  "daedalus/council/bus.py", "daedalus/progress.py"):
         assert known in found, (
             f"the producer scan no longer finds {known} -- the heuristic has "
             "drifted and every green result below is meaningless")

@@ -466,6 +466,67 @@ class SpineLedger:
             payload_sha=payload_sha, created_ts=ts, state=STATE_INTENDED,
             trace_id=trace)
 
+    def record_fact(self, kind: str, payload: Any = None, *,
+                    effect_key: str | None = None,
+                    effect_id: str | None = None,
+                    result: Any = None,
+                    trace_id: str | None = None) -> Intent:
+        """Record an effect that has ALREADY happened, in ONE transaction.
+
+        NOT a shortcut around :meth:`record_intent`. Use this only when the
+        record IS the artifact -- a chat turn that has already been answered, a
+        dispatch that has already been sent -- so there is no window between
+        deciding and doing for an intent to protect. For anything still to come,
+        ``record_intent`` before the effect remains the only correct call, and
+        reaching for this instead would silently discard the crash safety that
+        is this module's entire reason to exist.
+
+        WHY ONE TRANSACTION, AND WHY TERMINAL AT BIRTH
+        ----------------------------------------------
+        ``record_intent`` followed by ``mark_completed`` is two commits, and a
+        crash between them leaves an INTENDED row for an effect that is not
+        pending and cannot be redone. That row would then appear in
+        :meth:`open_intents` -- the crash-recovery worklist a caller is told to
+        reconcile against the world -- and in ``health``'s stale-open probe,
+        which reports an hour-old unresolved intent as DEGRADED. A fact that can
+        never be open keeps both readings honest: everything in
+        ``open_intents`` really is unfinished work.
+
+        The INTENDED event is still appended before the terminal one, so the
+        event history has the same two-row shape every other intent has and no
+        reader needs to special-case this producer.
+        """
+        kind = str(kind or "").strip()
+        if not kind:
+            raise ValueError("record_fact requires a non-empty kind")
+        if effect_key is not None:
+            effect_key = str(effect_key)
+        trace = str(trace_id) if trace_id else current_trace_id()
+        payload_json = canonical_json(payload)
+        payload_sha = hashlib.sha256(payload_json.encode("ascii")).hexdigest()
+        detail = {"effect_id": None if effect_id is None else str(effect_id),
+                  "result": result}
+        # Serialise before opening the transaction, exactly as _resolve does: an
+        # unserialisable result must fail without holding the write lock.
+        canonical_json(detail)
+        ts = _now_iso()
+        with self._txn() as c:
+            cur = c.execute(
+                "INSERT INTO intents"
+                " (kind, effect_key, payload, payload_sha, created_ts, trace_id)"
+                " VALUES (?,?,?,?,?,?)",
+                (kind, effect_key, payload_json, payload_sha, ts, trace))
+            intent_id = int(cur.lastrowid)
+            self._append_event(c, intent_id, STATE_INTENDED, ts,
+                               {"payload_sha": payload_sha})
+            self._append_event(c, intent_id, STATE_COMPLETED, ts, detail)
+        return Intent(
+            id=intent_id, kind=kind, effect_key=effect_key,
+            payload=json.loads(payload_json), payload_json=payload_json,
+            payload_sha=payload_sha, created_ts=ts, state=STATE_COMPLETED,
+            resolved_ts=ts, effect_id=detail["effect_id"], result=result,
+            trace_id=trace)
+
     def mark_completed(self, intent_id: int, effect_id: str | None = None,
                        result: Any = None) -> Intent:
         """Close an open intent as COMPLETED. Rejects a second resolution."""
@@ -629,6 +690,64 @@ class SpineLedger:
                 "SELECT * FROM intents WHERE effect_key = ? ORDER BY id",
                 (str(effect_key),)).fetchall()
             return [self._hydrate(r) for r in rows]
+
+    def intents_by_effect_key(self, effect_key: str, *, kind: str | None = None,
+                              limit: int | None = None,
+                              newest_first: bool = False) -> list[Intent]:
+        """``resolve_by_effect`` with a kind filter and a bound.
+
+        ``resolve_by_effect`` answers the recovery question ("which intent
+        claimed this token") and deliberately returns everything. A producer
+        that groups many rows under ONE key -- every turn of a conversation
+        shares its conversation's key -- needs the same index for a different
+        question: the last few rows of this group. Fetching all of them and
+        slicing in Python would make a per-turn read scale with the length of
+        the conversation, which is the one shape that turns a chat log into a
+        quadratic cost.
+
+        ``kind`` is filtered in SQL rather than by the caller because two
+        producers may legitimately share a key string (a dispatch and its
+        reports do, by design), and a caller that filtered afterwards would have
+        paid to hydrate rows it then threw away.
+
+        Oldest-first by default (replay order). ``newest_first`` with a ``limit``
+        is the "tail" read; the rows come back in that order, so a caller that
+        wants them oldest-first reverses what it got.
+        """
+        sql = "SELECT * FROM intents WHERE effect_key = ?"
+        args: list[Any] = [str(effect_key)]
+        if kind is not None:
+            sql += " AND kind = ?"
+            args.append(str(kind))
+        sql += " ORDER BY id DESC" if newest_first else " ORDER BY id"
+        if limit is not None:
+            if int(limit) <= 0:
+                return []
+            sql += " LIMIT ?"
+            args.append(int(limit))
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+            return [self._hydrate(r) for r in rows]
+
+    def ordinal_by_effect(self, effect_key: str, intent_id: int, *,
+                          kind: str | None = None) -> int:
+        """This intent's 0-based position among the intents sharing its key.
+
+        A COUNT of committed rows below a known id, so it is exact under
+        concurrency without a lock: two writers racing to append get two
+        different AUTOINCREMENT ids, and each then counts the other in or out
+        by that id alone. The alternative -- reading a MAX and adding one before
+        inserting -- is the read-then-write race that hands two rows the same
+        position, which is why the position is derived here instead of stored.
+        """
+        sql = "SELECT COUNT(*) FROM intents WHERE effect_key = ? AND id < ?"
+        args: list[Any] = [str(effect_key), int(intent_id)]
+        if kind is not None:
+            sql += " AND kind = ?"
+            args.append(str(kind))
+        with self._lock:
+            row = self._conn.execute(sql, args).fetchone()
+        return int(row[0]) if row else 0
 
     def intents_for_trace(self, trace_id: str) -> list[Intent]:
         """Every intent recorded under one ``trace_id``, oldest first.

@@ -4,7 +4,9 @@ THE PROBLEM THIS EXISTS FOR
 ---------------------------
 MEASURED 2026-07-28: this tree writes run records in six hand-rolled formats
 under six different id schemes -- ``intent_id`` (spine ledger), ``run_id``
-(loop), ``council_id`` (council bus), ``entry_sha`` (memstore), ``source_hash``
+(loop), ``council_id`` (council bus), ``entry_sha`` (memstore, since retired --
+its ledger had never been written; ``council/bus.py`` carries that discipline
+now and is the ``entry_sha`` referred to below), ``source_hash``
 (canary), bridge ``epoch`` -- and **no id is shared between any two of them**.
 Each id is correct locally and useless globally: a long run cannot be followed
 across its own organs, because nothing a record carries appears in any other
@@ -132,9 +134,6 @@ daedalus/runbook.py                    JSON/run    run_id              LOW. ``ru
                                                                        ``run_id`` is literally one of the six
                                                                        colliding schemes this module exists to
                                                                        reconcile.
-daedalus/memstore.py                   JSONL       entry_sha + prev    MEDIUM. Same hash-chain constraint, plus
-                                                                       ``entry_version`` is a published contract
-                                                                       with confirm/flag record types.
 daedalus/memory/__init__.py            JSONL       task_id             LOW. One ``append_event``, additive dict.
 daedalus/metrics.py                    JSONL       (none -- ts only)   LOW. Seven-key dict, no id at all today;
                                                                        trace_id would be its FIRST correlator.
@@ -227,8 +226,8 @@ def canonical_json(obj: Any) -> str:
     ``sort_keys`` makes two dicts built in different insertion orders produce
     byte-identical text; ``separators`` strips the whitespace a pretty-printer
     would vary; ``ensure_ascii`` pins the bytes so a digest does not depend on
-    the reader's encoding. Mirrors ``memstore._body_sha``'s discipline: one
-    place, one answer to "what bytes did we hash?".
+    the reader's encoding. Mirrors ``council/bus.py``'s ``_body_sha``
+    discipline: one place, one answer to "what bytes did we hash?".
     """
     try:
         return json.dumps(obj, sort_keys=True, separators=(",", ":"),
@@ -672,10 +671,6 @@ UNCONVERTED_PRODUCERS = {
     "daedalus/runbook.py":
         "RUN RECORD. runs/<run_id>.json. LOW. Its run_id is literally one of "
         "the six colliding id schemes this module exists to reconcile.",
-    "daedalus/memstore.py":
-        "RUN RECORD. JSONL, entry_sha+prev. MEDIUM: same hash-chain "
-        "constraint as bus.py, plus entry_version is a published contract "
-        "with its own confirm/flag record types.",
     "daedalus/memory/__init__.py":
         "RUN RECORD. JSONL, task_id. LOW: one append_event, additive, no chain.",
     "daedalus/metrics.py":
@@ -729,7 +724,8 @@ UNCONVERTED_PRODUCERS = {
         "NOT A RUN RECORD: a running spend total per PERIOD, deliberately not "
         "per-run -- correlating it to a trace would misrepresent what it is.",
     "daedalus/conversation.py":
-        "SQLite, not JSON/JSONL, so the scan does not flag it. Listed because "
-        "it carries its own conversation_id and is reachable from the web API; "
-        "out of the declared scope of this pass.",
+        "NOT A RUN RECORD: it produces no records of its own any more. Every "
+        "turn, dispatch and report is a typed intent on spine/ledger.py, which "
+        "is already converted and stamps trace_id at record time -- so this "
+        "module inherits the join instead of needing its own conversion.",
 }

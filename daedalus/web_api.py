@@ -786,6 +786,12 @@ def _task_artifacts(task_id: str) -> dict[str, Any]:
 # a durable multi-turn identity: a conversation_id, an append-only turn log,
 # and dispatch attribution (a turn caused work; that work is a caller-supplied
 # ref, e.g. a file-bridge task id, that a later report can be found under).
+# It owns no store of its own: it is a facade, and every row it writes is a
+# typed intent (``conversation.turn`` / ``conversation.dispatch`` /
+# ``conversation.dispatch.report``) on the single canonical event spine,
+# ``daedalus/spine/ledger.py``. Nothing in this file may read an orchestration
+# decision back out of it -- the live truth for a queued task is the file bus
+# (``_task_snapshot``), and the conversation rows are attribution and narrative.
 # ``daedalus/progress.py`` + ``progress_sources.py`` give a single unit of work
 # (a chat generation, an offload call, a spine attempt) an honest, closed-
 # vocabulary event trail -- queued/claimed/generating/.../done, never a
