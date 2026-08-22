@@ -208,3 +208,81 @@ is `assert report.repository_write_failures` (non-empty), with no pinned count.
 The two stdlib-delta fixtures that could have collided
 (`COMPRESSED_AND_ARCHIVE_SOURCE`, `ALIAS_AND_REBINDING_SOURCE`) were replayed
 against both scanners and are byte-identical before and after.
+
+## 8. The chain is wired (2026-08-22, lane HERACLES-CLASSIFY)
+
+Section 1.5 is no longer true: `report_v3` now imports
+`repository_write_classification` and the counters come from classified
+surfaces. What the wire is, in one line: the reporter asks the chain for a
+verdict per surface and publishes only the surfaces the chain leaves as
+blockers, but because the chain declares its own evidence unauthenticated,
+anything it clears is replaced by an aggregate row that names how many.
+
+**Counters, `[MEASURED]` on isolated snapshots of `daedalus/ + configs/ +
+scripts/` (the same method as section 3), before and after the wire:**
+
+| | schema | surfaces_total | failures | verdicts |
+| --- | --- | ---: | ---: | --- |
+| before | `daedalus-gate-report/4` | *(not declared)* | 410 | *(not declared)* |
+| after | `daedalus-gate-report/5` | 410 | 410 | `unclassified:410` |
+
+The failure count is unchanged **on purpose**. No classification declaration
+exists at this head, so the chain classifies nothing, every blocking surface is
+`unclassified`, and every one stays a blocker. The wire moved the shape, not
+the verdict — painting verdicts the chain does not produce is exactly what the
+finding warned against. What the report gained is the ability to say *why* a
+surface is a blocker, and the three declared counters
+(`repository_write_surfaces_total`, `repository_write_surface_verdicts`,
+`repository_write_classification_schema`, the last read back out of the
+projection rather than asserted), plus the raw syntactic blocker count as the
+declared diagnostic `repository_write_syntactic_blockers:410`.
+
+**Verdict vocabulary** — from `surface_classification_verdict` in the chain,
+never minted by the reporter: `cleared:central` (leased under a door, the full
+four-family evidence set), `cleared:retired` (proven not production-reachable),
+`blocked:<candidate_blocker>[+...]` (`primary-checkout-write-target`,
+`write-target-unknown`, `production-write-{local_guards,inventory_only,unguarded}`),
+`unclassified` (no declaration binds this surface), `non_blocking_kind` (the
+scanner emitted it but never marked it blocking; it was never a failure).
+
+**What the chain still cannot classify**, and why the section-4 projection's
+categories B (106) and D (26) stay blockers: the chain does not *derive*
+anything. `project_repository_write_classifications` is a verifier of declared
+`SurfaceClassification` rows bound to the exact revision and inventory digest —
+it has no call graph, no target resolution, and no handle-to-opener rule. B
+("unnameable receiver, caller-supplied path") needs a `TargetDisposition` per
+calling door, which is a human declaration plus a disjointness receipt; D
+("handle sink downstream of a counted opener") needs the fail-open "sink
+follows its opener" rule that section 6 left undecided. Both remain
+`unclassified` and therefore blockers, with their category nameable from the
+surface kind in the failure row.
+
+**Fail-closed, deliberately.** A declaration is a locator passed to the builder
+(`repository_write_classification_input=`), never a verdict, and it is bound to
+the digest of the scan performed in the same call — a stale or foreign document
+yields `classification:input-refused` and clears nothing. Whatever it does
+clear is replaced by `classification:evidence-unauthenticated:<n>` and
+`classification:gate-report-binding-missing`, both taken from the chain's own
+payload flags, so `closed` can never be reached by writing a JSON file. Those
+rows disappear only when the deeper verifiers (lease → materialization →
+origin → anchor semantics → guard structure → runtime conformance) actually run
+and the chain stops declaring its evidence unauthenticated.
+
+**Wire shape moved** to `daedalus-gate-report/5` under the one-id-one-shape
+rule this module already applied at `/4`; `configs/schemas/gate-report-v5.schema.json`
+is added and five pin files move with it (the four
+`tests/gates/test_gate_report_v3*.py` plus `tests/test_gate_scanner_report_schema.py`,
+which pins the same const and schema path). Every existing anchor in
+`scripts/run_gate_report_v3_mutations.py` still resolves exactly once.
+
+**Mutation evidence** — each new guard disabled in an isolated tree, baseline
+green:
+
+| mutant | red |
+| --- | --- |
+| classification ignored (raw syntactic failures again) | 4 |
+| unauthenticated-evidence aggregate dropped | 2 |
+| refused declaration no longer declared | 3 |
+| classification-schema blocker removed | 1 |
+| census-consistency blocker removed | 1 |
+| door id dropped from the failure row | 1 |

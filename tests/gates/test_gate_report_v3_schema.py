@@ -6,7 +6,7 @@ import daedalus.gates.report_v3 as report_v3
 from daedalus.spine.ledger import ROOT
 
 
-SCHEMA = ROOT / "configs" / "schemas" / "gate-report-v4.schema.json"
+SCHEMA = ROOT / "configs" / "schemas" / "gate-report-v5.schema.json"
 
 
 def test_gate_report_v3_schema_matches_exact_runtime_shape() -> None:
@@ -45,6 +45,19 @@ def test_repository_write_generation_counts_and_failures_match_parser_bounds() -
     }
     assert payload["properties"]["repository_write_failures"] == {
         "$ref": "#/$defs/stringArray"
+    }
+    assert payload["properties"]["repository_write_surfaces_total"] == {
+        "type": "integer",
+        "minimum": 0,
+    }
+    assert payload["properties"]["repository_write_surface_verdicts"] == {
+        "$ref": "#/$defs/stringArray"
+    }
+    assert payload["properties"]["repository_write_classification_schema"] == {
+        "oneOf": [
+            {"$ref": "#/$defs/boundedString"},
+            {"type": "null"},
+        ]
     }
     assert payload["$defs"]["sha256"]["pattern"] == "^[0-9a-f]{64}$"
     assert payload["$defs"]["boundedString"]["minLength"] == 1

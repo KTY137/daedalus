@@ -25,6 +25,20 @@ _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CONTRACT = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 
+# The wire id this chain stamps into every projection it produces.  A consumer
+# must read the id back out of the produced report and compare it with this
+# const rather than assume it: that way a drift in ``_payload`` surfaces at the
+# consumer as a declared mismatch instead of passing silently.
+CLASSIFICATION_SCHEMA = "daedalus-gate0-repository-write-classification/1"
+
+# Verdict vocabulary.  It belongs to this chain, not to its consumers: a
+# consumer may only report a verdict this module can produce.  A surface the
+# projection did not classify is ``unclassified`` and stays a blocker; a
+# surface the scanner emitted without marking it blocking is
+# ``non_blocking_kind`` and was never a blocker.
+UNCLASSIFIED_SURFACE_VERDICT = "unclassified"
+NON_BLOCKING_SURFACE_VERDICT = "non_blocking_kind"
+
 
 class RepositoryWriteClassificationError(RuntimeError):
     """A classification projection was malformed, stale, or ambiguous."""
@@ -350,6 +364,29 @@ class SurfaceClassification:
             raise RepositoryWriteClassificationError(
                 "surface classification is invalid"
             ) from exc
+
+
+def surface_classification_verdict(row: SurfaceClassification) -> str:
+    """Name exactly one verdict for one classified surface.
+
+    The verdict is derived from ``candidate_blockers`` and the guard
+    disposition, so it can never claim more than the classification itself
+    already claims.  A row with candidate blockers is ``blocked:<reason>``
+    (all of its reasons, joined, so no reason is dropped); a row with none is
+    ``cleared:<guard disposition>`` — ``cleared:central`` for a surface leased
+    under a central door, ``cleared:retired`` for one the classification
+    proved unreachable.  Exactly one verdict per surface, so a census over
+    verdicts sums to the surface count.
+    """
+
+    if not isinstance(row, SurfaceClassification):
+        raise RepositoryWriteClassificationError(
+            "verdict subject must be a typed surface classification"
+        )
+    blockers = row.candidate_blockers
+    if blockers:
+        return "blocked:" + "+".join(blockers)
+    return f"cleared:{row.guard.value}"
 
 
 @dataclass(frozen=True)

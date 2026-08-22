@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import textwrap
 
 import daedalus.gates.report_v3 as report_v3
 
@@ -10,7 +11,7 @@ def test_v3_is_additive_and_does_not_replace_v2_import_path() -> None:
     source = inspect.getsource(report_v3)
     assert "from .report import GateReport, build_gate0_report" in source
     assert "class GateReportV3(GateReport)" in source
-    assert "daedalus-gate-report/4" in source
+    assert "daedalus-gate-report/5" in source
     assert "GateReport =" not in source
 
 
@@ -20,6 +21,8 @@ def test_v3_closure_mechanically_requires_repository_write_evidence() -> None:
     assert "repository_write_scan_input_sha256:missing" in blockers
     assert "repository_write_files_scanned:missing" in blockers
     assert "repository_write_inventory_generation:unsupported:" in blockers
+    assert "repository_write_classification_schema:unsupported:" in blockers
+    assert "repository_write_surface_verdicts:inconsistent:" in blockers
     assert "repository_write_failures:" in blockers
     closed = inspect.getsource(report_v3.GateReportV3.closed.fget)
     assert "not self.blockers" in closed
@@ -40,8 +43,46 @@ def test_builder_uses_canonical_v2_scanner_and_never_accepts_caller_failures() -
     assert "inventory.digest" in inventory_helper
     assert "inventory.scan_input_sha256" in inventory_helper
     assert "inventory.files_scanned" in inventory_helper
-    assert "for surface in inventory.blockers" in inventory_helper
+    assert "len(inventory.surfaces)" in inventory_helper
+    assert "len(inventory.blockers)" in inventory_helper
+    assert "_classify_repository_write_surfaces(" in inventory_helper
     assert '"inventory-refused"' in inventory_helper
+
+
+def test_counters_are_classified_and_never_paint_an_unproven_clearance() -> None:
+    classifier = inspect.getsource(report_v3._classify_repository_write_surfaces)
+    # The verdict vocabulary belongs to the chain, not to the reporter.
+    assert "surface_classification_verdict(row)" in classifier
+    assert "UNCLASSIFIED_SURFACE_VERDICT" in classifier
+    assert "NON_BLOCKING_SURFACE_VERDICT" in classifier
+    # A surface the chain does not clear stays a failure.
+    assert "if row.candidate_blockers:" in classifier
+    # A declaration that does not bind to this exact scan clears nothing.
+    assert "classification:input-refused" in classifier
+    assert "classification:input-unreadable" in classifier
+    # Clearing can never empty the list: the chain's own unauthenticated
+    # evidence is carried into the report as an aggregate blocker.
+    assert 'payload.get("evidence_authenticated") is not True' in classifier
+    assert "classification:evidence-unauthenticated:" in classifier
+    assert 'payload.get("gate_report_bound") is not True' in classifier
+    # The reporter never mints a verdict of its own: no string constant it
+    # builds may name a chain verdict, so `cleared:`/`blocked:` can only ever
+    # arrive from surface_classification_verdict.
+    tree = ast.parse(textwrap.dedent(classifier))
+    literals = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    body = ast.get_docstring(tree.body[0]) or ""
+    assert not any(
+        text.startswith(("cleared", "blocked"))
+        for text in literals
+        if text != body
+    )
+    signature = inspect.signature(report_v3.build_gate0_report_v3)
+    assert "repository_write_surface_verdicts" not in signature.parameters
+    assert "repository_write_surfaces_total" not in signature.parameters
 
 
 def test_builder_snapshots_inputs_and_refuses_observed_composition_drift() -> None:

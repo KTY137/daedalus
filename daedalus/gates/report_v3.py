@@ -11,6 +11,29 @@ shape.  The shape moved to ``daedalus-gate-report/4`` when the report gained
 evidence) and ``repository_write_scanner_error`` (0 when the scanner produced
 evidence, 1 when it refused).  Adding those keys under the old ``/3`` const
 would have left one schema id naming two shapes.
+
+The shape moved to ``daedalus-gate-report/5`` when the repository-write
+counters stopped being the raw syntactic scan.  Until then
+``repository_write_failures`` was every callsite the scanner emitted, so a
+registered door, a guard contract, and a lease receipt all subtracted nothing
+and the counter could not distinguish an unleased production write from a
+callsite nobody had looked at yet.  The report now declares three things
+instead of one:
+
+* ``repository_write_surfaces_total`` — the raw syntactic surface count, kept
+  verbatim so the classification can never hide a callsite;
+* ``repository_write_surface_verdicts`` — one verdict per surface, from the
+  classification chain's own vocabulary, as sorted ``<verdict>:<count>`` rows
+  that sum to the total;
+* ``repository_write_classification_schema`` — which chain wire produced those
+  verdicts, read back out of the projection rather than asserted.
+
+``repository_write_failures`` is now the surfaces the chain leaves as genuine
+blockers.  Clearing a surface never empties the counter silently: the
+classification layer declares its own evidence unauthenticated, so every
+cleared surface is replaced by an aggregate ``classification:`` row naming how
+many surfaces rest on that declaration.  The report cannot be closed by a
+declaration alone.
 """
 from __future__ import annotations
 
@@ -26,18 +49,34 @@ from daedalus.schemas import RuntimeConformanceReceipt
 from daedalus.spine.envelope import canonical_json
 
 from .report import GateReport, build_gate0_report
+from .repository_write_classification import (
+    CLASSIFICATION_SCHEMA,
+    NON_BLOCKING_SURFACE_VERDICT,
+    UNCLASSIFIED_SURFACE_VERDICT,
+    RepositoryWriteClassificationError,
+    project_classification_input,
+    project_repository_write_classifications,
+    surface_classification_verdict,
+)
 from .repository_write_inventory_v2 import (
+    RepositoryWriteInventoryV2,
     RepositoryWriteInventoryV2Error,
     scan_repository_write_surfaces_v2,
 )
 
 
-_SCHEMA = "daedalus-gate-report/4"
+_SCHEMA = "daedalus-gate-report/5"
 # The exact repository-write inventory schema this reporter is written
 # against.  The report declares the schema it observed; a mismatch is a
 # blocker, never a silent acceptance.  Moving the scanner record shape
 # (GATE0_V3_SCANNER_IDENTITY_DECISION.md option A) moves this const with it.
 _INVENTORY_SCHEMA = "daedalus-gate0-repository-write-inventory/2"
+# The exact classification-chain wire this reporter is written against.  Same
+# discipline as the inventory schema: the value in the report is read back out
+# of the projection the chain produced, and disagreement with this const is a
+# blocker.
+_CLASSIFICATION_SCHEMA = CLASSIFICATION_SCHEMA
+_MAX_CLASSIFICATION_BYTES = 16 * 1024 * 1024
 _MAX_REPORT_BYTES = 4 * 1024 * 1024
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _V2_SHARED_FIELDS = {
@@ -69,10 +108,15 @@ _V3_FIELDS = frozenset(
         "repository_write_inventory_generation",
         "repository_write_inventory_schema",
         "repository_write_scanner_error",
+        "repository_write_surfaces_total",
+        "repository_write_classification_schema",
+        "repository_write_surface_verdicts",
         "repository_write_failures",
         *_V2_SHARED_FIELDS,
     }
 )
+# ``<verdict>:<count>`` where the verdict is one of the chain's own values.
+_VERDICT_ROW = re.compile(r"^[a-z_]+(?::[a-z_+-]+)*:(0|[1-9][0-9]*)$")
 
 
 class GateReportV3Error(ValueError):
@@ -164,6 +208,9 @@ class GateReportV3(GateReport):
     repository_write_inventory_generation: int = 0
     repository_write_inventory_schema: str | None = None
     repository_write_scanner_error: int = 0
+    repository_write_surfaces_total: int = 0
+    repository_write_classification_schema: str | None = None
+    repository_write_surface_verdicts: tuple[str, ...] = ()
     repository_write_failures: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -213,6 +260,30 @@ class GateReportV3(GateReport):
             raise GateReportV3Error(
                 "repository_write_scanner_error must be a non-negative integer"
             )
+        if (
+            type(self.repository_write_surfaces_total) is not int
+            or self.repository_write_surfaces_total < 0
+        ):
+            raise GateReportV3Error(
+                "repository_write_surfaces_total must be a non-negative integer"
+            )
+        if self.repository_write_classification_schema is not None and (
+            not isinstance(self.repository_write_classification_schema, str)
+            or not self.repository_write_classification_schema
+            or len(self.repository_write_classification_schema) > 4000
+        ):
+            raise GateReportV3Error(
+                "repository_write_classification_schema must be a bounded string"
+                " or null"
+            )
+        object.__setattr__(
+            self,
+            "repository_write_surface_verdicts",
+            _normalize_rows(
+                self.repository_write_surface_verdicts,
+                "repository_write_surface_verdicts",
+            ),
+        )
         object.__setattr__(
             self,
             "repository_write_failures",
@@ -249,6 +320,28 @@ class GateReportV3(GateReport):
                 "repository_write_inventory_schema:unsupported:"
                 f"{self.repository_write_inventory_schema}"
             )
+        # Which chain classified the surfaces.  A report whose counters were
+        # never classified declares null here and is blocked for it, so the
+        # raw syntactic scan cannot be presented as a classified census.
+        if self.repository_write_classification_schema != _CLASSIFICATION_SCHEMA:
+            rows.append(
+                "repository_write_classification_schema:unsupported:"
+                f"{self.repository_write_classification_schema}"
+            )
+        # The census must account for every syntactic surface.  A malformed or
+        # short census is a blocker, never a quietly smaller denominator.
+        counted = 0
+        for row in self.repository_write_surface_verdicts:
+            if not _VERDICT_ROW.fullmatch(row):
+                rows.append(f"repository_write_surface_verdicts:malformed:{row}")
+                counted = -1
+                break
+            counted += int(row.rsplit(":", 1)[1])
+        if counted != self.repository_write_surfaces_total:
+            rows.append(
+                "repository_write_surface_verdicts:inconsistent:"
+                f"{counted}:{self.repository_write_surfaces_total}"
+            )
         rows.extend(
             f"repository_write_failures:{row}"
             for row in self.repository_write_failures
@@ -283,6 +376,15 @@ class GateReportV3(GateReport):
         )
         body["repository_write_scanner_error"] = (
             self.repository_write_scanner_error
+        )
+        body["repository_write_surfaces_total"] = (
+            self.repository_write_surfaces_total
+        )
+        body["repository_write_classification_schema"] = (
+            self.repository_write_classification_schema
+        )
+        body["repository_write_surface_verdicts"] = list(
+            self.repository_write_surface_verdicts
         )
         body["repository_write_failures"] = list(
             self.repository_write_failures
@@ -382,6 +484,16 @@ class GateReportV3(GateReport):
             repository_write_scanner_error=_strict_int(
                 payload, "repository_write_scanner_error"
             ),
+            repository_write_surfaces_total=_strict_int(
+                payload, "repository_write_surfaces_total"
+            ),
+            repository_write_classification_schema=_bounded_string_or_none(
+                payload.get("repository_write_classification_schema"),
+                "repository_write_classification_schema",
+            ),
+            repository_write_surface_verdicts=_strict_rows(
+                payload, "repository_write_surface_verdicts"
+            ),
             repository_write_failures=_strict_rows(
                 payload, "repository_write_failures"
             ),
@@ -393,10 +505,135 @@ class GateReportV3(GateReport):
         return report
 
 
+def _read_classification_document(path: Path) -> Mapping[str, Any]:
+    """Read one reviewed classification declaration with the loader's strictness."""
+
+    raw = Path(path).read_bytes()
+    if len(raw) > _MAX_CLASSIFICATION_BYTES:
+        raise GateReportV3Error("classification input exceeds maximum size")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise GateReportV3Error("classification input must be UTF-8") from exc
+    try:
+        payload = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_json_constant,
+        )
+    except (json.JSONDecodeError, RecursionError) as exc:
+        raise GateReportV3Error("classification input is malformed JSON") from exc
+    if not isinstance(payload, Mapping) or any(
+        not isinstance(key, str) for key in payload
+    ):
+        raise GateReportV3Error("classification input must be an object")
+    return payload
+
+
+def _surface_failure_row(surface: Any, verdict: str, doors: Sequence[str]) -> str:
+    """One failure row: the surface identity, its verdict, and its door if any."""
+
+    row = (
+        f"{surface.path}:{surface.line}:{surface.column}:"
+        f"{surface.kind}:{surface.callee}:{surface.operation}"
+        f":verdict={verdict}"
+    )
+    if doors:
+        row = f"{row}:door={','.join(doors)}"
+    return row
+
+
+def _classify_repository_write_surfaces(
+    inventory: RepositoryWriteInventoryV2,
+    classification_input: Path | None,
+) -> tuple[tuple[str, ...], tuple[str, ...], str | None]:
+    """Turn the syntactic inventory into a classified census.
+
+    Returns ``(failures, verdict census, declared classification schema)``.
+    Every surface the scanner emitted gets exactly one verdict, so the census
+    sums to the surface count and no callsite can vanish between the scan and
+    the report.  Only the surfaces the classification chain leaves as genuine
+    blockers become failures.
+
+    Without a declaration every blocking surface is ``unclassified`` and stays
+    a failure — the fail-closed default, and the state of this repository
+    today.  With one, the chain decides; and because the chain declares its own
+    evidence unauthenticated, whatever it clears is replaced by an aggregate
+    ``classification:`` row so the failure list cannot be emptied by a file.
+    """
+
+    document: Mapping[str, Any] | None = None
+    input_failures: list[str] = []
+    if classification_input is not None:
+        try:
+            document = _read_classification_document(classification_input)
+        except (GateReportV3Error, OSError, TypeError, ValueError):
+            document = None
+            input_failures.append("classification:input-unreadable")
+    try:
+        if document is None:
+            projection = project_repository_write_classifications(inventory, ())
+        else:
+            projection = project_classification_input(inventory, document)
+    except RepositoryWriteClassificationError:
+        # A declaration that does not bind to this exact scan clears nothing.
+        input_failures.append("classification:input-refused")
+        projection = project_repository_write_classifications(inventory, ())
+
+    payload = projection.to_dict()
+    # Observed, not asserted, exactly as with the inventory schema above.
+    declared = payload.get("schema")
+    classified = {row.surface: row for row in projection.classifications}
+
+    census: dict[str, int] = {}
+    failures: list[str] = []
+    cleared = 0
+    for surface in inventory.surfaces:
+        if not surface.blocking:
+            # The scanner already proved this callsite cannot write; it was
+            # never a failure and classification does not make it one.
+            census[NON_BLOCKING_SURFACE_VERDICT] = (
+                census.get(NON_BLOCKING_SURFACE_VERDICT, 0) + 1
+            )
+            continue
+        row = classified.get(surface)
+        if row is None:
+            verdict = UNCLASSIFIED_SURFACE_VERDICT
+            failures.append(_surface_failure_row(surface, verdict, ()))
+        else:
+            verdict = surface_classification_verdict(row)
+            if row.candidate_blockers:
+                failures.append(
+                    _surface_failure_row(surface, verdict, row.guard_contracts)
+                )
+            else:
+                cleared += 1
+        census[verdict] = census.get(verdict, 0) + 1
+
+    if cleared:
+        # The classification layer states in its own payload that its evidence
+        # is not authenticated and that it is not bound to a GateReport.  These
+        # rows carry that statement into the report: a declaration replaces N
+        # named surfaces with one row naming N, and closure stays impossible
+        # until the deeper verifiers in the chain have actually run.
+        if payload.get("evidence_authenticated") is not True:
+            failures.append(f"classification:evidence-unauthenticated:{cleared}")
+        if payload.get("gate_report_bound") is not True:
+            failures.append("classification:gate-report-binding-missing")
+    failures.extend(input_failures)
+    verdicts = tuple(f"{name}:{count}" for name, count in census.items())
+    return (
+        tuple(sorted(set(failures))),
+        verdicts,
+        declared if isinstance(declared, str) and declared else None,
+    )
+
+
 def _repository_write_evidence(
     root: Path,
     *,
     source_revision: str,
+    classification_input: Path | None = None,
 ) -> tuple[
     str | None,
     str | None,
@@ -406,6 +643,9 @@ def _repository_write_evidence(
     tuple[str, ...],
     str | None,
     int,
+    int,
+    str | None,
+    tuple[str, ...],
 ]:
     try:
         inventory = scan_repository_write_surfaces_v2(
@@ -422,11 +662,18 @@ def _repository_write_evidence(
             ("blocker:repository_write_inventory:refused",),
             None,
             1,
+            0,
+            None,
+            (),
         )
-    failures = tuple(
-        f"{surface.path}:{surface.line}:{surface.column}:"
-        f"{surface.kind}:{surface.callee}:{surface.operation}"
-        for surface in inventory.blockers
+    # The raw syntactic scan stays visible: ``surfaces`` is every callsite the
+    # scanner emitted and ``inventory.blockers`` its blocking subset, which is
+    # what this report used to publish verbatim as its failures.
+    surfaces_total = len(inventory.surfaces)
+    syntactic_blockers = len(inventory.blockers)
+    failures, verdicts, classification_schema = _classify_repository_write_surfaces(
+        inventory,
+        classification_input,
     )
     # Observed, not asserted: the schema string is read back out of the
     # artifact the scanner produced, so a scanner schema change shows up in
@@ -438,9 +685,12 @@ def _repository_write_evidence(
         inventory.files_scanned,
         2,
         failures,
-        (),
+        (f"repository_write_syntactic_blockers:{syntactic_blockers}",),
         declared if isinstance(declared, str) and declared else None,
         0,
+        surfaces_total,
+        classification_schema,
+        verdicts,
     )
 
 
@@ -482,10 +732,24 @@ def build_gate0_report_v3(
     security_boundary_claimed: bool = False,
     fault_matrix_evidence_dir: Path | None = None,
     runtime_conformance_receipt_dir: Path | None = None,
+    repository_write_classification_input: Path | None = None,
 ) -> GateReportV3:
-    """Build v2 and repository-write evidence under a repeated drift fence."""
+    """Build v2 and repository-write evidence under a repeated drift fence.
+
+    ``repository_write_classification_input`` names a reviewed classification
+    declaration, in the same shape as the other evidence directories: the
+    caller supplies a locator, never a verdict.  The declaration is bound to
+    the exact revision and inventory digest of the scan performed here, so a
+    stale or foreign document clears nothing.  Omitting it leaves every
+    blocking surface unclassified, which is the fail-closed default.
+    """
 
     root = repo_root.resolve()
+    classification_input = (
+        None
+        if repository_write_classification_input is None
+        else Path(repository_write_classification_input)
+    )
     receipt_rows = tuple(runtime_receipts)
     mutation_rows = tuple(primary_checkout_mutations)
     fault_rows = None if fault_results is None else dict(fault_results)
@@ -503,6 +767,7 @@ def build_gate0_report_v3(
     inventory_before = _repository_write_evidence(
         root,
         source_revision=source_revision,
+        classification_input=classification_input,
     )
     base_after = _build_base_report(
         root,
@@ -517,6 +782,7 @@ def build_gate0_report_v3(
     inventory_after = _repository_write_evidence(
         root,
         source_revision=source_revision,
+        classification_input=classification_input,
     )
     if base_before.to_dict() != base_after.to_dict():
         raise GateReportV3Error(
@@ -536,6 +802,9 @@ def build_gate0_report_v3(
         diagnostics,
         inventory_schema,
         scanner_error,
+        surfaces_total,
+        classification_schema,
+        verdicts,
     ) = inventory_after
     base_fields = {
         field.name: getattr(base_after, field.name)
@@ -552,6 +821,9 @@ def build_gate0_report_v3(
         repository_write_inventory_generation=generation,
         repository_write_inventory_schema=inventory_schema,
         repository_write_scanner_error=scanner_error,
+        repository_write_surfaces_total=surfaces_total,
+        repository_write_classification_schema=classification_schema,
+        repository_write_surface_verdicts=verdicts,
         repository_write_failures=failures,
     )
 

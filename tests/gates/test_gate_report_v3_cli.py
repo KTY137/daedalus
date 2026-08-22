@@ -15,7 +15,7 @@ def test_cli_emits_machine_v3_report_and_blocked_exit(capsys) -> None:
     assert result == 1
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
-    assert payload["schema"] == "daedalus-gate-report/4"
+    assert payload["schema"] == "daedalus-gate-report/5"
     assert payload["closed"] is False
     assert payload["security_boundary_claimed"] is False
     assert payload["repository_write_inventory_sha256"] is not None
@@ -23,6 +23,16 @@ def test_cli_emits_machine_v3_report_and_blocked_exit(capsys) -> None:
     assert payload["repository_write_files_scanned"] > 0
     assert payload["repository_write_inventory_generation"] == 2
     assert payload["repository_write_failures"]
+    # The raw syntactic count and the classified census are both declared, and
+    # the census accounts for every syntactic surface.
+    assert payload["repository_write_surfaces_total"] > 0
+    assert payload["repository_write_classification_schema"] == (
+        "daedalus-gate0-repository-write-classification/1"
+    )
+    assert sum(
+        int(row.rsplit(":", 1)[1])
+        for row in payload["repository_write_surface_verdicts"]
+    ) == payload["repository_write_surfaces_total"]
     assert captured.err == ""
 
 

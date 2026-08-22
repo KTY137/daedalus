@@ -43,6 +43,14 @@ def _clean_report(**changes) -> GateReportV3:
         repository_write_inventory_schema=(
             "daedalus-gate0-repository-write-inventory/2"
         ),
+        # Pin moved with the wire at daedalus-gate-report/5: a closable report
+        # now has to declare which chain classified its surfaces and a census
+        # that accounts for every one of them.
+        repository_write_surfaces_total=1,
+        repository_write_classification_schema=(
+            "daedalus-gate0-repository-write-classification/1"
+        ),
+        repository_write_surface_verdicts=("cleared:central:1",),
     )
     return dataclasses.replace(report, **changes)
 
@@ -52,12 +60,17 @@ def test_complete_v3_report_can_close_only_with_repository_write_evidence() -> N
     assert report.closed is True
     assert report.blockers == ()
     payload = report.to_dict()
-    assert payload["schema"] == "daedalus-gate-report/4"
+    assert payload["schema"] == "daedalus-gate-report/5"
     assert payload["closed"] is True
     assert payload["repository_write_inventory_sha256"] == SHA_C
     assert payload["repository_write_scan_input_sha256"] == "d" * 64
     assert payload["repository_write_files_scanned"] == 1
     assert payload["repository_write_inventory_generation"] == 2
+    assert payload["repository_write_surfaces_total"] == 1
+    assert payload["repository_write_classification_schema"] == (
+        "daedalus-gate0-repository-write-classification/1"
+    )
+    assert payload["repository_write_surface_verdicts"] == ["cleared:central:1"]
     assert payload["repository_write_failures"] == []
     assert len(payload["report_sha256"]) == 64
     assert GateReportV3.from_dict(payload) == report
@@ -89,6 +102,18 @@ def test_complete_v3_report_can_close_only_with_repository_write_evidence() -> N
         (
             {"repository_write_failures": ("path.py:1:0:write",)},
             "repository_write_failures:path.py:1:0:write",
+        ),
+        (
+            {"repository_write_classification_schema": None},
+            "repository_write_classification_schema:unsupported:None",
+        ),
+        (
+            {"repository_write_surface_verdicts": ()},
+            "repository_write_surface_verdicts:inconsistent:0:1",
+        ),
+        (
+            {"repository_write_surface_verdicts": ("cleared:central",)},
+            "repository_write_surface_verdicts:malformed:cleared:central",
         ),
     ],
 )

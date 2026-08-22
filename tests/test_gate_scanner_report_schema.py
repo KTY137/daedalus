@@ -27,7 +27,7 @@ from daedalus.gates import repository_write_inventory as inventory
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA_PATH = ROOT / "configs" / "schemas" / "gate-report-v4.schema.json"
+SCHEMA_PATH = ROOT / "configs" / "schemas" / "gate-report-v5.schema.json"
 REVISION = "1" * 40
 SHA = "a" * 64
 
@@ -45,6 +45,12 @@ def _report(**changes) -> GateReportV3:
         repository_write_files_scanned=1,
         repository_write_inventory_generation=2,
         repository_write_inventory_schema=report_v3._INVENTORY_SCHEMA,
+        # Moved with the wire at daedalus-gate-report/5: the counters are now
+        # a classified census, so a closable report has to name the chain that
+        # classified and account for every syntactic surface.
+        repository_write_surfaces_total=1,
+        repository_write_classification_schema=report_v3._CLASSIFICATION_SCHEMA,
+        repository_write_surface_verdicts=("cleared:central:1",),
     )
     if not changes:
         return report
@@ -63,11 +69,14 @@ def test_report_wire_shape_moved_with_the_added_counters() -> None:
     payload = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     assert payload["additionalProperties"] is False
     assert payload["properties"]["schema"]["const"] == report_v3._SCHEMA
-    assert report_v3._SCHEMA == "daedalus-gate-report/4"
+    assert report_v3._SCHEMA == "daedalus-gate-report/5"
     assert set(payload["required"]) == set(report_v3._V3_FIELDS)
     for field in (
         "repository_write_inventory_schema",
         "repository_write_scanner_error",
+        "repository_write_surfaces_total",
+        "repository_write_classification_schema",
+        "repository_write_surface_verdicts",
     ):
         assert field in payload["required"]
         assert field in payload["properties"]
