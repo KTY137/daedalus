@@ -77,6 +77,7 @@ case that should now be unreachable.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -226,7 +227,36 @@ def ask(project: str, message: str, provider: str | None = None,
     unchanged; passing them is what makes "classify exactly once per request"
     true rather than merely likely. A caller that passes them is asserting they
     describe THIS message — never a cached label from a different one.
+
+    THE BOUNDARY COMES FIRST — above classification, above provider selection,
+    above the conversation lookup, exactly as ``daedalus/loop.py`` (72b5af82)
+    and ``daedalus/token_monitor.py`` (c67fd116) do it, and for the same
+    reason: no branch below can reach a socket or a vendor spawn without having
+    passed it. ``process_guard_boundary_decision`` really installs the
+    process-wide spend net and returns the decision naming what is now
+    interposed, so the receipt cannot cite a guard that never ran, and
+    ``begin_effect`` refuses the start unless the ``ikarus_os.ask`` row, the
+    declared effects and that decision agree. A refusal returns a refusal
+    envelope rather than raising: this function's contract is that it always
+    answers, and fail-closed here means the turn stops at the door, not that
+    the caller gets an exception it has never had to handle.
     """
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    try:
+        begin_effect(ASK_ENTRYPOINT_ID,
+                     REGISTRY_BY_ID[ASK_ENTRYPOINT_ID].effects,
+                     (process_guard_boundary_decision(),))
+    # Deliberately wider than EffectBoundaryError: a deleted row (KeyError), a
+    # spend net that cannot install, an import that fails -- every one of them
+    # means the door did not open, and the door not opening must stop the turn
+    # rather than raise into a caller whose contract says this never raises.
+    except Exception as exc:  # noqa: BLE001 - fail closed, then say so
+        return _refusal_envelope(project, _deny_receipt(
+            ASK_ENTRYPOINT_ID, contract="budget.process_guard", endpoint=None,
+            lane="n/a", provider="", reason=str(exc)))
+
     envelope = _ask_inner(project, message, provider, model, effort,
                           intent=intent, act=act, conversation_id=conversation_id)
     if conversation_id:
@@ -327,6 +357,12 @@ def _ask_inner(project: str, message: str, provider: str | None = None,
             # The Voice REPORTING what may_act said, not the Voice judging.
             return _act_offer(project, message, act)
         return _chat(project, message, provider, model, effort)
+    except ProviderStartRefused as exc:
+        # A REFUSAL IS NOT A SNAG. Caught above the generic handler so the
+        # deny receipt reaches the envelope intact instead of being flattened
+        # into "I hit a snag": the host, the lane and the contract that said no
+        # are the only things that make the refusal actionable.
+        return _refusal_envelope(project, exc.receipt)
     except Exception as exc:  # never 500 the chat on an internal hiccup
         return core.envelope(project, intent="error", shell=SHELL_DETERMINISTIC, assistant=f"I hit a snag: {exc}", provider_used="deterministic")
 
@@ -821,11 +857,274 @@ def _local_lane() -> str:
     return lane_for_host(os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
 
 
+# --------------------------------------------------------------------------- #
+# THE EFFECT BOUNDARY for this module                                          #
+#                                                                              #
+# daedalus/budget.py has named ikarus_os.py as one of the four independent      #
+# vendor-spend origins since the ceiling was written, and until now this file   #
+# had no canonical start at all: a chat turn could spend money and open a       #
+# socket without one row in the registry. Two levels, matching the two          #
+# questions:                                                                    #
+#                                                                               #
+#   THE DOOR (``ask`` / ``_ask_stream_inner``) authorises the TURN. It runs     #
+#   before classification and before provider selection, and its guard          #
+#   decision really installs the process-wide spend net, so every later         #
+#   urlopen/spawn in this process -- including ones this module does not know   #
+#   about -- is priced against the ceiling.                                     #
+#                                                                               #
+#   THE TRANSPORT (``_provider_start``) authorises ONE call to ONE endpoint.    #
+#   It cannot live at the door: the endpoint is not known there, and a status   #
+#   turn must not be refused for an egress it never performs.                   #
+#                                                                               #
+# Neither is a sandbox. The door is a chokepoint for the paths that go through  #
+# it, and the registry anchors make deleting either one a conformance blocker   #
+# rather than a silent regression.                                              #
+# --------------------------------------------------------------------------- #
+ASK_ENTRYPOINT_ID = "ikarus_os.ask"
+ASK_STREAM_ENTRYPOINT_ID = "ikarus_os.ask_stream"
+PROVIDER_ENTRYPOINT_ID = "ikarus_os.provider_call"
+
+#: What each provider branch actually does, requested per branch rather than as
+#: the row's union: ollama over loopback spends nothing, and a CLI spawn opens
+#: no socket in THIS process. Asking for an effect you do not perform is how a
+#: registry stops meaning anything.
+_PROVIDER_EFFECTS: dict[str, tuple[str, ...]] = {
+    "ollama": ("network_egress",),
+    "deepseek": ("network_egress", "spend", "secrets"),
+    "claude": ("process_spawn", "spend"),
+    "codex": ("process_spawn", "spend"),
+}
+
+#: The budget vendor key per branch -- the same names ``classify_argv`` /
+#: ``classify_url`` give the interposer, so the pre-flight and the net cannot
+#: disagree about what a call costs.
+_PROVIDER_VENDORS: dict[str, str] = {
+    "ollama": "local_inference",
+    "deepseek": "deepseek",
+    "claude": "anthropic_cli",
+    "codex": "openai_cli",
+}
+
+
+class ProviderStartRefused(RuntimeError):
+    """One provider transport was refused BEFORE it existed.
+
+    Carries the content-addressed deny receipt as ``.receipt``. Raised out of
+    the sink functions and caught once, in :func:`_ask_inner`, which turns it
+    into an ordinary refusal envelope -- :func:`ask` still never raises.
+    """
+
+    def __init__(self, receipt: dict):
+        super().__init__(str(receipt.get("reason") or "provider start refused"))
+        self.receipt = receipt
+
+
+def _deny_receipt(entrypoint_id: str, *, contract: str, endpoint: str | None,
+                  lane: str, reason: str, provider: str = "") -> dict:
+    """A content-addressed record of a refusal, shaped like the embedding
+    backend's (daedalus/memory/embeddings.py) so both egress refusals in this
+    repo read the same. ``connected`` is a claim about control flow: the
+    decision is taken before the request object or the argv exists."""
+    receipt = {
+        "entrypoint_id": entrypoint_id,
+        "verdict": "deny",
+        "contract": contract,
+        "provider": provider,
+        "host": endpoint,
+        "lane": lane,
+        "reason": reason,
+        "connected": False,
+        "spawned": False,
+        "security_boundary_claimed": False,
+        "at": core.now_iso(),
+    }
+    try:
+        from .spine.effect_boundary import registry_sha256
+
+        receipt["registry_sha256"] = registry_sha256()
+    except Exception:  # a registry that cannot be hashed still refuses
+        receipt["registry_sha256"] = ""
+    receipt["receipt_sha256"] = hashlib.sha256(
+        json.dumps({k: v for k, v in receipt.items() if k != "at"},
+                   sort_keys=True, separators=(",", ":"),
+                   ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    return receipt
+
+
+def _spend_decision(vendor: str, model: str | None, *, host: str | None = None,
+                    calls: int = 1):
+    """The ``budget.process_guard`` decision for one about-to-happen call.
+
+    It installs the net (that is what makes the receipt's evidence true) and
+    then asks the ledger the SAME two questions ``Ledger.reserve`` asks -- does
+    this dollar estimate cross the ceiling, does this call cross the call cap --
+    as a READ. It deliberately does not reserve: the interposer reserves at the
+    socket/spawn, so reserving here would count the same call twice. What this
+    buys is that the refusal happens before the connection instead of inside
+    it, and arrives as a named verdict instead of a swallowed exception.
+
+    FAILS CLOSED. An unreadable ledger, an unpriceable vendor, or any other
+    error is a denial, never a pass -- absence of a budget is not absence of a
+    ceiling.
+    """
+    from .spine.effect_boundary import GuardDecision
+
+    try:
+        from . import budget
+
+        installed = budget.process_guard_boundary_decision()
+    except Exception as exc:
+        return GuardDecision(
+            "budget.process_guard", False,
+            f"the process spend net could not be installed ({type(exc).__name__}: "
+            f"{exc}), so no vendor call may start")
+    if not installed.allowed:
+        return installed
+    try:
+        est = budget.price_call(vendor, model, calls=calls, host=host)
+        state = budget.ledger().state()
+    except Exception as exc:
+        return GuardDecision(
+            "budget.process_guard", False,
+            f"the budget ledger could not be read for vendor {vendor!r} "
+            f"({type(exc).__name__}: {exc}); an unknown ceiling is not an "
+            f"absent ceiling")
+    over_dollars = (est.usd > 0
+                    and state.committed_usd + est.usd > state.ceiling_usd)
+    billable = est.basis != "free_local"
+    over_calls = (billable
+                  and state.calls + state.open_calls + calls > state.max_calls)
+    if over_dollars or over_calls:
+        crossed = "spend ceiling" if over_dollars else "call-count cap"
+        return GuardDecision(
+            "budget.process_guard", False,
+            f"the {crossed} would be crossed by this {vendor} call: estimate "
+            f"${est.usd:.4f} (basis={est.basis}), committed "
+            f"${state.committed_usd:.4f} of ${state.ceiling_usd:.4f}, "
+            f"{state.calls + state.open_calls} of {state.max_calls} calls used "
+            f"in period {state.period_key}")
+    return GuardDecision(
+        "budget.process_guard", True,
+        f"{installed.evidence}; ledger headroom checked before the call: "
+        f"estimate ${est.usd:.4f} (basis={est.basis}) against "
+        f"${state.ceiling_usd - state.committed_usd:.4f} remaining and "
+        f"{state.max_calls - state.calls - state.open_calls} calls left")
+
+
+def _egress_decision(provider_key: str, endpoint: str | None):
+    """The ``provider.egress_policy`` decision, and the lane it found.
+
+    For the Ollama transport this is NOT a second opinion: it delegates to
+    :func:`daedalus.providers.ollama.ollama_endpoint_admission`, the one
+    implementation of "may bytes reach this endpoint at all" (lane_for_host
+    plus exact-endpoint operator consent), which the embedding backend also
+    calls. Two copies of that answer would be free to drift.
+
+    DeepSeek's endpoint is a declared vendor API, so the question there is
+    credentials: no key means nothing may be sent. The two CLIs open no socket
+    in this process -- the vendor binary carries its own transport and its own
+    auth -- so the decision states exactly that and refuses when the binary
+    did not resolve.
+    """
+    from .spine.effect_boundary import GuardDecision
+
+    if provider_key == "ollama":
+        from .providers.ollama import ollama_endpoint_admission
+
+        allowed, lane, why = ollama_endpoint_admission(endpoint)
+        return GuardDecision("provider.egress_policy", allowed, why), lane
+    if provider_key == "deepseek":
+        from .sensitivity import lane_for_host
+
+        lane = lane_for_host(endpoint)
+        keyed = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+        return GuardDecision(
+            "provider.egress_policy", keyed,
+            f"lane_for_host({endpoint!r}) == {lane!r}: the declared DeepSeek "
+            f"API endpoint; DEEPSEEK_API_KEY is "
+            + ("present, and the context slice for this turn was built on the "
+               "untrusted lane (secret floor + default-deny)"
+               if keyed else
+               "absent, so this process holds no credential for that endpoint "
+               "and may send nothing to it")), lane
+    lane = "untrusted"
+    return GuardDecision(
+        "provider.egress_policy", bool(endpoint),
+        f"vendor CLI {endpoint!r}: this process opens no socket for it and "
+        f"reads no key for it -- the binary carries its own transport and "
+        f"auth. It is spawned from a neutral cwd (never the project repo), so "
+        f"what leaves with it is the prompt plus the gated context slice and "
+        f"nothing the cwd would have added"
+        if endpoint else
+        "the vendor CLI did not resolve on PATH, so nothing can leave with it"
+    ), lane
+
+
+def _provider_start(provider_key: str, *, endpoint: str | None,
+                    model: str | None = None, calls: int = 1):
+    """Authorise ONE provider transport, or raise :class:`ProviderStartRefused`.
+
+    Called as the first statement of every function in this module that reaches
+    a socket or spawns a vendor -- before the request object, before the argv.
+    That placement, not a mock, is what makes "a refused turn costs zero
+    connections" true.
+
+    The decisions are not taken here: ``ollama_endpoint_admission`` and the
+    budget ledger own them, in the modules that already own them.
+    ``begin_effect`` owns the start -- it re-checks the row, the requested
+    effects and the contracts, and refuses a decision that says no. This
+    function only carries the answers between them and shapes a refusal into
+    something a reader can act on.
+    """
+    from .spine.effect_boundary import EffectBoundaryError, begin_effect
+
+    vendor = _PROVIDER_VENDORS.get(provider_key, provider_key)
+    effects = _PROVIDER_EFFECTS.get(provider_key)
+    if effects is None:
+        raise ProviderStartRefused(_deny_receipt(
+            PROVIDER_ENTRYPOINT_ID, contract="provider.egress_policy",
+            endpoint=endpoint, lane="unknown", provider=provider_key,
+            reason=f"no declared effect set for provider {provider_key!r}"))
+    egress, lane = _egress_decision(provider_key, endpoint)
+    # The host is passed to the pricer for the HTTP lanes on purpose: the
+    # question is never "which provider is this" but "where do the bytes go".
+    spend = _spend_decision(
+        vendor, model,
+        host=endpoint if provider_key in ("ollama", "deepseek") else None,
+        calls=calls)
+    try:
+        return begin_effect(PROVIDER_ENTRYPOINT_ID, effects, (spend, egress))
+    except EffectBoundaryError as exc:
+        denied = next((d for d in (egress, spend) if not d.allowed), None)
+        raise ProviderStartRefused(_deny_receipt(
+            PROVIDER_ENTRYPOINT_ID,
+            contract=denied.contract if denied else "effect_boundary",
+            endpoint=endpoint, lane=lane, provider=provider_key,
+            reason=str(exc))) from exc
+
+
+def _refusal_envelope(project: str, receipt: dict) -> dict:
+    """A refused turn, spoken. The host/endpoint is named in the text as well as
+    in the receipt: a withheld call nobody can attribute to an endpoint is a
+    refusal nobody can fix."""
+    where = receipt.get("host") or receipt.get("entrypoint_id")
+    return core.envelope(
+        project, intent="error", shell=SHELL_DETERMINISTIC,
+        assistant=(f"I didn't make that call. The {receipt.get('contract')} "
+                   f"contract refused it before anything left this machine "
+                   f"(endpoint: {where}). Reason: {receipt.get('reason')}"),
+        provider_used="deterministic", model_used=None, refusal=receipt)
+
+
 def _ollama(message: str, model: str, effort: str | None,
             context: str = "") -> str | None:
     from .providers.ollama import DEFAULT_HOST, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    # BEFORE warm_model_async, which connects on a daemon thread, and before
+    # the request is built. A repointed OLLAMA_HOST is refused here.
+    _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     # Refresh VRAM residency off-thread. Purely a side effect: the reply text and
     # envelope are byte-for-byte what they were, but the NEXT turn skips the
@@ -856,6 +1155,8 @@ def _deepseek(message: str, model: str, effort: str | None,
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
+    # The paid lane, refused before the socket when the ledger has no room.
+    _provider_start("deepseek", endpoint=base_url, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     try:
         txt = chat_completion(
@@ -900,6 +1201,8 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
     path = shutil.which("claude")
     if not path:
         return None
+    # Before the argv exists: a refused start costs zero spawns.
+    _provider_start("claude", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)
     args = [path, "-p"]
     if model:
@@ -928,6 +1231,7 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
     path = shutil.which("codex")
     if not path:
         return None
+    _provider_start("codex", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)  # model-agnostic SYSTEM+context+turn assembly
     try:
         with tempfile.TemporaryDirectory(prefix="daedalus-codex-chat-") as td:
@@ -1031,7 +1335,29 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
 
     Fail-closed: any streaming failure (unsupported flag, dead runtime, mid-
     stream error) degrades to the blocking path rather than erroring the chat.
+
+    THE BOUNDARY COMES FIRST, here and not in :func:`ask_stream`. The tap
+    around this generator only persists the final turn; THIS is the function
+    that selects a provider and builds a streamer, so a caller that drives the
+    inner generator directly must pass the same door. A refusal is spoken as
+    start+final instead of raised, because a generator that raises on its first
+    ``next()`` is not something the SSE surface can render.
     """
+    from .budget import process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
+
+    try:
+        begin_effect(ASK_STREAM_ENTRYPOINT_ID,
+                     REGISTRY_BY_ID[ASK_STREAM_ENTRYPOINT_ID].effects,
+                     (process_guard_boundary_decision(),))
+    except Exception as exc:  # noqa: BLE001 - see ask(): fail closed, then say so
+        yield "start", {"intent": "error", "shell": SHELL_DETERMINISTIC,
+                        "provider_used": "deterministic"}
+        yield "final", _refusal_envelope(project, _deny_receipt(
+            ASK_STREAM_ENTRYPOINT_ID, contract="budget.process_guard",
+            endpoint=None, lane="n/a", provider="", reason=str(exc)))
+        return
+
     message = (message or "").strip()
     if not message:
         yield "start", {"intent": "chat", "shell": SHELL_DETERMINISTIC,
@@ -1120,6 +1446,14 @@ def _ask_stream_inner(project: str, message: str, provider: str | None = None,
             if piece:
                 chunks.append(piece)
                 yield "delta", {"text": piece}
+    except ProviderStartRefused as exc:
+        # The transport boundary refused on the generator's FIRST step, before
+        # any request object existed — so no delta was ever produced and there
+        # is nothing to fall back to. Speak the refusal instead of degrading to
+        # the blocking path, which would only reach the same verdict one
+        # classification later.
+        yield "final", _reconcile_final(route, _refusal_envelope(project, exc.receipt))
+        return
     except Exception:
         failed = True  # fall through to the blocking path
 
@@ -1145,6 +1479,8 @@ def _ollama_stream(message: str, model: str, effort: str | None, context: str = 
     from .providers.ollama import DEFAULT_HOST, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    # Before warm_model_async's daemon thread and before the stream request.
+    _provider_start("ollama", endpoint=host, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     warm_model_async(host, model)  # non-blocking: never delays this reply
     yield from chat_stream(
@@ -1163,6 +1499,7 @@ def _deepseek_stream(message: str, model: str, effort: str | None, context: str 
 
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
+    _provider_start("deepseek", endpoint=base_url, model=model)
     system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
     yield from chat_stream(
         base_url=base_url, model=model, system=system, user=_with_context(message, context),
@@ -1187,6 +1524,7 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     path = shutil.which("claude")
     if not path:
         return
+    _provider_start("claude", endpoint=path, model=model)
     prompt = _claude_prompt(message, effort, context)
     args = [path, "-p", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose"]

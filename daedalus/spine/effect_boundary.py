@@ -269,10 +269,36 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         id="python.attempt",
         surface=Surface.PYTHON,
         target="daedalus.spine.attempt:run_attempt",
+        # UNCHANGED, and checked against what the path really does: the
+        # isolated worktree and the artifact deposit are FILESYSTEM_WRITE, the
+        # gate child is PROCESS_SPAWN, and `git worktree add -b` writes a
+        # branch ref into the primary .git, which is REPOSITORY_MUTATION.
+        # NETWORK_EGRESS and SPEND are deliberately absent: the model call
+        # belongs to the INJECTED runner, which crosses its own `python.offload`
+        # boundary under its own lease. Declaring them here would claim this row
+        # bounds a spend it neither meters nor limits -- see
+        # `receipts.SPEND_GRANT_REASON`.
         effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.REPOSITORY_MUTATION),
-        guard_contracts=("spine.intent_ledger", "containment.attempt"),
-        wiring=Wiring.LOCAL_GUARDS,
-        notes="Canonical attempt path, but direct Python callers do not yet obtain a boundary receipt.",
+        guard_contracts=(
+            "spine.intent_ledger",
+            "containment.worktree",
+            "containment.attempt",
+            "budget.process_guard",
+        ),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.spine.attempt:TaskAttempt.run", "begin_effect"),
+        ),
+        notes=(
+            "The attempt starts at the central boundary before the intent "
+            "write, the worktree, the runner and the gate. The anchor names "
+            "TaskAttempt.run rather than the registered run_attempt wrapper "
+            "because TaskAttempt(...).run() is a live call shape, and a "
+            "boundary a caller can walk around by choosing a constructor is "
+            "not a boundary. The receipt is the source of the canonical "
+            "PolicyDecision (receipts.attempt_policy_decision)."
+        ),
+        migration="complete for the python.attempt entrypoint",
     ),
     EntrypointSpec(
         id="kernel.attempt.begin",
@@ -1854,6 +1880,122 @@ _REMAINDER_PROVIDER_ROWS: tuple[EntrypointSpec, ...] = (
 )
 
 ENTRYPOINTS += _REMAINDER_PROVIDER_ROWS
+
+
+# The Ikarus chat surface.  ``daedalus/budget.py`` has named ikarus_os.py as one
+# of the four independent vendor-spend origins since the ceiling was written,
+# and the registry had no row for it: the two public doors reach four provider
+# runtimes (two HTTP, two vendor CLIs), so a chat turn could spend money and
+# open a socket without any canonical start.  The scanner cannot see it -- its
+# effects are all one call deeper than ``ask``/``ask_stream`` -- which is
+# exactly why the rows are hand-declared here rather than waiting to be
+# discovered.  Expect these three targets among the ``entrypoint.not_rediscovered``
+# review rows for that reason; the AST existence check still catches staleness.
+_IKARUS_CHAT_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="ikarus_os.ask",
+        surface=Surface.PYTHON,
+        target="daedalus.ikarus_os:ask",
+        effects=(
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.ikarus_os:ask", "begin_effect"),),
+        notes=(
+            "The blocking chat door. The boundary is the FIRST statement of "
+            "ask(), above intent classification and above provider selection, "
+            "so no route can reach a runtime without having passed it and the "
+            "process-wide spend net is really installed before the turn "
+            "branches. Declared effects are the union of what the four "
+            "provider branches do one call deeper: network_egress "
+            "(_ollama/_deepseek over urllib), process_spawn (_claude/_codex "
+            "spawn the vendor CLI), spend (deepseek/claude/codex) and secrets "
+            "(DEEPSEEK_API_KEY is read in-process; the two CLIs carry their "
+            "own credentials). The per-transport admission is a separate start "
+            "-- see ikarus_os.provider_call -- because the endpoint is not "
+            "known at the door and a status turn must not be refused for an "
+            "egress it never performs."
+        ),
+        migration="complete for the ikarus_os.ask entrypoint",
+    ),
+    EntrypointSpec(
+        id="ikarus_os.ask_stream",
+        surface=Surface.PYTHON,
+        target="daedalus.ikarus_os:ask_stream",
+        effects=(
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.ikarus_os:ask_stream", "_ask_stream_inner"),
+            GuardAnchor("daedalus.ikarus_os:_ask_stream_inner", "begin_effect"),
+        ),
+        notes=(
+            "The streaming twin, same effects and same door discipline. "
+            "ask_stream() is a thin tap that only persists the final turn, so "
+            "the boundary sits at the top of _ask_stream_inner() -- the "
+            "generator that actually selects a provider -- and both anchors "
+            "are pinned: the delegation and the start. Putting it in the tap "
+            "instead would leave a caller that drives the inner generator "
+            "directly unguarded."
+        ),
+        migration="complete for the ikarus_os.ask_stream entrypoint",
+    ),
+    EntrypointSpec(
+        id="ikarus_os.provider_call",
+        surface=Surface.PYTHON,
+        target="daedalus.ikarus_os:_provider_start",
+        effects=(
+            Effect.NETWORK_EGRESS,
+            Effect.PROCESS_SPAWN,
+            Effect.SPEND,
+            Effect.SECRETS,
+        ),
+        guard_contracts=("budget.process_guard", "provider.egress_policy"),
+        wiring=Wiring.CENTRAL,
+        anchors=(
+            GuardAnchor("daedalus.ikarus_os:_provider_start", "begin_effect"),
+            # One anchor per sink so deleting the admission from any single
+            # transport is a conformance blocker, not a silent regression.
+            GuardAnchor("daedalus.ikarus_os:_ollama", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_deepseek", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_claude", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_codex", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_ollama_stream", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_deepseek_stream", "_provider_start"),
+            GuardAnchor("daedalus.ikarus_os:_claude_stream", "_provider_start"),
+        ),
+        notes=(
+            "ONE transport start, taken inside each of the seven sink "
+            "functions before the request object or the argv exists, so "
+            "'zero connects on refusal' is a property of the control flow. "
+            "Each branch requests only the effects it performs (ollama: "
+            "network_egress; deepseek: network_egress/spend/secrets; "
+            "claude+codex: process_spawn/spend). provider.egress_policy is "
+            "ollama_endpoint_admission -- the same lane_for_host decision the "
+            "embedding backend takes -- so a repointed OLLAMA_HOST is refused "
+            "before connect with a receipt that names the host. "
+            "budget.process_guard installs the net and then mirrors "
+            "Ledger.reserve's own two refusal conditions (dollar ceiling, "
+            "call cap) as a READ, never a reservation: the interposer still "
+            "does the reserving at the socket, so the money is counted once "
+            "and the pre-flight only makes the same verdict legible and "
+            "early. It fails closed on an unreadable ledger or an unpriceable "
+            "vendor."
+        ),
+        migration="complete for the ikarus_os.provider_call entrypoint",
+    ),
+)
+
+ENTRYPOINTS += _IKARUS_CHAT_ROWS
 
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(
