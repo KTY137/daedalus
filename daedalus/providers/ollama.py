@@ -827,12 +827,16 @@ class OllamaProvider(Provider):
     # -- rewrite prompts: whole file, or one window at a time ----------------
 
     def _full_file_content(self, objective, rel, original, creating, slice_texts,
-                           dropped, model, timeout_s, repo_root=None):
+                           dropped, model, timeout_s, repo_root=None, telemetry=None):
         """Ask for the ENTIRE edited file. Returns ``(content, None)`` or
         ``(None, reason)``. Behaviour is byte-for-byte what it was before the
         windowed path existed -- this is an extraction, not a change; ``dropped``
         is appended to in place because shedding the distilled slice is
-        provenance the caller reports."""
+        provenance the caller reports.
+
+        ``telemetry`` is the same in-place channel for the SHED decision: one
+        row per full-file prompt built, appended whether or not the brief was
+        shed (see :meth:`_run_rewrite`)."""
         if len(original) > MAX_REWRITE_CHARS:
             return None, "too large for full rewrite"
         system = (
@@ -874,6 +878,27 @@ class OllamaProvider(Provider):
         est_in = count_tokens(system) + count_tokens(user)
         output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
         window = effective_input_window(output_reserve)
+        # SHED TELEMETRY. Whether this prompt carried the structural brief is
+        # the TREATMENT variable of any graph-conditioning measurement, and it
+        # is assigned right here -- by est_in against the window, i.e. by task
+        # size. Unrecorded, treatment and task size are confounded and no later
+        # comparison of briefed against unbriefed runs can be read (giga plan
+        # Phase 3; Lens E dissent 4 / Lens D for_codex 5). Three fields, fixed
+        # meanings: ``est_in`` is the estimate the decision was MADE on (brief
+        # still in the prompt, cl100k over-count -- the assignment variable, not
+        # the tokens the server saw); ``brief_shed`` is whether the brief was
+        # then removed to fit; ``brief_bytes`` is the UTF-8 size of the brief
+        # block that actually reached the model, so 0 once it is shed and 0 when
+        # none was built. The row is appended BEFORE the decision and amended in
+        # place, so a refusal below cannot lose it.
+        shed_row = {
+            "rel": rel,
+            "brief_shed": False,
+            "est_in": int(est_in),
+            "brief_bytes": len(brief_block.encode("utf-8")),
+        }
+        if telemetry is not None:
+            telemetry.append(shed_row)
         if est_in > window and brief_block:
             # Shed the brief FIRST: it is a convenience against a specific,
             # measured failure mode, not project context the caller curated for
@@ -881,6 +906,8 @@ class OllamaProvider(Provider):
             user = user.replace(brief_block, "")
             brief_block = ""
             est_in = count_tokens(system) + count_tokens(user)
+            shed_row["brief_shed"] = True
+            shed_row["brief_bytes"] = 0
         if est_in > window:
             if had_slice:  # shed the distilled context next, then re-check
                 user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
@@ -1106,6 +1133,7 @@ class OllamaProvider(Provider):
         changed: list[str] = []
         skipped: dict[str, str] = {}
         dropped: list[str] = []            # rels whose slice context we shed to fit
+        shed: list[dict[str, Any]] = []    # one row per full-file prompt (see below)
         slice_texts = slice_texts or {}
         rewrite_windows = rewrite_windows or {}
         windowed: list[str] = []           # rels edited through a line window
@@ -1157,7 +1185,7 @@ class OllamaProvider(Provider):
                 original = (disk_original.replace("\r\n", "\n").replace("\r", "\n"))
                 content, reason = self._full_file_content(
                     objective, rel, original, creating, slice_texts, dropped,
-                    model, timeout_s, repo_root=repo_root)
+                    model, timeout_s, repo_root=repo_root, telemetry=shed)
                 if reason:
                     skipped[rel] = reason
                     continue
@@ -1211,6 +1239,15 @@ class OllamaProvider(Provider):
         if skipped:
             summary += " Skipped: " + "; ".join(f"{k} ({v})" for k, v in skipped.items())
         handoff: dict[str, Any] = {}
+        # UNCONDITIONAL, empty list included. Every other handoff key here is a
+        # conditional annotation; this one is a covariate, and a covariate that
+        # is only present when it is interesting cannot be regressed on -- an
+        # absent key would be indistinguishable from "no brief decision was ever
+        # made". Empty means exactly that: no full-file prompt was built (a
+        # windowed edit carries no brief), which is itself the honest reading.
+        # It rides `handoff` rather than the top level because schemas.REPORT_KEYS
+        # is a closed set and validate_report rejects unknown top-level keys.
+        handoff["shed_telemetry"] = shed
         if windowed:
             handoff["windowed_rewrite"] = windowed
         if skipped:
