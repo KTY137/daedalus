@@ -1,0 +1,644 @@
+{
+  "task": "CENSUS-TRUNK",
+  "phase": "giga-plan Phase 0 preruling (read-only measurement)",
+  "utc": "2026-08-22T07:27:12Z",
+  "source_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "source_sha_short": "93f11adf",
+  "branch": "work/g0-trunk-20260817",
+  "plan_revision_claimed_by_config": "6 / 1.2.3",
+  "disposable_worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+  "worktree_head_at_receipt_time": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "worktree_head_matches_pin": true,
+  "worktree_dirty_paths_after_runs": [
+    " M runs/budget/ledger.json"
+  ],
+  "process_count_before_INHERITED": 442,
+  "process_count_after_INHERITED": 444,
+  "commands": [
+    {
+      "name": "run_gate_checks",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/run_gate_checks.py",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 2,
+      "timed_out": false,
+      "wall_seconds": 0.12,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\run_gate_checks.stdout.txt",
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_tail_RAW": "",
+      "stderr_tail_RAW": "usage: run_gate_checks.py [-h] [--list] [--skip-plan] {g0,g1,consolidated}\nrun_gate_checks.py: error: the following arguments are required: profile"
+    },
+    {
+      "name": "effect_boundary_check",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/effect_boundary_check.py",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 8.57,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\effect_boundary_check.stdout.txt",
+      "raw_stdout_sha256": "1b8aba6acd403d906c6df01e581129b36912ce9c53882ebec22ae4e1bd899e1c",
+      "stdout_tail_RAW": "[REVIEW ] entrypoint.harness: scripts.run_spine_durability_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_spine_writer_factory_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_spine_writer_inventory_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_trust_bundle_wire_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.container_oom_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.effect_ledger_contention_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.linux_process_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.linux_process_tree_fixture:main -- dev-harness entrypoint (process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.runtime_probe_fixture:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.runtime_trust_contention_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.sandbox_unavailable_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unauthorized_egress_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.undeclared_secret_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unknown_outcome_reconciliation_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_hardening:_StubProvider.run -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.create_session -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.interrupt -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.send -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.terminate -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_ollama_native:_Handler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_projection_worker:_EmbedHandler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.not_rediscovered: runs.council.room_server:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.guarded_call:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.system_check:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] scan.static_scope: python-ast -- static Python discovery is a drift detector, not whole-program reachability; dynamic imports, native code, shell/JS, and external clients still require an effect boundary or OS containment",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "gates_report",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m daedalus.gates report --gate 0 --repo-root . --source-revision 93f11adfb08efa713711fd62e9be7b46d8957166",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 12.86,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\gates_report.stdout.txt",
+      "raw_stdout_sha256": "7bca9c9da277116be01af4a983ee9c177402b103f5dc385dd0b751cedc7a756c",
+      "stdout_tail_RAW": "    \"provider.claude\",\n    \"provider.codex\",\n    \"provider.deepseek\",\n    \"provider.deepseek.rollback\",\n    \"provider.ollama.rollback\",\n    \"provider.ollama_native\",\n    \"runs.gate0_matrix.verify_whole_matrix\",\n    \"runtimes.fault_attestation_issuer\",\n    \"tools.iron_plan_guard\",\n    \"tools.iron_plan_hook_runner\"\n  ],\n  \"missing_guard_contracts\": [],\n  \"owner_approval_enforced\": true,\n  \"primary_checkout_mutations\": [],\n  \"registry_sha256\": \"262fcd647491739dc2cd1011c64e59493c4d80a25656d55cc890da327f9f0aca\",\n  \"report_sha256\": \"bc1a312f05e900ccd99de3064c75e0a7c86d3df4291b32cc818bd3f3852cc3e5\",\n  \"runtime_conformance_failures\": [\n    \"runtime-conformance-receipts:unbound:no-persisted-receipt-bundle\"\n  ],\n  \"schema\": \"daedalus-gate-report/2\",\n  \"security_boundary_claimed\": false,\n  \"source_revision\": \"93f11adfb08efa713711fd62e9be7b46d8957166\",\n  \"unguarded_entrypoints\": [],\n  \"unregistered_effectful_entrypoints\": []\n}",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "assert_gate_report",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/assert_gate_report.py --report C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\gate0_report.json --require-closed",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 1,
+      "timed_out": false,
+      "wall_seconds": 1.07,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\assert_gate_report.stdout.txt",
+      "raw_stdout_sha256": "21c45e742b965f33c8a3d2d4f61d88ab31bfa471858766ea8c308e52ff4e7f2a",
+      "stdout_tail_RAW": "{\n  \"closed\": false,\n  \"blockers\": [\n    \"fault_injection_failures:whole-matrix:unbound:no-verdict-at-cited-revision:candidates=gate0-matrix-2026-08-17,gate0-matrix-20260818-closure,gate0-matrix-20260818-head,gate0-matrix-20260818-morning\",\n    \"inventory_only_production_entrypoints:provider.claude\",\n    \"inventory_only_production_entrypoints:provider.codex\",\n    \"inventory_only_production_entrypoints:provider.deepseek\",\n    \"inventory_only_production_entrypoints:provider.deepseek.rollback\",\n    \"inventory_only_production_entrypoints:provider.ollama.rollback\",\n    \"inventory_only_production_entrypoints:provider.ollama_native\",\n    \"inventory_only_production_entrypoints:runs.gate0_matrix.verify_whole_matrix\",\n    \"inventory_only_production_entrypoints:runtimes.fault_attestation_issuer\",\n    \"inventory_only_production_entrypoints:tools.iron_plan_guard\",\n    \"inventory_only_production_entrypoints:tools.iron_plan_hook_runner\",\n    \"runtime_conformance_failures:runtime-conformance-receipts:unbound:no-persisted-receipt-bundle\",\n    \"security_boundary_claimed:false\"\n  ]\n}",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "run_gate_checks",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/run_gate_checks.py",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 2,
+      "timed_out": false,
+      "wall_seconds": 0.11,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\run_gate_checks.stdout.txt",
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_tail_RAW": "",
+      "stderr_tail_RAW": "usage: run_gate_checks.py [-h] [--list] [--skip-plan] {g0,g1,consolidated}\nrun_gate_checks.py: error: the following arguments are required: profile"
+    },
+    {
+      "name": "run_gate_checks_g0",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/run_gate_checks.py g0",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 1,
+      "timed_out": false,
+      "wall_seconds": 0.16,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\run_gate_checks_g0.stdout.txt",
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_tail_RAW": "",
+      "stderr_tail_RAW": "Traceback (most recent call last):\n  File \"C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\tools\\run_gate_checks.py\", line 71, in <module>\n    raise SystemExit(main())\n  File \"C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\tools\\run_gate_checks.py\", line 56, in main\n    from daedalus.budget import process_guard_boundary_decision\nImportError: cannot import name 'process_guard_boundary_decision' from 'daedalus.budget' (C:\\Users\\nukei\\Desktop\\agent_env\\daedalus\\budget.py)"
+    },
+    {
+      "name": "effect_boundary_check",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/effect_boundary_check.py",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 7.69,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\effect_boundary_check.stdout.txt",
+      "raw_stdout_sha256": "1b8aba6acd403d906c6df01e581129b36912ce9c53882ebec22ae4e1bd899e1c",
+      "stdout_tail_RAW": "[REVIEW ] entrypoint.harness: scripts.run_spine_durability_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_spine_writer_factory_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_spine_writer_inventory_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: scripts.run_trust_bundle_wire_mutations:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.container_oom_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.effect_ledger_contention_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.linux_process_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.linux_process_tree_fixture:main -- dev-harness entrypoint (process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.runtime_probe_fixture:main -- dev-harness entrypoint (filesystem_write, process_spawn) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.runtime_trust_contention_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.sandbox_unavailable_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unauthorized_egress_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.undeclared_secret_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unknown_outcome_reconciliation_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_hardening:_StubProvider.run -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.create_session -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.interrupt -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.send -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.terminate -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_ollama_native:_Handler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_projection_worker:_EmbedHandler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.not_rediscovered: runs.council.room_server:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.guarded_call:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.system_check:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] scan.static_scope: python-ast -- static Python discovery is a drift detector, not whole-program reachability; dynamic imports, native code, shell/JS, and external clients still require an effect boundary or OS containment",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "gates_report",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m daedalus.gates report --gate 0 --repo-root . --source-revision 93f11adfb08efa713711fd62e9be7b46d8957166",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 0,
+      "timed_out": false,
+      "wall_seconds": 11.77,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\gates_report.stdout.txt",
+      "raw_stdout_sha256": "7bca9c9da277116be01af4a983ee9c177402b103f5dc385dd0b751cedc7a756c",
+      "stdout_tail_RAW": "    \"provider.claude\",\n    \"provider.codex\",\n    \"provider.deepseek\",\n    \"provider.deepseek.rollback\",\n    \"provider.ollama.rollback\",\n    \"provider.ollama_native\",\n    \"runs.gate0_matrix.verify_whole_matrix\",\n    \"runtimes.fault_attestation_issuer\",\n    \"tools.iron_plan_guard\",\n    \"tools.iron_plan_hook_runner\"\n  ],\n  \"missing_guard_contracts\": [],\n  \"owner_approval_enforced\": true,\n  \"primary_checkout_mutations\": [],\n  \"registry_sha256\": \"262fcd647491739dc2cd1011c64e59493c4d80a25656d55cc890da327f9f0aca\",\n  \"report_sha256\": \"bc1a312f05e900ccd99de3064c75e0a7c86d3df4291b32cc818bd3f3852cc3e5\",\n  \"runtime_conformance_failures\": [\n    \"runtime-conformance-receipts:unbound:no-persisted-receipt-bundle\"\n  ],\n  \"schema\": \"daedalus-gate-report/2\",\n  \"security_boundary_claimed\": false,\n  \"source_revision\": \"93f11adfb08efa713711fd62e9be7b46d8957166\",\n  \"unguarded_entrypoints\": [],\n  \"unregistered_effectful_entrypoints\": []\n}",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "assert_gate_report",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/assert_gate_report.py --report C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\gate0_report.json --require-closed",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 1,
+      "timed_out": false,
+      "wall_seconds": 0.33,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\assert_gate_report.stdout.txt",
+      "raw_stdout_sha256": "21c45e742b965f33c8a3d2d4f61d88ab31bfa471858766ea8c308e52ff4e7f2a",
+      "stdout_tail_RAW": "{\n  \"closed\": false,\n  \"blockers\": [\n    \"fault_injection_failures:whole-matrix:unbound:no-verdict-at-cited-revision:candidates=gate0-matrix-2026-08-17,gate0-matrix-20260818-closure,gate0-matrix-20260818-head,gate0-matrix-20260818-morning\",\n    \"inventory_only_production_entrypoints:provider.claude\",\n    \"inventory_only_production_entrypoints:provider.codex\",\n    \"inventory_only_production_entrypoints:provider.deepseek\",\n    \"inventory_only_production_entrypoints:provider.deepseek.rollback\",\n    \"inventory_only_production_entrypoints:provider.ollama.rollback\",\n    \"inventory_only_production_entrypoints:provider.ollama_native\",\n    \"inventory_only_production_entrypoints:runs.gate0_matrix.verify_whole_matrix\",\n    \"inventory_only_production_entrypoints:runtimes.fault_attestation_issuer\",\n    \"inventory_only_production_entrypoints:tools.iron_plan_guard\",\n    \"inventory_only_production_entrypoints:tools.iron_plan_hook_runner\",\n    \"runtime_conformance_failures:runtime-conformance-receipts:unbound:no-persisted-receipt-bundle\",\n    \"security_boundary_claimed:false\"\n  ]\n}",
+      "stderr_tail_RAW": ""
+    },
+    {
+      "name": "pytest",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 1,
+      "timed_out": false,
+      "wall_seconds": 2613.35,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\pytest.stdout.txt",
+      "raw_stdout_sha256": "1084b7f07537e51df28c72cd113521a93306453d2d3a1af6fc6801f0f313aff8",
+      "stdout_tail_RAW": "E         Use -v to get more diff\n\ntests\\test_envelope_coverage.py:110: AssertionError\n________________________ test_this_repo_still_analyses ________________________\n\nrequest = <FixtureRequest for <Function test_this_repo_still_analyses>>\n\n    def test_this_repo_still_analyses(request):\n        \"\"\"Guards the real invariant: the artifact must ALWAYS exist.\"\"\"\n        root = Path(__file__).resolve().parents[1]\n        result = analyse(root)\n        assert result.counts.env_switches > 20\n        assert result.counts.dark_env > 0\n>       assert result.unparsable == ()\nE       AssertionError: assert ('experiments...y, line 10)',) == ()\nE         \nE         Left contains one more item: 'experiments/forest_v2/s03_data/corpus/src/unparseable_fixture.py: SyntaxError: invalid syntax (unparseable_fixture.py, line 10)'\nE         Use -v to get more diff\n\ntests\\test_mapping_switches.py:337: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/runtimes/test_whole_fault_matrix.py::test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observations\nFAILED tests/test_envelope_coverage.py::test_no_new_record_producer_has_appeared_undeclared\nFAILED tests/test_mapping_switches.py::test_this_repo_still_analyses - Assert...\n3 failed, 7190 passed, 114 skipped, 1 xfailed, 1992 subtests passed in 2608.47s (0:43:28)",
+      "stderr_tail_RAW": ""
+    }
+  ],
+  "counters": {
+    "1_executed_fault_lines": {
+      "value_by_matrix": {
+        "gate0-matrix-2026-08-17": 18,
+        "gate0-matrix-20260818-closure": 18,
+        "gate0-matrix-20260818-head": 18,
+        "gate0-matrix-20260818-morning": 18
+      },
+      "stamp": "MEASURED (from archived verdicts)",
+      "binding_to_trunk_head": "NONE - no archived verdict cites 93f11adf"
+    },
+    "2_declared_blocked_lines": {
+      "value_by_matrix": {
+        "gate0-matrix-2026-08-17": 4,
+        "gate0-matrix-20260818-closure": 6,
+        "gate0-matrix-20260818-head": 4,
+        "gate0-matrix-20260818-morning": 4
+      },
+      "stamp": "MEASURED (from archived verdicts)"
+    },
+    "3_inventory_only_doors": {
+      "value": 10,
+      "expected_by_task": 13,
+      "rows": [
+        {
+          "row_id": "provider.claude",
+          "surface": "claude",
+          "target": "daedalus.providers.claude_cli:ClaudeCLIProvider.run",
+          "gap_justification_RAW": "daedalus.providers.claude_cli:ClaudeCLIProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.codex",
+          "surface": "codex",
+          "target": "daedalus.providers.codex_cli:CodexCLIProvider.run",
+          "gap_justification_RAW": "daedalus.providers.codex_cli:CodexCLIProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.deepseek",
+          "surface": "python",
+          "target": "daedalus.providers.deepseek:DeepSeekProvider.run",
+          "gap_justification_RAW": "daedalus.providers.deepseek:DeepSeekProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.deepseek.rollback",
+          "surface": "python",
+          "target": "daedalus.providers.deepseek:DeepSeekProvider.rollback",
+          "gap_justification_RAW": "daedalus.providers.deepseek:DeepSeekProvider.rollback is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.ollama.rollback",
+          "surface": "ollama",
+          "target": "daedalus.providers.ollama:OllamaProvider.rollback",
+          "gap_justification_RAW": "daedalus.providers.ollama:OllamaProvider.rollback is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.ollama_native",
+          "surface": "ollama",
+          "target": "daedalus.providers._ollama_native:native_chat",
+          "gap_justification_RAW": "daedalus.providers._ollama_native:native_chat is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "runs.gate0_matrix.verify_whole_matrix",
+          "surface": "cli",
+          "target": "runs.gate0-matrix-2026-08-17.verify_whole_matrix:main",
+          "gap_justification_RAW": "runs.gate0-matrix-2026-08-17.verify_whole_matrix:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "runtimes.fault_attestation_issuer",
+          "surface": "cli",
+          "target": "daedalus.runtimes.fault_attestation_issuer:main",
+          "gap_justification_RAW": "daedalus.runtimes.fault_attestation_issuer:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "tools.iron_plan_guard",
+          "surface": "cli",
+          "target": "tools.iron_plan_guard:main",
+          "gap_justification_RAW": "tools.iron_plan_guard:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "tools.iron_plan_hook_runner",
+          "surface": "cli",
+          "target": "tools.iron_plan_hook_runner:main",
+          "gap_justification_RAW": "tools.iron_plan_hook_runner:main is inventory_only; Gate 0 is not closed"
+        }
+      ],
+      "stamp": "MEASURED (live report at 93f11adf)"
+    },
+    "4_security_boundary_claimed": {
+      "value": false,
+      "stamp": "MEASURED (live report at 93f11adf)"
+    },
+    "5_scanner_error": {
+      "value_in_emitted_v2_report": 0,
+      "rows": [],
+      "tokens_searched": [
+        "scanner_error",
+        "scan.error",
+        "scanner.error",
+        "scan_failed",
+        "entrypoint.scan_error"
+      ],
+      "git_grep_scanner_error_rc": 1,
+      "git_grep_scanner_error_hits": [],
+      "nearest_counter_in_tree": "blocker:repository_write_inventory:refused",
+      "nearest_counter_schema": "daedalus-gate-report/3 (library only)",
+      "v3_artifacts": {
+        "gate0-matrix-20260818-closure/gate-report-v3.json": {
+          "schema": "daedalus-gate-report/2",
+          "cited_source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": null,
+          "repository_write_failures_len": 0
+        },
+        "gate0-matrix-20260818-morning/gate-report-v3.json": {
+          "schema": "daedalus-gate-report/3",
+          "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": 282,
+          "repository_write_failures_len": 377
+        },
+        "gate0-matrix-20260818-morning/gate-report-v3-cli.json": {
+          "schema": "daedalus-gate-report/3",
+          "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": 282,
+          "repository_write_failures_len": 377
+        }
+      },
+      "v3_python_files_referencing_it": [
+        "daedalus/gates/report_v3.py",
+        "daedalus/gates/repository_write_artifact_admission.py",
+        "daedalus/gates/repository_write_artifact_verifier.py",
+        "daedalus/gates/repository_write_evidence.py",
+        "scripts/report_gate0_v3.py",
+        "scripts/run_gate_report_v3_mutations.py",
+        "scripts/run_repository_write_artifact_admission_mutations.py",
+        "scripts/run_repository_write_artifact_verifier_mutations.py",
+        "scripts/run_repository_write_evidence_mutations.py",
+        "tests/gates/test_gate_report_matrix_binding.py",
+        "tests/gates/test_gate_report_v3.py",
+        "tests/gates/test_gate_report_v3_bounds.py",
+        "tests/gates/test_gate_report_v3_drift.py",
+        "tests/gates/test_gate_report_v3_review.py",
+        "tests/gates/test_gate_report_v3_schema.py",
+        "tests/gates/test_repository_write_artifact_admission.py",
+        "tests/gates/test_repository_write_artifact_admission_adversarial.py",
+        "tests/gates/test_repository_write_artifact_admission_schema.py",
+        "tests/gates/test_repository_write_artifact_cas.py",
+        "tests/gates/test_repository_write_artifact_cas_adversarial.py",
+        "tests/gates/test_repository_write_artifact_cas_toctou.py",
+        "tests/gates/test_repository_write_artifact_verifier.py",
+        "tests/gates/test_repository_write_artifact_verifier_review.py",
+        "tests/gates/test_repository_write_artifact_verifier_types.py",
+        "tests/gates/test_repository_write_evidence.py",
+        "tests/gates/test_repository_write_evidence_provenance.py",
+        "tests/gates/test_repository_write_evidence_review.py"
+      ],
+      "v3_reachable_from_shipped_cli": false,
+      "stamp": "MEASURED (absence): the shipped CLI emits schema v2, which has no scanner-failure field; the v3 refusal row exists but no non-test caller builds a v3 report at this head"
+    }
+  },
+  "matrices": {
+    "gate0-matrix-2026-08-17": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-2026-08-17\\whole-matrix-verdict.json",
+      "verdict_sha256": "3af9d71da897f85df5ffb21be31f70db406d81f0d02c69f163357fedc6d4482f",
+      "cited_source_revision": "c93191fef4a89de316529d22d54713acebeae097",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-closure": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-closure\\whole-matrix-verdict.json",
+      "verdict_sha256": "cc0acff788889e51eea6e90b60e8b4cfa33078568fb7b3299f1e07171765a037",
+      "cited_source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 24,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-production",
+          "key_class": "production",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-production",
+          "key_class": "production",
+          "observations": 9
+        },
+        "live-runtime": {
+          "attestations": 2,
+          "issuer_id": "issuer.gate0-live-runtime-production",
+          "key_class": "production",
+          "observations": 2
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 6,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.live-envelope.binary-drift",
+        "fault.blocked:runtime.live-envelope.expiry",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 0,
+      "fault_missing_rows": [],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-head": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-head\\whole-matrix-verdict.json",
+      "verdict_sha256": "3939d9e42d3300b2f496b400265b30b2894051b133d603d46bbed30659dbe972",
+      "cited_source_revision": "4fb2251d6b655b26e40d112483e94c5118de6413",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-morning": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-morning\\whole-matrix-verdict.json",
+      "verdict_sha256": "a28617b8bca5f5b81c7841ad8bec02d24c5b194bf60d435a507ab9102d8bd189",
+      "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    }
+  },
+  "diagnostic_class_histogram": {
+    "review:entrypoint.harness": 87,
+    "gap:gate0.not_central": 22,
+    "review:entrypoint.not_rediscovered": 3,
+    "blocker:fault_matrix.unbound": 1,
+    "blocker:runtime_conformance_receipts": 1,
+    "info:runtime_conformance.canonical_persistence": 1,
+    "info:runtime_conformance.canonical_producer": 1,
+    "info:runtime_conformance.gap": 1,
+    "review:scan.static_scope": 1
+  },
+  "pytest": {
+    "summary_line_RAW": "3 failed, 7190 passed, 114 skipped, 1 xfailed, 1992 subtests passed in 2608.47s (0:43:28)",
+    "counts": {
+      "passed": 7190,
+      "failed": 3,
+      "skipped": 114,
+      "xfailed": 1
+    },
+    "failed_test_ids": [
+      "tests/runtimes/test_whole_fault_matrix.py::test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observations",
+      "tests/test_envelope_coverage.py::test_no_new_record_producer_has_appeared_undeclared",
+      "tests/test_mapping_switches.py::test_this_repo_still_analyses"
+    ],
+    "failed_test_id_count": 3,
+    "error_ids": [],
+    "collected_line_RAW": ""
+  },
+  "import_contamination": {
+    "task": "CENSUS-TRUNK import contamination",
+    "utc": "2026-08-22T07:25:01Z",
+    "source_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+    "worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+    "checkpoint_primary_worktree": "C:\\Users\\nukei\\Desktop\\agent_env",
+    "editable_pth_mapping_RAW": "{\"daedalus\": \"C:\\\\Users\\\\nukei\\\\Desktop\\\\agent_env\\\\daedalus\"}",
+    "probes": {
+      "by_path_script_outside_worktree": {
+        "returncode": 0,
+        "stdout_RAW": "sys_path0='C:\\\\Users\\\\nukei\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-nukei-Desktop-agent-env\\\\de817b68-faa5-4439-85cd-c3967f4542c0\\\\scratchpad'\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env\\daedalus\\__init__.py",
+        "stderr_tail": ""
+      },
+      "dash_c_cwd_on_path": {
+        "returncode": 0,
+        "stdout_RAW": "sys_path0=''\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\daedalus\\__init__.py",
+        "stderr_tail": ""
+      },
+      "by_path_with_pythonpath_worktree": {
+        "returncode": 0,
+        "stdout_RAW": "sys_path0='C:\\\\Users\\\\nukei\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-nukei-Desktop-agent-env\\\\de817b68-faa5-4439-85cd-c3967f4542c0\\\\scratchpad'\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\daedalus\\__init__.py",
+        "stderr_tail": ""
+      }
+    },
+    "pinned_reruns": {
+      "effect_boundary_check": {
+        "first_run_stdout_sha256": "90a293ce09ba50e466300c95f097e73bd5303f0f66501b591109f0e4b0f5425c",
+        "pinned_rerun_stdout_sha256": "90a293ce09ba50e466300c95f097e73bd5303f0f66501b591109f0e4b0f5425c",
+        "identical": true,
+        "first_run_returncode": null,
+        "pinned_rerun_returncode": 0,
+        "pinned_rerun_stderr_tail": "",
+        "pinned_rerun_stdout_tail": "[REVIEW ] entrypoint.harness: tests.fixtures.sandbox_unavailable_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unauthorized_egress_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.undeclared_secret_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unknown_outcome_reconciliation_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_hardening:_StubProvider.run -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.create_session -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.interrupt -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.send -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.terminate -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_ollama_native:_Handler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_projection_worker:_EmbedHandler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.not_rediscovered: runs.council.room_server:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.guarded_call:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.system_check:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] scan.static_scope: python-ast -- static Python discovery is a drift detector, not whole-program reachability; dynamic imports, native code, shell/JS, and external clients still require an effect boundary or OS containment"
+      },
+      "run_gate_checks_g0": {
+        "first_run_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pinned_rerun_stdout_sha256": "703007a2b6437a13768a085782d80cd33871fac1feb2a258704bc037ba48210c",
+        "identical": false,
+        "first_run_returncode": null,
+        "pinned_rerun_returncode": 0,
+        "pinned_rerun_stderr_tail": "",
+        "pinned_rerun_stdout_tail": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1\n........................................................................ [ 82%]\n...............                                                          [100%]\n87 passed in 97.90s (0:01:37)"
+      }
+    },
+    "stamp": "MEASURED"
+  },
+  "guard_crosstree": {
+    "task": "CENSUS-TRUNK guard cross-tree resolution",
+    "utc": "2026-08-22T07:26:03Z",
+    "trunk_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+    "trunk_worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+    "checkpoint_primary": "C:\\Users\\nukei\\Desktop\\agent_env",
+    "editable_install_target": "C:\\Users\\nukei\\Desktop\\agent_env\\daedalus",
+    "plan_files": {
+      "TRUNK_worktree": {
+        "present": true,
+        "path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\docs\\IKARUS_ARIADNE_MASTER_PLAN.md",
+        "sha256_on_disk": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+        "header_lines_RAW": [
+          "# Ikarus & Ariadne: Der eiserne Daedalus-Masterplan",
+          "",
+          "Plan-ID: `daedalus-master-plan`  ",
+          "Revision: 6",
+          "Version: 1.2.3",
+          "Status: adopted  ",
+          "Date: 2026-08-02",
+          "Owner: repository owner  ",
+          "Active delivery gate: Gate 0 \u2014 Canonical Kernel  ",
+          "Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`",
+          "",
+          "This is the sole semantic authority for Daedalus architecture, product order,"
+        ]
+      },
+      "CHECKPOINT_primary": {
+        "present": true,
+        "path": "C:\\Users\\nukei\\Desktop\\agent_env\\docs\\IKARUS_ARIADNE_MASTER_PLAN.md",
+        "sha256_on_disk": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+        "header_lines_RAW": [
+          "# Ikarus & Ariadne: Der eiserne Daedalus-Masterplan",
+          "",
+          "Plan-ID: `daedalus-master-plan`  ",
+          "Revision: 2  ",
+          "Version: 1.0.0  ",
+          "Status: adopted  ",
+          "Date: 2026-07-30  ",
+          "Owner: repository owner  ",
+          "Active delivery gate: Gate 0 \u2014 Canonical Kernel  ",
+          "Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`",
+          "",
+          "This is the sole semantic authority for Daedalus architecture, product order,"
+        ]
+      }
+    },
+    "runs": {
+      "guard_from_trunk_worktree_unpinned": {
+        "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+        "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+        "env_overrides": {},
+        "returncode": 0,
+        "stdout_RAW": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+        "stderr_tail_RAW": ""
+      },
+      "guard_from_trunk_worktree_pinned": {
+        "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+        "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+        "env_overrides": {
+          "PYTHONPATH": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0"
+        },
+        "returncode": 0,
+        "stdout_RAW": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+        "stderr_tail_RAW": ""
+      },
+      "guard_from_checkpoint_primary": {
+        "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+        "cwd": "C:\\Users\\nukei\\Desktop\\agent_env",
+        "env_overrides": {},
+        "returncode": 0,
+        "stdout_RAW": "Iron Plan OK: revision 2, Gate 0 \u2014 Canonical Kernel, sha256 d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+        "stderr_tail_RAW": ""
+      }
+    },
+    "stamp": "MEASURED"
+  },
+  "discrimination_checks": [
+    {
+      "claim": "assert_gate_report.py exits nonzero BECAUSE the report is not closed, not because the tool always fails",
+      "without_require_closed_rc": 0,
+      "with_require_closed_rc": 1,
+      "commands": [
+        "python tools/assert_gate_report.py --report <out>",
+        "python tools/assert_gate_report.py --report <out> --require-closed"
+      ],
+      "stamp": "MEASURED"
+    }
+  ],
+  "denials": [
+    {
+      "when": "attempting to copy a probe script into the worktree's tools/ directory to measure import resolution",
+      "tool": "Bash (Write into worktree)",
+      "verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: daedalus>, <directory: tools>. Follow the owner-approved amendment protocol.",
+      "handling": "Not worked around. The same resolution was measured with a probe script kept outside the worktree, which reproduces the identical sys.path[0] condition."
+    }
+  ],
+  "stamps": {
+    "all_counts": "MEASURED",
+    "all_wall_times": "INHERITED-under-load",
+    "expected_values_in_task_brief": "INHERITED (from the task brief)"
+  }
+}

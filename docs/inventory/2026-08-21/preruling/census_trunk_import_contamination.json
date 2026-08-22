@@ -1,0 +1,46 @@
+{
+  "task": "CENSUS-TRUNK import contamination",
+  "utc": "2026-08-22T07:25:01Z",
+  "source_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+  "checkpoint_primary_worktree": "C:\\Users\\nukei\\Desktop\\agent_env",
+  "editable_pth_mapping_RAW": "{\"daedalus\": \"C:\\\\Users\\\\nukei\\\\Desktop\\\\agent_env\\\\daedalus\"}",
+  "probes": {
+    "by_path_script_outside_worktree": {
+      "returncode": 0,
+      "stdout_RAW": "sys_path0='C:\\\\Users\\\\nukei\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-nukei-Desktop-agent-env\\\\de817b68-faa5-4439-85cd-c3967f4542c0\\\\scratchpad'\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env\\daedalus\\__init__.py",
+      "stderr_tail": ""
+    },
+    "dash_c_cwd_on_path": {
+      "returncode": 0,
+      "stdout_RAW": "sys_path0=''\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\daedalus\\__init__.py",
+      "stderr_tail": ""
+    },
+    "by_path_with_pythonpath_worktree": {
+      "returncode": 0,
+      "stdout_RAW": "sys_path0='C:\\\\Users\\\\nukei\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-nukei-Desktop-agent-env\\\\de817b68-faa5-4439-85cd-c3967f4542c0\\\\scratchpad'\ndaedalus=C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\daedalus\\__init__.py",
+      "stderr_tail": ""
+    }
+  },
+  "pinned_reruns": {
+    "effect_boundary_check": {
+      "first_run_stdout_sha256": "90a293ce09ba50e466300c95f097e73bd5303f0f66501b591109f0e4b0f5425c",
+      "pinned_rerun_stdout_sha256": "90a293ce09ba50e466300c95f097e73bd5303f0f66501b591109f0e4b0f5425c",
+      "identical": true,
+      "first_run_returncode": null,
+      "pinned_rerun_returncode": 0,
+      "pinned_rerun_stderr_tail": "",
+      "pinned_rerun_stdout_tail": "[REVIEW ] entrypoint.harness: tests.fixtures.sandbox_unavailable_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unauthorized_egress_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.undeclared_secret_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.fixtures.unknown_outcome_reconciliation_fault_executor:main -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_hardening:_StubProvider.run -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.create_session -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.interrupt -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.send -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_kairos_evolution:DummyAdapter.terminate -- dev-harness entrypoint (process_control) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_ollama_native:_Handler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.harness: tests.test_projection_worker:_EmbedHandler.do_POST -- dev-harness entrypoint (filesystem_write) outside the production registry; explicitly classified out-of-scope for Gate-0 wiring, not silently unscanned\n[REVIEW ] entrypoint.not_rediscovered: runs.council.room_server:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.guarded_call:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] entrypoint.not_rediscovered: tools.system_check:main -- registered target exists but static sink discovery did not classify it\n[REVIEW ] scan.static_scope: python-ast -- static Python discovery is a drift detector, not whole-program reachability; dynamic imports, native code, shell/JS, and external clients still require an effect boundary or OS containment"
+    },
+    "run_gate_checks_g0": {
+      "first_run_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pinned_rerun_stdout_sha256": "703007a2b6437a13768a085782d80cd33871fac1feb2a258704bc037ba48210c",
+      "identical": false,
+      "first_run_returncode": null,
+      "pinned_rerun_returncode": 0,
+      "pinned_rerun_stderr_tail": "",
+      "pinned_rerun_stdout_tail": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1\n........................................................................ [ 82%]\n...............                                                          [100%]\n87 passed in 97.90s (0:01:37)"
+    }
+  },
+  "stamp": "MEASURED"
+}

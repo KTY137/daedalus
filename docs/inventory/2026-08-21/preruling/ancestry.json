@@ -1,0 +1,523 @@
+{
+  "task": "preruling SETUP step 3/4: ancestry CHECKPOINT vs TRUNK",
+  "utc": "2026-08-22T06:32:26.200596+00:00",
+  "repo": "C:/Users/nukei/Desktop/agent_env",
+  "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_config.json",
+  "source_shas": {
+    "checkpoint_tip": "77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+    "trunk_tip": "93f11adfb08efa713711fd62e9be7b46d8957166",
+    "checkpoint_pin": "3e758392845d9faf7877977d5ae8806973ed62e6",
+    "trunk_pin": "93f11adfb08efa713711fd62e9be7b46d8957166"
+  },
+  "pairs": [
+    {
+      "label": "branch tips",
+      "left": {
+        "name": "CHECKPOINT",
+        "ref": "refs/heads/checkpoint/2026-07-20-session",
+        "sha": "77e7498a762aa96c436d367dc35ff3431c0fcfa8"
+      },
+      "right": {
+        "name": "TRUNK",
+        "ref": "refs/heads/work/g0-trunk-20260817",
+        "sha": "93f11adfb08efa713711fd62e9be7b46d8957166"
+      },
+      "merge_base": "8647091fbd5114c2020b2c0fb8e97278a6699e5d",
+      "merge_base_rc": 0,
+      "merge_base_subject": "8647091f 2026-07-31 fix(funnel): the upper tiers were reading three runs as one",
+      "left_is_ancestor_of_right": false,
+      "right_is_ancestor_of_left": false,
+      "left_only_count": 40,
+      "right_only_count": 1228,
+      "left_only_commits": [
+        {
+          "sha": "77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+          "date": "2026-08-22",
+          "subject": "plan: the giga plan draft lands beside the inventory, pending codex round 2"
+        },
+        {
+          "sha": "1bf3fcf5c1cf9ae51cd911cd1638bf9ef1f634f8",
+          "date": "2026-08-22",
+          "subject": "inventory: the 2026-08-21 full-tree inventory lands in the tree, map refreshed"
+        },
+        {
+          "sha": "afd2968db30a9822153aba3a22cd6e9347d97643",
+          "date": "2026-08-22",
+          "subject": "archive: the 2026-07-30 swarm output leaves the research shelf, history intact"
+        },
+        {
+          "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+          "date": "2026-08-21",
+          "subject": "amendment(003): the serena-first hook is wired and the ledger carries it"
+        },
+        {
+          "sha": "c264f5dd223c6420afa597b6cfac7a990e464f28",
+          "date": "2026-08-21",
+          "subject": "vault: the vetting gate is hardened and the fence held under Cerberus"
+        },
+        {
+          "sha": "6ec7d2cb8c221c53545b07b876332a64467ef753",
+          "date": "2026-08-21",
+          "subject": "safety(vet): the vetting gate scans the frontmatter and MCP egress can BLOCK"
+        },
+        {
+          "sha": "fb48a30692554aa632fa1f4d66b1d34e921e7414",
+          "date": "2026-08-21",
+          "subject": "vault: the guard blocker is measured, not guessed, and vet goes to Minos"
+        },
+        {
+          "sha": "5295c36f44fbe0557e6f1bbc8cd771c79ec52bb7",
+          "date": "2026-08-21",
+          "subject": "vault: the vetting gate is itself vetted, and found half-open"
+        },
+        {
+          "sha": "e0c44fd0afd0757a40cddd27b0d609254359c9da",
+          "date": "2026-08-21",
+          "subject": "vault: the night the gardener, the falsifier and the watchdog worked as one"
+        },
+        {
+          "sha": "0c294ba8ce2ce2a525f3dcecb2d741723c2486a2",
+          "date": "2026-08-21",
+          "subject": "distill: the gardener's weeds come out and the engine sees itself once"
+        },
+        {
+          "sha": "65effb816869bebc26a637ac82e358c1fd64a0d3",
+          "date": "2026-08-21",
+          "subject": "experiment: one gluing assay finds what fifteen pairs were hunting"
+        },
+        {
+          "sha": "f9fab99c7a3ca7e1e25cb844f043d32fd01a3ca6",
+          "date": "2026-08-21",
+          "subject": "experiment: sixteen steps of drift and the commutator stays silent"
+        },
+        {
+          "sha": "886e877cdab584c6ea858c588cfb5185132bbdbf",
+          "date": "2026-08-21",
+          "subject": "experiment: textlab finds the words the footprint language lacks"
+        },
+        {
+          "sha": "accd2513239f7b397ed92ac31579e1ea9e66e965",
+          "date": "2026-08-21",
+          "subject": "experiment: chemlab proves the detector can stay silent"
+        },
+        {
+          "sha": "e901afcf74a0ad43ff4929cc6b86d396449b60c6",
+          "date": "2026-08-21",
+          "subject": "experiment: pumplab catches the coupling nobody declared"
+        },
+        {
+          "sha": "8350954c0181d38646a2e360fc5bece81c204369",
+          "date": "2026-08-20",
+          "subject": "vault: the day the algebra was measured and the liar was caught"
+        },
+        {
+          "sha": "ef9cd22b311b10e2272b699b2ad21cc1eb61913f",
+          "date": "2026-08-20",
+          "subject": "experiment: the intervention algebra takes its first measurements"
+        },
+        {
+          "sha": "49263fc3c0103a378435a0497737fbd08066a489",
+          "date": "2026-08-18",
+          "subject": "vault: the crew workflow catches the gate's most dangerous piece"
+        },
+        {
+          "sha": "e289b4c6b3517a97a52bb508c438b30f89a8f0d5",
+          "date": "2026-08-18",
+          "subject": "vault: two days enter the journal -- 265 failures to a production-signed matrix"
+        },
+        {
+          "sha": "4ef4ff79cea2af2f09975b85f508d8603d4f5d52",
+          "date": "2026-08-17",
+          "subject": "chronicle: the handoff stops pointing at a tree that moved"
+        },
+        {
+          "sha": "1a76ea4040f96504e9052dfa6288b0041147806d",
+          "date": "2026-08-17",
+          "subject": "vault: the authoritative record surfaces inside Obsidian through a junction"
+        },
+        {
+          "sha": "b8e3d263569554255ecdf14f35c265a86245c115",
+          "date": "2026-08-17",
+          "subject": "vault: the clean full-suite baseline enters the gate journal"
+        },
+        {
+          "sha": "95107d232f76c20874f8d9982be3cac4dde319fe",
+          "date": "2026-08-17",
+          "subject": "vault: session journal, gate log and amendment ledger reflect the landing day"
+        },
+        {
+          "sha": "4a885c89b52253937807f0723fb1cbc7b6ca386f",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): the beast settings file, ready to copy"
+        },
+        {
+          "sha": "d7ce0d082908a0567694cb2280dac3059b8fcb09",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): serena-first wiring ships as an owner-run command"
+        },
+        {
+          "sha": "2c39cb6ff3088885d39a2654f2835e1528d7cfb0",
+          "date": "2026-08-17",
+          "subject": "env: obsidian vault brain, filesystem MCP lane, statusline+hook proposals, vault skills"
+        },
+        {
+          "sha": "92b24699f7bd0250aae3583eaccb5433cd8589ec",
+          "date": "2026-08-17",
+          "subject": "fix(recovery): the amendment kit stops assuming it knows the revision"
+        },
+        {
+          "sha": "d4d200d914167f8b7c7bce11f61577d734933182",
+          "date": "2026-08-17",
+          "subject": "chore(harvest): twenty repair lanes complete, diffs and verdicts preserved"
+        },
+        {
+          "sha": "06e260a425ed63ae8425e17dae4110075e1ca375",
+          "date": "2026-08-17",
+          "subject": "chore(konkordanz): five long-context lanes map plan, trunk, and harvest"
+        },
+        {
+          "sha": "7f487a3378a21274240e0dc24d0a0030646e5b13",
+          "date": "2026-08-17",
+          "subject": "chore(archive): fourteen superseded documents move to the archive folder"
+        },
+        {
+          "sha": "3a10e460692d8060903edfa0f2f47c1c6e88851e",
+          "date": "2026-08-17",
+          "subject": "plan: the Gesamtplan lands verbatim as the working guide"
+        },
+        {
+          "sha": "2e7dc1ba0c1cec8fd6a957f0b0a57f1769156821",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): the 66 recovered checks survive as a portable patch"
+        },
+        {
+          "sha": "c07f4dd48e728f6a40752659168e78c531c52322",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): amendment 005 becomes a one-command kit, mutation-verified"
+        },
+        {
+          "sha": "ade84786e9c9a479b0e9148cef69bdb93cb4123a",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): ten-lane reconnaissance, adversarially verified"
+        },
+        {
+          "sha": "7c2dd7e3cd8f97335a32eeb207964cac534ad62e",
+          "date": "2026-08-17",
+          "subject": "fix(proposal): correct proposal 005 -- the sealed constant does exist"
+        },
+        {
+          "sha": "8d78186be5395b2ef2ad0f8f0e9b78bf57f6d263",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): what actually fails on the consolidated trunk, measured"
+        },
+        {
+          "sha": "e206de63082ca9646ed60f8297930f66808d5b3c",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): sealed promotion is implemented twice, with opposite trust roots"
+        },
+        {
+          "sha": "a7d4d0c695eecc6c96438ca5a858aa62b1da4cab",
+          "date": "2026-08-17",
+          "subject": "chore(proposal): the sealed-promotion guard lost the module it was watching"
+        },
+        {
+          "sha": "5ad7267dfad91dca3c2cfa02bbefbeee597acaf5",
+          "date": "2026-08-17",
+          "subject": "chore(proposals): two amendment requests and the branch-recovery record"
+        },
+        {
+          "sha": "a83db1f5a6530522b38ced7abdb11243616028ae",
+          "date": "2026-08-17",
+          "subject": "feat(spine): promotion gets a signed approval it cannot grant itself"
+        }
+      ],
+      "left_only_list_len": 40,
+      "right_only_count_check": 1228
+    },
+    {
+      "label": "pinned shas",
+      "left": {
+        "name": "CHECKPOINT@pin",
+        "ref": "3e758392",
+        "sha": "3e758392845d9faf7877977d5ae8806973ed62e6"
+      },
+      "right": {
+        "name": "TRUNK@pin",
+        "ref": "93f11adf",
+        "sha": "93f11adfb08efa713711fd62e9be7b46d8957166"
+      },
+      "merge_base": "8647091fbd5114c2020b2c0fb8e97278a6699e5d",
+      "merge_base_rc": 0,
+      "merge_base_subject": "8647091f 2026-07-31 fix(funnel): the upper tiers were reading three runs as one",
+      "left_is_ancestor_of_right": false,
+      "right_is_ancestor_of_left": false,
+      "left_only_count": 37,
+      "right_only_count": 1228,
+      "left_only_commits": [
+        {
+          "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+          "date": "2026-08-21",
+          "subject": "amendment(003): the serena-first hook is wired and the ledger carries it"
+        },
+        {
+          "sha": "c264f5dd223c6420afa597b6cfac7a990e464f28",
+          "date": "2026-08-21",
+          "subject": "vault: the vetting gate is hardened and the fence held under Cerberus"
+        },
+        {
+          "sha": "6ec7d2cb8c221c53545b07b876332a64467ef753",
+          "date": "2026-08-21",
+          "subject": "safety(vet): the vetting gate scans the frontmatter and MCP egress can BLOCK"
+        },
+        {
+          "sha": "fb48a30692554aa632fa1f4d66b1d34e921e7414",
+          "date": "2026-08-21",
+          "subject": "vault: the guard blocker is measured, not guessed, and vet goes to Minos"
+        },
+        {
+          "sha": "5295c36f44fbe0557e6f1bbc8cd771c79ec52bb7",
+          "date": "2026-08-21",
+          "subject": "vault: the vetting gate is itself vetted, and found half-open"
+        },
+        {
+          "sha": "e0c44fd0afd0757a40cddd27b0d609254359c9da",
+          "date": "2026-08-21",
+          "subject": "vault: the night the gardener, the falsifier and the watchdog worked as one"
+        },
+        {
+          "sha": "0c294ba8ce2ce2a525f3dcecb2d741723c2486a2",
+          "date": "2026-08-21",
+          "subject": "distill: the gardener's weeds come out and the engine sees itself once"
+        },
+        {
+          "sha": "65effb816869bebc26a637ac82e358c1fd64a0d3",
+          "date": "2026-08-21",
+          "subject": "experiment: one gluing assay finds what fifteen pairs were hunting"
+        },
+        {
+          "sha": "f9fab99c7a3ca7e1e25cb844f043d32fd01a3ca6",
+          "date": "2026-08-21",
+          "subject": "experiment: sixteen steps of drift and the commutator stays silent"
+        },
+        {
+          "sha": "886e877cdab584c6ea858c588cfb5185132bbdbf",
+          "date": "2026-08-21",
+          "subject": "experiment: textlab finds the words the footprint language lacks"
+        },
+        {
+          "sha": "accd2513239f7b397ed92ac31579e1ea9e66e965",
+          "date": "2026-08-21",
+          "subject": "experiment: chemlab proves the detector can stay silent"
+        },
+        {
+          "sha": "e901afcf74a0ad43ff4929cc6b86d396449b60c6",
+          "date": "2026-08-21",
+          "subject": "experiment: pumplab catches the coupling nobody declared"
+        },
+        {
+          "sha": "8350954c0181d38646a2e360fc5bece81c204369",
+          "date": "2026-08-20",
+          "subject": "vault: the day the algebra was measured and the liar was caught"
+        },
+        {
+          "sha": "ef9cd22b311b10e2272b699b2ad21cc1eb61913f",
+          "date": "2026-08-20",
+          "subject": "experiment: the intervention algebra takes its first measurements"
+        },
+        {
+          "sha": "49263fc3c0103a378435a0497737fbd08066a489",
+          "date": "2026-08-18",
+          "subject": "vault: the crew workflow catches the gate's most dangerous piece"
+        },
+        {
+          "sha": "e289b4c6b3517a97a52bb508c438b30f89a8f0d5",
+          "date": "2026-08-18",
+          "subject": "vault: two days enter the journal -- 265 failures to a production-signed matrix"
+        },
+        {
+          "sha": "4ef4ff79cea2af2f09975b85f508d8603d4f5d52",
+          "date": "2026-08-17",
+          "subject": "chronicle: the handoff stops pointing at a tree that moved"
+        },
+        {
+          "sha": "1a76ea4040f96504e9052dfa6288b0041147806d",
+          "date": "2026-08-17",
+          "subject": "vault: the authoritative record surfaces inside Obsidian through a junction"
+        },
+        {
+          "sha": "b8e3d263569554255ecdf14f35c265a86245c115",
+          "date": "2026-08-17",
+          "subject": "vault: the clean full-suite baseline enters the gate journal"
+        },
+        {
+          "sha": "95107d232f76c20874f8d9982be3cac4dde319fe",
+          "date": "2026-08-17",
+          "subject": "vault: session journal, gate log and amendment ledger reflect the landing day"
+        },
+        {
+          "sha": "4a885c89b52253937807f0723fb1cbc7b6ca386f",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): the beast settings file, ready to copy"
+        },
+        {
+          "sha": "d7ce0d082908a0567694cb2280dac3059b8fcb09",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): serena-first wiring ships as an owner-run command"
+        },
+        {
+          "sha": "2c39cb6ff3088885d39a2654f2835e1528d7cfb0",
+          "date": "2026-08-17",
+          "subject": "env: obsidian vault brain, filesystem MCP lane, statusline+hook proposals, vault skills"
+        },
+        {
+          "sha": "92b24699f7bd0250aae3583eaccb5433cd8589ec",
+          "date": "2026-08-17",
+          "subject": "fix(recovery): the amendment kit stops assuming it knows the revision"
+        },
+        {
+          "sha": "d4d200d914167f8b7c7bce11f61577d734933182",
+          "date": "2026-08-17",
+          "subject": "chore(harvest): twenty repair lanes complete, diffs and verdicts preserved"
+        },
+        {
+          "sha": "06e260a425ed63ae8425e17dae4110075e1ca375",
+          "date": "2026-08-17",
+          "subject": "chore(konkordanz): five long-context lanes map plan, trunk, and harvest"
+        },
+        {
+          "sha": "7f487a3378a21274240e0dc24d0a0030646e5b13",
+          "date": "2026-08-17",
+          "subject": "chore(archive): fourteen superseded documents move to the archive folder"
+        },
+        {
+          "sha": "3a10e460692d8060903edfa0f2f47c1c6e88851e",
+          "date": "2026-08-17",
+          "subject": "plan: the Gesamtplan lands verbatim as the working guide"
+        },
+        {
+          "sha": "2e7dc1ba0c1cec8fd6a957f0b0a57f1769156821",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): the 66 recovered checks survive as a portable patch"
+        },
+        {
+          "sha": "c07f4dd48e728f6a40752659168e78c531c52322",
+          "date": "2026-08-17",
+          "subject": "chore(recovery): amendment 005 becomes a one-command kit, mutation-verified"
+        },
+        {
+          "sha": "ade84786e9c9a479b0e9148cef69bdb93cb4123a",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): ten-lane reconnaissance, adversarially verified"
+        },
+        {
+          "sha": "7c2dd7e3cd8f97335a32eeb207964cac534ad62e",
+          "date": "2026-08-17",
+          "subject": "fix(proposal): correct proposal 005 -- the sealed constant does exist"
+        },
+        {
+          "sha": "8d78186be5395b2ef2ad0f8f0e9b78bf57f6d263",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): what actually fails on the consolidated trunk, measured"
+        },
+        {
+          "sha": "e206de63082ca9646ed60f8297930f66808d5b3c",
+          "date": "2026-08-17",
+          "subject": "chore(gate0): sealed promotion is implemented twice, with opposite trust roots"
+        },
+        {
+          "sha": "a7d4d0c695eecc6c96438ca5a858aa62b1da4cab",
+          "date": "2026-08-17",
+          "subject": "chore(proposal): the sealed-promotion guard lost the module it was watching"
+        },
+        {
+          "sha": "5ad7267dfad91dca3c2cfa02bbefbeee597acaf5",
+          "date": "2026-08-17",
+          "subject": "chore(proposals): two amendment requests and the branch-recovery record"
+        },
+        {
+          "sha": "a83db1f5a6530522b38ced7abdb11243616028ae",
+          "date": "2026-08-17",
+          "subject": "feat(spine): promotion gets a signed approval it cannot grant itself"
+        }
+      ],
+      "left_only_list_len": 37,
+      "right_only_count_check": 1228
+    },
+    {
+      "label": "checkpoint tip vs checkpoint pin",
+      "left": {
+        "name": "CHECKPOINT tip",
+        "ref": "refs/heads/checkpoint/2026-07-20-session",
+        "sha": "77e7498a762aa96c436d367dc35ff3431c0fcfa8"
+      },
+      "right": {
+        "name": "CHECKPOINT@pin",
+        "ref": "3e758392",
+        "sha": "3e758392845d9faf7877977d5ae8806973ed62e6"
+      },
+      "merge_base": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "merge_base_rc": 0,
+      "merge_base_subject": "3e758392 2026-08-21 amendment(003): the serena-first hook is wired and the ledger carries it",
+      "left_is_ancestor_of_right": false,
+      "right_is_ancestor_of_left": true,
+      "left_only_count": 3,
+      "right_only_count": 0,
+      "left_only_commits": [
+        {
+          "sha": "77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+          "date": "2026-08-22",
+          "subject": "plan: the giga plan draft lands beside the inventory, pending codex round 2"
+        },
+        {
+          "sha": "1bf3fcf5c1cf9ae51cd911cd1638bf9ef1f634f8",
+          "date": "2026-08-22",
+          "subject": "inventory: the 2026-08-21 full-tree inventory lands in the tree, map refreshed"
+        },
+        {
+          "sha": "afd2968db30a9822153aba3a22cd6e9347d97643",
+          "date": "2026-08-22",
+          "subject": "archive: the 2026-07-30 swarm output leaves the research shelf, history intact"
+        }
+      ],
+      "left_only_list_len": 3,
+      "right_only_count_check": 0
+    }
+  ],
+  "stamps": {
+    "merge_base": "MEASURED (git merge-base)",
+    "is_ancestor": "MEASURED (git merge-base --is-ancestor, rc 0/1)",
+    "left_only_count/right_only_count": "MEASURED (git rev-list --left-right --count L...R)",
+    "left_only_commits": "MEASURED (git log R..L)",
+    "right_only_count_check": "MEASURED (git rev-list L..R | wc)"
+  },
+  "git_denials_or_errors": [],
+  "commands": [
+    "git rev-parse --verify refs/heads/checkpoint/2026-07-20-session^{commit}",
+    "git rev-parse --verify refs/heads/work/g0-trunk-20260817^{commit}",
+    "git merge-base 77e7498a762aa96c436d367dc35ff3431c0fcfa8 93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git log -1 --format=%h %ad %s --date=short 8647091fbd5114c2020b2c0fb8e97278a6699e5d",
+    "git merge-base --is-ancestor 77e7498a762aa96c436d367dc35ff3431c0fcfa8 93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git merge-base --is-ancestor 93f11adfb08efa713711fd62e9be7b46d8957166 77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+    "git rev-list --left-right --count 77e7498a762aa96c436d367dc35ff3431c0fcfa8...93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git log --format=%H\t%ad\t%s --date=short 93f11adfb08efa713711fd62e9be7b46d8957166..77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+    "git rev-list 77e7498a762aa96c436d367dc35ff3431c0fcfa8..93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git rev-parse --verify 3e758392^{commit}",
+    "git rev-parse --verify 93f11adf^{commit}",
+    "git merge-base 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git log -1 --format=%h %ad %s --date=short 8647091fbd5114c2020b2c0fb8e97278a6699e5d",
+    "git merge-base --is-ancestor 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git merge-base --is-ancestor 93f11adfb08efa713711fd62e9be7b46d8957166 3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git rev-list --left-right --count 3e758392845d9faf7877977d5ae8806973ed62e6...93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git log --format=%H\t%ad\t%s --date=short 93f11adfb08efa713711fd62e9be7b46d8957166..3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git rev-list 3e758392845d9faf7877977d5ae8806973ed62e6..93f11adfb08efa713711fd62e9be7b46d8957166",
+    "git rev-parse --verify refs/heads/checkpoint/2026-07-20-session^{commit}",
+    "git rev-parse --verify 3e758392^{commit}",
+    "git merge-base 77e7498a762aa96c436d367dc35ff3431c0fcfa8 3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git log -1 --format=%h %ad %s --date=short 3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git merge-base --is-ancestor 77e7498a762aa96c436d367dc35ff3431c0fcfa8 3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git merge-base --is-ancestor 3e758392845d9faf7877977d5ae8806973ed62e6 77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+    "git rev-list --left-right --count 77e7498a762aa96c436d367dc35ff3431c0fcfa8...3e758392845d9faf7877977d5ae8806973ed62e6",
+    "git log --format=%H\t%ad\t%s --date=short 3e758392845d9faf7877977d5ae8806973ed62e6..77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+    "git rev-list 77e7498a762aa96c436d367dc35ff3431c0fcfa8..3e758392845d9faf7877977d5ae8806973ed62e6"
+  ]
+}

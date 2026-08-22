@@ -1,0 +1,2203 @@
+{
+ "task": "preruling RESEARCH-ASSET CENSUS: research assets per line (path, presence, blob/sha256, tests present+green, anchors) + ceiling corpus existence",
+ "utc_start": "2026-08-22T06:58:09.440176+00:00",
+ "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_research_census_config.json",
+ "base_config": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling_config.json",
+ "interpreter": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+ "read_only": true,
+ "lines": {
+  "checkpoint": {
+   "label": "CHECKPOINT",
+   "branch": "checkpoint/2026-07-20-session",
+   "pinned_sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+   "plan_revision_claimed": "2",
+   "disposable_worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+   "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+   "worktree_head_matches_pin": true,
+   "tree_entries": 4064,
+   "assets": {
+    "higher_twin_nc": {
+     "tracked_files": 85,
+     "top_level_py": [
+      "runs/higher_twin_nc/assay.py",
+      "runs/higher_twin_nc/cryptic.py",
+      "runs/higher_twin_nc/descent.py",
+      "runs/higher_twin_nc/evaluate.py",
+      "runs/higher_twin_nc/loops.py",
+      "runs/higher_twin_nc/operators.py"
+     ],
+     "fixtures": [
+      "chemlab",
+      "pumplab",
+      "sensorlab",
+      "textlab"
+     ],
+     "run_dirs": [
+      "anomaly-20260820",
+      "chemlab-20260821",
+      "cryptic-20260820",
+      "cryptic-20260821",
+      "descent-20260821",
+      "loops-20260820",
+      "pilot-20260820",
+      "pilot2-20260820",
+      "pumplab-20260821",
+      "pumplab-anomaly-20260821",
+      "squares-20260821",
+      "textlab-20260821"
+     ],
+     "spec": {
+      "present": true,
+      "Experiment-ID": "`higher-twin-nc-v1`",
+      "Spec-Revision": "2 (Schicht 2: Descent/Geometrie; Revision 1 = 30-Pass-Design vom 2026-08-18)",
+      "Status": "PILOT — Änderungen nur mit Changelog; Einfrieren bei Confirmation-Registrierung",
+      "Iron-Klassifikation": "EXPERIMENT (Gate 0 aktiv; kein Produktionspfad, keine Promotion)",
+      "Expiry": "2026-10-31 oder früher per Kill-Kriterium",
+      "Angelegt": "2026-08-20",
+      "stamp": "MEASURED"
+     },
+     "test_files_in_tree": [
+      "runs/higher_twin_nc/tests/test_assay.py",
+      "runs/higher_twin_nc/tests/test_batch2.py",
+      "runs/higher_twin_nc/tests/test_chemlab.py",
+      "runs/higher_twin_nc/tests/test_codex_round.py",
+      "runs/higher_twin_nc/tests/test_cryptic2.py",
+      "runs/higher_twin_nc/tests/test_descent.py",
+      "runs/higher_twin_nc/tests/test_pumplab.py",
+      "runs/higher_twin_nc/tests/test_squares.py",
+      "runs/higher_twin_nc/tests/test_textlab.py"
+     ],
+     "test_functions_in_tree": 63,
+     "anchors": [
+      {
+       "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+       "present": true,
+       "blob": "434d8ef67279180301c55f4902862fd2e394c62a",
+       "sha256": "5130e981cdd91fa12600b73867cfabf17d296dda98bfae33b2a57f1326d690fc",
+       "bytes": 9957,
+       "lines": 131,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/higher_twin_nc/receipts/priorart-sweep-20260820.json",
+       "present": true,
+       "blob": "93b775d297a4221915f63690a18631498de94ae9",
+       "sha256": "f6ea55e41b77bf3d9ca141056e0ae606d7a0b8291cf8ee6338f725dbe0f6bd8f",
+       "bytes": 4451,
+       "lines": 47,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/higher_twin_nc/WATCHDOG_MISSION.md",
+       "present": true,
+       "blob": "aef52d024e398ef73e0da1065b6dbd4bb3064b3e",
+       "sha256": "7822f733e0fd0bfa3097704b5525a592b6ad2da3a5e6525db4ae14a4cf54915f",
+       "bytes": 3242,
+       "lines": 57,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "collect": {
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no --collect-only runs/higher_twin_nc",
+      "rc": 0,
+      "timed_out": false,
+      "collected": 63,
+      "collect_errors": 0,
+      "wall_s": 2.71,
+      "wall_stamp": "INHERITED-under-load",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\collect_checkpoint_higher_twin_nc.txt",
+      "stamp": "MEASURED"
+     },
+     "pytest": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "targets": [
+       "runs/higher_twin_nc"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no runs/higher_twin_nc",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "63 passed in 123.17s (0:02:03)",
+      "passed": 63,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 124.49,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_higher_twin_nc.txt",
+      "stamp": "MEASURED"
+     },
+     "tests_green": true
+    },
+    "layer2_doc": {
+     "files": [
+      {
+       "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+       "present": true,
+       "blob": "434d8ef67279180301c55f4902862fd2e394c62a",
+       "sha256": "5130e981cdd91fa12600b73867cfabf17d296dda98bfae33b2a57f1326d690fc",
+       "bytes": 9957,
+       "lines": 131,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED"
+    },
+    "latent_ceiling_doc": {
+     "files": [
+      {
+       "path": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+       "present": true,
+       "blob": "65790360fc96186690bccf59cdfccdf292cbbd24",
+       "sha256": "0f8e4b4b8d40a65091ca761f50a5d6d0be0828ca3bad4342aafcdd95187b1242",
+       "bytes": 5865,
+       "lines": 119,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED"
+    },
+    "type_graph_plan": {
+     "files": [
+      {
+       "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+       "present": true,
+       "blob": "6aa2b4773a17c0c74d6d5446acb1986e1f4ed692",
+       "sha256": "1e8dd1f9cf5cbc25e640560c876a9cc236ed7d1c4cd42624c8f36c1f0776d94f",
+       "bytes": 49811,
+       "lines": 698,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+       "present": true,
+       "blob": "01b537839ea22099d005d729b1455d0a8b774ecb",
+       "sha256": "22e4df6e315733da97dc285cd4edf5f4a8ffffa765b0c9bd58e6e45a24b5a7be",
+       "bytes": 37189,
+       "lines": 577,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "test_files": [
+      "tests/test_typegraph_determinism.py",
+      "tests/test_typegraph_fixture.py",
+      "tests/test_typegraph_forest.py",
+      "tests/test_typegraph_index.py",
+      "tests/test_typegraph_parse.py",
+      "tests/test_typegraph_regression.py",
+      "tests/test_typegraph_resolve.py",
+      "tests/test_typegraph_star_imports.py"
+     ],
+     "test_functions": 391,
+     "pytest": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "targets": [
+       "tests/test_typegraph_determinism.py",
+       "tests/test_typegraph_fixture.py",
+       "tests/test_typegraph_forest.py",
+       "tests/test_typegraph_index.py",
+       "tests/test_typegraph_parse.py",
+       "tests/test_typegraph_regression.py",
+       "tests/test_typegraph_resolve.py",
+       "tests/test_typegraph_star_imports.py"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_typegraph_determinism.py tests/test_typegraph_fixture.py tests/test_typegraph_forest.py tests/test_typegraph_index.py tests/test_typegraph_parse.py tests/test_typegraph_regression.py tests/test_typegraph_resolve.py tests/test_typegraph_star_imports.py",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "391 passed, 1708 subtests passed in 148.45s (0:02:28)",
+      "passed": 391,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 150.24,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_type_graph.txt",
+      "stamp": "MEASURED"
+     },
+     "tests_green": true
+    },
+    "forest_v2": {
+     "tracked_files": 0,
+     "slices_present": [],
+     "slices_missing_as_dirs": [
+      "s01",
+      "s02",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s07",
+      "s08",
+      "s09",
+      "s10"
+     ],
+     "slices": {},
+     "anchors": [
+      {
+       "path": "experiments/forest_v2/README.md",
+       "present": false,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/GATE2_FOREST_V2_TRIAGE.md",
+       "present": false,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "slice_mentions_in_anchors": {},
+     "collect": {
+      "skipped": "asset absent on this line",
+      "stamp": "MEASURED"
+     },
+     "pytest": {
+      "skipped": "asset absent on this line",
+      "stamp": "MEASURED"
+     },
+     "tests_green": null
+    },
+    "eval_ceiling": {
+     "files": [
+      {
+       "path": "daedalus/eval/ceiling.py",
+       "present": true,
+       "blob": "c13980662959ae5f7e24eba76e51a221b48d7ae8",
+       "sha256": "77865c2f72f84e396087e5fc3af0a98c61a56359134e62cf8d126e7ed601b7ee",
+       "bytes": 22504,
+       "lines": 455,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_temporal_ceiling.py"
+     ],
+     "test_functions": 16,
+     "anchors": [
+      {
+       "path": "docs/research/rounds/round1/ceiling-vs-graphdelta.md",
+       "present": true,
+       "blob": "f4bb3e94a253b17f8503affe68eb3a413e83a37d",
+       "sha256": "2490cfe07ccddc3ebcd31da72de16fd8e718ed1a1b3ceeefbb53f46bbad4a693",
+       "bytes": 1194,
+       "lines": 13,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/research/rounds/round2/v-ceiling-vs-graphdelta.md",
+       "present": true,
+       "blob": "ea4b353cd50d92a217c8aec9ea3e2ec0b47e9926",
+       "sha256": "8e69be06bc9c882ee4a4b28f2930273f429d9246e75ec0da8d6316c3c9fd7e88",
+       "bytes": 800,
+       "lines": 16,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json",
+       "present": true,
+       "blob": "9d7c443c7ee28de6389cd57e8c73900f09a6132a",
+       "sha256": "0ab8c7fd61b8adb466f44748a05efabc56dfa7d014896dad253d3ca03aa638e5",
+       "bytes": 1274,
+       "lines": 31,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+       "present": true,
+       "blob": "a76f4c9903bffafa36b495ae85e1ffc084d3c2a6",
+       "sha256": "c4eccc49a5673e1b2691e2357b7943cc686a5a096fb2bd815cf2a6dd8c8cb207",
+       "bytes": 864,
+       "lines": 28,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 16,
+     "tests_failed": 0
+    },
+    "graph_delta": {
+     "files": [
+      {
+       "path": "daedalus/eval/graph_delta.py",
+       "present": true,
+       "blob": "4fa9250c28e450d86f72d532013c01bf981eea41",
+       "sha256": "0c6b2cf07d32853149adce07bd65295511b256a2db1a9ce5439f80f4293d8a9c",
+       "bytes": 33477,
+       "lines": 758,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_graph_delta.py"
+     ],
+     "test_functions": 25,
+     "anchors": [
+      {
+       "path": "docs/research/GRAPH_DELTA_CALIBRATION.md",
+       "present": true,
+       "blob": "04ecac085cdbbd96f636f94add9eccb98de2294e",
+       "sha256": "1f662eb7e69eed9de32866df6b033d0bb23c696a213b4378b4b58bebac499b0e",
+       "bytes": 16073,
+       "lines": 286,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta.json",
+       "present": true,
+       "blob": "2da3428c1b780f9ba5481624ec801f3ac60c3f1a",
+       "sha256": "9e17654526b001379afb97333a8d842815a2e531cfca07272acfac1f1d430d28",
+       "bytes": 49761,
+       "lines": 1803,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta_held_out.json",
+       "present": true,
+       "blob": "2913ee2b4128d870afbd989cc266cd28db8f4283",
+       "sha256": "82c70fd91ab1de55f23dc4b2db77392781656dec2317ab87ca3b96e21ea843b2",
+       "bytes": 1100,
+       "lines": 67,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta_specificity.json",
+       "present": true,
+       "blob": "f88948329565b03a18f0735f750b86a6a33b4439",
+       "sha256": "4f1e97ee47a33bb49e9c18abde537c798e6fa1c637f7001a1d9d1e00dd97803b",
+       "bytes": 20133,
+       "lines": 1170,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 25,
+     "tests_failed": 0
+    },
+    "mutate": {
+     "files": [
+      {
+       "path": "daedalus/eval/mutate.py",
+       "present": true,
+       "blob": "14a596cee486af496a2b196156aa6d36d02a4f93",
+       "sha256": "04e2b4d68d83f63703e88703a967db9b17e4c69a6d0bf566b5a66b734b5261a8",
+       "bytes": 17568,
+       "lines": 403,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_mutation_score.py"
+     ],
+     "test_functions": 35,
+     "anchors": [
+      {
+       "path": "runs/eval/deepseek_impl20/v01-verify-mutate-operators.json",
+       "present": true,
+       "blob": "bf91d13e32aa224a312889d5f9b2b50d71fb42a1",
+       "sha256": "da49b932b57dee420e3be7704c675d9dcb1676ad791ae25fd004f9329315005f",
+       "bytes": 461,
+       "lines": 22,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+       "present": true,
+       "blob": "ff8d77ba316986bd7ed5b0655771bc63dcaa8955",
+       "sha256": "55c4c5b03269c669ce207e2c26f9aabf6f46a551c0259b974e83cf61de59a81f",
+       "bytes": 2594,
+       "lines": 27,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 26,
+     "tests_failed": 0
+    },
+    "gate_discrimination": {
+     "files": [
+      {
+       "path": "tools/gate_discrimination.py",
+       "present": true,
+       "blob": "da22482017f69f504ffa63f6227cf8f3bb7b4c1d",
+       "sha256": "9eba0ec8d4d37aeb7c6017f4f60b4c77d03c787ae131af5420da310c073c2c0a",
+       "bytes": 59249,
+       "lines": 1194,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/GATE_DISCRIMINATION.md",
+       "present": true,
+       "blob": "8e2ba0a3e7668a60ae22af15077ef50dcba48342",
+       "sha256": "94cc1add6f22869941a2a724404b75dee8dce2441d3db19ef44e9ca3889f661e",
+       "bytes": 21773,
+       "lines": 335,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_gate_discrimination.py"
+     ],
+     "test_functions": 44,
+     "anchors": [],
+     "stamp": "MEASURED",
+     "anchor_prefix_hits": {
+      "runs/gate_discrimination": [],
+      "runs/eval/gate_discrimination": [],
+      "runs/discrimination": []
+     },
+     "tests_green": true,
+     "tests_passed": 44,
+     "tests_failed": 0
+    },
+    "_eval_assets_pytest": {
+     "combined": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "targets": [
+       "tests/test_gate_discrimination.py",
+       "tests/test_graph_delta.py",
+       "tests/test_mutation_score.py",
+       "tests/test_temporal_ceiling.py"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py tests/test_graph_delta.py tests/test_mutation_score.py tests/test_temporal_ceiling.py",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "111 passed in 111.10s (0:01:51)",
+      "passed": 111,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 113.16,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_eval_assets.txt",
+      "stamp": "MEASURED"
+     },
+     "per_file": {
+      "tests/test_gate_discrimination.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+       "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+       "targets": [
+        "tests/test_gate_discrimination.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "44 passed in 22.77s",
+       "passed": 44,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 24.21,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_test_gate_discrimination.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_graph_delta.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+       "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+       "targets": [
+        "tests/test_graph_delta.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_graph_delta.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "25 passed in 0.92s",
+       "passed": 25,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 1.93,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_test_graph_delta.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_mutation_score.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+       "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+       "targets": [
+        "tests/test_mutation_score.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_mutation_score.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "26 passed in 51.99s",
+       "passed": 26,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 53.1,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_test_mutation_score.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_temporal_ceiling.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+       "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+       "targets": [
+        "tests/test_temporal_ceiling.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_temporal_ceiling.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "16 passed in 9.65s",
+       "passed": 16,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 10.96,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_checkpoint_test_temporal_ceiling.txt",
+       "stamp": "MEASURED"
+      }
+     }
+    }
+   }
+  },
+  "trunk": {
+   "label": "TRUNK",
+   "branch": "work/g0-trunk-20260817",
+   "pinned_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+   "plan_revision_claimed": "6 / 1.2.3",
+   "disposable_worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+   "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+   "worktree_head_matches_pin": true,
+   "tree_entries": 5361,
+   "assets": {
+    "higher_twin_nc": {
+     "tracked_files": 0,
+     "top_level_py": [],
+     "fixtures": [],
+     "run_dirs": [],
+     "spec": {
+      "present": false
+     },
+     "test_files_in_tree": [],
+     "test_functions_in_tree": 0,
+     "anchors": [
+      {
+       "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+       "present": false,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/higher_twin_nc/receipts/priorart-sweep-20260820.json",
+       "present": false,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/higher_twin_nc/WATCHDOG_MISSION.md",
+       "present": false,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "collect": {
+      "skipped": "asset absent on this line",
+      "stamp": "MEASURED"
+     },
+     "pytest": {
+      "skipped": "asset absent on this line",
+      "stamp": "MEASURED"
+     },
+     "tests_green": null
+    },
+    "layer2_doc": {
+     "files": [
+      {
+       "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+       "present": false,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED"
+    },
+    "latent_ceiling_doc": {
+     "files": [
+      {
+       "path": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+       "present": true,
+       "blob": "65790360fc96186690bccf59cdfccdf292cbbd24",
+       "sha256": "0f8e4b4b8d40a65091ca761f50a5d6d0be0828ca3bad4342aafcdd95187b1242",
+       "bytes": 5865,
+       "lines": 119,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED"
+    },
+    "type_graph_plan": {
+     "files": [
+      {
+       "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+       "present": true,
+       "blob": "6aa2b4773a17c0c74d6d5446acb1986e1f4ed692",
+       "sha256": "1e8dd1f9cf5cbc25e640560c876a9cc236ed7d1c4cd42624c8f36c1f0776d94f",
+       "bytes": 49811,
+       "lines": 698,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+       "present": true,
+       "blob": "01b537839ea22099d005d729b1455d0a8b774ecb",
+       "sha256": "22e4df6e315733da97dc285cd4edf5f4a8ffffa765b0c9bd58e6e45a24b5a7be",
+       "bytes": 37189,
+       "lines": 577,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "test_files": [
+      "tests/test_typegraph_determinism.py",
+      "tests/test_typegraph_fixture.py",
+      "tests/test_typegraph_forest.py",
+      "tests/test_typegraph_index.py",
+      "tests/test_typegraph_parse.py",
+      "tests/test_typegraph_regression.py",
+      "tests/test_typegraph_resolve.py",
+      "tests/test_typegraph_star_imports.py"
+     ],
+     "test_functions": 391,
+     "pytest": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "targets": [
+       "tests/test_typegraph_determinism.py",
+       "tests/test_typegraph_fixture.py",
+       "tests/test_typegraph_forest.py",
+       "tests/test_typegraph_index.py",
+       "tests/test_typegraph_parse.py",
+       "tests/test_typegraph_regression.py",
+       "tests/test_typegraph_resolve.py",
+       "tests/test_typegraph_star_imports.py"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_typegraph_determinism.py tests/test_typegraph_fixture.py tests/test_typegraph_forest.py tests/test_typegraph_index.py tests/test_typegraph_parse.py tests/test_typegraph_regression.py tests/test_typegraph_resolve.py tests/test_typegraph_star_imports.py",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "391 passed, 1708 subtests passed in 134.80s (0:02:14)",
+      "passed": 391,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 136.14,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_type_graph.txt",
+      "stamp": "MEASURED"
+     },
+     "tests_green": true
+    },
+    "forest_v2": {
+     "tracked_files": 78,
+     "slices_present": [
+      "s01",
+      "s03",
+      "s04",
+      "s05",
+      "s06",
+      "s08",
+      "s10"
+     ],
+     "slices_missing_as_dirs": [
+      "s02",
+      "s07",
+      "s09"
+     ],
+     "slices": {
+      "s01": {
+       "dir": "s01_resolution",
+       "files": 5,
+       "py_files": 5,
+       "test_files": [
+        "experiments/forest_v2/s01_resolution/test_s01_resolver.py"
+       ],
+       "test_functions": 37
+      },
+      "s03": {
+       "dir": "s03_data",
+       "files": 27,
+       "py_files": 11,
+       "test_files": [
+        "experiments/forest_v2/s03_data/test_probe_data_plane.py"
+       ],
+       "test_functions": 54
+      },
+      "s04": {
+       "dir": "s04_knowledge",
+       "files": 11,
+       "py_files": 8,
+       "test_files": [
+        "experiments/forest_v2/s04_knowledge/test_probe_knowledge_crosslinks.py"
+       ],
+       "test_functions": 35
+      },
+      "s05": {
+       "dir": "s05_snapshot",
+       "files": 4,
+       "py_files": 4,
+       "test_files": [
+        "experiments/forest_v2/s05_snapshot/test_snapshot.py"
+       ],
+       "test_functions": 48
+      },
+      "s06": {
+       "dir": "s06_cards",
+       "files": 10,
+       "py_files": 10,
+       "test_files": [
+        "experiments/forest_v2/s06_cards/test_edge_join.py",
+        "experiments/forest_v2/s06_cards/test_negative_paths.py",
+        "experiments/forest_v2/s06_cards/test_node_cards.py",
+        "experiments/forest_v2/s06_cards/test_probe_node_cards.py",
+        "experiments/forest_v2/s06_cards/test_upstream_pin.py"
+       ],
+       "test_functions": 96
+      },
+      "s08": {
+       "dir": "s08_graph_baselines",
+       "files": 6,
+       "py_files": 6,
+       "test_files": [
+        "experiments/forest_v2/s08_graph_baselines/test_s08_graph_baselines.py"
+       ],
+       "test_functions": 51
+      },
+      "s10": {
+       "dir": "s10_kill",
+       "files": 12,
+       "py_files": 12,
+       "test_files": [
+        "experiments/forest_v2/s10_kill/test_s10_boundary.py",
+        "experiments/forest_v2/s10_kill/test_s10_kill.py"
+       ],
+       "test_functions": 81
+      }
+     },
+     "anchors": [
+      {
+       "path": "experiments/forest_v2/README.md",
+       "present": true,
+       "blob": "562df46e04fc9768ea4554ada1c56c0788d847e6",
+       "sha256": "f5546a8817d8002cbfaf85ec7c6e96fc508abc82c230f9e5c90e7f698cd81f66",
+       "bytes": 146908,
+       "lines": 2547,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/GATE2_FOREST_V2_TRIAGE.md",
+       "present": true,
+       "blob": "56293f986c5e3bcec4055c5b883cee7c27671bc4",
+       "sha256": "b326c65fd7e6f93adf732e7cf437af0b7672a92a3b1beae883bf002fcc86663a",
+       "bytes": 9793,
+       "lines": 148,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "slice_mentions_in_anchors": {
+      "experiments/forest_v2/README.md": {
+       "s01": 57,
+       "s02": 0,
+       "s03": 1,
+       "s04": 5,
+       "s05": 2,
+       "s06": 6,
+       "s07": 1,
+       "s08": 19,
+       "s09": 6,
+       "s10": 5
+      },
+      "docs/GATE2_FOREST_V2_TRIAGE.md": {
+       "s01": 3,
+       "s02": 3,
+       "s03": 2,
+       "s04": 2,
+       "s05": 3,
+       "s06": 2,
+       "s07": 2,
+       "s08": 3,
+       "s09": 3,
+       "s10": 4
+      }
+     },
+     "collect": {
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no --collect-only experiments/forest_v2",
+      "rc": 0,
+      "timed_out": false,
+      "collected": 442,
+      "collect_errors": 0,
+      "wall_s": 1.93,
+      "wall_stamp": "INHERITED-under-load",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\collect_trunk_forest_v2.txt",
+      "stamp": "MEASURED"
+     },
+     "pytest": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "targets": [
+       "experiments/forest_v2"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no experiments/forest_v2",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "442 passed in 38.38s",
+      "passed": 442,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 39.25,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_forest_v2.txt",
+      "stamp": "MEASURED"
+     },
+     "tests_green": true
+    },
+    "eval_ceiling": {
+     "files": [
+      {
+       "path": "daedalus/eval/ceiling.py",
+       "present": true,
+       "blob": "f738380925868cbf9e14083e01bec7ee96abc149",
+       "sha256": "d24c8c7e60eaee79727843704b00e0da117f7fc20ddda9186132bff4333ca856",
+       "bytes": 22795,
+       "lines": 463,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_temporal_ceiling.py"
+     ],
+     "test_functions": 16,
+     "anchors": [
+      {
+       "path": "docs/research/rounds/round1/ceiling-vs-graphdelta.md",
+       "present": true,
+       "blob": "f4bb3e94a253b17f8503affe68eb3a413e83a37d",
+       "sha256": "2490cfe07ccddc3ebcd31da72de16fd8e718ed1a1b3ceeefbb53f46bbad4a693",
+       "bytes": 1194,
+       "lines": 13,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/research/rounds/round2/v-ceiling-vs-graphdelta.md",
+       "present": true,
+       "blob": "ea4b353cd50d92a217c8aec9ea3e2ec0b47e9926",
+       "sha256": "8e69be06bc9c882ee4a4b28f2930273f429d9246e75ec0da8d6316c3c9fd7e88",
+       "bytes": 800,
+       "lines": 16,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json",
+       "present": true,
+       "blob": "9d7c443c7ee28de6389cd57e8c73900f09a6132a",
+       "sha256": "0ab8c7fd61b8adb466f44748a05efabc56dfa7d014896dad253d3ca03aa638e5",
+       "bytes": 1274,
+       "lines": 31,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+       "present": true,
+       "blob": "a76f4c9903bffafa36b495ae85e1ffc084d3c2a6",
+       "sha256": "c4eccc49a5673e1b2691e2357b7943cc686a5a096fb2bd815cf2a6dd8c8cb207",
+       "bytes": 864,
+       "lines": 28,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 16,
+     "tests_failed": 0
+    },
+    "graph_delta": {
+     "files": [
+      {
+       "path": "daedalus/eval/graph_delta.py",
+       "present": true,
+       "blob": "a6823c47c2e5abcd0816ca8252da88b5604ea44f",
+       "sha256": "758a63b498e10a30d16e12b323c23ee04266236d929125fdbab418189a28ab0e",
+       "bytes": 33776,
+       "lines": 766,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_graph_delta.py"
+     ],
+     "test_functions": 25,
+     "anchors": [
+      {
+       "path": "docs/research/GRAPH_DELTA_CALIBRATION.md",
+       "present": true,
+       "blob": "04ecac085cdbbd96f636f94add9eccb98de2294e",
+       "sha256": "1f662eb7e69eed9de32866df6b033d0bb23c696a213b4378b4b58bebac499b0e",
+       "bytes": 16073,
+       "lines": 286,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta.json",
+       "present": true,
+       "blob": "2da3428c1b780f9ba5481624ec801f3ac60c3f1a",
+       "sha256": "9e17654526b001379afb97333a8d842815a2e531cfca07272acfac1f1d430d28",
+       "bytes": 49761,
+       "lines": 1803,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta_held_out.json",
+       "present": true,
+       "blob": "2913ee2b4128d870afbd989cc266cd28db8f4283",
+       "sha256": "82c70fd91ab1de55f23dc4b2db77392781656dec2317ab87ca3b96e21ea843b2",
+       "bytes": 1100,
+       "lines": 67,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/graph_delta_specificity.json",
+       "present": true,
+       "blob": "f88948329565b03a18f0735f750b86a6a33b4439",
+       "sha256": "4f1e97ee47a33bb49e9c18abde537c798e6fa1c637f7001a1d9d1e00dd97803b",
+       "bytes": 20133,
+       "lines": 1170,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 25,
+     "tests_failed": 0
+    },
+    "mutate": {
+     "files": [
+      {
+       "path": "daedalus/eval/mutate.py",
+       "present": true,
+       "blob": "14a596cee486af496a2b196156aa6d36d02a4f93",
+       "sha256": "04e2b4d68d83f63703e88703a967db9b17e4c69a6d0bf566b5a66b734b5261a8",
+       "bytes": 17568,
+       "lines": 403,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_mutation_score.py"
+     ],
+     "test_functions": 35,
+     "anchors": [
+      {
+       "path": "runs/eval/deepseek_impl20/v01-verify-mutate-operators.json",
+       "present": true,
+       "blob": "bf91d13e32aa224a312889d5f9b2b50d71fb42a1",
+       "sha256": "da49b932b57dee420e3be7704c675d9dcb1676ad791ae25fd004f9329315005f",
+       "bytes": 461,
+       "lines": 22,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+       "present": true,
+       "blob": "ff8d77ba316986bd7ed5b0655771bc63dcaa8955",
+       "sha256": "55c4c5b03269c669ce207e2c26f9aabf6f46a551c0259b974e83cf61de59a81f",
+       "bytes": 2594,
+       "lines": 27,
+       "stamp": "MEASURED"
+      }
+     ],
+     "stamp": "MEASURED",
+     "tests_green": true,
+     "tests_passed": 26,
+     "tests_failed": 0
+    },
+    "gate_discrimination": {
+     "files": [
+      {
+       "path": "tools/gate_discrimination.py",
+       "present": true,
+       "blob": "25e9275d7f8d5d6f792bc0fcb0f466374c29cce1",
+       "sha256": "ea9a562ee65eed061fa9bf49140af52b324a3f72b61f415e57ffab8cbcf11390",
+       "bytes": 59703,
+       "lines": 1204,
+       "stamp": "MEASURED"
+      },
+      {
+       "path": "docs/GATE_DISCRIMINATION.md",
+       "present": true,
+       "blob": "8e2ba0a3e7668a60ae22af15077ef50dcba48342",
+       "sha256": "94cc1add6f22869941a2a724404b75dee8dce2441d3db19ef44e9ca3889f661e",
+       "bytes": 21773,
+       "lines": 335,
+       "stamp": "MEASURED"
+      }
+     ],
+     "test_files": [
+      "tests/test_gate_discrimination.py"
+     ],
+     "test_functions": 44,
+     "anchors": [],
+     "stamp": "MEASURED",
+     "anchor_prefix_hits": {
+      "runs/gate_discrimination": [],
+      "runs/eval/gate_discrimination": [],
+      "runs/discrimination": []
+     },
+     "tests_green": true,
+     "tests_passed": 44,
+     "tests_failed": 0
+    },
+    "_eval_assets_pytest": {
+     "combined": {
+      "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "targets": [
+       "tests/test_gate_discrimination.py",
+       "tests/test_graph_delta.py",
+       "tests/test_mutation_score.py",
+       "tests/test_temporal_ceiling.py"
+      ],
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py tests/test_graph_delta.py tests/test_mutation_score.py tests/test_temporal_ceiling.py",
+      "rc": 0,
+      "timed_out": false,
+      "green": true,
+      "summary_line": "111 passed in 60.18s (0:01:00)",
+      "passed": 111,
+      "porcelain_before": 0,
+      "porcelain_after": 0,
+      "wall_s": 60.95,
+      "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_eval_assets.txt",
+      "stamp": "MEASURED"
+     },
+     "per_file": {
+      "tests/test_gate_discrimination.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+       "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+       "targets": [
+        "tests/test_gate_discrimination.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "44 passed in 17.68s",
+       "passed": 44,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 18.5,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_test_gate_discrimination.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_graph_delta.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+       "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+       "targets": [
+        "tests/test_graph_delta.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_graph_delta.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "25 passed in 0.85s",
+       "passed": 25,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 1.67,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_test_graph_delta.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_mutation_score.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+       "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+       "targets": [
+        "tests/test_mutation_score.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_mutation_score.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "26 passed in 51.28s",
+       "passed": 26,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 52.18,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_test_mutation_score.txt",
+       "stamp": "MEASURED"
+      },
+      "tests/test_temporal_ceiling.py": {
+       "worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+       "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+       "targets": [
+        "tests/test_temporal_ceiling.py"
+       ],
+       "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_temporal_ceiling.py",
+       "rc": 0,
+       "timed_out": false,
+       "green": true,
+       "summary_line": "16 passed in 10.00s",
+       "passed": 16,
+       "porcelain_before": 0,
+       "porcelain_after": 0,
+       "wall_s": 11.41,
+       "wall_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+       "raw": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_research\\pytest_trunk_test_temporal_ceiling.txt",
+       "stamp": "MEASURED"
+      }
+     }
+    }
+   }
+  }
+ },
+ "cross_line": {
+  "daedalus/eval/ceiling.py": {
+   "checkpoint_blob": "c13980662959ae5f7e24eba76e51a221b48d7ae8",
+   "trunk_blob": "f738380925868cbf9e14083e01bec7ee96abc149",
+   "byte_identical": false,
+   "numstat_cp_to_trunk": "8\t0\tdaedalus/eval/ceiling.py",
+   "stamp": "MEASURED"
+  },
+  "daedalus/eval/graph_delta.py": {
+   "checkpoint_blob": "4fa9250c28e450d86f72d532013c01bf981eea41",
+   "trunk_blob": "a6823c47c2e5abcd0816ca8252da88b5604ea44f",
+   "byte_identical": false,
+   "numstat_cp_to_trunk": "8\t0\tdaedalus/eval/graph_delta.py",
+   "stamp": "MEASURED"
+  },
+  "daedalus/eval/mutate.py": {
+   "checkpoint_blob": "14a596cee486af496a2b196156aa6d36d02a4f93",
+   "trunk_blob": "14a596cee486af496a2b196156aa6d36d02a4f93",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/GATE2_FOREST_V2_TRIAGE.md": {
+   "checkpoint_blob": null,
+   "trunk_blob": "56293f986c5e3bcec4055c5b883cee7c27671bc4",
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": false,
+    "trunk": true
+   },
+   "stamp": "MEASURED"
+  },
+  "docs/GATE_DISCRIMINATION.md": {
+   "checkpoint_blob": "8e2ba0a3e7668a60ae22af15077ef50dcba48342",
+   "trunk_blob": "8e2ba0a3e7668a60ae22af15077ef50dcba48342",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/GRAPH_DELTA_CALIBRATION.md": {
+   "checkpoint_blob": "04ecac085cdbbd96f636f94add9eccb98de2294e",
+   "trunk_blob": "04ecac085cdbbd96f636f94add9eccb98de2294e",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md": {
+   "checkpoint_blob": "434d8ef67279180301c55f4902862fd2e394c62a",
+   "trunk_blob": null,
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": true,
+    "trunk": false
+   },
+   "stamp": "MEASURED"
+  },
+  "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md": {
+   "checkpoint_blob": "65790360fc96186690bccf59cdfccdf292cbbd24",
+   "trunk_blob": "65790360fc96186690bccf59cdfccdf292cbbd24",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md": {
+   "checkpoint_blob": "6aa2b4773a17c0c74d6d5446acb1986e1f4ed692",
+   "trunk_blob": "6aa2b4773a17c0c74d6d5446acb1986e1f4ed692",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md": {
+   "checkpoint_blob": "01b537839ea22099d005d729b1455d0a8b774ecb",
+   "trunk_blob": "01b537839ea22099d005d729b1455d0a8b774ecb",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/rounds/round1/ceiling-vs-graphdelta.md": {
+   "checkpoint_blob": "f4bb3e94a253b17f8503affe68eb3a413e83a37d",
+   "trunk_blob": "f4bb3e94a253b17f8503affe68eb3a413e83a37d",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "docs/research/rounds/round2/v-ceiling-vs-graphdelta.md": {
+   "checkpoint_blob": "ea4b353cd50d92a217c8aec9ea3e2ec0b47e9926",
+   "trunk_blob": "ea4b353cd50d92a217c8aec9ea3e2ec0b47e9926",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "experiments/forest_v2/README.md": {
+   "checkpoint_blob": null,
+   "trunk_blob": "562df46e04fc9768ea4554ada1c56c0788d847e6",
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": false,
+    "trunk": true
+   },
+   "stamp": "MEASURED"
+  },
+  "runs/eval/deepseek100/x09-graphdelta-vs-mutate.json": {
+   "checkpoint_blob": "ff8d77ba316986bd7ed5b0655771bc63dcaa8955",
+   "trunk_blob": "ff8d77ba316986bd7ed5b0655771bc63dcaa8955",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/deepseek_impl20/v01-verify-mutate-operators.json": {
+   "checkpoint_blob": "bf91d13e32aa224a312889d5f9b2b50d71fb42a1",
+   "trunk_blob": "bf91d13e32aa224a312889d5f9b2b50d71fb42a1",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/deepseek_lab/w09-typegraph-ceiling.json": {
+   "checkpoint_blob": "a76f4c9903bffafa36b495ae85e1ffc084d3c2a6",
+   "trunk_blob": "a76f4c9903bffafa36b495ae85e1ffc084d3c2a6",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json": {
+   "checkpoint_blob": "9d7c443c7ee28de6389cd57e8c73900f09a6132a",
+   "trunk_blob": "9d7c443c7ee28de6389cd57e8c73900f09a6132a",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/graph_delta.json": {
+   "checkpoint_blob": "2da3428c1b780f9ba5481624ec801f3ac60c3f1a",
+   "trunk_blob": "2da3428c1b780f9ba5481624ec801f3ac60c3f1a",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/graph_delta_held_out.json": {
+   "checkpoint_blob": "2913ee2b4128d870afbd989cc266cd28db8f4283",
+   "trunk_blob": "2913ee2b4128d870afbd989cc266cd28db8f4283",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/eval/graph_delta_specificity.json": {
+   "checkpoint_blob": "f88948329565b03a18f0735f750b86a6a33b4439",
+   "trunk_blob": "f88948329565b03a18f0735f750b86a6a33b4439",
+   "byte_identical": true,
+   "stamp": "MEASURED"
+  },
+  "runs/higher_twin_nc/SPEC.md": {
+   "checkpoint_blob": "4518e6db3bc8204789c4aa8cf562e9b37e40e81a",
+   "trunk_blob": null,
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": true,
+    "trunk": false
+   },
+   "stamp": "MEASURED"
+  },
+  "runs/higher_twin_nc/WATCHDOG_MISSION.md": {
+   "checkpoint_blob": "aef52d024e398ef73e0da1065b6dbd4bb3064b3e",
+   "trunk_blob": null,
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": true,
+    "trunk": false
+   },
+   "stamp": "MEASURED"
+  },
+  "runs/higher_twin_nc/receipts/priorart-sweep-20260820.json": {
+   "checkpoint_blob": "93b775d297a4221915f63690a18631498de94ae9",
+   "trunk_blob": null,
+   "byte_identical": null,
+   "presence": {
+    "checkpoint": true,
+    "trunk": false
+   },
+   "stamp": "MEASURED"
+  },
+  "tools/gate_discrimination.py": {
+   "checkpoint_blob": "da22482017f69f504ffa63f6227cf8f3bb7b4c1d",
+   "trunk_blob": "25e9275d7f8d5d6f792bc0fcb0f466374c29cce1",
+   "byte_identical": false,
+   "numstat_cp_to_trunk": "10\t0\ttools/gate_discrimination.py",
+   "stamp": "MEASURED"
+  }
+ },
+ "ceiling_corpus": {
+  "doc": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+  "doc_names_a_corpus_file": false,
+  "doc_backticked_paths": [
+   "daedalus.lanes.graph_brief",
+   "daedalus.linting",
+   "daedalus.wiki_vault",
+   "daedalus/eval/ceiling.py",
+   "daedalus/gui/lint.py",
+   "daedalus/wiki/vault.py",
+   "eval/ceiling.py",
+   "eval/graph_delta.py --held-out",
+   "tools/gate_discrimination.py"
+  ],
+  "doc_rows": [
+   {
+    "source": "write-lane substitutions",
+    "n": 3
+   },
+   {
+    "source": "invented first-party imports",
+    "n": 3
+   },
+   {
+    "source": "wrong-assumption test failures",
+    "n": 4
+   },
+   {
+    "source": "UNWIRED false positives",
+    "n": "147 of 154"
+   },
+   {
+    "source": "fan-out claims with no corroboration",
+    "n": 1226
+   }
+  ],
+  "candidate_files": {
+   "checkpoint": {
+    "runs/eval/deepseek40/s05-artifacts-unwired.json": {
+     "path": "runs/eval/deepseek40/s05-artifacts-unwired.json",
+     "present": true,
+     "blob": "a7f55286de37338ebcedd630c0b1d0910bcce6c6",
+     "sha256": "dbcbab167aa1e8f380f08888f4a535924a780e15d35e9276cbe7d9a10430943c",
+     "bytes": 1998,
+     "lines": 26,
+     "stamp": "MEASURED",
+     "doc_numbers_found": {
+      "154": 0,
+      "147": 0,
+      "1226": 0,
+      "1,226": 0,
+      "95.5": 0
+     },
+     "is_single_report": true
+    },
+    "runs/eval/research40/q26-fan-out-without-corroboration.json": {
+     "path": "runs/eval/research40/q26-fan-out-without-corroboration.json",
+     "present": true,
+     "blob": "df45b717a679eaa9a6984d53275d505a0c6b8778",
+     "sha256": "5bfbf4ce14c12dae688697cfc998fb326db119928d933a7b4a32dc194e0b190a",
+     "bytes": 2614,
+     "lines": 29,
+     "stamp": "MEASURED",
+     "doc_numbers_found": {
+      "154": 0,
+      "147": 0,
+      "1226": 0,
+      "1,226": 2,
+      "95.5": 0
+     },
+     "is_single_report": true
+    }
+   },
+   "trunk": {
+    "runs/eval/deepseek40/s05-artifacts-unwired.json": {
+     "path": "runs/eval/deepseek40/s05-artifacts-unwired.json",
+     "present": true,
+     "blob": "a7f55286de37338ebcedd630c0b1d0910bcce6c6",
+     "sha256": "dbcbab167aa1e8f380f08888f4a535924a780e15d35e9276cbe7d9a10430943c",
+     "bytes": 1998,
+     "lines": 26,
+     "stamp": "MEASURED",
+     "doc_numbers_found": {
+      "154": 0,
+      "147": 0,
+      "1226": 0,
+      "1,226": 0,
+      "95.5": 0
+     },
+     "is_single_report": true
+    },
+    "runs/eval/research40/q26-fan-out-without-corroboration.json": {
+     "path": "runs/eval/research40/q26-fan-out-without-corroboration.json",
+     "present": true,
+     "blob": "df45b717a679eaa9a6984d53275d505a0c6b8778",
+     "sha256": "5bfbf4ce14c12dae688697cfc998fb326db119928d933a7b4a32dc194e0b190a",
+     "bytes": 2614,
+     "lines": 29,
+     "stamp": "MEASURED",
+     "doc_numbers_found": {
+      "154": 0,
+      "147": 0,
+      "1226": 0,
+      "1,226": 2,
+      "95.5": 0
+     },
+     "is_single_report": true
+    }
+   }
+  },
+  "unwired_tag_scan": {
+   "checkpoint": {
+    "root": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\runs\\funnel",
+    "exists": true,
+    "files_with_marker": 0,
+    "bytes_with_marker": 0,
+    "by_run": {},
+    "non_scan_files_stating_154_and_147": [],
+    "stamp": "MEASURED"
+   },
+   "trunk": {
+    "root": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\funnel",
+    "exists": true,
+    "files_with_marker": 0,
+    "bytes_with_marker": 0,
+    "by_run": {},
+    "non_scan_files_stating_154_and_147": [],
+    "stamp": "MEASURED"
+   }
+  },
+  "stamp": "MEASURED",
+  "doc_status_line": "Written 2026-07-30. **Not yet run** — it must not run concurrently with",
+  "whole_worktree_scan": {
+   "checkpoint": {
+    "root": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp",
+    "files_scanned": 3942,
+    "unwired_files": 124,
+    "unwired_by_top_dir": {
+     ".claude": 1,
+     "daedalus": 7,
+     "docs": 38,
+     "runs": 66,
+     "tests": 9,
+     "tools": 3
+    },
+    "unwired_json_status_field_count": 0,
+    "unwired_json_files_with_status_field": [],
+    "files_with_154_and_147": [
+     ".claude/skills/ui-ux-pro-max/data/colors.csv",
+     ".claude/skills/ui-ux-pro-max/data/google-fonts.csv",
+     ".claude/skills/ui-ux-pro-max/data/products.csv",
+     ".claude/skills/ui-ux-pro-max/data/ui-reasoning.csv",
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/census/SYNTH-priorities.md",
+     "runs/funnel/claims123/scan/scan__daedalus_council_canary.py__c1of5__da90d94-bb1032e840.json",
+     "runs/funnel/claims123/scan/scan__daedalus_eval_ceiling.py__c1of2__da90d94-39d1972bd4.json",
+     "runs/funnel/claims123/scan/scan__daedalus_kairos_gated_writes.py__c1of5__da90d94-4a60d75ef5.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_structcore_artifacts.py__c2of6__946db82-bb78be425a.json",
+     "runs/gui/ikarus-hud-1440x900.json",
+     "runs/higher_twin_nc/runs/cryptic-20260820/receipts.jsonl",
+     "runs/higher_twin_nc/runs/cryptic-20260821/receipts.jsonl"
+    ],
+    "files_with_1226": [
+     ".claude/skills/ui-ux-pro-max/data/google-fonts.csv",
+     "daedalus/lanes/fanout.py",
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/NIGHT_SHIFT_2026-07-30.md",
+     "docs/research/RESEARCH_WAVE.md",
+     "docs/wiki/night-shift-2026-07-30.md",
+     "runs/eval/research40/q26-fan-out-without-corroboration.json",
+     "runs/eval/research40/questions.json",
+     "runs/eval/research40/_all.json",
+     "runs/funnel/claims123/research/research__b013__da90d94-1e292b9a5d.json",
+     "runs/funnel/claims123/scan/scan__daedalus_council_canary.py__c5of5__1e9d5dd-b1f0749adf.json",
+     "runs/funnel/claims123/scan/scan__daedalus_kairos_worktree.py__c5of5__1e9d5dd-a69223c853.json",
+     "runs/funnel/claims123/scan/scan__daedalus_lanes_fanout.py__c1of2__da90d94-64a2db395d.json",
+     "runs/funnel/claims123/scan/scan__daedalus_mapping_drift.py__c5of6__da90d94-52a1d07e49.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_kairos_worktree.py__c11of12__946db82-597e531edb.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_lanes_fanout.py__c1of5__946db82-7ec6f8073d.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_spine_attempt.py__c11of14__946db82-228fd28eab.json",
+     "runs/gui/ikarus-hud-1440x900.json",
+     "tests/test_lanes_fanout.py",
+     "tools/audit_swarm.py"
+    ],
+    "files_with_95_5": [
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/census/SYNTH-priorities.md"
+    ],
+    "stamp": "MEASURED"
+   },
+   "trunk": {
+    "root": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+    "files_scanned": 5116,
+    "unwired_files": 125,
+    "unwired_by_top_dir": {
+     ".claude": 1,
+     "daedalus": 7,
+     "docs": 38,
+     "runs": 66,
+     "tests": 9,
+     "tools": 4
+    },
+    "unwired_json_status_field_count": 0,
+    "unwired_json_files_with_status_field": [],
+    "files_with_154_and_147": [
+     ".claude/skills/ui-ux-pro-max/data/colors.csv",
+     ".claude/skills/ui-ux-pro-max/data/google-fonts.csv",
+     ".claude/skills/ui-ux-pro-max/data/products.csv",
+     ".claude/skills/ui-ux-pro-max/data/ui-reasoning.csv",
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/census/SYNTH-priorities.md",
+     "experiments/forest_v2/README.md",
+     "runs/funnel/claims123/scan/scan__daedalus_council_canary.py__c1of5__da90d94-bb1032e840.json",
+     "runs/funnel/claims123/scan/scan__daedalus_eval_ceiling.py__c1of2__da90d94-39d1972bd4.json",
+     "runs/funnel/claims123/scan/scan__daedalus_kairos_gated_writes.py__c1of5__da90d94-4a60d75ef5.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_structcore_artifacts.py__c2of6__946db82-bb78be425a.json",
+     "runs/gui/ikarus-hud-1440x900.json",
+     "tools/audit_triage.py"
+    ],
+    "files_with_1226": [
+     ".claude/skills/ui-ux-pro-max/data/google-fonts.csv",
+     "daedalus/lanes/fanout.py",
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/NIGHT_SHIFT_2026-07-30.md",
+     "docs/research/RESEARCH_WAVE.md",
+     "docs/wiki/night-shift-2026-07-30.md",
+     "runs/eval/research40/q26-fan-out-without-corroboration.json",
+     "runs/eval/research40/questions.json",
+     "runs/eval/research40/_all.json",
+     "runs/funnel/claims123/research/research__b013__da90d94-1e292b9a5d.json",
+     "runs/funnel/claims123/scan/scan__daedalus_council_canary.py__c5of5__1e9d5dd-b1f0749adf.json",
+     "runs/funnel/claims123/scan/scan__daedalus_kairos_worktree.py__c5of5__1e9d5dd-a69223c853.json",
+     "runs/funnel/claims123/scan/scan__daedalus_lanes_fanout.py__c1of2__da90d94-64a2db395d.json",
+     "runs/funnel/claims123/scan/scan__daedalus_mapping_drift.py__c5of6__da90d94-52a1d07e49.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_kairos_worktree.py__c11of12__946db82-597e531edb.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_lanes_fanout.py__c1of5__946db82-7ec6f8073d.json",
+     "runs/funnel/codebase-500/scan/scan__daedalus_spine_attempt.py__c11of14__946db82-228fd28eab.json",
+     "runs/gui/ikarus-hud-1440x900.json",
+     "tests/test_lanes_fanout.py",
+     "tools/audit_swarm.py",
+     "tools/audit_triage.py"
+    ],
+    "files_with_95_5": [
+     "docs/HANDOFF_2026-07-30_NIGHT.md",
+     "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+     "docs/research/census/SYNTH-priorities.md",
+     "tools/audit_triage.py"
+    ],
+    "stamp": "MEASURED"
+   }
+  },
+  "provenance_peek_checkpoint": {
+   "provenance_lines": {
+    "docs/HANDOFF_2026-07-30_NIGHT.md": [
+     "sorting noise.** 1,226 claims, largest agreement cluster **two**, because the",
+     "specific claim.** Of 154 UNWIRED candidates, 147 were false — a 95.5% false"
+    ],
+    "docs/research/census/SYNTH-priorities.md": [
+     "## 0. Calibration first: the UNWIRED tag is 95.5% noise",
+     "154 unique `(file, symbol)` candidates parsed from the 155 lines. **[V]**",
+     "**Elimination ratio: 147 of 154 eliminated — 95.5% false positive.** Treat a",
+     "- **Grep the tree before believing a reachability claim.** 147 of 154 candidates"
+    ]
+   },
+   "runs_subdirs_with_unwired": {
+    "audit_swarm/daedalus_health.py_c3of4_5eb1702d-be9aef1231.json": 1,
+    "audit_swarm/daedalus_ikarus_os.py_c3of3_5eb1702d-aaeeb7da81.json": 1,
+    "audit_swarm/daedalus_mapping_render.py_c2of3_5eb1702d-e541c980d6.json": 1,
+    "audit_swarm/daedalus_provider_router.py_c2of2_5eb1702d-8b1358c218.json": 1,
+    "audit_swarm/daedalus_web_api.py_c2of4_5eb1702d-08c9798c2e.json": 1,
+    "eval/census300": 42,
+    "eval/census_review20": 7,
+    "eval/deepseek40": 2,
+    "eval/deepseek_scan.json": 1,
+    "eval/findings.json": 1,
+    "eval/graph_delta.json": 1,
+    "eval/scan6.txt": 1,
+    "funnel/claims123": 2,
+    "funnel/codebase-500": 4
+   },
+   "stamp": "MEASURED"
+  },
+  "resolved_sources_on_disk": {
+   "checkpoint": {
+    "UNWIRED false positives (147 of 154)": {
+     "runs/eval/census300/": {
+      "present": true,
+      "files": 301,
+      "bytes": 1333081,
+      "stamp": "MEASURED"
+     },
+     "docs/research/census/SYNTH-priorities.md": {
+      "present": true,
+      "bytes": 27135,
+      "stamp": "MEASURED"
+     }
+    },
+    "fan-out claims with no corroboration (1,226)": {
+     "runs/eval/research40/_all.json": {
+      "present": true,
+      "bytes": 101061,
+      "stamp": "MEASURED"
+     },
+     "runs/eval/research40/q26-fan-out-without-corroboration.json": {
+      "present": true,
+      "bytes": 2614,
+      "stamp": "MEASURED"
+     },
+     "daedalus/lanes/fanout.py": {
+      "present": true,
+      "bytes": 25136,
+      "stamp": "MEASURED"
+     }
+    },
+    "sharp corpus rows (3+3+4) as documented": {
+     "docs/HANDOFF_2026-07-30_NIGHT.md": {
+      "present": true,
+      "bytes": 40415,
+      "stamp": "MEASURED"
+     },
+     "tests/test_deepseek_substitution_guard.py": {
+      "present": true,
+      "bytes": 12389,
+      "stamp": "MEASURED"
+     }
+    },
+    "census300_UNWIRED_mentions": {
+     "files_with_marker": 41,
+     "marker_occurrences": 312,
+     "stamp": "MEASURED"
+    }
+   },
+   "trunk": {
+    "UNWIRED false positives (147 of 154)": {
+     "runs/eval/census300/": {
+      "present": true,
+      "files": 301,
+      "bytes": 1333081,
+      "stamp": "MEASURED"
+     },
+     "docs/research/census/SYNTH-priorities.md": {
+      "present": true,
+      "bytes": 27135,
+      "stamp": "MEASURED"
+     }
+    },
+    "fan-out claims with no corroboration (1,226)": {
+     "runs/eval/research40/_all.json": {
+      "present": true,
+      "bytes": 101061,
+      "stamp": "MEASURED"
+     },
+     "runs/eval/research40/q26-fan-out-without-corroboration.json": {
+      "present": true,
+      "bytes": 2614,
+      "stamp": "MEASURED"
+     },
+     "daedalus/lanes/fanout.py": {
+      "present": true,
+      "bytes": 25136,
+      "stamp": "MEASURED"
+     }
+    },
+    "sharp corpus rows (3+3+4) as documented": {
+     "docs/HANDOFF_2026-07-30_NIGHT.md": {
+      "present": true,
+      "bytes": 40415,
+      "stamp": "MEASURED"
+     },
+     "tests/test_deepseek_substitution_guard.py": {
+      "present": true,
+      "bytes": 12389,
+      "stamp": "MEASURED"
+     }
+    },
+    "census300_UNWIRED_mentions": {
+     "files_with_marker": 41,
+     "marker_occurrences": 312,
+     "stamp": "MEASURED"
+    }
+   }
+  },
+  "resolution_note": "The doc names no corpus file. SYNTH-priorities.md states the 154 UNWIRED candidates were parsed from 155 lines of the census300 run; HANDOFF_2026-07-30_NIGHT.md states 1,226 claims / 147 of 154 false. Both source trees carry the same blobs for these files at the two pins (see cross_line for shared anchors). No per-item (a)/(b)/(c) classification artifact exists on either line; the doc's own status line is 'Not yet run'."
+ },
+ "denials_during_interactive_probing": [
+  {
+   "step": "git ls-tree -r --name-only <sha> | grep -E '^tests/...' (read-only listing of test files on both pins)",
+   "denial": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+  },
+  {
+   "step": "git grep -l UNWIRED <sha> -- runs docs (read-only search for the ceiling corpus)",
+   "denial": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: docs>. Follow the owner-approved amendment protocol."
+  },
+  {
+   "step": "cd <disposable cp worktree> && grep -rl UNWIRED runs/funnel (read-only search in the disposable worktree)",
+   "denial": "Protected Iron Plan artifact(s) cannot change in ordinary work: .agentenv/agentenv.json, .agentenv/tool-allowances.json, .claude/settings.json, .codex/hooks.json, templates/agentenv.json, .claude/settings.local.json, docs/IKARUS_ARIADNE_MASTER_PLAN.md, AGENTS.md, CLAUDE.md, .agents/skills/enforce-iron-plan/SKILL.md, docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl. Follow the owner-approved amendment protocol."
+  },
+  {
+   "step": "cat > <scratchpad>/preruling_research_census_config.json <<EOF (heredoc body contained the glob 'runs/higher_twin_nc/tests/')",
+   "denial": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+  },
+  {
+   "step": "python - <<EOF (inline printer of the receipt; heredoc body contained the string 'tests=')",
+   "denial": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+  }
+ ],
+ "commands": [
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false ls-tree -r -z 3e758392845d9faf7877977d5ae8806973ed62e6",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false ls-tree -r -z 93f11adfb08efa713711fd62e9be7b46d8957166",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/SPEC.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_assay.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_batch2.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_chemlab.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_codex_round.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_cryptic2.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_descent.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_pumplab.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_squares.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/tests/test_textlab.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/receipts/priorart-sweep-20260820.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/higher_twin_nc/WATCHDOG_MISSION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no --collect-only runs/higher_twin_nc",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no runs/higher_twin_nc",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_determinism.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_fixture.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_forest.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_index.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_parse.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_regression.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_resolve.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_typegraph_star_imports.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:experiments/forest_v2/README.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/GATE2_FOREST_V2_TRIAGE.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:daedalus/eval/ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/rounds/round1/ceiling-vs-graphdelta.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/rounds/round2/v-ceiling-vs-graphdelta.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:daedalus/eval/graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/GRAPH_DELTA_CALIBRATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/graph_delta.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/graph_delta_held_out.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/graph_delta_specificity.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:daedalus/eval/mutate.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_mutation_score.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek_impl20/v01-verify-mutate-operators.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tools/gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/GATE_DISCRIMINATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:tests/test_gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py tests/test_graph_delta.py tests/test_mutation_score.py tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_mutation_score.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_typegraph_determinism.py tests/test_typegraph_fixture.py tests/test_typegraph_forest.py tests/test_typegraph_index.py tests/test_typegraph_parse.py tests/test_typegraph_regression.py tests/test_typegraph_resolve.py tests/test_typegraph_star_imports.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/higher_twin_nc/SPEC.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_determinism.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_fixture.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_forest.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_index.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_parse.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_regression.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_resolve.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_typegraph_star_imports.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s01_resolution/test_s01_resolver.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s03_data/test_probe_data_plane.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s04_knowledge/test_probe_knowledge_crosslinks.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s05_snapshot/test_snapshot.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s06_cards/test_edge_join.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s06_cards/test_negative_paths.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s06_cards/test_node_cards.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s06_cards/test_probe_node_cards.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s06_cards/test_upstream_pin.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s08_graph_baselines/test_s08_graph_baselines.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s10_kill/test_s10_boundary.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/s10_kill/test_s10_kill.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/README.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/GATE2_FOREST_V2_TRIAGE.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:experiments/forest_v2/README.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/GATE2_FOREST_V2_TRIAGE.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no --collect-only experiments/forest_v2",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no experiments/forest_v2",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:daedalus/eval/ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/rounds/round1/ceiling-vs-graphdelta.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/rounds/round2/v-ceiling-vs-graphdelta.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:daedalus/eval/graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/research/GRAPH_DELTA_CALIBRATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/graph_delta.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/graph_delta_held_out.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/graph_delta_specificity.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:daedalus/eval/mutate.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_mutation_score.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek_impl20/v01-verify-mutate-operators.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tools/gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:docs/GATE_DISCRIMINATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:tests/test_gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py tests/test_graph_delta.py tests/test_mutation_score.py tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_mutation_score.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_temporal_ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false rev-parse HEAD",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no tests/test_typegraph_determinism.py tests/test_typegraph_fixture.py tests/test_typegraph_forest.py tests/test_typegraph_index.py tests/test_typegraph_parse.py tests/test_typegraph_regression.py tests/test_typegraph_resolve.py tests/test_typegraph_star_imports.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0] git -c core.autocrlf=false status --porcelain",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false diff --numstat 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- daedalus/eval/ceiling.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false diff --numstat 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- daedalus/eval/graph_delta.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false diff --numstat 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- tools/gate_discrimination.py",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek40/s05-artifacts-unwired.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/deepseek40/s05-artifacts-unwired.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/research40/q26-fan-out-without-corroboration.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 3e758392845d9faf7877977d5ae8806973ed62e6:runs/eval/research40/q26-fan-out-without-corroboration.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek40/s05-artifacts-unwired.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/deepseek40/s05-artifacts-unwired.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/research40/q26-fan-out-without-corroboration.json",
+  "[cwd=C:/Users/nukei/Desktop/agent_env] git -c core.autocrlf=false cat-file blob 93f11adfb08efa713711fd62e9be7b46d8957166:runs/eval/research40/q26-fan-out-without-corroboration.json",
+  "git show 3e758392845d9faf7877977d5ae8806973ed62e6:docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+  "os.walk(C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp) case-insensitive 'unwired' + number co-occurrence scan (read-only)",
+  "os.walk(C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0) case-insensitive 'unwired' + number co-occurrence scan (read-only)",
+  "git diff 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- daedalus/eval/ceiling.py",
+  "git diff 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- daedalus/eval/graph_delta.py",
+  "git diff 3e758392845d9faf7877977d5ae8806973ed62e6 93f11adfb08efa713711fd62e9be7b46d8957166 -- tools/gate_discrimination.py"
+ ],
+ "table": [
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "higher_twin_nc",
+   "path": "runs/higher_twin_nc/",
+   "present": true,
+   "tests_present": 9,
+   "tests_green": true,
+   "anchor": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md;runs/higher_twin_nc/receipts/priorart-sweep-20260820.json;runs/higher_twin_nc/WATCHDOG_MISSION.md",
+   "note": "spec_rev=2 (Schicht 2: Descent/Geometrie; Revision 1 = 30-Pass-Design vom 2026-08-18) collected=63 passed=63 failed=None"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "layer2_doc",
+   "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+   "present": true,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "sha256=5130e981cdd9 bytes=9957"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "latent_ceiling_doc",
+   "path": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+   "present": true,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "sha256=0f8e4b4b8d40 bytes=5865"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "type_graph_plan",
+   "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+   "present": true,
+   "tests_present": 8,
+   "tests_green": true,
+   "anchor": "",
+   "note": "sha256=1e8dd1f9cf5c bytes=49811"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "type_graph_plan",
+   "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+   "present": true,
+   "tests_present": 8,
+   "tests_green": true,
+   "anchor": "",
+   "note": "sha256=22e4df6e3157 bytes=37189"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "forest_v2",
+   "path": "experiments/forest_v2/",
+   "present": false,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "slices= missing_dirs=s01,s02,s03,s04,s05,s06,s07,s08,s09,s10 collected=None passed=None failed=None"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "eval_ceiling",
+   "path": "daedalus/eval/ceiling.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "docs/research/rounds/round1/ceiling-vs-graphdelta.md;docs/research/rounds/round2/v-ceiling-vs-graphdelta.md;runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json;runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+   "note": "test_files=tests/test_temporal_ceiling.py passed=16 failed=0"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "graph_delta",
+   "path": "daedalus/eval/graph_delta.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "docs/research/GRAPH_DELTA_CALIBRATION.md;runs/eval/graph_delta.json;runs/eval/graph_delta_held_out.json;runs/eval/graph_delta_specificity.json",
+   "note": "test_files=tests/test_graph_delta.py passed=25 failed=0"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "mutate",
+   "path": "daedalus/eval/mutate.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "runs/eval/deepseek_impl20/v01-verify-mutate-operators.json;runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+   "note": "test_files=tests/test_mutation_score.py passed=26 failed=0"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "gate_discrimination",
+   "path": "tools/gate_discrimination.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "",
+   "note": "test_files=tests/test_gate_discrimination.py passed=44 failed=0"
+  },
+  {
+   "line": "checkpoint",
+   "sha": "3e758392",
+   "asset": "gate_discrimination",
+   "path": "docs/GATE_DISCRIMINATION.md",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "",
+   "note": "test_files=tests/test_gate_discrimination.py passed=44 failed=0"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "higher_twin_nc",
+   "path": "runs/higher_twin_nc/",
+   "present": false,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "spec_rev=None collected=None passed=None failed=None"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "layer2_doc",
+   "path": "docs/research/HIGHER_TWIN_NC_LAYER2_2026-08-20.md",
+   "present": false,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "sha256= bytes=None"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "latent_ceiling_doc",
+   "path": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+   "present": true,
+   "tests_present": 0,
+   "tests_green": null,
+   "anchor": "",
+   "note": "sha256=0f8e4b4b8d40 bytes=5865"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "type_graph_plan",
+   "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+   "present": true,
+   "tests_present": 8,
+   "tests_green": true,
+   "anchor": "",
+   "note": "sha256=1e8dd1f9cf5c bytes=49811"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "type_graph_plan",
+   "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+   "present": true,
+   "tests_present": 8,
+   "tests_green": true,
+   "anchor": "",
+   "note": "sha256=22e4df6e3157 bytes=37189"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "forest_v2",
+   "path": "experiments/forest_v2/",
+   "present": true,
+   "tests_present": 12,
+   "tests_green": true,
+   "anchor": "experiments/forest_v2/README.md;docs/GATE2_FOREST_V2_TRIAGE.md",
+   "note": "slices=s01,s03,s04,s05,s06,s08,s10 missing_dirs=s02,s07,s09 collected=442 passed=442 failed=None"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "eval_ceiling",
+   "path": "daedalus/eval/ceiling.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "docs/research/rounds/round1/ceiling-vs-graphdelta.md;docs/research/rounds/round2/v-ceiling-vs-graphdelta.md;runs/eval/deepseek_r2/v-ceiling-vs-graphdelta.json;runs/eval/deepseek_lab/w09-typegraph-ceiling.json",
+   "note": "test_files=tests/test_temporal_ceiling.py passed=16 failed=0"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "graph_delta",
+   "path": "daedalus/eval/graph_delta.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "docs/research/GRAPH_DELTA_CALIBRATION.md;runs/eval/graph_delta.json;runs/eval/graph_delta_held_out.json;runs/eval/graph_delta_specificity.json",
+   "note": "test_files=tests/test_graph_delta.py passed=25 failed=0"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "mutate",
+   "path": "daedalus/eval/mutate.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "runs/eval/deepseek_impl20/v01-verify-mutate-operators.json;runs/eval/deepseek100/x09-graphdelta-vs-mutate.json",
+   "note": "test_files=tests/test_mutation_score.py passed=26 failed=0"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "gate_discrimination",
+   "path": "tools/gate_discrimination.py",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "",
+   "note": "test_files=tests/test_gate_discrimination.py passed=44 failed=0"
+  },
+  {
+   "line": "trunk",
+   "sha": "93f11adf",
+   "asset": "gate_discrimination",
+   "path": "docs/GATE_DISCRIMINATION.md",
+   "present": true,
+   "tests_present": 1,
+   "tests_green": true,
+   "anchor": "",
+   "note": "test_files=tests/test_gate_discrimination.py passed=44 failed=0"
+  }
+ ],
+ "utc_end": "2026-08-22T07:12:07.442265+00:00",
+ "wall_stamp": "all wall-clock values INHERITED-under-load (shared box); counts MEASURED",
+ "cross_line_diffs_cp_to_trunk": {
+  "daedalus/eval/ceiling.py": {
+   "added_lines": 8,
+   "removed_lines": 0,
+   "added_text": "    from daedalus.budget import process_guard_boundary_decision\n    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect\n\n    begin_effect(\n        \"cli.eval_ceiling\",\n        REGISTRY_BY_ID[\"cli.eval_ceiling\"].effects,\n        (process_guard_boundary_decision(),),\n    )",
+   "mentions_begin_effect": true,
+   "stamp": "MEASURED"
+  },
+  "daedalus/eval/graph_delta.py": {
+   "added_lines": 8,
+   "removed_lines": 0,
+   "added_text": "    from daedalus.budget import process_guard_boundary_decision\n    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect\n\n    begin_effect(\n        \"cli.eval_graph_delta\",\n        REGISTRY_BY_ID[\"cli.eval_graph_delta\"].effects,\n        (process_guard_boundary_decision(),),\n    )",
+   "mentions_begin_effect": true,
+   "stamp": "MEASURED"
+  },
+  "tools/gate_discrimination.py": {
+   "added_lines": 10,
+   "removed_lines": 0,
+   "added_text": "    # --dry-run above validates anchors read-only and stays fail-open; the\n    # clone/mutate/pytest measurement starts at the central boundary.\n    from daedalus.budget import process_guard_boundary_decision\n    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, begin_effect\n\n    begin_effect(\n        \"tools.gate_discrimination\",\n        REGISTRY_BY_ID[\"tools.gate_discrimination\"].effects,\n        (process_guard_boundary_decision(),),\n    )",
+   "mentions_begin_effect": true,
+   "stamp": "MEASURED"
+  }
+ },
+ "denials_note": "All five denials came from the PreToolUse Bash guard matching literal tokens in the command text (read-only commands; no repo file was targeted). Not worked around: the same measurements were made by Python scripts run by path, as the working rules require, and scratchpad files were written with the Write tool.",
+ "measured_discrepancies": [
+  {
+   "asset": "mutate",
+   "note": "regex count of 'def test_' in test_mutation_score.py = 35 on both lines; pytest collected/passed = 26 (nested/helper defs or skipped-by-marker cases); both numbers MEASURED, pytest is authoritative."
+  },
+  {
+   "asset": "forest_v2",
+   "note": "slices s02, s07, s09 exist only as mentions in README.md / GATE2_FOREST_V2_TRIAGE.md on the trunk, not as directories at 93f11adf."
+  },
+  {
+   "asset": "ceiling corpus",
+   "note": "LATENT_CEILING_SHARED_REPRESENTATION.md names no corpus file; it lists five rows and says they are 'on disk'. See whole_worktree_scan for what was found."
+  }
+ ],
+ "addendum_utc": "2026-08-22T07:15:15.777802+00:00"
+}

@@ -315,6 +315,30 @@ print("committed:", git(G0, "log", "--oneline", "-1") if not DRY else "(dry)")
 
 # ---------------------------------------------------------------- PART C
 step("C harvest cherry-picks onto main")
+# Prefer the measured Phase-0 harvest manifest (sequential order, per-commit
+# state) over the static list above. Rework/drop rows are listed, not picked.
+manifest = CP / "docs/inventory/2026-08-21/preruling/harvest_manifest.json"
+rework = []
+if manifest.exists():
+    mj = json.loads(manifest.read_text(encoding="utf-8"))
+    by_sha = {r["sha"]: r for r in mj["manifest"]}
+    order = mj.get("sequential_pass", {}).get("order") or [r["sha"] for r in mj["manifest"]]
+    HARVEST = []
+    for short in order:
+        row = next((r for s, r in by_sha.items() if s.startswith(short)), None)
+        if row is None:
+            continue
+        if row["state"] == "port-clean" and not row.get("touches_protected_policy_artifact"):
+            HARVEST.append(row["sha"][:10])
+        else:
+            rework.append(f"{row['sha'][:8]} {row['state']:<18} {row['subject'][:60]} | {str(row.get('reason',''))[:80]}")
+    # commits after the manifest's tip (e.g. the kits themselves): append
+    for sha in reversed(git(CP, "log", "--format=%h", (mj["source_shas"].get("checkpoint_tip") if isinstance(mj.get("source_shas"), dict) and mj["source_shas"].get("checkpoint_tip") else "77e7498a") + ".." + CP_BRANCH).split()):
+        if not any(h.startswith(sha) or sha.startswith(h) for h in HARVEST):
+            HARVEST.append(sha)
+    print(f"manifest: {len(HARVEST)} port-clean to pick, {len(rework)} for manual rework:")
+    for r in rework:
+        print("   ", r)
 report = []
 for sha in HARVEST:
     r = subprocess.run(["git", "-C", str(G0), "cherry-pick", "-x", sha],

@@ -1,0 +1,178 @@
+{
+  "task": "PACKAGE: assemble DECISION_PACKAGE_2026-08-22.md for owner ruling D1 from the Phase-0 preruling receipts",
+  "utc": "2026-08-22T07:41:53.832112+00:00",
+  "script": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_package.py",
+  "script_sha256": "4b81c20dc8ff69addc12563325c5594fb8c6a114967828fece190d597d991277",
+  "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_package_config.json",
+  "commands_run": [
+    "python C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_package.py",
+    "read C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\raw_trunk/gate0_report.json"
+  ],
+  "source_shas": {
+    "checkpoint_pin": "3e758392845d9faf7877977d5ae8806973ed62e6",
+    "trunk_pin": "93f11adfb08efa713711fd62e9be7b46d8957166"
+  },
+  "package_path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling/DECISION_PACKAGE_2026-08-22.md",
+  "package_sha256": "6b17ecd2e4600319469ad89ade73722e137be91ebe4e84166046ea5ae5ec4c03",
+  "package_bytes": 84506,
+  "receipts_read": {
+    "ancestry": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\ancestry.json",
+      "sha256": "56c9b554d05974c4995a54fa4b17a91ca6cc7cacf97b0dbd0ef7f2719b8e1a51"
+    },
+    "chain_report": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\chain_report.json",
+      "sha256": "a3826fe5239b2d3eeabf85a64e44b86093d0e3b75079f44a78855b86192ca54f"
+    },
+    "census_trunk": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\census_trunk.json",
+      "sha256": "c80cdad235f57fbae859147732252cf1a5146269d92ee33b71504a552143a539"
+    },
+    "census_trunk_counters": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\census_trunk_counters.json",
+      "sha256": "179a44f1a5c921c0260792e1c65decb6f017e3d2d164d3feef6119fdac272101"
+    },
+    "census_trunk_import_contamination": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\census_trunk_import_contamination.json",
+      "sha256": "ce450417139e8f5b941418f70469ec14888c1c63e6bf733c47b2cb10ac177a79"
+    },
+    "census_trunk_guard_crosstree": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\census_trunk_guard_crosstree.json",
+      "sha256": "e663d39e4dcc7c2cda52cf0cdacfccff9ee13c42860f1647917d4e2a4f672861"
+    },
+    "census_checkpoint": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\census_checkpoint.json",
+      "sha256": "a4798ce9cdf6aa27d532a284046ae96eaeae378d6d96cf2ec59bf8553f324960"
+    },
+    "reachability": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\reachability.json",
+      "sha256": "5faa9a02c3e3336dc4c6d8396a3094930be10091ccad5cba7cc924cfaf9dd843"
+    },
+    "trust_root_report": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\trust_root_report.json",
+      "sha256": "774687610715823404b112b4052dac62d62d16a034dd7c9f957c885d0113a43c"
+    },
+    "trust_root_mutation_report": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\trust_root_mutation_report.json",
+      "sha256": "0487a6d613c8c2e13500e692cb2043d5d4ff8707fb0092752d5ba2a85b84f774"
+    },
+    "loop_trace": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\loop_trace.json",
+      "sha256": "621aca9fad518878adccd7c869250990370803c59013583b2abe5ac913db2521"
+    },
+    "harvest_manifest": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\harvest_manifest.json",
+      "sha256": "18fd6b3bdd92a203bc0f0e3de58609ab8db8d418b1e328beff3cdf53c9dd0304"
+    },
+    "research_census": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\research_census.json",
+      "sha256": "fcae26a7410bce0c89dff6ebe561e859b34793fc7ad6957c6b28bee930196e3f"
+    },
+    "setup": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\setup.json",
+      "sha256": "59643f9ef49af7069d04e1db141cb662c9b96d3944804a7446ccc05d7630fd4b"
+    },
+    "worktrees": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\worktrees.json",
+      "sha256": "329f9599f4d6535b3d9a393b6214ec73d51114df3ab5d9cb959d1efa54384d45"
+    },
+    "fence": {
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\fence.json",
+      "sha256": null
+    }
+  },
+  "missing_receipts": [
+    {
+      "key": "fence",
+      "path": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling\\fence.json"
+    }
+  ],
+  "denials_collected": 28,
+  "denials_raised_by_this_task": [],
+  "raw_counts": {
+    "checkpoint_only_within_pin": 37,
+    "checkpoint_only_total_at_harvest": 43,
+    "trunk_only": 1228,
+    "harvest_states_within_pin": {
+      "port-clean": 26,
+      "port-needs-rework": 10,
+      "drop-with-reason": 1
+    },
+    "reverse_assets_total": 82,
+    "chain_records": {
+      "checkpoint": 2,
+      "trunk": 6
+    },
+    "chain_all_checks_ok": {
+      "checkpoint": true,
+      "trunk": true
+    },
+    "record_1_byte_identical": true,
+    "suite": {
+      "checkpoint": {
+        "passed": 4627,
+        "failed": 3,
+        "error": 0,
+        "skipped": 1,
+        "xfailed": 1,
+        "xpassed": 0,
+        "deselected": 0,
+        "warnings": 0
+      },
+      "trunk": {
+        "passed": 7190,
+        "failed": 3,
+        "skipped": 114,
+        "xfailed": 1
+      }
+    },
+    "five_counters_trunk": {
+      "executed_fault_lines": {
+        "gate0-matrix-2026-08-17": 18,
+        "gate0-matrix-20260818-closure": 18,
+        "gate0-matrix-20260818-head": 18,
+        "gate0-matrix-20260818-morning": 18
+      },
+      "declared_blocked_lines": {
+        "gate0-matrix-2026-08-17": 4,
+        "gate0-matrix-20260818-closure": 6,
+        "gate0-matrix-20260818-head": 4,
+        "gate0-matrix-20260818-morning": 4
+      },
+      "inventory_only_doors": 10,
+      "security_boundary_claimed": false,
+      "scanner_error_v2": 0
+    },
+    "one_kernel_trunk_mode_M_both": 76,
+    "one_kernel_checkpoint_mode_M_both": 0,
+    "trust_root_tally": {
+      "ALL": {
+        "FAIL": 5,
+        "N/A": 6,
+        "PASS": 42,
+        "scored": 47,
+        "total": 53
+      },
+      "CHECKPOINT": {
+        "FAIL": 0,
+        "N/A": 2,
+        "PASS": 23,
+        "scored": 23,
+        "total": 25
+      },
+      "TRUNK": {
+        "FAIL": 5,
+        "N/A": 4,
+        "PASS": 19,
+        "scored": 24,
+        "total": 28
+      }
+    },
+    "effects_before_guard_loop_armed": 0
+  },
+  "stamps": {
+    "all_numbers": "INHERITED from the named receipts (each MEASURED there per its own stamp); this package measures nothing new",
+    "receipt_sha256": "MEASURED (sha256 of each receipt file at package time)",
+    "wall_clock": "none reported"
+  }
+}
