@@ -1,0 +1,27 @@
+{
+  "task": "CENSUS-TRUNK",
+  "utc": "2026-08-22T07:20:31Z",
+  "interpreter": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+  "source_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "branch": "work/g0-trunk-20260817",
+  "worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+  "worktree_head_verified": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "process_count_before_INHERITED": 438,
+  "process_count_after_INHERITED": 451,
+  "results": [
+    {
+      "name": "pytest",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe -m pytest -q -p no:cacheprovider --color=no",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "returncode": 1,
+      "timed_out": false,
+      "wall_seconds_INHERITED_under_load": 2613.35,
+      "stdout_bytes": 14865,
+      "stderr_bytes": 0,
+      "stdout_tail": "        and the way that gets discovered today is someone trying to follow a run\n        six months from now and finding a gap.\n        \"\"\"\n        declared = set(envelope.CONVERTED_PRODUCERS) | set(\n            envelope.UNCONVERTED_PRODUCERS)\n        surprises = sorted(record_producers(ROOT) - declared)\n>       assert surprises == [], (\n            f\"new record producer(s) declaring neither conversion nor a reason: \"\n            f\"{surprises}. Either thread envelope.current_trace_id() through it \"\n            \"and add it to envelope.CONVERTED_PRODUCERS, or add it to \"\n            \"UNCONVERTED_PRODUCERS WITH THE REASON and the conversion cost.\")\nE       AssertionError: new record producer(s) declaring neither conversion nor a reason: ['runs/gate0-matrix-2026-08-17/verify_whole_matrix.py']. Either thread envelope.current_trace_id() through it and add it to envelope.CONVERTED_PRODUCERS, or add it to UNCONVERTED_PRODUCERS WITH THE REASON and the conversion cost.\nE       assert ['runs/gate0-...le_matrix.py'] == []\nE         \nE         Left contains one more item: 'runs/gate0-matrix-2026-08-17/verify_whole_matrix.py'\nE         Use -v to get more diff\n\ntests\\test_envelope_coverage.py:110: AssertionError\n________________________ test_this_repo_still_analyses ________________________\n\nrequest = <FixtureRequest for <Function test_this_repo_still_analyses>>\n\n    def test_this_repo_still_analyses(request):\n        \"\"\"Guards the real invariant: the artifact must ALWAYS exist.\"\"\"\n        root = Path(__file__).resolve().parents[1]\n        result = analyse(root)\n        assert result.counts.env_switches > 20\n        assert result.counts.dark_env > 0\n>       assert result.unparsable == ()\nE       AssertionError: assert ('experiments...y, line 10)',) == ()\nE         \nE         Left contains one more item: 'experiments/forest_v2/s03_data/corpus/src/unparseable_fixture.py: SyntaxError: invalid syntax (unparseable_fixture.py, line 10)'\nE         Use -v to get more diff\n\ntests\\test_mapping_switches.py:337: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/runtimes/test_whole_fault_matrix.py::test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observations\nFAILED tests/test_envelope_coverage.py::test_no_new_record_producer_has_appeared_undeclared\nFAILED tests/test_mapping_switches.py::test_this_repo_still_analyses - Assert...\n3 failed, 7190 passed, 114 skipped, 1 xfailed, 1992 subtests passed in 2608.47s (0:43:28)",
+      "stderr_tail": "",
+      "raw_stdout_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\pytest.stdout.txt",
+      "raw_stderr_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\pytest.stderr.txt"
+    }
+  ]
+}

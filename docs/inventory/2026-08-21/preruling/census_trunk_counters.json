@@ -1,0 +1,356 @@
+{
+  "task": "CENSUS-TRUNK counters",
+  "utc": "2026-08-22T07:26:18Z",
+  "source_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "branch": "work/g0-trunk-20260817",
+  "worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+  "gate0_report_path": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw_trunk\\gate0_report.json",
+  "gate0_report_sha256": "7bca9c9da277116be01af4a983ee9c177402b103f5dc385dd0b751cedc7a756c",
+  "counters": {
+    "1_executed_fault_lines": {
+      "value_by_matrix": {
+        "gate0-matrix-2026-08-17": 18,
+        "gate0-matrix-20260818-closure": 18,
+        "gate0-matrix-20260818-head": 18,
+        "gate0-matrix-20260818-morning": 18
+      },
+      "stamp": "MEASURED (from archived verdicts)",
+      "binding_to_trunk_head": "NONE - no archived verdict cites 93f11adf"
+    },
+    "2_declared_blocked_lines": {
+      "value_by_matrix": {
+        "gate0-matrix-2026-08-17": 4,
+        "gate0-matrix-20260818-closure": 6,
+        "gate0-matrix-20260818-head": 4,
+        "gate0-matrix-20260818-morning": 4
+      },
+      "stamp": "MEASURED (from archived verdicts)"
+    },
+    "3_inventory_only_doors": {
+      "value": 10,
+      "expected_by_task": 13,
+      "rows": [
+        {
+          "row_id": "provider.claude",
+          "surface": "claude",
+          "target": "daedalus.providers.claude_cli:ClaudeCLIProvider.run",
+          "gap_justification_RAW": "daedalus.providers.claude_cli:ClaudeCLIProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.codex",
+          "surface": "codex",
+          "target": "daedalus.providers.codex_cli:CodexCLIProvider.run",
+          "gap_justification_RAW": "daedalus.providers.codex_cli:CodexCLIProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.deepseek",
+          "surface": "python",
+          "target": "daedalus.providers.deepseek:DeepSeekProvider.run",
+          "gap_justification_RAW": "daedalus.providers.deepseek:DeepSeekProvider.run is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.deepseek.rollback",
+          "surface": "python",
+          "target": "daedalus.providers.deepseek:DeepSeekProvider.rollback",
+          "gap_justification_RAW": "daedalus.providers.deepseek:DeepSeekProvider.rollback is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.ollama.rollback",
+          "surface": "ollama",
+          "target": "daedalus.providers.ollama:OllamaProvider.rollback",
+          "gap_justification_RAW": "daedalus.providers.ollama:OllamaProvider.rollback is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "provider.ollama_native",
+          "surface": "ollama",
+          "target": "daedalus.providers._ollama_native:native_chat",
+          "gap_justification_RAW": "daedalus.providers._ollama_native:native_chat is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "runs.gate0_matrix.verify_whole_matrix",
+          "surface": "cli",
+          "target": "runs.gate0-matrix-2026-08-17.verify_whole_matrix:main",
+          "gap_justification_RAW": "runs.gate0-matrix-2026-08-17.verify_whole_matrix:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "runtimes.fault_attestation_issuer",
+          "surface": "cli",
+          "target": "daedalus.runtimes.fault_attestation_issuer:main",
+          "gap_justification_RAW": "daedalus.runtimes.fault_attestation_issuer:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "tools.iron_plan_guard",
+          "surface": "cli",
+          "target": "tools.iron_plan_guard:main",
+          "gap_justification_RAW": "tools.iron_plan_guard:main is inventory_only; Gate 0 is not closed"
+        },
+        {
+          "row_id": "tools.iron_plan_hook_runner",
+          "surface": "cli",
+          "target": "tools.iron_plan_hook_runner:main",
+          "gap_justification_RAW": "tools.iron_plan_hook_runner:main is inventory_only; Gate 0 is not closed"
+        }
+      ],
+      "stamp": "MEASURED (live report at 93f11adf)"
+    },
+    "4_security_boundary_claimed": {
+      "value": false,
+      "stamp": "MEASURED (live report at 93f11adf)"
+    },
+    "5_scanner_error": {
+      "value_in_emitted_v2_report": 0,
+      "rows": [],
+      "tokens_searched": [
+        "scanner_error",
+        "scan.error",
+        "scanner.error",
+        "scan_failed",
+        "entrypoint.scan_error"
+      ],
+      "git_grep_scanner_error_rc": 1,
+      "git_grep_scanner_error_hits": [],
+      "nearest_counter_in_tree": "blocker:repository_write_inventory:refused",
+      "nearest_counter_schema": "daedalus-gate-report/3 (library only)",
+      "v3_artifacts": {
+        "gate0-matrix-20260818-closure/gate-report-v3.json": {
+          "schema": "daedalus-gate-report/2",
+          "cited_source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": null,
+          "repository_write_failures_len": 0
+        },
+        "gate0-matrix-20260818-morning/gate-report-v3.json": {
+          "schema": "daedalus-gate-report/3",
+          "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": 282,
+          "repository_write_failures_len": 377
+        },
+        "gate0-matrix-20260818-morning/gate-report-v3-cli.json": {
+          "schema": "daedalus-gate-report/3",
+          "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+          "binds_to_trunk_head": false,
+          "scanner_refused_rows": [],
+          "repository_write_files_scanned": 282,
+          "repository_write_failures_len": 377
+        }
+      },
+      "v3_python_files_referencing_it": [
+        "daedalus/gates/report_v3.py",
+        "daedalus/gates/repository_write_artifact_admission.py",
+        "daedalus/gates/repository_write_artifact_verifier.py",
+        "daedalus/gates/repository_write_evidence.py",
+        "scripts/report_gate0_v3.py",
+        "scripts/run_gate_report_v3_mutations.py",
+        "scripts/run_repository_write_artifact_admission_mutations.py",
+        "scripts/run_repository_write_artifact_verifier_mutations.py",
+        "scripts/run_repository_write_evidence_mutations.py",
+        "tests/gates/test_gate_report_matrix_binding.py",
+        "tests/gates/test_gate_report_v3.py",
+        "tests/gates/test_gate_report_v3_bounds.py",
+        "tests/gates/test_gate_report_v3_drift.py",
+        "tests/gates/test_gate_report_v3_review.py",
+        "tests/gates/test_gate_report_v3_schema.py",
+        "tests/gates/test_repository_write_artifact_admission.py",
+        "tests/gates/test_repository_write_artifact_admission_adversarial.py",
+        "tests/gates/test_repository_write_artifact_admission_schema.py",
+        "tests/gates/test_repository_write_artifact_cas.py",
+        "tests/gates/test_repository_write_artifact_cas_adversarial.py",
+        "tests/gates/test_repository_write_artifact_cas_toctou.py",
+        "tests/gates/test_repository_write_artifact_verifier.py",
+        "tests/gates/test_repository_write_artifact_verifier_review.py",
+        "tests/gates/test_repository_write_artifact_verifier_types.py",
+        "tests/gates/test_repository_write_evidence.py",
+        "tests/gates/test_repository_write_evidence_provenance.py",
+        "tests/gates/test_repository_write_evidence_review.py"
+      ],
+      "v3_reachable_from_shipped_cli": false,
+      "stamp": "MEASURED (absence): the shipped CLI emits schema v2, which has no scanner-failure field; the v3 refusal row exists but no non-test caller builds a v3 report at this head"
+    }
+  },
+  "matrices": {
+    "gate0-matrix-2026-08-17": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-2026-08-17\\whole-matrix-verdict.json",
+      "verdict_sha256": "3af9d71da897f85df5ffb21be31f70db406d81f0d02c69f163357fedc6d4482f",
+      "cited_source_revision": "c93191fef4a89de316529d22d54713acebeae097",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-closure": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-closure\\whole-matrix-verdict.json",
+      "verdict_sha256": "cc0acff788889e51eea6e90b60e8b4cfa33078568fb7b3299f1e07171765a037",
+      "cited_source_revision": "bcc0feaf501ebe445fd7c6c75de321dd36f02cd5",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 24,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-production",
+          "key_class": "production",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-production",
+          "key_class": "production",
+          "observations": 9
+        },
+        "live-runtime": {
+          "attestations": 2,
+          "issuer_id": "issuer.gate0-live-runtime-production",
+          "key_class": "production",
+          "observations": 2
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 6,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.live-envelope.binary-drift",
+        "fault.blocked:runtime.live-envelope.expiry",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 0,
+      "fault_missing_rows": [],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-head": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-head\\whole-matrix-verdict.json",
+      "verdict_sha256": "3939d9e42d3300b2f496b400265b30b2894051b133d603d46bbed30659dbe972",
+      "cited_source_revision": "4fb2251d6b655b26e40d112483e94c5118de6413",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    },
+    "gate0-matrix-20260818-morning": {
+      "verdict_path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\runs\\gate0-matrix-20260818-morning\\whole-matrix-verdict.json",
+      "verdict_sha256": "a28617b8bca5f5b81c7841ad8bec02d24c5b194bf60d435a507ab9102d8bd189",
+      "cited_source_revision": "1e681b9bb44e7c232310f8ed0e64bae3938678d0",
+      "binds_to_trunk_head": false,
+      "catalog_scenarios": 24,
+      "observations": 22,
+      "columns": {
+        "deterministic-fixture": {
+          "attestations": 13,
+          "issuer_id": "issuer.gate0-fixture-dev",
+          "key_class": "development",
+          "observations": 13
+        },
+        "linux-host": {
+          "attestations": 9,
+          "issuer_id": "issuer.gate0-linux-host-dev",
+          "key_class": "development",
+          "observations": 9
+        }
+      },
+      "closed": false,
+      "blocker_count": 6,
+      "declared_blocked_lines": 4,
+      "declared_blocked_rows": [
+        "fault.blocked:runtime.egress.unauthorized-endpoint",
+        "fault.blocked:runtime.process.oom",
+        "fault.blocked:runtime.sandbox.daemon-unavailable",
+        "fault.blocked:runtime.secrets.undeclared-access"
+      ],
+      "fault_missing_lines": 2,
+      "fault_missing_rows": [
+        "fault.missing:runtime.live-envelope.binary-drift",
+        "fault.missing:runtime.live-envelope.expiry"
+      ],
+      "executed_fault_lines": 18
+    }
+  },
+  "diagnostic_class_histogram": {
+    "review:entrypoint.harness": 87,
+    "gap:gate0.not_central": 22,
+    "review:entrypoint.not_rediscovered": 3,
+    "blocker:fault_matrix.unbound": 1,
+    "blocker:runtime_conformance_receipts": 1,
+    "info:runtime_conformance.canonical_persistence": 1,
+    "info:runtime_conformance.canonical_producer": 1,
+    "info:runtime_conformance.gap": 1,
+    "review:scan.static_scope": 1
+  },
+  "pytest": {
+    "summary_line_RAW": "3 failed, 7190 passed, 114 skipped, 1 xfailed, 1992 subtests passed in 2608.47s (0:43:28)",
+    "counts": {
+      "passed": 7190,
+      "failed": 3,
+      "skipped": 114,
+      "xfailed": 1
+    },
+    "failed_test_ids": [
+      "tests/runtimes/test_whole_fault_matrix.py::test_the_promoted_combiner_reproduces_the_landed_verdict_from_the_observations",
+      "tests/test_envelope_coverage.py::test_no_new_record_producer_has_appeared_undeclared",
+      "tests/test_mapping_switches.py::test_this_repo_still_analyses"
+    ],
+    "failed_test_id_count": 3,
+    "error_ids": [],
+    "collected_line_RAW": ""
+  }
+}

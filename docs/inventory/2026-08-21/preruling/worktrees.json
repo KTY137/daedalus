@@ -1,0 +1,152 @@
+{
+  "task": "preruling SETUP step 2/4: disposable detached worktrees",
+  "utc": "2026-08-22T06:31:50.328927+00:00",
+  "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_config.json",
+  "source_shas": {
+    "checkpoint": "3e758392845d9faf7877977d5ae8806973ed62e6",
+    "trunk": "93f11adfb08efa713711fd62e9be7b46d8957166"
+  },
+  "worktrees": [
+    {
+      "side": "checkpoint",
+      "path": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "pinned_sha_full": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "action": "created",
+      "worktree_add_rc": 0,
+      "worktree_add_stderr": "% (1707/4064)\nUpdating files:  43% (1748/4064)\nUpdating files:  44% (1789/4064)\nUpdating files:  45% (1829/4064)\nUpdating files:  46% (1870/4064)\nUpdating files:  47% (1911/4064)\nUpdating files:  48% (1951/4064)\nUpdating files:  49% (1992/4064)\nUpdating files:  50% (2032/4064)\nUpdating files:  51% (2073/4064)\nUpdating files:  52% (2114/4064)\nUpdating files:  53% (2154/4064)\nUpdating files:  54% (2195/4064)\nUpdating files:  55% (2236/4064)\nUpdating files:  56% (2276/4064)\nUpdating files:  57% (2317/4064)\nUpdating files:  58% (2358/4064)\nUpdating files:  59% (2398/4064)\nUpdating files:  60% (2439/4064)\nUpdating files:  61% (2480/4064)\nUpdating files:  62% (2520/4064)\nUpdating files:  63% (2561/4064)\nUpdating files:  64% (2601/4064)\nUpdating files:  65% (2642/4064)\nUpdating files:  66% (2683/4064)\nUpdating files:  67% (2723/4064)\nUpdating files:  68% (2764/4064)\nUpdating files:  69% (2805/4064)\nUpdating files:  70% (2845/4064)\nUpdating files:  71% (2886/4064)\nUpdating files:  72% (2927/4064)\nUpdating files:  73% (2967/4064)\nUpdating files:  74% (3008/4064)\nUpdating files:  74% (3009/4064)\nUpdating files:  75% (3048/4064)\nUpdating files:  76% (3089/4064)\nUpdating files:  77% (3130/4064)\nUpdating files:  78% (3170/4064)\nUpdating files:  79% (3211/4064)\nUpdating files:  80% (3252/4064)\nUpdating files:  81% (3292/4064)\nUpdating files:  82% (3333/4064)\nUpdating files:  83% (3374/4064)\nUpdating files:  84% (3414/4064)\nUpdating files:  85% (3455/4064)\nUpdating files:  86% (3496/4064)\nUpdating files:  87% (3536/4064)\nUpdating files:  88% (3577/4064)\nUpdating files:  89% (3617/4064)\nUpdating files:  90% (3658/4064)\nUpdating files:  91% (3699/4064)\nUpdating files:  92% (3739/4064)\nUpdating files:  93% (3780/4064)\nUpdating files:  94% (3821/4064)\nUpdating files:  95% (3861/4064)\nUpdating files:  96% (3902/4064)\nUpdating files:  97% (3943/4064)\nUpdating files:  98% (3983/4064)\nUpdating files:  99% (4024/4064)\nUpdating files: 100% (4064/4064)\nUpdating files: 100% (4064/4064), done.",
+      "head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "head_matches_pin": true,
+      "status_porcelain_lines": 0,
+      "clean": true,
+      "status_porcelain_head": [],
+      "autocrlf_effective": "true"
+    },
+    {
+      "side": "trunk",
+      "path": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "pinned_sha_full": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "action": "created",
+      "worktree_add_rc": 0,
+      "worktree_add_stderr": "% (2306/5361)\nUpdating files:  44% (2359/5361)\nUpdating files:  45% (2413/5361)\nUpdating files:  46% (2467/5361)\nUpdating files:  47% (2520/5361)\nUpdating files:  48% (2574/5361)\nUpdating files:  49% (2627/5361)\nUpdating files:  50% (2681/5361)\nUpdating files:  51% (2735/5361)\nUpdating files:  52% (2788/5361)\nUpdating files:  53% (2842/5361)\nUpdating files:  54% (2895/5361)\nUpdating files:  54% (2931/5361)\nUpdating files:  55% (2949/5361)\nUpdating files:  56% (3003/5361)\nUpdating files:  57% (3056/5361)\nUpdating files:  58% (3110/5361)\nUpdating files:  59% (3163/5361)\nUpdating files:  60% (3217/5361)\nUpdating files:  61% (3271/5361)\nUpdating files:  62% (3324/5361)\nUpdating files:  63% (3378/5361)\nUpdating files:  64% (3432/5361)\nUpdating files:  65% (3485/5361)\nUpdating files:  66% (3539/5361)\nUpdating files:  67% (3592/5361)\nUpdating files:  68% (3646/5361)\nUpdating files:  69% (3700/5361)\nUpdating files:  70% (3753/5361)\nUpdating files:  71% (3807/5361)\nUpdating files:  72% (3860/5361)\nUpdating files:  73% (3914/5361)\nUpdating files:  74% (3968/5361)\nUpdating files:  75% (4021/5361)\nUpdating files:  76% (4075/5361)\nUpdating files:  77% (4128/5361)\nUpdating files:  78% (4182/5361)\nUpdating files:  79% (4236/5361)\nUpdating files:  80% (4289/5361)\nUpdating files:  81% (4343/5361)\nUpdating files:  82% (4397/5361)\nUpdating files:  83% (4450/5361)\nUpdating files:  84% (4504/5361)\nUpdating files:  84% (4550/5361)\nUpdating files:  85% (4557/5361)\nUpdating files:  86% (4611/5361)\nUpdating files:  87% (4665/5361)\nUpdating files:  88% (4718/5361)\nUpdating files:  89% (4772/5361)\nUpdating files:  90% (4825/5361)\nUpdating files:  91% (4879/5361)\nUpdating files:  92% (4933/5361)\nUpdating files:  93% (4986/5361)\nUpdating files:  94% (5040/5361)\nUpdating files:  95% (5093/5361)\nUpdating files:  96% (5147/5361)\nUpdating files:  97% (5201/5361)\nUpdating files:  98% (5254/5361)\nUpdating files:  99% (5308/5361)\nUpdating files: 100% (5361/5361)\nUpdating files: 100% (5361/5361), done.",
+      "head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "head_matches_pin": true,
+      "status_porcelain_lines": 0,
+      "clean": true,
+      "status_porcelain_head": [],
+      "autocrlf_effective": "true"
+    }
+  ],
+  "git_worktree_list_mentions": [
+    "worktree C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+    "worktree C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0"
+  ],
+  "stamps": {
+    "head": "MEASURED (git rev-parse HEAD inside each disposable worktree)",
+    "status_porcelain_lines": "MEASURED (git status --porcelain inside each disposable worktree)"
+  },
+  "commands": [
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "--verify",
+        "3e758392^{commit}"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "worktree",
+        "add",
+        "--detach",
+        "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+        "3e758392845d9faf7877977d5ae8806973ed62e6"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "config",
+        "--get",
+        "core.autocrlf"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "--verify",
+        "93f11adf^{commit}"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "worktree",
+        "add",
+        "--detach",
+        "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+        "93f11adfb08efa713711fd62e9be7b46d8957166"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "config",
+        "--get",
+        "core.autocrlf"
+      ]
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "worktree",
+        "list",
+        "--porcelain"
+      ]
+    }
+  ]
+}
