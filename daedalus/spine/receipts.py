@@ -37,7 +37,7 @@ never papered over with a placeholder digest.
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any, Mapping, Sequence
 
@@ -90,6 +90,87 @@ SPEND_GRANT_REASON = (
     "injected runner's own effect boundary (daedalus.offload) carries its lease "
     "and its spend, and this scope neither bounds nor meters that"
 )
+#: Replaces :data:`UNMETERED_SPEND_REASON` -- and ONLY that line -- for an
+#: attempt that arrives with shed telemetry. The moment ``usage.input_tokens``
+#: stops being 0, the unmetered wording becomes a false statement inside a
+#: digested contract, so the swap is not decoration: it is what keeps the record
+#: honest. The replacement states the estimator by name, because an over-count
+#: from cl100k is not a server-reported token count and must never be read as
+#: one (Invariant 9, honest claims).
+METERED_INPUT_REASON = (
+    "usage.input_tokens IS metered for this attempt: it is the sum of the local "
+    "lane's own pre-send prompt estimates (cl100k over-count of the exact prompt "
+    "text, daedalus.providers.ollama), not a server-reported token count; "
+    "usage.output_tokens and usage.cost_microusd remain 0 because nothing "
+    "measured them, not because zero was measured"
+)
+
+#: The fields one shed-telemetry row must carry. ``rel`` names the file whose
+#: full-file prompt was built; ``brief_shed`` is whether the structural brief
+#: was dropped to fit the local context window; ``est_in`` is the token estimate
+#: the shed decision was MADE on (brief still in the prompt), i.e. the treatment
+#: assignment variable; ``brief_bytes`` is the UTF-8 size of the brief that
+#: actually reached the model.
+SHED_TELEMETRY_FIELDS = ("rel", "brief_shed", "est_in", "brief_bytes")
+
+
+def normalise_shed_telemetry(rows: Any) -> tuple[dict[str, Any], ...]:
+    """Validate the local lane's brief-shed rows into wire-safe records.
+
+    WHY IT REFUSES INSTEAD OF COERCING. These rows become the covariate a
+    graph-conditioning comparison is read against, and one of them meters
+    ``usage.input_tokens`` inside a digested receipt. A row that cannot be
+    trusted must not be silently repaired into a plausible number: the caller
+    (:func:`canonicalise_attempt`) turns the refusal into a reported error on
+    the contract set, which is visible, rather than into a measurement nobody
+    can trace.
+    """
+
+    if rows is None:
+        return ()
+    if isinstance(rows, (str, bytes, Mapping)):
+        raise ValueError("shed_telemetry must be a sequence of rows")
+    normalised: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            raise ValueError(f"shed_telemetry[{index}] must be an object")
+        missing = [name for name in SHED_TELEMETRY_FIELDS if name not in row]
+        if missing:
+            raise ValueError(
+                f"shed_telemetry[{index}] is missing {', '.join(missing)}"
+            )
+        shed = row["brief_shed"]
+        if not isinstance(shed, bool):
+            raise ValueError(f"shed_telemetry[{index}].brief_shed must be boolean")
+        numbers: dict[str, int] = {}
+        for name in ("est_in", "brief_bytes"):
+            value = row[name]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(
+                    f"shed_telemetry[{index}].{name} must be a non-negative integer"
+                )
+            numbers[name] = value
+        # A shed brief reached the model as ZERO bytes, by construction. A row
+        # claiming both is not a rounding error, it is two different runs mixed
+        # into one record -- exactly the confound this telemetry exists to
+        # prevent -- so it is refused rather than averaged.
+        if shed and numbers["brief_bytes"]:
+            raise ValueError(
+                f"shed_telemetry[{index}] shed the brief and still reports "
+                f"{numbers['brief_bytes']} injected brief bytes"
+            )
+        rel = str(row["rel"]).strip()
+        if not rel:
+            raise ValueError(f"shed_telemetry[{index}].rel must be a non-empty path")
+        normalised.append(
+            {
+                "rel": rel,
+                "brief_shed": shed,
+                "est_in": numbers["est_in"],
+                "brief_bytes": numbers["brief_bytes"],
+            }
+        )
+    return tuple(normalised)
 
 
 @lru_cache(maxsize=1)
@@ -307,6 +388,17 @@ def evaluator_assurance(result: Any, task: Any) -> str:
         return "unverified"
     if str(getattr(gate, "name", "")) == "target-scope":
         return "deterministic"
+    # A gate whose criterion is a tree file the task may NOT write is as sealed
+    # from the candidate as a spine-authored one: containment.attempt already
+    # refused any patch that reached outside target_paths, so the candidate
+    # could not have edited the thing that judged it.
+    criterion = tuple(getattr(task, "gate_criterion_paths", ()) or ())
+    if criterion:
+        scope = {str(p).replace("\\", "/").removeprefix("./")
+                 for p in getattr(task, "target_paths", ()) or ()}
+        if not ({str(p).replace("\\", "/").removeprefix("./")
+                 for p in criterion} & scope):
+            return "deterministic"
     frozen_criterion = bool(
         getattr(task, "fail_to_pass", ()) or getattr(task, "pass_to_pass", ())
     )
@@ -327,6 +419,14 @@ class AttemptContractSet:
     evidence: EvidencePacket | None = None
     receipt: AttemptReceipt | None = None
     error: str | None = None
+    #: The local lane's brief-shed rows for this attempt, one per full-file
+    #: prompt. ``est_in`` from these rows is what meters
+    #: ``receipt.usage.input_tokens``; ``brief_shed`` and ``brief_bytes`` have
+    #: no home inside ResourceUsage's four integers, so they ride the set --
+    #: the record the ledger row is written from -- instead of being dropped.
+    #: Empty is the default and means no shed decision was reported, never
+    #: "no brief was shed".
+    shed_telemetry: tuple[dict[str, Any], ...] = ()
 
     @property
     def complete(self) -> bool:
@@ -346,6 +446,10 @@ class AttemptContractSet:
             contract = getattr(self, name)
             body[name] = None if contract is None else contract.to_dict()
             body[f"{name}_sha256"] = None if contract is None else contract.digest
+        # Always written, empty list included. A covariate that is present only
+        # when it is interesting cannot be read across attempts: an absent key
+        # would be indistinguishable from a lane that never reported one.
+        body["shed_telemetry"] = [dict(row) for row in self.shed_telemetry]
         return body
 
     @classmethod
@@ -370,6 +474,10 @@ class AttemptContractSet:
         for name, contract_cls in readers:
             raw = payload.get(name)
             built[name] = None if raw is None else contract_cls.from_dict(raw)
+        # Same refusal as on the way in: a tampered covariate row does not come
+        # back as a plausible object. A row written before this field existed is
+        # absent, not malformed, and reads back as the empty default.
+        built["shed_telemetry"] = normalise_shed_telemetry(payload.get("shed_telemetry"))
         return cls(**built)
 
 
@@ -391,6 +499,7 @@ def canonicalise_attempt(
     trace_id: str | None = None,
     assurance: str | None = None,
     boundary_receipt: Any = None,
+    shed_telemetry: Any = None,
 ) -> AttemptContractSet:
     """Turn one finished :class:`AttemptResult` into the canonical records.
 
@@ -398,13 +507,30 @@ def canonicalise_attempt(
     gate verdict must not be destroyed because its canonical projection could
     not be built. The reason travels on the set and into the ledger, so a
     contract that silently stopped being produced is visible instead of absent.
+
+    ``shed_telemetry`` is ADDITIVE and defaults to nothing, so every existing
+    caller mints byte-identical records. When a lane does supply it (the local
+    provider's ``report.handoff["shed_telemetry"]``), two things follow: the
+    rows ride the set into the ledger row, and ``usage.input_tokens`` -- left at
+    0 by every producer so far, and explicitly declared unmetered inside the
+    PolicyDecision digest -- is metered from their ``est_in`` sum. The declared
+    reason is swapped in the same breath, because a contract may not keep
+    asserting "nothing measured them" once something did.
     """
 
     runtime: RuntimeManifest | None = None
     policy: PolicyDecision | None = None
     attempt: AttemptContract | None = None
     evidence: EvidencePacket | None = None
+    shed_rows: tuple[dict[str, Any], ...] = ()
     try:
+        # FIRST, before any contract is built: a malformed covariate must not
+        # reach a digest. The refusal is reported like every other one here.
+        shed_rows = normalise_shed_telemetry(shed_telemetry)
+        if shed_rows and not usage.input_tokens:
+            usage = replace(
+                usage, input_tokens=sum(int(row["est_in"]) for row in shed_rows)
+            )
         runtime = attempt_runtime_manifest(
             source_revision=base_revision,
             created_at=created_at,
@@ -423,6 +549,7 @@ def canonicalise_attempt(
         if not denied and not target_paths:
             return AttemptContractSet(
                 runtime=runtime,
+                shed_telemetry=shed_rows,
                 error=(
                     "task declares no target_paths; refusing to mint a canonical "
                     "attempt contract for an unbounded write scope"
@@ -444,6 +571,14 @@ def canonicalise_attempt(
                 str(getattr(result, "error", "") or "no reason recorded"),
                 UNMETERED_SPEND_REASON,
             ]
+        if shed_rows and usage.input_tokens:
+            # The wording travels INSIDE the PolicyDecision digest, so leaving
+            # the unmetered line in place while input_tokens is nonzero would
+            # sign a false statement. One line replaced, nothing else touched.
+            reasons = [
+                METERED_INPUT_REASON if reason == UNMETERED_SPEND_REASON else reason
+                for reason in reasons
+            ]
         timeout_s = int(float(getattr(task, "gate_timeout_s", 0) or 0)) or None
         policy = attempt_policy_decision(
             decision_id=f"{attempt_id}:policy",
@@ -463,6 +598,7 @@ def canonicalise_attempt(
             return AttemptContractSet(
                 runtime=runtime,
                 policy=policy,
+                shed_telemetry=shed_rows,
                 error=(
                     "attempt was refused before any effect; the deny decision IS "
                     "the record and there is no evidence to bind"
@@ -494,6 +630,7 @@ def canonicalise_attempt(
                 runtime=runtime,
                 policy=policy,
                 attempt=attempt,
+                shed_telemetry=shed_rows,
                 error=(
                     locator_error
                     or (
@@ -548,6 +685,7 @@ def canonicalise_attempt(
             policy=policy,
             attempt=attempt,
             evidence=evidence,
+            shed_telemetry=shed_rows,
             error=f"{type(exc).__name__}: {exc}",
         )
     return AttemptContractSet(
@@ -556,6 +694,7 @@ def canonicalise_attempt(
         attempt=attempt,
         evidence=evidence,
         receipt=receipt,
+        shed_telemetry=shed_rows,
     )
 
 

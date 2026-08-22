@@ -564,6 +564,11 @@ class TaskSpec:
     # reimplemented here.
     fail_to_pass: tuple[str, ...] = ()
     pass_to_pass: tuple[str, ...] = ()
+    #: Paths INSIDE the candidate tree that state this task's gate criterion.
+    #: Declared, never inferred, and joined to body() so it is inside the task
+    #: digest -- a criterion that could be widened after the fact would be no
+    #: criterion. Empty keeps today's behaviour exactly.
+    gate_criterion_paths: tuple[str, ...] = ()
     correctness_before_state: Mapping[str, Any] = field(default_factory=dict)
 
     def body(self) -> dict:
@@ -592,6 +597,8 @@ class TaskSpec:
                 "pass_to_pass": [str(t) for t in self.pass_to_pass],
                 "before_state": _jsonable(dict(self.correctness_before_state)),
             }
+        if self.gate_criterion_paths:
+            body["gate_criterion_paths"] = [str(p) for p in self.gate_criterion_paths]
         return body
 
     @property
@@ -1824,12 +1831,13 @@ class TaskAttempt:
         not satisfy it. This call is what makes the live attempt path produce
         them.
         """
-        from daedalus.spine.receipts import adapter_identity, canonicalise_attempt
+        from daedalus.spine.receipts import adapter_identity, canonicalise_attempt, evaluator_assurance
 
         locator_uri, locator_error = self._persist_gate_output(
             result.gates, base_revision, result.finished_ts)
         gate_ms = (int(round(result.gates.duration_s * 1000))
                    if result.gates is not None else 0)
+        assurance = evaluator_assurance(result, self.task)
         return canonicalise_attempt(
             result,
             task=self.task,
@@ -1839,6 +1847,7 @@ class TaskAttempt:
             adapter_id=adapter_identity(self._runner),
             evidence_locator=locator_uri,
             locator_error=locator_error,
+            assurance=assurance,
             # The measured half of usage. Tokens and spend are absent because
             # nothing on this path meters them -- see receipts.UNMETERED_SPEND_REASON,
             # which travels inside the PolicyDecision digest rather than in a
