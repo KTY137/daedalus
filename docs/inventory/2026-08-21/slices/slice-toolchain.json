@@ -1,0 +1,308 @@
+{
+  "slice": "toolchain (tools/ 16 py, .githooks/, apps/, configs/, catalogue/, funnels/, templates/)",
+  "summary": "This slice is the operator/measurement toolchain plus the repo's shipped scaffolding, and it is in better shape than its reputation: 12 of 16 tools/ modules have a real consumer (tests, daedalus/health.py, daedalus/status.py, daedalus/spine/bootstrap.py, or another tool), the git hooks are actually installed (core.hooksPath=.githooks) and route through tools/iron_plan_guard.py, and apps/web is served by daedalus/web_api.py and exercised by tools/gui_check.py. The one systemic defect is a Gate-0 invariant-1/8 gap that the repo's own checker reports as a BLOCKER: 12 tools/ entrypoints are effectful and are NOT in daedalus/spine/effect_boundary.py's canonical registry, so the measurement harness that produces promotion receipts sits outside the effect boundary it measures. The second real defect is templates/agentenv.json, which ships a policy block with no write_allow key -- and daedalus/sensitivity.py:761 states that an empty write_allow means UNCONFINED, so any repo bootstrapped from the shipped template is write-unconfined while its comment claims fail-closed. Genuine islands are few: tools/guarded_call.py (zero callers anywhere), tools/lane_invariants.py and tools/audit_swarm.py (one-shot 2026-07-30 forensics, referenced only from archived docs and funnel specs), and catalogue/gui (only daedalus/gui_catalogue.py and its test read it; no CLI or web surface exposes it).",
+  "modules": [
+    {
+      "path": "tools/iron_plan_guard.py",
+      "purpose": "Deterministic drift/workflow guard for the master plan: verify, pre-commit, commit-msg, and the hook decision surface.",
+      "status": "protected",
+      "plan_mapping": "Invariant 10 (no silent constitution change) + section 15 amendment protocol; Gate 0",
+      "issues": [
+        "Reported by the repo's own checker as entrypoint.unregistered: tools.iron_plan_guard:main is an effectful entrypoint outside daedalus/spine/effect_boundary.py's registry (documented, not judged).",
+        "2044 lines -- the single largest file in the slice; verified wired from .githooks/pre-commit:4, .githooks/commit-msg:4, AGENTS.md, tests/test_spend_coverage.py."
+      ]
+    },
+    {
+      "path": "tools/iron_plan_hook_runner.py",
+      "purpose": "Fail-closed subprocess wrapper that runs the Iron Plan guard as a Claude Code lifecycle hook and validates its JSON.",
+      "status": "protected",
+      "plan_mapping": "Invariant 10; Gate 0 guard path",
+      "issues": [
+        "Wired from .claude/settings.json and tests/test_self_policy_confinement.py.",
+        "Also flagged entrypoint.unregistered by tools/effect_boundary_check.py."
+      ]
+    },
+    {
+      "path": "tools/effect_boundary_check.py",
+      "purpose": "CLI over daedalus/spine/effect_boundary.py that reports conformance/drift of the Gate-0 effectful entrypoint registry.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 exit criterion (centralized start/guard path); Invariant 8",
+      "issues": [
+        "Only non-doc consumer is tests/test_effect_boundary.py:338, which shells out to it with --json; no daedalus CLI subcommand exposes it.",
+        "Current run on this revision: structurally_conformant=false, gate0_closed=false, promotion.owner_approval=false, 12 tools/ BLOCKERs + 1 effect_drift BLOCKER (daedalus.providers.ollama:OllamaProvider.rollback gained network_egress, process_spawn)."
+      ]
+    },
+    {
+      "path": "tools/system_check.py",
+      "purpose": "End-to-end acceptance run over real paths in a disposable clone; PASS/FAIL/UNAVAILABLE with exit 2 for INCOMPLETE.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 fault-injection matrix (fail-closed protected effects); Invariant 7",
+      "issues": [
+        "Consumers: daedalus/health.py, daedalus/status.py, tests/test_system_check.py, tests/test_spend_coverage.py, tools/bootstrap_receipt.py, tools/gui_check.py, and tools/gate_discrimination.py (imports its Sandbox as sc.Sandbox at gate_discrimination.py:931).",
+        "It is both a script and a de-facto library, but is only importable when tools/ is on sys.path (self-inserted at system_check.py:1118, i.e. only under `python tools/system_check.py`)."
+      ]
+    },
+    {
+      "path": "tools/self_test.py",
+      "purpose": "Seeds one defect per covered acceptance check into a disposable clone and requires THAT check to report FAIL (mutation control over system_check).",
+      "status": "wired",
+      "plan_mapping": "Gate 0 fault-injection matrix; Invariant 9 (honest claims)",
+      "issues": [
+        "Reached only through tools/system_check.py:1104 (`from self_test import run_self_test`); nothing imports it as tools.self_test.",
+        "self_test.py:40-41 does a BARE `import system_check as sc` with no sys.path insertion of its own, so `python -m tools.self_test` fails with ModuleNotFoundError -- it only works as `python tools/self_test.py` or via system_check. Portability defect.",
+        "No dedicated test file (tests/test_self_test.py does not exist); its correctness is only observed through test_system_check.py."
+      ]
+    },
+    {
+      "path": "tools/gate_discrimination.py",
+      "purpose": "Produces runs/spine/gate_discrimination.json: seeds incident-modelled defects into a sandbox clone and records whether THE GATE catches them.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 exit (fail-closed proof) and Invariant 5 (sealed promotion -- bootstrap refuses to call promotion proven without this receipt)",
+      "issues": [
+        "Largest measurement tool (1194 lines). Consumers: daedalus/spine/envelope.py, daedalus/eval/graph_delta.py, daedalus/eval/mutate.py, tools/bootstrap_receipt.py, tools/gate_host_preflight.py, tests/test_gate_discrimination.py.",
+        "entrypoint.unregistered BLOCKER against the effect-boundary registry."
+      ]
+    },
+    {
+      "path": "tools/gate_host_preflight.py",
+      "purpose": "Fail-closed host-fitness + host-identity report; anything undeterminable is `unknown` and counts as not satisfied.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (declared hardware/models, comparability of receipts)",
+      "issues": [
+        "Single consumer: tools/gate_discrimination.py:1070 (`from tools.gate_host_preflight import collect_host`). No test file of its own.",
+        "entrypoint.unregistered BLOCKER."
+      ]
+    },
+    {
+      "path": "tools/mutation_score.py",
+      "purpose": "Generalised mutation scoring over the suite: baseline-green-first, NOT_APPLICABLE for non-applying mutations, INCONCLUSIVE never scored.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9; Gate 3 statistical reporting discipline",
+      "issues": [
+        "Consumers: daedalus/offload.py, tests/test_mutation_score.py, tests/test_worktree_properties.py.",
+        "entrypoint.unregistered BLOCKER.",
+        "Overlaps conceptually with tools/self_test.py and tools/gate_discrimination.py (three instances of one 'seed a defect in a sandbox' shape); the docstrings acknowledge this and claim generalisation rather than duplication -- worth a consolidation review, not a deletion."
+      ]
+    },
+    {
+      "path": "tools/operability_drill.py",
+      "purpose": "End-to-end drill that deliberately trips every control (scheduler -> CLI -> gate -> process tree) and requires effect AND telemetry to be causally visible.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects, kill switch); Gate 0 exit",
+      "issues": [
+        "Consumers: tests/test_operability_drill.py, tests/test_self_policy_confinement.py, tests/test_spend_coverage.py, tools/bootstrap_receipt.py.",
+        "entrypoint.unregistered BLOCKER -- notable because this is the tool that asserts controls are in force."
+      ]
+    },
+    {
+      "path": "tools/bootstrap_receipt.py",
+      "purpose": "The guarded bootstrap entry point: one attempt driven to the gate, with a receipt; exists because an unguarded driver spawned 10 parallel attempts on Windows.",
+      "status": "wired",
+      "plan_mapping": "Gate 1 ignition slice driver; Invariants 5 and 7",
+      "issues": [
+        "Consumers: daedalus/spine/bootstrap.py, tests/test_promotion_forgery.py.",
+        "entrypoint.unregistered BLOCKER.",
+        "Deliberately lives in tools/ rather than as a daedalus.spine subcommand (reasoned in its docstring: daedalus/spine/ is a declared high_risk_path). Legitimate, but it means a product-critical driver sits outside the package that pyproject.toml ships."
+      ]
+    },
+    {
+      "path": "tools/gui_check.py",
+      "purpose": "Browser-level (Playwright) acceptance for the cockpit against a real `daedalus web` on a loopback port; missing browser/node/dist = INCOMPLETE, never PASS.",
+      "status": "wired",
+      "plan_mapping": "none (product acceptance for apps/web; supports Gate 0 honest-claims discipline)",
+      "issues": [
+        "Only invoked from tools/system_check.py:724 by path, not by import; no test covers gui_check itself.",
+        "entrypoint.unregistered BLOCKER.",
+        "Depends on apps/web/dist existing -- which is committed to git, so a stale committed bundle would be checked instead of a fresh build."
+      ]
+    },
+    {
+      "path": "tools/funnel.py",
+      "purpose": "Operator instrument: runs a tiered DeepSeek fan-out from a funnels/<name>/funnel.json spec through the guarded advisory lane.",
+      "status": "island",
+      "plan_mapping": "none (explicitly advisory; its own docstring states it is not a Daedalus subsystem and gates nothing)",
+      "issues": [
+        "No product caller. Referenced from .claude/skills/funnel/SKILL.md:16-19 and mentioned in daedalus/lanes/grounding.py:12 as a comparison point only.",
+        "entrypoint.unregistered BLOCKER, and this is the tool in the slice that actually spends money on external egress.",
+        "Correctly scoped as advisory-only per Invariant 4 -- keep, but its registry absence is the real exposure."
+      ]
+    },
+    {
+      "path": "tools/funnel_report.py",
+      "purpose": "Reads a funnel run back in the order lane-health -> attrition -> content, so a broken lane cannot be read as a clean target.",
+      "status": "island",
+      "plan_mapping": "none (advisory reporting; embodies the Invariant 9 discipline)",
+      "issues": [
+        "Same reachability as tools/funnel.py: only .claude/skills/funnel/SKILL.md:19 and a docstring mention in daedalus/lanes/grounding.py:12.",
+        "entrypoint.unregistered BLOCKER.",
+        "tests/test_funnel_truth.py exists but covers daedalus/lanes, not this file (no import of tools.funnel_report anywhere)."
+      ]
+    },
+    {
+      "path": "tools/lane_invariants.py",
+      "purpose": "Deterministic assertions over a recorded lane run (identical votes, duplicated source, template answers, constant status, refusals counted as answers).",
+      "status": "island",
+      "plan_mapping": "none (forensic instrument; supports Invariant 9)",
+      "issues": [
+        "ZERO code or test references. Only hits: docs/archive/TODO_2026-07-30_SESSION.md:46,437,538 and docs/recovery/fable/gate0-exit-delta.md:94.",
+        "entrypoint.unregistered BLOCKER.",
+        "Its checks encode failures that were invisible on 2026-07-30 -- retain as negative-evidence tooling (AGENTS.md rule 5), but nothing runs it, so a regression of those exact failures would again be invisible."
+      ]
+    },
+    {
+      "path": "tools/audit_swarm.py",
+      "purpose": "One full adversarial pass over daedalus/ through the cheap external lane, under an explicitly owner-lifted egress allow-list (2026-07-30).",
+      "status": "island",
+      "plan_mapping": "none (one-shot operator run; egress governed by Invariant 8)",
+      "issues": [
+        "No code caller. Hits: daedalus/spine/effect_boundary.py:923 (named as the motivating example for scanning tools/), funnels/claims123/funnel.json, funnels/today/funnel.json, and archived docs.",
+        "entrypoint.unregistered BLOCKER on a tool the effect-boundary module itself says has billed ~750 external calls -- the sharpest instance of the gap.",
+        "Its safety argument (file list from `git ls-files daedalus`, not a walk) is structural and sound, but it is a one-shot script carrying a lifted allow-list; a future run inherits that lift by default."
+      ]
+    },
+    {
+      "path": "tools/guarded_call.py",
+      "purpose": "One process-boundary door for an external model call from an interpreter that has no daedalus (built for a DSPy/GEPA optimiser env).",
+      "status": "dead",
+      "plan_mapping": "Invariant 8 (bounded effects at the effect boundary) -- but for a consumer that does not exist in this repo",
+      "issues": [
+        "ZERO references repo-wide except funnels/today/funnel.json:41 (a scan target list). No test, no caller, no DSPy environment present -- dspy appears only in docs (docs/research/GEPA_REFLECTIVE_EVOLUTION.md, docs/ABSORPTION.md) and tests/test_gate0_faults_atalanta.py.",
+        "Delete-candidate ONLY if the GEPA/DSPy track is confirmed dead; otherwise it is a correct, pre-built boundary awaiting its consumer. Recommend keeping with an explicit EXPERIMENT label rather than deleting silently."
+      ]
+    },
+    {
+      "path": ".githooks/pre-commit",
+      "purpose": "Delegates every commit to `tools/iron_plan_guard.py pre-commit` with python3-then-python fallback.",
+      "status": "protected",
+      "plan_mapping": "Invariant 10; plan section 15",
+      "issues": [
+        "Verified installed: `git config core.hooksPath` = .githooks.",
+        "Both hooks `exec` the guard, so a guard crash is a non-zero exit -- fail-closed as intended. Plan section 1 already states this is not a security boundary (--no-verify bypasses it)."
+      ]
+    },
+    {
+      "path": ".githooks/commit-msg",
+      "purpose": "Delegates the commit message to `tools/iron_plan_guard.py commit-msg` for the Iron Plan handoff footer.",
+      "status": "protected",
+      "plan_mapping": "Invariant 10; AGENTS.md mandatory workflow step 7",
+      "issues": []
+    },
+    {
+      "path": "apps/web",
+      "purpose": "The Ikarus cockpit: React 18 + Vite + sigma/graphology + framer-motion SPA with the glass component set, served by daedalus/web_api.py.",
+      "status": "wired",
+      "plan_mapping": "Ikarus surface (plan section 3); no Gate 0 deliverable of its own",
+      "issues": [
+        "apps/web/dist/ is COMMITTED to git (6 build artifacts, .gitignore has no dist entry). Last dist and src commit are the same (8db76c90, 2026-07-30), so it is in sync today, but nothing enforces that -- daedalus/web_api.py:984 falls back to a placeholder page and tools/gui_check.py explicitly calls that fallback the case every naive check goes green on.",
+        "apps/web/node_modules/ is present on disk and untracked; only 61 files under apps/ are tracked.",
+        "Consumers: daedalus/web_api.py, daedalus/gui/probe.js, tools/system_check.py, tools/gui_check.py, tests/test_ui_governance.py, tests/test_generated_inventory.py."
+      ]
+    },
+    {
+      "path": "configs/llama-swap.example.yaml",
+      "purpose": "Example llama-swap proxy config for running raw llama.cpp instead of Ollama, with model TTLs and a mutual-exclusion group.",
+      "status": "island",
+      "plan_mapping": "none (operator documentation)",
+      "issues": [
+        "No code reads it (llama-swap is an external process); referenced from README.md and docs/LOCAL_MODELS.md only. Correct as a documented example -- keep.",
+        "configs/ holds exactly one file; it is a directory-for-one-example."
+      ]
+    },
+    {
+      "path": "catalogue/gui/glass.json + catalogue/gui/external.json",
+      "purpose": "Seeded 'available parts' catalogue: the repo's own glass components (Apache-2.0, provenance = a path) and external component libraries BY REFERENCE ONLY, with verified licences.",
+      "status": "island",
+      "plan_mapping": "Knowledge plane data shaped as StructCore nodes (plan section 5), but not compiled into any Forest revision",
+      "issues": [
+        "Only consumers are daedalus/gui_catalogue.py (CATALOGUE_DIR = 'catalogue/gui', line 152) and tests/test_gui_catalogue.py. No CLI subcommand, no web endpoint, no agent surface reads it.",
+        "Discipline is exemplary (vendors nothing, licence+provenance mandatory, `$comment` fields explicitly IGNORED BY THE LOADER) -- the gap is wiring, not quality.",
+        "glass.json entries cite apps/web/src/components/glass/*.tsx source paths; all those files exist today, but nothing checks that binding, so a component rename silently rots the catalogue."
+      ]
+    },
+    {
+      "path": "funnels/ (codebase, codebase-500, claims123, document, scope-ab, today)",
+      "purpose": "Six funnel specs (tier definitions + system-prompt markdown) driving tools/funnel.py; codebase/ holds the four shared prompts the others reuse via ../codebase/*.md.",
+      "status": "island",
+      "plan_mapping": "none (advisory operator instrument, explicitly gates nothing)",
+      "issues": [
+        "Verified: every tier prompt path resolves to an existing file, and every .py path named inside funnels/today/funnel.json still exists.",
+        "Four of six specs (claims123, codebase-500, scope-ab, today) carry no prompts of their own and are pure reuses of funnels/codebase/*.md -- they are frozen one-day scopes (funnels/today is literally dated), so they read as run history rather than reusable configuration.",
+        "Only .claude/skills/funnel/SKILL.md and archived docs point here."
+      ]
+    },
+    {
+      "path": "templates/agentenv.json",
+      "purpose": "The .agentenv policy scaffold copied into a newly onboarded repo.",
+      "status": "drifted",
+      "plan_mapping": "Invariant 8 (bounded effects: write roots) -- the template does not deliver it",
+      "issues": [
+        "NO `write_allow` KEY. daedalus/sensitivity.py:12-13 says the write axis is 'NOT fail-closed by default': an empty write_allow means unconfined, and sensitivity.py:761 states 'Empty write_allow therefore means unconfined'; sensitivity.py:774 only applies the fence `if policy.write_allow`. So a repo bootstrapped from this template is WRITE-UNCONFINED while its own `_comment` (line 2) claims 'With no policy block, the bench is read/advise-only (fail-closed)' and its `allow` list (lines 11-17) reads like a write restriction.",
+        "This repo's own .agentenv/agentenv.json documents the measurement that made write_allow necessary ('with allow-only, 8 of 12 paths this policy claims to deny were writable, including daedalus/config.py'). That lesson never reached the shipped template.",
+        "Template also lacks default_deny, high_risk_paths content, and test_timeout_s -- the live policy documents test_timeout_s as the fix for a configuration that was STRUCTURALLY unable to pass."
+      ]
+    },
+    {
+      "path": "templates/CLAUDE.md + templates/AGENTS.md",
+      "purpose": "Harness instruction files copied into a target repo: route work through daedalus.orchestrate / daedalus.file_bridge, file-bridge-only cross-agent traffic, agent_report_v1 output.",
+      "status": "drifted",
+      "plan_mapping": "none directly; they are the projection of the harness contract into other repos",
+      "issues": [
+        "Both describe the pre-Iron-Plan harness only: no mention of the master plan, gates, invariants, the ALIGNED/EXPERIMENT/AMENDMENT classification, or the handoff footer that this repo's own AGENTS.md makes mandatory. Deliberate scoping is plausible (they govern OTHER repos), but nothing says so.",
+        "Referenced targets verified to exist: daedalus/orchestrate.py, daedalus/file_bridge.py, docs/COMMS_PROTOCOL.md.",
+        "Copied by daedalus/config.py:309-311; existing target files are never overwritten."
+      ]
+    },
+    {
+      "path": "templates/agents/*.json (5 roles) + templates/project.example.json",
+      "purpose": "Shipped default agent roles (generalist-dev, docs-dev, tests-dev, reviewer, qa-critic) and an example project-registry entry.",
+      "status": "wired",
+      "plan_mapping": "none (harness scaffolding)",
+      "issues": [
+        "Resolution order verified: daedalus/router.py:9-18 (TEMPLATE_AGENT_DIR) falls back .agentenv/agents/ -> templates/agents/ -> built-in agents/; daedalus/config.py:289 copies them; daedalus/agents_registry.py:13,34 guarantees the shipped templates are never written to.",
+        "project.example.json pins model_assignments to qwen2.5-coder:7b, matching docs/LOCAL_MODELS.md -- consistent."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/GATE_DISCRIMINATION.md",
+      "verdict": "authority",
+      "reason": "335 lines specifying exactly what tools/gate_discrimination.py measures, how the defect corpus is shaped, and how strong the hold-back is; it is the prose contract behind the receipt daedalus/spine/bootstrap.py::gate_discrimination() requires. Nothing else in the repo defines that receipt's meaning."
+    },
+    {
+      "path": "docs/GUI_CATALOGUE.md",
+      "verdict": "authority",
+      "reason": "466 lines carrying the licence-verification evidence for every entry in catalogue/gui/external.json (the JSON's own $comment points at it for evidence). Deleting it would strand the catalogue's provenance claims."
+    },
+    {
+      "path": "docs/LOCAL_MODELS.md",
+      "verdict": "keep",
+      "reason": "The only document explaining the env vars that configs/llama-swap.example.yaml exists to serve; short, current, and consistent with templates/project.example.json's model pins."
+    },
+    {
+      "path": "docs/recovery/fable/gate0-exit-delta.md",
+      "verdict": "merge",
+      "reason": "Line 94 records unregistered_effectful_entrypoints = 15 and names tools.agent_findings, tools.audit_triage and tools.run_gate_checks -- none of which exist in tools/ any more. The live count on this revision is 12. Stale numbers about MY slice; the figure should be re-derived from tools/effect_boundary_check.py rather than quoted."
+    }
+  ],
+  "integration_gaps": [
+    "GATE-0 BLOCKER, measured on this revision: `python tools/effect_boundary_check.py` reports 12 entrypoint.unregistered BLOCKERs -- tools.{audit_swarm,bootstrap_receipt,funnel,funnel_report,gate_discrimination,gate_host_preflight,gui_check,iron_plan_guard,iron_plan_hook_runner,lane_invariants,mutation_score,operability_drill}:main are effectful entrypoints outside daedalus/spine/effect_boundary.py's canonical registry. daedalus/spine/effect_boundary.py:916-931 added 'tools' to SCAN_PACKAGES precisely to make this visible; the discovery landed, the registration never did. Invariant 1 (one kernel) and Invariant 8 (bounded effects at the effect boundary) are both open here.",
+    "templates/agentenv.json ships a policy with no write_allow, and daedalus/sensitivity.py:761,774 make an absent write_allow mean UNCONFINED. Every repo onboarded from the shipped template gets an unconfined write axis behind a comment claiming fail-closed. The lesson is documented in this repo's own .agentenv/agentenv.json and never propagated to the template.",
+    "tools/guarded_call.py has zero callers: the process-boundary egress door was built for a DSPy/GEPA optimiser environment that does not exist in this tree. A guard nobody calls is the exact 'built but inert' failure tools/operability_drill.py's docstring was written about.",
+    "tools/lane_invariants.py (7 deterministic assertions over recorded lane runs) has zero code or test references. The 2026-07-30 failures it encodes -- byte-identical votes, template answers, refusals counted as answers -- would be invisible again today.",
+    "catalogue/gui/ is read only by daedalus/gui_catalogue.py and its unit test. No CLI subcommand, web endpoint, or agent path exposes the catalogue, so the 'available parts as data' idea is implemented and unreachable.",
+    "tools/gui_check.py is invoked only by path from tools/system_check.py:724 and has no test of its own; nothing verifies that the browser acceptance layer itself can still go red -- the same 'a check that never went red is a claim' rule that tools/self_test.py exists to enforce for system_check.",
+    "tools/self_test.py:40 uses a bare `import system_check as sc` with no sys.path setup, so `python -m tools.self_test` raises ModuleNotFoundError; the mutation control is reachable only via tools/system_check.py or a direct script invocation from tools/.",
+    "apps/web/dist/ is committed with no .gitignore entry and no build-freshness check. daedalus/web_api.py:984 serves a placeholder when dist is absent, and tools/gui_check.py names that placeholder as the case naive checks pass on -- a stale committed bundle is checked as if it were the product."
+  ],
+  "notable": [
+    "The slice's non-BLOCKER health is good: 12 of 16 tools/ modules have a verified consumer in daedalus/ or tests/, and .githooks is genuinely installed (core.hooksPath=.githooks), so the plan guard runs on every ordinary commit.",
+    "Three 'seed a defect in a disposable clone' implementations coexist: tools/self_test.py, tools/mutation_score.py, and tools/gate_discrimination.py (plus runs/ab/oracle_check.py). Each docstring argues it generalised the previous two rather than adding a third shape, and gate_discrimination.py:931 does reuse system_check.Sandbox -- but this is the slice's largest consolidation opportunity (~2300 lines across the three).",
+    "The docstrings in this slice are unusually high-value evidence: tools/bootstrap_receipt.py:1-30 records the Windows spawn incident (10 parallel attempts, intent_ids 56-64), tools/funnel_report.py:1-20 records the 715-answers/692-identical measurement, tools/lane_invariants.py:1-27 records 8 model refuters producing 0 findings vs 2 AST functions catching 3/3. These are retained negative evidence per AGENTS.md rule 5 and should survive any cleanup.",
+    "Stale module docstring: daedalus/spine/effect_boundary.py:921 states '18 of 19 python files under tools/ is an entrypoint'. tools/ now holds 16 python files, and the current run flags 12. The narrative is right, the arithmetic is dated.",
+    "tools/effect_boundary_check.py also surfaces a second live BLOCKER outside my slice: entrypoint.effect_drift on daedalus.providers.ollama:OllamaProvider.rollback -- new undeclared effects network_egress, process_spawn. Routing to the providers slice.",
+    "tools/audit_swarm.py encodes an owner-lifted egress allow-list from 2026-07-30 as the file's standing configuration rather than as a one-run parameter; re-running it inherits the lift by default. Its structural protection (file list from `git ls-files daedalus`, never a filesystem walk, so gitignored .captures/ with Edge Login Data cannot enter scope) is the right pattern and should be stated as a rule somewhere less perishable than one script's docstring.",
+    "funnels/today/ and funnels/claims123/ are dated one-day scopes checked into the repo as configuration; every path they name still resolves, but they are run history in a config directory.",
+    "configs/ contains exactly one example file and catalogue/ exactly one subdirectory -- both are directories created for a single artifact each."
+  ]
+}

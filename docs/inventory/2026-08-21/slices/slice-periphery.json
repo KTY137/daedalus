@@ -1,0 +1,403 @@
+{
+  "slice": "periphery (6/10): daedalus/eval, daedalus/mapping, daedalus/memory, daedalus/observe, daedalus/wiki, daedalus/gui, daedalus/tools",
+  "summary": "This slice is Daedalus's measurement-and-inspection periphery: eval/ is the evaluator boundary (Invariant 4), mapping/ is the generated architecture artifact that feeds the self-improvement picker, memory/ is the product-side journal plus its derived latent index, and observe/ wiki/ gui/ tools/ are four small, well-documented, test-covered capability probes. Documentation quality is unusually high - almost every module docstring states its own limits and cites the measurement that motivated it, and eval/ in particular is exemplary about self-grading and label provenance. Health is mixed by directory: eval/ and mapping/ are genuinely wired into daedalus/spine (attempt.py, picker.py) and daedalus/cli.py, while observe/, wiki/, gui/ and tools/ are complete, tested islands with zero production consumers. The dominant structural gap is Gate 0's centralized start/guard path: every effectful CLI in this slice that IS registered in daedalus/spine/effect_boundary.py carries Wiring.INVENTORY_ONLY, and several effectful entrypoints (project-memory, tools inventory, python -m daedalus.eval) are not registered at all - including memory/embeddings.py's direct urllib egress to Ollama, which bypasses sensitivity.lane_for_host entirely.",
+  "modules": [
+    {
+      "path": "daedalus/eval/__init__.py",
+      "purpose": "Package facade for the private distillation eval; re-exports TASKS, resolve_task_repo, run_tier1, run_tier2.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary) / Gate 3 baseline lab precursor",
+      "issues": [
+        "Docstring (lines 1-22) still describes eval/ as only the two-tier distillation harness; correctness.py, mint.py, mutate.py, graph_delta.py, ceiling.py and provenance.py are not mentioned, so the package's stated scope is narrower than what it now contains."
+      ]
+    },
+    {
+      "path": "daedalus/eval/__main__.py",
+      "purpose": "CLI for `python -m daedalus.eval [--tier2] [--arms] [--gate] [--update-baseline]`.",
+      "status": "island",
+      "plan_mapping": "Invariant 4; Gate 0 centralized start/guard path",
+      "issues": [
+        "Not present in daedalus/spine/effect_boundary.py's 78-entry registry despite writing baseline.json and (with --tier2) making provider calls; the sibling eval CLIs cli.eval_ceiling / cli.eval_correctness / cli.eval_graph_delta ARE registered (effect_boundary.py:510-524), so this is an inconsistent gap rather than a deliberate omission.",
+        "Self-described as 'never wired into anything automatic' (__main__.py:9); the only production consumer of the harness is spine/picker.py:1627,1641."
+      ]
+    },
+    {
+      "path": "daedalus/eval/tasks.py",
+      "purpose": "The labelled task set plus label-provenance vocabulary (hand_reachable / independent_diff / temporal_churn) and repo resolution.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims); Gate 3 frozen tasks",
+      "issues": []
+    },
+    {
+      "path": "daedalus/eval/harness.py",
+      "purpose": "Runs Tier 1 recall/compression, the A/B/C arms and the advisory gate over the task set, aggregated per label-provenance tier so self-graded labels are never blended with independent ones.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 + Invariant 9; Gate 3 baselines (BM25 arm C)",
+      "issues": [
+        "run_gate/load_baseline are imported lazily inside spine/picker.py (lines 1627, 1641), so the picker's dependency on eval is a runtime import that no static importer graph shows.",
+        "baseline.json is a hand-updated advisory file (harness.py:825-826) living inside the package rather than in an evidence/receipt store - a second, informal evidence location next to runs/."
+      ]
+    },
+    {
+      "path": "daedalus/eval/report.py",
+      "purpose": "ASCII (cp1252-safe) rendering of eval results, carrying the per-provenance honesty disclaimers.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims)",
+      "issues": []
+    },
+    {
+      "path": "daedalus/eval/correctness.py",
+      "purpose": "FAIL_TO_PASS / PASS_TO_PASS evaluator: verifies the before-state in a disposable worktree, then grades whether a change is actually correct.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary) - this is the closest thing in the tree to a real evaluator; Invariant 3 (isolation, via disposable worktrees)",
+      "issues": [
+        "spine/attempt.py imports correctness_gate inside a function (attempt.py:1137) explicitly to break a circular import (attempt.py:1129) - eval imports spine and spine imports eval, so the evaluator and the thing it grades are mutually dependent at module level. That is uncomfortably close to the candidate/evaluator seal Invariant 3 wants.",
+        "1827 lines in one module; corpus (correctness_tasks.json, 49 KB) ships inside the package."
+      ]
+    },
+    {
+      "path": "daedalus/eval/mint.py",
+      "purpose": "Mints independent must_include labels from on-disk diffs / git commits, quarantined until confirmed N times, so labels are not chosen by the slicer being graded.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (no benchmark trained on its own test); Gate 3 leakage rules",
+      "issues": [
+        "Only production caller is daedalus/offload.py:205 (lazy import) - the automint path; otherwise test-only.",
+        "The 'never expand a minted label through the import closure' rule (mint.py:9-18) is enforced by comment and review, not by a mechanical check outside this module."
+      ]
+    },
+    {
+      "path": "daedalus/eval/mutate.py",
+      "purpose": "Generates a mechanical, marker-free, seeded AST mutation corpus for held-out validation of graph_delta.",
+      "status": "island",
+      "plan_mapping": "Gate 3 (baseline lab) / Gate 4 controls; kill-criteria evidence",
+      "issues": [
+        "No production importer; referenced only from eval/graph_delta.py:589 as a corpus name and from tests. Reachable only by being called from graph_delta's CLI."
+      ]
+    },
+    {
+      "path": "daedalus/eval/graph_delta.py",
+      "purpose": "Measures whether the multi-layer graph delta of a patch carries a defect signal the pytest gate misses, on the mutation corpus.",
+      "status": "island",
+      "plan_mapping": "PRIOR: four-plane Project Twin marginal value (plan sections 5/13); Gate 4 hypothesis precursor",
+      "issues": [
+        "Registered in effect_boundary.py:518-524 as cli.eval_graph_delta with Wiring.INVENTORY_ONLY - inventoried, not routed through a guarded start path.",
+        "No production consumer: nothing in spine/ or kairos/ uses the delta as a selection signal yet, so the measured result (docs/research/GRAPH_DELTA_CALIBRATION.md) is evidence without a consumer."
+      ]
+    },
+    {
+      "path": "daedalus/eval/ceiling.py",
+      "purpose": "Backtest-clean ceiling for the temporal co-change hypothesis (lane A2), with a deliberately computed leaky arm so the self-prediction artefact is measurable.",
+      "status": "island",
+      "plan_mapping": "Kill criteria (plan section 13: temporal/knowledge-leakage scrubbing); lane A2 closed at 2.3%",
+      "issues": [
+        "Registered effect_boundary.py:510 as cli.eval_ceiling, Wiring.INVENTORY_ONLY.",
+        "Lane A2 is closed on this module's number; it is retained (correctly) as negative evidence and as the reopen gate, but nothing calls it automatically."
+      ]
+    },
+    {
+      "path": "daedalus/eval/provenance.py",
+      "purpose": "check_import_provenance: verifies the evaluator actually imported the CANDIDATE's tree, and voids the evaluation (not the candidate) when it cannot prove it.",
+      "status": "wired",
+      "plan_mapping": "Invariant 3 (isolation) + Invariant 4 (evidence boundary) - directly closes ADR-015 Finding 1",
+      "issues": [
+        "The only production importer is daedalus/kairos/evolution.py:7. spine/attempt.py, which is the canonical attempt runner, does not call it - so the check protects the Ariadne evolution runner but not the kernel's own attempt path."
+      ]
+    },
+    {
+      "path": "daedalus/mapping/__init__.py",
+      "purpose": "Package facade for the GENERATED half of the architecture artifact; re-exports reach.analyse and its schema types.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance) - derived-not-typed artifacts",
+      "issues": []
+    },
+    {
+      "path": "daedalus/mapping/reach.py",
+      "purpose": "Answers 'can a human or a tool get here at all' - discovers entry points and classifies every module as wired / island / shim / unknown.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7; feeds the Gate 0 work queue via spine/picker.py",
+      "issues": []
+    },
+    {
+      "path": "daedalus/mapping/switches.py",
+      "purpose": "Mechanical inventory of every switch (env var, boolean default, config key) that can turn a built feature off; classifies dark features.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects) - the switch surface; Invariant 7",
+      "issues": [
+        "Only reachable through drift/render/tests; no direct CLI of its own."
+      ]
+    },
+    {
+      "path": "daedalus/mapping/drift.py",
+      "purpose": "Writes and digest-verifies docs/architecture-state.json; refuses hand edits outside the acceptance fields and exits non-zero on drift.",
+      "status": "wired",
+      "plan_mapping": "Invariant 10 (no silent constitution change) applied to the derived artifact; Invariant 7",
+      "issues": [
+        "Registered effect_boundary.py:527 as cli.mapping_drift, Wiring.INVENTORY_ONLY, despite FILESYSTEM_WRITE.",
+        "docs/architecture-state.json currently records head 7955317 while HEAD is c264f5dd and repo_state.dirty = true - the snapshot is stale relative to the tree it describes, and spine/picker.py reads it as the two highest-priority work bands (picker.py:1017 checks digest_ok, which detects hand-edits but not staleness)."
+      ]
+    },
+    {
+      "path": "daedalus/mapping/render.py",
+      "purpose": "`daedalus map`: the architecture artifact itself - one walk of the tree renders the mechanical half and stamps its own staleness.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance); Gate 0 inventory of entrypoints",
+      "issues": [
+        "Wired via daedalus/cli.py:1148 (`daedalus map`) and registered effect_boundary.py:534-540 as cli.mapping_render with FILESYSTEM_WRITE + PROCESS_SPAWN, Wiring.INVENTORY_ONLY - an effectful canonical CLI that is inventoried rather than guarded.",
+        "1617 lines; the largest module in the slice."
+      ]
+    },
+    {
+      "path": "daedalus/mapping/inventory.py",
+      "purpose": "Generates docs/FEATURE_INVENTORY.json from the same tree walk as `daedalus map`, replacing the hand-typed census.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7; the picker's evidence source",
+      "issues": [
+        "Registered effect_boundary.py:528-534 as cli.mapping_inventory, Wiring.INVENTORY_ONLY.",
+        "Not reachable from `daedalus <cmd>` in cli.py - only via `python -m daedalus.mapping.inventory`, so the census refresh is a different invocation shape from `daedalus map`."
+      ]
+    },
+    {
+      "path": "daedalus/mapping/spectral.py",
+      "purpose": "Four spectral measurements over the reachability graph answering 'does the declared package structure match the actual one'; explicitly does not fork structcore.topology.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7; PRIOR (structure as evidence) - explicitly evidence, never a gate",
+      "issues": [
+        "Off by default: spine/picker.py:2224 include_spectral=False and the import is lazy (picker.py:2304). By mapping/switches.py's own definition this is a dark feature - built, wired, and never executed in normal operation.",
+        "The module docstring's own boundary against structcore/topology.py (spectral.py:9-22) is the only thing preventing a second spectral authority; nothing mechanical enforces it."
+      ]
+    },
+    {
+      "path": "daedalus/memory/__init__.py",
+      "purpose": "The append-only product memory journal (memory/events.local.jsonl) plus the opt-in synchronous bridge that forwards a record to the vector index.",
+      "status": "wired",
+      "plan_mapping": "Plan section 7 - PRODUCT memory (preferences, projects, explanations), separate from research adaptive memory",
+      "issues": [
+        "Registered effect_boundary.py:541-548 as cli.memory -> daedalus.memory.__init__:main with FILESYSTEM_WRITE, Wiring.INVENTORY_ONLY.",
+        "_try_vector_index (line ~113) is gated on the env var DAEDALUS_VECTOR_INDEX and swallows every exception, so a silently failing latent index is indistinguishable from a disabled one except in a log line.",
+        "Broad production fan-in (status.py:48, token_monitor.py:10, file_bridge.py:15, kairos/orchestrate.py:9, context_plan.py:28, web_api.py:1372, gui_catalogue.py:770, health.py) - this is the real product-memory spine, but every consumer reaches it by direct import rather than through a canonical event contract."
+      ]
+    },
+    {
+      "path": "daedalus/memory/__main__.py",
+      "purpose": "Thin `python -m daedalus.memory` entry point delegating to __init__.main.",
+      "status": "wired",
+      "plan_mapping": "none",
+      "issues": []
+    },
+    {
+      "path": "daedalus/memory/embeddings.py",
+      "purpose": "Versioned, content-addressed embedding projections with an empirical identity anchor that refuses to mix two coordinate systems.",
+      "status": "drifted",
+      "plan_mapping": "Plan section 6 (Latent Atlas) - the hypothesis machine; Invariant 8 (bounded effects: egress)",
+      "issues": [
+        "INVARIANT 8 GAP: OllamaEmbeddingBackend.embed opens a raw urllib.request.urlopen POST to a caller-supplied host (embeddings.py:340-347) with no call to sensitivity.lane_for_host and no egress-boundary hop. daedalus/tools/vet.py:44 states the rule ('whether bytes may leave the machine has exactly one implementation, sensitivity.lane_for_host') and this module does not follow it. The graph_delta corpus even names 'lane_for_host_accepts_localhost' as a seeded defect class.",
+        "STATED LIMIT, still open: host is not part of EmbeddingSpec identity, so two different Ollama hosts serving the same tag produce the same index_id (docstring, lines ~44-52).",
+        "1687 lines; the identity anchor is trust-on-first-use by the module's own admission.",
+        "Named in health.py:1663 as a heavyweight import; the latent read path (context_plan.py, gui_catalogue.py, web_api.py) is a product surface consuming a research-shaped store."
+      ]
+    },
+    {
+      "path": "daedalus/memory/projection_worker.py",
+      "purpose": "Batch projection of the journal into the vector index with a journal watermark, so an index built by the synchronous bridge can be anchored.",
+      "status": "drifted",
+      "plan_mapping": "Plan section 7 (memory separation); Gate 0 centralized start/guard path",
+      "issues": [
+        "GATE 0 GAP: reachable as the canonical `daedalus project-memory` (cli.py:1104) and it both writes the filesystem and drives network egress through embeddings.py - yet it is absent from daedalus/spine/effect_boundary.py entirely (grep for 'projection' returns nothing in that file). An effectful canonical CLI missing from the effect registry is exactly what Gate 0's 'centralized start/guard path for every effectful runtime entrypoint' forbids."
+      ]
+    },
+    {
+      "path": "daedalus/observe/__init__.py",
+      "purpose": "Facade for the behavioural axis; re-exports describe/Shape/compare_declared and the shape vocabulary.",
+      "status": "island",
+      "plan_mapping": "PRIOR: observation as an orthogonal lineage dimension (plan section 5), NOT a fifth plane",
+      "issues": []
+    },
+    {
+      "path": "daedalus/observe/shape.py",
+      "purpose": "Records the shape (class, dtype, dims, key/column names) of a live object as data, shape-never-value, stamped provenance=observed.",
+      "status": "island",
+      "plan_mapping": "PRIOR: observation lineage feeding the Data plane with observed-provenance edges",
+      "issues": [
+        "Zero production importers - the only consumer is tests/test_observe_shape.py:11. It is a complete, disciplined capability with no graph to feed it into: the docstring promises edges stamped provenance='observed' but nothing in structcore/ or spine/ ingests them.",
+        "No CLI, no effect_boundary entry (correctly - it is read-only), so it can only ever be used by a future caller."
+      ]
+    },
+    {
+      "path": "daedalus/wiki/__init__.py",
+      "purpose": "Facade for nested Obsidian-format vaults, read-only by construction.",
+      "status": "island",
+      "plan_mapping": "PRIOR: Knowledge plane (plan section 5) - documentation/wiki links as a plane that never becomes an authority above source/evidence",
+      "issues": [
+        "The docstring records that the write path is deliberately blocked pending a Cerberus review and its own gate list - correct and well-argued, but it means the Knowledge plane has no ingest path at all."
+      ]
+    },
+    {
+      "path": "daedalus/wiki/vault.py",
+      "purpose": "Vault discovery, page reading, frontmatter parsing, and the path validator that makes a '/'-bearing page rel safe.",
+      "status": "island",
+      "plan_mapping": "PRIOR: Knowledge plane; Invariant 8 (write roots) via the path validator",
+      "issues": [
+        "Zero production importers - only tests/test_wiki.py:17. daedalus/web_api.py contains no 'knowledge' or 'wiki' route, so neither the read nor the write path is served; the Momus-flagged traversal surface the validator was written for does not exist yet.",
+        "The repo's own vault/ directory (touched in this working tree, and by the vault-recall/vault-sync skills) is read through the Obsidian MCP server, not through this module - so the project's real wiki traffic bypasses the code written to serve it."
+      ]
+    },
+    {
+      "path": "daedalus/wiki/links.py",
+      "purpose": "Wikilink parsing, backlinks, unlinked mentions and the LOCAL n-hop graph; parses [[code:...]] and [[type:...]] as real cross-plane edges.",
+      "status": "island",
+      "plan_mapping": "PRIOR: verified cross-plane edges (plan section 6) - doc->code and doc->type edges are exactly the Knowledge<->Code bindings the Twin wants",
+      "issues": [
+        "Zero production importers (tests/test_wiki.py:16 only). [[type:...]] edges are parsed and counted but never resolved, by design - so the doc->code edges docs/wiki/*.md already carry (e.g. docs/wiki/tool-vetting.md's [[code:daedalus/tools/vet.py]]) are never ingested into any graph. This is the single largest unrealised cross-plane asset in the slice."
+      ]
+    },
+    {
+      "path": "daedalus/gui/lint.py",
+      "purpose": "Turns 'it looks like AI slop' into numbers over a probe.js DOM/CSSOM capture; Tier A metrics can gate, Tier B are declared proxies with agreement records.",
+      "status": "island",
+      "plan_mapping": "none (product/UI lane; Gate 0 does not cover UI)",
+      "issues": [
+        "Registered effect_boundary.py:526 as cli.gui_lint with FILESYSTEM_WRITE, Wiring.INVENTORY_ONLY.",
+        "No production importer; reachable only via `python -m daedalus.gui.lint runs/gui/*.json` (lint.py:257). Its own docstring stamps thresholds ASSUMED at n=4 - honest, and it means nothing may gate on it yet.",
+        "daedalus/gui/__init__.py is empty (0 bytes) while every other package in this slice carries a scope-defining docstring."
+      ]
+    },
+    {
+      "path": "daedalus/gui/probe.js",
+      "purpose": "Deterministic Playwright capture (motion paused, clock frozen, Math.random stubbed, fonts settled) producing the JSON lint.py scores.",
+      "status": "island",
+      "plan_mapping": "none",
+      "issues": [
+        "The only non-Python file in the slice and the only executable in daedalus/ that is not reachable from any Python entrypoint; it is run by hand from apps/web (docs/design/SLOP_METRICS_CALIBRATION.md:4). Nothing in effect_boundary.py inventories it, so a Node process that drives a browser is outside the effect registry entirely."
+      ]
+    },
+    {
+      "path": "daedalus/tools/__init__.py",
+      "purpose": "Facade for the capability layer: what tools exist and what they are cleared for; explicitly disclaims install/enable/route.",
+      "status": "island",
+      "plan_mapping": "Invariant 8 (bounded effects) / Gate 0 policy coverage for MCP and skills",
+      "issues": []
+    },
+    {
+      "path": "daedalus/tools/vet.py",
+      "purpose": "Static-only, fail-closed gate that scans a skill or MCP server and returns evidence-bearing findings (CLEAR/REVIEW/BLOCK/UNSCANNABLE), never a score.",
+      "status": "island",
+      "plan_mapping": "Invariant 8 (bounded effects: egress, secrets) and Invariant 4 (evidence, not a score); Gate 0 'policy coverage tests for ... MCP/File Bridge'",
+      "issues": [
+        "STRONGEST CANDIDATE FOR WIRING IN THE SLICE, AND UNWIRED: no production importer. daedalus/control_plane.py lists MCP servers and daedalus/skills.py parses SKILL.md, but neither calls vet - so the gate that exists is not in front of the door it was written for.",
+        "Uncommitted hardening in the working tree (78 lines in vet.py, 207 in tests/test_tools_vet.py, on top of 6ec7d2cb): new .psm1/.psd1/.mdx/.jsonc scannable suffixes, os.exec*/spawn*/popen, builtins.eval/exec, pty.spawn, Invoke-Expression/iex, -EncodedCommand. Deliberately keeps the (?<![\\w.]) lookbehind on exec.eval and names dangerous namespaces exactly, to buy strictness without a false-positive flood.",
+        "Not in effect_boundary.py - correct in that it is read-only, but it also means no conformance test asserts the gate runs before a capability is handed out."
+      ]
+    },
+    {
+      "path": "daedalus/tools/inventory.py",
+      "purpose": "Derived list of every skill and MCP server visible from a project, each carrying its vet verdict.",
+      "status": "island",
+      "plan_mapping": "Gate 0 (capability inventory) - the natural feed for a Runtime Manifest",
+      "issues": [
+        "Zero production importers (tests/test_inventory_shadowing.py:23 only) and no effect_boundary entry despite having a main() (inventory.py:253).",
+        "It is the seam between skills.py and control_plane.py that its docstring describes, but neither of those two modules calls it - the seam is welded on one side only."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/architecture-state.json",
+      "verdict": "authority",
+      "reason": "The generated mechanical half of the architecture artifact, digest-guarded by daedalus/mapping/drift.py and read by spine/picker.py as the two highest-priority work bands. Authoritative for 'what exists / what is unreached' - but currently stamped head 7955317 with dirty=true while HEAD is c264f5dd, so it needs a refresh, not a rewrite."
+    },
+    {
+      "path": "docs/FEATURE_INVENTORY.json",
+      "verdict": "authority",
+      "reason": "Generated by daedalus/mapping/inventory.py from the same tree walk; replaced the hand-typed census that listed 136 features where a deep read found 827. Regenerate rather than edit."
+    },
+    {
+      "path": "docs/architecture-narrative.md",
+      "verdict": "keep",
+      "reason": "The deliberate hand-written NARRATIVE half that mapping/render.py refuses to generate (the WHY). Its separation from the generated half is the design, not an accident."
+    },
+    {
+      "path": "docs/research/GRAPH_DELTA_CALIBRATION.md",
+      "verdict": "authority",
+      "reason": "The measurement record for daedalus/eval/graph_delta.py + mutate.py, including the predictions written before the run and the clean/leaky arm gap (7/12 vs 10/12). Retained negative evidence in the form AGENTS.md requires."
+    },
+    {
+      "path": "docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md",
+      "verdict": "keep",
+      "reason": "The pre-registered ceiling protocol that gates any reopening of lane A2 / the shared-latent proposal, anchored on daedalus/eval/ceiling.py's measured 2.3%. Marked 'not yet run' - it is a live obligation, not history."
+    },
+    {
+      "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+      "verdict": "keep",
+      "reason": "The design authority daedalus/wiki/*.py cite by name for the nested-vault and Knowledge-plane decisions, including the Momus CRITICAL that blocks the write path. Still the reason wiki/ is read-only."
+    },
+    {
+      "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+      "verdict": "keep",
+      "reason": "Records that the wikilink backend half is implemented but UNVERDRAHTET - which this inventory independently confirms for daedalus/wiki/links.py. Evidence for the island status."
+    },
+    {
+      "path": "docs/wiki/tool-vetting.md",
+      "verdict": "keep",
+      "reason": "The spec note for daedalus/tools/vet.py, status: implemented, carrying a [[code:daedalus/tools/vet.py]] cross-plane edge. Accurate about the module; silent about the fact that nothing calls it."
+    },
+    {
+      "path": "docs/wiki/graph-delta-as-fitness.md",
+      "verdict": "keep",
+      "reason": "Finding note (status: verified) for eval/graph_delta.py, correctly scoped to the seeded-defect corpus and 516 changed functions."
+    },
+    {
+      "path": "docs/design/SLOP_METRICS_CALIBRATION.md",
+      "verdict": "keep",
+      "reason": "The n=4 calibration run behind daedalus/gui/lint.py and probe.js, with the corpus and every verdict in the owner's own words. It is what makes lint.py's ASSUMED thresholds honest."
+    },
+    {
+      "path": "docs/design/GUI_LANE_PLAN.md",
+      "verdict": "keep",
+      "reason": "Status DESIGN, Momus round outstanding - the plan gui/lint.py is the first beat of. Keep as the open proposal it declares itself to be."
+    },
+    {
+      "path": "docs/FITNESS_SIGNAL.md",
+      "verdict": "keep",
+      "reason": "Mutation-score prototype and the argument for what must be true before a number may promote work; the direct motivation for eval/mutate.py and eval/correctness.py. Explicitly promotes nothing."
+    },
+    {
+      "path": "docs/GATE_DISCRIMINATION.md",
+      "verdict": "keep",
+      "reason": "The 0/3 rejection-rate receipt that eval/correctness.py and eval/graph_delta.py were both built against; required by spine/bootstrap.py::gate_discrimination()."
+    },
+    {
+      "path": "docs/archive/LATENT_PROJECTION_INDEX.md",
+      "verdict": "archive",
+      "reason": "Superseded design notes for daedalus/memory/embeddings.py; already under docs/archive/. The module docstring now carries the enforced-vs-stated-limits contract in full."
+    },
+    {
+      "path": "docs/archive/ENV_SWITCHES.md",
+      "verdict": "archive",
+      "reason": "Hand-maintained env-switch list superseded by the generated daedalus/mapping/switches.py output. Keeping it live would recreate exactly the staleness mapping/ exists to kill."
+    }
+  ],
+  "integration_gaps": [
+    "GATE 0, centralized start/guard path: every slice CLI that IS registered in daedalus/spine/effect_boundary.py carries Wiring.INVENTORY_ONLY - cli.eval_ceiling (:510), cli.eval_correctness (:511-517), cli.eval_graph_delta (:518-524), cli.gui_lint (:526), cli.mapping_drift (:527), cli.mapping_inventory (:528-534), cli.mapping_render (:534-540), cli.memory (:541-548). Repo-wide only 8 of 78 entries are Wiring.CENTRAL; none of them are in this slice.",
+    "GATE 0, missing registry entries: daedalus.memory.projection_worker:main is reachable as the canonical `daedalus project-memory` (cli.py:1104), writes the filesystem and drives network egress, and does not appear in effect_boundary.py at all. Same for daedalus.tools.inventory:main (inventory.py:253) and `python -m daedalus.eval` (eval/__main__.py:53), and for the Node process daedalus/gui/probe.js.",
+    "INVARIANT 8, egress: daedalus/memory/embeddings.py:340-347 performs a raw urllib POST to a caller-supplied Ollama host without consulting sensitivity.lane_for_host, while daedalus/tools/vet.py:44 states that host policy 'has exactly one implementation'. Two different rules for bytes leaving the machine.",
+    "INVARIANT 4, evaluator seal: daedalus/eval/correctness.py and daedalus/spine/attempt.py import each other (attempt.py:1129-1137 uses a function-local import purely to break the cycle). The evaluator and the runner it grades are mutually dependent modules; the seal is maintained by worktree isolation, not by module topology.",
+    "INVARIANT 3/4, provenance check coverage: eval/provenance.check_import_provenance is called only from kairos/evolution.py:7. spine/attempt.py - the canonical attempt path - does not call it, so the 'did the evaluator score the candidate's tree' question is answered on one path and assumed on the other.",
+    "CAPABILITY GATE UNWIRED: daedalus/tools/vet.py has no production caller. daedalus/skills.py parses SKILL.md and daedalus/control_plane.py enumerates .mcp.json, and neither consults the verdict - so a capability can be handed to an agent without the gate that was written for exactly that moment ever running.",
+    "KNOWLEDGE PLANE HAS NO INGEST: daedalus/wiki/{vault,links}.py parse [[code:...]] and [[type:...]] edges that docs/wiki/*.md already contain, but no importer exists and daedalus/web_api.py serves no knowledge route. The Twin's Knowledge plane is implemented and disconnected at both ends.",
+    "OBSERVED-PROVENANCE EDGES HAVE NO CONSUMER: daedalus/observe/shape.py produces exactly the observed-lineage records plan section 5 describes, and nothing in structcore/ or spine/ ingests them.",
+    "DARK-BY-DEFAULT EVIDENCE: mapping/spectral.py is wired only behind include_spectral=False (picker.py:2224, lazy import at :2304) - by mapping/switches.py's own definition a dark feature, i.e. the module that measures darkness contains one.",
+    "STALE GENERATED AUTHORITY: docs/architecture-state.json records head 7955317/dirty=true against HEAD c264f5dd. drift.digest_ok (picker.py:1017) detects hand-editing but not staleness, so the self-improvement picker can rank work from a snapshot several commits old without any signal."
+  ],
+  "notable": [
+    "Documentation-in-code quality in this slice is the highest I have seen in the tree: eval/tasks.py, eval/mint.py, eval/harness.py and eval/report.py collectively refuse to blend self-graded 'hand_reachable' recall with independently minted labels, and report.py:13-31 prints the disclaimer on every render. That is Invariant 9 implemented as a code path, not a promise.",
+    "eval/mutate.py's docstring argues against its own author's earlier result ('graph_delta reached 12/12 ... but only after two layers were ADDED specifically to catch the defects the first layers missed ... That is fitting to the test set'). Retained negative evidence in exactly the shape AGENTS.md section 5 asks for.",
+    "eval/ceiling.py computes a deliberately LEAKY arm alongside the clean one so the size of the self-prediction artefact is measured rather than argued. Lane A2 was closed on the clean 2.3% and the reopen condition is a rerun of this module - a kill criterion with a working switch.",
+    "eval/provenance.py distinguishes 'candidate scored 0' from 'evaluation could not run' and calls conflating them the actual bug. That distinction is the correct reading of Invariant 4 and it is enforced in code.",
+    "vet.py's uncommitted hardening is unusually disciplined: it keeps the (?<![\\w.]) lookbehind on exec.eval on purpose and instead names dangerous namespaces exactly (builtins.eval, os.execv, pty.spawn), with the rationale written inline - strictness bought without a false-positive flood that trains humans to ignore the gate. exec.powershell_iex is REVIEW not BLOCK for the same reason.",
+    "mapping/ exists because a hand-written inventory listed 136 features / 8 islands / 2 dark switches where a deep read six hours later found 827 / 55 / 51. Every module in the package restates that number as its justification. The current generated state reports 144 modules / 8 islands / 12 unreached / 0 dark switches - the counts have converged, which is itself evidence the generated half is working.",
+    "STALE DOCSTRING: daedalus/eval/__init__.py:1-22 still describes eval/ as the two-tier distillation harness only. Six modules added since (correctness, mint, mutate, graph_delta, ceiling, provenance) are invisible in the package's stated scope - a reader taking the facade at its word would conclude this repo has no correctness evaluator, which was true before correctness.py and is the exact misconception that module was written to end.",
+    "daedalus/gui/__init__.py is 0 bytes - the only package in the slice with no scope docstring, in a tree where every other __init__ carries one.",
+    "wiki/__init__.py names the precise reason the write path is blocked ('kairos.gated_writes is a provider-attempt pipeline, not a write fence, and wiring a human editor's PUT through it would fail every save silently'). That is a correct refusal to reuse a mechanism for a purpose it does not serve - the opposite of the drift AGENTS.md warns about.",
+    "Three separate modules in this slice (tools/vet.py:44, tools/inventory.py 'WHAT IT DOES NOT DO', wiki/__init__.py) independently refuse to bolt routing or provisioning onto themselves and name provider_router as the single lane-policy owner. The 'do not mint a second control plane' rule is being followed voluntarily at the module level."
+  ]
+}

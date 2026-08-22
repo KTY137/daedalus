@@ -1,0 +1,249 @@
+{
+  "slice": "daedalus/spine/ (13 py) + daedalus/adapters/ (5 py)",
+  "summary": "The spine is the most Gate-0-real part of the tree: a durable intent ledger (ledger.py), a kernel-enforced Windows MIC write containment (containment.py), a process-tree cancellation ladder (cancel.py), an absence-means-stop kill switch (killswitch.py), a fail-closed owner-approval verifier (promotion_approval.py) and a registry/conformance contract for effectful entrypoints (effect_boundary.py). Nearly every module carries measured evidence in its docstring and a matching test file, so the slice's health is unusually high per module. The weakness is integration, not code: of the 19 registered entrypoint rows only 1 is Wiring.CENTRAL (python.attempt), 2 are UNGUARDED (python.offload, python.promote_candidates), and the canonical Gate-0 contracts in daedalus/schemas.py (MissionContract, AttemptRecord, EvidencePacket, RuntimeManifest) are imported by nothing in the spine except ContractProvenance -- the live loop runs on its own dataclasses. The single Gate-0 deliverable with NO code anywhere is the Event Store: ADR-011 is still 'Proposed', envelope.py's trace_id is the deliberately minimal join field that landed instead, and grep for EventStore/event_store across daedalus/ returns zero files. daedalus/adapters/ is the weakest sub-slice: a clean adapter/event/transport boundary whose only production consumer is the kairos evolution track, spawning processes with raw asyncio outside cancel.py, containment.py and the kill switch.",
+  "modules": [
+    {
+      "path": "daedalus/spine/__init__.py",
+      "purpose": "Package docstring plus re-export of the ledger's public names.",
+      "status": "drifted",
+      "plan_mapping": "Gate 0 - canonical kernel (event spine)",
+      "issues": [
+        "Docstring calls the package 'Mission Spine light -- the durable intent ledger' (daedalus/spine/__init__.py:1-7) and re-exports only ledger symbols; the package now also holds the effect-boundary registry, MIC containment, the kill switch and the promotion verifier, none of which are mentioned or exported.",
+        "Callers therefore reach every other spine module by submodule import, so the package surface understates the kernel."
+      ]
+    },
+    {
+      "path": "daedalus/spine/ledger.py",
+      "purpose": "SQLite (WAL) durable intent ledger: intent is committed before the external effect, append-only intent_events, crash window closed by caller-supplied effect_key identification.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 1 (event spine, partial: intent ledger only); Invariants 1, 7",
+      "issues": [
+        "It is an INTENT ledger, not the canonical Event Store Gate 0 asks for; ADR-011 (docs/adrs/011-event-spine.md, Status: Proposed) names four unordered durable stores and the unification never landed.",
+        "DEFAULT_DB_PATH = <repo>/runs/spine/spine.sqlite3 (ledger.py:118) lives inside the primary checkout -- deliberate and documented, but it means the crash-recovery evidence is inside the tree the attempt is fenced out of."
+      ]
+    },
+    {
+      "path": "daedalus/spine/attempt.py",
+      "purpose": "TaskAttempt: the one seam that turns a picked task into a gated candidate patch, in an isolated worktree, never touching the primary checkout.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 4 (central start path) + Gate 1 attempt isolation; Invariants 3, 5",
+      "issues": [
+        "The ONLY row with wiring=Wiring.CENTRAL in the effect-boundary matrix (effect_boundary.py:249) -- the migration it was meant to lead has not continued.",
+        "Imports only ContractProvenance from daedalus.schemas (attempt.py:136): it does not emit the canonical AttemptRecord or EvidencePacket, so the Gate-0 contracts and the live loop are two separate shapes (Invariant 1, one kernel).",
+        "No killswitch import anywhere in the module -- a direct run_attempt() call does not consult the permit file; the kill switch is a loop-level concern only (loop.py, atomic.py, build_exec.py).",
+        "84 KB single module carrying git choke point, worktree lifecycle, runner protocol, gates, containment call-out, ledger resolution and artifact persistence."
+      ]
+    },
+    {
+      "path": "daedalus/spine/effect_boundary.py",
+      "purpose": "Deterministic inventory of externally reachable effectful entrypoints plus begin_effect(), which refuses a start whose entrypoint/effects/guard decisions are unknown.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 4 (centralized start/guard path) and its conformance evidence; Invariant 8",
+      "issues": [
+        "Measured wiring distribution in the matrix: CENTRAL 2, LOCAL_GUARDS 6, INVENTORY_ONLY 8+ (plus ~40 cli.* rows all INVENTORY_ONLY), UNGUARDED 2, ABSENT 1. Gate 0 cannot close until production-capable rows are CENTRAL.",
+        "python.offload (line 290) and python.promote_candidates (line 314) are UNGUARDED with explicit migration notes -- live write providers can mutate the primary checkout; the promotion callable authenticates no owner approval.",
+        "begin_effect() consults no kill switch and no spend ledger itself (grep killswitch in this file: no matches); it validates GuardDecisions its caller supplies, so 'enforced at the effect boundary' is true only for rows that were already migrated.",
+        "adapter.subprocess row (line 327) is INVENTORY_ONLY: 'cwd/write/egress policy is not centrally leased'."
+      ]
+    },
+    {
+      "path": "daedalus/spine/containment.py",
+      "purpose": "Windows MIC (Low integrity) write containment for candidate/gate execution, with bounded single-handle inheritance and an attestation of what was actually achieved.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 5 (enforceable write policy) + Invariant 3 (isolation)",
+      "issues": [
+        "Explicitly CONFIDENTIALITY: NONE and no network/IPC limit (referenced from attempt.py:475) -- it is write containment, not a sandbox; the plan's 'capability-bounded' isolation is therefore only partly met.",
+        "Windows-only mechanism; posix path falls back to the weaker Python-side fences, so the measured guarantee is box-specific.",
+        "77 KB module; production callers are attempt.py and health.py only."
+      ]
+    },
+    {
+      "path": "daedalus/spine/cancel.py",
+      "purpose": "Process-TREE cancellation ladder (graceful CTRL_BREAK/killpg then Job-Object/SIGKILL tree kill), fail-closed if a job cannot be created.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 6 (cancellation fixture) + Invariant 8 (kill switch/bounded effects)",
+      "issues": [
+        "Used by attempt/killswitch/health/council/budget/eval but NOT by daedalus/adapters/subprocess_adapter.py, which spawns with raw asyncio and calls process.kill() -- exactly the leaked-grandchild hazard this module's docstring documents."
+      ]
+    },
+    {
+      "path": "daedalus/spine/killswitch.py",
+      "purpose": "Absence-means-stop permit-file kill switch with measured observation/child-death latency bounds and monotonic latching.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 5 (kill policy); ADR-016 autonomy precondition; Invariant 8",
+      "issues": [
+        "Consulted by loop.py, atomic.py, build_exec.py and the promotion path -- not by begin_effect() and not by attempt.py, so it is a caller convention rather than an effect-boundary enforcement.",
+        "Self-declared hole: an HTTP request already in flight is not aborted; the bound is 'before the next billable call'."
+      ]
+    },
+    {
+      "path": "daedalus/spine/picker.py",
+      "purpose": "Measurement-sorted work queue (band + evidence offset) and the review packet behind `daedalus improve`; refuses any candidate without reason/score/evidence.",
+      "status": "wired",
+      "plan_mapping": "Gate 0/1 loop input; no plan section defines the queue -- closest is Gate 8-loop step 3 (selection) in Ariadne",
+      "issues": [
+        "136 KB, by far the largest module in the slice; sources, scoring, docref candidates, spectral enrichment and rendering all live in one file.",
+        "SOURCE_BANDS is an explicitly human PRIOR, not a measurement -- honest, but it means cross-band ranking is policy embedded in the picker rather than in a policy artifact.",
+        "Constructs the docref gate argv inline (picker.py:1242) -- the gate command for one work class is defined in the queue rather than in an operator declaration (plan section 9)."
+      ]
+    },
+    {
+      "path": "daedalus/spine/bootstrap.py",
+      "purpose": "The SHADOW RUN: one iteration of regenerate-sources -> pick -> attempt -> report, which refuses to treat a green gate as evidence and promotes nothing.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 exit evidence / Gate 1 rehearsal; Invariant 5 (sealed promotion)",
+      "issues": [
+        "Its central measured fact -- gate rejection rate 0/3 against known-bad changes -- makes the whole candidate stream 'unproven'; that number is from 2026-07-29 and is a STATUS, not re-measured per revision here (tools/gate_discrimination.py owns the re-measurement).",
+        "Explicitly not a loop driver: scheduling/unattended operation is elsewhere, so 'the loop' exists in three places (bootstrap.py, loop.py, kairos/scheduler.py)."
+      ]
+    },
+    {
+      "path": "daedalus/spine/docrefs.py",
+      "purpose": "Scans docs for references to code symbols that do not exist, with a conservative module-exists/symbol-missing filter and a resolving/broken measurement PAIR to defeat delete-the-doc gaming.",
+      "status": "wired",
+      "plan_mapping": "Knowledge plane consistency (plan section 5) as a Gate-0-era work source; not itself a Gate-0 deliverable",
+      "issues": [
+        "Exists because the loop's permitted write set (docs/, tests/, README.md) had an empty intersection with the work it wanted to do -- a work source chosen by policy shape rather than by value.",
+        "Skips star-import and module-__getattr__ modules wholesale; skips are counted, but coverage is unstated in the headline number."
+      ]
+    },
+    {
+      "path": "daedalus/spine/docref_gate.py",
+      "purpose": "The gate a docref candidate is judged by: denominator first, target document still exists and is non-empty, then each dispatched finding; exit 0/1/2 with 'no verdict' separated from 'bad candidate'.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 evidence boundary (Invariant 4: a deterministic evaluator decides)",
+      "issues": [
+        "Landed to fix a measured empty-gate: docref candidates previously carried gate_paths=(doc,) and ran `pytest docs/THAT.md`, so every docref attempt failed for a reason unrelated to the fix.",
+        "Deliberately does not check fact preservation (needs the before-image); that half lives in daedalus/verifier.py, so one work class is judged by two modules that must stay in step."
+      ]
+    },
+    {
+      "path": "daedalus/spine/envelope.py",
+      "purpose": "One ambient trace_id joining six incompatible run-record formats, an in-toto ITE-6 statement() shape, and borrowed OpenTelemetry GenAI attribute names.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 1 (event spine) - the minimal substitute for it; Invariant 7 (provenance)",
+      "issues": [
+        "This is the compensating control for the missing Event Store: it explicitly renames nothing and unifies nothing, it only adds a join field (envelope.py docstring, 'It adds ONE field').",
+        "GEN_AI borrows names with 'claim no conformance, export nothing' -- no exporter exists, so the observability payoff is deferred.",
+        "Adopted by loop/progress/file_bridge/lanes/schemas/storage/picker/attempt, but nothing enforces that a new record producer stamps it."
+      ]
+    },
+    {
+      "path": "daedalus/spine/promotion_approval.py",
+      "purpose": "Fail-closed verifier for a git-signed promote/<candidate_sha256> tag bound to candidate sha, source revision, evidence sha, expiry and nonce; exit code of git verify-tag is the only authority.",
+      "status": "island",
+      "plan_mapping": "Gate 0 deliverable 5 + Invariant 5 (sealed promotion)",
+      "issues": [
+        "verify_promotion_approval() has NO production caller: the only call sites are tests/test_promotion_approval.py (grep across *.py). The promotion callable it is meant to guard sits in a protected policy artifact, so wiring it requires an amendment.",
+        "tests/test_promotion_approval_wiring.py encodes the biconditional (flag True <-> verifier actually called), which keeps the Gate-0 inventory honest but leaves the row UNGUARDED (effect_boundary.py:314).",
+        "Trust-root choice is still contested in docs/GATE0_PROMOTION_TRUST_ROOT_CONFLICT.md and docs/AMENDMENT_PROPOSAL_005_PROMOTION_GUARD_ROT.md."
+      ]
+    },
+    {
+      "path": "daedalus/adapters/__init__.py",
+      "purpose": "Public surface for the adapter boundary: AgentAdapter, event types, TransportRecord, sinks, SubprocessAdapter, RUNTIME_PROFILES.",
+      "status": "island",
+      "plan_mapping": "Gate 0 deliverable 3 (vendor-neutral Agent Contract) - partial",
+      "issues": [
+        "No production module imports the package root; consumers import submodules (daedalus/memory/embeddings.py:93 takes TransportRecord only, daedalus/kairos/shadow_shell.py:6-7 takes base+events)."
+      ]
+    },
+    {
+      "path": "daedalus/adapters/base.py",
+      "purpose": "Abstract AgentAdapter protocol: capabilities, create_session, send, events, approve, reject, interrupt, terminate.",
+      "status": "island",
+      "plan_mapping": "Gate 0 deliverable 3 (Agent Contract / Runtime Manifest)",
+      "issues": [
+        "The plan's Agent Contract is RuntimeManifest in daedalus/schemas.py:1184; this ABC shares no type with it, so the repo has two unconnected 'agent contract' definitions.",
+        "No docstring/module header, no capability, egress, workspace, cost or conformance fields -- the Gate-0 contract asks for exactly those."
+      ]
+    },
+    {
+      "path": "daedalus/adapters/events.py",
+      "purpose": "Provider-neutral event dataclasses plus the lossless TransportRecord envelope and event_to_transport_record().",
+      "status": "wired",
+      "plan_mapping": "Gate 0 deliverable 6 (stream/tool-event fixtures); Invariant 7 (provenance)",
+      "issues": [
+        "TransportRecord carries no trace_id and no cost fields, so adapter traffic cannot be joined to spine records via daedalus/spine/envelope.py.",
+        "record_id is derived from session/direction/sequence only; it is not content-addressed, so it is not an artifact identity (Invariant 2)."
+      ]
+    },
+    {
+      "path": "daedalus/adapters/transport.py",
+      "purpose": "TransportSink protocol with in-memory, JSONL and composite implementations.",
+      "status": "island",
+      "plan_mapping": "Gate 0 deliverable 1 (event store) - a fourth append-only JSONL journal instead",
+      "issues": [
+        "JsonlTransportSink is another unordered, unchained append-only journal -- precisely the class of store ADR-011 was written to unify; no production wiring points at it.",
+        "CompositeTransportSink fans out sequentially with no error containment; one failing sink aborts the rest ('failures remain visible' is the stated intent)."
+      ]
+    },
+    {
+      "path": "daedalus/adapters/subprocess_adapter.py",
+      "purpose": "Verified one-shot CLI launch profiles (claude, codex, generic) parsing JSONL into typed events with a timeout and stderr capture.",
+      "status": "drifted",
+      "plan_mapping": "Gate 0 deliverable 3/6 (adapter fixtures) - registered UNGUARDED-adjacent as INVENTORY_ONLY at effect_boundary.py:327",
+      "issues": [
+        "Spawns with raw asyncio.create_subprocess_exec and stops with process.kill() (lines ~414-425); it does not use daedalus/spine/cancel.py, so grandchildren survive cancellation on win32 -- the exact hazard cancel.py documents.",
+        "No containment: it never calls daedalus/spine/containment.py, so a CLI it launches runs at the caller's integrity level with the caller's write reach.",
+        "No begin_effect() call and no kill-switch checkpoint despite declaring PROCESS_SPAWN + NETWORK_EGRESS + FILESYSTEM_WRITE effects.",
+        "No cost/spend accounting at all (grep for cost/usd/token: nothing), although Gate 0 requires cost in the adapter fixtures.",
+        "approve()/reject() raise NotImplementedError, so the AgentAdapter contract is only partly satisfiable by its only implementation.",
+        "Its only production consumer path is daedalus/kairos/evolution.py via shadow_shell.py -- a second candidate-generation route parallel to spine/attempt.py."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/adrs/011-event-spine.md",
+      "verdict": "keep",
+      "reason": "Still 'Proposed'. It is the standing record that the Gate-0 Event Store does not exist and that four durable stores remain unordered; envelope.py landed instead. Keep until an Event Store lands or the ADR is superseded."
+    },
+    {
+      "path": "docs/adrs/008-universal-agent-adapter.md",
+      "verdict": "keep",
+      "reason": "Accurately describes daedalus/adapters as 'Experimental; transport core partially implemented' and lists what is not implemented (approvals, resume, Ollama). It does not mention that the adapter bypasses spine cancel/containment/effect_boundary, so it understates the gap but does not lie."
+    },
+    {
+      "path": "docs/adrs/016-autonomy-preconditions.md",
+      "verdict": "authority",
+      "reason": "The falsifiable gate list that killswitch.py, containment.py and cancel.py were built against; each precondition carries a command or test. It is the local authority for whether the spine may run unattended."
+    },
+    {
+      "path": "docs/GATE0_SEALED_OWNER_APPROVAL.md",
+      "verdict": "authority",
+      "reason": "Records the owner's chosen promotion trust root (option B, git-signed tag; option A as migration) that daedalus/spine/promotion_approval.py implements verbatim."
+    },
+    {
+      "path": "docs/GATE0_PROMOTION_TRUST_ROOT_CONFLICT.md",
+      "verdict": "keep",
+      "reason": "Open conflict record for the same trust root; pairs with docs/AMENDMENT_PROPOSAL_005_PROMOTION_GUARD_ROT.md and explains why promotion_approval.py is still unwired."
+    },
+    {
+      "path": "docs/adrs/015-ariadne-preconditions.md",
+      "verdict": "keep",
+      "reason": "Precondition list naming the kill switch and containment as unmet at the time; overlaps ADR-016 and is a merge candidate with it once both sets go green."
+    }
+  ],
+  "integration_gaps": [
+    "GATE-0 DELIVERABLE WITH NO CODE: the Event Store. grep for EventStore/event_store across daedalus/ returns zero files; ADR-011 is still 'Proposed'. What exists is the intent ledger (spine/ledger.py), three other unrelated journals, and one ambient join field (spine/envelope.py). Nothing assigns a spanning sequence or ordering.",
+    "Canonical contracts are an island: MissionContract, AttemptRecord and EvidencePacket appear only in daedalus/schemas.py and tests/test_kernel_contracts.py. daedalus/spine/attempt.py imports only ContractProvenance (attempt.py:136) and returns its own AttemptResult/PatchArtifact, so the Gate-0 schemas do not describe what the live loop actually produces (Invariant 1).",
+    "Central start path stalled at one row: python.attempt is the only wiring=Wiring.CENTRAL production row (effect_boundary.py:249). python.offload (line 290) and python.promote_candidates (line 314) are UNGUARDED; ~40 cli.* rows and the whole provider/adapter surface are INVENTORY_ONLY.",
+    "begin_effect() enforces nothing about spend or the kill switch itself -- no killswitch reference exists in effect_boundary.py; it validates guard decisions callers hand it. The kill switch is consulted by loop.py/atomic.py/build_exec.py only, so a direct run_attempt() or adapter start is not stoppable through the permit file.",
+    "promotion_approval.verify_promotion_approval() has no production caller; the sealed-promotion invariant (5) is implemented and tested but not enforced. The wiring change lands inside a protected policy artifact and needs an amendment.",
+    "daedalus/adapters/ bypasses the spine entirely: no begin_effect, no spine.cancel tree kill, no containment labelling, no spend accounting. Its only production route (kairos/shadow_shell.py -> kairos/evolution.py) is a second candidate-generation path beside spine/attempt.py, which weakens the 'one seam' property attempt.py's docstring claims.",
+    "Two 'agent contract' definitions coexist: daedalus/adapters/base.py:AgentAdapter (behavioural ABC) and daedalus/schemas.py:1184 RuntimeManifest (the Gate-0 vendor-neutral manifest with conformance receipts). No code connects them, and RuntimeConfig profiles are not hashed into runtime_manifest_sha256.",
+    "TransportRecord (adapters/events.py) carries neither trace_id nor cost, so adapter traffic cannot be joined to spine records even through the envelope workaround.",
+    "adapters/transport.py JsonlTransportSink adds a further append-only JSONL journal with no chain and no lock -- the same class of store ADR-011 set out to unify."
+  ],
+  "notable": [
+    "Stale module docstring: daedalus/spine/__init__.py:1-7 still describes the package as 'Mission Spine light -- the durable intent ledger' and re-exports only ledger names, though the package now contains the effect-boundary registry, MIC containment, the cancellation ladder, the kill switch and the promotion verifier.",
+    "daedalus/adapters/base.py has no module docstring at all, and daedalus/adapters/events.py has none either -- the only two files in this slice without the repo's usual measured-evidence header.",
+    "daedalus/spine/bootstrap.py's headline claim ('the gate's rejection rate against three known-bad changes was 0/3', hence promotion stays human) is a dated STATUS baked into prose; the live re-measurement lives in tools/gate_discrimination.py, so the docstring can silently age.",
+    "Module docstring quality is otherwise exceptionally high and verifiable: attempt.py's four structural no-write properties, containment.py's measured REFUSED/ALLOWED table, killswitch.py's three separate latency bounds with per-run milliseconds, promotion_approval.py's note that `git verify-tag` prints 'Good ... signature' even for a key not in allowed-signers (so only the exit code may be trusted). Spot checks held: DEFAULT_DB_PATH really is runs/spine/spine.sqlite3 (ledger.py:118) and `daedalus improve` really exists (cli.py:72, 1153).",
+    "Size concentration: picker.py 137 KB, attempt.py 85 KB, containment.py 77 KB, effect_boundary.py 59 KB -- four files are ~85% of the slice's bytes, and each mixes policy, mechanism and rendering.",
+    "containment.py names its own ceiling honestly: CONFIDENTIALITY: NONE, no network or IPC limit, and it refuses the word 'sandbox'. Invariant 3's 'capability-bounded' therefore means write-bounded on win32 only.",
+    "tests/test_promotion_approval_wiring.py is a rare construct worth preserving: it asserts a biconditional between the GUARD_CONTRACT_IMPLEMENTED flag and the verifier actually being called, so the Gate-0 inventory cannot be made dishonest in either direction.",
+    "Test coverage of this slice is dense -- test_spine_ledger, test_spine_attempt, test_spine_attempt_containment, test_spine_cancel, test_containment, test_gate_containment(+_job_caps), test_killswitch, test_effect_boundary(+_wiring), test_promotion_approval(+_wiring), test_prose_gate, test_docrefs_false_positives, test_envelope_join/_coverage, test_spine_picker, test_picker_work_queue/_outcome, test_shadow_run, test_gate0_faults_atalanta -- so 'unwired' here almost always means unwired, not unproven."
+  ]
+}

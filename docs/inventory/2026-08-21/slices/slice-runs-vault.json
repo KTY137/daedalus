@@ -1,0 +1,334 @@
+{
+  "slice": "runs/ (experiment + runtime output trees) and vault/ (knowledge plane, structure only)",
+  "summary": "runs/ is not one thing: it mixes exactly one properly registered isolated experiment (higher_twin_nc, with SPEC.md, sealed evaluator, receipts, 46 tests), a handful of canonical kernel runtime stores that legitimately live here (budget/ledger.json, spine/spine.sqlite3, progress/events.jsonl, ikarus/conversations.sqlite3, canary/history.jsonl, council/), one unregistered comparative study (ab/), and several gigabyte-scale piles of stale swarm/eval output that are gitignored yet still tracked. The single largest hygiene defect is 2908 tracked-but-ignored files under runs/ (funnel, eval, audit_swarm, audit_swarm_v1_invalid, plan_critique, build): the .gitignore rules were added after the files were committed, so ignoring them has no effect and they stay in history and in every checkout. There is no experiment registry: only higher_twin_nc/SPEC.md satisfies plan section 14's spec/scope/budget/evaluator/expiry requirement, and runs/ab/SPEC.md is a build brief masquerading under the same filename. vault/ is in good shape - a small, disciplined, link-not-copy knowledge plane (Home, Gates, Amendments, Findings/Index, Sessions daily notes, Templates) that explicitly disclaims authority, matching Invariant 7 and plan section 7's product-memory separation.",
+  "modules": [
+    {
+      "path": "runs/higher_twin_nc/",
+      "purpose": "Registered isolated EXPERIMENT: noncommutative algebra of software interventions over the fourfold quiver, with sealed deterministic evaluator (L0-L4) and content-addressed receipts.",
+      "status": "experiment",
+      "plan_mapping": "PRIOR section 5/6 (four-plane Project Twin, cross-plane evidence) challenged under section 1 isolated-experiment rules; Invariants 3, 4, 5 explicitly honored by SPEC.md",
+      "issues": [
+        "runs/higher_twin_nc/.gitignore line 1 is `runs/*/work/` - it misses one nesting level, so the per-arm work trees runs/higher_twin_nc/runs/descent-20260821/{chemlab,pumplab-retune,pumplab-std}/work/ and runs/squares-20260821/{chemlab,pumplab,sensorlab,textlab}/work/ are untracked AND unignored (all 7 show as ?? in git status). Fix is `runs/**/work/`.",
+        "11 MB under runs/higher_twin_nc/runs/ is dominated by those work/ fixture copies, not by receipts.",
+        "The experiment has an Expiry (2026-10-31) declared in SPEC.md but nothing mechanical enforces or checks it - no registry, no expiry check in any guard."
+      ]
+    },
+    {
+      "path": "runs/higher_twin_nc/SPEC.md",
+      "purpose": "The only real ExperimentSpec in the repository: object, scope/isolation, budget, sealed evaluator, hypotheses H-NC-cal/H-CERT/H-ANOM with pre-registered kill criteria and adjudication rule.",
+      "status": "experiment",
+      "plan_mapping": "section 14 (an experiment also records its spec, scope, budget, evaluator, expiry); section 13 kill criteria",
+      "issues": [
+        "Spec-Revision 2 with a Changelog convention, but the changelog lives inside the same file that the experiment can edit - no external hash anchor, so 'frozen at Confirmation-Registrierung' is a convention, not a mechanism."
+      ]
+    },
+    {
+      "path": "runs/higher_twin_nc/{evaluate,operators,descent,assay,cryptic,loops}.py + tests/",
+      "purpose": "Self-contained experiment code: sealed evaluator, deterministic text-transformation operators, descent/holonomy layer, cryptic-variance assay, and 10 test modules.",
+      "status": "experiment",
+      "plan_mapping": "Invariant 3 (isolation: no imports from daedalus/, stdlib + pytest only), Invariant 4 (evidence boundary: evaluator sealed from operators)",
+      "issues": [
+        "Not collected by the repo's main pytest run (separate tests/ dir inside runs/) - so the isolation claim and the 46/46 green claim in vault/Sessions/2026-08-21.md depend on someone running it by hand.",
+        "__pycache__ present in the tree despite the local .gitignore covering it."
+      ]
+    },
+    {
+      "path": "runs/ab/",
+      "purpose": "Blinded two-arm A/B build comparison (armA/armB TypeScript artifacts, sealed X/Y mapping, conformance suite, oracle check, scoring).",
+      "status": "drifted",
+      "plan_mapping": "section 13 (comparative campaign: sealed evaluator, blind mapping) - but not registered as an EXPERIMENT under section 14",
+      "issues": [
+        "runs/ab/SPEC.md is NOT an ExperimentSpec - it is a build-task brief for design/visual-lab ('You are implementing a slice...'). Same filename as the real spec in higher_twin_nc, which makes any future 'find the specs' sweep produce a false positive.",
+        "No budget, no expiry, no kill criteria, no evaluator-sealing statement anywhere in the tree; the sealing is only runs/ab/receipts/SEALED_MAPPING.json ({\"X\":\"B\",\"Y\":\"A\"}), which is committed in cleartext next to the arm artifacts.",
+        "run_arm.py/score.py/blind.py have no importer anywhere outside runs/ab - island tooling."
+      ]
+    },
+    {
+      "path": "runs/budget/ledger.json",
+      "purpose": "The spend ledger for effect-boundary budget enforcement (reserve/settle entries per vendor call), plus its .lock file.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects: spend enforced at effect boundaries); Gate 0 'enforceable write/egress/spend/secrets/concurrency/kill policies'",
+      "issues": [
+        "Written by daedalus/budget.py:66 (DEFAULT_LEDGER_PATH) but NOT gitignored - it is a tracked mutable runtime file, and it currently shows as modified in git status. Every run dirties the working tree and invites accidental commits/merge conflicts on evidence.",
+        "Contrast with runs/spine/, runs/canary/, runs/ikarus/, runs/progress/ which ARE gitignored (.gitignore lines 65-69) - the ledger is the inconsistent one, and it is the most policy-relevant of them."
+      ]
+    },
+    {
+      "path": "runs/spine/",
+      "purpose": "The canonical event/attempt spine SQLite ledger (spine.sqlite3 + wal/shm) plus bootstrap, gate_discrimination.json and operability_drill.json receipts.",
+      "status": "wired",
+      "plan_mapping": "Invariant 1 (one kernel, one event spine); Gate 0 Event Store deliverable",
+      "issues": [
+        "Whole directory gitignored (.gitignore:65), which correctly excludes the live DB but ALSO silently excludes gate_discrimination.json / gate_discrimination.whole_suite.json / operability_drill.json - those are Gate-0 evidence receipts and are therefore unreviewable and unreproducible from the repo.",
+        "sqlite3-wal/-shm present: a live DB checked into the working tree of an experiment-heavy directory."
+      ]
+    },
+    {
+      "path": "runs/council/",
+      "purpose": "Cross-vendor Council/Room tooling (room.py, dead_letter_replay.py) plus the append-only transcripts, hash-chained .anchor.json sidecars and cursors.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance: chained anchors); explicitly NOT orchestration state per section 7 / Invariant 'chat is an interface'",
+      "issues": [
+        "runs/council/room.md is tracked and currently modified, while runs/council/*.jsonl transcripts are ignored - so the human-readable mirror is versioned but the authoritative chained transcript is not. The anchors that prove the chain are ignored too (.gitignore:56).",
+        "daedalus/health.py:1597-1598 hard-codes runs/council/room.py and room.md as health-check inputs, which makes an experiment-output directory a dependency of the health surface.",
+        "9 council-*.jsonl sessions from 2026-07-28 through 2026-08-20 accumulate with no retention policy."
+      ]
+    },
+    {
+      "path": ".room/ (room.md, cursors.json)",
+      "purpose": "Second, portable copy of Der Raum written by the `room` skill at repo root.",
+      "status": "drifted",
+      "plan_mapping": "none (duplicates runs/council/)",
+      "issues": [
+        "Two live rooms exist: .room/room.md (173953 bytes, last written 2026-07-29) and runs/council/room.md (123401 bytes, 2026-08-21). Both are tracked. The health check only knows about the runs/council one, so .room/room.md is a stale orphaned transcript that still reads as current.",
+        ".room/ is not in .gitignore at all, unlike the runs/council transcript rules."
+      ]
+    },
+    {
+      "path": "runs/progress/events.jsonl",
+      "purpose": "Append-only progress event log written by daedalus/progress.py:257.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance)",
+      "issues": [
+        "1.6 MB and growing with no rotation or retention; gitignored (.gitignore:69) so none of it is evidence anyone can cite."
+      ]
+    },
+    {
+      "path": "runs/ikarus/conversations.sqlite3",
+      "purpose": "Ikarus conversation store (daedalus/conversation.py:116).",
+      "status": "wired",
+      "plan_mapping": "section 7 (product memory, separate from research adaptive memory); Invariant 'chat is an interface, not the workflow database'",
+      "issues": [
+        "Correctly gitignored (.gitignore:68). Worth an explicit note in the plan/docs that this store must never be read by the orchestrator as workflow state - nothing mechanical prevents it today."
+      ]
+    },
+    {
+      "path": "runs/canary/history.jsonl",
+      "purpose": "Council canary history (daedalus/council/canary.py:191 DEFAULT_HISTORY_PATH).",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary - canary detects evaluator/vendor drift)",
+      "issues": [
+        "Gitignored (.gitignore:66); the canary's whole value is a trend over time, and an ignored local-only file cannot support a trend claim across machines."
+      ]
+    },
+    {
+      "path": "runs/funnel/ (19 MB, ~1400 tracked files)",
+      "purpose": "Output of the `funnel` DeepSeek swarm skill: scan/research/review/plan tiers over codebase, codebase-500, claims123, scope-ab.",
+      "status": "dead",
+      "plan_mapping": "none (advisory swarm output; the skill itself says it promotes nothing and gates nothing)",
+      "issues": [
+        "Largest single tree in runs/. .gitignore:37 says `runs/funnel/**` but ~1400 files are already tracked, so the ignore rule is inert - this is the flagship case of the tracked-but-ignored problem.",
+        "codebase-500 contains what look like real arm names (plan_noindex_control, plan_fileindex_arm2, plan) - i.e. a comparative measurement with no spec, no budget record and no kill criteria anywhere.",
+        "Delete-candidate for the working tree; the arms above should first be either written up in docs/research or explicitly discarded as negative evidence (AGENTS.md: retain negative experimental evidence)."
+      ]
+    },
+    {
+      "path": "runs/eval/ (5 MB: census300, deepseek100/40/r2/r3/impl20/lab, research40, census_review20)",
+      "purpose": "Historic model-evaluation batches (census, DeepSeek tiers, research runs) plus daedalus/eval/graph_delta.py output targets.",
+      "status": "drifted",
+      "plan_mapping": "Gate 3 baseline lab (frozen tasks, evaluator versions, budgets) - these are the pre-Gate-3 ancestors of that work",
+      "issues": [
+        "Gitignored (.gitignore:38) but ~600 files tracked - inert ignore rule.",
+        "daedalus/eval/graph_delta.py:514-532 still WRITES into runs/eval/graph_delta*.json, so this is simultaneously a live output target and a stale archive; a reader cannot tell which files are current.",
+        "runs/eval/deepseek_lab/wrecked/ - name suggests retained failure evidence, but nothing in docs points at it, so the negative evidence is effectively lost."
+      ]
+    },
+    {
+      "path": "runs/audit_swarm/ (3.8 MB) and runs/audit_swarm_v1_invalid/ (1.1 MB)",
+      "purpose": "Per-file audit output of a swarm pass over daedalus/*.py; the _v1_invalid twin is an explicitly invalidated first round.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "~500 tracked files across both, both gitignored (.gitignore:39-40) - inert rules again.",
+        "audit_swarm_v1_invalid is correctly named as retained negative evidence but has no README/receipt explaining WHY v1 was invalidated - the evidence is preserved without the finding, which is the worst of both worlds.",
+        "Delete-candidate once a one-paragraph invalidation note lands in docs/research."
+      ]
+    },
+    {
+      "path": "runs/plan_critique/ (1.1 MB, 102 tracked files)",
+      "purpose": "Swarm critique passes over the master plan.",
+      "status": "dead",
+      "plan_mapping": "section 15 (amendment protocol input) - critiques are legitimate proposals, but none is linked from the amendment chain",
+      "issues": [
+        "Gitignored (.gitignore:41) yet fully tracked.",
+        "102 critique files and zero of them referenced from docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl or the vault Amendments note - the critique output never fed the protocol it was produced for."
+      ]
+    },
+    {
+      "path": "runs/drafts/ and runs/processed/",
+      "purpose": "File-bridge inbox archive (daedalus/file_bridge.py:23, daedalus/core.py:24 ARCHIVE) and Kairos draft store (daedalus/kairos/drafts.py:25).",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects at the file-bridge boundary); Gate 0 'MCP/File Bridge' policy coverage",
+      "issues": [
+        "Both gitignored (.gitignore:12, :36) and runs/processed is the only one where the ignore actually holds; runs/drafts content dates to 2026-07 and includes ~20 identical `summarize-the-notes-file` drafts - pure debris.",
+        "Most entries reference C:\\Users\\nukei\\Desktop\\project_tct, a different repository - these are cross-project leftovers sitting inside the Daedalus tree."
+      ]
+    },
+    {
+      "path": "runs/gui/ (4.1 MB: 4 PNG screenshots + JSON + report.json)",
+      "purpose": "Headless-browser GUI audit captures and metrics for the Ikarus/Daedalus design directions.",
+      "status": "island",
+      "plan_mapping": "none (GUI work is not a Gate 0 deliverable; section 11 says the next proof is Gate 1 ignition, not a broader assistant demo)",
+      "issues": [
+        "9 tracked files including 4 MB of PNGs - binary blobs in git for an advisory design pass.",
+        "report.json records contrast_failures: 228 on the live app and nothing consumes or tracks that number.",
+        "Not gitignored, unlike the sibling .captures/ and .edge-capture/ rules (.gitignore:46-47) that were clearly written for exactly this kind of output."
+      ]
+    },
+    {
+      "path": "runs/build/ and runs/loop/",
+      "purpose": "Build-session snapshots (daedalus/build.py:47 RUN_DIR) and evolution-loop run records (daedalus/loop.py:740).",
+      "status": "island",
+      "plan_mapping": "Gate 0 (build_exec/loop are effectful entrypoints that must route through the canonical guard path)",
+      "issues": [
+        "runs/build/ is tracked-but-ignored (`build/` on .gitignore:50 matches it as a bare directory name - almost certainly an accident, that rule was meant for a top-level build/ artifact dir and now silently swallows runs/build/).",
+        "runs/loop/ holds 10 JSON run records all from 2026-07-29/30 and nothing since - the loop path has not been exercised in ~3 weeks, which is worth knowing before Gate 1 depends on it.",
+        "runs/loop/ is not gitignored while its siblings are."
+      ]
+    },
+    {
+      "path": "runs/validation_wheels/daedalus-0.1.0-py3-none-any.whl",
+      "purpose": "Built wheel kept for install-validation runs.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "A 360 KB build artifact in the source tree; correctly gitignored (.gitignore:51) and correctly untracked, but stale (version 0.1.0) and nothing references the path outside .gitignore."
+      ]
+    },
+    {
+      "path": "runs/*.json and runs/*.md loose files (arch_memory.json, arch_memory.shown, bridge_heartbeat.json, shift.json, f4b5c07d3ac5.json, last_claude_prompt.md, last_claude_report.json, last_codex_prompt.md, last_codex_report.json)",
+      "purpose": "Scratch runtime state at the runs/ root: architecture-memory cache, file-bridge heartbeat (daedalus/file_bridge.py:26), a 2026-07-30 shift plan, one orphaned run state, and last-prompt/last-report mirrors from the claude/codex bridges.",
+      "status": "drifted",
+      "plan_mapping": "none",
+      "issues": [
+        "Covered by .gitignore:10-11 (`runs/*.json`, `runs/*.md`) yet runs/arch_memory.shown is tracked and modified - the .shown extension slips past both patterns.",
+        "runs/f4b5c07d3ac5.json is state for objective 'Fix motor panel icons' in C:\\Users\\nukei\\Desktop\\project_tct - a foreign-repo run record orphaned in this tree since 2026-07-05.",
+        "runs/shift.json is a 2026-07-30 shift plan ('Baustellen abarbeiten') left as live-looking state with no completion marker.",
+        "last_claude_report.json / last_codex_report.json are single-slot overwritten mirrors - a race between two concurrent bridge calls silently loses one report, and nothing versions them."
+      ]
+    },
+    {
+      "path": "vault/",
+      "purpose": "The human-readable Knowledge-plane surface (Obsidian): Home dashboard, Gates, Amendments, Findings, Sessions, Templates, and a docs/ view.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Knowledge plane ('does not become an authority above source/evidence'); section 7 (product memory separated from research adaptive memory)",
+      "issues": [
+        "vault/Home.md carries a manually maintained 'Status-Snapshot (Stand 2026-08-17)' that is now 4 days stale - it still lists amendment proposals 002-005 as open and Gate 0 as simply active, while vault/Sessions/2026-08-21.md and the auto-memory record Gate-0 matrix 24/24 signed with only 2 owner decisions left. A dashboard that ages silently is the classic Knowledge-plane failure the plan warns about.",
+        "vault/.obsidian/ config is partly tracked and partly untracked (app.json/core-plugins.json modified; appearance.json, graph.json, themes/ untracked) - editor preferences leaking into version control."
+      ]
+    },
+    {
+      "path": "vault/Findings/ (Index.md + 5 finding notes)",
+      "purpose": "Link-notes: short framing plus a relative path to the authoritative repo artifact. Never copies.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance) and the section-5 rule that Knowledge references source rather than superseding it",
+      "issues": [
+        "Index.md is hand-maintained; nothing verifies that every file in Findings/ appears in it or that the relative paths still resolve. Currently consistent (5 notes, 5 index entries) - worth a cheap link-check before it drifts."
+      ]
+    },
+    {
+      "path": "vault/Sessions/ (2026-08-17, -18, -20, -21)",
+      "purpose": "Append-only daily notes, each MEASURED/INHERITED/ASSUMED stamped, citing receipt paths under runs/.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance: origin, inputs, outcome, evidence); Invariant 9 (honest claims - the notes explicitly write 'n=1 Fixture: Kalibrierung, kein Wirksamkeitsbeweis')",
+      "issues": [
+        "vault/Sessions/2026-08-18.md is untracked (?? in git status) while its neighbours are committed - one day of the append-only chain exists only on this machine.",
+        "Only 4 session notes exist for a project with commits going back to July; the convention started 2026-08-17, so anything earlier has no daily-note provenance."
+      ]
+    },
+    {
+      "path": "vault/Gates/Gate-Status.md, vault/Amendments/Amendments.md, vault/Templates/",
+      "purpose": "Gate ladder status view, amendment chain view plus open proposals, and the three note templates (Amendment-Proposal, Finding, Session).",
+      "status": "wired",
+      "plan_mapping": "section 10 (delivery gates), section 15 (amendment protocol); these are VIEWS, and the vault explicitly states the repo wins on conflict",
+      "issues": [
+        "Both are manual mirrors of docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl and the gate state - divergence is possible and invisible. The vault's own convention 4 ('Vault != Autoritaet') is the mitigation, but a generated view would remove the risk entirely."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "runs/higher_twin_nc/SPEC.md",
+      "verdict": "authority",
+      "reason": "The frozen ExperimentSpec for the only registered experiment: scope, isolation, budget, sealed evaluator, hypotheses H-NC-cal/H-CERT/H-ANOM, pre-registered adjudication rule and kill criteria. This is what section 14 asks every experiment to produce and the only file in runs/ that actually does."
+    },
+    {
+      "path": "runs/higher_twin_nc/WATCHDOG_MISSION.md",
+      "verdict": "keep",
+      "reason": "Defines the watchdog slice loop that drove the 2026-08-21 fixture rounds; referenced by .claude/watchdog/43e2809c-.../mission.md. Operational, still live, but it is a mission brief and must not be mistaken for spec authority."
+    },
+    {
+      "path": "runs/ab/SPEC.md",
+      "verdict": "merge",
+      "reason": "Misnamed: this is a build-task brief for design/visual-lab section 4.1-4.6, not an ExperimentSpec, yet it occupies the filename that signals 'registered experiment'. Rename to BRIEF.md and, if the A/B arms are still cited anywhere, add a real ExperimentSpec beside it with budget, evaluator sealing and expiry."
+    },
+    {
+      "path": "runs/council/room.md",
+      "verdict": "keep",
+      "reason": "The human-readable mirror of Der Raum, wired into daedalus/health.py:1597-1598. Keep, but it is a mirror of an ignored authoritative .jsonl - the provenance direction is currently inverted."
+    },
+    {
+      "path": ".room/room.md",
+      "verdict": "archive",
+      "reason": "Second, larger, older (2026-07-29) room transcript at repo root, tracked, invisible to the health check, and duplicating runs/council/room.md. Archive it under docs/ or delete it; two live rooms means neither is the record."
+    },
+    {
+      "path": "vault/Home.md",
+      "verdict": "keep",
+      "reason": "The vault entry point and the clearest statement of the Knowledge-plane's non-authority. Its manual status table needs a refresh (stale since 2026-08-17)."
+    },
+    {
+      "path": "vault/Memory-Map.md",
+      "verdict": "authority",
+      "reason": "Documents where each memory lives (auto-memory, Serena, this vault, daedalus/wiki) - the practical enforcement of section 7's product-memory / research-memory separation. Nothing else in the repo states this mapping."
+    },
+    {
+      "path": "vault/Findings/Index.md",
+      "verdict": "keep",
+      "reason": "The link-not-copy convention made concrete; currently accurate (5 notes indexed)."
+    },
+    {
+      "path": "vault/Findings/Higher-Twin-NC-Erstmessung-20260820.md",
+      "verdict": "keep",
+      "reason": "The evidence link-note for the higher_twin_nc first K-matrix; the vault-side half of my slice's one real experiment."
+    },
+    {
+      "path": "vault/SETUP.md and vault/ENVIRONMENT_REPORT.md",
+      "verdict": "keep",
+      "reason": "One-time owner setup and a sourced report of what was built; both are stable reference and neither claims authority."
+    },
+    {
+      "path": "vault/Templates/{Amendment-Proposal,Finding,Session}.md",
+      "verdict": "keep",
+      "reason": "The three conventions that keep the vault disciplined (provenance stamps, link-notes, append-only sessions). Small and load-bearing."
+    },
+    {
+      "path": "runs/shift.json and runs/f4b5c07d3ac5.json",
+      "verdict": "delete-candidate",
+      "reason": "A 2026-07-30 shift plan with no completion marker and an orphaned run state for a different repository (project_tct). Neither is referenced by any code path; both read as live state."
+    }
+  ],
+  "integration_gaps": [
+    "No experiment registry exists. Plan section 14 requires every experiment to record spec, scope, budget, evaluator and expiry, but the only place that happens is runs/higher_twin_nc/SPEC.md. runs/ab, runs/funnel/codebase-500 (which has named arms: plan, plan_noindex_control, plan_fileindex_arm2), runs/eval/deepseek_r2|r3 and runs/audit_swarm are all measurement trees with no spec, no budget line and no expiry. Nothing can enumerate 'which experiments are live'.",
+    "2908 files under runs/ are tracked despite matching .gitignore (funnel, eval, audit_swarm, audit_swarm_v1_invalid, plan_critique, build). The ignore rules were added after the commits, so they do nothing: `git ls-files -i -c --exclude-standard runs | wc -l` = 2908. Either `git rm --cached` them or drop the rules; the current state is a lie about what the repo tracks.",
+    "runs/budget/ledger.json is the spend ledger for Invariant 8 and it is a tracked, mutable, currently-dirty file. Its policy-sibling stores (spine, canary, ikarus, progress) are all gitignored. A budget ledger that changes on every run and lands in commits/merges is exactly the artifact Invariant 3 says candidates must not be able to touch - and here every ordinary commit touches it.",
+    "runs/spine/ is gitignored wholesale, which also hides gate_discrimination.json, gate_discrimination.whole_suite.json and operability_drill.json. Those are Gate-0 exit evidence (fail-closed/fail-open fault-injection matrix). Gate 0 cannot be declared closed on evidence nobody outside this machine can read.",
+    "The authoritative council transcripts (runs/council/*.jsonl) and their hash-chain anchors (*.jsonl.anchor.json) are gitignored while the derived room.md mirror is tracked. The provenance chain (Invariant 7) is the ignored half.",
+    "runs/higher_twin_nc/.gitignore uses `runs/*/work/`, which misses the nested per-arm layout introduced by the descent and squares rounds; 7 work/ trees are currently untracked and unignored. Should be `runs/**/work/`.",
+    "runs/higher_twin_nc/tests/ (10 modules, the isolation and sealed-evaluator evidence) is not part of the repo's main test collection, so the experiment's own invariant claims are only checked when run by hand.",
+    "runs/plan_critique holds 102 critique files aimed at the master plan and none of them is referenced from docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl or vault/Amendments/Amendments.md. Critique was produced and never entered the amendment protocol.",
+    "vault/Gates/Gate-Status.md and vault/Amendments/Amendments.md are hand-maintained mirrors of machine-readable sources (the plan, the amendments jsonl). Nothing checks the mirror against the source, and vault/Home.md's status table is already 4 days behind the session notes in the same vault.",
+    "Two rooms exist (.room/room.md and runs/council/room.md), both tracked, and only the runs/council one is known to daedalus/health.py. The `room` skill writes to the project-root .room/, so the next room session will silently resume the stale 2026-07-29 transcript rather than the current one."
+  ],
+  "notable": [
+    "runs/higher_twin_nc is genuinely exemplary and should be the template for every future experiment: pre-registered hypotheses with an explicit adjudication rule, a sealed L0-L4 evaluator, no imports from daedalus/, receipts with verify_analysis and a chained head hash, and session notes that write down their own limits ('n=1 Fixture: Kalibrierung, kein Wirksamkeitsbeweis'). That last sentence is Invariant 9 being honored voluntarily.",
+    "The .gitignore has grown three distinct generations of rules that now contradict each other: broad path globs (runs/funnel/**), one accidental bare-name rule (`build/` on line 50, which swallows runs/build/), and a carefully commented council block (lines 53-64). The bare `build/` rule is worth fixing on its own - it silently ignores a directory daedalus/build.py:47 actively writes to.",
+    "runs/arch_memory.shown is tracked and modified while runs/arch_memory.json is ignored by `runs/*.json` - a one-character extension difference decides whether architecture-memory state is versioned. Almost certainly unintentional.",
+    "runs/drafts contains ~20 byte-identical `summarize-the-notes-file` drafts from 2026-07-06 and 2026-07-11, plus entries whose repo_root points at C:\\Users\\nukei\\Desktop\\project_tct. The Daedalus runs/ tree is carrying another project's history.",
+    "runs/gui/report.json records contrast_failures: 228 on the live app at 1440x900. Nothing tracks or gates that number, and 4 MB of PNG evidence for it sits in git.",
+    "runs/audit_swarm_v1_invalid is correctly retained as negative evidence per AGENTS.md, but there is no note anywhere saying why v1 was invalid. Retained failures without the finding are storage, not evidence.",
+    "runs/eval/deepseek_lab/wrecked/ is the only other retained-failure tree and it is equally unexplained.",
+    "The gitignore comment at lines 53-55 ('The TOOLING under runs/council/ is source and is committed; everything below is produced by running it') is the only place in the repo that states the source-vs-output rule for runs/. If that principle were applied uniformly across runs/, most of the debris in this slice would resolve itself - runs/ is currently three things (experiment source, kernel runtime state, disposable swarm output) sharing one namespace with no naming convention to tell them apart.",
+    "vault/Sessions/2026-08-18.md is untracked while 2026-08-17, -20 and -21 are committed - the append-only session chain has a local-only gap on exactly the day the Gate-0 matrix was signed."
+  ]
+}

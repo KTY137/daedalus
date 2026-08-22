@@ -1,0 +1,293 @@
+{
+  "slice": "daedalus/structcore/ (24 py) + structcore-rs/",
+  "summary": "structcore is the derived, regenerate-never-maintain structural index: a multi-language walk/parse/clone/import-graph builder (index.py) with layered lenses on top (typegraph = Type plane, markdown = Knowledge plane, artifacts = Data plane, forest/lpg = the Project-Twin IR and its LPG projection, dss = deterministic context selection, slice = the token-reducing retrieval product). It is the most heavily wired subsystem in the repo: 21 distinct daedalus modules import it, ~37 test files cover it, and the recent gardener distillates (G-01 fan_in alias-split, G-02 center: directive + root .daedalusignore, G-03 junction guard) are real, TDD'd, measured correctness fixes to the identity layer. Overall health is high for correctness and honesty (every degradation is reported, never silent) and weak for ergonomics: the package has no query surface for the one question a crew member actually asks a search tool ('where is symbol X, and who calls it'), only a whole-repo build plus a file-targeted slice. It cannot replace grep today, not because the data is missing but because the data is never published or persisted in a queryable form. Secondary risks: index.py is a 69k-char god-module, three planes (types, documents, wiki) are off by default, and structcore-rs is an unbuilt, untested-in-CI 6-of-18-language partial reimplementation with an honest but stale parity doc.",
+  "modules": [
+    {
+      "path": "daedalus/structcore/__init__.py",
+      "purpose": "Public facade re-exporting languages, index, markdown, forest, cycles, typegraph and dss.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 (four-plane Project Twin) / Invariant 2 (artifact identity)",
+      "issues": [
+        "Facade is incomplete and bypassed: it exports 7 of 24 modules; slice, graph, report, topology, churn, artifacts, lpg, cache, tokens are absent, so ~40 of ~47 external import sites reach past it into submodules (daedalus/web_api.py:34-38, daedalus/eval/harness.py:47-53, daedalus/ikarus_os.py:403-405). There is no single import surface a consumer can be held to.",
+        "Only two call sites use the facade at all (daedalus/mapping/render.py:589, daedalus/mapping/drift.py:1526, both `from daedalus.structcore import cached_index`), i.e. the facade is decorative."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/index.py",
+      "purpose": "Builds the whole structural index: walk, scope, per-file analysis, clone passes, import/dep graph, fan_in, hotspots, plus the in-process index and resolver caches.",
+      "status": "wired",
+      "plan_mapping": "Gate 2 (Forest v2) foundation; PRIOR section 5 Code plane; Invariant 6 (atomic revisions)",
+      "issues": [
+        "God-module: 69,099 chars / ~1250 lines carrying scoping (_View, _PyNaming, _py_dotted, _disambiguate, _scope_key), the parallel pass (_per_file_pass, _compute, _worker_count), three feature flags (documents/types/wiki), clone orchestration, graph folding and both caches. Every recent defect (G-01 fan_in alias split, G-02 center naming, G-03 junction walk) landed here, in different concerns.",
+        "The recent G-01 fix is correct and tested (tests/test_structcore_fanin_views.py) but the underlying design is the risk: dep_edges deliberately keeps two spellings per target (importer's-eye view) while fan_in folds them, so any future consumer of `dependencies` inherits the split identity that fan_in was just fixed for. index.py:718-721 documents the fold; nothing prevents a new reader of `dependencies` from re-introducing the double count.",
+        "`all_units` and `graph.name_index` (a global symbol->units map) are built at index.py:648-691 and 952 but never published in the returned dict (see the key list at index.py:1060-1121). The single most valuable retrieval primitive is computed and thrown away every scan.",
+        "Cache is in-process only (`_INDEX_CACHE`, index.py:1179; `_RESOLVER_CACHE`, index.py:1124). Only the per-file analyses persist (cache.py SQLite). A fresh `python -m daedalus.structcore` process re-folds the whole index; there is no persisted index artifact and no daemon, so a CLI-driven agent pays the fold on every question.",
+        "Types (index.py:217), documents (index.py:170) and wiki (index.py:238) are off by default, so the default index is a one-plane (Code) index, not the four-plane Twin the plan makes central."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/parse.py",
+      "purpose": "AST/tree-sitter unit extraction, Python import resolution, and the Python type-facts extraction feeding typegraph.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Code + Type planes",
+      "issues": [
+        "55,796 chars; mixes unit extraction, import resolution and type-fact extraction in one module. Imported directly by four external consumers (daedalus/mapping/reach.py:101, daedalus/eval/harness.py:49, ceiling.py:86, mint.py:107), so it is a de-facto public API with no facade export."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/typegraph.py",
+      "purpose": "The Type plane: type/field nodes and typed relations resolved from Python type facts, with hub capping and explicit resolution coverage.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Type plane; Gate 2 (type extraction)",
+      "issues": [
+        "Off by default (--types / DAEDALUS_INDEX_TYPES=1). The plan's Type plane therefore does not exist in any default consumer path (slice, graph_brief, web_api all take the default index).",
+        "Python-only. Every other language in `languages.py` contributes zero type nodes, and the summary line says so, but no consumer distinguishes 'no types' from 'not asked'.",
+        "54,209 chars, second-largest module."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/markdown.py",
+      "purpose": "The Knowledge plane: markdown documents as nodes, headings as hierarchy, sections as units, intra-repo links as their own relation layer.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Knowledge plane; Gate 2 (knowledge crosslinks)",
+      "issues": [
+        "Off by default (--documents / DAEDALUS_INDEX_DOCUMENTS=1), with an explicit honest reason (it inflates total_tokens, the distill-ratio denominator). Net effect: the Knowledge plane is absent from every default retrieval answer.",
+        "43,939 chars."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/dss.py",
+      "purpose": "Deterministic semantic super-sampling: restrict/prolongate/diffuse relevance over the forest hierarchy and pack the result into a token budget with a content-addressed receipt.",
+      "status": "wired",
+      "plan_mapping": "Gate 4 (Graph-conditioned Representation Search); PRIOR section 6 (latent atlas / hypothesis machine); Invariant 7 (provenance via DSSReceipt)",
+      "issues": [
+        "Only consumer is daedalus/context_plan.py:36. It is the most plan-relevant module in the slice (it IS graph-conditioned context selection) and it is reachable from exactly one place; no CLI, no facade path from the crew.",
+        "Explicitly disclaims being a fitness signal (correct per Invariant 4), but nothing in the slice measures it against a budget-equal retrieval baseline yet — Gate 4's controls (edge rewiring, label permutation, bridges off, stale snapshot) have no harness here."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/slice.py",
+      "purpose": "semantic_slice: focus file/symbol in full + dependency and caller skeletons, with a measured token reduction vs whole-repo concatenation.",
+      "status": "wired",
+      "plan_mapping": "Gate 1 (ignition slice context) / Gate 4 baseline; Invariant 9 (honest claims — the denominator honesty work)",
+      "issues": [
+        "Requires a target you already know: `slice <repo> <path/to/file.ext[::symbol]>` (slice.py:611-620). There is no name-based entry — you cannot ask 'where is semantic_slice defined'. That is exactly the query grep answers, so structcore is a complement to grep today, not a replacement.",
+        "Neighborhood is module-level; the docstring (slice.py:13-15) still promises 'symbol-level precision arrives with graph.py (SCIP / stack-graphs)' — SCIP/stack-graphs were never added, so that is a standing unmet promise in a live docstring.",
+        "Imports `build_index` directly (slice.py:27), not `cached_index`, so a direct slice call pays a full build unless the caller warmed the cache."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/clones.py",
+      "purpose": "Type-1/2/3 and universal windowed clone detection with fingerprint memoization.",
+      "status": "wired",
+      "plan_mapping": "none (structural evidence input to hotspots/forest hyperedges)",
+      "issues": [
+        "~96% of scan wall time per the ignore.py:22-27 measurement, and it is unconditional — there is no flag to build an import/symbol-only index fast. This is the single biggest reason structcore cannot be used interactively as a grep substitute.",
+        "31,797 chars."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/forest.py",
+      "purpose": "KnowledgeForest: the immutable, content-addressed multiplex-graph snapshot (nodes, typed edges, reified hyperedges) built from one index.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 (the Forest as compiled IR of one revision); Invariant 2 and Invariant 6",
+      "issues": [
+        "Built only on demand by context_plan.py:37 and __main__.py's --lpg path; no canonical entrypoint persists a Forest per revision, so 'revision-bound snapshot' is a capability, not an artifact anything stores.",
+        "Refuses to expand a clone group into a pairwise clique (correct; mirrored in lpg.py) — worth keeping as an explicit invariant test if it is not already pinned."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/graph.py",
+      "purpose": "SymbolResolver (name -> unit, scoped by importing file), caller/callee inference, and the fenced-reachability/dominance safety queries.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Code plane edges; Invariant 8 (fenced reachability serves effect-boundary reasoning)",
+      "issues": [
+        "`SymbolResolver.resolve(name, from_file)` (graph.py:87) is deliberately local — it needs a from_file. `name_index` (graph.py:49) is the global map and is neither published in the index dict nor exposed on any CLI. The retrieval primitive exists one function call away from being the grep replacement and is not surfaced.",
+        "Two unrelated concerns in one module: semantic resolution and the safety fence (fenced_reachability/fenced_dominance, graph.py:273/354). The fence is consumed by policy-adjacent code (daedalus/provider_router.py:270) — a resolution refactor could silently move a safety answer."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/ignore.py",
+      "purpose": "Per-repo scope: the `center:` directive and .daedalusignore rules, with a scope fingerprint that is part of the index cache key.",
+      "status": "wired",
+      "plan_mapping": "none directly; enables honest denominators (Invariant 9) by separating project from shell",
+      "issues": [
+        "Newest and most load-bearing recent change (G-02). Its correctness is entirely carried by SCOPE_ALGO_SALT (ignore.py:56) being bumped by hand whenever the *interpretation* of an unchanged center changes; the docstring says so explicitly, but nothing mechanically enforces it. A forgotten bump serves a stale graph from a warm cache and presents as 'the fix did nothing'.",
+        "Root .daedalusignore declares `center: daedalus, tools, apps/web/src` — 697 of 928 files are SHELL on this repo. Correct for metrics, but it means any crew member running the default scan sees a map of one third of the tree; the CLI does print the scope line (__main__.py:26-34), which is the right mitigation."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/languages.py",
+      "purpose": "LanguageSpec / DocumentSpec registry: 18 languages over 33 extensions plus document specs.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Code plane coverage",
+      "issues": []
+    },
+    {
+      "path": "daedalus/structcore/imports.py",
+      "purpose": "Non-Python import extraction (regex + tree-sitter assisted) per LanguageSpec.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 Code plane edges",
+      "issues": [
+        "Regex-based for most languages; precision is not measured anywhere in the slice's tests, so cross-language edges carry no stated confidence while Python edges do (via typegraph coverage counters)."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/perfile.py",
+      "purpose": "Single-file analysis unit (units, metrics, window runs, imports, tokens) — the parallelizable core.",
+      "status": "wired",
+      "plan_mapping": "none",
+      "issues": [
+        "ANALYSIS_VERSION here is the disk-cache key partner to ignore.SCOPE_ALGO_SALT; the same manual-bump hazard applies and the two live in different files."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/cache.py",
+      "purpose": "SQLite per-file analysis cache keyed by content + ANALYSIS_VERSION; DAEDALUS_CACHE_DIR overridable.",
+      "status": "wired",
+      "plan_mapping": "none (performance)",
+      "issues": [
+        "Caches per-file analyses only, never the folded index. The expensive folds (clone clustering across all units, fan_in, hotspots) are redone every process."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/churn.py",
+      "purpose": "Git churn and co-change pairs feeding hotspot ranking and the temporal evidence channel.",
+      "status": "wired",
+      "plan_mapping": "PRIOR section 5 (time as an orthogonal lineage dimension, not a plane)",
+      "issues": [
+        "Shells out to git (churn.py:22 subprocess); no explicit handling documented for non-git or shallow checkouts in the module head — worth confirming it degrades to empty rather than raising in a worktree without history."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/metrics.py",
+      "purpose": "Comment-aware LOC/guard/complexity metrics, with lizard as an optional sharpener.",
+      "status": "wired",
+      "plan_mapping": "none",
+      "issues": []
+    },
+    {
+      "path": "daedalus/structcore/tokens.py",
+      "purpose": "count_tokens / tokenizer_name — tiktoken when present, chars/4 heuristic otherwise, with the identity carried so callers can label the number honestly.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims — a heuristic denominator must not be called 'measured')",
+      "issues": [
+        "959 bytes and the most widely imported module of the slice (daedalus/council/vendors.py:98, council/session.py:141, providers/ollama.py:15, eval/harness.py:53). Fine as-is; note only that a token count is now a cross-cutting dependency of the council and provider layers on a structcore internal."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/report.py",
+      "purpose": "structure_summary: the compact, truncation-honest report shape consumed by the web API and Ikarus.",
+      "status": "wired",
+      "plan_mapping": "Gate 1 (evidence presentation)",
+      "issues": [
+        "report.py:35 documents that it deliberately does NOT use the index's dependencies/fan_in (namespace mixing) and recomputes a graph_fan_in from rel-keyed edges instead. So there are now two fan_in numbers in the system with different denominators, and the G-01 fold applies to only one of them. A reader comparing the CLI top-fan-in table to the web report can see different rankings for the same repo."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/topology.py",
+      "purpose": "spectral_partition over the import graph (community/partition structure).",
+      "status": "wired",
+      "plan_mapping": "none / BACKLOG (candidate input to Gate 4 representation search)",
+      "issues": [
+        "Single consumer: daedalus/web_api.py:38. No CLI, not in the facade, not used by any context selection path — so it is a visualization feature, not an instrument.",
+        "Imports cached_index directly (topology.py:15), coupling a pure graph algorithm to the cache."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/cycles.py",
+      "purpose": "Tarjan SCCs, self-loops, nontrivial components and a cycle_report over the import graph.",
+      "status": "island",
+      "plan_mapping": "none",
+      "issues": [
+        "Exported from the facade (__init__.py:36-42, 95-96) and covered by tests/test_imports_graph.py:137-175, but no production module imports it — grep over daedalus/ for cycle_report / strongly_connected_components / nontrivial_components returns only cycles.py, __init__.py and tests.",
+        "Cheap, deterministic and genuinely useful (import cycles are a real finding class). This is a wiring gap, not dead code — the CLI summary would be the natural home."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/lpg.py",
+      "purpose": "Disposable labeled-property-graph projection of a KnowledgeForest for GQL/Neo4j/SQL-PGQ tooling, bound to its forest by content hash.",
+      "status": "island",
+      "plan_mapping": "Invariant 2 (a projection is explicitly NOT candidate identity) and Invariant 6",
+      "issues": [
+        "Reachable only through `python -m daedalus.structcore --lpg PATH` (__main__.py:149) plus tests/test_structcore_lpg.py. No Python consumer, no downstream tool in the repo reads an LPG file.",
+        "The module's own honesty discipline is exemplary (reified hyperedges, single undirected relationship, no plane key for unknown kinds) — this is documentation-grade code with no reader."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/artifacts.py",
+      "purpose": "The Data plane: path literals a program reads/writes, plus extracted artefact schemas (ROOT/CSV/etc.) and compare_schema for code-vs-file schema disagreement.",
+      "status": "island",
+      "plan_mapping": "PRIOR section 5 Data plane (schemas, formats, fixtures, lineage)",
+      "issues": [
+        "Not exported from the facade. Sole consumer is daedalus/eval/graph_delta.py:436, inside a `try: ... except ImportError: pass` block, and it uses only extract_literals — the schema half (ArtifactSchema, compare_schema), which the docstring calls 'the payoff', has no consumer at all.",
+        "This is the Data plane of the four-plane prior. It is the least-wired of the four (Code wired, Type flag-gated, Knowledge flag-gated, Data island), which is a direct gap against section 5 and Gate 2.",
+        "27,590 chars with a strong design rationale and only tests/test_artifacts.py holding it down."
+      ]
+    },
+    {
+      "path": "daedalus/structcore/__main__.py",
+      "purpose": "CLI: build and print the structural summary, optionally dump index JSON and the LPG projection.",
+      "status": "wired",
+      "plan_mapping": "none (operator surface)",
+      "issues": [
+        "This CLI is what .claude/agents/aristaeus.md:34-35 tells a crew member to run, so it is the crew-facing surface of the whole slice. It offers no query verbs — no `--symbol`, no `--callers`, no `--why`, no cycles report. It prints a fixed 10-line-per-section digest of a full scan.",
+        "No `--fast` / `--no-clones` mode, so the crew-facing entrypoint always pays the ~96% clone cost."
+      ]
+    },
+    {
+      "path": "structcore-rs/",
+      "purpose": "Rust reimplementation of the structcore core (walk, tree-sitter parse, unit extraction, exact-clone clustering, JSON index in the Python shape) intended as the go-forward engine.",
+      "status": "island",
+      "plan_mapping": "none (performance track; no gate depends on it)",
+      "issues": [
+        "No Python code path invokes it; the only mentions in daedalus/ are two comments acknowledging that its index dict lacks total_tokens (daedalus/structcore/slice.py:52) and an exclusion in daedalus/mapping/switches.py:41.",
+        "6 of 18 languages / 11 of 33 extensions (docs/ENGINE_PARITY.md section 1). Files in the 12 missing languages are invisible, not merely unparsed — a Rust-produced index would silently under-report C++/TypeScript/QML repos.",
+        "Only .github/workflows/iron-plan.yml exists; there is no cargo build/test/clippy in CI, and unit tests exist only in structcore-rs/src/clones.rs:262+. The crate is governed by tools/iron_plan_guard.py:95 (GOVERNED_PREFIXES) but not verified by anything.",
+        "docs/ENGINE_PARITY.md states cargo was not on PATH when it was written, so the parity claim is source-reading, not an executed differential test. There is no parity harness that diffs the two index JSONs on a fixture repo."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/ENGINE_PARITY.md",
+      "verdict": "authority",
+      "reason": "The only document that describes the Python-vs-Rust divergence, and it is unusually honest about its own method (source reading, no build). Keep it as the authority for structcore-rs status; it needs a follow-up once a real differential run is possible."
+    },
+    {
+      "path": "docs/PROJECT_SCOPE.md",
+      "verdict": "authority",
+      "reason": "Describes `center` and .daedalusignore, i.e. the ignore.py/index.py scoping semantics that G-02 just implemented. Slice-specific and current."
+    },
+    {
+      "path": "docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md",
+      "verdict": "keep",
+      "reason": "The design plan behind typegraph.py and markdown.py (Teil A / Teil B). Historical design authority for two modules of this slice; still the best statement of what the Type and Knowledge layers refuse to do."
+    },
+    {
+      "path": "docs/research/TYPE_GRAPH_IMPLEMENTATION_REPORT.md",
+      "verdict": "merge",
+      "reason": "Reports the typegraph build as 'built, tested, NOT committed (working tree only)' — stale: typegraph.py is committed and has 8 test files. The measurements are worth keeping; the status header must be superseded or the file folded into the plan doc as an appendix."
+    }
+  ],
+  "integration_gaps": [
+    "No name-based query surface. `graph.name_index` (daedalus/structcore/graph.py:49) builds the global symbol->units map and `all_units` (index.py:648) holds every unit, but neither is published in the index dict (key list at index.py:1060-1121) or exposed on any CLI. Until a `structcore where <symbol>` / `callers <symbol>` verb exists, the crew cannot use structcore where they currently use grep — the answer is computed and discarded on every scan.",
+    "No persisted index artifact and no warm process. `_INDEX_CACHE` (index.py:1179) is in-process; only per-file analyses persist (cache.py). Every CLI invocation re-folds the index, and clone clustering is ~96% of that time (ignore.py:22-27). There is no `--no-clones` fast path, so the crew-facing entrypoint is minutes-scale where grep is milliseconds-scale.",
+    "Three of the four planes are not on by default. types (index.py:217) and documents (index.py:170) are flag-gated off, and artifacts.py (Data plane) has no index integration at all. Every default consumer — slice.py, graph_brief, web_api, dss/context_plan — therefore reasons over a Code-plane-only index, which is a live gap against the section 5 prior and Gate 2.",
+    "artifacts.py reaches production only through a swallowed `except ImportError: pass` at daedalus/eval/graph_delta.py:436, and only its literal extractor. If the import ever breaks, the Data-plane layer silently vanishes from the delta with no signal.",
+    "cycles.py and lpg.py are complete, tested and unreachable from any production caller — cycles.py is exported from the facade but imported by nothing outside tests; lpg.py only by a CLI flag. Both are wiring gaps rather than dead code.",
+    "Two divergent fan_in definitions coexist: the index's folded, center-aware one (index.py:889-907, fixed by G-01) and report.py:61-66's separately recomputed rel-keyed `graph_fan_in`. The G-01 identity fold does not apply to the second, so the CLI ranking and the web report can disagree on the same repo.",
+    "The facade (__init__.py) exports 7 of 24 modules while ~40 external import sites reach into submodules directly. There is no enforced public API, so any structcore refactor is a repo-wide breaking change with no compile-time signal.",
+    "structcore-rs has no CI build, no parity harness, and no caller. Its index shape is already known to diverge (missing total_tokens/tokenizer, 12 missing languages), and the divergence is handled by defensive `.get()` fallbacks in slice.py rather than by a version/producer field on the index dict."
+  ],
+  "notable": [
+    "The gardener distillates are real, TDD'd, and measured, not cosmetic: tests/test_structcore_fanin_views.py encodes the G-01 defect with the actual repo numbers (75 split identities; structcore.parse listed twice at 13+12 instead of once at 25), and tests/test_structcore_center_naming.py encodes G-02 with the project_tct impact (87% of the code map isolated). Both tests assert the OLD behaviour is preserved for unscoped repos and pin determinism across PYTHONHASHSEED — this is the right shape for an identity-layer fix.",
+    "The refuse-not-guess discipline is consistent across the slice and is its strongest asset: fan_in collisions poison rather than bind (index.py, G-01), forest.py refuses to expand a clone group into a pairwise clique, lpg.py preserves that refusal and omits `plane` for unknown kinds rather than guessing, typegraph reports resolved/unresolved/ambiguous/external/builtin counts, and __main__.py prints scope/document/type withholding out loud. Under-report over invent is enforced by construction, not by convention.",
+    "ignore.py:41-56 documents the exact failure mode of a missed SCOPE_ALGO_SALT bump ('the fix did nothing', survives until restart, costs an afternoon). That comment is the kind of provenance the plan's Invariant 7 asks for — but the enforcement is still a human remembering to edit a constant, and the companion constant (perfile.ANALYSIS_VERSION) lives in a different file.",
+    "daedalus/lanes/graph_brief.py:3-17 records the measured root cause this whole slice exists to fix: 'the agents never see the graph' — no provider module referenced structcore, and a write lane hallucinated three symbol names that 6.5k characters of index output would have answered. graph_brief is the fix for write lanes; the crew's own read path (grep/Read) has no equivalent, which is precisely the question this slice was asked.",
+    "Verdict on the framing question: structcore is the right instrument for 'what is the shape of this neighborhood, what will I break, what is duplicated, what is hot' and it is materially better than grep at all four. It is not yet a substitute for grep on 'where is X' because it publishes no symbol index, persists no index, and has no query verbs — three additions (publish name_index in the index dict, persist the folded index keyed by scope_key, add `where`/`callers`/`cycles` verbs to __main__, plus a --no-clones fast build) would close the gap without any new subsystem, i.e. as pure wiring under the plan's section 14 preference.",
+    "Stale module docstring: daedalus/structcore/slice.py:13-15 still promises 'symbol-level precision arrives with graph.py (SCIP / stack-graphs)'. Neither SCIP nor stack-graphs exists in the repo; graph.py implements heuristic name resolution instead. A reader takes that line as a roadmap commitment.",
+    "daedalus/structcore/__init__.py:1-19 describes structcore as generalizing 'project_tct/TCT_app/tools/codemap.py' — an external repo path. Accurate as history, but the module head reads as if that file is the reference implementation, which is no longer true.",
+    "index.py is 69,099 chars and parse.py 55,796 — together 44% of the slice's Python by size. Both are imported directly by external consumers, so neither can be split without touching daedalus/eval/, daedalus/mapping/ and daedalus/web_api.py in the same change."
+  ]
+}
