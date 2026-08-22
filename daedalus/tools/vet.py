@@ -54,6 +54,8 @@ must not be bolted on from here.
 from __future__ import annotations
 
 import re
+import sys
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -81,6 +83,11 @@ TEXT_SUFFIXES = frozenset({
     ".md", ".txt", ".py", ".js", ".cjs", ".mjs", ".ts", ".tsx", ".jsx", ".json",
     ".csv", ".tsv", ".yml", ".yaml", ".toml", ".sh", ".ps1", ".bat", ".cmd",
     ".rb", ".pl", ".lua", ".sql", ".html", ".css", ".xml", ".ini", ".cfg",
+    # Odysseus 2026-08-21 F7. A PowerShell MODULE (.psm1) and its manifest
+    # (.psd1) carry exactly the code a .ps1 does, and an .mdx doc reaches a model
+    # the way an .md doc does; .jsonc is JSON with comments. Without these a
+    # payload in one was skipped as unscannable, not scanned.
+    ".psm1", ".psd1", ".mdx", ".jsonc",
 })
 
 # ── rule table ──────────────────────────────────────────────────────────────
@@ -88,21 +95,82 @@ TEXT_SUFFIXES = frozenset({
 # Patterns are deliberately broad. This gate over-reports on purpose: a false
 # REVIEW costs a human thirty seconds, a missed exfiltration costs a machine.
 
+# Odysseus 2026-08-21 F5. The generic ``exec.eval`` rule keeps its negative
+# lookbehind ``(?<![\w.])`` ON PURPOSE: without it, every ``df.eval(...)``
+# (pandas), ``cursor.exec(...)`` and other harmless method call floods the gate
+# with a BLOCK a human then learns to ignore. So the qualified DANGEROUS
+# spellings are not caught by loosening that rule — they are named EXACTLY, one
+# namespace at a time, so ``builtins.exec`` blocks while ``obj.exec`` stays
+# quiet. Naming the module is what buys the strictness without the flood.
 _EXEC = [
-    ("exec.subprocess", BLOCK, r"\bsubprocess\.(?:run|call|Popen|check_output)\b",
+    ("exec.subprocess", BLOCK,
+     r"\bsubprocess\.(?:run|call|Popen|check_output|check_call|getoutput|getstatusoutput)\b",
      "spawns a process"),
     ("exec.os_system", BLOCK, r"\bos\.system\s*\(", "spawns a shell"),
+    # ``os.execv``/``execve``/``spawnv``/``spawnl``/``posix_spawn``/``popen`` all
+    # hand control to another program; the ``os.`` qualifier is the whole reason
+    # a benign local ``.popen`` or ``.spawn`` method does not match.
+    ("exec.os_exec", BLOCK,
+     r"\bos\.(?:popen|exec[lv]\w*|spawn[lv]\w*|posix_spawn\w*)\s*\(",
+     "hands control to another program"),
     ("exec.eval", BLOCK, r"(?<![\w.])(?:eval|exec)\s*\(", "evaluates code at runtime"),
+    # ``builtins.exec(``/``builtins.eval(`` is the qualified spelling the
+    # lookbehind above deliberately drops; nobody's own object is named
+    # ``builtins``, so naming it is safe.
+    ("exec.builtins", BLOCK, r"\bbuiltins\.(?:eval|exec)\s*\(",
+     "evaluates code at runtime through builtins"),
+    ("exec.pty_spawn", BLOCK, r"\bpty\.spawn\s*\(", "spawns a shell on a pseudo-terminal"),
     ("exec.dynamic_import", REVIEW, r"__import__\s*\(", "imports by computed name"),
     ("exec.node_child_process", BLOCK, r"require\s*\(\s*['\"]child_process['\"]|from\s+['\"]child_process['\"]",
      "spawns a process"),
     ("exec.shell_pipe", REVIEW, r"\|\s*(?:bash|sh|powershell|iex)\b", "pipes content into a shell"),
+    # PowerShell dynamic evaluation. REVIEW, not BLOCK: ``iex`` is a bare word
+    # with legitimate (if rare) uses and ``Invoke-Expression`` appears in real
+    # automation, so the newly-captured spelling costs a human thirty seconds
+    # rather than a false refusal. Odysseus 2026-08-21 F5.
+    ("exec.powershell_iex", REVIEW, r"\bInvoke-Expression\b|(?<![\w-])iex(?![\w-])",
+     "evaluates a string as PowerShell"),
+    # ``-EncodedCommand`` runs base64'd PowerShell, and PowerShell accepts ANY
+    # unambiguous prefix of the parameter name, so ``-e``, ``-en``, ``-enco``
+    # and the special-cased ``-ec`` all mean the same thing.
+    #
+    # ODYSSEUS 2026-08-22, HIGH. The previous spelling, ``-enc(?:odedcommand)?\b``,
+    # was wrong in both directions at once: it MISSED ``-e``/``-ec``/``-enco``
+    # (the abbreviations malware actually uses) and it FALSE-FIRED on
+    # ``data-enc-v2.json``, ``npm run build-enc`` and ``x-enc=1``, because it had
+    # no left boundary and required no operand. The replacement fixes three
+    # things:
+    #
+    #   * ``(?<![\w-])`` -- the flag must START a word, so ``build-enc`` and
+    #     ``x-enc`` and ``wrapped--enc`` are all quiet;
+    #   * the prefix ladder ``-e(n(c(o(d(e(d(c(ommand)?)?)?)?)?)?)?)?`` plus the
+    #     ``ec`` arm -- every real abbreviation, and nothing longer;
+    #   * a REQUIRED base64 operand of 16+ chars. This is the flood control that
+    #     lets the bare ``-e`` arm exist at all: a payload is always long, so
+    #     ``-e`` followed by a short word is not reported. It is also why a
+    #     documentation snippet written as ``-e JABz`` does NOT fire -- the
+    #     deliberate cost of not reporting every ``-e`` flag on the machine.
+    #
+    # ``-Encoding`` still cannot match: the ladder's longest run is ``-encod``,
+    # and the required ``\s+`` then meets ``i``.
+    ("exec.powershell_encoded", REVIEW,
+     r"(?<![\w-])-(?:e(?:n(?:c(?:o(?:d(?:e(?:d(?:c(?:ommand)?)?)?)?)?)?)?)?|ec)"
+     r"\s+['\"]?[A-Za-z0-9+/=]{16,}",
+     "runs a base64-encoded PowerShell command"),
 ]
 
 _NET = [
     ("net.python_http", REVIEW, r"\b(?:urllib\.request|httpx|requests)\.\w+\s*\(|\brequests\.(?:get|post)\b",
      "makes an outbound request"),
-    ("net.socket", BLOCK, r"\bsocket\.socket\s*\(", "opens a raw socket"),
+    # Odysseus 2026-08-21 F5. A bare ``urlopen(`` (``from urllib.request import
+    # urlopen``) never reached ``urllib.request.\w+``; ``socket.create_connection``
+    # opens a connection the same as ``socket.socket``; ``http.client``'s
+    # connection classes are the stdlib HTTP client under another name.
+    ("net.urlopen", REVIEW, r"\burlopen\s*\(", "makes an outbound request"),
+    ("net.socket", BLOCK, r"\bsocket\.(?:socket|create_connection)\s*\(",
+     "opens a socket connection"),
+    ("net.http_client", REVIEW, r"\b(?:http\.client\.)?HTTPS?Connection\s*\(",
+     "opens an HTTP client connection"),
     ("net.fetch", REVIEW, r"\bfetch\s*\(\s*['\"]https?://", "makes an outbound request"),
     ("net.curl_wget", REVIEW, r"\b(?:curl|wget)\s+(?:-\S+\s+)*https?://", "downloads at runtime"),
     ("net.websocket", REVIEW, r"\bnew\s+WebSocket\s*\(", "opens a persistent connection"),
@@ -163,7 +231,15 @@ _SYNTHETIC_RULE_SEVERITY = {
     "meta.allowed_tools_request": REVIEW,
     "mcp.remote_fetch": REVIEW,
     "mcp.unpinned": REVIEW,
-    "mcp.egress": REVIEW,
+    # BLOCK, not REVIEW -- Odysseus 2026-08-21 F2/F3. An MCP server is the harder
+    # class (a process AND a socket), and this finding is emitted ONLY when
+    # `lane_for_host` calls the destination non-trusted, i.e. the bytes leave
+    # this machine. Egress off-box on an untrusted lane is a refusal, not an ask.
+    # Keeping it at REVIEW also made `mcp_spec_digest` / the body_sha256 pin
+    # unreachable, because `apply_allowances` only ever downgrades a BLOCK: a
+    # wrong pin had no effect to have. A trusted-lane (loopback) destination
+    # produces no finding at all, so this never fires for this machine.
+    "mcp.egress": BLOCK,
     "mcp.env_injected": REVIEW,
 }
 
@@ -471,6 +547,24 @@ def apply_allowances(findings, subject: str, allowances, *, identity: str = "") 
             pinned = str(entry.get("body_sha256") or "")
         else:
             reason, pinned = str(entry), ""
+        # EGRESS MAY ONLY BE ACKNOWLEDGED AGAINST A DIGEST -- ODYSSEUS
+        # 2026-08-22, HIGH. The unpinned, name-keyed form below is a deliberate
+        # convenience: allowances are written by hand, so demanding a digest up
+        # front means nobody writes one, and the weakness is disclosed in the
+        # note. That trade was priced when every acknowledgeable rule was about
+        # what a subject DOES. `mcp.egress` became BLOCK on 2026-08-21, and it
+        # is about where the bytes GO -- so
+        #
+        #     {"allow": {"context7": {"mcp.egress": "reviewed"}}}
+        #
+        # would downgrade the block for ANY server answering to the name
+        # `context7`, and anyone who can write a line of `.mcp.json` chooses
+        # that name. This is the same name-inheritance breach the pin was
+        # invented to close, arriving through the door left open for the
+        # convenience case. For this one rule the convenience is withdrawn.
+        if f.rule == "mcp.egress" and not pinned:
+            out.append(f)
+            continue
         if pinned and pinned != identity:
             # The acknowledgement names other bytes -- or names bytes we could
             # not compute an identity for at all. Refuse it and SAY so, rather
@@ -540,9 +634,67 @@ def _clip(s: str, n: int = 120) -> str:
 #: sees two tokens, a Python parser sees one identifier, and a MODEL reading the
 #: skill sees "eval". Their presence inside source or instructions is itself a
 #: signal, so they are stripped for matching AND reported.
-_INVISIBLE = dict.fromkeys(
+#:
+#: The ORIGINAL hand-written list, kept as a union member so that nothing this
+#: gate already caught can be lost if a future Unicode build reclassifies one of
+#: them. It is no longer the whole answer -- see :func:`_invisible_table`.
+_INVISIBLE_SEED = (
     [0x00AD, 0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x2060, 0xFEFF]
     + list(range(0x202A, 0x202F)) + list(range(0x2066, 0x206A)))
+
+#: Built once, on first use. See :func:`_invisible_table` for why it is lazy.
+_INVISIBLE_CACHE: dict[int, None] | None = None
+
+
+def _invisible_table() -> dict[int, None]:
+    """Every codepoint that renders as nothing, derived rather than remembered.
+
+    ODYSSEUS 2026-08-22, HIGH. :data:`_INVISIBLE_SEED` was a HAND LIST, and a
+    hand list is a guess about which characters an attacker will reach for. Four
+    spellings defeated every rule in this module AND raised no
+    ``obfuscation.invisible_chars`` finding, because the character doing the
+    hiding was not on the list::
+
+        e\\U000E0065val(      TAG LATIN SMALL LETTER E   (U+E0065)
+        e\\uFE0Fval(          VARIATION SELECTOR-16      (U+FE0F)
+        e\\u2062val(          INVISIBLE TIMES            (U+2062)
+        e\\u180Eval(          MONGOLIAN VOWEL SEPARATOR  (U+180E)
+
+    So the set is now DERIVED from Unicode itself:
+
+    * every codepoint whose category is ``Cf`` (format character) -- this is the
+      class the standard already maintains for "affects layout, renders as
+      nothing", and it covers U+2062, U+180E and the tag block for free;
+    * ``U+FE00..U+FE0F``, the variation selectors, which are category ``Mn`` and
+      so are NOT in ``Cf`` -- they are included explicitly because they render
+      as nothing between two letters just the same;
+    * ``U+E0000..U+E007F``, the whole tag block INCLUDING its unassigned
+      codepoints, because an unassigned invisible is still an invisible and a
+      future Unicode build must not open a hole here;
+    * the original seed list, unioned in so this change can only widen.
+
+    COST, [MEASURED] on this machine: the ``Cf`` sweep over
+    ``range(sys.maxunicode + 1)`` is 0.437 s and yields 161 codepoints against
+    unicodedata 13.0.0. That is far too much to pay at IMPORT time for a module
+    ``daedalus.tools.__init__`` re-exports, so it is paid once per process on
+    the first :func:`_defang` -- i.e. only when something is actually vetted.
+
+    KNOWN COST OF BEING RIGHT: U+FE0F is what makes an emoji render in colour,
+    so a skill whose prose contains ``⚠️`` now raises a REVIEW-severity
+    ``obfuscation.invisible_chars`` finding. That is a deliberate trade -- a
+    variation selector between two letters is indistinguishable from one between
+    two emoji at this layer -- and it is the first thing to revisit if the gate
+    starts being ignored.
+    """
+    global _INVISIBLE_CACHE
+    if _INVISIBLE_CACHE is None:
+        _INVISIBLE_CACHE = dict.fromkeys(
+            [o for o in range(sys.maxunicode + 1)
+             if unicodedata.category(chr(o)) == "Cf"]
+            + list(range(0xFE00, 0xFE10))
+            + list(range(0xE0000, 0xE0080))
+            + _INVISIBLE_SEED)
+    return _INVISIBLE_CACHE
 
 
 def _defang(text: str) -> tuple[str, int]:
@@ -553,7 +705,7 @@ def _defang(text: str) -> tuple[str, int]:
     reader both see. Positions shift, so line numbers come from the ORIGINAL
     text -- see ``scan_text``.
     """
-    stripped = text.translate(_INVISIBLE)
+    stripped = text.translate(_invisible_table())
     return stripped, len(text) - len(stripped)
 
 
@@ -610,8 +762,19 @@ def _scan_file(path: Path, rel: str) -> tuple[list[Finding], str | None]:
         raw = path.read_bytes()
     except OSError as exc:
         return [], f"{rel}: cannot read ({exc.__class__.__name__})"
-    if b"\x00" in raw[:4096]:
-        return [], f"{rel}: looks binary (NUL byte in the first 4 KiB)"
+    # A UTF-8 BOM decodes to U+FEFF, which `_invisible_table` strips, so every file
+    # PowerShell's `Set-Content` writes would otherwise raise a false
+    # obfuscation.invisible_chars finding (Odysseus 2026-08-21 F6).
+    # `skills.validate_frontmatter` strips it before its own parse; match that
+    # here so the two agree.
+    raw = raw.removeprefix(b"\xef\xbb\xbf")
+    # Odysseus 2026-08-21 F8. The old check read only the first 4 KiB, so a NUL
+    # byte after that offset read as clean text. A NUL anywhere means the file
+    # cannot be honestly read as text, so scan the WHOLE buffer -- it is already
+    # bounded by MAX_FILE_BYTES above, so this is a single membership test over
+    # at most a couple of megabytes.
+    if b"\x00" in raw:
+        return [], f"{rel}: looks binary (contains a NUL byte)"
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -904,6 +1067,12 @@ def _exe_name(token: str) -> str:
     if "://" in raw:
         return ""
     name = raw.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    # Odysseus 2026-08-21 F10. Quotes INSIDE the word are stripped, not just the
+    # surrounding pair: a shell reads ``n"p"x`` as the single program ``npx``,
+    # and without this the token normalised to ``n"p"x`` and matched nothing.
+    # Removal only ever concatenates, so it can reveal a hidden launcher but
+    # never hide a visible one -- the strict direction.
+    name = name.replace('"', "").replace("'", "")
     for suf in _EXE_SUFFIXES:
         if name.endswith(suf):
             return name[: -len(suf)]
@@ -1118,9 +1287,44 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
                        skipped=(f"{name}: entry is {type(spec).__name__}, not an object — "
                                 "nothing to inspect",))
 
-    cmd = str(spec.get("command") or "")
-    args = [str(a) for a in (spec.get("args") or [])]
-    url = str(spec.get("url") or "")
+    # A MALFORMED FIELD IS UNSCANNABLE, NOT COERCED. Invariant 2, in the third
+    # place it had not been applied -- ODYSSEUS 2026-08-22, HIGH.
+    #
+    # ``args = [str(a) for a in (spec.get("args") or [])]`` accepts anything
+    # iterable, and a STRING is iterable. Measured: the spec
+    #
+    #     {"command": "node", "args": "npx -y evil-mcp --url https://evil.tld/x"}
+    #
+    # iterated PER CHARACTER, so every token this gate reasons about was one
+    # letter long: no launcher resolved, no URL matched `_URL_IN_ARG`, and the
+    # verdict came back CLEAR. `env` one screen down already learned this exact
+    # lesson ("what this server is handed cannot be enumerated, so it is not
+    # known to be empty"); `command`, `args`, `cwd` and `url` had not.
+    #
+    # `cwd` is checked at the egress block below, where it is read.
+    raw_cmd = spec.get("command")
+    if raw_cmd is not None and not isinstance(raw_cmd, str):
+        skipped.append(f"{name}: 'command' is {type(raw_cmd).__name__}, not a string — "
+                       "what this server launches cannot be read, so it is not "
+                       "known to be harmless")
+        raw_cmd = None
+    cmd = raw_cmd or ""
+
+    raw_args = spec.get("args")
+    if raw_args is not None and not isinstance(raw_args, list):
+        skipped.append(f"{name}: 'args' is {type(raw_args).__name__}, not a list — "
+                       "iterating it does not yield arguments (a string yields "
+                       "single characters), so the command line is not known "
+                       "to be harmless")
+        raw_args = None
+    args = [str(a) for a in (raw_args or [])]
+
+    raw_url = spec.get("url")
+    if raw_url is not None and not isinstance(raw_url, str):
+        skipped.append(f"{name}: 'url' is {type(raw_url).__name__}, not a string — "
+                       "where this server's bytes go cannot be read")
+        raw_url = None
+    url = raw_url or ""
     stype = str(spec.get("type") or "")
     line = " ".join([cmd, *args]).strip()
     if not cmd:
@@ -1180,12 +1384,34 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
     # userinfo and unwraps brackets. Handing it the whole match deletes the
     # second parser instead of repairing it, and the finding then quotes the
     # URL that was actually written -- which is the evidence a human needs.
-    urls = sorted({m.group(0) for a in [cmd, url, *args]
+    #
+    # Odysseus 2026-08-21 F9 / Cerberus residual. A destination can hide in an
+    # env VALUE (``WEBHOOK=https://evil.tld/x``) or in ``cwd`` as easily as on the
+    # command line, and those reached no lane check. Env values are OPAQUE, so
+    # only a real ``scheme://host`` (what `_URL_IN_ARG` already matches) is
+    # considered -- a plain token is never reported as egress.
+    egress_sources = [cmd, url, *args]
+    spec_cwd = spec.get("cwd")
+    if isinstance(spec_cwd, str):
+        egress_sources.append(spec_cwd)
+    elif spec_cwd is not None:
+        # Same rule as `command`/`args`/`env`: a field this gate cannot read is
+        # reported as unread, never quietly coerced past the lane check.
+        skipped.append(f"{name}: 'cwd' is {type(spec_cwd).__name__}, not a string — "
+                       "where this server runs cannot be read")
+    spec_env = spec.get("env")
+    if isinstance(spec_env, dict):
+        egress_sources.extend(str(v) for v in spec_env.values())
+    urls = sorted({m.group(0) for a in egress_sources
                    for m in _URL_IN_ARG.finditer(a)})
     for u in urls:
         lane = lane_for_host(u)
         if lane != "trusted":
-            findings.append(Finding("mcp.egress", REVIEW, f"<mcp:{name}>", 0, u,
+            # BLOCK, not REVIEW: this branch is only reached for a non-trusted
+            # lane, i.e. bytes that leave this machine. See _SYNTHETIC_RULE_
+            # SEVERITY["mcp.egress"]. A body_sha256-pinned allowance can downgrade
+            # it to REVIEW; nothing else can.
+            findings.append(Finding("mcp.egress", BLOCK, f"<mcp:{name}>", 0, u,
                                     f"reaches {u}, which sensitivity.lane_for_host "
                                     f"calls {lane}"))
         else:
