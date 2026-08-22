@@ -1240,9 +1240,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     # argument parsing -- the same posture as every other spend entry point in
     # this tree (tests/test_spend_coverage.py enforces it). A loop driver is
     # the entry point where forgetting it costs the most.
-    from .budget import install_process_guard
+    from .budget import install_process_guard, process_guard_boundary_decision
+    from .spine.effect_boundary import REGISTRY_BY_ID, begin_effect
 
     install_process_guard()
+
+    # ...AND THEN PROVE IT, at the same canonical boundary every other console
+    # door uses. `python -m daedalus.loop` is not reachable from cli.main's
+    # dispatch (there is no `loop` subcommand), so the line above was the only
+    # thing between this process and unpriced spend -- and nothing mechanically
+    # required it to still be there. A guard you have to remember is missing
+    # exactly where somebody forgot, which is the same argument cli.main makes
+    # for installing centrally; this is that argument applied to the second
+    # door. Adding a `daedalus loop` subcommand would NOT have closed it: the
+    # module tail is a door of its own and stays reachable either way, so the
+    # boundary belongs here, inside main(), where every caller passes it.
+    #
+    # begin_effect refuses the start unless the registry row (cli.loop), the
+    # declared effects, and the budget.process_guard decision all agree, and
+    # process_guard_boundary_decision installs the net itself, so the receipt
+    # cannot name a guard that never ran. It is pure -- it performs no effect,
+    # it authorises one -- and it is the FIRST thing after the guard, before
+    # argument parsing, so no branch of this function can reach an effect
+    # without it. The registry anchor pins the call, so deleting it is a
+    # conformance blocker rather than a silent regression.
+    begin_effect(
+        "cli.loop",
+        REGISTRY_BY_ID["cli.loop"].effects,
+        (process_guard_boundary_decision(),),
+    )
 
     p = argparse.ArgumentParser(
         prog="python -m daedalus.loop",
@@ -1300,4 +1326,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Safe BECAUSE main() now starts at the canonical effect boundary: this
+    # tail is a plain call into a guarded entrypoint, not a bypass of one.
     raise SystemExit(main())
