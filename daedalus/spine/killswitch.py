@@ -58,12 +58,45 @@ defeat into a 0.25 s window that must ALSO get past the kernel (below).
 
 WHAT A CANDIDATE CAN AND CANNOT DO -- MEASURED ON THIS BOX
 ----------------------------------------------------------
-The permit lives in ``%LOCALAPPDATA%/daedalus/control/<repo-digest>/``, a
-SIBLING of ``%LOCALAPPDATA%/daedalus/worktrees/`` where candidate worktrees go.
-That is deliberate: :func:`daedalus.spine.containment.label_low_integrity`
-stamps ``(OI)(CI)Low`` on a worktree, and inheritance flows DOWN a tree, never
-sideways -- so no amount of labelling in ``worktrees/`` can ever reach
-``control/``.
+The permit lives in ``%USERPROFILE%/.daedalus/control/<repo-digest>/``, an
+entirely different tree from ``%LOCALAPPDATA%/daedalus/worktrees/`` where
+candidate worktrees go. That is deliberate:
+:func:`daedalus.spine.containment.label_low_integrity` stamps ``(OI)(CI)Low``
+on a worktree, and inheritance flows DOWN a tree, never sideways -- so no
+amount of labelling in ``worktrees/`` can ever reach ``control/``.
+
+IT USED TO LIVE UNDER ``%LOCALAPPDATA%``, AND THAT MADE THE SWITCH A NO-OP
+--------------------------------------------------------------------------
+MEASURED on this box, with the repo's own ``python`` (the Microsoft-Store
+shim ``…/WindowsApps/PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0``):
+that interpreter runs under the Store's filesystem virtualisation, so a write
+to ``C:\\Users\\<u>\\AppData\\Local\\daedalus\\control\\<digest>\\killswitch``
+lands in
+``…\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\control\\<digest>\\killswitch``
+instead -- and reads are redirected to match, so the lie is invisible from
+inside the interpreter. ``arm()`` reported ``running=True``; ``cmd /c type``
+on the literal path answered *"Das System kann den angegebenen Pfad nicht
+finden."*; an operator's ``echo STOP>`` to the literal path failed with rc=1
+and the loop went on reading ``RUN``. The permit, the lease ledger
+(``effect-leases.sqlite3``) and the issuer key were none of them where
+``receipt.killswitch_path`` said they were, and **the stop did not stop
+anything**.
+
+Two changes, because the placement alone would only move the next such bug:
+
+* the root is derived from ``%USERPROFILE%`` (not ``%LOCALAPPDATA%``), which
+  the Store shim does not virtualise, and :func:`control_root` is the single
+  source of it -- :mod:`daedalus.kernel.offload_lease` and
+  :mod:`daedalus.kernel.promotion_trust_root` both derive theirs from here so
+  the three cannot drift apart again;
+* :func:`verify_control_root` FAILS CLOSED on the symptom rather than on the
+  known cause: it refuses when ``realpath`` disagrees with the literal path,
+  and it refuses when a write in this process is not readable by a second
+  process reading that literal path. A future virtualisation this module has
+  never heard of trips the same wire.
+
+A pre-migration root that still holds state is a REFUSAL, not a silent fresh
+start: a fresh ledger beside a populated old one is a replay window.
 
   * A candidate under :func:`daedalus.spine.containment.spawn_contained`
     (Low integrity) is refused by the KERNEL when it tries to delete the
@@ -112,6 +145,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import threading
@@ -127,16 +161,23 @@ from typing import Any, Iterable
 from daedalus.spine.cancel import cancel_all_managed
 
 __all__ = [
+    "CONTROL_PROBE_TIMEOUT_S",
+    "ControlRootCheck",
     "DEFAULT_POLL_S",
     "ENV_SWITCH_PATH",
     "KillSwitch",
+    "LEGACY_CONTROL_ARTIFACTS",
     "LoopHalted",
     "MAX_PERMIT_BYTES",
     "REPLACE_RETRY_S",
     "RUN_TOKEN",
     "STOP_TOKEN",
     "SwitchState",
+    "control_root",
     "default_switch_path",
+    "legacy_control_root",
+    "repo_control_digest",
+    "verify_control_root",
 ]
 
 #: The only token that means "keep going". Anything else means stop.
@@ -197,26 +238,247 @@ class SwitchState:
         }
 
 
-def default_switch_path(repo_root: str | Path | None = None) -> Path:
-    """Where the permit lives for ``repo_root``.
+def repo_control_digest(repo_root: str | Path | None = None) -> str:
+    """The 12-hex namespace of one checkout. Unchanged by the move off
+    ``%LOCALAPPDATA%`` on purpose: the digest is how an operator correlates a
+    control root with a worktree root, and renaming it would orphan both."""
+    repo = Path(repo_root).resolve() if repo_root else ROOT
+    return hashlib.sha256(str(repo).encode("utf-8")).hexdigest()[:12]
 
-    Placement mirrors :func:`daedalus.kairos.worktree._worktree_root_for` so an
-    operator can correlate the two by their shared repo digest -- but under
-    ``control/`` rather than ``worktrees/``. That sibling relationship is the
-    load-bearing part: a Low integrity label applied to a worktree propagates
-    down its own tree and cannot reach a sibling.
+
+def control_root(repo_root: str | Path | None = None) -> Path:
+    """THE control root for ``repo_root``. One function, three consumers.
+
+    :mod:`daedalus.kernel.offload_lease` (lease ledger + issuer key) and
+    :mod:`daedalus.kernel.promotion_trust_root` (single-use approval ledger)
+    both derive theirs from this, so the permit, the ledger and the key cannot
+    end up on three different volumes -- which is exactly the shape the
+    ``%LOCALAPPDATA%`` bug took, one file at a time.
+
+    ``%USERPROFILE%`` rather than ``%LOCALAPPDATA%``: the latter is virtualised
+    for Microsoft-Store Python (see the module docstring; MEASURED), the former
+    is not. There is deliberately NO environment override for the ROOT. Only
+    the permit FILE has one (``DAEDALUS_KILLSWITCH``), for tests and for an
+    operator with an unusual layout; an overridable control root would be an
+    overridable uniqueness store, which is the A12 finding one layer up.
+    """
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    if not home:
+        expanded = os.path.expanduser("~")
+        home = expanded if expanded and expanded != "~" else ""
+    base_dir = Path(home) if home else Path(tempfile.gettempdir())
+    return base_dir / ".daedalus" / "control" / repo_control_digest(repo_root)
+
+
+#: Names whose presence under the pre-migration root means real state is there.
+LEGACY_CONTROL_ARTIFACTS: tuple[str, ...] = (
+    "killswitch",
+    "killswitch.stopped",
+    "effect-leases.sqlite3",
+    "effect-lease-issuer.key",
+    "promotion",
+)
+
+
+def legacy_control_root(repo_root: str | Path | None = None) -> Path | None:
+    """Where the control root used to be, or ``None`` when it never applied."""
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if not local_appdata:
+        return None
+    return Path(local_appdata) / "daedalus" / "control" / repo_control_digest(repo_root)
+
+
+def default_switch_path(repo_root: str | Path | None = None) -> Path:
+    """Where the permit lives for ``repo_root``: :func:`control_root` plus a name.
 
     ``DAEDALUS_KILLSWITCH`` overrides it, which is how tests and an operator
-    with an unusual layout point at another file.
+    with an unusual layout point at another file. The override changes the
+    FILE, never the verification: an overridden path is checked for redirection
+    and cross-process visibility exactly like a derived one.
     """
     override = os.environ.get(ENV_SWITCH_PATH)
     if override:
         return Path(os.path.abspath(override))
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    base_dir = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
-    repo = Path(repo_root).resolve() if repo_root else ROOT
-    digest = hashlib.sha256(str(repo).encode("utf-8")).hexdigest()[:12]
-    return base_dir / "daedalus" / "control" / digest / "killswitch"
+    return control_root(repo_root) / "killswitch"
+
+
+#: A second process that cannot answer in this long is treated as "cannot see
+#: it". Generous: the probe is one `type`/`cat` of a 32-byte file.
+CONTROL_PROBE_TIMEOUT_S = 20.0
+
+
+@dataclass(frozen=True)
+class ControlRootCheck:
+    """Whether the control root is the directory this process thinks it is.
+
+    ``ok`` is the only field to branch on; ``reason`` is written to be pasted
+    into a receipt and read by a human at 3am, so it names both paths.
+    """
+
+    ok: bool
+    reason: str
+    path: str
+    realpath: str
+    legacy_path: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "control_root_ok": self.ok,
+            "control_root_reason": self.reason,
+            "control_root_path": self.path,
+            "control_root_realpath": self.realpath,
+            "control_root_legacy_path": self.legacy_path,
+        }
+
+
+_CONTROL_CHECK_CACHE: dict[str, ControlRootCheck] = {}
+_CONTROL_CHECK_LOCK = threading.Lock()
+
+
+def _cross_process_visible(root: Path) -> tuple[bool, str]:
+    """Write a token here, read it back from ANOTHER process. ``(ok, why_not)``.
+
+    This is the test that would have caught the Store-shim redirection without
+    anybody knowing that Store shims exist. The reader is deliberately not
+    Python: an interpreter under the same virtualisation would see the same
+    lie, so the probe uses the shell an operator would use.
+    """
+    token = uuid.uuid4().hex
+    probe = root / f".control-probe-{token}"
+    cmd = ["cmd", "/c", "type", str(probe)] if os.name == "nt" else ["cat", str(probe)]
+    try:
+        try:
+            probe.write_bytes(token.encode("ascii"))
+        except OSError as e:
+            return False, (
+                f"the control root {root} is not writable "
+                f"({type(e).__name__}: {e})")
+        # bytes, not text: the shell answers in the OEM codepage and a decode
+        # error here would masquerade as an invisible control root.
+        proc = subprocess.run(cmd, capture_output=True,
+                              timeout=CONTROL_PROBE_TIMEOUT_S)
+        if token.encode("ascii") in (proc.stdout or b""):
+            return True, ""
+        detail = (proc.stderr or b"")[:200].decode("utf-8", "replace").strip()
+        return False, (
+            f"a second process cannot see the control root: `{' '.join(cmd)}` "
+            f"did not return the {len(token)} bytes this process just wrote to "
+            f"{probe} ({detail or f'rc={proc.returncode}'}). The permit is not "
+            "where this process says it is, so an operator's stop written to "
+            "that path would never reach this loop.")
+    except Exception as e:                                       # noqa: BLE001
+        return False, (
+            f"the cross-process visibility probe failed "
+            f"({type(e).__name__}: {e}); an unverifiable control root is STOP")
+    finally:
+        try:
+            os.unlink(probe)
+        except OSError:
+            pass
+
+
+def _legacy_state(repo_root: str | Path | None) -> tuple[Path, list[str]] | None:
+    legacy = legacy_control_root(repo_root)
+    if legacy is None:
+        return None
+    found: list[str] = []
+    for name in LEGACY_CONTROL_ARTIFACTS:
+        try:
+            os.stat(legacy / name)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError:
+            found.append(f"{name} (unreadable)")
+        else:
+            found.append(name)
+    return (legacy, found) if found else None
+
+
+def _verify_control_root_uncached(root: Path, repo_root: str | Path | None,
+                                  check_legacy: bool) -> ControlRootCheck:
+    literal = str(root)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return ControlRootCheck(
+            False,
+            f"the control root {literal} could not be created "
+            f"({type(e).__name__}: {e}); a loop whose permit has nowhere to "
+            "live may not start",
+            literal, literal)
+    try:
+        real = os.path.realpath(literal)
+    except OSError as e:                                    # pragma: no cover
+        return ControlRootCheck(
+            False, f"the control root {literal} could not be resolved "
+                   f"({type(e).__name__}: {e})", literal, literal)
+    if os.path.normcase(real) != os.path.normcase(literal):
+        return ControlRootCheck(
+            False,
+            f"the control root is REDIRECTED: this process writes {literal} "
+            f"but the bytes land in {real}. An operator stopping the loop from "
+            "another shell writes the literal path, which this process would "
+            "never read. Refusing to arm.",
+            literal, real)
+    ok, why = _cross_process_visible(root)
+    if not ok:
+        return ControlRootCheck(False, why, literal, real)
+    if check_legacy:
+        legacy = _legacy_state(repo_root)
+        if legacy is not None:
+            legacy_root, found = legacy
+            try:
+                legacy_real = os.path.realpath(str(legacy_root))
+            except OSError:                                 # pragma: no cover
+                legacy_real = str(legacy_root)
+            return ControlRootCheck(
+                False,
+                "a pre-migration control root still holds "
+                f"{', '.join(found)} at {legacy_root} (which resolves to "
+                f"{legacy_real}). Starting fresh at {literal} would leave that "
+                "state unspent and unwatched -- a replay window and a stop "
+                "nobody reads -- so this refuses instead. Move or delete the "
+                "old root deliberately, then start again.",
+                literal, real, str(legacy_root))
+    return ControlRootCheck(
+        True,
+        f"the control root {literal} is literal and visible to another process",
+        literal, real)
+
+
+def verify_control_root(root: str | Path, *,
+                        repo_root: str | Path | None = None,
+                        check_legacy: bool = True,
+                        use_cache: bool = True) -> ControlRootCheck:
+    """Fail-closed startup check on the control root. NEVER raises.
+
+    Three refusals, in cost order: the root cannot be created; ``realpath``
+    disagrees with the literal path (a redirection, junction, or virtualised
+    store); a second process cannot read what this one just wrote. Then one
+    migration refusal: pre-migration state still exists.
+
+    Cached per resolved root per interpreter, because the third check costs a
+    subprocess and the poller asks 4x/second. ``use_cache=False`` is for the
+    tests that need to see a changed filesystem.
+    """
+    root_path = Path(os.path.abspath(str(root)))
+    key = f"{os.path.normcase(str(root_path))}|{bool(check_legacy)}|{repo_root}"
+    if use_cache:
+        with _CONTROL_CHECK_LOCK:
+            hit = _CONTROL_CHECK_CACHE.get(key)
+        if hit is not None:
+            return hit
+    try:
+        check = _verify_control_root_uncached(root_path, repo_root, check_legacy)
+    except BaseException as e:                                   # noqa: BLE001
+        check = ControlRootCheck(
+            False,
+            f"the control-root check itself failed ({type(e).__name__}: {e}); "
+            "an unverifiable control root is STOP",
+            str(root_path), str(root_path))
+    with _CONTROL_CHECK_LOCK:
+        _CONTROL_CHECK_CACHE[key] = check
+    return check
 
 
 def _now_iso() -> str:
@@ -257,6 +519,12 @@ class KillSwitch:
         self._path = Path(path) if path is not None else default_switch_path(repo_root)
         self._path = Path(os.path.abspath(str(self._path)))
         self._marker = self._path.with_name(self._path.name + _MARKER_SUFFIX)
+        # The pre-migration refusal applies only to the DERIVED root. A caller
+        # who named a path (a test, or `--path`) is not the caller whose old
+        # state we are protecting, and refusing them would be a false alarm.
+        self._derived_path = path is None and not os.environ.get(ENV_SWITCH_PATH)
+        self._repo_root = repo_root
+        self._control_check: ControlRootCheck | None = None
         self.poll_s = max(0.01, float(poll_s))
         self.kill_grace_s = max(0.0, float(kill_grace_s))
         self.cooperative_grace_s = max(0.0, float(cooperative_grace_s))
@@ -286,6 +554,24 @@ class KillSwitch:
     def reason(self) -> str | None:
         """Why the switch latched, or ``None`` while it has not."""
         return self._reason
+
+    @property
+    def control_check(self) -> ControlRootCheck:
+        """The fail-closed verdict on this switch's control root. Never raises.
+
+        Resolved on first use rather than in ``__init__`` so that constructing
+        a switch stays free (the operator CLI builds one just to call
+        :meth:`stop`) and so a test that moves the filesystem underneath a
+        constructed switch still gets a truthful answer on first read.
+        """
+        check = self._control_check
+        if check is None:
+            check = verify_control_root(
+                self._path.parent,
+                repo_root=self._repo_root,
+                check_legacy=self._derived_path)
+            self._control_check = check
+        return check
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         return f"<KillSwitch path={self._path} tripped={self._tripped}>"
@@ -320,6 +606,13 @@ class KillSwitch:
 
         def halt(reason: str, token: str | None = None) -> SwitchState:
             return SwitchState(False, reason, str(p), token)
+
+        # FIRST, BEFORE THE PERMIT IS EVEN LOOKED AT. A permit read out of a
+        # directory that is not the directory an operator can write is not
+        # evidence of anything; answering "armed" from it is the whole F1 bug.
+        check = self.control_check
+        if not check.ok:
+            return halt(f"the control root is not usable: {check.reason}")
 
         try:
             st = os.stat(p)
@@ -567,6 +860,13 @@ class KillSwitch:
         path calls ``arm()``, and the 3am stop evaporates. Re-arming after a
         deliberate stop has to be a deliberate act.
         """
+        check = self.control_check
+        if not check.ok:
+            # `force=True` deliberately does NOT override this. Forcing past a
+            # stop marker is an operator overruling an operator; forcing past
+            # an unusable control root is an operator arming a switch nobody
+            # can reach, which is the one thing this module exists to prevent.
+            raise LoopHalted(f"refusing to arm: {check.reason}")
         present, unreadable = self._marker_present()
         if (present or unreadable is not None) and not force:
             raise LoopHalted(

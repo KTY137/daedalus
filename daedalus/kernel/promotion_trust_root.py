@@ -620,18 +620,157 @@ def _promotion_state_root(repo_root: str | Path) -> Path:
     paths can reach. It is DERIVED, never passed: A12 measured a replay
     accepted because the uniqueness store was a caller-supplied parameter, and
     the fix is that the live path has no parameter to supply.
+
+    INHERITED, not re-derived. It used to compute its own
+    ``%LOCALAPPDATA%/daedalus-kernel/promotion/<digest>``; the kill switch
+    computed its own ``%LOCALAPPDATA%/daedalus/control/<digest>``; the lease
+    ledger a third. All three were silently redirected by Microsoft-Store
+    Python's filesystem virtualisation (MEASURED -- see
+    :mod:`daedalus.spine.killswitch`), which meant the spent-approval ledger
+    was PER INTERPRETER: a promotion run under a different python could not see
+    that the approval had been spent. One control root, one place to fix, and
+    :func:`daedalus.spine.killswitch.verify_control_root` refuses when it is
+    not the directory this process thinks it is.
     """
+    from daedalus.spine.killswitch import control_root
+
+    return control_root(repo_root) / "promotion"
+
+
+def _legacy_promotion_state_root(repo_root: str | Path) -> Path | None:
+    """Where the promotion state used to live, or ``None`` when inapplicable."""
     local_appdata = os.environ.get("LOCALAPPDATA")
-    base = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
+    if not local_appdata:
+        return None
     digest = hashlib.sha256(
         str(Path(repo_root).resolve()).encode("utf-8")).hexdigest()[:12]
-    return base / "daedalus-kernel" / "promotion" / digest
+    return Path(local_appdata) / "daedalus-kernel" / "promotion" / digest
+
+
+def _legacy_promotion_state(repo_root: str | Path) -> tuple[Path, list[str]] | None:
+    """Pre-migration promotion state that still exists, if any.
+
+    A fresh spent-ledger beside a populated old one is a replay window: every
+    approval the old ledger recorded as spent reads as unspent in the new one.
+    So this is surfaced as a REFUSAL rather than migrated automatically --
+    moving an operator's approval ledger is the operator's decision.
+    """
+    legacy = _legacy_promotion_state_root(repo_root)
+    if legacy is None:
+        return None
+    found: list[str] = []
+    for name in ("spent", CLAIM_LEDGER_NAME, "second_factor.jsonl"):
+        try:
+            os.stat(legacy / name)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError:
+            found.append(f"{name} (unreadable)")
+        else:
+            found.append(name)
+    return (legacy, found) if found else None
 
 
 def replay_key(nonce: str, candidate_sha256: str) -> str:
     """D5 value 5, as code. See :data:`REPLAY_KEY_SPEC`."""
     return hashlib.sha256(
         f"{nonce}\n{candidate_sha256}".encode("utf-8")).hexdigest()
+
+
+#: The hash-chained companion to the single-use marker files. See
+#: :func:`claim_approval` for what each of the two answers and why one is not
+#: enough.
+CLAIM_LEDGER_NAME = "claims.jsonl"
+
+
+def claim_ledger_path(repo_root: str | Path) -> Path:
+    """The append-only, hash-chained record of every spent approval."""
+    return _promotion_state_root(repo_root) / CLAIM_LEDGER_NAME
+
+
+def _canonical(record: Mapping[str, Any]) -> str:
+    return json.dumps(record, sort_keys=True, separators=(",", ":"))
+
+
+def _read_claim_chain(repo_root: str | Path,
+                      ) -> tuple[str, str | None, str, set[str]]:
+    """``(status, problem, head_sha256, spent_keys)``. Never raises.
+
+    ``status`` is ``ok``, ``broken`` (the chain does not link, or a line is not
+    a record) or ``unreadable``. Both non-ok statuses are refusals upstream:
+    a uniqueness ledger this code cannot read is one it cannot use to say an
+    approval is fresh.
+    """
+    path = claim_ledger_path(repo_root)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except FileNotFoundError:
+        return "ok", None, "", set()
+    except OSError as e:
+        return "unreadable", (
+            f"the claim ledger at {path} could not be read "
+            f"({type(e).__name__}: {e})"), "", set()
+    except Exception as e:                                       # noqa: BLE001
+        return "unreadable", (
+            f"the claim ledger at {path} could not be read "
+            f"({type(e).__name__}: {e})"), "", set()
+    spent: set[str] = set()
+    head = ""
+    for n, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            return "broken", f"claim ledger line {n} is not JSON", head, spent
+        if not isinstance(record, dict):
+            return "broken", f"claim ledger line {n} is not a record", head, spent
+        if str(record.get("prev_sha256") or "") != head:
+            return "broken", (
+                f"claim ledger line {n} does not follow line {n - 1}: it "
+                f"names prev_sha256={str(record.get('prev_sha256'))[:12]!r} "
+                f"but the chain head is {head[:12]!r} -- a line was removed, "
+                "reordered or rewritten"), head, spent
+        head = hashlib.sha256(_canonical(record).encode("utf-8")).hexdigest()
+        key = str(record.get("replay_key") or "")
+        if key:
+            spent.add(key)
+    return "ok", None, head, spent
+
+
+def _append_claim(repo_root: str | Path, record: Mapping[str, Any],
+                  head: str) -> str:
+    """Append one chained claim and return its sha256, or raise ``OSError``."""
+    payload = dict(record)
+    payload["prev_sha256"] = head
+    line = _canonical(payload)
+    path = claim_ledger_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    return hashlib.sha256(line.encode("utf-8")).hexdigest()
+
+
+def _claim_marker_present(marker: Path) -> tuple[bool, str | None]:
+    """``(present, unreadable_reason)``, fail-closed like the kill switch.
+
+    NOT ``Path.exists()``: that answers False for "denied" and "the volume is
+    gone" as readily as for "absent", and here False means "this approval has
+    not been spent yet".
+    """
+    try:
+        os.stat(marker)
+    except (FileNotFoundError, NotADirectoryError):
+        return False, None
+    except OSError as e:
+        return True, (
+            f"the single-use marker could not be examined "
+            f"({type(e).__name__}: {e}); an approval whose reuse cannot be "
+            "detected is not promotable")
+    return True, None
 
 
 def claim_approval(repo_root: str | Path, verdict: ApprovalVerdict,
@@ -649,13 +788,59 @@ def claim_approval(repo_root: str | Path, verdict: ApprovalVerdict,
 
     The checkpoint original accepted a ``spent_root`` override. It is gone: an
     overridable uniqueness store is exactly the A12 finding, one layer up.
+
+    TWO RECORDS, BECAUSE THE MARKER ALONE ANSWERS ONLY ONE QUESTION.
+    ---------------------------------------------------------------
+    A bare ``O_EXCL`` marker file is the right race arbiter and the wrong
+    ledger. MEASURED against this module (Odysseus probe 2, reproduced): the
+    nonce is public -- it is in the owner's signed tag -- so
+    :func:`replay_key` is computable by anyone who can read the tag, and the
+    marker path is therefore predictable. Two attacks followed from one file:
+
+      * **pre-create** the marker and the owner's approval can never be spent
+        -- a permanent, silent denial of promotion that looks exactly like
+        "you already used this";
+      * **unlink** the marker and the approval is fresh again -- replay.
+
+    The chained ``claims.jsonl`` beside it turns both into a REFUSAL WITH A
+    NAME, because the two records now have to agree:
+
+      | marker | chain   | verdict                                        |
+      | absent | unspent | claim (create marker, then append)              |
+      | absent | spent   | REJECT "ledger says spent" -- the unlink attack |
+      | present| unspent | REJECT "marker without ledger" -- the pre-create|
+      | present| spent   | REJECT "already spent" -- the ordinary reuse    |
+
+    WHAT THIS IS NOT. The chain is tamper-EVIDENT, not tamper-PROOF, and the
+    difference matters: both records live under the same control root at the
+    same integrity level, so an attacker who can unlink the marker can also
+    rewrite the chain, and rewriting it is cheap (recompute the following
+    hashes). What the chain buys is that the two attacks above stop being
+    single-file edits, that an accidental or partial deletion is detected, and
+    that a contained candidate -- which the kernel denies write access to the
+    control root -- cannot reach either. The real boundary is the filesystem
+    ACL on that root; this is the detector, and it does not claim to be a
+    security boundary.
     """
     if not verdict.approved:
         return False, "an unapproved verdict cannot be claimed"
     if not verdict.nonce:
         return False, "approved verdict carries no nonce; refusing to claim"
+
+    legacy = _legacy_promotion_state(repo_root)
+    if legacy is not None:
+        legacy_root, found = legacy
+        return False, (
+            f"a pre-migration promotion state still holds {', '.join(found)} "
+            f"at {legacy_root} (which resolves to "
+            f"{os.path.realpath(str(legacy_root))}). Spending approvals into a "
+            f"fresh ledger at {_promotion_state_root(repo_root)} would read "
+            "every approval the old one recorded as spent as unspent again -- "
+            "a replay window. Move or delete the old state deliberately.")
+
     root = _promotion_state_root(repo_root) / "spent"
-    marker = root / f"{replay_key(verdict.nonce, verdict.candidate_sha256)}.claimed"
+    key = replay_key(verdict.nonce, verdict.candidate_sha256)
+    marker = root / f"{key}.claimed"
     # Creating the ledger DIRECTORY is kept out of the block below on purpose.
     # `mkdir(parents=True)` raises FileExistsError when a path component is an
     # ordinary file, which would otherwise be reported as "already spent" -- a
@@ -668,9 +853,40 @@ def claim_approval(repo_root: str | Path, verdict: ApprovalVerdict,
         return False, (
             f"single-use ledger unavailable ({type(e).__name__}: {e}); refusing "
             "to promote on an approval whose reuse cannot be detected")
+
+    status, problem, head, spent = _read_claim_chain(repo_root)
+    if status != "ok":
+        return False, (
+            f"the claim ledger is not trustworthy ({problem}); refusing to "
+            "promote on an approval whose reuse cannot be detected")
+    present, unreadable = _claim_marker_present(marker)
+    if unreadable is not None:
+        return False, unreadable
+
+    if key in spent:
+        # Authoritative over the marker's absence, which is the point: the
+        # marker is the thing an attacker deletes.
+        return False, (
+            f"ledger says spent: {claim_ledger_path(repo_root)} records "
+            f"approval {verdict.tag} as already claimed"
+            + ("" if present else
+               " while its single-use marker is MISSING -- the marker was "
+               "removed after the claim, which is a replay attempt or a "
+               "damaged control root; either way this approval is finished"))
+    if present:
+        return False, (
+            f"marker without ledger: {marker} exists but "
+            f"{claim_ledger_path(repo_root)} has no claim for approval "
+            f"{verdict.tag}. The replay key is derived from a nonce that is "
+            "public in the signed tag, so a marker nobody claimed is a "
+            "planted one, and honouring it would be a silent denial of the "
+            "owner's approval. Remove that marker deliberately to proceed.")
+
     try:
         fd = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
+        # Lost the race to a concurrent promotion between the read above and
+        # here. Still the right refusal: one of us claimed it.
         return False, (
             f"approval {verdict.tag} was already spent; an approval authorises "
             "one promotion, not a standing right to promote")
@@ -685,7 +901,31 @@ def claim_approval(repo_root: str | Path, verdict: ApprovalVerdict,
         # The marker exists, which is what makes the approval spent; failing to
         # annotate it costs an audit note, not the guarantee.
         pass
-    return True, f"approval {verdict.tag} claimed for a single promotion"
+
+    # MARKER FIRST, THEN CHAIN, and the order is load-bearing: the marker is
+    # the atomic race arbiter, so it must be taken before anything slow. A
+    # crash in between leaves marker-present + chain-unspent, which the table
+    # above reads as "marker without ledger" -- a refusal. Fail-closed in the
+    # only direction a promotion boundary may fail.
+    try:
+        record_sha = _append_claim(repo_root, {
+            "event": "approval-claimed",
+            "replay_key": key,
+            "tag": verdict.tag,
+            "candidate_sha256": verdict.candidate_sha256,
+            "owner_approval_ref": verdict.owner_approval_ref or "",
+            "signer": verdict.signer or "",
+            "at": datetime.now(timezone.utc).isoformat(),
+        }, head)
+    except Exception as e:                                       # noqa: BLE001
+        return False, (
+            f"the claim could not be written to {claim_ledger_path(repo_root)} "
+            f"({type(e).__name__}: {e}). The single-use marker was already "
+            "created, so this approval is spent and no promotion may use it; "
+            "the owner must issue a new approval.")
+    return True, (
+        f"approval {verdict.tag} claimed for a single promotion "
+        f"(claim ledger record {record_sha[:12]})")
 
 
 def second_factor_ledger_path(repo_root: str | Path) -> Path:
@@ -858,6 +1098,49 @@ class PromotionTrustDecision:
 PREAUTHORIZATION_STAGE = "preauthorization"
 SEALED_STAGE = "sealed"
 
+#: The complete set. There is no third stage, and an unrecognised one is not a
+#: milder stage -- see :func:`_unknown_stage_decision`.
+PROMOTION_STAGES: tuple[str, ...] = (SEALED_STAGE, PREAUTHORIZATION_STAGE)
+
+
+def _unknown_stage_decision(stage: str, candidate_sha256: str,
+                            ) -> PromotionTrustDecision:
+    """REJECT for a stage the trust root does not recognise.
+
+    MEASURED (Odysseus probe 2, reproduced): ``stage`` was only ever compared
+    with ``== SEALED_STAGE``, so ``'SEALED'``, ``'sealed '`` or a plain typo
+    took the *not-sealed* branch -- which SKIPS the single-use claim -- and the
+    function still returned ``promote=True, claimed=False``. A misspelling was
+    therefore an unlimited-use approval: the strictest path in the module was
+    selected by exact string equality against caller-supplied text, and every
+    other string failed OPEN.
+
+    Refused BEFORE the root verifier runs. There is no git call, no record and
+    no claim, because a stage this module cannot interpret is not a promotion
+    to evaluate -- it is a caller bug, and the deny receipt the caller raises
+    is where it belongs in the record.
+    """
+    reason = (
+        f"unknown promotion stage {stage!r}: the trust root evaluates only "
+        f"{SEALED_STAGE!r} (which spends the approval's single use) and "
+        f"{PREAUTHORIZATION_STAGE!r} (which does not). An unrecognised stage "
+        "used to take the preauthorization branch and skip the single-use "
+        "claim while still promoting, so it is refused here rather than "
+        "guessed at.")
+    return PromotionTrustDecision(
+        promote=False,
+        cell=(False, False),
+        outcome="REJECT",
+        record_note="unknown-promotion-stage",
+        root=ApprovalVerdict(
+            approved=False,
+            reason=reason,
+            candidate_sha256=str(candidate_sha256),
+            tag=approval_tag_for(str(candidate_sha256))),
+        second_factor=SecondFactorOutcome(valid=False, reason=reason),
+        stage=stage,
+        deny_reason=reason)
+
 
 def evaluate_promotion_trust(
     *,
@@ -900,6 +1183,11 @@ def evaluate_promotion_trust(
     decision outright, so a seam cannot become a promotion.
     """
     stage = str(stage)
+    # BEFORE ANYTHING ELSE. The stage selects whether the single use is spent,
+    # so an unvalidated stage is an unvalidated promotion. See
+    # :func:`_unknown_stage_decision`.
+    if stage not in PROMOTION_STAGES:
+        return _unknown_stage_decision(stage, candidate_artifact_sha256)
     seams: list[str] = []
     verify = verify_promotion_approval
     if _root_verifier is not None:
@@ -1019,9 +1307,12 @@ __all__ = [
     "ARTIFACT_BINDING_FIELDS",
     "ApprovalVerdict",
     "MAX_APPROVAL_AGE",
+    "CLAIM_LEDGER_NAME",
     "PREAUTHORIZATION_STAGE",
+    "PROMOTION_STAGES",
     "PromotionTrustDecision",
     "PromotionTrustRootError",
+    "claim_ledger_path",
     "REPLAY_KEY_SPEC",
     "REPLAY_STATE_RETENTION",
     "REVOCATION_AUTHORITY",
