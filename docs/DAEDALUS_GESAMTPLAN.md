@@ -1,3 +1,11 @@
+> **Pointer (owner decision D13, added 2026-08-22).** The canonical revision is
+> [`docs/IKARUS_ARIADNE_MASTER_PLAN.md`](IKARUS_ARIADNE_MASTER_PLAN.md) — **Revision 7,
+> version 1.2.3, active gate Gate 0** [MEASURED 2026-08-22, plan header lines 4-9].
+> This document is the owner's Gesamtplan as submitted: approval-reference material
+> and history, never the authority. Where the two differ, the master plan wins. It is
+> archived verbatim only once absorption into the canonical revision is confirmed, and
+> it is never deleted.
+
 <!--
 STATUS: Vom Owner am 2026-08-17 als ultimativer Leitfaden eingebracht
 ("ich will den als ultimativen Leitfaden in den Docs haben").
