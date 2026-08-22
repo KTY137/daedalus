@@ -36,6 +36,9 @@ never papered over with a placeholder digest.
 """
 from __future__ import annotations
 
+import os
+import posixpath
+import re
 import sys
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -91,19 +94,38 @@ SPEND_GRANT_REASON = (
     "and its spend, and this scope neither bounds nor meters that"
 )
 #: Replaces :data:`UNMETERED_SPEND_REASON` -- and ONLY that line -- for an
-#: attempt that arrives with shed telemetry. The moment ``usage.input_tokens``
+#: attempt that arrives with shed telemetry. The moment
+#: ``usage.est_input_tokens``
 #: stops being 0, the unmetered wording becomes a false statement inside a
 #: digested contract, so the swap is not decoration: it is what keeps the record
 #: honest. The replacement states the estimator by name, because an over-count
 #: from cl100k is not a server-reported token count and must never be read as
 #: one (Invariant 9, honest claims).
 METERED_INPUT_REASON = (
-    "usage.input_tokens IS metered for this attempt: it is the sum of the local "
-    "lane's own pre-send prompt estimates (cl100k over-count of the exact prompt "
-    "text, daedalus.providers.ollama), not a server-reported token count; "
+    "usage.est_input_tokens is ESTIMATED for this attempt: it is the sum of the "
+    "local lane's own pre-send prompt estimates (cl100k over-count of the exact "
+    "prompt text, daedalus.providers.ollama), not a server-reported token "
+    "count, and it is carried in est_input_tokens rather than input_tokens so "
+    "no reader can mistake the estimate for a measurement; usage.input_tokens, "
     "usage.output_tokens and usage.cost_microusd remain 0 because nothing "
     "measured them, not because zero was measured"
 )
+#: Stated when shed telemetry arrived but some row it should have estimated
+#: reports nothing. A covariate that is silently short is worse than an absent
+#: one: the sum still looks like a total. This names the gap inside the digest
+#: so the shortfall travels with the record instead of being averaged away.
+UNDER_METERED_INPUT_REASON = (
+    "usage.est_input_tokens UNDER-REPORTS this attempt: {missing} of {total} "
+    "shed-telemetry row(s) reported est_in=0 while the brief was NOT shed, so "
+    "the sum is a lower bound on the prompt text that actually reached the "
+    "model, not an estimate of all of it"
+)
+#: Stated on the evidence-side qualification that :func:`evaluator_assurance`
+#: derived. It travels inside the PolicyDecision digest because the assurance
+#: string alone ("unverified") does not say WHICH seal failed, and a reader who
+#: cannot tell a missing criterion from a criterion the gate never read cannot
+#: act on the record.
+ASSURANCE_REASON_PREFIX = "evaluator assurance"
 
 #: The fields one shed-telemetry row must carry. ``rel`` names the file whose
 #: full-file prompt was built; ``brief_shed`` is whether the structural brief
@@ -118,8 +140,8 @@ def normalise_shed_telemetry(rows: Any) -> tuple[dict[str, Any], ...]:
     """Validate the local lane's brief-shed rows into wire-safe records.
 
     WHY IT REFUSES INSTEAD OF COERCING. These rows become the covariate a
-    graph-conditioning comparison is read against, and one of them meters
-    ``usage.input_tokens`` inside a digested receipt. A row that cannot be
+    graph-conditioning comparison is read against, and one of them fills
+    ``usage.est_input_tokens`` inside a digested receipt. A row that cannot be
     trusted must not be silently repaired into a plausible number: the caller
     (:func:`canonicalise_attempt`) turns the refusal into a reported error on
     the contract set, which is visible, rather than into a measurement nobody
@@ -364,49 +386,313 @@ def attempt_policy_decision(
     )
 
 
-def evaluator_assurance(result: Any, task: Any) -> str:
-    """How much the gate verdict is worth, derived rather than asserted.
+def _fold_case(text: str) -> str:
+    """Case-fold exactly when this host's path semantics do, keeping ``/``.
+
+    Derived from :func:`os.path.normcase` rather than an unconditional
+    ``lower()``: on a case-insensitive host ``Tests/Test_Gate.py`` and
+    ``tests/test_gate.py`` ARE one file and must compare equal, while on a
+    case-sensitive host they are two files and folding them together would
+    refuse a genuinely disjoint criterion. ``normcase`` itself is not used
+    directly because on Windows it also rewrites ``/`` to ``\\``, which would
+    make the normal form uncomparable with the ``/``-spelled argv a gate
+    actually ran.
+    """
+
+    return text.lower() if os.path.normcase("A") == "a" else text
+
+
+def _collapse_tree_path(value: Any) -> str | None:
+    """The declared path with its separators and ``.``/``..`` segments settled.
+
+    ``None`` is not "empty", it is "this declaration has no honest normal form
+    inside the tree" -- an absolute path, a drive-lettered path, or one whose
+    ``..`` segments climb out of the root. Those are refused rather than
+    normalised because a set-membership test between a declared write scope and
+    a declared criterion is only meaningful when both name locations in the
+    same tree; a path that escapes names something the scope check never
+    bounded, and treating it as merely "not in the scope set" is exactly how a
+    criterion inside the write scope reads as sealed.
+
+    CASE IS DELIBERATELY NOT FOLDED HERE. This is the spelling handed to git,
+    and git's trees are case-sensitive on every host, so folding first would
+    make a legitimate criterion unfindable in the base revision.
+    """
+
+    text = str(value).strip().replace("\\", "/")
+    if not text:
+        return None
+    if posixpath.isabs(text) or (len(text) > 1 and text[1] == ":"):
+        return None
+    collapsed = posixpath.normpath(text)
+    if collapsed == "." or collapsed == ".." or collapsed.startswith("../"):
+        return None
+    return collapsed
+
+
+def _normalise_tree_path(value: Any) -> str | None:
+    """ONE canonical spelling for a repo-relative path, or ``None`` if refused.
+
+    :func:`_collapse_tree_path` plus this host's case semantics -- the form two
+    declarations are COMPARED in, as opposed to the form git is asked about.
+    """
+
+    collapsed = _collapse_tree_path(value)
+    return None if collapsed is None else _fold_case(collapsed)
+
+
+def criterion_probe_paths(task: Any) -> tuple[tuple[str, str], ...]:
+    """``(comparison key, git-facing path)`` for each usable declared criterion.
+
+    The seam between :func:`evaluator_assurance_detail`, which must COMPARE
+    paths, and its caller, which must ASK GIT about them. Both spellings come
+    out of one function so the key a presence map is written under cannot drift
+    from the key the seal looks it up by -- the drift that would silently turn
+    "measured present" back into "not knowable".
+
+    A declaration with no normal form is skipped rather than probed: the seal
+    refuses it on its own, with a reason naming the spelling, and asking git
+    about an absolute or escaping path would be the read this module refuses to
+    make on principle.
+    """
+
+    probes: list[tuple[str, str]] = []
+    for raw in tuple(getattr(task, "gate_criterion_paths", ()) or ()):
+        collapsed = _collapse_tree_path(raw)
+        if collapsed is None:
+            continue
+        probes.append((_fold_case(collapsed), collapsed))
+    return tuple(probes)
+
+
+def _inside_scope(path: str, scope: Sequence[str]) -> bool:
+    """True when ``path`` is a declared write target or lives under one.
+
+    Prefix containment, not set membership. A task that declares ``tests/`` as
+    its scope may write ``tests/test_gate.py``; comparing the two as opaque
+    strings finds them disjoint and grants the criterion a seal the containment
+    check never provided.
+    """
+
+    for target in scope:
+        if path == target or path.startswith(target + "/"):
+            return True
+    return False
+
+
+def _gate_mentions(criterion: str, args: Sequence[Any]) -> bool:
+    """Whether the gate that ran actually named this criterion path.
+
+    MATCHED ON PATH BOUNDARIES, NOT AS A SUBSTRING. A bare ``in`` test grants
+    the seal for a criterion named ``a.py`` whenever any argument contains
+    ``data.py``, and a false grant here is a false ``deterministic`` -- the
+    exact failure this whole check exists to prevent. Each argument is split on
+    the characters that separate arguments in practice, the pytest node-id
+    suffix is dropped, and what remains must equal the criterion or end with it
+    at a directory boundary (a gate invoked with an absolute path into the
+    worktree still names the same file).
+    """
+
+    for raw in args:
+        text = _fold_case(str(raw).replace("\\", "/"))
+        for piece in re.split(r"[\s=,;]+", text):
+            head = piece.split("::", 1)[0]
+            if not head:
+                continue
+            # normpath directly, not _normalise_tree_path: an absolute argument
+            # is a legitimate way to name the file and is compared by suffix,
+            # whereas an absolute DECLARATION has no normal form and is refused.
+            settled = posixpath.normpath(head)
+            if settled == criterion or settled.endswith("/" + criterion):
+                return True
+    return False
+
+
+def evaluator_assurance_detail(
+    result: Any,
+    task: Any,
+    *,
+    criterion_present: Mapping[str, bool] | None = None,
+) -> tuple[str, str]:
+    """How much the gate verdict is worth, and WHY -- derived, never asserted.
 
     ``deterministic`` is claimed ONLY when the criterion came from outside the
     candidate and the candidate ran behind a boundary that actually held:
 
     * a spine-authored gate (``target-scope``) reads the patch, never the
       candidate's own code, so no candidate can influence its verdict;
+    * a declared ``gate_criterion_paths`` seal, which now has to survive four
+      separate checks rather than one string-set intersection (below);
     * a FAIL_TO_PASS/PASS_TO_PASS gate carries a frozen, pre-verified receipt
       the candidate cannot author, but only counts when the measured
       containment attestation says the child was in fact contained.
 
-    Everything else is ``unverified`` -- including a plain pytest gate over the
-    candidate's own worktree, where the candidate could have edited the tests
-    that judge it. That is not pessimism: a conclusive EvidencePacket may not
-    rest on unverified evidence, so calling this "deterministic" by default
-    would manufacture exactly the green the evidence boundary exists to refuse.
+    WHY THE CRITERION SEAL IS FOUR CHECKS AND NOT ONE. The first version of
+    this compared two raw string sets. Every one of ``tests/../tests/x.py``,
+    ``.//tests/x.py`` and ``Tests/X.py`` therefore read as disjoint from a
+    scope containing ``tests/x.py`` -- so a candidate allowed to write the very
+    file that judged it produced a ``deterministic`` packet, which promotion
+    accepts. Worse, a criterion naming a file that does not exist, and a scope
+    that was never declared at all, both read as sealed. The seal now requires,
+    and states in its reason when it cannot get:
+
+    1. **one normal form on both sides** (:func:`_normalise_tree_path`), with
+       absolute and root-escaping declarations refused outright;
+    2. **an armed containment**: an empty ``target_paths`` means nothing bound
+       the patch, so there is no boundary for the criterion to be outside OF;
+    3. **the criterion exists as a regular file in the base revision tree**
+       (``criterion_present``, measured by the caller against the frozen base,
+       symlink and submodule entries excluded) -- a criterion the base does not
+       contain was never outside the candidate's reach, it simply was not
+       there;
+    4. **the gate that ran actually named it**, in ``task.gate_argv`` or in the
+       command the :class:`GateResult` recorded. A file the gate never reads
+       seals nothing.
+
+    Where a check is not knowable -- no presence map, no recorded command --
+    the seal is NOT granted and the reason says which fact was missing.
+    Everything else is ``unverified``, including a plain pytest gate over the
+    candidate's own worktree. That is not pessimism: a conclusive
+    EvidencePacket may not rest on unverified evidence, so calling this
+    "deterministic" by default would manufacture exactly the green the evidence
+    boundary exists to refuse.
     """
 
     gate = getattr(result, "gates", None)
     if gate is None:
-        return "unverified"
+        return "unverified", "no gate ran, so there is no verdict to qualify"
     if str(getattr(gate, "name", "")) == "target-scope":
-        return "deterministic"
-    # A gate whose criterion is a tree file the task may NOT write is as sealed
-    # from the candidate as a spine-authored one: containment.attempt already
-    # refused any patch that reached outside target_paths, so the candidate
-    # could not have edited the thing that judged it.
-    criterion = tuple(getattr(task, "gate_criterion_paths", ()) or ())
-    if criterion:
-        scope = {str(p).replace("\\", "/").removeprefix("./")
-                 for p in getattr(task, "target_paths", ()) or ()}
-        if not ({str(p).replace("\\", "/").removeprefix("./")
-                 for p in criterion} & scope):
-            return "deterministic"
+        return (
+            "deterministic",
+            "spine-authored target-scope gate: it reads the patch, not the "
+            "candidate's code, so no candidate can influence its verdict",
+        )
+
+    criterion_raw = tuple(getattr(task, "gate_criterion_paths", ()) or ())
     frozen_criterion = bool(
         getattr(task, "fail_to_pass", ()) or getattr(task, "pass_to_pass", ())
     )
     containment = getattr(gate, "containment", None)
     contained = bool(getattr(containment, "contained", False))
+
+    if criterion_raw:
+        why = _criterion_seal(
+            criterion_raw, task, gate, criterion_present=criterion_present
+        )
+        if why is None:
+            return (
+                "deterministic",
+                "declared gate criterion is outside the armed write scope, "
+                "present in the base revision tree, and named by the gate that "
+                "ran",
+            )
+        if not (frozen_criterion and contained):
+            return "unverified", why
+
     if frozen_criterion and contained:
-        return "deterministic"
-    return "unverified"
+        return (
+            "deterministic",
+            "frozen FAIL_TO_PASS/PASS_TO_PASS receipt the candidate cannot "
+            "author, under a measured containment attestation",
+        )
+    if frozen_criterion:
+        return (
+            "unverified",
+            "a frozen correctness criterion was declared but the containment "
+            "attestation does not say the child was contained",
+        )
+    return (
+        "unverified",
+        "the gate ran over the candidate's own worktree with no criterion the "
+        "candidate was barred from writing",
+    )
+
+
+def _criterion_seal(
+    criterion_raw: Sequence[Any],
+    task: Any,
+    gate: Any,
+    *,
+    criterion_present: Mapping[str, bool] | None,
+) -> str | None:
+    """``None`` when the declared criterion seals the verdict, else the reason.
+
+    Split out of :func:`evaluator_assurance_detail` so each refusal returns a
+    sentence naming the exact fact that was missing. A seal that fails silently
+    into a boolean is a seal whose failures cannot be triaged from a receipt.
+    """
+
+    scope_raw = tuple(getattr(task, "target_paths", ()) or ())
+    if not scope_raw:
+        return (
+            "the task declares a gate criterion but NO target_paths, so "
+            "containment was never armed and the criterion is not outside any "
+            "boundary"
+        )
+    scope: list[str] = []
+    for raw in scope_raw:
+        normalised = _normalise_tree_path(raw)
+        if normalised is None:
+            return (
+                f"declared target path {str(raw)!r} has no normal form inside "
+                "the tree (absolute or root-escaping), so the write scope "
+                "cannot be compared against the criterion"
+            )
+        scope.append(normalised)
+
+    argv = tuple(getattr(task, "gate_argv", ()) or ())
+    command = tuple(getattr(gate, "command", ()) or ())
+    mentions = (*argv, *command)
+
+    for raw in criterion_raw:
+        criterion = _normalise_tree_path(raw)
+        if criterion is None:
+            return (
+                f"declared gate criterion {str(raw)!r} has no normal form "
+                "inside the tree (absolute or root-escaping)"
+            )
+        if _inside_scope(criterion, scope):
+            return (
+                f"declared gate criterion {criterion!r} is INSIDE the declared "
+                "write scope, so the candidate was allowed to edit the thing "
+                "that judged it"
+            )
+        if criterion_present is None:
+            return (
+                "the criterion's presence in the base revision tree was not "
+                "measured, so it cannot be shown the candidate had no reach "
+                "over it"
+            )
+        if not criterion_present.get(criterion, False):
+            return (
+                f"declared gate criterion {criterion!r} is not a regular file "
+                "in the base revision tree, so it sealed nothing"
+            )
+        if not mentions:
+            return (
+                "the gate recorded no command and the task declares no "
+                "gate_argv, so whether the gate read the criterion is not "
+                "knowable from this record"
+            )
+        if not _gate_mentions(criterion, mentions):
+            return (
+                f"the gate that ran never names {criterion!r} in its command, "
+                "so the declared criterion is not what produced this verdict"
+            )
+    return None
+
+
+def evaluator_assurance(
+    result: Any,
+    task: Any,
+    *,
+    criterion_present: Mapping[str, bool] | None = None,
+) -> str:
+    """The assurance string alone. See :func:`evaluator_assurance_detail`."""
+
+    return evaluator_assurance_detail(
+        result, task, criterion_present=criterion_present
+    )[0]
 
 
 @dataclass(frozen=True)
@@ -420,9 +706,9 @@ class AttemptContractSet:
     receipt: AttemptReceipt | None = None
     error: str | None = None
     #: The local lane's brief-shed rows for this attempt, one per full-file
-    #: prompt. ``est_in`` from these rows is what meters
-    #: ``receipt.usage.input_tokens``; ``brief_shed`` and ``brief_bytes`` have
-    #: no home inside ResourceUsage's four integers, so they ride the set --
+    #: prompt. ``est_in`` from these rows is what fills
+    #: ``receipt.usage.est_input_tokens``; ``brief_shed`` and ``brief_bytes``
+    #: have no home inside ResourceUsage's integers, so they ride the set --
     #: the record the ledger row is written from -- instead of being dropped.
     #: Empty is the default and means no shed decision was reported, never
     #: "no brief was shed".
@@ -478,7 +764,134 @@ class AttemptContractSet:
         # back as a plausible object. A row written before this field existed is
         # absent, not malformed, and reads back as the empty default.
         built["shed_telemetry"] = normalise_shed_telemetry(payload.get("shed_telemetry"))
+        cls._assert_mint_bindings(built)
         return cls(**built)
+
+    @staticmethod
+    def _assert_mint_bindings(built: Mapping[str, Any]) -> None:
+        """Re-assert the bindings :func:`canonicalise_attempt` made at mint time.
+
+        THE DOCSTRING ABOVE PROMISED THIS AND THE CODE DID NOT DO IT. Each
+        contract's own ``from_dict`` validates that contract in isolation: an
+        id is an identifier, a digest is 64 hex characters, a status is one of
+        the allowed words. None of that notices when a row's five contracts are
+        individually well-formed but do not belong together -- an evidence
+        packet swapped in from another attempt, a receipt still naming the
+        digest of the packet it was minted against while a different packet
+        sits beside it, or a policy decision that decided about someone else.
+
+        That gap matters exactly where the set is read rather than written:
+        ``read_contract_set`` is what a promotion path uses to recover the
+        record from the ledger, and a set whose parts were shuffled would
+        reconstruct into a plausible object carrying someone else's green.
+        The four bindings below are the ones the mint actually establishes, so
+        they are the four that can be re-derived without inventing a rule the
+        producer never followed:
+
+        1. one ``attempt_id`` across attempt contract, evidence and receipt;
+        2. ``receipt.evidence_packet_sha256`` IS the digest of the packet in
+           the same row (and likewise for the attempt contract, runtime
+           manifest and policy decision each of them names);
+        3. the policy decision's ``subject_id`` is that attempt and its digest
+           is the one the attempt contract and receipt bind;
+        4. one ``mission_id`` across the three, and the ONE ``ResourceUsage``
+           the mint handed to both the packet and the receipt.
+
+        WHAT IS DELIBERATELY NOT CHECKED HERE: the candidate artifact digest.
+        ``EvidencePacket.candidate_artifact_sha256`` is the only field in the
+        set that carries it -- no second contract names it -- so there is
+        nothing to cross-check it against without re-reading the artifact
+        store, which is an effect this module does not have and must not
+        acquire. That gap is named rather than papered over with a check that
+        would only compare the field to itself.
+
+        A partial set is NOT an error: the mint legitimately returns a runtime
+        manifest and a reported reason when it refuses to go further, and every
+        check below is skipped for the contracts that row does not carry.
+        """
+
+        runtime = built.get("runtime")
+        policy = built.get("policy")
+        attempt = built.get("attempt")
+        evidence = built.get("evidence")
+        receipt = built.get("receipt")
+
+        def _bind(label: str, left: Any, right: Any) -> None:
+            if left is None or right is None:
+                return
+            if left != right:
+                raise ValueError(
+                    f"attempt contract set is not internally bound: {label} "
+                    f"({left!r} != {right!r})"
+                )
+
+        for field_name in ("attempt_id", "mission_id"):
+            ids = [
+                (f"attempt.{field_name}", getattr(attempt, field_name, None)),
+                (f"evidence.{field_name}", getattr(evidence, field_name, None)),
+                (f"receipt.{field_name}", getattr(receipt, field_name, None)),
+            ]
+            present = [(name, value) for name, value in ids if value is not None]
+            for name, value in present[1:]:
+                _bind(f"{present[0][0]} vs {name}", present[0][1], value)
+
+        attempt_digest = None if attempt is None else attempt.digest
+        runtime_digest = None if runtime is None else runtime.digest
+        policy_digest = None if policy is None else policy.digest
+        evidence_digest = None if evidence is None else evidence.digest
+
+        for holder, holder_name in ((evidence, "evidence"), (receipt, "receipt")):
+            if holder is None:
+                continue
+            _bind(
+                f"{holder_name}.attempt_contract_sha256 vs attempt.digest",
+                getattr(holder, "attempt_contract_sha256", None),
+                attempt_digest,
+            )
+            _bind(
+                f"{holder_name}.policy_decision_sha256 vs policy.digest",
+                getattr(holder, "policy_decision_sha256", None),
+                policy_digest,
+            )
+        if receipt is not None:
+            _bind(
+                "receipt.evidence_packet_sha256 vs evidence.digest",
+                receipt.evidence_packet_sha256,
+                evidence_digest,
+            )
+            _bind(
+                "receipt.runtime_manifest_sha256 vs runtime.digest",
+                receipt.runtime_manifest_sha256,
+                runtime_digest,
+            )
+        if attempt is not None:
+            _bind(
+                "attempt.runtime_manifest_sha256 vs runtime.digest",
+                attempt.runtime_manifest_sha256,
+                runtime_digest,
+            )
+            _bind(
+                "attempt.policy_decision_sha256 vs policy.digest",
+                attempt.policy_decision_sha256,
+                policy_digest,
+            )
+        if policy is not None and attempt is not None:
+            _bind(
+                "policy.subject_id vs attempt.attempt_id",
+                policy.subject_id,
+                attempt.attempt_id,
+            )
+            _bind(
+                "policy.subject_sha256 vs attempt.task_sha256",
+                policy.subject_sha256,
+                attempt.task_sha256,
+            )
+        if evidence is not None and receipt is not None:
+            _bind(
+                "evidence.usage vs receipt.usage",
+                evidence.usage,
+                receipt.usage,
+            )
 
 
 def canonicalise_attempt(
@@ -498,8 +911,11 @@ def canonicalise_attempt(
     campaign_id: str | None = None,
     trace_id: str | None = None,
     assurance: str | None = None,
+    assurance_reason: str = "",
+    criterion_present: Mapping[str, bool] | None = None,
     boundary_receipt: Any = None,
     shed_telemetry: Any = None,
+    mission_policy_sha256: str | None = None,
 ) -> AttemptContractSet:
     """Turn one finished :class:`AttemptResult` into the canonical records.
 
@@ -511,11 +927,27 @@ def canonicalise_attempt(
     ``shed_telemetry`` is ADDITIVE and defaults to nothing, so every existing
     caller mints byte-identical records. When a lane does supply it (the local
     provider's ``report.handoff["shed_telemetry"]``), two things follow: the
-    rows ride the set into the ledger row, and ``usage.input_tokens`` -- left at
-    0 by every producer so far, and explicitly declared unmetered inside the
-    PolicyDecision digest -- is metered from their ``est_in`` sum. The declared
-    reason is swapped in the same breath, because a contract may not keep
-    asserting "nothing measured them" once something did.
+    rows ride the set into the ledger row, and ``usage.est_input_tokens`` is
+    filled from their ``est_in`` sum. It goes into ``est_input_tokens`` and NOT
+    into ``input_tokens``: the sum is a cl100k over-count taken before the
+    prompt was sent, and ``input_tokens`` means "the serving side counted this
+    many". Writing an estimate there would make the receipt assert a
+    measurement nobody made (Invariant 9), and no downstream reader could tell
+    the two apart afterwards. The declared reason is swapped in the same
+    breath, because a contract may not keep asserting "nothing measured them"
+    once something estimated them -- and when rows arrive whose ``est_in`` is 0
+    while the brief was NOT shed, the shortfall gets its own reason rather than
+    disappearing into the sum.
+
+    ``mission_policy_sha256`` is the digest the :class:`MissionContract` this
+    attempt serves bound. It is compared against the policy digest the attempt's
+    own decision carries -- the boundary receipt's registry digest when there
+    was a boundary, the locally-read registry otherwise -- and a disagreement
+    REFUSES the projection rather than minting a chain whose mission and
+    attempt name two different policy texts (Invariant 1). Defaulting to the
+    locally-read registry means the check is live for every caller today: it
+    catches a registry that moved between the boundary start and this
+    projection, which is the same failure with a shorter fuse.
     """
 
     runtime: RuntimeManifest | None = None
@@ -527,9 +959,18 @@ def canonicalise_attempt(
         # FIRST, before any contract is built: a malformed covariate must not
         # reach a digest. The refusal is reported like every other one here.
         shed_rows = normalise_shed_telemetry(shed_telemetry)
-        if shed_rows and not usage.input_tokens:
+        under_metered = 0
+        if shed_rows and not usage.est_input_tokens:
             usage = replace(
-                usage, input_tokens=sum(int(row["est_in"]) for row in shed_rows)
+                usage,
+                est_input_tokens=sum(int(row["est_in"]) for row in shed_rows),
+            )
+            # A row that did not shed its brief had a full-file prompt built for
+            # it, so an est_in of 0 is a missing estimate, not a measured zero.
+            under_metered = sum(
+                1
+                for row in shed_rows
+                if not row["brief_shed"] and not int(row["est_in"])
             )
         runtime = attempt_runtime_manifest(
             source_revision=base_revision,
@@ -571,14 +1012,26 @@ def canonicalise_attempt(
                 str(getattr(result, "error", "") or "no reason recorded"),
                 UNMETERED_SPEND_REASON,
             ]
-        if shed_rows and usage.input_tokens:
+        if shed_rows and usage.est_input_tokens:
             # The wording travels INSIDE the PolicyDecision digest, so leaving
-            # the unmetered line in place while input_tokens is nonzero would
-            # sign a false statement. One line replaced, nothing else touched.
+            # the unmetered line in place while est_input_tokens is nonzero
+            # would sign a false statement. One line replaced, nothing else
+            # touched.
             reasons = [
                 METERED_INPUT_REASON if reason == UNMETERED_SPEND_REASON else reason
                 for reason in reasons
             ]
+        if under_metered:
+            reasons.append(
+                UNDER_METERED_INPUT_REASON.format(
+                    missing=under_metered, total=len(shed_rows)
+                )
+            )
+        if assurance_reason:
+            reasons.append(
+                f"{ASSURANCE_REASON_PREFIX} "
+                f"{assurance or 'unverified'}: {assurance_reason}"
+            )
         timeout_s = int(float(getattr(task, "gate_timeout_s", 0) or 0)) or None
         policy = attempt_policy_decision(
             decision_id=f"{attempt_id}:policy",
@@ -604,6 +1057,27 @@ def canonicalise_attempt(
                     "the record and there is no evidence to bind"
                 ),
             )
+        # ONE POLICY TEXT PER CHAIN, checked rather than assumed. The mission
+        # bound a registry digest when it was compiled; this decision bound the
+        # one the effect boundary was started against. Nothing compared them,
+        # so a registry edited between the two produced a mission and an
+        # attempt that each named a different policy and neither noticed.
+        declared_policy_sha = str(mission_policy_sha256 or "").strip() or (
+            _policy_registry_sha256()
+        )
+        if declared_policy_sha != policy.policy_sha256:
+            return AttemptContractSet(
+                runtime=runtime,
+                policy=policy,
+                shed_telemetry=shed_rows,
+                error=(
+                    "policy digest disagreement: the mission this attempt serves "
+                    f"binds {declared_policy_sha} and the attempt's own policy "
+                    f"decision binds {policy.policy_sha256}; refusing to mint a "
+                    "chain whose mission and attempt name two different policy "
+                    "texts"
+                ),
+            )
         attempt = AttemptContract.from_task_spec(
             task,
             attempt_id=attempt_id,
@@ -617,10 +1091,20 @@ def canonicalise_attempt(
                 origin=ATTEMPT_ORIGIN,
                 source_revision=base_revision,
                 created_at=created_at,
-                input_digests=(
-                    str(getattr(task, "digest")),
-                    runtime.digest,
-                    policy.digest,
+                # The policy TEXT digest joins the contract digests, so the
+                # attempt contract itself carries the thing the mission was
+                # compiled against -- a reader who has only this record can
+                # still tell which policy it was decided under, instead of
+                # having to trust that two contracts agreed at mint time.
+                input_digests=tuple(
+                    dict.fromkeys(
+                        (
+                            str(getattr(task, "digest")),
+                            runtime.digest,
+                            policy.digest,
+                            declared_policy_sha,
+                        )
+                    )
                 ),
                 trace_id=trace_id,
             ),
@@ -639,7 +1123,9 @@ def canonicalise_attempt(
                     )
                 ),
             )
-        packet_assurance = assurance or evaluator_assurance(result, task)
+        packet_assurance = assurance or evaluator_assurance(
+            result, task, criterion_present=criterion_present
+        )
         evidence = EvidencePacket.from_attempt_result(
             result,
             attempt=attempt,
@@ -849,11 +1335,13 @@ __all__ = [
     "ATTEMPT_KILL_SWITCH_REF",
     "ATTEMPT_ORIGIN",
     "ATTEMPT_RUNTIME_ID",
+    "ASSURANCE_REASON_PREFIX",
     "GATE_WALL_BOUND_REASON",
     "METERED_INPUT_REASON",
     "AttemptContractSet",
     "SHED_TELEMETRY_FIELDS",
     "SPEND_GRANT_REASON",
+    "UNDER_METERED_INPUT_REASON",
     "UNMETERED_SPEND_REASON",
     "adapter_identity",
     "normalise_shed_telemetry",
@@ -861,7 +1349,9 @@ __all__ = [
     "attempt_runtime_manifest",
     "read_contract_set",
     "canonicalise_attempt",
+    "criterion_probe_paths",
     "evaluator_assurance",
+    "evaluator_assurance_detail",
     "mission_contract_for_build_session",
     "mission_contract_for_candidate",
 ]

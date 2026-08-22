@@ -259,7 +259,7 @@ def _project(attempt, result, rows):
     )
 
 
-def test_the_attempt_record_carries_the_covariate_and_meters_input_tokens():
+def test_the_attempt_record_carries_the_covariate_and_estimates_input_tokens():
     rows = [
         {"rel": "target.py", "brief_shed": True, "est_in": 9_000, "brief_bytes": 0},
         {"rel": "other.py", "brief_shed": False, "est_in": 1_200, "brief_bytes": 640},
@@ -273,6 +273,7 @@ def test_the_attempt_record_carries_the_covariate_and_meters_input_tokens():
     # BASELINE: without telemetry nothing changes -- same zero, same declared
     # limitation. The feature is additive or it is a rewrite of every record.
     assert bare.shed_telemetry == ()
+    assert bare.receipt.usage.est_input_tokens == 0
     assert bare.receipt.usage.input_tokens == 0
     assert UNMETERED_SPEND_REASON in bare.policy.reasons
     assert METERED_INPUT_REASON not in bare.policy.reasons
@@ -282,9 +283,15 @@ def test_the_attempt_record_carries_the_covariate_and_meters_input_tokens():
     assert [r["rel"] for r in metered.shed_telemetry] == ["target.py", "other.py"]
     assert metered.shed_telemetry[0]["brief_shed"] is True
     assert metered.shed_telemetry[1]["brief_bytes"] == 640
-    # ...and est_in becomes the spine's FIRST metered usage field, inside the
-    # receipt's digest rather than beside it.
-    assert metered.receipt.usage.input_tokens == 10_200
+    # ...and est_in becomes the spine's FIRST populated usage field, inside the
+    # receipt's digest rather than beside it. IT LANDS IN est_input_tokens AND
+    # NOT IN input_tokens: this number is a cl100k over-count taken before the
+    # prompt was sent, and `input_tokens` means "the serving side counted this
+    # many". They are two different quantities with two different error terms,
+    # and a receipt that stores the estimate in the measurement's field asserts
+    # a count nobody made (Invariant 9).
+    assert metered.receipt.usage.est_input_tokens == 10_200
+    assert metered.receipt.usage.input_tokens == 0
     assert metered.evidence.usage == metered.receipt.usage
 
     # The declared limitation is swapped in the same breath, because a digest

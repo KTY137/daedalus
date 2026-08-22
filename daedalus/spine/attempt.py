@@ -1160,7 +1160,8 @@ class TaskAttempt:
                  mission_id: str | None = None,
                  campaign_id: str | None = None,
                  budget: "ResourceBudget | None" = None,
-                 spend_grant_microusd: int = 0) -> None:
+                 spend_grant_microusd: int = 0,
+                 mission_policy_sha256: str = "") -> None:
         if not isinstance(task, TaskSpec):
             raise TypeError("task must be a TaskSpec")
         if runner is None or not callable(runner):
@@ -1252,6 +1253,14 @@ class TaskAttempt:
         self.budget = budget if budget is not None else ResourceBudget(
             max_wall_time_s=int(float(task.gate_timeout_s)))
         self.spend_grant_microusd = int(spend_grant_microusd)
+        # The policy digest the MissionContract this attempt serves was compiled
+        # against. Empty by default and never invented here: a caller that holds
+        # a real mission passes its `policy_sha256`, and the canonical
+        # projection then refuses to mint a chain whose mission and attempt name
+        # two different policy texts. With it empty the projection still
+        # compares the attempt's own decision against the declared registry, so
+        # a registry that moved mid-attempt is caught either way.
+        self.mission_policy_sha256 = str(mission_policy_sha256 or "")
         # Filled in by run() from the fresh worktree, BEFORE the runner is
         # invoked. None until then, and None afterwards for a worktree whose
         # `.git` was not the expected pointer file.
@@ -1819,6 +1828,107 @@ class TaskAttempt:
             return None, (
                 f"gate output could not be persisted: {type(e).__name__}: {e}")
 
+    #: Git tree entry modes that make a criterion path a REGULAR file. A
+    #: symlink (``120000``) is a blob whose content is a path, so its bytes can
+    #: be changed by writing the file it points at -- which the candidate may be
+    #: allowed to do. A gitlink (``160000``) is a commit id in another
+    #: repository, whose content this tree does not pin at all. Neither seals
+    #: anything, and both would pass a bare "does the path exist" check.
+    _REGULAR_BLOB_MODES = (b"100644", b"100755")
+
+    def _criterion_presence(
+            self, base_revision: str | None) -> dict[str, bool] | None:
+        """Measure each declared gate criterion against the BASE revision tree.
+
+        ``None`` means the question could not be asked (no resolved base, or git
+        refused), which the assurance seal treats as "not knowable" and
+        therefore as no seal -- never as a pass. A path maps to ``True`` only
+        when the frozen base tree holds a REGULAR file there.
+
+        THE TREE IS READ, NOT THE FILESYSTEM. ``Path.exists`` on the primary
+        checkout would answer about the working tree as it is now, which is not
+        the revision the candidate branched from, and it would follow a symlink
+        or a Windows junction straight out of the repository. Reading the tree
+        entry answers the exact question the seal asks -- was this file, with
+        these bytes, in the revision the attempt was built on -- and the mode
+        that comes back with it is what excludes the two entry kinds that look
+        like files and are not.
+
+        ``cat-file -p <rev>:<dir>`` is used rather than ``ls-tree`` because it
+        is already inside :data:`READ_ONLY_REPO_VERBS`; a presence probe is not
+        a reason to widen a write-fence allowlist.
+
+        IT DOES NOT PASS ``self._admin_dir``, unlike every other git call in
+        this class, and that is deliberate rather than an omission. The pinned
+        admin directory belongs to the attempt's WORKTREE, which ``_cleanup``
+        has already removed by the time the projection is built -- pinning to
+        it made every probe fail and every criterion read as absent, which the
+        seal then correctly refused. This reads the PRIMARY repository, which is
+        where the base revision lives and which the candidate never had a path
+        to; ``cat-file`` on a tree object runs no filter and no textconv, so the
+        hardening the pin exists to provide has nothing to defend here.
+        """
+        from daedalus.spine.receipts import criterion_probe_paths
+
+        probes = criterion_probe_paths(self.task)
+        if not probes:
+            return {}
+        if not base_revision:
+            return None
+        listings: dict[str, dict[bytes, bytes]] = {}
+        presence: dict[str, bool] = {}
+        for key, path in probes:
+            parent, _, name = path.rpartition("/")
+            if parent not in listings:
+                try:
+                    out = _git(["cat-file", "-p", f"{base_revision}:{parent}"],
+                               cwd=self.repo_root, repo_root=self.repo_root).stdout
+                except Exception:
+                    # A missing directory is a legitimate answer ("no such
+                    # criterion"), and a git failure is an unanswerable one.
+                    # Both are recorded as "not present" rather than as an
+                    # exception that would destroy an otherwise finished
+                    # attempt's projection.
+                    listings[parent] = {}
+                else:
+                    entries: dict[bytes, bytes] = {}
+                    for line in out.splitlines():
+                        head, _, entry = line.partition(b"\t")
+                        mode = head.split(b" ", 1)[0] if head else b""
+                        if entry:
+                            entries[entry] = mode
+                    listings[parent] = entries
+            mode = listings[parent].get(name.encode("utf-8", "replace"))
+            presence[key] = mode in self._REGULAR_BLOB_MODES
+        return presence
+
+    @staticmethod
+    def _shed_telemetry_from(runner_detail: Any) -> Any:
+        """Lift the local lane's brief-shed rows out of whatever the runner returned.
+
+        THE PRODUCER AND THE CONSUMER WERE BOTH LIVE AND NOTHING JOINED THEM.
+        ``daedalus.providers.ollama`` writes these rows into
+        ``report.handoff["shed_telemetry"]`` on every full-file prompt, and
+        ``canonicalise_attempt`` has taken a ``shed_telemetry`` argument since
+        it was written -- but ``_canonicalise`` never passed one, so the
+        covariate was produced, carried through offload, and dropped here.
+
+        Duck-typed and total. A runner is an injected callable that may return
+        anything at all; a shape this does not recognise yields ``None``, which
+        is exactly "no shed decision was reported". It deliberately does not
+        validate the rows -- ``normalise_shed_telemetry`` does that, and its
+        refusals are reported on the contract set rather than raised here.
+        """
+        if not isinstance(runner_detail, Mapping):
+            return None
+        report = runner_detail.get("report")
+        if not isinstance(report, Mapping):
+            return None
+        handoff = report.get("handoff")
+        if not isinstance(handoff, Mapping):
+            return None
+        return handoff.get("shed_telemetry")
+
     def _canonicalise(self, result: AttemptResult, base_revision: str | None):
         """Project one finished attempt onto the canonical Gate-0 contracts.
 
@@ -1831,13 +1941,20 @@ class TaskAttempt:
         not satisfy it. This call is what makes the live attempt path produce
         them.
         """
-        from daedalus.spine.receipts import adapter_identity, canonicalise_attempt, evaluator_assurance
+        from daedalus.spine.receipts import (
+            adapter_identity, canonicalise_attempt, evaluator_assurance_detail)
 
         locator_uri, locator_error = self._persist_gate_output(
             result.gates, base_revision, result.finished_ts)
         gate_ms = (int(round(result.gates.duration_s * 1000))
                    if result.gates is not None else 0)
-        assurance = evaluator_assurance(result, self.task)
+        # MEASURED HERE, NOT ASSUMED THERE. The seal needs to know whether the
+        # declared criterion was a real file in the frozen base; only this class
+        # has the pinned git invocation that can answer it, so the measurement
+        # is taken here and the judgement stays in `receipts`.
+        criterion_present = self._criterion_presence(base_revision)
+        assurance, assurance_reason = evaluator_assurance_detail(
+            result, self.task, criterion_present=criterion_present)
         return canonicalise_attempt(
             result,
             task=self.task,
@@ -1848,12 +1965,24 @@ class TaskAttempt:
             evidence_locator=locator_uri,
             locator_error=locator_error,
             assurance=assurance,
-            # The measured half of usage. Tokens and spend are absent because
-            # nothing on this path meters them -- see receipts.UNMETERED_SPEND_REASON,
-            # which travels inside the PolicyDecision digest rather than in a
-            # comment a reader of the record would never see.
+            assurance_reason=assurance_reason,
+            criterion_present=criterion_present,
+            # The measured half of usage. Spend and server-counted tokens are
+            # absent because nothing on this path meters them -- see
+            # receipts.UNMETERED_SPEND_REASON, which travels inside the
+            # PolicyDecision digest rather than in a comment a reader of the
+            # record would never see. `est_input_tokens` is filled by
+            # `canonicalise_attempt` when the runner reported shed telemetry.
             usage=ResourceUsage(wall_time_ms=gate_ms),
             budget=self.budget,
+            # THE COVARIATE THE LOCAL LANE ALREADY PRODUCED. Lifted off the
+            # runner's own return value rather than re-derived, so the rows in
+            # the receipt are the rows the prompt decision was actually made on.
+            shed_telemetry=self._shed_telemetry_from(result.runner_detail),
+            # The policy text the MISSION bound, when the caller knows it. Left
+            # empty, `canonicalise_attempt` falls back to the declared registry
+            # and still catches a registry that moved under the attempt.
+            mission_policy_sha256=self.mission_policy_sha256 or None,
             # THE SOURCE OF THE PolicyDecision, not a decoration on it. Without
             # it `canonicalise_attempt` re-states the guard names in prose and
             # binds the registry digest by reaching for it a second time; with

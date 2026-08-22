@@ -1212,39 +1212,26 @@ def _attempt_binding(
     }
 
 
-#: The exact hunk that would close :func:`_attempt_assurance_blocker`'s gap.
-#: Kept beside the detection so a reader of the receipt can see the fix, and
-#: NOT applied here: ``daedalus/spine/attempt.py`` is the kernel's attempt path
-#: and this slice is a Gate-1 consumer of it, not its owner.
-ATTEMPT_ASSURANCE_HUNK = """\
---- a/daedalus/spine/receipts.py
-+++ b/daedalus/spine/receipts.py
-@@ def evaluator_assurance(result: Any, task: Any) -> str:
-     if str(getattr(gate, "name", "")) == "target-scope":
-         return "deterministic"
-+    # A gate whose criterion is a tree file the task may NOT write is as sealed
-+    # from the candidate as a spine-authored one: containment.attempt already
-+    # refused any patch that reached outside target_paths, so the candidate
-+    # could not have edited the thing that judged it.
-+    criterion = tuple(getattr(task, "gate_criterion_paths", ()) or ())
-+    if criterion:
-+        scope = {str(p).replace("\\\\", "/").removeprefix("./")
-+                 for p in getattr(task, "target_paths", ()) or ()}
-+        if not ({str(p).replace("\\\\", "/").removeprefix("./")
-+                 for p in criterion} & scope):
-+            return "deterministic"
-     frozen_criterion = bool(
---- a/daedalus/spine/attempt.py
-+++ b/daedalus/spine/attempt.py
-@@ class TaskSpec:
-     fail_to_pass: tuple[str, ...] = ()
-     pass_to_pass: tuple[str, ...] = ()
-+    #: Paths INSIDE the candidate tree that state this task's gate criterion.
-+    #: Declared, never inferred, and joined to body() so it is inside the task
-+    #: digest -- a criterion that could be widened after the fact would be no
-+    #: criterion. Empty keeps today's behaviour exactly.
-+    gate_criterion_paths: tuple[str, ...] = ()
-"""
+#: WHAT THIS USED TO BE, AND WHY IT IS ONE SENTENCE NOW. This constant carried
+#: a literal diff for the ``gate_criterion_paths`` seal, kept beside the
+#: detection so a reader of the receipt could see the proposed fix. The API
+#: landed in 93489855 and the seal was HARDENED afterwards -- the shipped
+#: version normalises both sides of the comparison, refuses an unarmed write
+#: scope, requires the criterion to be a regular file in the base revision tree
+#: and requires the gate that ran to have named it. The old text advertised the
+#: naive raw-string-set version, which three different spellings of one path
+#: walked straight through. A proposal that no longer matches the code is worse
+#: than no proposal: it tells a reader to re-introduce the hole. The authority
+#: is :func:`daedalus.spine.receipts.evaluator_assurance_detail` and its
+#: docstring; this constant only says so.
+ATTEMPT_ASSURANCE_HUNK = (
+    "superseded: the gate_criterion_paths API landed in 93489855 and the seal "
+    "that reads it was hardened afterwards (path normalisation on both sides, "
+    "an armed write scope required, base-revision presence measured, and the "
+    "gate's own command required to name the criterion). See "
+    "daedalus.spine.receipts.evaluator_assurance_detail for the live rule; "
+    "there is no pending hunk."
+)
 
 
 def _attempt_assurance_blocker(binding: Mapping[str, Any]) -> dict[str, Any] | None:

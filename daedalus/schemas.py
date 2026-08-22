@@ -359,7 +359,15 @@ class ResourceBudget:
 
     def violations(self, usage: "ResourceUsage") -> tuple[str, ...]:
         violations: list[str] = []
-        used_tokens = usage.input_tokens + usage.output_tokens
+        # THE LARGER OF THE TWO INPUT NUMBERS, never their sum. They describe
+        # the SAME prompt -- a server-reported count and a local pre-send
+        # estimate of it -- so adding them would charge one prompt twice.
+        # Taking the max rather than only the measured count keeps a token
+        # ceiling from going blind on the local lane, which reports an estimate
+        # and no measurement: a bound that ignores the only number anyone has
+        # is not a bound. It stays conservative by construction, because the
+        # estimator over-counts.
+        used_tokens = max(usage.input_tokens, usage.est_input_tokens) + usage.output_tokens
         if self.max_tokens is not None and used_tokens > self.max_tokens:
             violations.append(
                 f"tokens {used_tokens} exceed max_tokens {self.max_tokens}"
@@ -393,9 +401,21 @@ class ResourceUsage:
     output_tokens: int = 0
     cost_microusd: int = 0
     wall_time_ms: int = 0
+    #: A LOCALLY ESTIMATED input-token count, kept in its own field so it can
+    #: never be read as a measurement. ``input_tokens`` means "the serving side
+    #: counted this many"; an over-count produced by running cl100k over the
+    #: prompt text before it was sent is a different quantity with different
+    #: error, and writing it into ``input_tokens`` would make a contract assert
+    #: a server-reported number nobody reported (Invariant 9). Appended at the
+    #: END of the dataclass so no positional construction site re-binds, and
+    #: defaulted to 0 so every existing record round-trips unchanged: a payload
+    #: written before this field existed reads back with the default rather
+    #: than failing ``_record_payload``.
+    est_input_tokens: int = 0
 
     def __post_init__(self) -> None:
-        for name in ("input_tokens", "output_tokens", "cost_microusd", "wall_time_ms"):
+        for name in ("input_tokens", "output_tokens", "cost_microusd",
+                     "wall_time_ms", "est_input_tokens"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"usage.{name} must be a non-negative integer")
@@ -611,19 +631,40 @@ def derive_work_item_id(
     by the mission, whose tuple is sorted by construction.
     """
 
+    digest = work_item_identity_sha256(
+        mission_id, ordinal=ordinal, identity=identity
+    )
+    return _identifier(f"wi-{ordinal:03d}-{digest[:12]}", "work_item_id")
+
+
+def work_item_identity_sha256(
+    mission_id: str,
+    *,
+    ordinal: int,
+    identity: Sequence[Any] = (),
+) -> str:
+    """The FULL digest :func:`derive_work_item_id` truncates into an id.
+
+    Extracted so a binder can freeze the substance it bound and later compare
+    against it: the id carries only twelve hex characters of this, which is
+    enough to make two plans collide-resistantly distinct but not enough for a
+    mismatch report to name what actually moved. Pure, additive, and the single
+    place the canonical identity body is spelled -- deriving the id and freezing
+    its substance cannot drift into two different bodies.
+    """
+
     mission = _identifier(mission_id, "mission_id")
     if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 0:
         raise ValueError("work item ordinal must be a non-negative integer")
     if isinstance(identity, (str, bytes)):
         raise ValueError("work item identity must be a sequence, not a string")
-    digest = canonical_sha(
+    return canonical_sha(
         {
             "mission_id": mission,
             "ordinal": ordinal,
             "identity": [str(part) for part in identity],
         }
     )
-    return _identifier(f"wi-{ordinal:03d}-{digest[:12]}", "work_item_id")
 
 
 @dataclass(frozen=True)

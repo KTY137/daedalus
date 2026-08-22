@@ -361,3 +361,67 @@ def test_a_declared_budget_and_mission_are_carried_into_the_contract(
     assert contracts.attempt.budget == budget
     assert contracts.policy.effect_scope.max_cost_microusd == 250_000
     assert attempt.budget == budget
+
+
+# --------------------------------------------------------------------------- #
+# the hardened seals, on the same live path                                    #
+# --------------------------------------------------------------------------- #
+def test_the_policy_text_the_mission_binds_rides_the_attempt_contract(
+        repo, tmp_path):
+    """One policy text per chain, carried rather than assumed.
+
+    ``MissionContract.policy_sha256`` and the attempt's own
+    ``PolicyDecision.policy_sha256`` were never compared, so a registry edited
+    between compiling the mission and projecting the attempt produced a chain
+    naming two different policy texts with nothing to notice. The digest now
+    joins the attempt contract's own provenance inputs, which is what lets a
+    reader holding only this record name the policy it was decided under.
+    """
+    from daedalus.spine.effect_boundary import registry_sha256
+
+    _attempt, result = _run(repo, tmp_path)
+    contracts = result.contract_set()
+
+    assert contracts.policy.policy_sha256 == registry_sha256()
+    assert registry_sha256() in contracts.attempt.provenance.input_digests
+
+
+def test_the_assurance_derivation_records_why_and_not_only_what(repo, tmp_path):
+    """``unverified`` alone does not say WHICH seal failed.
+
+    A reader who cannot tell a missing criterion from a criterion the gate
+    never read cannot act on the record, so the sentence travels inside the
+    PolicyDecision digest alongside the verdict.
+    """
+    _attempt, result = _run(repo, tmp_path)
+    contracts = result.contract_set()
+
+    reasons = [r for r in contracts.policy.reasons
+               if r.startswith("evaluator assurance")]
+    assert len(reasons) == 1
+    assert reasons[0].startswith("evaluator assurance unverified: ")
+    # This spec declares no criterion at all, so the honest reading is that the
+    # gate judged the candidate's own worktree.
+    assert "no criterion the candidate was barred from writing" in reasons[0]
+    assert contracts.evidence.items[0].assurance == "unverified"
+
+
+def test_the_contract_set_refuses_to_reconstruct_a_shuffled_ledger_row(
+        repo, tmp_path):
+    """Each contract validating ITSELF is not the same as the five belonging together.
+
+    ``read_contract_set`` is what a promotion path uses to recover the record
+    from the ledger. A row whose parts came from two different attempts is five
+    individually well-formed contracts, and it used to reconstruct into a
+    plausible object carrying someone else's green.
+    """
+    _first_attempt, first = _run(repo, tmp_path)
+    _second_attempt, second = _run(
+        repo, tmp_path, spec=_spec(task_id="live-contract-task-two"))
+
+    assert read_contract_set({"contracts": first.contracts}).complete
+
+    shuffled = json.loads(json.dumps(first.contracts))
+    shuffled["receipt"] = json.loads(json.dumps(second.contracts["receipt"]))
+    with pytest.raises(ValueError, match="not internally bound"):
+        read_contract_set({"contracts": shuffled})

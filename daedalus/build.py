@@ -63,7 +63,7 @@ from .categories import preset_for
 from .kairos.decompose import decompose
 from .kairos.scheduler import KairosScheduler
 from .router import route_task
-from .schemas import derive_work_item_id
+from .schemas import derive_work_item_id, work_item_identity_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_DIR = ROOT / "runs" / "build"
@@ -122,6 +122,20 @@ def mission_id_for_session(slug: str, created: str = "") -> str:
     return f"mission-{fragment}{'-' + tail if tail else ''}"[:200]
 
 
+class WorkItemIdentityError(RuntimeError):
+    """A bound work item's substance changed under its id.
+
+    Raised by :meth:`BuildSession.bind_work_items` when a re-plan would derive a
+    different id for a task that already carries one. It is an error rather
+    than a re-stamp because the id is what a receipt, a wave lease and an
+    ``AttemptContract`` all name: silently re-deriving it would leave those
+    records pointing at a work item whose objective, owner or paths are no
+    longer what they were, and silently KEEPING it -- which is what the code
+    did -- leaves the plan and the id describing two different jobs. Neither is
+    a state a caller can fix without being told.
+    """
+
+
 def assign_builder(lane: str) -> tuple[str, bool]:
     """Map a category preset ``lane`` to ``(builder, frontier)``.
 
@@ -161,6 +175,12 @@ class BuildTask:
     # BuildTask usable in a test without knowing about missions.
     mission_id: str = ""
     work_item_id: str = ""
+    #: The FULL digest of the substance this task's id was derived from, frozen
+    #: at bind time. The id carries only twelve characters of it, which is
+    #: enough for two plans to be distinct and not enough for a mismatch report
+    #: to say what moved. Appended last, for the same positional-safety reason
+    #: as the two ids above.
+    work_item_identity_sha256: str = ""
 
     def work_item_stamp(self) -> dict[str, Any]:
         """This task's canonical identity, as a receipt-shaped mapping."""
@@ -210,6 +230,7 @@ class BuildTask:
             "last_result": dict(self.last_result),
             "mission_id": self.mission_id,
             "work_item_id": self.work_item_id,
+            "work_item_identity_sha256": self.work_item_identity_sha256,
         }
 
     @classmethod
@@ -231,6 +252,8 @@ class BuildTask:
             # plan, not of when it ran.
             mission_id=str(d.get("mission_id", "") or ""),
             work_item_id=str(d.get("work_item_id", "") or ""),
+            work_item_identity_sha256=str(
+                d.get("work_item_identity_sha256", "") or ""),
         )
 
 
@@ -273,9 +296,10 @@ class BuildSession:
         that path drives the real builds. Binding at construction means the
         loop's sessions are canonical without the loop lane editing a line.
 
-        Idempotent by construction: an id that is already set is never
-        overwritten, so a reloaded snapshot keeps the ids it was persisted with
-        and a re-derivation cannot renumber settled work.
+        Idempotent for an UNCHANGED plan: re-deriving a settled id yields the
+        same string, so a reloaded snapshot keeps the ids it was persisted with.
+        A plan whose substance moved under a bound id raises instead -- see
+        :meth:`bind_work_items`.
         """
         self.bind_work_items()
 
@@ -288,18 +312,59 @@ class BuildSession:
         hashed identity is the task's substance -- objective, owner, declared
         paths -- so the id is bound to what was planned, not merely to where it
         sat in the list.
+
+        IT RE-DERIVES EVERY TIME, and that is the fix rather than a cost. This
+        method used to write an id only into a task that had none, which made
+        it silently correct for the reload case it was written for and silently
+        WRONG for the case that actually happens: a session whose tasks are
+        re-planned, re-ordered, re-scoped or re-routed in place, and then bound
+        again. Every such task kept the id derived from the plan it no longer
+        is, so the mission's ``work_item_ids``, the wave lease and the
+        ``AttemptContract`` all named a work item whose objective, owner or
+        declared paths had moved -- provenance (Invariant 7) reading exactly
+        backwards, and undetectable from the records themselves because the id
+        is a hash of a body nobody kept.
+
+        Now the body IS kept (``work_item_identity_sha256``), so a re-bind can
+        tell the two cases apart: an unchanged plan re-derives the same digest
+        and nothing happens, and a changed one raises
+        :class:`WorkItemIdentityError` naming both digests. A caller that
+        deliberately re-plans clears the ids first; a caller that did not mean
+        to gets told which task moved instead of a receipt that quietly lies.
         """
         if not self.mission_id:
             self.mission_id = mission_id_for_session(self.slug, self.created)
         for ordinal, task in enumerate(self.tasks()):
-            if not task.mission_id:
-                task.mission_id = self.mission_id
-            if not task.work_item_id:
-                task.work_item_id = derive_work_item_id(
-                    self.mission_id,
-                    ordinal=ordinal,
-                    identity=(task.objective, task.agent, *sorted(task.paths)),
+            if task.mission_id and task.mission_id != self.mission_id:
+                raise WorkItemIdentityError(
+                    f"build task {ordinal} is bound to mission "
+                    f"{task.mission_id!r} but this session is "
+                    f"{self.mission_id!r}; a task cannot serve two missions"
                 )
+            task.mission_id = self.mission_id
+            identity = (task.objective, task.agent, *sorted(task.paths))
+            digest = work_item_identity_sha256(
+                self.mission_id, ordinal=ordinal, identity=identity)
+            work_item_id = derive_work_item_id(
+                self.mission_id, ordinal=ordinal, identity=identity)
+            if task.work_item_id and task.work_item_id != work_item_id:
+                raise WorkItemIdentityError(
+                    f"build task {ordinal} ({task.objective!r}) is already bound "
+                    f"to work item {task.work_item_id!r}, but its substance now "
+                    f"derives {work_item_id!r}: the plan changed under a settled "
+                    f"id (identity {task.work_item_identity_sha256 or 'unrecorded'}"
+                    f" -> {digest}). Clear work_item_id to re-plan deliberately."
+                )
+            if (task.work_item_identity_sha256
+                    and task.work_item_identity_sha256 != digest):
+                raise WorkItemIdentityError(
+                    f"build task {ordinal} ({task.objective!r}) keeps work item "
+                    f"{task.work_item_id!r} while its recorded identity "
+                    f"{task.work_item_identity_sha256} no longer matches the "
+                    f"planned substance {digest}"
+                )
+            task.work_item_id = work_item_id
+            task.work_item_identity_sha256 = digest
 
     def work_item_ids(self) -> tuple[str, ...]:
         """This session's work items, in plan order.
