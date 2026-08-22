@@ -51,6 +51,8 @@ __all__ = [
     "DEFAULT_MIN_FREE_GIB",
     "StorageStatus",
     "StorageUnavailable",
+    "artifact_locator_uri",
+    "artifact_manifest",
     "check_storage",
     "require_storage",
 ]
@@ -338,6 +340,55 @@ def _canonical_provenance(value: Mapping[str, Any]) -> dict[str, Any]:
     return clean
 
 
+def artifact_locator_uri(locator_sha256: str) -> str:
+    """The ``artifact-locator:sha256:<digest>`` URI for one locator digest."""
+    return f"artifact-locator:{ARTIFACT_ALGORITHM}:{_normalise_digest(locator_sha256)}"
+
+
+def artifact_manifest(
+        data: bytes | bytearray | memoryview,
+        *,
+        media_type: str = "application/octet-stream",
+        metadata: Mapping[str, Any] | None = None,
+        provenance: Mapping[str, Any]) -> tuple[str, bytes, str]:
+    """``(artifact_sha256, manifest_bytes, locator_sha256)`` for these bytes.
+
+    Root-independent by construction: the manifest names its blob by the
+    store-RELATIVE path, so identical bytes with identical metadata and
+    provenance produce the identical locator digest in every store.  That is
+    what lets a caller PREDICT the locator a :meth:`ArtifactStore.put_bytes`
+    will return, and therefore lets a verifier holding no store re-derive the
+    exact locator an evidence record is required to carry, instead of trusting
+    whatever string that record happens to contain.
+
+    :meth:`ArtifactStore.put_bytes` builds its manifest here, so a prediction
+    and the bytes actually stored cannot drift into two implementations.
+    """
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise TypeError("artifact data must be bytes-like")
+    payload = bytes(data)
+    artifact_sha256 = hashlib.sha256(payload).hexdigest()
+    clean_metadata = _json_mapping(metadata, name="metadata")
+    clean_provenance = _canonical_provenance(provenance)
+    clean_media_type = str(media_type or "").strip()
+    if not clean_media_type:
+        raise ValueError("artifact media_type must be non-empty")
+    manifest = {
+        "schema": ARTIFACT_LOCATOR_SCHEMA,
+        "artifact": {
+            "algorithm": ARTIFACT_ALGORITHM,
+            "sha256": artifact_sha256,
+            "byte_length": len(payload),
+            "path": _digest_path(Path("."), "blobs", artifact_sha256).as_posix(),
+        },
+        "media_type": clean_media_type,
+        "metadata": clean_metadata,
+        "provenance": clean_provenance,
+    }
+    manifest_bytes = _canonical_json_bytes(manifest)
+    return artifact_sha256, manifest_bytes, hashlib.sha256(manifest_bytes).hexdigest()
+
+
 def _existing_ancestor(path: Path) -> Path:
     """Nearest existing ground for a side-effect-free volume measurement."""
     candidate = path
@@ -500,28 +551,16 @@ class ArtifactStore:
                     f"artifact digest mismatch: claimed {claimed_sha256}, "
                     f"computed {actual_sha256}")
 
-        clean_metadata = _json_mapping(metadata, name="metadata")
-        clean_provenance = _canonical_provenance(provenance)
-        clean_media_type = str(media_type or "").strip()
-        if not clean_media_type:
-            raise ValueError("artifact media_type must be non-empty")
+        # ONE implementation of the manifest, shared with the module-level
+        # `artifact_manifest`, so a caller that predicts a locator and this
+        # method that stores one cannot drift into two answers.
+        _, manifest_bytes, locator_sha256 = artifact_manifest(
+            payload,
+            media_type=media_type,
+            metadata=metadata,
+            provenance=provenance)
 
         blob_path = self.blob_path(actual_sha256)
-        blob_relpath = blob_path.relative_to(self.root).as_posix()
-        manifest = {
-            "schema": ARTIFACT_LOCATOR_SCHEMA,
-            "artifact": {
-                "algorithm": ARTIFACT_ALGORITHM,
-                "sha256": actual_sha256,
-                "byte_length": len(payload),
-                "path": blob_relpath,
-            },
-            "media_type": clean_media_type,
-            "metadata": clean_metadata,
-            "provenance": clean_provenance,
-        }
-        manifest_bytes = _canonical_json_bytes(manifest)
-        locator_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
         locator_path = self.locator_path(locator_sha256)
 
         # Check the artifact volume itself, which may differ from the worktree

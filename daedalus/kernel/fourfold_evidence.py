@@ -6,10 +6,19 @@ promote candidates. It projects one already compiled :class:`FourfoldSnapshot`
 into the existing :class:`EvidencePacket` and :class:`NominationReceipt`
 contracts and verifies that every record still names the same candidate tree,
 source revision, Forest and snapshot.
+
+It does write exactly one thing: the snapshot's own canonical bytes, into the
+caller's existing content-addressed :class:`~daedalus.storage.ArtifactStore`,
+because the packet claims a locator for them. Until 2026-08-22 it claimed one
+without writing anything -- ``artifact-locator:sha256:<snapshot digest>``,
+shape-valid and resolvable in no store. MEASURED on the last Gate-1 receipt
+before the fix: six of seven evidence locators resolved in the mission store,
+and the Fourfold one did not. See :func:`_snapshot_locator`.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, Sequence
 
 from daedalus.schemas import (
@@ -23,14 +32,45 @@ from daedalus.schemas import (
     _revision,
     _sha256,
 )
+from daedalus.storage import (
+    ArtifactStore,
+    ArtifactStoreError,
+    StorageUnavailable,
+    artifact_locator_uri,
+    artifact_manifest,
+)
 from daedalus.twin.contracts import FourfoldSnapshot
 
 FOURFOLD_EVIDENCE_SCHEMA: Final[str] = "daedalus-fourfold-evidence/1"
 FOURFOLD_EVALUATOR: Final[str] = "fourfold.snapshot-binding"
 
+#: The media type of the stored snapshot bytes. They are the snapshot's own
+#: canonical JSON -- the exact bytes ``FourfoldSnapshot.digest`` is taken over,
+#: so a reader who resolves the locator can recompute the digest the packet
+#: claims and rebuild the contract with ``FourfoldSnapshot.from_dict``.
+_SNAPSHOT_MEDIA_TYPE: Final[str] = "application/json"
+
+#: Where a caller that named no store puts the snapshot bytes. Repo-bound, not
+#: a process global: it is recomputed from this file's location, holds nothing
+#: mutable, and any caller with its own store (the Gate-1 slice has one per
+#: mission) passes it explicitly rather than inheriting this one.
+DEFAULT_EVIDENCE_STORE_ROOT: Final[Path] = (
+    Path(__file__).resolve().parents[2] / "runs" / "kernel" / "evidence-store"
+)
+
 
 class FourfoldEvidenceMismatch(ValueError):
     """Raised when evidence no longer names the exact compiled candidate."""
+
+
+class FourfoldEvidenceUnstorable(RuntimeError):
+    """Raised when the snapshot bytes cannot be stored, so no packet is minted.
+
+    Deliberately NOT a fall-back to a synthesised locator. An evidence locator
+    is a promise that the bytes are re-readable; minting one for bytes that
+    were never written turns an unavailable store into a permanently
+    unverifiable promotion record, which is worse than a loud failure now.
+    """
 
 
 @dataclass(frozen=True)
@@ -68,8 +108,127 @@ class FourfoldEvidenceExpectation:
             )
 
 
+def _snapshot_bytes(snapshot: FourfoldSnapshot) -> bytes:
+    """The exact bytes ``FourfoldSnapshot.digest`` is taken over."""
+    return snapshot.to_json().encode("ascii")
+
+
+def _snapshot_artifact_metadata(snapshot: FourfoldSnapshot) -> dict:
+    """Store metadata derived ONLY from the snapshot.
+
+    Nothing here may vary with wall-clock time, caller, or store location: the
+    locator digest is a digest of this mapping among others, and a locator that
+    changed between two runs over one snapshot could not be re-derived by a
+    verifier holding no store.
+    """
+    return {
+        "kind": "fourfold_snapshot",
+        "contract_type": FourfoldSnapshot.CONTRACT_TYPE,
+        "repository_id": snapshot.repository_id,
+        "source_revision": snapshot.source_revision,
+        "source_forest_sha256": snapshot.source_forest_sha256,
+        "fourfold_snapshot_sha256": snapshot.digest,
+    }
+
+
+def _snapshot_manifest(snapshot: FourfoldSnapshot) -> tuple[bytes, bytes, str]:
+    """``(payload, manifest_bytes, locator_sha256)`` -- a pure function of the
+    snapshot, and identical to what the store will write for these bytes.
+
+    The manifest provenance is the SNAPSHOT'S OWN provenance, not a fresh
+    stamp: it is already the record of who compiled these bytes from which
+    revision, and using it keeps the locator derivable. A ``created_at`` taken
+    from the clock here would make one snapshot produce a different locator on
+    every run, and the verifier could no longer say what the locator must be.
+    """
+    payload = _snapshot_bytes(snapshot)
+    _, manifest_bytes, locator_sha256 = artifact_manifest(
+        payload,
+        media_type=_SNAPSHOT_MEDIA_TYPE,
+        metadata=_snapshot_artifact_metadata(snapshot),
+        provenance=snapshot.provenance.to_dict(),
+    )
+    return payload, manifest_bytes, locator_sha256
+
+
 def _snapshot_locator(snapshot: FourfoldSnapshot) -> str:
-    return f"artifact-locator:sha256:{snapshot.digest}"
+    """THE locator for this snapshot: derivable, and it resolves.
+
+    It used to be ``artifact-locator:sha256:<snapshot digest>``, synthesised
+    out of the digest and stored nowhere. MEASURED on the last Gate-1 receipt
+    before this change: six of the packet's seven evidence locators resolved in
+    the mission store and this one resolved in no store at all -- a promotion
+    record whose central artifact could not be read back.
+
+    The shape stayed valid, which is exactly why it survived: a locator is
+    checked for syntax by the schema and for resolution by nobody. Now the
+    digest is the digest of the locator MANIFEST the store writes, computed
+    through the store's own :func:`daedalus.storage.artifact_manifest`, so a
+    verifier with no store can still re-derive the exact expected locator while
+    a reader with the store gets the bytes.
+    """
+    return artifact_locator_uri(_snapshot_manifest(snapshot)[2])
+
+
+def _store_snapshot(snapshot: FourfoldSnapshot, store: ArtifactStore) -> str:
+    """Put the snapshot bytes in ``store``; return the locator that reads them.
+
+    Refuses rather than returning an unresolvable locator. The equality check
+    against :func:`_snapshot_locator` is not ceremony: prediction and storage
+    share one manifest implementation today, and this is what goes red on the
+    day someone gives them two.
+    """
+    payload, _, _ = _snapshot_manifest(snapshot)
+    try:
+        locator = store.put_bytes(
+            payload,
+            expected_sha256=snapshot.digest,
+            media_type=_SNAPSHOT_MEDIA_TYPE,
+            metadata=_snapshot_artifact_metadata(snapshot),
+            provenance=snapshot.provenance.to_dict(),
+        )
+    except (ArtifactStoreError, StorageUnavailable, OSError, ValueError) as exc:
+        raise FourfoldEvidenceUnstorable(
+            f"the Fourfold snapshot bytes could not be stored in {store.root} "
+            f"({type(exc).__name__}: {exc}); refusing to mint an evidence "
+            "locator for bytes nobody can read back"
+        ) from exc
+    expected = _snapshot_locator(snapshot)
+    if locator.locator_uri != expected:
+        raise FourfoldEvidenceUnstorable(
+            "the stored Fourfold snapshot locator "
+            f"({locator.locator_uri}) is not the one this module derives "
+            f"({expected}); prediction and storage have drifted apart"
+        )
+    if locator.artifact_sha256 != snapshot.digest:
+        raise FourfoldEvidenceUnstorable(
+            "the stored Fourfold snapshot bytes do not hash to the snapshot "
+            f"digest ({locator.artifact_sha256} vs {snapshot.digest})"
+        )
+    return locator.locator_uri
+
+
+def _resolve_store(store: ArtifactStore | None) -> ArtifactStore:
+    if store is not None:
+        if not isinstance(store, ArtifactStore):
+            raise TypeError("store must be an ArtifactStore")
+        return store
+    return ArtifactStore(DEFAULT_EVIDENCE_STORE_ROOT)
+
+
+def resolve_fourfold_snapshot_bytes(
+    store: ArtifactStore,
+    locator: str,
+) -> bytes:
+    """Read back what an evidence locator promises, or raise.
+
+    The read a locator exists to make possible, in one place, so a receipt
+    check and a test are not two different opinions about what "resolves"
+    means.
+    """
+    checked = _artifact_locator(locator, "evidence_locator")
+    loaded = store.load_locator(_locator_sha256(checked))
+    return store.get_bytes(loaded.artifact_sha256)
 
 
 def _canonical_snapshot(snapshot: FourfoldSnapshot) -> FourfoldSnapshot:
@@ -134,10 +293,22 @@ def assemble_fourfold_evidence_packet(
     usage: ResourceUsage | None = None,
     trace_id: str | None = None,
     extra_items: tuple[EvidenceItem, ...] = (),
+    store: ArtifactStore | None = None,
 ) -> EvidencePacket:
-    """Create a passed packet for one complete candidate Fourfold snapshot."""
+    """Create a passed packet for one complete candidate Fourfold snapshot.
+
+    ``store`` is where the snapshot bytes are written so that the evidence
+    locator this packet carries can be read back. A caller with its own store
+    -- the Gate-1 slice keeps one per mission, beside the receipt -- passes it,
+    and the bytes land next to the rest of that mission's evidence. A caller
+    that names none gets :data:`DEFAULT_EVIDENCE_STORE_ROOT`, which is bound to
+    this repository rather than being a module-level singleton. If the store
+    cannot take the bytes, this raises :class:`FourfoldEvidenceUnstorable`; it
+    does not fall back to a locator pointing at nothing.
+    """
 
     snapshot = _canonical_snapshot(snapshot)
+    store = _resolve_store(store)
     expectation = FourfoldEvidenceExpectation(
         candidate_artifact_sha256=candidate_artifact_sha256,
         candidate_artifact_locator=candidate_artifact_locator,
@@ -150,7 +321,10 @@ def assemble_fourfold_evidence_packet(
     )
     attempt_sha = _sha256(attempt_contract_sha256, "attempt_contract_sha256")
     policy_sha = _sha256(policy_decision_sha256, "policy_decision_sha256")
-    snapshot_locator = _snapshot_locator(snapshot)
+    # STORE FIRST, then name what was stored. The other order is how the
+    # unresolvable locator got in: a name minted from a digest, and nothing
+    # ever written under it.
+    snapshot_locator = _store_snapshot(snapshot, store)
     details = {
         "schema": FOURFOLD_EVIDENCE_SCHEMA,
         "repository_id": snapshot.repository_id,
@@ -180,6 +354,11 @@ def assemble_fourfold_evidence_packet(
                         expectation.candidate_artifact_sha256,
                         snapshot.source_forest_sha256,
                         snapshot.digest,
+                        # The locator's own digest. `EvidenceItem` requires it,
+                        # and it used to arrive for free because the locator
+                        # was synthesised FROM `snapshot.digest` -- the very
+                        # coincidence that let an unstored locator look bound.
+                        _locator_sha256(snapshot_locator),
                     }
                 )
             ),
@@ -223,6 +402,7 @@ def assemble_fourfold_evidence_packet(
         packet,
         snapshot=snapshot,
         expectation=expectation,
+        store=store,
     )
     return packet
 
@@ -291,8 +471,18 @@ def verify_fourfold_evidence_packet(
     *,
     snapshot: FourfoldSnapshot,
     expectation: FourfoldEvidenceExpectation,
+    store: ArtifactStore | None = None,
 ) -> None:
-    """Fail closed unless packet, candidate and complete snapshot are exact."""
+    """Fail closed unless packet, candidate and complete snapshot are exact.
+
+    ``store`` is optional because this verifier must stay usable by a reviewer
+    holding a packet and a snapshot and nothing else -- the locator is derived,
+    so its correctness is checkable without any store. When a store IS given,
+    the locator is also RESOLVED and the bytes are required to be the snapshot:
+    a derivation both sides compute the same wrong way would otherwise agree
+    with itself forever, which is precisely how the synthesised locator
+    survived.
+    """
 
     packet = _canonical_packet(packet)
     snapshot = _canonical_snapshot(snapshot)
@@ -344,6 +534,15 @@ def verify_fourfold_evidence_packet(
             mismatches.append("snapshot_digest")
         if item.evidence_locator != _snapshot_locator(snapshot):
             mismatches.append("snapshot_locator")
+        elif store is not None:
+            try:
+                stored = resolve_fourfold_snapshot_bytes(
+                    store, item.evidence_locator)
+            except Exception:                             # noqa: BLE001
+                mismatches.append("snapshot_locator_unresolvable")
+            else:
+                if stored != _snapshot_bytes(snapshot):
+                    mismatches.append("snapshot_locator_bytes")
         if dict(item.details) != expected_details:
             mismatches.append("fourfold_details")
         if item.provenance.source_revision != snapshot.source_revision:
@@ -419,12 +618,15 @@ def verify_fourfold_nomination_receipt(
 
 
 __all__ = [
+    "DEFAULT_EVIDENCE_STORE_ROOT",
     "FOURFOLD_EVIDENCE_SCHEMA",
     "FOURFOLD_EVALUATOR",
     "FourfoldEvidenceExpectation",
     "FourfoldEvidenceMismatch",
+    "FourfoldEvidenceUnstorable",
     "assemble_fourfold_evidence_packet",
     "assemble_fourfold_nomination_receipt",
+    "resolve_fourfold_snapshot_bytes",
     "verify_fourfold_evidence_packet",
     "verify_fourfold_nomination_receipt",
 ]

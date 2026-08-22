@@ -958,6 +958,11 @@ def run_gate1_ignition(
                 usage=ResourceUsage(wall_time_ms=binding["total_gate_ms"]),
                 trace_id="gate1-voltage-ignition",
                 extra_items=tuple(items),
+                # The mission's own store, so the snapshot bytes land beside
+                # the six check outputs already in it and
+                # `receipt_path.parent / "store"` resolves every locator in
+                # this packet rather than six of seven.
+                store=store,
             )
         except Exception as exc:  # noqa: BLE001 - recorded, never silent
             packet_error = f"{type(exc).__name__}: {exc}"
