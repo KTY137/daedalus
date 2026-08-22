@@ -601,16 +601,24 @@ def test_every_turn_lands_on_the_chain_and_it_verifies(tmp_path):
     assert not ok2 and any("line 2" in f for f in failures2)
 
 
-def test_council_never_writes_to_the_memory_ledger(tmp_path):
-    from daedalus import memstore
+def test_council_never_writes_to_another_durable_store(tmp_path):
+    """``daedalus/memstore.py`` (the certified memory ledger this test used to
+    import) was retired 2026-08-22 as an unwritten island. The invariant
+    outlived it: council chatter must reach neither that path nor the canonical
+    event spine, which is where every durable record in this tree now lands."""
+    from daedalus.council import bus
+    from daedalus.spine import ledger as spine_ledger
 
-    ledger = Path(memstore.DEFAULT_LEDGER_PATH)
-    before = ledger.read_bytes() if ledger.exists() else None
+    watched = [bus.ROOT / "memory" / "ledger.local.jsonl",
+               spine_ledger.default_db_path()]
+    before = [p.read_bytes() if p.exists() else None for p in watched]
     a = FakeAdapter("anthropic", "claude-opus-5", reply=CLAIM_A)
     S.convene("q", _evidence(), [a], rounds=1, council_id="c-mem",
               store_path=_store(tmp_path))
-    after = ledger.read_bytes() if ledger.exists() else None
-    assert after == before, "council chatter must never reach certified memory"
+    after = [p.read_bytes() if p.exists() else None for p in watched]
+    assert after == before, (
+        "council chatter must never reach a durable store outside its own "
+        "transcript")
 
 
 def test_store_under_memory_is_refused(tmp_path):

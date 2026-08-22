@@ -28,8 +28,17 @@ import time
 import unittest
 from pathlib import Path
 
-from daedalus import memstore
 from daedalus.council import bus
+from daedalus.spine import ledger as spine_ledger
+
+# ``daedalus/memstore.py`` owned the "certified memory" ledger at this path and
+# was retired 2026-08-22: a 615-line island with zero production importers whose
+# file had never once been written. The path is named here rather than imported
+# because the invariant it anchored did NOT retire with it -- council chatter
+# must reach no durable store outside its own transcript, neither the memory
+# ledger it was once tested against nor the canonical event spine that now
+# carries every other record in the tree.
+RETIRED_MEMORY_LEDGER = bus.ROOT / "memory" / "ledger.local.jsonl"
 
 # Real shape, fake bytes -- these trip sensitivity.SECRET_FLOOR_CONTENT.
 PLANTED_AKIA = "AKIAIOSFODNN7EXAMPLE"
@@ -304,7 +313,8 @@ class SecretFloor(BusCase):
 
     def test_dotenv_evidence_path_is_refused(self):
         # The rule LABEL names the marker (".env") -- a fixed string, the same
-        # discipline memstore uses. What must not survive is the cited PATH and
+        # discipline the retired memstore used, and bus.py has carried since.
+        # What must not survive is the cited PATH and
         # its digest: the refusal must not become a map to the secret file.
         ev = bus.evidence_ref("apps/web/.env.production", b"TOKEN=x\n")
         rec = self._assert_refused(_turn(evidence=[ev]),
@@ -390,21 +400,31 @@ class Doctrine(BusCase):
         for rec in bus.load_transcript(self.store):
             walk(rec)
 
-    def test_no_council_write_touches_the_memory_ledger(self):
-        before = memstore.DEFAULT_LEDGER_PATH.exists()
-        before_bytes = (memstore.DEFAULT_LEDGER_PATH.read_bytes()
-                        if before else None)
+    def test_no_council_write_touches_another_durable_store(self):
+        """Council opinion reaches its own transcript and nothing else.
+
+        Both paths are checked because both have been the answer to "where does
+        durable truth live" in this tree: the retired memory ledger, and the
+        canonical event spine that now holds intents, attempts, promotions and
+        conversation turns. A council write landing in either would promote
+        deliberation to record, which is the one thing bus.py exists to refuse.
+        """
+        watched = [RETIRED_MEMORY_LEDGER, spine_ledger.default_db_path()]
+        before = [(p.exists(), p.read_bytes() if p.exists() else None)
+                  for p in watched]
         bus.append_round(CID, 1, [_turn(ANTHROPIC)], store_path=self.store,
                          ts=FIXED_TS)
-        self.assertEqual(memstore.DEFAULT_LEDGER_PATH.exists(), before)
-        if before:
-            self.assertEqual(memstore.DEFAULT_LEDGER_PATH.read_bytes(),
-                             before_bytes)
+        for path, (existed, body) in zip(watched, before):
+            self.assertEqual(path.exists(), existed,
+                             f"a council write created {path}")
+            if existed:
+                self.assertEqual(path.read_bytes(), body,
+                                 f"a council write changed {path}")
 
     def test_store_under_memory_dir_is_refused(self):
         with self.assertRaises(ValueError):
             bus.append_turn(CID, 1, _turn(),
-                            store_path=memstore.DEFAULT_LEDGER_PATH,
+                            store_path=RETIRED_MEMORY_LEDGER,
                             ts=FIXED_TS)
         with self.assertRaises(ValueError):
             bus.append_turn(CID, 1, _turn(),
