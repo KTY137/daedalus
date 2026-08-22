@@ -37,6 +37,71 @@ FREE_LANES = ("ollama", "deepseek", "codex_cli")
 DEFAULT_AVAILABILITY = {"claude_cli": True, "ollama": True, "deepseek": False,
                         "codex_cli": False}
 
+# ---------------------------------------------------------------------------
+# spend refusal: the ONE status pair that names "the leased ceiling stopped it"
+# ---------------------------------------------------------------------------
+# WHY THESE ARE STATUSES AND NOT AN EXCEPTION THAT ESCAPES. Since a granted
+# wave lease holds a `SpendEnvelope`, a draw past the leased ceiling raises
+# `daedalus.budget.BudgetRefused` from inside `offload()` -- i.e. from inside
+# `_run_one`, in the middle of a wave. MEASURED: that raise propagated out of
+# `dispatch()` uncaught, taking the already-finished results of the EARLIER
+# positions with it (the `results` list is local), out of
+# `WaveExecutor.run_wave` (leaving every task marked "dispatched" forever), and
+# out of `LoopDriver._run_iteration` into the loop's outermost handler, which
+# ended the whole run with `stop_reason="error"` and ZERO iteration receipts.
+#
+# Fail-closed, wrong shape: money that stops is correct, a run that loses its
+# evidence is not. A refusal is an OUTCOME of a position -- it has a lease id,
+# a reason and a realized spend -- so it is reported as one, position-matched
+# like every other result. Nothing here retries the refused call.
+SPEND_REFUSED_STATUS = "spend_refused"
+#: The positions AFTER the refusal in the same wave. Distinct from
+#: ``SPEND_REFUSED_STATUS`` on purpose: "this call was refused" and "this call
+#: was never made because the wave's money was already gone" are different
+#: facts, and collapsing them would let a reader count one refusal as three.
+SPEND_REFUSED_SKIPPED_STATUS = "spend_refused_not_attempted"
+
+
+def spend_refused_result(a: "Assignment | None", exc: Any, *,
+                         attempted: bool = True,
+                         objective: str = "", paths: Any = None) -> dict:
+    """One position's result dict for a draw the leased ceiling refused.
+
+    ``exc`` is a :class:`daedalus.budget.BudgetRefused`. Its ``as_dict()`` is
+    carried verbatim under ``budget_refusal`` -- including the ``envelope``
+    view (lease id, cap, drawn, remaining), which is the join key between this
+    receipt and the effect ledger row that authorised the money.
+    """
+    detail = exc.as_dict() if hasattr(exc, "as_dict") else {"reason": str(exc)}
+    envelope = (detail or {}).get("envelope") or {}
+    return {
+        "worker": getattr(a, "worker", "") or "",
+        "lane": getattr(a, "lane", "") or "",
+        "mode": getattr(a, "mode", "") or "",
+        "owner": getattr(a, "owner", "") or "",
+        "objective": getattr(a, "objective", objective) or objective,
+        "paths": list(getattr(a, "paths", None) or paths or []),
+        "status": (SPEND_REFUSED_STATUS if attempted
+                   else SPEND_REFUSED_SKIPPED_STATUS),
+        "reason": (exc.message() if hasattr(exc, "message") else str(exc))
+                  if attempted else
+                  ("the wave's leased spend ceiling was already refused at an "
+                   "earlier position, so this call was never made: "
+                   + (exc.message() if hasattr(exc, "message") else str(exc))),
+        # Ground truth, and it is the same for both shapes: a refused draw is
+        # refused BEFORE the call, so nothing ran and nothing was written.
+        "wrote": [],
+        "changed_paths": [],
+        "budget_refusal": detail,
+        "spend_lease_id": envelope.get("lease_id"),
+        "spend_envelope_id": envelope.get("id"),
+        # What the lease HAD really cost when it refused. Read from the
+        # envelope view the refusal itself carries, never re-derived from the
+        # period ledger (which counts every other wave's money too).
+        "spend_realized_usd": envelope.get("drawn_usd"),
+        "spend_cap_usd": envelope.get("cap_usd"),
+    }
+
 
 def _paths_overlap(assignments: list) -> bool:
     """Diagnostic overlap among declared write hints.
@@ -275,6 +340,8 @@ class KairosScheduler:
                                 "separate, explicit step)"
                             )})
 
+        from ..budget import BudgetRefused
+
         if can_parallel and len(live_tasks) > 1:
             from concurrent.futures import ThreadPoolExecutor
             done: dict[int, dict] = {}
@@ -290,7 +357,17 @@ class KairosScheduler:
                 futs = {pool.submit(_run_one, a, True, pos): k
                         for k, (pos, a) in enumerate(pending)}
                 for f in futs:
-                    done[futs[f]] = f.result()
+                    k = futs[f]
+                    try:
+                        done[k] = f.result()
+                    except BudgetRefused as exc:
+                        # PER FUTURE, not per wave. Every task here was already
+                        # submitted before the first refusal could be observed,
+                        # so the others' results exist and are kept; only the
+                        # position whose own draw was refused reports a
+                        # refusal. `attempted=True` for all of them because
+                        # each one really did reach the ledger and get told no.
+                        done[k] = spend_refused_result(pending[k][1], exc)
             # preserve input order in the output
             live_iter = iter(done[i] for i in range(len(pending)))
             for a in accepted:
@@ -299,10 +376,29 @@ class KairosScheduler:
             return results
 
         # sequential (default, or forced by a path conflict)
+        #
+        # A REFUSAL ENDS THE WAVE, IT DOES NOT UNWIND IT. When the leased
+        # ceiling refuses one position's draw, the positions already dispatched
+        # have real results and keep them, this position reports the refusal,
+        # and every remaining live position is reported as never attempted --
+        # because the wave's money is gone and re-calling would only be refused
+        # again. The list stays exactly ``len(accepted)`` long and
+        # position-matched, which is the contract
+        # :meth:`daedalus.build_exec.WaveExecutor.run_wave` checks explicitly.
+        refusal: BudgetRefused | None = None
         for pos, a in enumerate(accepted):
             bp = _bounced_or_planned(a)
-            results.append(bp if bp is not None
-                           else _run_one(a, isolate=False, position=pos))
+            if bp is not None:
+                results.append(bp)
+                continue
+            if refusal is not None:
+                results.append(spend_refused_result(a, refusal, attempted=False))
+                continue
+            try:
+                results.append(_run_one(a, isolate=False, position=pos))
+            except BudgetRefused as exc:
+                refusal = exc
+                results.append(spend_refused_result(a, exc))
         return results
 
     def gate_concurrent_writes(self, repo_root: str, tasks: list[dict],

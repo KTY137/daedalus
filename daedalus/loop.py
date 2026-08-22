@@ -108,9 +108,19 @@ __all__ = [
     "LoopDriver",
     "LoopLedger",
     "LoopReport",
+    "SPEND_REFUSED_STATUS",
     "STOP_REASONS",
     "PROGRESS_SOURCE",
 ]
+
+# The ONE status string that means "a draw past the wave's LEASED ceiling was
+# refused". Re-exported from the scheduler (which mints it) rather than
+# re-spelled here: two spellings of one status is how a report starts lying.
+from .kairos.scheduler import (  # noqa: E402 - after __all__ on purpose
+    SPEND_REFUSED_SKIPPED_STATUS,
+    SPEND_REFUSED_STATUS,
+    spend_refused_result,
+)
 
 # --------------------------------------------------------------------------- #
 # bounds                                                                       #
@@ -611,6 +621,13 @@ class IterationResult:
     artifact_sha256: str = ""
     attempt_task_ids: tuple[str, ...] = ()
     integration_branch: str | None = None
+    #: WHY THE MONEY SAID NO, when it did. Present only for a
+    #: ``spend_refused`` iteration: ``daedalus.budget.BudgetRefused.as_dict()``
+    #: verbatim, whose ``envelope`` names the LEASE, the cap it was granted,
+    #: and what it had really drawn when it refused. Carried as its own field
+    #: rather than folded into ``reason`` because a reader who wants the lease
+    #: id should not have to parse a sentence to get it.
+    budget_refusal: dict[str, Any] | None = None
     duration_s: float = 0.0
     spend_usd: float | None = None
     counted: bool = True
@@ -631,6 +648,7 @@ class IterationResult:
             "artifact_sha256": self.artifact_sha256,
             "attempt_task_ids": list(self.attempt_task_ids),
             "integration_branch": self.integration_branch,
+            "budget_refusal": self.budget_refusal,
             "duration_s": round(self.duration_s, 3),
             "spend_usd": self.spend_usd, "counted": self.counted,
             "dry_run": self.dry_run,
@@ -1007,6 +1025,7 @@ class LoopDriver:
         return "not_attempted"
 
     def _run_iteration(self, index: int, candidate: Any) -> IterationResult:
+        from .budget import BudgetRefused
         from .kairos.scheduler import KairosScheduler
 
         started = time.monotonic()
@@ -1044,10 +1063,42 @@ class LoopDriver:
             # injected WaveExecutor-compatible adapters: the hint is an
             # additive capability, not a new mandatory protocol method.
             wave_kwargs["curated_gates"] = {0: curated_gate}
-        wave_result = self.executor.run_wave(
-            scheduler, wave, self.repo_root, **wave_kwargs)
+        # ---- THE ITERATION BOUNDARY IS WHERE A REFUSED DRAW STOPS --------- #
+        # Since a granted wave lease holds a SpendEnvelope, a draw past the
+        # LEASED ceiling raises BudgetRefused from inside the wave. MEASURED:
+        # it propagated out of run_wave, out of _run_iteration, and into run()'s
+        # outermost handler -- which ended the whole run with
+        # stop_reason="error" and ZERO iteration receipts, losing the evidence
+        # of an iteration that had really happened.
+        #
+        # An iteration that was refused ITS money is a finished iteration with
+        # an outcome, not a crashed process. It is caught here, turned into the
+        # same result shape every other outcome uses, and the run's own
+        # --max-spend-usd (checked at the top of the next iteration) decides
+        # whether there is room to continue. NOTHING RETRIES THE REFUSED CALL.
+        #
+        # This is the belt; the braces are one level down --
+        # KairosScheduler.dispatch translates a refusal per POSITION and
+        # WaveExecutor.run_wave nets whatever escapes that, so the normal path
+        # returns a WaveResult and never reaches this handler. It stays because
+        # `executor` is an INJECTION POINT (see __init__): an adapter that is
+        # not WaveExecutor can still raise, and a loop whose evidence depends
+        # on which executor was injected is not evidence.
+        wave_result: Any = None
+        wave_refusal: Any = None
+        try:
+            wave_result = self.executor.run_wave(
+                scheduler, wave, self.repo_root, **wave_kwargs)
+        except BudgetRefused as exc:
+            wave_refusal = exc
 
-        raw = wave_result.results[0] if wave_result.results else {}
+        if wave_refusal is not None:
+            raw = spend_refused_result(
+                None, wave_refusal,
+                objective=str(getattr(candidate, "instruction", ""))[:200],
+                paths=list(getattr(candidate, "target_paths", None) or ()))
+        else:
+            raw = wave_result.results[0] if wave_result.results else {}
         provider_receipt = (dict(raw["provider_receipt"])
                             if isinstance(raw.get("provider_receipt"), Mapping)
                             else None)
@@ -1066,11 +1117,58 @@ class LoopDriver:
         claim_paths = changed or [str(p) for p in (raw.get("paths") or [])]
         claim_basis = "changed_paths" if changed else "declared"
 
+        # ---- THE REFUSAL, READ OUT ONCE ---------------------------------- #
+        # `raw` reaches here identically whether the refusal was translated per
+        # position by KairosScheduler.dispatch, netted by run_wave, or caught
+        # by the handler above -- which is the whole point of giving it one
+        # result shape.
+        budget_refusal = (dict(raw["budget_refusal"])
+                          if isinstance(raw.get("budget_refusal"), Mapping)
+                          else None)
+        refused = status in (SPEND_REFUSED_STATUS, SPEND_REFUSED_SKIPPED_STATUS)
+        # AND THE ENVELOPE THAT WAS CLOSED, when there is a WaveResult to read
+        # it from. `WaveExecutor.run_wave` closes the envelope on every exit
+        # (SpendEnvelope.__exit__, plus an explicit idempotent close) and
+        # publishes what it reported here, so `closed=True` in the receipt is a
+        # READ of the ledger's own close record, never an assumption.
+        closed_envelope = (dict(wave_result.spend_envelope)
+                           if wave_result is not None
+                           and isinstance(getattr(wave_result, "spend_envelope",
+                                                  None), Mapping)
+                           else None)
+
         spend_delta: float | None = None
         if spend_before is not None and spend_before.readable:
             after = read_spend()
             if after.readable and after.period_key == spend_before.period_key:
                 spend_delta = round(after.spent_usd - spend_before.spent_usd, 6)
+        if refused:
+            # REALIZED SPEND FROM THE ENVELOPE, not from the period ledger. The
+            # period delta counts every other envelope's money too; the closed
+            # envelope's `spent_usd` (or, when the wave never got that far, the
+            # `drawn_usd` the refusal itself carried) is what THIS lease cost.
+            realized = None
+            if closed_envelope is not None:
+                realized = closed_envelope.get("spent_usd")
+            if realized is None:
+                realized = raw.get("spend_realized_usd")
+            if realized is not None:
+                try:
+                    spend_delta = round(float(realized), 6)
+                except (TypeError, ValueError):
+                    pass
+            # THE CAPABILITY THAT REFUSED, joinable to the effect ledger. When
+            # no wave result stamped a lease receipt onto the row (the escaped
+            # -exception path never got one), the refusal's own envelope view
+            # is the lease id -- which is exactly what a reader needs to find
+            # the grant this draw ran out of.
+            env_view = (budget_refusal or {}).get("envelope") or {}
+            if effect_lease is None and env_view:
+                effect_lease = {"lease_id": env_view.get("lease_id"),
+                                "source": "budget_refusal",
+                                "spend_envelope": dict(env_view)}
+            elif effect_lease is not None and closed_envelope is not None:
+                effect_lease.setdefault("spend_envelope", closed_envelope)
 
         # DID A HUMAN STOP US MID-WAVE? If so this outcome is not evidence
         # about the candidate. Killing a gate child races that gate's own poll,
@@ -1112,7 +1210,12 @@ class LoopDriver:
             index=index, candidate_id=candidate.task_id,
             instruction=candidate.instruction, source=candidate.source,
             score=float(candidate.score),
-            outcome=(STATE_CANCELLED if interrupted and outcome == "not_attempted"
+            # `and not refused`: a spend refusal is a KNOWN cause, and a human
+            # who pressed stop while the ledger was already saying no did not
+            # cause it. Relabelling it "cancelled" would hide the one fact this
+            # iteration actually established.
+            outcome=(STATE_CANCELLED
+                     if interrupted and outcome == "not_attempted" and not refused
                      else outcome),
             status=status, promoted=promoted,
             reason=str(raw.get("reason") or ""),
@@ -1125,6 +1228,7 @@ class LoopDriver:
             artifact_sha256=str(raw.get("artifact_sha256") or ""),
             attempt_task_ids=attempt_ids,
             integration_branch=raw.get("integration_branch"),
+            budget_refusal=budget_refusal,
             duration_s=time.monotonic() - started, spend_usd=spend_delta,
             counted=counted, dry_run=self.dry_run,
             claimed_paths=tuple(claimed), claim_basis=claim_basis,
@@ -1208,6 +1312,12 @@ class LoopDriver:
                 f"budget ledger unreadable at start ({spend_at_start.error})")
 
         started_monotonic = time.monotonic()
+        # THE LAST SPEND REFUSAL, remembered for exactly one purpose: naming
+        # the cause in `stop_detail` when the run's own --max-spend-usd is what
+        # ends the run on the next check. "$1.9987 spent by this run, bound is
+        # $2.00" is true and useless; the same line followed by the lease that
+        # refused is a receipt a reader can act on.
+        last_refusal = ""
         try:
             # THE WATCHER IS THE OUTERMOST SCOPE OF THE RUN. Inside it, a
             # revoked permit both latches this object and reaps every live
@@ -1228,7 +1338,14 @@ class LoopDriver:
                         started_monotonic=started_monotonic,
                         spend_at_start=spend_at_start)
                     if stop is not None:
-                        report.stop_reason, report.stop_detail = stop
+                        reason, detail = stop
+                        if last_refusal and reason == "max_spend":
+                            detail = (f"{detail}. The previous iteration ended "
+                                      f"because the LEASED ceiling refused a "
+                                      f"draw, and this run's own bound has no "
+                                      f"room left to authorise another wave: "
+                                      f"{last_refusal}")
+                        report.stop_reason, report.stop_detail = reason, detail
                         break
 
                     candidate, skipped, note = self._pick()
@@ -1272,6 +1389,16 @@ class LoopDriver:
                                     # one file per run and this ledger is the
                                     # thing a later run reads back.
                                     "effect_lease": iteration.effect_lease,
+                                    # WHY THE MONEY SAID NO, in the ledger a
+                                    # later run reads back. Without it a
+                                    # refused iteration would be recorded as an
+                                    # ordinary `not_attempted` outcome and
+                                    # counted against the candidate's attempt
+                                    # budget as if the candidate had failed --
+                                    # when in fact nothing about the candidate
+                                    # was ever measured.
+                                    "budget_refusal": iteration.budget_refusal,
+                                    "spend_usd": iteration.spend_usd,
                                     "artifact_path": iteration.artifact_path,
                                     "artifact_sha256": iteration.artifact_sha256})
                         self.ledger.save()
@@ -1282,6 +1409,25 @@ class LoopDriver:
                             "recorded as evidence about this candidate, because "
                             "a cancelled gate cannot be distinguished from a "
                             "failed one on this path")
+
+                    # THE REFUSAL IS ON THE RUN'S FACE, not only inside one
+                    # iteration dict. Recorded AFTER the iteration is appended
+                    # and the ledger is written, so the receipt exists before
+                    # anything decides whether to continue.
+                    if iteration.status in (SPEND_REFUSED_STATUS,
+                                            SPEND_REFUSED_SKIPPED_STATUS):
+                        env = (iteration.budget_refusal or {}).get("envelope") or {}
+                        last_refusal = iteration.reason or "budget refused"
+                        report.notes.append(
+                            f"iteration {iteration.index} ({candidate.task_id}) "
+                            f"WAS REFUSED ITS MONEY: the wave's leased spend "
+                            f"ceiling (lease {env.get('lease_id') or '<unknown>'}, "
+                            f"cap ${float(env.get('cap_usd') or 0.0):.4f}, "
+                            f"realized ${float(iteration.spend_usd or 0.0):.4f}) "
+                            f"refused a draw mid-wave. The iteration ended with "
+                            f"this receipt and the refused call was NOT retried. "
+                            f"Nothing was measured about this candidate. "
+                            f"{last_refusal}")
         except LoopHalted as e:
             report.stop_reason = "killswitch"
             report.stop_detail = str(e)

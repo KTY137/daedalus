@@ -78,7 +78,13 @@ from typing import Any, Mapping
 
 from . import progress
 from .build import BuildSession, Wave, load_session, wave_path_conflicts
-from .kairos.scheduler import Assignment, KairosScheduler
+from .kairos.scheduler import (
+    SPEND_REFUSED_SKIPPED_STATUS,
+    SPEND_REFUSED_STATUS,
+    Assignment,
+    KairosScheduler,
+    spend_refused_result,
+)
 
 
 class UnsafeParallelWriteError(RuntimeError):
@@ -238,7 +244,20 @@ def _task_status(dispatch_status: str) -> str:
         return "landed"
     if dispatch_status in _PLANNED_STATUSES:
         return "planned"
+    # NOTE for the spend-refusal statuses: both fall through to "bounced", and
+    # that is the right coarse lifecycle -- nothing landed and nothing is still
+    # planned. The specific fact ("the leased ceiling refused this draw", with
+    # the lease id and the realized spend) survives in full on the result dict
+    # itself, which BuildTask.mark() keeps as `last_result`.
     return "bounced"
+
+
+def _spend_refusal_rows(results: Any) -> list[dict[str, Any]]:
+    """Every result in ``results`` that a leased spend ceiling refused."""
+    return [r for r in (results or [])
+            if isinstance(r, Mapping)
+            and str(r.get("status") or "") in (SPEND_REFUSED_STATUS,
+                                               SPEND_REFUSED_SKIPPED_STATUS)]
 
 
 @dataclass
@@ -996,6 +1015,18 @@ class WaveExecutor:
         # where a leaked beat would keep appending events for a wave that ended
         # long ago. A stale "still working" signal is worse than no signal: it
         # is the exact lie the stall detector exists to catch.
+        from . import budget
+
+        # THE WAVE-LEVEL NET FOR A REFUSED DRAW. `KairosScheduler.dispatch`
+        # already translates a `BudgetRefused` per POSITION (so a wave keeps the
+        # results of the positions that ran before the refusal), but that is one
+        # of two dispatch paths: the gated write path goes through
+        # `gated_writes.run_write_wave`, which is owned elsewhere and does not
+        # translate. Without this, a refusal on THAT path still escaped run_wave
+        # and destroyed the whole loop run. Caught here rather than swallowed:
+        # the wave still ends, it just ends with a receipt instead of a
+        # traceback, and nothing retries the refused call.
+        wave_refusal: Any = None
         try:
             if envelope is not None:
                 # INSIDE THE ENVELOPE. Entering it publishes the envelope id in
@@ -1008,9 +1039,35 @@ class WaveExecutor:
                     raw = _dispatch()
             else:
                 raw = _dispatch()
+        except budget.BudgetRefused as exc:
+            # The position is UNKNOWN on this path -- run_write_wave reports
+            # only at the end -- so every task in the wave is reported refused
+            # rather than guessing which one asked for the money. Deliberately
+            # not `attempted=False` for the rest: on this path nothing came
+            # back at all, and claiming a specific one was "never attempted"
+            # would be an invention.
+            wave_refusal = exc
+            raw = [spend_refused_result(a, exc, objective=t.objective,
+                                        paths=list(t.paths))
+                   for a, t in zip(assignments, wave.tasks)]
         finally:
             beat_stop.set()
             beat_thread.join(timeout=2.0)
+
+        # THE ENVELOPE IS CLOSED BEFORE THE RECEIPT IS WRITTEN, always. The
+        # `with envelope:` block above closes on every exit including a raise
+        # (SpendEnvelope.__exit__), so this is normally a no-op that reads back
+        # what was already reported -- but an envelope opened without ever
+        # being entered (no dispatch path taken) would otherwise hold the day's
+        # money against a wave that is over. `close()` is idempotent.
+        if envelope is not None and envelope.result is None:
+            try:
+                envelope.close(reason=(
+                    f"wave {wave.index} ended without entering its envelope"
+                    if wave_refusal is None else
+                    f"wave {wave.index} refused at its leased ceiling"))
+            except Exception:  # noqa: BLE001 - a receipt must not die here
+                pass
         # Guaranteed len(tasks) long, position-matched to `tasks`/`wave.tasks`:
         # dispatch() builds its return list 1:1 from accept()'s own 1:1 pass
         # over `tasks`, UNLESS its internal parallel-write downgrade path fires
@@ -1069,6 +1126,18 @@ class WaveExecutor:
                 bounced_n += 1
 
         result_mode = "gated" if gated_write_wave else ("parallel" if wave_parallel else "sequential")
+        # THE REFUSAL IS VISIBLE ON THE WAVE, not only buried in the per-task
+        # results. `mode` is how "lease_denied"/"spend_denied" already report a
+        # wave that money stopped BEFORE dispatch; "spend_refused" is the same
+        # fact discovered DURING dispatch, and a caller that switches on mode
+        # should not have to scan N result dicts to find it.
+        refused_rows = _spend_refusal_rows(raw)
+        if refused_rows:
+            result_mode = "spend_refused"
+            first = refused_rows[0]
+            why = (f"the leased spend ceiling refused a draw mid-wave: "
+                   f"{first.get('reason') or 'no reason reported'}")
+            forced_reason = f"{forced_reason}; {why}" if forced_reason else why
         return WaveResult(
             index=wave.index, mode=result_mode,
             dry_run=dry_run, write_tasks=write_n, advisory_tasks=advisory_n,
@@ -1135,6 +1204,18 @@ class WaveExecutor:
                 session.save(runs_dir, update_architecture=update_architecture)
 
             if stop_on_bounce and result.bounced_tasks:
+                break
+
+            # A REFUSED CEILING STOPS THE SESSION, whatever stop_on_bounce
+            # says. Every wave opens its OWN envelope for the full
+            # `effect_bounds.max_spend_usd`, so continuing here would hand the
+            # next wave a fresh, complete authorisation immediately after the
+            # ledger refused the last one -- turning one operator gesture into
+            # N caps. The refusal is already on this wave's result
+            # (mode="spend_refused", with the lease and the reason), and the
+            # waves that did not run are visible as the ones missing from the
+            # report; nothing retries the refused call.
+            if result.mode == "spend_refused":
                 break
 
         snapshot_path = None
