@@ -607,6 +607,87 @@ def mission_contract_for_candidate(
     )
 
 
+def mission_contract_for_build_session(
+    session: Any,
+    *,
+    source_revision: str,
+    created_at: str,
+    budget: ResourceBudget,
+    success_criteria: Sequence[str] | None = None,
+    trace_id: str | None = None,
+) -> MissionContract:
+    """Compile ONE ``daedalus.build.BuildSession`` into the mission it runs.
+
+    The build path's second half of the same wiring
+    :func:`mission_contract_for_candidate` does for the picker: a build session
+    is one feature carried across waves, which is exactly one mission carried
+    across an ordered batch of work items (plan §7). ``BuildSession`` binds its
+    own ``mission_id`` and one deterministic ``work_item_id`` per task; this
+    function only reads them, so the id a receipt names and the id the mission
+    claims cannot be minted twice and disagree.
+
+    DUCK-TYPED ON PURPOSE. ``daedalus.build`` is a planning module that imports
+    the router and the scheduler; importing it from the spine would drag that
+    graph into the attempt hot path and invert the layering. The session is read
+    through ``getattr`` exactly as ``mission_contract_for_candidate`` reads a
+    candidate.
+
+    ``policy_sha256`` binds the same effect-boundary registry digest the
+    candidate mission and :func:`attempt_policy_decision` bind, so a build's
+    mission and the attempts under it name one policy and not two.
+
+    An unbound session is refused rather than papered over: without work item
+    ids there is no WorkItem layer, and a mission that names none is not a
+    mission the chain can hang attempts off.
+    """
+
+    mission_id = str(getattr(session, "mission_id", "") or "")
+    if not mission_id:
+        raise ValueError(
+            "build session has no mission_id; it was constructed outside "
+            "BuildSession.__post_init__ and is not bound to a mission"
+        )
+    tasks = list(session.tasks())
+    if not tasks:
+        raise ValueError("build session plans no work items")
+    work_item_ids: list[str] = []
+    for index, task in enumerate(tasks):
+        work_item_id = str(getattr(task, "work_item_id", "") or "")
+        if not work_item_id:
+            raise ValueError(
+                f"build task {index} has no work_item_id; the session was not bound"
+            )
+        work_item_ids.append(work_item_id)
+
+    feature = str(getattr(session, "feature", "") or "")
+    if not feature.strip():
+        raise ValueError("build session has no feature to state as an objective")
+
+    policy_sha = _policy_registry_sha256()
+    return MissionContract(
+        mission_id=mission_id,
+        objective=feature,
+        source_revision=source_revision,
+        # Duplicates are NOT filtered here. MissionContract refuses them, and
+        # a duplicate means two build tasks claim one work item -- a planning
+        # defect that must surface, not be de-duplicated into silence.
+        work_item_ids=tuple(work_item_ids),
+        success_criteria=tuple(success_criteria) if success_criteria else (
+            "every work item in this build reaches status 'landed' under its "
+            "wave's effect lease",
+        ),
+        policy_sha256=policy_sha,
+        budget=budget,
+        provenance=ContractProvenance(
+            origin="daedalus.build",
+            source_revision=source_revision,
+            created_at=created_at,
+            input_digests=(policy_sha,),
+            trace_id=trace_id,
+        ),
+    )
+
+
 def read_contract_set(result_body: Any) -> AttemptContractSet | None:
     """Recover the canonical set from a spine ledger row's ``result`` detail.
 
@@ -639,5 +720,6 @@ __all__ = [
     "read_contract_set",
     "canonicalise_attempt",
     "evaluator_assurance",
+    "mission_contract_for_build_session",
     "mission_contract_for_candidate",
 ]

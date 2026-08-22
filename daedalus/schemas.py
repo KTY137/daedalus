@@ -575,6 +575,57 @@ class MissionContract(CanonicalContract):
         return cls(**body)
 
 
+def derive_work_item_id(
+    mission_id: str,
+    *,
+    ordinal: int,
+    identity: Sequence[Any] = (),
+) -> str:
+    """The deterministic id of ONE work item under ``mission_id``.
+
+    THERE IS NO ``WorkItem`` CLASS AND THIS FUNCTION IS WHY. Plan §7's chain
+    names WorkItems between the mission and its attempts, and
+    :class:`MissionContract` already owns that layer as
+    ``work_item_ids: tuple[str, ...]`` -- a work item IS an id under a mission.
+    A second dataclass would have been a second contract for the thing the
+    mission already names (Invariant 1). What was actually missing is the
+    *derivation*, and it lives here, beside the validator that will reject a
+    malformed result, so producer and validator cannot drift.
+
+    ``ordinal`` must be unique within the mission and is what makes the id
+    unique: two planned items with byte-identical text still get distinct ids.
+    (A collision would not pass silently either -- ``work_item_ids`` rejects
+    duplicates -- but a producer that relies on a downstream refusal for
+    uniqueness is a producer that fails late.)
+
+    ``identity`` is the content the id is BOUND to (objective, owner, declared
+    paths -- whatever the caller considers the item's substance). It is hashed,
+    not stored, so a receipt naming ``wi-002-<digest>`` proves which text was
+    worked without the id becoming a copy of it (Invariant 7). A re-plan that
+    changes the substance changes the id; that is the point, not a defect.
+
+    The ordinal is zero-padded to three digits so the SORTED
+    ``work_item_ids`` tuple reads back in plan order for the first thousand
+    items. That is a readability nicety and nothing depends on it: ordering is
+    owned by whatever batches the items (a wave index, a queue position), never
+    by the mission, whose tuple is sorted by construction.
+    """
+
+    mission = _identifier(mission_id, "mission_id")
+    if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 0:
+        raise ValueError("work item ordinal must be a non-negative integer")
+    if isinstance(identity, (str, bytes)):
+        raise ValueError("work item identity must be a sequence, not a string")
+    digest = canonical_sha(
+        {
+            "mission_id": mission,
+            "ordinal": ordinal,
+            "identity": [str(part) for part in identity],
+        }
+    )
+    return _identifier(f"wi-{ordinal:03d}-{digest[:12]}", "work_item_id")
+
+
 @dataclass(frozen=True)
 class AttemptContract(CanonicalContract):
     CONTRACT_TYPE: ClassVar[str] = "daedalus.attempt"

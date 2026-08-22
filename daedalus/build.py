@@ -28,6 +28,27 @@ Execution is a separate concern, deliberately: see :mod:`daedalus.build_exec`
 for the wave executor that takes a saved :class:`BuildSession` and actually
 runs its waves through :class:`daedalus.kairos.scheduler.KairosScheduler`,
 collecting results back onto each :class:`BuildTask`.
+
+**These nouns are views of the canonical chain, not rivals to it.** Master
+plan §7 fixes one chain -- ``MissionContract -> WorkItems -> Attempts ->
+Artifacts -> EvidencePacket`` -- and this module's three nouns bind onto it:
+
+  * :class:`BuildSession` is ONE ``MissionContract`` run (``mission_id``);
+  * :class:`Wave` is an ordered batch of WorkItems (``index`` carries the
+    order the mission's sorted ``work_item_ids`` tuple cannot);
+  * :class:`BuildTask` is ONE WorkItem (``work_item_id``, derived by
+    :func:`daedalus.schemas.derive_work_item_id`);
+  * a dispatched task is an Attempt, and the existing ``AttemptContract``
+    already carries ``mission_id`` + ``task_id`` -- nothing new is minted here.
+
+No ``WorkItem`` class was added: ``MissionContract.work_item_ids`` already IS
+that layer, so a second dataclass would have been a second contract for the
+thing the mission already names (Invariant 1). The mission itself is compiled
+by :func:`daedalus.spine.receipts.mission_contract_for_build_session`, which
+lives in the spine because a mission needs a policy digest and a budget, and
+those are not planning state. The reconciliation, including what is deferred
+to :mod:`daedalus.build_exec` and :mod:`daedalus.loop`, is written down in
+``docs/design/BUILD_VOCABULARY_RECONCILIATION_2026-08-22.md``.
 """
 
 from __future__ import annotations
@@ -42,6 +63,7 @@ from .categories import preset_for
 from .kairos.decompose import decompose
 from .kairos.scheduler import KairosScheduler
 from .router import route_task
+from .schemas import derive_work_item_id
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN_DIR = ROOT / "runs" / "build"
@@ -59,6 +81,45 @@ def _slug(text: str) -> str:
 
 def _stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+#: The provenance key every per-task dispatch result is stamped with. Namespaced
+#: (one key, a mapping under it) exactly like ``build_exec``'s ``effect_lease``
+#: stamp, so binding a result to its mission can never collide with a key
+#: ``KairosScheduler.dispatch`` already produces.
+WORK_ITEM_KEY = "work_item"
+
+
+def mission_id_for_session(slug: str, created: str = "") -> str:
+    """The mission id a :class:`BuildSession` gets when its caller names none.
+
+    ``mission-<slug>[-<created>]``, reusing the ``mission-`` prefix
+    :func:`daedalus.spine.receipts.mission_contract_for_candidate` already
+    mints, so the build path does not invent a THIRD spelling of "mission"
+    beside the picker's and the loop's.
+
+    Deterministic given the session, which is what a work item id needs. It is
+    not globally unique: two builds of the same feature started in the same
+    second collide. A caller that cares supplies ``mission_id`` explicitly --
+    ``daedalus.loop`` has a ``run_id`` and should pass it, so the wave lease's
+    ``EffectBounds.mission_id`` and the session's mission are ONE string (that
+    one-line hunk is deferred to the loop's owner; see the reconciliation doc).
+
+    SANITISED, not validated. ``schemas._identifier`` refuses a mission id with
+    a stray character, and this function runs inside ``BuildSession``'s
+    constructor -- so raising here would mean an unusual feature name could
+    abort a build before it planned anything. A slug is a display convenience;
+    it is not allowed to be the reason a build does not happen. Anything
+    outside the identifier grammar is folded to ``-`` exactly as
+    ``spine.receipts._identifier_fragment`` folds a candidate's task id.
+    """
+    fragment = "".join(
+        ch if (ch.isalnum() or ch in "._:/-") else "-" for ch in str(slug or "")
+    ).strip("-") or "build"
+    tail = "".join(
+        ch if (ch.isalnum() or ch in "._:/-") else "-" for ch in str(created or "")
+    ).strip("-")
+    return f"mission-{fragment}{'-' + tail if tail else ''}"[:200]
 
 
 def assign_builder(lane: str) -> tuple[str, bool]:
@@ -91,6 +152,19 @@ class BuildTask:
     # a bench bounce) is lost -- it rides here instead. Populated only by
     # daedalus.build_exec.WaveExecutor; empty for a plan that never ran.
     last_result: dict[str, Any] = field(default_factory=dict)
+    # ---- CANONICAL IDENTITY (plan §7) ------------------------------------- #
+    # This task's WorkItem id and the mission it serves. Appended at the END of
+    # the dataclass on purpose: every live construction site uses keywords, but
+    # inserting a field earlier would still silently re-bind any positional
+    # caller that appears later. Empty until the owning BuildSession binds them
+    # (BuildSession.__post_init__), which is also what makes a hand-built
+    # BuildTask usable in a test without knowing about missions.
+    mission_id: str = ""
+    work_item_id: str = ""
+
+    def work_item_stamp(self) -> dict[str, Any]:
+        """This task's canonical identity, as a receipt-shaped mapping."""
+        return {"mission_id": self.mission_id, "work_item_id": self.work_item_id}
 
     def mark(self, status: str, last_result: dict[str, Any] | None = None) -> None:
         """Advance this task's lifecycle in place. ``status`` should be one of
@@ -98,10 +172,29 @@ class BuildTask:
         as ``last_result`` to keep the full-fidelity detail alongside the
         coarse status -- never called with a mismatched pair by
         :mod:`daedalus.build_exec`, but nothing here enforces that; it is a
-        plain setter, not a state machine."""
+        plain setter, not a state machine.
+
+        IT STAMPS THE RESULT IN PLACE, and that is load-bearing rather than
+        tidy. ``build_exec`` puts the SAME dict object into ``WaveResult.results``
+        that it hands here, so stamping it is what makes a wave receipt name the
+        mission its rows belong to (Invariant 7) without editing the executor.
+        The same file already mutates these dicts in place for
+        ``result["effect_lease"]``, so this is that file's own idiom, not a new
+        one. Stamping is skipped for an unbound task rather than writing empty
+        ids, so an unstamped row reads as "this session bound nothing" instead
+        of as a mission whose id happens to be the empty string.
+
+        WHAT THIS DOES NOT REACH: rows that never pass through ``mark`` with a
+        result -- a dry-run wave (which ``continue``s before the call) and the
+        two refusal branches (which call ``mark("bounced")`` with no dict, over
+        a separately built ``refused`` list). Those need the deferred
+        ``build_exec`` hunk; see the reconciliation doc.
+        """
         self.status = status
         if last_result is not None:
             self.last_result = last_result
+        if isinstance(last_result, dict) and self.mission_id and self.work_item_id:
+            last_result[WORK_ITEM_KEY] = self.work_item_stamp()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -115,6 +208,8 @@ class BuildTask:
             "paths": list(self.paths),
             "status": self.status,
             "last_result": dict(self.last_result),
+            "mission_id": self.mission_id,
+            "work_item_id": self.work_item_id,
         }
 
     @classmethod
@@ -130,6 +225,12 @@ class BuildTask:
             paths=list(d.get("paths", [])),
             status=d.get("status", "planned"),
             last_result=dict(d.get("last_result", {})),
+            # A snapshot written before the binding existed reloads with empty
+            # ids and is re-bound by BuildSession.__post_init__ -- which will
+            # derive the SAME ids, because the derivation is a function of the
+            # plan, not of when it ran.
+            mission_id=str(d.get("mission_id", "") or ""),
+            work_item_id=str(d.get("work_item_id", "") or ""),
         )
 
 
@@ -159,6 +260,55 @@ class BuildSession:
     created: str = ""
     max_workers: int = 3
     snapshot_path: str | None = None
+    #: The ONE ``MissionContract`` this session runs (plan §7). Appended last
+    #: for the same positional-safety reason as ``BuildTask.mission_id``.
+    mission_id: str = ""
+
+    def __post_init__(self) -> None:
+        """Bind this session to one mission and every task to one work item.
+
+        In ``__post_init__`` rather than in :func:`plan_build` because
+        ``BuildSession`` is constructed DIRECTLY as well -- ``daedalus.loop``'s
+        ``_session_for`` wraps one picker candidate as a one-task session, and
+        that path drives the real builds. Binding at construction means the
+        loop's sessions are canonical without the loop lane editing a line.
+
+        Idempotent by construction: an id that is already set is never
+        overwritten, so a reloaded snapshot keeps the ids it was persisted with
+        and a re-derivation cannot renumber settled work.
+        """
+        self.bind_work_items()
+
+    def bind_work_items(self) -> None:
+        """Stamp the mission id and one deterministic work item id per task.
+
+        The ordinal is the session-FLAT task index in wave order, so it is
+        unique across the whole session (a per-wave index would collide between
+        waves, and ``MissionContract.work_item_ids`` rejects duplicates). The
+        hashed identity is the task's substance -- objective, owner, declared
+        paths -- so the id is bound to what was planned, not merely to where it
+        sat in the list.
+        """
+        if not self.mission_id:
+            self.mission_id = mission_id_for_session(self.slug, self.created)
+        for ordinal, task in enumerate(self.tasks()):
+            if not task.mission_id:
+                task.mission_id = self.mission_id
+            if not task.work_item_id:
+                task.work_item_id = derive_work_item_id(
+                    self.mission_id,
+                    ordinal=ordinal,
+                    identity=(task.objective, task.agent, *sorted(task.paths)),
+                )
+
+    def work_item_ids(self) -> tuple[str, ...]:
+        """This session's work items, in plan order.
+
+        The mission's own tuple is sorted and de-duplicated by the contract;
+        this is the ordered view, which is what a wave needs and what the
+        mission deliberately does not carry.
+        """
+        return tuple(t.work_item_id for t in self.tasks())
 
     def tasks(self) -> list[BuildTask]:
         return [t for w in self.waves for t in w.tasks]
@@ -181,6 +331,7 @@ class BuildSession:
             "slug": self.slug,
             "created": self.created,
             "max_workers": self.max_workers,
+            "mission_id": self.mission_id,
             "summary": self.summary(),
             "waves": [w.to_dict() for w in self.waves],
         }
@@ -196,6 +347,7 @@ class BuildSession:
             created=d.get("created", ""),
             max_workers=int(d.get("max_workers", 3)),
             snapshot_path=d.get("snapshot_path"),
+            mission_id=str(d.get("mission_id", "") or ""),
         )
 
     def save(self, runs_dir: str | Path | None = None, *, update_architecture: bool = True) -> Path:
@@ -291,6 +443,7 @@ def plan_build(
     persist: bool = True,
     runs_dir: str | Path | None = None,
     update_architecture: bool = True,
+    mission_id: str | None = None,
 ) -> BuildSession:
     """Plan a multi-wave build for ``feature``.
 
@@ -299,6 +452,11 @@ def plan_build(
     the lane, and group the subtasks into bounded waves. Deterministic apart
     from :func:`decompose`'s optional local-model call (which has a deterministic
     fallback); no provider write happens here.
+
+    ``mission_id`` names the ONE mission this session runs. Omitted, it is
+    derived by :func:`mission_id_for_session`; a caller that already owns a run
+    identity (the loop's ``run_id``) should pass it, so the wave lease and the
+    session cannot name two different missions for one build.
     """
     # Reuse Ikarus purely for its wave sizing + active_agents resolution: with
     # a project it loads the team's max_workers/active_agents; without one it
@@ -337,6 +495,7 @@ def plan_build(
         slug=_slug(feature),
         created=_stamp(),
         max_workers=max_workers,
+        mission_id=mission_id or "",
     )
     if persist:
         session.save(runs_dir, update_architecture=update_architecture)
