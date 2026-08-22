@@ -1,0 +1,173 @@
+{
+  "task": "TRUST-ROOT discriminating-power check (guard mutation)",
+  "generated_at_utc": "2026-08-22T06:52:03+00:00",
+  "method": "Each guard is disabled by an anchored, in-memory source mutation compiled into a throwaway module. Neither worktree is modified. A missing anchor raises rather than silently no-opping.",
+  "sources": {
+    "TRUNK": {
+      "sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "module": "daedalus/kernel/approvals.py"
+    },
+    "CHECKPOINT": {
+      "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "module": "daedalus/spine/promotion_approval.py"
+    }
+  },
+  "commands_run": [
+    "C:/Users/nukei/AppData/Local/Microsoft/WindowsApps/python preruling_trustroot_mutations.py all"
+  ],
+  "tally": {
+    "mutations": 12,
+    "guard_demonstrated": 11,
+    "redundantly_guarded": 1,
+    "not_demonstrated": 0
+  },
+  "results": [
+    {
+      "tree": "TRUNK",
+      "mutation": "T1",
+      "guard_disabled": "HMAC signature comparison (hmac.compare_digest)",
+      "probe": "approval signed with a foreign secret (A2)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: ApprovalSignatureError: owner approval signature mismatch | mutated: verifier returned a VerifiedOwnerApproval",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "TRUNK",
+      "mutation": "T2",
+      "guard_disabled": "approval/expectation binding comparison",
+      "probe": "candidate artifact substituted (A6a)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: ApprovalBindingMismatch: owner approval binding mismatch: candidate_artifact_sha256 | mutated: verifier returned a VerifiedOwnerApproval",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "TRUNK",
+      "mutation": "T3",
+      "guard_disabled": "expires_at enforcement",
+      "probe": "approval used after expiry (A7a)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: ApprovalExpired: owner approval has expired | mutated: verifier returned a VerifiedOwnerApproval",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "TRUNK",
+      "mutation": "T4",
+      "guard_disabled": "ledger UNIQUE/PRIMARY KEY constraints",
+      "probe": "same approval consumed twice (A5b)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: ApprovalReplay: owner approval, nonce, or promotion identity was already consumed | mutated: the SAME approval was consumed twice",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "TRUNK",
+      "mutation": "T5",
+      "guard_disabled": "keyring membership (revocation)",
+      "probe": "signing key revoked from the keyring (A4)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: ApprovalSignatureError: owner approval key is unknown | mutated: verifier accepted with an EMPTY keyring",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C1",
+      "guard_disabled": "git verify-tag EXIT CODE (replaced by a 'Good' text grep)",
+      "probe": "tag signed by a key outside allowed-signers (B2)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: signature on 'promote/52e3c1d5068f5df1e9aad630aaeb6c90dce83fd30c2bdb073f9ea1067e2df83a' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:s0bhTZuVzsC1+6BnTZm5sxImv1PF7NoCEOncRalFqG4\nNo principal matched. | mutated: owner signature on promote/52e3c1d5068f5df1e9aad630aaeb6c90dce83fd30c2bdb073f9ea1067e2df83a verified against committed allowed signers",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C2",
+      "guard_disabled": "allowed-signers read from COMMITTED HEAD (replaced by working copy)",
+      "probe": "attacker key added to the working tree only (B3a)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: signature on 'promote/52e3c1d5068f5df1e9aad630aaeb6c90dce83fd30c2bdb073f9ea1067e2df83a' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:s0bhTZuVzsC1+6BnTZm5sxImv1PF7NoCEOncRalFqG4\nNo principal matched. | mutated: owner signature on promote/52e3c1d5068f5df1e9aad630aaeb6c90dce83fd30c2bdb073f9ea1067e2df83a verified against committed allowed signers",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C3",
+      "guard_disabled": "tag name bound to the signed body candidate",
+      "probe": "tag name says X, signed body says Y (B5b)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: approval body names candidate b47f6b10ed59, tag name says cc587b4c39b7 | mutated: owner signature on promote/cc587b4c39b79359eb61bcb482517d462b5140e811a0417a7c4d3fe56a0d4a76 verified against committed allowed signers",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C4",
+      "guard_disabled": "expires_at enforcement",
+      "probe": "owner-signed approval past its expiry (B6a)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: approval expired at 2026-08-22T00:51:58+00:00 (now 2026-08-22T06:52:01.314858+00:00) | mutated: owner signature on promote/027453f48dfdadfc0b57932d4b1f91198aa37a787af8e842ab1741b55fbab664 verified against committed allowed signers",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C5",
+      "guard_disabled": "tag target bound to the promotion base",
+      "probe": "approval replayed onto a moved base (B5d)",
+      "baseline_observed": "refused",
+      "mutated_observed": "refused",
+      "discriminating": false,
+      "verdict": "REDUNDANTLY GUARDED",
+      "detail": "baseline: approval tag points at e367c4339db9, but promotion is against 907a8cc267b7 | mutated: approval body names revision e367c4339db9, promotion is against 907a8cc267b7",
+      "stamp": "MEASURED",
+      "interpretation": "Disabling the tag-target check did NOT open the door: a second, independent binding -- the source_revision field inside the SIGNED body -- refused with a different message. Two checks cover this replay. C5b disables both."
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C5b",
+      "guard_disabled": "BOTH base bindings (tag target AND signed-body source_revision)",
+      "probe": "approval replayed onto a moved base (B5d)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: approval tag points at e367c4339db9, but promotion is against 907a8cc267b7 | mutated: owner signature on promote/c009d9c68acf6bd2e553e7fc6a1877426d1cf14085d3e51c1bed76d52fb6dfd0 verified against committed allowed signers",
+      "stamp": "MEASURED"
+    },
+    {
+      "tree": "CHECKPOINT",
+      "mutation": "C6",
+      "guard_disabled": "signature verification of the tag object",
+      "probe": "annotated but UNSIGNED tag with a valid body (B1b)",
+      "baseline_observed": "refused",
+      "mutated_observed": "accepted",
+      "discriminating": true,
+      "verdict": "GUARD DEMONSTRATED",
+      "detail": "baseline: signature on 'promote/c1d75fd42f762b377dce565b219636041da2d9fbb10be8dd237e80320d5f5c6c' did not verify against the committed allowed-signers file: error: no signature found | mutated: owner signature on promote/c1d75fd42f762b377dce565b219636041da2d9fbb10be8dd237e80320d5f5c6c verified against committed allowed signers",
+      "stamp": "MEASURED"
+    }
+  ],
+  "fatal": null,
+  "stamp": "MEASURED"
+}

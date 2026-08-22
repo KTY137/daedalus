@@ -1,0 +1,663 @@
+{
+  "task": "CENSUS-CHECKPOINT",
+  "tree": "CHECKPOINT",
+  "branch": "checkpoint/2026-07-20-session",
+  "pinned_sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+  "pinned_sha_short": "3e758392",
+  "plan_revision_claimed": "2",
+  "disposable_worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp",
+  "read_only": true,
+  "created_utc": "2026-08-22T06:37:12Z",
+  "interpreter": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+  "stages": {
+    "env": {
+      "utc": "2026-08-22T06:37:13Z",
+      "python_version": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]\nWindows-10-10.0.26200-SP0",
+      "pytest_version": "pytest 9.1.1",
+      "tree_verification": {
+        "head_sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "matches_pinned": true,
+        "dirty_lines": 0,
+        "dirty_sample": [],
+        "stamp": "MEASURED"
+      },
+      "load_before": {
+        "raw": "446 7 14 19",
+        "stamp": "MEASURED",
+        "processes_total": 446,
+        "python_processes": 7,
+        "node_processes": 14,
+        "cpu_load_percent": 19
+      },
+      "stamp": "MEASURED"
+    },
+    "collect": {
+      "utc": "2026-08-22T06:38:01Z",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe -m pytest -q -p no:cacheprovider --color=no --collect-only",
+      "returncode": 0,
+      "timed_out": false,
+      "collected": 4632,
+      "collect_errors": 0,
+      "raw_tail": "tests/test_worktree.py::test_a_fresh_manager_does_not_reap_records_it_did_not_create\ntests/test_worktree.py::test_reap_ignores_a_forged_removal_timestamp_for_a_live_worktree\ntests/test_worktree.py::test_reap_refuses_a_branch_whose_tip_no_other_ref_contains\ntests/test_worktree.py::test_reap_retains_a_branch_when_git_cannot_say_who_contains_its_tip\ntests/test_worktree.py::test_force_delete_refuses_when_the_branch_tip_moved\ntests/test_worktree.py::test_cleanup_is_repeatable_by_a_fresh_manager\ntests/test_worktree_properties.py::TestWorktreeJunctionProperty::runTest\ntests/test_worktree_properties.py::GuardIsLoadBearingTests::test_without_reparse_detection_the_walker_deletes_through_the_junction\ntests/test_worktree_properties.py::HypothesisOptionalTests::test_a_missing_hypothesis_is_recorded_not_raised\ntests/test_write_guard_e2e.py::WriteGuardE2ETests::test_narrated_no_disk_write_escalates\ntests/test_write_guard_e2e.py::WriteGuardE2ETests::test_no_policy_loaded_refuses_live_write\ntests/test_write_guard_e2e.py::WriteGuardE2ETests::test_real_write_to_allowed_path_is_accepted_and_persisted\ntests/test_write_guard_e2e.py::WriteGuardE2ETests::test_secret_path_write_is_blocked_and_left_untouched\n\n4632 tests collected in 30.06s",
+      "ansi_in_output": false,
+      "wall_clock_s": 31.56,
+      "wall_clock_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "raw_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\collect_stdout.txt",
+      "stamp": "MEASURED"
+    },
+    "effect_boundary_check": {
+      "utc": "2026-08-22T06:38:23Z",
+      "commands": [
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe tools/effect_boundary_check.py",
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe tools/effect_boundary_check.py --json"
+      ],
+      "returncode_human": 2,
+      "returncode_json": 2,
+      "expected_blockers": 12,
+      "expected_kind": "tools.* entrypoint.unregistered",
+      "unregistered_line_count": 12,
+      "unregistered_tools_line_count": 12,
+      "blocker_line_count": 15,
+      "unregistered_lines": [
+        "[BLOCKER] entrypoint.unregistered: tools.audit_swarm:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.bootstrap_receipt:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.funnel:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.funnel_report:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gate_discrimination:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gate_host_preflight:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gui_check:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.iron_plan_guard:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.iron_plan_hook_runner:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.lane_invariants:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.mutation_score:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.operability_drill:main -- discovered effectful entrypoint is outside the canonical registry"
+      ],
+      "blocker_lines": [
+        "[BLOCKER] entrypoint.effect_drift: daedalus.providers.ollama:OllamaProvider.rollback -- new undeclared effects: network_egress, process_spawn",
+        "[BLOCKER] entrypoint.unregistered: tools.audit_swarm:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.bootstrap_receipt:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.funnel:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.funnel_report:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gate_discrimination:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gate_host_preflight:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.gui_check:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.iron_plan_guard:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.iron_plan_hook_runner:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.lane_invariants:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.mutation_score:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] entrypoint.unregistered: tools.operability_drill:main -- discovered effectful entrypoint is outside the canonical registry",
+        "[BLOCKER] gate0.unguarded_entrypoint: python.offload -- daedalus.offload:offload can perform protected effects without the central boundary; migration: Route the live write branch through TaskAttempt/run_attempt and return only a content-addressed candidate artifact; keep the primary checkout read-only.",
+        "[BLOCKER] gate0.unguarded_entrypoint: python.promote_candidates -- daedalus.kairos.gated_writes:promote_candidates can perform protected effects without the central boundary; migration: Require an owner-issued, candidate/evidence/HEAD-bound approval capability at promote_candidates() before creating the integration worktree."
+      ],
+      "json_unregistered_hits": 12,
+      "json_unregistered_sample": [
+        {
+          "json_path": "$.findings[1].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[2].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[3].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[4].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[5].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[6].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[7].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[8].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[9].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[10].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[11].code",
+          "value": "entrypoint.unregistered"
+        },
+        {
+          "json_path": "$.findings[12].code",
+          "value": "entrypoint.unregistered"
+        }
+      ],
+      "structurally_conformant": false,
+      "gate0_closed": false,
+      "raw_tail_40": "[GAP    ] gate0.not_central: cli.enforce -- daedalus.enforce:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.eval_ceiling -- daedalus.eval.ceiling:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.eval_correctness -- daedalus.eval.correctness:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.eval_graph_delta -- daedalus.eval.graph_delta:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.file_bridge -- daedalus.file_bridge:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.gui_lint -- daedalus.gui.lint:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.mapping_drift -- daedalus.mapping.drift:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.mapping_inventory -- daedalus.mapping.inventory:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.mapping_render -- daedalus.mapping.render:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.memory -- daedalus.memory.__init__:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.runbook -- daedalus.runbook:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.selftest -- daedalus.selftest:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.shift -- daedalus.shift:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.status -- daedalus.status:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.structcore -- daedalus.structcore.__main__:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.structcore_slice -- daedalus.structcore.slice:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.token_monitor -- daedalus.token_monitor:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: cli.web_api -- daedalus.web_api:main is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: file_bridge.enqueue -- daedalus.file_bridge:enqueue is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: file_bridge.process -- daedalus.file_bridge:process_request is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: file_bridge.watch -- daedalus.file_bridge:watch is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: mcp.runtime -- <absent> is absent; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.claude -- daedalus.providers.claude_cli:ClaudeCLIProvider.run is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.codex -- daedalus.providers.codex_cli:CodexCLIProvider.run is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.deepseek -- daedalus.providers.deepseek:DeepSeekProvider.run is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.deepseek.rollback -- daedalus.providers.deepseek:DeepSeekProvider.rollback is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.ollama -- daedalus.providers.ollama:OllamaProvider.run is local_guards; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.ollama.rollback -- daedalus.providers.ollama:OllamaProvider.rollback is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: provider.ollama_native -- daedalus.providers._ollama_native:native_chat is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: python.command_gate -- daedalus.spine.attempt:command_gate is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: python.offload -- daedalus.offload:offload is unguarded; Gate 0 is not closed\n[GAP    ] gate0.not_central: python.promote_candidates -- daedalus.kairos.gated_writes:promote_candidates is unguarded; Gate 0 is not closed\n[GAP    ] gate0.not_central: web.mutations -- daedalus.web_api:DaedalusHandler.do_POST is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: web.mutations_put -- daedalus.web_api:DaedalusHandler.do_PUT is inventory_only; Gate 0 is not closed\n[GAP    ] gate0.not_central: web.server -- daedalus.web_api:run is local_guards; Gate 0 is not closed\n[GAP    ] gate0.not_central: worktree.cleanup -- daedalus.kairos.worktree:GitWorktreeManager.cleanup_worktree is local_guards; Gate 0 is not closed\n[GAP    ] gate0.not_central: worktree.commit -- daedalus.kairos.worktree:GitWorktreeManager.commit_candidate is local_guards; Gate 0 is not closed\n[GAP    ] gate0.not_central: worktree.create -- daedalus.kairos.worktree:GitWorktreeManager.create_worktree is local_guards; Gate 0 is not closed\n[GAP    ] gate0.not_central: worktree.reap -- daedalus.kairos.worktree:GitWorktreeManager.reap_branches is inventory_only; Gate 0 is not closed\n[REVIEW ] scan.static_scope: python-ast -- static Python discovery is a drift detector, not whole-program reachability; dynamic imports, native code, shell/JS, and external clients still require an effect boundary or OS containment",
+      "raw_human_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\ebc_human.txt",
+      "raw_json_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\ebc.json",
+      "wall_clock_s": 5.41,
+      "wall_clock_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "stamp": "MEASURED"
+    },
+    "gate_host_preflight": {
+      "utc": "2026-08-22T06:38:31Z",
+      "commands": [
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe -m tools.gate_host_preflight --json",
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe -m tools.gate_host_preflight"
+      ],
+      "returncode_json": 0,
+      "returncode_human": 0,
+      "note": "read-only host-fitness reporter; the five pytest counters do not apply",
+      "report": {
+        "host": {
+          "platform": "Windows-10-10.0.26200-SP0",
+          "system": "Windows",
+          "release": "10",
+          "machine": "AMD64",
+          "cpu": "Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz",
+          "cores_physical": 4,
+          "cores_logical": 8,
+          "ram_gb": 15.7,
+          "disk_free_gb_at_repo": 104.9,
+          "python": "3.10.11",
+          "python_implementation": "CPython",
+          "executable": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+          "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp",
+          "head": "3e758392845d9faf7877977d5ae8806973ed62e6"
+        },
+        "fit": true,
+        "checks": [
+          {
+            "name": "python version",
+            "ok": true,
+            "detail": "3.10.11 at C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe (expected >= 3.10; daedalus.atomic uses Path.write_text(newline=...), which is 3.10+)",
+            "required": true
+          },
+          {
+            "name": "module pytest",
+            "ok": true,
+            "detail": "9.1.1",
+            "required": true
+          },
+          {
+            "name": "module coverage",
+            "ok": true,
+            "detail": "7.15.2",
+            "required": true
+          },
+          {
+            "name": "optional tree_sitter_language_pack",
+            "ok": true,
+            "detail": "present -- structcore runs at full precision",
+            "required": false
+          },
+          {
+            "name": "optional lizard",
+            "ok": true,
+            "detail": "present -- structcore runs at full precision",
+            "required": false
+          },
+          {
+            "name": "daedalus resolves to THIS checkout",
+            "ok": true,
+            "detail": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\daedalus (expected C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\daedalus)\n        This is ADR-015 Finding 1 in miniature: the gate calls pytest, and if `daedalus` resolves to a DIFFERENT checkout the run measures that one instead -- silently, and green.",
+            "required": true
+          },
+          {
+            "name": "git",
+            "ok": true,
+            "detail": "git version 2.38.1.windows.1",
+            "required": true
+          },
+          {
+            "name": "git HEAD readable",
+            "ok": true,
+            "detail": "3e758392845d9faf7877977d5ae8806973ed62e6",
+            "required": true
+          },
+          {
+            "name": "working tree clean",
+            "ok": true,
+            "detail": "clean",
+            "required": false
+          },
+          {
+            "name": "git worktree usable",
+            "ok": true,
+            "detail": "36 worktree(s)",
+            "required": true
+          },
+          {
+            "name": "disk headroom",
+            "ok": true,
+            "detail": "104.9 GiB free at the repo (want >= 10; each mutation clones the tree)",
+            "required": true
+          },
+          {
+            "name": "core count known",
+            "ok": true,
+            "detail": "physical=4 logical=8 -- physical is the number that predicts this workload; the gate is process-spawn and I/O bound, not ALU bound",
+            "required": true
+          }
+        ],
+        "failed_required": [],
+        "warnings": []
+      },
+      "raw_tail_40": "HOST\n  cpu        Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz\n  cores      physical=4 logical=8\n  ram        15.7 GiB\n  platform   Windows-10-10.0.26200-SP0\n  python     3.10.11 (CPython)\n  repo       C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\n  head       3e758392845d9faf7877977d5ae8806973ed62e6\n\nCHECKS\n  [ok  ] python version: 3.10.11 at C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe (expected >= 3.10; daedalus.atomic uses Path.write_text(newline=...), which is 3.10+)\n  [ok  ] module pytest: 9.1.1\n  [ok  ] module coverage: 7.15.2\n  [ok  ] optional tree_sitter_language_pack: present -- structcore runs at full precision\n  [ok  ] optional lizard: present -- structcore runs at full precision\n  [ok  ] daedalus resolves to THIS checkout: C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\daedalus (expected C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\daedalus)\n        This is ADR-015 Finding 1 in miniature: the gate calls pytest, and if `daedalus` resolves to a DIFFERENT checkout the run measures that one instead -- silently, and green.\n  [ok  ] git: git version 2.38.1.windows.1\n  [ok  ] git HEAD readable: 3e758392845d9faf7877977d5ae8806973ed62e6\n  [ok  ] working tree clean: clean\n  [ok  ] git worktree usable: 36 worktree(s)\n  [ok  ] disk headroom: 104.9 GiB free at the repo (want >= 10; each mutation clones the tree)\n  [ok  ] core count known: physical=4 logical=8 -- physical is the number that predicts this workload; the gate is process-spawn and I/O bound, not ALU bound\n\nFIT TO MEASURE. Suggested invocation:\n  python -u tools/gate_discrimination.py --dry-run\n  python -u tools/gate_discrimination.py --head-only --coverage-guided\n\n  --head-only        the working tree may be edited concurrently; measure committed HEAD\n  --coverage-guided  skip mutants on lines no test executes -- a guaranteed SURVIVED that proves nothing. OPT-IN: without it the corpus is not narrowed at all (a run reporting '0 pre-excluded by coverage' was not asked to exclude anything).",
+      "raw_json_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\gate_host_preflight.json",
+      "wall_clock_s": 7.73,
+      "wall_clock_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "stamp": "MEASURED"
+    },
+    "pytest": {
+      "utc": "2026-08-22T07:05:42Z",
+      "command": "python -m pytest -q -p no:cacheprovider --color=no",
+      "argv": [
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--color=no"
+      ],
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp",
+      "returncode": 1,
+      "timed_out": false,
+      "env_delta": {
+        "removed": {},
+        "set": {
+          "NO_COLOR": "1"
+        }
+      },
+      "ansi_in_output": false,
+      "counters": {
+        "passed": 4627,
+        "failed": 3,
+        "error": 0,
+        "skipped": 1,
+        "xfailed": 1,
+        "xpassed": 0,
+        "deselected": 0,
+        "warnings": 0
+      },
+      "summary_line": "3 failed, 4627 passed, 1 skipped, 1 xfailed, 2018 subtests passed in 1544.52s (0:25:44)",
+      "failing_ids": [
+        "tests/test_dotenv.py::test_every_example_key_is_cleared_by_the_suite_conftest",
+        "tests/test_iron_plan_guard.py::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite",
+        "tests/test_iron_plan_guard.py::IronPlanContractTests::test_ledger_seals_current_plan"
+      ],
+      "erroring_ids": [],
+      "raw_tail_40": "            run_git(\n                repo,\n                \"add\",\n                \"--chmod=+x\",\n                \".githooks/pre-commit\",\n                \".githooks/commit-msg\",\n            )\n            run_git(repo, \"commit\", \"-m\", \"adopt policy\")\n            with mock.patch.dict(os.environ, {\"CI\": \"1\"}, clear=False):\n>               self.assertEqual(guard.verify_base(base_sha, repo), [])\nE               AssertionError: Lists differ: ['initial adoption does not change the com[110 chars]ord'] != []\nE               \nE               First list contains 2 additional elements.\nE               First extra element 0:\nE               'initial adoption does not change the complete policy bundle: docs/IKARUS_ARIADNE_MASTER_PLAN.md'\nE               \nE               + []\nE               - ['initial adoption does not change the complete policy bundle: '\nE               -  'docs/IKARUS_ARIADNE_MASTER_PLAN.md',\nE               -  'initial adoption must create exactly one ledger record']\n\ntests\\test_iron_plan_guard.py:705: AssertionError\n____________ IronPlanContractTests.test_ledger_seals_current_plan _____________\n\nself = <test_iron_plan_guard.IronPlanContractTests testMethod=test_ledger_seals_current_plan>\n\n    def test_ledger_seals_current_plan(self) -> None:\n        records = guard.read_ledger(ROOT)\n        latest = records[-1]\n        self.assertEqual(latest[\"result_plan_sha256\"], guard.file_sha256(ROOT / guard.PLAN_REL))\n        self.assertEqual(latest[\"record_sha256\"], guard.canonical_record_sha256(latest))\n>       self.assertEqual(latest[\"result_revision\"], 1)\nE       AssertionError: 2 != 1\n\ntests\\test_iron_plan_guard.py:43: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_dotenv.py::test_every_example_key_is_cleared_by_the_suite_conftest\nFAILED tests/test_iron_plan_guard.py::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite\nFAILED tests/test_iron_plan_guard.py::IronPlanContractTests::test_ledger_seals_current_plan\n3 failed, 4627 passed, 1 skipped, 1 xfailed, 2018 subtests passed in 1544.52s (0:25:44)",
+      "raw_stdout_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\pytest_stdout.txt",
+      "wall_clock_s": 1546.52,
+      "wall_clock_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "load_before": {
+        "raw": "446 7 14 11",
+        "stamp": "MEASURED",
+        "processes_total": 446,
+        "python_processes": 7,
+        "node_processes": 14,
+        "cpu_load_percent": 11
+      },
+      "load_after": {
+        "raw": "551 18 30 88",
+        "stamp": "MEASURED",
+        "processes_total": 551,
+        "python_processes": 18,
+        "node_processes": 30,
+        "cpu_load_percent": 88
+      },
+      "stamp": "MEASURED"
+    },
+    "system_check": {
+      "utc": "2026-08-22T07:15:32Z",
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe tools/system_check.py --json",
+      "returncode": 1,
+      "exit_code_meaning": {
+        "0": "every CORE check ran and passed",
+        "1": "at least one check FAILED",
+        "2": "INCOMPLETE: a CORE check could not run"
+      },
+      "timed_out": false,
+      "verdict_counts": {
+        "PASS": 14,
+        "FAIL": 2,
+        "UNAVAILABLE": 2
+      },
+      "report": {
+        "checks_summary": [
+          {
+            "name": "cli.entrypoint",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 0.54
+          },
+          {
+            "name": "doctor.reports_readiness",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 2.56
+          },
+          {
+            "name": "context.produces_a_budgeted_plan",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 46.27
+          },
+          {
+            "name": "offload.plans_without_mutating",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 69.79
+          },
+          {
+            "name": "map.drift_gate_is_green",
+            "outcome": "FAIL",
+            "core": true,
+            "seconds": 44.52
+          },
+          {
+            "name": "picker.ranks_with_evidence",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 38.34
+          },
+          {
+            "name": "picker.exit_code_distinguishes_degraded",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 1.04
+          },
+          {
+            "name": "spine.intent_is_recorded_BEFORE_the_effect",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 18.84
+          },
+          {
+            "name": "spine.attempt_leaves_the_primary_untouched",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 24.42
+          },
+          {
+            "name": "spine.circle_closes",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 21.97
+          },
+          {
+            "name": "eval.replays_a_task_and_scores_it",
+            "outcome": "UNAVAILABLE",
+            "core": true,
+            "seconds": 93.02
+          },
+          {
+            "name": "web.serves_and_terminates",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 1.69
+          },
+          {
+            "name": "gui.a_human_can_operate_the_cockpit",
+            "outcome": "UNAVAILABLE",
+            "core": true,
+            "seconds": 0.19
+          },
+          {
+            "name": "bridge.enqueue_watch_report_archive",
+            "outcome": "FAIL",
+            "core": true,
+            "seconds": 0.22
+          },
+          {
+            "name": "safety.remote_ollama_is_refused",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 0.31
+          },
+          {
+            "name": "safety.picker_cannot_apply",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 0.19
+          },
+          {
+            "name": "safety.room_prompt_gates_by_speaker",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 9.56
+          },
+          {
+            "name": "safety.bus_chain_detects_a_break",
+            "outcome": "PASS",
+            "core": true,
+            "seconds": 1.14
+          }
+        ]
+      },
+      "stderr_tail": "",
+      "raw_json_file": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\raw\\system_check.json",
+      "wall_clock_s": 387.19,
+      "wall_clock_stamp": "INHERITED-under-load (shared box, not a benchmark)",
+      "load_before": {
+        "raw": "494 9 17 79",
+        "stamp": "MEASURED",
+        "processes_total": 494,
+        "python_processes": 9,
+        "node_processes": 17,
+        "cpu_load_percent": 79
+      },
+      "load_after": {
+        "raw": "461 9 17 23",
+        "stamp": "MEASURED",
+        "processes_total": 461,
+        "python_processes": 9,
+        "node_processes": 17,
+        "cpu_load_percent": 23
+      },
+      "stamp": "MEASURED",
+      "parsed_ok": true,
+      "parse_note": "--json emits a HUMAN preamble before the JSON object; the first parse failed on it. Re-parsed from the first line-leading '{'.",
+      "total_checks": 18,
+      "core_verdict_counts": {
+        "PASS": 14,
+        "FAIL": 2,
+        "UNAVAILABLE": 2
+      },
+      "verdict_field": 1,
+      "not_passing": [
+        {
+          "name": "map.drift_gate_is_green",
+          "stage": "2 map",
+          "core": true,
+          "proves": "the generated architecture map still describes this tree",
+          "detail": "drift gate exited 1: 'itch:DAEDALUS_OLLAMA_REMOTE_OK\", \"why\": \"<what has to happen>\",\\n     \"since\": \"YYYY-MM-DD\", \"until\": \"YYYY-MM-DD\", \"who\": \"<name>\"}\\n  \\'since\\' may not be in the future and \\'until\\' may be at most 90 days after \\'since\\';\\n  the item comes back when it passes.\\n  To accept permanently, delete any acceptance for it and re-baseline\\n  (--refresh); the count moves in the committed diff where it is reviewed.\\n'"
+        },
+        {
+          "name": "eval.replays_a_task_and_scores_it",
+          "stage": "6 eval",
+          "core": true,
+          "proves": "the measurement harness actually measures, on one real task",
+          "detail": "the focus file was withheld by the secret floor (True), so this task cannot be scored -- the harness was not exercised, which is not the same as broken"
+        },
+        {
+          "name": "gui.a_human_can_operate_the_cockpit",
+          "stage": "6 web",
+          "core": true,
+          "proves": "the BUILT webapp loads in a REAL BROWSER against the real server, its three spaces are reachable, the health states are distinguishable, and a degraded source is VISIBLE rather than rendering as 'no work'",
+          "detail": "@playwright/test is not installed in C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\apps\\web. Install it with:  npm install --prefix C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\apps\\web"
+        },
+        {
+          "name": "bridge.enqueue_watch_report_archive",
+          "stage": "6 bridge",
+          "core": true,
+          "proves": "a queued task is picked up by the REAL watcher, answered into the inbox, and the request archived -- exactly once",
+          "detail": "could not enqueue: '  python -m daedalus.file_bridge watch --project <project>\\n  -> or run the queue once, in the foreground:  python -m daedalus.file_bridge once --project <project>\\n  -> or, if you are deliberately queueing ahead of a watcher you\\n     will start later:  enqueue(..., require_watcher=False)  /  --force\\n'"
+        }
+      ],
+      "human_preamble": "daedalus acceptance -- 18 checks over the real paths\nrepo: C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\n\n  building a disposable clone of the working tree ...\n  clone: C:\\Users\\nukei\\AppData\\Local\\Temp\\daedalus-acceptance-43ika7qx\\repo\n\n  [ok  ] cli.entrypoint                                      0.5s\n  [ok  ] doctor.reports_readiness                            2.6s\n  [ok  ] context.produces_a_budgeted_plan                   46.3s\n  [ok  ] offload.plans_without_mutating                     69.8s\n  [FAIL] map.drift_gate_is_green                            44.5s\n         drift gate exited 1: 'itch:DAEDALUS_OLLAMA_REMOTE_OK\", \"why\": \"<what has to happen>\",\\n     \"since\": \"YYYY-MM-DD\", \"until\": \"YYYY-MM-DD\", \"who\": \"<name>\"}\\n  \\'since\\' may not be in the future and \\'until\\' may be at most 90 days after \\'since\\';\\n  the item comes back when it passes.\\n  To accept permanently, delete any acceptance for it and re-baseline\\n  (--refresh); the count moves in the committed diff where it is reviewed.\\n'\n  [ok  ] picker.ranks_with_evidence                         38.3s\n  [ok  ] picker.exit_code_distinguishes_degraded             1.0s\n  [ok  ] spine.intent_is_recorded_BEFORE_the_effect         18.8s\n  [ok  ] spine.attempt_leaves_the_primary_untouched         24.4s\n  [ok  ] spine.circle_closes                                22.0s\n  [n/a ] eval.replays_a_task_and_scores_it                  93.0s\n         the focus file was withheld by the secret floor (True), so this task cannot be scored -- the harness was not exercised, which is not the same as broken\n  [ok  ] web.serves_and_terminates                           1.7s\n  [n/a ] gui.a_human_can_operate_the_cockpit                 0.2s\n         @playwright/test is not installed in C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\apps\\web. Install it with:  npm install --prefix C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-cp\\apps\\web\n  [FAIL] bridge.enqueue_watch_report_archive                 0.2s\n         could not enqueue: '  python -m daedalus.file_bridge watch --project <project>\\n  -> or run the queue once, in the foreground:  python -m daedalus.file_bridge once --project <project>\\n  -> or, if you are deliberately queueing ahead of a watcher you\\n     will start later:  enqueue(..., require_watcher=False)  /  --force\\n'\n  [ok  ] safety.remote_ollama_is_refused                     0.3s\n  [ok  ] safety.picker_cannot_apply                          0.2s\n  [ok  ] safety.room_prompt_gates_by_speaker                 9.6s\n  [ok  ] safety.bus_chain_detects_a_break                    1.1s"
+    }
+  },
+  "denials": [
+    {
+      "n": 1,
+      "command": "ls tools/ ... (read-only listing)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tools>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "n": 2,
+      "command": "find . -name '*.py' | xargs grep -l ... (read-only search)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: daedalus/config.py, daedalus/kairos/gated_writes.py, daedalus/sensitivity.py, tools/iron_plan_guard.py, tools/iron_plan_hook_runner.py, tests/test_iron_plan_guard.py, <directory: .git>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "n": 3,
+      "command": "ls conftest.py tests/conftest.py; grep -rn _OPERATOR_DECLARATIONS (read-only)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: daedalus/config.py, daedalus/kairos/gated_writes.py, daedalus/sensitivity.py, tools/iron_plan_guard.py, tools/iron_plan_hook_runner.py, tests/test_iron_plan_guard.py. Follow the owner-approved amendment protocol."
+    },
+    {
+      "n": 4,
+      "command": "pytest runs/higher_twin_nc/tests tests/test_dotenv.py (shadowing isolation experiment)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "n": 5,
+      "command": "git ls-files runs/higher_twin_nc/tests/ (read-only)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "n": 6,
+      "command": "python -c rglob conftest.py + git ls-files --error-unmatch (read-only)",
+      "text": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: .git>. Follow the owner-approved amendment protocol."
+    }
+  ],
+  "updated_utc": "2026-08-22T07:16:57Z",
+  "tree_verification_final": {
+    "head_sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+    "matches_pinned": true,
+    "dirty_lines": 0,
+    "dirty_sample": [],
+    "stamp": "MEASURED"
+  },
+  "findings": [
+    {
+      "id": "F1-red-count",
+      "claim": "CHECKPOINT @3e758392 carries 3 failing tests, not the 1 expected.",
+      "stamp": "MEASURED",
+      "expected": [
+        "tests/test_iron_plan_guard.py::IronPlanContractTests::test_ci_history_check_accepts_adoption_and_rejects_rewrite"
+      ],
+      "unexpected": [
+        "tests/test_dotenv.py::test_every_example_key_is_cleared_by_the_suite_conftest",
+        "tests/test_iron_plan_guard.py::IronPlanContractTests::test_ledger_seals_current_plan"
+      ]
+    },
+    {
+      "id": "F2-dotenv-order-dependent",
+      "claim": "The dotenv red is full-suite-only: green in isolation, red in the suite.",
+      "stamp": "MEASURED",
+      "evidence": {
+        "isolated_run": "python -m pytest -q -p no:cacheprovider --color=no tests/test_dotenv.py -> '16 passed in 3.07s'",
+        "full_suite": "AttributeError: module 'conftest' has no attribute '_OPERATOR_DECLARATIONS' at tests/test_dotenv.py:245"
+      }
+    },
+    {
+      "id": "F3-conftest-shadowing",
+      "claim": "Mechanism: two modules both named 'conftest'; the second imported evicts the first from sys.modules. Only tests/conftest.py defines _OPERATOR_DECLARATIONS; runs/higher_twin_nc/tests/conftest.py is the shadowing twin at this head (tests/kernel/ does NOT exist here).",
+      "stamp": "INFERRED",
+      "why_not_measured": "The decisive isolation experiment (pytest over runs/higher_twin_nc/tests + tests/test_dotenv.py) was DENIED by the Iron Plan guard (denial 4). Not routed around.",
+      "supporting_measured_facts": [
+        "Glob **/conftest.py returns exactly 2 files: tests/conftest.py, runs/higher_twin_nc/tests/conftest.py",
+        "Grep: _OPERATOR_DECLARATIONS defined only in tests/conftest.py:78",
+        "Glob tests/kernel/** -> No files found",
+        "docs/recovery/lane_diffs/misc-red.patch documents this exact mechanism, MEASURED 2026-08-17"
+      ]
+    },
+    {
+      "id": "F4-fix-exists-unapplied",
+      "claim": "A fix for the dotenv red already exists in-tree and is NOT applied at this head: docs/recovery/lane_diffs/misc-red.patch replaces the bare 'import conftest' with a pytestconfig.pluginmanager lookup keyed by full path.",
+      "stamp": "MEASURED"
+    },
+    {
+      "id": "F5-ledger-revision-stale",
+      "claim": "test_ledger_seals_current_plan pins result_revision == 1 while the ledger at this head records 2 (plan Revision 2). Deterministic staleness, not order-dependence.",
+      "stamp": "MEASURED",
+      "evidence": "AssertionError: 2 != 1 at tests/test_iron_plan_guard.py:43"
+    },
+    {
+      "id": "F6-blockers",
+      "claim": "effect_boundary_check reports exactly 12 'tools.* entrypoint.unregistered' BLOCKERs as expected, but 15 BLOCKER lines in total; 3 are outside the expected class.",
+      "stamp": "MEASURED",
+      "extra_blockers": [
+        "entrypoint.effect_drift: daedalus.providers.ollama:OllamaProvider.rollback -- new undeclared effects: network_egress, process_spawn",
+        "gate0.unguarded_entrypoint: python.offload -- daedalus.offload:offload",
+        "gate0.unguarded_entrypoint: python.promote_candidates -- daedalus.kairos.gated_writes:promote_candidates"
+      ],
+      "structurally_conformant": false,
+      "gate0_closed": false,
+      "exit_code": 2
+    },
+    {
+      "id": "F7-system-check",
+      "claim": "tools/system_check.py (end-to-end acceptance, runs in its own disposable clone): 18 CORE checks -> 14 PASS, 2 FAIL, 2 UNAVAILABLE, verdict 1.",
+      "stamp": "MEASURED",
+      "exit_code": 1,
+      "counts": {
+        "total": 18,
+        "PASS": 14,
+        "FAIL": 2,
+        "UNAVAILABLE": 2,
+        "all_core": true
+      },
+      "failures": [
+        {
+          "outcome": "FAIL",
+          "name": "map.drift_gate_is_green",
+          "stage": "2 map",
+          "detail": "drift gate exited 1 (acceptance-window syntax for DAEDALUS_OLLAMA_REMOTE_OK)"
+        },
+        {
+          "outcome": "FAIL",
+          "name": "bridge.enqueue_watch_report_archive",
+          "stage": "6 bridge",
+          "detail": "could not enqueue via daedalus.file_bridge"
+        },
+        {
+          "outcome": "UNAVAILABLE",
+          "name": "eval.replays_a_task_and_scores_it",
+          "stage": "6 eval",
+          "detail": "focus file withheld by the secret floor, so the task cannot be scored; harness not exercised"
+        },
+        {
+          "outcome": "UNAVAILABLE",
+          "name": "gui.a_human_can_operate_the_cockpit",
+          "stage": "6 web",
+          "detail": "@playwright/test not installed in apps/web -- host gap, not a code defect"
+        }
+      ],
+      "note": "By the tool's own contract UNAVAILABLE on a CORE check is not success; both UNAVAILABLEs here are host/policy gaps rather than proven defects."
+    }
+  ],
+  "not_run": {
+    "tools/gate_discrimination.py": "NOT RUN, deliberately. It is a receipt PRODUCER, not a reporter: it seeds 12 defects into disposable sandbox clones and runs the full suite per mutation (~18 min each per its own docstring on this box). That is a mutating, multi-hour job and out of scope for a read-only census."
+  },
+  "isolation_checks": {
+    "tests/test_dotenv.py alone": {
+      "command": "python -m pytest -q -p no:cacheprovider --color=no tests/test_dotenv.py",
+      "raw_tail": "16 passed in 3.07s",
+      "returncode": 0,
+      "stamp": "MEASURED"
+    }
+  }
+}

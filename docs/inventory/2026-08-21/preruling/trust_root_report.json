@@ -1,0 +1,1018 @@
+{
+  "cases": [
+    {
+      "case_id": "A0",
+      "commands": [
+        "verify_owner_approval(good, keyring=OWNER)"
+      ],
+      "description": "a correctly signed, in-window, fully bound approval verifies",
+      "evidence": "returned approval-0001",
+      "expected": "accept (positive control)",
+      "family": "positive-control",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A1",
+      "commands": [
+        "verify_owner_approval(signature='0'*64)"
+      ],
+      "description": "signature field zeroed (an unsigned approval presented as signed)",
+      "evidence": "ApprovalSignatureError: owner approval signature mismatch",
+      "expected": "fail-closed (refuse)",
+      "family": "unsigned",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A2",
+      "commands": [
+        "issue(secret=ATTACKER); verify(keyring=OWNER)"
+      ],
+      "description": "approval signed with a foreign secret, verified against the owner key",
+      "evidence": "ApprovalSignatureError: owner approval signature mismatch",
+      "expected": "fail-closed (refuse)",
+      "family": "wrong-signer",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A3",
+      "commands": [
+        "issue(owner=mallory); verify(keyring lacks mallory)"
+      ],
+      "description": "approval from an owner/key pair absent from the keyring",
+      "evidence": "ApprovalSignatureError: owner approval key is unknown",
+      "expected": "fail-closed (refuse)",
+      "family": "wrong-signer",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A4",
+      "commands": [
+        "verify(keyring={})  # key revoked"
+      ],
+      "description": "key removed from the keyring after the approval was issued",
+      "evidence": "ApprovalSignatureError: owner approval key is unknown",
+      "expected": "fail-closed (refuse)",
+      "family": "revoked-signer",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A5a",
+      "commands": [
+        "ApprovalLedger.consume(#1)"
+      ],
+      "description": "first consumption of a valid approval through the ledger",
+      "evidence": "consumption_sha256=dfb8df2f1e55963f",
+      "expected": "accept (positive control)",
+      "family": "replay",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A5b",
+      "commands": [
+        "ApprovalLedger.consume(#2, new promotion_id)"
+      ],
+      "description": "the SAME approval consumed a second time, new promotion id",
+      "evidence": "ApprovalReplay: owner approval, nonce, or promotion identity was already consumed",
+      "expected": "fail-closed (refuse)",
+      "family": "replay",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A5c",
+      "commands": [
+        "consume(new approval, SAME nonce)"
+      ],
+      "description": "a freshly minted approval reusing the spent nonce",
+      "evidence": "ApprovalReplay: owner approval, nonce, or promotion identity was already consumed",
+      "expected": "fail-closed (refuse)",
+      "family": "replay",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A5d",
+      "commands": [
+        "ledger.consume(x); verify_owner_approval(x) again"
+      ],
+      "description": "does verify_owner_approval still approve an already-consumed approval",
+      "evidence": "approved: approval_id=approval-replay-1; single use lives in ApprovalLedger.consume, not in verify_owner_approval",
+      "expected": "not scored (precondition/informational)",
+      "family": "replay",
+      "note": "NOT SCORED: parity case for CHECKPOINT B4c. TRUNK's consume() re-verifies inside the same transaction, so the atomic path is verify+spend; the bare verifier is not the spend point on either tree.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "A6a",
+      "commands": [
+        "verify(approval=A, expectation.candidate=B)"
+      ],
+      "description": "approval signed for candidate A, promotion presents candidate B",
+      "evidence": "ApprovalBindingMismatch: owner approval binding mismatch: candidate_artifact_sha256",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A6b",
+      "commands": [
+        "replace(approval.candidate=B) keeping signature"
+      ],
+      "description": "candidate swapped inside the approval, old signature retained",
+      "evidence": "ApprovalSignatureError: owner approval signature mismatch",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A6c",
+      "commands": [
+        "verify(expectation.evidence=WEAKER)"
+      ],
+      "description": "approval signed against strong evidence, weaker evidence presented",
+      "evidence": "ApprovalBindingMismatch: owner approval binding mismatch: evidence_packet_sha256",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A6d",
+      "commands": [
+        "verify(expectation.current_target_revision=MOVED)"
+      ],
+      "description": "target head moved between approval and promotion",
+      "evidence": "ApprovalBindingMismatch: owner approval binding mismatch: expected_target_revision",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A7a",
+      "commands": [
+        "verify(now = expires + 1s)"
+      ],
+      "description": "approval verified after its expires_at",
+      "evidence": "ApprovalExpired: owner approval has expired",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A7b",
+      "commands": [
+        "verify(now = issued - 1s)"
+      ],
+      "description": "approval verified before its issued_at (clock rolled back)",
+      "evidence": "ApprovalExpired: owner approval is not valid yet",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A7c",
+      "commands": [
+        "issue(expires = issued + 48h)"
+      ],
+      "description": "standing authorisation: TTL beyond the 24h Gate-0 maximum",
+      "evidence": "ValueError: owner approval TTL exceeds the 24-hour Gate-0 maximum",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A8a",
+      "commands": [
+        "verify_consumption(receipt, keyring={})"
+      ],
+      "description": "persisted consumption receipt re-verified after key revocation",
+      "evidence": "ApprovalSignatureError: persisted owner approval key is unknown",
+      "expected": "fail-closed (refuse)",
+      "family": "revoked-signer",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A8b",
+      "commands": [
+        "verify_consumption(replace(promotion_id))"
+      ],
+      "description": "consumption receipt with a hand-edited promotion id",
+      "evidence": "ValueError: approval consumption digest mismatch",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A12",
+      "commands": [
+        "ApprovalLedger(B); copy row from A; B.verify_consumption(receipt)"
+      ],
+      "description": "spent approval re-authenticated against a SECOND, caller-supplied ledger holding a copied consumption row",
+      "evidence": "verify_consumption returned on a different ledger file (attacker_ledger.sqlite3); consumption_sha256=dfb8df2f1e55963f. Uniqueness is per-database and the ledger is a caller-supplied parameter.",
+      "expected": "fail-closed (refuse)",
+      "family": "replay",
+      "note": "Independently reproduces the Slice-8 attack recorded in TRUNK's own docs/GATE0_PROMOTION_TRUST_ROOT_FINDING.md.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "FAIL"
+    },
+    {
+      "case_id": "A9a",
+      "commands": [
+        "subprocess.run([python,-c,read DAEDALUS_OWNER_APPROVAL_SECRET_CANARY], env=inherit)"
+      ],
+      "description": "plain child of the verifier reads the approval-secret env var",
+      "evidence": "child stdout=CANARY-b67d58decad63a4ad... leaked=True; inherited the verifier's environment verbatim",
+      "expected": "fail-closed (refuse)",
+      "family": "canary-env",
+      "note": "No kernel API mediates this spawn; it is the baseline, not the canonical attempt path.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "FAIL"
+    },
+    {
+      "case_id": "A9b0",
+      "commands": [
+        "DockerSandboxPolicy(image='python:3.11-alpine')"
+      ],
+      "description": "sandbox policy accepts a floating (unpinned) image tag",
+      "evidence": "SandboxPolicyError: sandbox image must be pinned by sha256 digest",
+      "expected": "fail-closed (refuse)",
+      "family": "canary-env",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A9b",
+      "commands": [
+        "DockerSandboxPolicy(...).argv([...])"
+      ],
+      "description": "canonical attempt path (run_in_docker_sandbox) forwards no env var",
+      "evidence": "argv carries 0 env-forwarding flag(s); run_in_docker_sandbox passes no env= to subprocess.run, so the container environment is the image's, not the host's. argv[:12]=['docker', 'run', '--rm', '--init', '--read-only', '--network', 'none', '--memory', '4g', '--memory-swap', '4g', '--cpus']",
+      "expected": "accept (positive control)",
+      "family": "canary-env",
+      "note": "Static shape check. Positive control: the sandbox is EXPECTED to forward nothing.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "A9c0",
+      "commands": [
+        "docker info --format {{.ServerVersion}}"
+      ],
+      "description": "is the Docker engine reachable on this box (precondition for A9c)",
+      "evidence": "docker info rc=1 daemon_up=False:",
+      "expected": "not scored (precondition/informational)",
+      "family": "canary-env",
+      "note": "Precondition, not scored. It is an environment fact, not a defect of either tree.",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "A9c",
+      "commands": [
+        "run_in_docker_sandbox(policy, read-canary)"
+      ],
+      "description": "live sandbox spawn: does the container see the canary",
+      "evidence": "NO CONTAINER RAN. daemon_up=False launch_state=completed rc=1 error_code=None. The empty stdout (sha256=e3b0c44298fc1c14) is the Docker CLI failing to reach the engine, not a sandboxed process declining to read the canary.",
+      "expected": "not scored (precondition/informational)",
+      "family": "canary-env",
+      "note": "The static A9b result stands on its own; this live one does not exist. Re-run with the engine up to close it.",
+      "observed": "refused",
+      "stamp": "INCONCLUSIVE-live",
+      "suite": "TRUNK",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "A9c1",
+      "commands": [
+        "docker info (rc!=0); run_in_docker_sandbox(...)"
+      ],
+      "description": "attempt path classifies an unreachable Docker engine as a COMPLETED attempt rather than refused-before-start",
+      "evidence": "launch_state='completed' returncode=1 error_code=None; run_in_docker_sandbox maps only exit code 125 to refused-before-start, and the Docker CLI exits 1 when the engine pipe is absent",
+      "expected": "fail-closed (refuse)",
+      "family": "canary-env",
+      "note": "An attempt that never started is recorded as a completed attempt that failed. That is an evidence-integrity question for Gate 0, separate from the trust root.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "FAIL"
+    },
+    {
+      "case_id": "A10",
+      "commands": [
+        "issue via CLI in child; verify_owner_approval in parent"
+      ],
+      "description": "an ordinary subprocess holding the secret mints an approval for an artifact no owner reviewed; the verifier accepts it",
+      "evidence": "verifier returned owner_id=owner key_id=key-1 candidate=90fc884daf13 signature=85a206f6ba6ad080; the minting process was an ordinary child holding only the env secret",
+      "expected": "fail-closed (refuse)",
+      "family": "ordinary-mint",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "FAIL"
+    },
+    {
+      "case_id": "A10b",
+      "commands": [
+        "ApprovalLedger.consume(self-minted approval)"
+      ],
+      "description": "the self-minted approval is consumed through the real ledger",
+      "evidence": "returned 805e3441d822f038ea1cc08beeb2bbd8524611c55984007c72e3d22926213475",
+      "expected": "fail-closed (refuse)",
+      "family": "ordinary-mint",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "FAIL"
+    },
+    {
+      "case_id": "A11",
+      "commands": [
+        "static scan of subprocess.run/Popen call sites"
+      ],
+      "description": "spawn sites in the trunk kernel that pass an explicit env=",
+      "evidence": "subprocess spawn call sites=52, of which pass env=: 4 (raw counts over C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0/daedalus)",
+      "expected": "not scored (precondition/informational)",
+      "family": "canary-env",
+      "note": "Counts only; a passed env= is not by itself a scrubbed env.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "TRUNK",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "B0",
+      "commands": [
+        "git tag -s promote/cf0f68d223a5...; verify_promotion_approval(...)"
+      ],
+      "description": "owner-signed tag, key in the COMMITTED allowed-signers file",
+      "evidence": "approved=True reason=owner signature on promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2 verified against committed allowed signers signer=owner@daedalus.test",
+      "expected": "accept (positive control)",
+      "family": "positive-control",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B1a",
+      "commands": [
+        "git tag <name> <commit>   # no -a, no -s"
+      ],
+      "description": "lightweight tag (a name pointing at a commit; nothing is signed)",
+      "evidence": "approved=False reason='promote/184926a67ca014b7edc38efd348da51b8e8c26e07947bc4f8a689cae5ee0fe8f' is a 'commit', not an annotated tag object; an approval must be a signed tag",
+      "expected": "fail-closed (refuse)",
+      "family": "unsigned",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B1b",
+      "commands": [
+        "git tag -a -F body   # annotated, not signed"
+      ],
+      "description": "annotated but UNSIGNED tag carrying a well-formed approval body",
+      "evidence": "approved=False reason=signature on 'promote/413fe469aa18d75b379ac01811d30b96ec97d8e6f19117824ce3580e0d5fe75c' did not verify against the committed allowed-signers file: error: no signature found",
+      "expected": "fail-closed (refuse)",
+      "family": "unsigned",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B2",
+      "commands": [
+        "git tag -s (attacker key); verify_promotion_approval"
+      ],
+      "description": "tag signed by a real key that is NOT in the committed allowed-signers",
+      "evidence": "approved=False reason=signature on 'promote/8543d205cc91dbe922d0b34507ba87c37495f078285f7184401607afcf4cbad0' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\nNo principal matched.",
+      "expected": "fail-closed (refuse)",
+      "family": "wrong-signer",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B2b",
+      "commands": [
+        "git -c gpg.ssh.allowedSignersFile=... verify-tag <attacker tag>"
+      ],
+      "description": "git verify-tag TEXT vs EXIT CODE for an unauthorised signer",
+      "evidence": "rc=1; output contains 'Good'=True; raw stderr=Good \"git\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\nNo principal matched.",
+      "expected": "fail-closed (refuse)",
+      "family": "wrong-signer",
+      "note": "Exit code refuses while the text says Good. A verifier that grepped the output for 'Good' would accept any key in the world.",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B3a",
+      "commands": [
+        "write attacker key into working-tree allowed-signers; verify attacker-signed tag"
+      ],
+      "description": "attacker key appended to the WORKING COPY of allowed-signers, never committed",
+      "evidence": "approved=False reason=signature on 'promote/8543d205cc91dbe922d0b34507ba87c37495f078285f7184401607afcf4cbad0' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\nNo principal matched.",
+      "expected": "fail-closed (refuse)",
+      "family": "revoked-signer",
+      "note": "Tests that the trust root is read from HEAD, not the checkout.",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B3b",
+      "commands": [
+        "commit allowed-signers without owner; verify B0's tag"
+      ],
+      "description": "owner key REMOVED from allowed-signers by a commit; the previously good tag re-verified",
+      "evidence": "approved=False reason=signature on 'promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:qOeHUVfOvAhOeayGSfe9tUd1jhdNrmlwLYr+gkTohco\nNo principal matched.",
+      "expected": "fail-closed (refuse)",
+      "family": "revoked-signer",
+      "note": "The tag is unchanged and still points at its original base.",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B3c",
+      "commands": [
+        "commit allowed-signers with owner; verify B0's tag"
+      ],
+      "description": "after restoring the owner key by commit, the same tag verifies again",
+      "evidence": "approved=True reason=owner signature on promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2 verified against committed allowed signers signer=owner@daedalus.test",
+      "expected": "accept (positive control)",
+      "family": "positive-control",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B4a",
+      "commands": [
+        "claim_approval(#1)"
+      ],
+      "description": "first claim of a verified approval",
+      "evidence": "claimed=True reason=approval promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2 claimed for a single promotion",
+      "expected": "accept (positive control)",
+      "family": "replay",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B4b",
+      "commands": [
+        "claim_approval(#2)"
+      ],
+      "description": "the SAME verified approval claimed a second time",
+      "evidence": "claimed=False reason=approval promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2 was already spent; an approval authorises one promotion, not a standing right to promote",
+      "expected": "fail-closed (refuse)",
+      "family": "replay",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B4c",
+      "commands": [
+        "claim_approval x2; then verify_promotion_approval again"
+      ],
+      "description": "does verify_promotion_approval still approve an already-spent approval",
+      "evidence": "approved=True reason=owner signature on promote/cf0f68d223a5d32cd817e064be2bca22d4e3b0e0a3e141a2d3f39a90fecdc4c2 verified against committed allowed signers; single use lives in claim_approval, which the verifier does not call",
+      "expected": "not scored (precondition/informational)",
+      "family": "replay",
+      "note": "NOT SCORED: the module documents this separation explicitly ('performs no mutation and consumes nothing: see claim_approval for single use'). TRUNK separates the same two steps (see A5d), so this is not a differentiator. The residual risk is that a promotion boundary calls verify and forgets claim -- and this module's own docstring states it is not wired into the promotion callable at all.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "B5a",
+      "commands": [
+        "verify_promotion_approval(candidate=B)"
+      ],
+      "description": "promotion presents candidate B; only candidate A has a signed tag",
+      "evidence": "approved=False reason=no approval tag 'promote/1b0ac7b52fc285e401d6f9376a715385af99489133917f7ad311220723b5413e' in this repository; the candidate is unapproved",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B5b",
+      "commands": [
+        "git tag -s promote/<X> with body candidate_sha256=<Y>"
+      ],
+      "description": "tag NAME says one candidate, signed BODY names another",
+      "evidence": "approved=False reason=approval body names candidate 1b0ac7b52fc2, tag name says da688701de1a",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B5c",
+      "commands": [
+        "verify_promotion_approval(evidence=WEAKER)"
+      ],
+      "description": "approval signed against strong evidence, weaker evidence presented",
+      "evidence": "approved=False reason=approval was signed against evidence bec041594de0, promotion presents 3495eece4a30",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B5d",
+      "commands": [
+        "commit; verify_promotion_approval(source_revision=NEW HEAD)"
+      ],
+      "description": "approval signed on one base, promotion attempted on a moved base",
+      "evidence": "approved=False reason=approval tag points at 4405ad007ae4, but promotion is against f4046c7df9bd",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B5e",
+      "commands": [
+        "voided_by_regeneration(CAND_A, CAND_B)"
+      ],
+      "description": "candidate regenerated after approval (voided_by_regeneration)",
+      "evidence": "approved=False reason=approval for candidate cf0f68d223a5 is void: the candidate was regenerated as 1b0ac7b52fc2 against a moved base, and no owner approved that artifact; returning to pending-owner",
+      "expected": "fail-closed (refuse)",
+      "family": "artifact-substituted",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B6a",
+      "commands": [
+        "git tag -s with expires_at in the past"
+      ],
+      "description": "owner-signed approval whose expires_at has passed",
+      "evidence": "approved=False reason=approval expired at 2026-08-22T00:56:14+00:00 (now 2026-08-22T06:56:21.190002+00:00)",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B6b",
+      "commands": [
+        "git tag -s with the expires_at line omitted"
+      ],
+      "description": "standing authorisation: signed approval with NO expires_at field",
+      "evidence": "approved=False reason=approval body is missing: expires_at",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B6c",
+      "commands": [
+        "git tag -s with a timezone-naive expires_at"
+      ],
+      "description": "expires_at without a UTC offset (ambiguous instant)",
+      "evidence": "approved=False reason=approval expires_at must carry an explicit UTC offset",
+      "expected": "fail-closed (refuse)",
+      "family": "stale",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B7a",
+      "commands": [
+        "pop CANARY; verify; set CANARY; verify"
+      ],
+      "description": "the verifier needs no secret in its environment at all",
+      "evidence": "approved_without_any_env_secret=True; approved_with_canary_present=True; canary_leaked_into_verdict=False",
+      "expected": "accept (positive control)",
+      "family": "canary-env",
+      "note": "There is no verifier env secret to place a canary INTO. The signing key is a private key file, never an env var.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B7b",
+      "commands": [
+        "subprocess.run([python,-c,read DAEDALUS_OWNER_APPROVAL_SECRET_CANARY])"
+      ],
+      "description": "candidate-shaped child inherits env, but env grants no minting power",
+      "evidence": "child_read_env_canary=True; this trust root derives authority from an ed25519 private key FILE (owner_ed25519), never from the environment, so an inherited env var buys the child nothing (measured as B8a: a child with its own key mints a tag the verifier refuses)",
+      "expected": "not scored (precondition/informational)",
+      "family": "canary-env",
+      "note": "NOT SCORED: env inheritance is identical on both trees (A9a measures the same leak). The differentiator is what the environment is WORTH -- on TRUNK it is the signing secret (A10), here it is nothing.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "N/A"
+    },
+    {
+      "case_id": "B8a",
+      "commands": [
+        "git tag -s (attacker key); verify_promotion_approval"
+      ],
+      "description": "an ordinary process mints its own signed tag with its own key",
+      "evidence": "approved=False reason=signature on 'promote/813f36b93e400629cc43566814d9f5912d060a3689e3ac5aad1f95ebc0c424cc' did not verify against the committed allowed-signers file: Good \"git\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\nNo principal matched.",
+      "expected": "fail-closed (refuse)",
+      "family": "ordinary-mint",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B8b",
+      "commands": [
+        "git tag -s (owner key file); verify_promotion_approval"
+      ],
+      "description": "a process that can READ the owner private key file mints a valid approval",
+      "evidence": "approved=True reason=owner signature on promote/420e0d04250661598de463609da532d9700134a6a848723f6b72e397a590aa5a verified against committed allowed signers signer=owner@daedalus.test",
+      "expected": "accept (positive control)",
+      "family": "ordinary-mint",
+      "note": "Stated as a boundary, not a defect: plan section 1 excludes an attacker already holding the owner's signing key.",
+      "observed": "accepted",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B9a",
+      "commands": [
+        "verify_promotion_approval(<missing repo>)"
+      ],
+      "description": "verification against a repository that does not exist",
+      "evidence": "approved=False reason=repository root C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\_fixtures\\checkpoint\\no-such-repo does not exist",
+      "expected": "fail-closed (refuse)",
+      "family": "unsigned",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    },
+    {
+      "case_id": "B9b",
+      "commands": [
+        "verify_promotion_approval(<repo with no signers file>)"
+      ],
+      "description": "no allowed-signers file committed at HEAD (no trust root at all)",
+      "evidence": "approved=False reason=allowed-signers file '.agentenv/promotion_allowed_signers' is not committed at HEAD (fatal: path '.agentenv/promotion_allowed_signers' does not exist in 'HEAD'); promotion cannot be authorised against an uncommitted trust root",
+      "expected": "fail-closed (refuse)",
+      "family": "unsigned",
+      "observed": "refused",
+      "stamp": "MEASURED",
+      "suite": "CHECKPOINT",
+      "verdict": "PASS"
+    }
+  ],
+  "commands_run": [
+    "C:/Users/nukei/AppData/Local/Microsoft/WindowsApps/python preruling_trustroot.py --suite trunk",
+    "C:/Users/nukei/AppData/Local/Microsoft/WindowsApps/python preruling_trustroot.py --suite checkpoint"
+  ],
+  "comparison": {
+    "differentiator": "The secret's LOCATION and SYMMETRY, not the binding quality. TRUNK verifies with the same secret it signs with, and that secret is read from an environment variable (_cli_issue/_cli_verify: os.environ.get(secret_env)). Any process that can read the variable can mint an approval that the real verifier accepts and the real ledger consumes (A10, A10b). CHECKPOINT verifies with a public key read from the COMMITTED tree while the signing key is a private key file, so an ordinary process holding the environment mints nothing (B7a, B8a); forging requires the owner's private key file, which plan section 1 already excludes from scope (B8b).",
+    "not_claimed": [
+      "No live containerised canary measurement was taken: the Docker engine was unreachable on this box (A9c0, A9c). The trunk sandbox's env isolation is asserted from argv shape only (A9b).",
+      "No wall-clock or performance number is reported; the box was under load.",
+      "Neither module was tested as wired into a promotion callable. The CHECKPOINT module states in its own docstring that it is not wired in; that claim was not independently re-verified here."
+    ],
+    "shared_by_both": [
+      "unsigned, wrong-signer, revoked-signer, replayed, artifact-substituted and stale all fail closed on both trees (every scored case in those six families is PASS)",
+      "both bind the approval to candidate artifact, evidence packet and source/target revision, so none of those can be swapped after signing",
+      "both separate 'is this authentic' from 'has this been spent' (TRUNK A5d / CHECKPOINT B4c), so neither single-use mechanism engages unless the promotion boundary calls it",
+      "both inherit the parent environment into a child process (TRUNK A9a / CHECKPOINT B7b); the trees differ in what that environment is worth, not in whether it leaks"
+    ]
+  },
+  "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_trustroot_config.json",
+  "discriminating_power": {
+    "method": "Each guard is disabled by an anchored, in-memory source mutation compiled into a throwaway module. Neither worktree is modified. A missing anchor raises rather than silently no-opping.",
+    "per_mutation": [
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "HMAC signature comparison (hmac.compare_digest)",
+        "mutation": "T1",
+        "probe": "approval signed with a foreign secret (A2)",
+        "tree": "TRUNK",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "approval/expectation binding comparison",
+        "mutation": "T2",
+        "probe": "candidate artifact substituted (A6a)",
+        "tree": "TRUNK",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "expires_at enforcement",
+        "mutation": "T3",
+        "probe": "approval used after expiry (A7a)",
+        "tree": "TRUNK",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "ledger UNIQUE/PRIMARY KEY constraints",
+        "mutation": "T4",
+        "probe": "same approval consumed twice (A5b)",
+        "tree": "TRUNK",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "keyring membership (revocation)",
+        "mutation": "T5",
+        "probe": "signing key revoked from the keyring (A4)",
+        "tree": "TRUNK",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "git verify-tag EXIT CODE (replaced by a 'Good' text grep)",
+        "mutation": "C1",
+        "probe": "tag signed by a key outside allowed-signers (B2)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "allowed-signers read from COMMITTED HEAD (replaced by working copy)",
+        "mutation": "C2",
+        "probe": "attacker key added to the working tree only (B3a)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "tag name bound to the signed body candidate",
+        "mutation": "C3",
+        "probe": "tag name says X, signed body says Y (B5b)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "expires_at enforcement",
+        "mutation": "C4",
+        "probe": "owner-signed approval past its expiry (B6a)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> refused",
+        "guard_disabled": "tag target bound to the promotion base",
+        "mutation": "C5",
+        "probe": "approval replayed onto a moved base (B5d)",
+        "tree": "CHECKPOINT",
+        "verdict": "REDUNDANTLY GUARDED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "BOTH base bindings (tag target AND signed-body source_revision)",
+        "mutation": "C5b",
+        "probe": "approval replayed onto a moved base (B5d)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      },
+      {
+        "flip": "refused -> accepted",
+        "guard_disabled": "signature verification of the tag object",
+        "mutation": "C6",
+        "probe": "annotated but UNSIGNED tag with a valid body (B1b)",
+        "tree": "CHECKPOINT",
+        "verdict": "GUARD DEMONSTRATED"
+      }
+    ],
+    "receipt": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\trust_root_mutation_report.json",
+    "status": "RUN",
+    "tally": {
+      "guard_demonstrated": 11,
+      "mutations": 12,
+      "not_demonstrated": 0,
+      "redundantly_guarded": 1
+    }
+  },
+  "generated_at_utc": "2026-08-22T06:56:25+00:00",
+  "guard_denials": [
+    {
+      "command": "git ls-files 'daedalus/**' | grep ... (CHECKPOINT worktree)",
+      "effect": "read-only listing refused; no write was attempted",
+      "verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: daedalus/config.py, daedalus/kairos/gated_writes.py, daedalus/sensitivity.py, <directory: daedalus>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "command": "git ls-files | grep -iE 'sandbox|attempt|...' | grep -v tests/",
+      "effect": "read-only listing refused; no write was attempted",
+      "verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: tests>. Follow the owner-approved amendment protocol."
+    },
+    {
+      "command": "git ls-files -- daedalus | grep -iE 'sandbox|attempt|...'",
+      "effect": "read-only listing refused; no write was attempted",
+      "verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: <directory: daedalus>. Follow the owner-approved amendment protocol."
+    }
+  ],
+  "host_note": "Shared, loaded box. No wall-clock number in this receipt is a benchmark; none is reported.",
+  "prior_art": {
+    "consequence_for_the_ruling": "The two trees are not two candidate designs of equal standing. TRUNK's own binding review already prescribes CHECKPOINT's mechanism. The open question is therefore migration and wiring, not which trust root is sounder.",
+    "document": "docs/GATE0_PROMOTION_TRUST_ROOT_FINDING.md (TRUNK, dated 2026-08-18, binding for lane grind/sealed-approval)",
+    "relationship": "This task did NOT discover that TRUNK's HMAC root is symmetric. That document already states it ('Wer verifizieren kann, kann faelschen'), already calls the approval_assurance='authenticated' label on an env-var root a section 4.9 honesty violation, and already names Option B (git-signed tags) as the fix -- which is what CHECKPOINT's module implements. What this receipt adds is EXECUTION-level confirmation of claims that were previously review-level: A10/A10b mint and consume a real approval from an ordinary child process, A12 reproduces the named Slice-8 cross-ledger replay, and B2b measures the 'Good git signature is meaningless' claim directly (rc=1 while stdout says Good)."
+  },
+  "script": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_trustroot.py",
+  "sources": {
+    "CHECKPOINT": {
+      "branch": "checkpoint/2026-07-20-session",
+      "module": "daedalus/spine/promotion_approval.py",
+      "module_facts": {
+        "blob_sha1": "23c4048043543fbc319b704de131635cbd22eee3",
+        "file_sha256": "6d8f5b0530d294ca71d4147935545a66ad03c6e4039bf91f7b973d96f48193f1",
+        "lines": 599,
+        "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6"
+      },
+      "plan_revision": "2",
+      "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "trust_root_kind": "asymmetric, git-signed tag verified against committed allowed-signers"
+    },
+    "TRUNK": {
+      "branch": "work/g0-trunk-20260817",
+      "module": "daedalus/kernel/approvals.py",
+      "module_facts": {
+        "blob_sha1": "e0bb1ff8f77c97250cc09d92bea71817f66cabb2",
+        "file_sha256": "a1becb600e3097cdc617ebce3a7adeaebac1c69e1df1c8d58b244fcfa07e8011",
+        "lines": 808,
+        "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166"
+      },
+      "plan_revision": "6 / 1.2.3",
+      "sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "trust_root_kind": "symmetric HMAC-SHA256, secret from env"
+    }
+  },
+  "stamp_legend": {
+    "INCONCLUSIVE-live": "the live probe did not execute; no claim made",
+    "MEASURED": "observed in this run on this box",
+    "N/A": "recorded but not scored (precondition, informational, or a documented design separation present on both trees)"
+  },
+  "suite_runs": {
+    "checkpoint": {
+      "attacker_pub_fingerprint": "940c84d0426b466a",
+      "base_revision": "4405ad007ae40750f9e8236638f98739e33f82f3",
+      "fixture_repo": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling\\_fixtures\\checkpoint\\repo",
+      "owner_pub_fingerprint": "1141d5f697160397",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "84926a67ca014b7edc38efd348da51b8e8c26e07947bc4f8a689cae5ee0fe8f' is a 'commit', not an annotated tag object; an approval must be a signed tag\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"unsigned\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"CHECKPOINT\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"B1b\",\n      \"commands\": [\n        \"git tag -a -F body   # annotated, not signed\"\n      ],\n      \"description\": \"annotated but UNSIGNED tag carrying a well-formed approval body\",\n      \"evidence\": \"approved=False reason=signature on 'promote/413fe469aa18d75b379ac01811d30b96ec97d8e6f19117824ce3580e0d5fe75c' did not verify against the committed allowed-signers file: error: no signature found\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"unsigned\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"CHECKPOINT\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"B2\",\n      \"commands\": [\n        \"git tag -s (attacker key); verify_promotion_approval\"\n      ],\n      \"description\": \"tag signed by a real key that is NOT in the committed allowed-signers\",\n      \"evidence\": \"approved=False reason=signature on 'promote/8543d205cc91dbe922d0b34507ba87c37495f078285f7184401607afcf4cbad0' did not verify against the committed allowed-signers file: Good \\\"git\\\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\\nNo principal matched.\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"wrong-signer\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"CHECKPOINT\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"B2b\",\n      \"commands\": [\n        \"git -c gpg.ssh.allowedSignersFile=... verify-tag <attacker tag>\"\n      ],\n      \"description\": \"git verify-tag TEXT vs EXIT CODE for an unauthorised signer\",\n      \"evidence\": \"rc=1; output contains 'Good'=True; raw stderr=Good \\\"git\\\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\\nNo principal matched.\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"wrong-signer\",\n      \"note\": \"Exit code refuses while the text says Good. A verifier that grepped the output for 'Good' would accept any key in the world.\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"CHECKPOINT\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"B3a\",\n      \"commands\": [\n        \"write attacker key into working-tree allowed-signers; verify attacker-signed tag\"\n      ],\n      \"description\": \"attacker key appended to the WORKING COPY of allowed-signers, never committed\",\n      \"evidence\": \"approved=False reason=signature on 'promote/8543d205cc91dbe922d0b34507ba87c37495f078285f7184401607afcf4cbad0' did not verify against the committed allowed-signers file: Good \\\"git\\\" signature with ED25519 key SHA256:JGuTwF6cFuLJhDOyXUI6zui4xBLoI3USswUirrnW+3I\\nNo principal matched.\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"revoked-sig\n",
+      "suite": "checkpoint"
+    },
+    "trunk": {
+      "canary_value_sha256": "c3951fd183a1fe404ef22cdedd1d7ef0a705cdff832689a3049fce2244ddf391",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "    {\n      \"case_id\": \"A2\",\n      \"commands\": [\n        \"issue(secret=ATTACKER); verify(keyring=OWNER)\"\n      ],\n      \"description\": \"approval signed with a foreign secret, verified against the owner key\",\n      \"evidence\": \"ApprovalSignatureError: owner approval signature mismatch\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"wrong-signer\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A3\",\n      \"commands\": [\n        \"issue(owner=mallory); verify(keyring lacks mallory)\"\n      ],\n      \"description\": \"approval from an owner/key pair absent from the keyring\",\n      \"evidence\": \"ApprovalSignatureError: owner approval key is unknown\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"wrong-signer\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A4\",\n      \"commands\": [\n        \"verify(keyring={})  # key revoked\"\n      ],\n      \"description\": \"key removed from the keyring after the approval was issued\",\n      \"evidence\": \"ApprovalSignatureError: owner approval key is unknown\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"revoked-signer\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A5a\",\n      \"commands\": [\n        \"ApprovalLedger.consume(#1)\"\n      ],\n      \"description\": \"first consumption of a valid approval through the ledger\",\n      \"evidence\": \"consumption_sha256=dfb8df2f1e55963f\",\n      \"expected\": \"accept (positive control)\",\n      \"family\": \"replay\",\n      \"observed\": \"accepted\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A5b\",\n      \"commands\": [\n        \"ApprovalLedger.consume(#2, new promotion_id)\"\n      ],\n      \"description\": \"the SAME approval consumed a second time, new promotion id\",\n      \"evidence\": \"ApprovalReplay: owner approval, nonce, or promotion identity was already consumed\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"replay\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A5c\",\n      \"commands\": [\n        \"consume(new approval, SAME nonce)\"\n      ],\n      \"description\": \"a freshly minted approval reusing the spent nonce\",\n      \"evidence\": \"ApprovalReplay: owner approval, nonce, or promotion identity was already consumed\",\n      \"expected\": \"fail-closed (refuse)\",\n      \"family\": \"replay\",\n      \"observed\": \"refused\",\n      \"stamp\": \"MEASURED\",\n      \"suite\": \"TRUNK\",\n      \"verdict\": \"PASS\"\n    },\n    {\n      \"case_id\": \"A5d\",\n      \"commands\": [\n        \"ledger.consume(x); verify_owner_approval(x) again\"\n      ],\n      \"description\": \"does verify_owner_approval still approve an already-consumed approval\",\n      \"evidence\": \"approved: approval_id=approval-\n",
+      "suite": "trunk"
+    }
+  },
+  "tally": {
+    "ALL": {
+      "FAIL": 5,
+      "N/A": 6,
+      "PASS": 42,
+      "scored": 47,
+      "total": 53
+    },
+    "CHECKPOINT": {
+      "FAIL": 0,
+      "N/A": 2,
+      "PASS": 23,
+      "scored": 23,
+      "total": 25
+    },
+    "TRUNK": {
+      "FAIL": 5,
+      "N/A": 4,
+      "PASS": 19,
+      "scored": 24,
+      "total": 28
+    }
+  },
+  "task": "TRUST-ROOT (giga plan Phase 0 preruling, test-only)",
+  "workspace_integrity": {
+    "CHECKPOINT_disposable": {
+      "dirty_entries": 0,
+      "entries_attributable_to_this_task": [],
+      "head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "path": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp"
+    },
+    "CHECKPOINT_primary": {
+      "dirty_entries": 27,
+      "entries_attributable_to_this_task": [],
+      "head": "14238a300a7a6e4aefabe09a102ed504529be741",
+      "path": "C:/Users/nukei/Desktop/agent_env"
+    },
+    "TRUNK_disposable": {
+      "dirty_entries": 0,
+      "entries_attributable_to_this_task": [],
+      "head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "path": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0"
+    },
+    "TRUNK_primary": {
+      "dirty_entries": 0,
+      "entries_attributable_to_this_task": [],
+      "head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "path": "C:/Users/nukei/Desktop/agent_env_g0"
+    },
+    "_assertion": "entries_attributable_to_this_task must be empty everywhere; this task wrote only under the receipt directory",
+    "_concurrency_note": "Other agents (mnemosyne-docs-1/2, main) are active in this session and are writing to the CHECKPOINT primary. Its dirty count is theirs, not this task's."
+  }
+}

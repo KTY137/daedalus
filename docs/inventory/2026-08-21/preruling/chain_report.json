@@ -1,0 +1,1529 @@
+{
+  "task": "preruling CHAINS: amendment-ledger chain audit on CHECKPOINT and TRUNK (read-only)",
+  "utc": "2026-08-22T06:37:48.000492+00:00",
+  "config": "C:\\Users\\nukei\\AppData\\Local\\Temp\\claude\\c--Users-nukei-Desktop-agent-env\\de817b68-faa5-4439-85cd-c3967f4542c0\\scratchpad\\preruling_chains_config.json",
+  "base_config": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/de817b68-faa5-4439-85cd-c3967f4542c0/scratchpad/preruling_config.json",
+  "primary_worktree_head_at_run": "77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+  "source_shas": {
+    "checkpoint": "3e758392845d9faf7877977d5ae8806973ed62e6",
+    "trunk": "93f11adfb08efa713711fd62e9be7b46d8957166"
+  },
+  "canonical_rule": "sha256(json.dumps(record minus record_sha256, ensure_ascii=False, sort_keys=True, separators=(',',':')).encode('utf-8'))",
+  "plan_digest_rule": "guard file_sha256: sha256 of UTF-8 text with CRLF/CR normalized to LF; raw blob digest reported alongside",
+  "stamps": {
+    "record_sha256_recomputed": "MEASURED (recomputed in this script from ledger blob at pin)",
+    "acceptance_commit": "MEASURED (git log --reverse -S<record_sha256> <pin> -- ledger; first/oldest hit). Note: a second hit on the next accepting commit is expected because that commit adds the same digest again as previous_record_sha256 (occurrence count 1->2).",
+    "ledger_identical_pin_vs_branch_tip": "MEASURED (git rev-parse <tip>:<ledger> vs <pin>:<ledger> blob ids)",
+    "plan_at_acceptance_sha256_*": "MEASURED (git show <acceptance_commit>:plan; sha256 raw and normalized)",
+    "ledger_lines[*].line_sha256": "MEASURED (sha256 of line bytes, trailing CR/LF stripped, from ledger blob at pin)",
+    "guard_verify.rc/stdout/stderr": "MEASURED (subprocess inside disposable worktree)",
+    "wall_s_INHERITED_under_load": "INHERITED (shared box under load; not a benchmark)",
+    "plan_revision labels in config": "INHERITED (from preruling_config.json; cross-checked by plan_header_at_pin which is MEASURED)"
+  },
+  "denials": [
+    {
+      "step": "inline bash: git show <pin>:<ledger_rel> | python -c ... (read-only listing of ledger records)",
+      "denial_verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl. Follow the owner-approved amendment protocol.",
+      "note": "PreToolUse guard fired on the protected path string appearing in the Bash command line; the command was read-only. Not worked around: the prescribed method (script reads paths from this JSON config, invoked by path) was used instead, and this denial is retained."
+    },
+    {
+      "step": "inline bash: cat > scratchpad/preruling_chains_config.json <<EOF (heredoc whose content named the three protected relative paths)",
+      "denial_verbatim": "Protected Iron Plan artifact(s) cannot change in ordinary work: docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl, docs/IKARUS_ARIADNE_MASTER_PLAN.md, tools/iron_plan_guard.py. Follow the owner-approved amendment protocol.",
+      "note": "Guard matched the path strings inside the heredoc body; the write target was the scratchpad. The config was written with the Write tool (target path in scratchpad) instead."
+    }
+  ],
+  "sides": {
+    "checkpoint": {
+      "label": "CHECKPOINT",
+      "branch": "checkpoint/2026-07-20-session",
+      "pinned_sha_full": "3e758392845d9faf7877977d5ae8806973ed62e6",
+      "disposable_worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "branch_tip_sha": "77e7498a762aa96c436d367dc35ff3431c0fcfa8",
+      "pin_is_branch_tip": false,
+      "pin_is_ancestor_of_tip": true,
+      "ledger_blob_sha256_raw": "eb75107bcbe4adffaefcd2eeb4239be5c08f759accafb3a9f899e21b2362181d",
+      "ledger_blob_sha256_normalized": "eb75107bcbe4adffaefcd2eeb4239be5c08f759accafb3a9f899e21b2362181d",
+      "ledger_blob_has_CR": false,
+      "ledger_git_blob_id": "6229ecba7d803cafdb610103e7936c80b70d5db1",
+      "ledger_git_blob_id_at_branch_tip": "6229ecba7d803cafdb610103e7936c80b70d5db1",
+      "ledger_identical_pin_vs_branch_tip": true,
+      "plan_identical_pin_vs_branch_tip": true,
+      "worktree_ledger_sha256_raw": "eb75107bcbe4adffaefcd2eeb4239be5c08f759accafb3a9f899e21b2362181d",
+      "worktree_ledger_sha256_normalized": "eb75107bcbe4adffaefcd2eeb4239be5c08f759accafb3a9f899e21b2362181d",
+      "worktree_ledger_has_CR": false,
+      "worktree_ledger_matches_blob_normalized": true,
+      "ledger_line_count_raw": 2,
+      "ledger_record_count": 2,
+      "ledger_lines": [
+        {
+          "line": 1,
+          "line_sha256": "4766b9dec6efe99545a7c1f152538bec7d5d8f40ade5f80efec3c10e76d80008",
+          "bytes": 851,
+          "sequence": 1
+        },
+        {
+          "line": 2,
+          "line_sha256": "18e8413f95317735730adcd002207d83a20afb6b8e36922d66a827b17547f8e6",
+          "bytes": 936,
+          "sequence": 2
+        }
+      ],
+      "ledger_commit_history": [
+        {
+          "sha": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+          "date": "2026-07-30T21:41:03+02:00",
+          "subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion"
+        },
+        {
+          "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+          "date": "2026-08-21T21:18:14+02:00",
+          "subject": "amendment(003): the serena-first hook is wired and the ledger carries it"
+        }
+      ],
+      "records": [
+        {
+          "index": 1,
+          "line": 1,
+          "sequence": 1,
+          "base_revision": 0,
+          "result_revision": 1,
+          "version": "1.0.0",
+          "approval_ref": "conversation-2026-07-30-owner-adopted-iron-plan",
+          "accepted_at": "2026-07-30T17:31:54+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "base_plan_sha256": "f1acad3c9b2376e6ef0e88dbf6b3de82e9367232c361ba9f0c1da4d3ddf82cfa",
+          "result_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "previous_record_sha256": null,
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": null,
+          "revision_chain_ok": null,
+          "git_log_S_hits": [
+            {
+              "sha": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+              "date": "2026-07-30T21:41:03+02:00",
+              "subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion"
+            },
+            {
+              "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+              "date": "2026-08-21T21:18:14+02:00",
+              "subject": "amendment(003): the serena-first hook is wired and the ledger carries it"
+            }
+          ],
+          "acceptance_commit": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+          "acceptance_commit_date": "2026-07-30T21:41:03+02:00",
+          "acceptance_commit_subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion",
+          "plan_at_acceptance_sha256_raw": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "plan_at_acceptance_sha256_normalized": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 1,
+            "version": "1.0.0"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "f1acad3c9b2376e6ef0e88dbf6b3de82e9367232c361ba9f0c1da4d3ddf82cfa",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 2,
+          "line": 2,
+          "sequence": 2,
+          "base_revision": 1,
+          "result_revision": 2,
+          "version": "1.0.0",
+          "approval_ref": "proposal-003-serena-first-owner-approved-2026-08-05; owner-executed-2026-08-21",
+          "accepted_at": "2026-08-21T21:18:13+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+          "base_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "result_plan_sha256": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "previous_record_sha256": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "3e758392845d9faf7877977d5ae8806973ed62e6",
+              "date": "2026-08-21T21:18:14+02:00",
+              "subject": "amendment(003): the serena-first hook is wired and the ledger carries it"
+            }
+          ],
+          "acceptance_commit": "3e758392845d9faf7877977d5ae8806973ed62e6",
+          "acceptance_commit_date": "2026-08-21T21:18:14+02:00",
+          "acceptance_commit_subject": "amendment(003): the serena-first hook is wired and the ledger carries it",
+          "plan_at_acceptance_sha256_raw": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "plan_at_acceptance_sha256_normalized": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 2,
+            "version": "1.0.0"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        }
+      ],
+      "chain_all_checks_ok": true,
+      "plan_at_pin_sha256_raw": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+      "plan_at_pin_sha256_normalized": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+      "plan_at_pin_has_CR": false,
+      "plan_at_pin_matches_latest_record_result": true,
+      "plan_header_at_pin": {
+        "revision": 2,
+        "version": "1.0.0",
+        "active_gate": "Gate 0 — Canonical Kernel"
+      },
+      "latest_record": {
+        "sequence": 2,
+        "result_revision": 2,
+        "version": "1.0.0"
+      },
+      "guard_verify": {
+        "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+        "worktree_head": "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "worktree_head_matches_pin": true,
+        "status_porcelain_before": [],
+        "argv": [
+          "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+          "tools/iron_plan_guard.py",
+          "verify"
+        ],
+        "rc": 0,
+        "stdout": "Iron Plan OK: revision 2, Gate 0 — Canonical Kernel, sha256 d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd\r\n",
+        "stderr": "",
+        "stdout_raw_sha256": "1f75f9ec963e53988534947ef08542b42d697e6fe0a45d4b070d2dfce1b70bd5",
+        "stderr_raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "wall_s_INHERITED_under_load": 0.36,
+        "status_porcelain_after": [],
+        "worktree_unchanged_by_verify": true
+      },
+      "guard_blob_sha256_normalized": "8b98c49ae745bf8ebbf170ee33ec172c3df2aa82e450201e57c3ce74eb2da10b"
+    },
+    "trunk": {
+      "label": "TRUNK",
+      "branch": "work/g0-trunk-20260817",
+      "pinned_sha_full": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "disposable_worktree": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "branch_tip_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+      "pin_is_branch_tip": true,
+      "ledger_blob_sha256_raw": "a7fc4be0a519a74fc64a4b56d65d5c6610a8ccc803f733e2bf13109766e20502",
+      "ledger_blob_sha256_normalized": "a7fc4be0a519a74fc64a4b56d65d5c6610a8ccc803f733e2bf13109766e20502",
+      "ledger_blob_has_CR": false,
+      "ledger_git_blob_id": "e491ef2054612c8a0f9f0c0e0b3c2c0279d0c89c",
+      "worktree_ledger_sha256_raw": "a7fc4be0a519a74fc64a4b56d65d5c6610a8ccc803f733e2bf13109766e20502",
+      "worktree_ledger_sha256_normalized": "a7fc4be0a519a74fc64a4b56d65d5c6610a8ccc803f733e2bf13109766e20502",
+      "worktree_ledger_has_CR": false,
+      "worktree_ledger_matches_blob_normalized": true,
+      "ledger_line_count_raw": 6,
+      "ledger_record_count": 6,
+      "ledger_lines": [
+        {
+          "line": 1,
+          "line_sha256": "4766b9dec6efe99545a7c1f152538bec7d5d8f40ade5f80efec3c10e76d80008",
+          "bytes": 851,
+          "sequence": 1
+        },
+        {
+          "line": 2,
+          "line_sha256": "09187b0416b2486928b1c45010bbcb02859cd9b4e32b944786c386888ba9424d",
+          "bytes": 1125,
+          "sequence": 2
+        },
+        {
+          "line": 3,
+          "line_sha256": "d43d4f7ae76e4839fb860c995b341518ec62f493d34a488bd8ae18cb62aa3d0b",
+          "bytes": 973,
+          "sequence": 3
+        },
+        {
+          "line": 4,
+          "line_sha256": "96554ab453583ded3ffa095e32222881ff70fc266fb87e1ad0a60d9f663eb3ce",
+          "bytes": 878,
+          "sequence": 4
+        },
+        {
+          "line": 5,
+          "line_sha256": "5bfe7e095a2168e6a444967cdc4bdd39eb2bbab0aeedeaa40c8ba2e3fbb5a66e",
+          "bytes": 911,
+          "sequence": 5
+        },
+        {
+          "line": 6,
+          "line_sha256": "859083b25ebc0816e02a4b0db80bfc0d18641361452dc28a6e514e7bb6241344",
+          "bytes": 918,
+          "sequence": 6
+        }
+      ],
+      "ledger_commit_history": [
+        {
+          "sha": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+          "date": "2026-07-30T21:41:03+02:00",
+          "subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion"
+        },
+        {
+          "sha": "105a48f95a964229281ea43155cd9fc3adcba482",
+          "date": "2026-07-31T23:46:07+00:00",
+          "subject": "amend(plan): add Genesis and dual-layer execution chain"
+        },
+        {
+          "sha": "5d7affe2fccdf80410267411b470a6ae1c168c4a",
+          "date": "2026-08-01T23:25:01+00:00",
+          "subject": "docs(plan): accept sealed promotion and bounded Gate-1 rehearsal"
+        },
+        {
+          "sha": "900665e43c981faa1395c78d1e6ccb29d2513317",
+          "date": "2026-08-17T14:48:57+02:00",
+          "subject": "amend(guard): sealed-promotion checks follow the strangler into the retained source"
+        },
+        {
+          "sha": "7dce95c4f7c210957920f1cc03f9e55bec1fa19b",
+          "date": "2026-08-17T23:24:27+02:00",
+          "subject": "amend(guard-test): the adoption fixture carries the pinned retained source; byte-pinned modules gain -text"
+        },
+        {
+          "sha": "a9917c87fd707e30c85a331e2a56757f6026991f",
+          "date": "2026-08-18T17:42:53+02:00",
+          "subject": "amend(authority): the Gesamtplan enters the table as program authority within the plan's bounds"
+        }
+      ],
+      "records": [
+        {
+          "index": 1,
+          "line": 1,
+          "sequence": 1,
+          "base_revision": 0,
+          "result_revision": 1,
+          "version": "1.0.0",
+          "approval_ref": "conversation-2026-07-30-owner-adopted-iron-plan",
+          "accepted_at": "2026-07-30T17:31:54+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "base_plan_sha256": "f1acad3c9b2376e6ef0e88dbf6b3de82e9367232c361ba9f0c1da4d3ddf82cfa",
+          "result_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "previous_record_sha256": null,
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": null,
+          "revision_chain_ok": null,
+          "git_log_S_hits": [
+            {
+              "sha": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+              "date": "2026-07-30T21:41:03+02:00",
+              "subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion"
+            },
+            {
+              "sha": "105a48f95a964229281ea43155cd9fc3adcba482",
+              "date": "2026-07-31T23:46:07+00:00",
+              "subject": "amend(plan): add Genesis and dual-layer execution chain"
+            }
+          ],
+          "acceptance_commit": "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf",
+          "acceptance_commit_date": "2026-07-30T21:41:03+02:00",
+          "acceptance_commit_subject": "feat(plan): one authority, machinery that notices edits, and no auto-promotion",
+          "plan_at_acceptance_sha256_raw": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "plan_at_acceptance_sha256_normalized": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 1,
+            "version": "1.0.0"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "f1acad3c9b2376e6ef0e88dbf6b3de82e9367232c361ba9f0c1da4d3ddf82cfa",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 2,
+          "line": 2,
+          "sequence": 2,
+          "base_revision": 1,
+          "result_revision": 2,
+          "version": "1.1.0",
+          "approval_ref": "conversation-2026-07-31-owner-fold-genesis-dual-layer-build-review-plan-and-continue",
+          "accepted_at": "2026-08-01T00:47:00+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3",
+          "base_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "result_plan_sha256": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+          "previous_record_sha256": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "105a48f95a964229281ea43155cd9fc3adcba482",
+              "date": "2026-07-31T23:46:07+00:00",
+              "subject": "amend(plan): add Genesis and dual-layer execution chain"
+            },
+            {
+              "sha": "5d7affe2fccdf80410267411b470a6ae1c168c4a",
+              "date": "2026-08-01T23:25:01+00:00",
+              "subject": "docs(plan): accept sealed promotion and bounded Gate-1 rehearsal"
+            }
+          ],
+          "acceptance_commit": "105a48f95a964229281ea43155cd9fc3adcba482",
+          "acceptance_commit_date": "2026-07-31T23:46:07+00:00",
+          "acceptance_commit_subject": "amend(plan): add Genesis and dual-layer execution chain",
+          "plan_at_acceptance_sha256_raw": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+          "plan_at_acceptance_sha256_normalized": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 2,
+            "version": "1.1.0"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 3,
+          "line": 3,
+          "sequence": 3,
+          "base_revision": 2,
+          "result_revision": 3,
+          "version": "1.2.0",
+          "approval_ref": "conversation-2026-08-02-owner-continue-through-gate1",
+          "accepted_at": "2026-08-02T01:20:31+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "a1ffba31de886c8f2cff5262a4bc0dc9062b1639d628be4f3344e63363018399",
+          "base_plan_sha256": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+          "result_plan_sha256": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+          "previous_record_sha256": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "a1ffba31de886c8f2cff5262a4bc0dc9062b1639d628be4f3344e63363018399",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "5d7affe2fccdf80410267411b470a6ae1c168c4a",
+              "date": "2026-08-01T23:25:01+00:00",
+              "subject": "docs(plan): accept sealed promotion and bounded Gate-1 rehearsal"
+            },
+            {
+              "sha": "900665e43c981faa1395c78d1e6ccb29d2513317",
+              "date": "2026-08-17T14:48:57+02:00",
+              "subject": "amend(guard): sealed-promotion checks follow the strangler into the retained source"
+            }
+          ],
+          "acceptance_commit": "5d7affe2fccdf80410267411b470a6ae1c168c4a",
+          "acceptance_commit_date": "2026-08-01T23:25:01+00:00",
+          "acceptance_commit_subject": "docs(plan): accept sealed promotion and bounded Gate-1 rehearsal",
+          "plan_at_acceptance_sha256_raw": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+          "plan_at_acceptance_sha256_normalized": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 3,
+            "version": "1.2.0"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 4,
+          "line": 4,
+          "sequence": 4,
+          "base_revision": 3,
+          "result_revision": 4,
+          "version": "1.2.1",
+          "approval_ref": "conversation-2026-08-17-owner-ran-amendment-005-kit",
+          "accepted_at": "2026-08-17T14:47:32+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "1f312cccd20d3616978398a6d098ebbb2d10fa1dc023dd13025a91ae398045d3",
+          "base_plan_sha256": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+          "result_plan_sha256": "9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00",
+          "previous_record_sha256": "a1ffba31de886c8f2cff5262a4bc0dc9062b1639d628be4f3344e63363018399",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "1f312cccd20d3616978398a6d098ebbb2d10fa1dc023dd13025a91ae398045d3",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "900665e43c981faa1395c78d1e6ccb29d2513317",
+              "date": "2026-08-17T14:48:57+02:00",
+              "subject": "amend(guard): sealed-promotion checks follow the strangler into the retained source"
+            },
+            {
+              "sha": "7dce95c4f7c210957920f1cc03f9e55bec1fa19b",
+              "date": "2026-08-17T23:24:27+02:00",
+              "subject": "amend(guard-test): the adoption fixture carries the pinned retained source; byte-pinned modules gain -text"
+            }
+          ],
+          "acceptance_commit": "900665e43c981faa1395c78d1e6ccb29d2513317",
+          "acceptance_commit_date": "2026-08-17T14:48:57+02:00",
+          "acceptance_commit_subject": "amend(guard): sealed-promotion checks follow the strangler into the retained source",
+          "plan_at_acceptance_sha256_raw": "9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00",
+          "plan_at_acceptance_sha256_normalized": "9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 4,
+            "version": "1.2.1"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "98b6f93b901aaca4a2959b52165340d3fec50074526e1b032752a96865d14d2d",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 5,
+          "line": 5,
+          "sequence": 5,
+          "base_revision": 4,
+          "result_revision": 5,
+          "version": "1.2.2",
+          "approval_ref": "conversation-2026-08-17-owner-accepted-gate0-closure-package",
+          "accepted_at": "2026-08-17T23:10:20+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "60b7a5c53ebea509d0ea8310d8dada1856d998650b27badf0a15dbbe5be642a7",
+          "base_plan_sha256": "9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00",
+          "result_plan_sha256": "ce4335e1c7e0359fc8f3f722f7994ad6614e431ddef55b4becb3567284c907d6",
+          "previous_record_sha256": "1f312cccd20d3616978398a6d098ebbb2d10fa1dc023dd13025a91ae398045d3",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "60b7a5c53ebea509d0ea8310d8dada1856d998650b27badf0a15dbbe5be642a7",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "7dce95c4f7c210957920f1cc03f9e55bec1fa19b",
+              "date": "2026-08-17T23:24:27+02:00",
+              "subject": "amend(guard-test): the adoption fixture carries the pinned retained source; byte-pinned modules gain -text"
+            },
+            {
+              "sha": "a9917c87fd707e30c85a331e2a56757f6026991f",
+              "date": "2026-08-18T17:42:53+02:00",
+              "subject": "amend(authority): the Gesamtplan enters the table as program authority within the plan's bounds"
+            }
+          ],
+          "acceptance_commit": "7dce95c4f7c210957920f1cc03f9e55bec1fa19b",
+          "acceptance_commit_date": "2026-08-17T23:24:27+02:00",
+          "acceptance_commit_subject": "amend(guard-test): the adoption fixture carries the pinned retained source; byte-pinned modules gain -text",
+          "plan_at_acceptance_sha256_raw": "ce4335e1c7e0359fc8f3f722f7994ad6614e431ddef55b4becb3567284c907d6",
+          "plan_at_acceptance_sha256_normalized": "ce4335e1c7e0359fc8f3f722f7994ad6614e431ddef55b4becb3567284c907d6",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 5,
+            "version": "1.2.2"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "9329de665ba96a79e28989b7538ca93a176cd50337a66a977506db45c7a2aa00",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        },
+        {
+          "index": 6,
+          "line": 6,
+          "sequence": 6,
+          "base_revision": 5,
+          "result_revision": 6,
+          "version": "1.2.3",
+          "approval_ref": "conversation-2026-08-18-owner-elevates-gesamtplan",
+          "accepted_at": "2026-08-18T14:00:28+02:00",
+          "schema_ok": true,
+          "plan_id_ok": true,
+          "status": "accepted",
+          "record_sha256_claimed": "b0cce7c1526786096133d74baac25c31014b0e79f77e49af1de7210d140ba6fe",
+          "base_plan_sha256": "ce4335e1c7e0359fc8f3f722f7994ad6614e431ddef55b4becb3567284c907d6",
+          "result_plan_sha256": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+          "previous_record_sha256": "60b7a5c53ebea509d0ea8310d8dada1856d998650b27badf0a15dbbe5be642a7",
+          "keys": [
+            "accepted_at",
+            "approval_ref",
+            "base_plan_sha256",
+            "base_revision",
+            "owner",
+            "plan_id",
+            "previous_record_sha256",
+            "record_sha256",
+            "result_plan_sha256",
+            "result_revision",
+            "schema",
+            "scope",
+            "sequence",
+            "status",
+            "summary",
+            "version"
+          ],
+          "record_sha256_recomputed": "b0cce7c1526786096133d74baac25c31014b0e79f77e49af1de7210d140ba6fe",
+          "record_sha256_ok": true,
+          "sequence_ok": true,
+          "revision_step_ok": true,
+          "previous_link_ok": true,
+          "plan_digest_chain_ok": true,
+          "revision_chain_ok": true,
+          "git_log_S_hits": [
+            {
+              "sha": "a9917c87fd707e30c85a331e2a56757f6026991f",
+              "date": "2026-08-18T17:42:53+02:00",
+              "subject": "amend(authority): the Gesamtplan enters the table as program authority within the plan's bounds"
+            }
+          ],
+          "acceptance_commit": "a9917c87fd707e30c85a331e2a56757f6026991f",
+          "acceptance_commit_date": "2026-08-18T17:42:53+02:00",
+          "acceptance_commit_subject": "amend(authority): the Gesamtplan enters the table as program authority within the plan's bounds",
+          "plan_at_acceptance_sha256_raw": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+          "plan_at_acceptance_sha256_normalized": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+          "plan_at_acceptance_has_CR": false,
+          "result_plan_sha256_ok_raw": true,
+          "result_plan_sha256_ok_normalized": true,
+          "result_plan_sha256_ok": true,
+          "plan_header_at_acceptance": {
+            "revision": 6,
+            "version": "1.2.3"
+          },
+          "plan_header_revision_ok": true,
+          "plan_header_version_ok": true,
+          "plan_at_acceptance_parent_sha256_normalized": "ce4335e1c7e0359fc8f3f722f7994ad6614e431ddef55b4becb3567284c907d6",
+          "base_plan_sha256_matches_parent_plan": true,
+          "all_checks_ok": true
+        }
+      ],
+      "chain_all_checks_ok": true,
+      "plan_at_pin_sha256_raw": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+      "plan_at_pin_sha256_normalized": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+      "plan_at_pin_has_CR": false,
+      "plan_at_pin_matches_latest_record_result": true,
+      "plan_header_at_pin": {
+        "revision": 6,
+        "version": "1.2.3",
+        "active_gate": "Gate 0 — Canonical Kernel"
+      },
+      "latest_record": {
+        "sequence": 6,
+        "result_revision": 6,
+        "version": "1.2.3"
+      },
+      "guard_verify": {
+        "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+        "worktree_head": "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "worktree_head_matches_pin": true,
+        "status_porcelain_before": [],
+        "argv": [
+          "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+          "tools/iron_plan_guard.py",
+          "verify"
+        ],
+        "rc": 0,
+        "stdout": "Iron Plan OK: revision 6, Gate 0 — Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1\r\n",
+        "stderr": "",
+        "stdout_raw_sha256": "2b666b365fe6f9d07167f88123f386365a44867aa4fd8fc6607aa3d4272dec19",
+        "stderr_raw_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "wall_s_INHERITED_under_load": 0.349,
+        "status_porcelain_after": [],
+        "worktree_unchanged_by_verify": true
+      },
+      "guard_blob_sha256_normalized": "a24a995b965e6a75f1fa8f8d541ab0521c3d7ea352459c1fc9fd4c4c56c38e03"
+    }
+  },
+  "cross_chain": {
+    "record_1_byte_identical": true,
+    "record_1_line_sha256": {
+      "checkpoint": "4766b9dec6efe99545a7c1f152538bec7d5d8f40ade5f80efec3c10e76d80008",
+      "trunk": "4766b9dec6efe99545a7c1f152538bec7d5d8f40ade5f80efec3c10e76d80008"
+    },
+    "common_prefix_lines": 1,
+    "record_counts": {
+      "checkpoint": 2,
+      "trunk": 6
+    },
+    "first_divergence": {
+      "sequence": 2,
+      "differing_fields": {
+        "acceptance_commit": {
+          "checkpoint": "3e758392845d9faf7877977d5ae8806973ed62e6",
+          "trunk": "105a48f95a964229281ea43155cd9fc3adcba482"
+        },
+        "acceptance_commit_date": {
+          "checkpoint": "2026-08-21T21:18:14+02:00",
+          "trunk": "2026-07-31T23:46:07+00:00"
+        },
+        "acceptance_commit_subject": {
+          "checkpoint": "amendment(003): the serena-first hook is wired and the ledger carries it",
+          "trunk": "amend(plan): add Genesis and dual-layer execution chain"
+        },
+        "accepted_at": {
+          "checkpoint": "2026-08-21T21:18:13+02:00",
+          "trunk": "2026-08-01T00:47:00+02:00"
+        },
+        "approval_ref": {
+          "checkpoint": "proposal-003-serena-first-owner-approved-2026-08-05; owner-executed-2026-08-21",
+          "trunk": "conversation-2026-07-31-owner-fold-genesis-dual-layer-build-review-plan-and-continue"
+        },
+        "plan_at_acceptance_sha256_normalized": {
+          "checkpoint": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "trunk": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50"
+        },
+        "plan_at_acceptance_sha256_raw": {
+          "checkpoint": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "trunk": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50"
+        },
+        "plan_header_at_acceptance": {
+          "checkpoint": {
+            "revision": 2,
+            "version": "1.0.0"
+          },
+          "trunk": {
+            "revision": 2,
+            "version": "1.1.0"
+          }
+        },
+        "record_sha256_claimed": {
+          "checkpoint": "4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+          "trunk": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3"
+        },
+        "record_sha256_recomputed": {
+          "checkpoint": "4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+          "trunk": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3"
+        },
+        "result_plan_sha256": {
+          "checkpoint": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+          "trunk": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50"
+        },
+        "version": {
+          "checkpoint": "1.0.0",
+          "trunk": "1.1.0"
+        }
+      }
+    },
+    "record_2_full_checkpoint": {
+      "accepted_at": "2026-08-21T21:18:13+02:00",
+      "approval_ref": "proposal-003-serena-first-owner-approved-2026-08-05; owner-executed-2026-08-21",
+      "base_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+      "base_revision": 1,
+      "owner": "repository-owner",
+      "plan_id": "daedalus-master-plan",
+      "previous_record_sha256": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+      "record_sha256": "4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+      "result_plan_sha256": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+      "result_revision": 2,
+      "schema": "daedalus-master-plan-amendment/1",
+      "scope": [
+        "derived-controls",
+        "claude-hooks",
+        "serena-first"
+      ],
+      "sequence": 2,
+      "status": "accepted",
+      "summary": "Wire the fail-open serena-first PreToolUse hook (Read|Grep) into .claude/settings.json; derived-control change only, no invariant or prior is altered.",
+      "version": "1.0.0"
+    },
+    "record_2_full_trunk": {
+      "accepted_at": "2026-08-01T00:47:00+02:00",
+      "approval_ref": "conversation-2026-07-31-owner-fold-genesis-dual-layer-build-review-plan-and-continue",
+      "base_plan_sha256": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4",
+      "base_revision": 1,
+      "owner": "repository-owner",
+      "plan_id": "daedalus-master-plan",
+      "previous_record_sha256": "3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+      "record_sha256": "69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3",
+      "result_plan_sha256": "ab8bb7fcdba85e8b233e2e292c075ddec479051dd71155d3a9ff3703bd41cf50",
+      "result_revision": 2,
+      "schema": "daedalus-master-plan-amendment/1",
+      "scope": [
+        "fourfold-project-twin",
+        "repository-atlas",
+        "genesis",
+        "llm-proposal-operators",
+        "dual-layer-architecture",
+        "build-review-chain",
+        "delivery-gates",
+        "governance-fixtures"
+      ],
+      "sequence": 2,
+      "status": "accepted",
+      "summary": "Fold Genesis software construction, repository-corpus motifs, explicit LLM proposal roles, the orchestration/evolution dual layer, and a mandatory Work-Packet build/review chain into the canonical plan; require historically pinned governance fixtures.",
+      "version": "1.1.0"
+    },
+    "merge_base_of_pins": "8647091fbd5114c2020b2c0fb8e97278a6699e5d",
+    "ledger_at_merge_base_record_count": 1,
+    "plan_at_merge_base_sha256_normalized": "a47d84ee736fcaebd76f4309f4e0653f536415b9bda9e04940920ca1896026d4"
+  },
+  "commands": [
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.032
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "checkpoint/2026-07-20-session"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.029
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "77e7498a762aa96c436d367dc35ff3431c0fcfa8"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.033
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.035
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.031
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "77e7498a762aa96c436d367dc35ff3431c0fcfa8:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.028
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "77e7498a762aa96c436d367dc35ff3431c0fcfa8:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.028
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.028
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.039
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+        "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.042
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.03
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.032
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S4209398a0e554e2869bbcf5955c20837e5c2141ba6f25979b78932469f800886",
+        "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.052
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.043
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.045
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.036
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.031
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.067
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+        "tools/iron_plan_guard.py",
+        "verify"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.36
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-cp",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.041
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:tools/iron_plan_guard.py"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.035
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "work/g0-trunk-20260817"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.036
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "93f11adfb08efa713711fd62e9be7b46d8957166:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.044
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "rev-parse",
+        "93f11adfb08efa713711fd62e9be7b46d8957166:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.04
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.073
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S3ccedd9a36e21d1764d16766431450e422628129faa9e7a68684bfeccf3793ea",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.065
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.027
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "15fbcd2b2a7d1751b0f4675a96ffe78a3c28ecaf^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.028
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S69b51ffc88bdf37025e8ec076560c8eb8c77d339618ad870744db3d83efce8b3",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.055
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "105a48f95a964229281ea43155cd9fc3adcba482:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.036
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "105a48f95a964229281ea43155cd9fc3adcba482^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.035
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-Sa1ffba31de886c8f2cff5262a4bc0dc9062b1639d628be4f3344e63363018399",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.067
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "5d7affe2fccdf80410267411b470a6ae1c168c4a:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.032
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "5d7affe2fccdf80410267411b470a6ae1c168c4a^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.03
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S1f312cccd20d3616978398a6d098ebbb2d10fa1dc023dd13025a91ae398045d3",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.056
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "900665e43c981faa1395c78d1e6ccb29d2513317:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.029
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "900665e43c981faa1395c78d1e6ccb29d2513317^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.03
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-S60b7a5c53ebea509d0ea8310d8dada1856d998650b27badf0a15dbbe5be642a7",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.052
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "7dce95c4f7c210957920f1cc03f9e55bec1fa19b:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.03
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "7dce95c4f7c210957920f1cc03f9e55bec1fa19b^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.036
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "log",
+        "--reverse",
+        "--format=%H%x1f%cI%x1f%s",
+        "-Sb0cce7c1526786096133d74baac25c31014b0e79f77e49af1de7210d140ba6fe",
+        "93f11adfb08efa713711fd62e9be7b46d8957166",
+        "--",
+        "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.058
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "a9917c87fd707e30c85a331e2a56757f6026991f:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.033
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "a9917c87fd707e30c85a331e2a56757f6026991f^:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.032
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "93f11adfb08efa713711fd62e9be7b46d8957166:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.029
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.026
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.054
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+        "tools/iron_plan_guard.py",
+        "verify"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.349
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env.worktrees/preruling-g0",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.047
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "93f11adfb08efa713711fd62e9be7b46d8957166:tools/iron_plan_guard.py"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.031
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "3e758392845d9faf7877977d5ae8806973ed62e6:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.027
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "93f11adfb08efa713711fd62e9be7b46d8957166:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.028
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "merge-base",
+        "3e758392845d9faf7877977d5ae8806973ed62e6",
+        "93f11adfb08efa713711fd62e9be7b46d8957166"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.044
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "8647091fbd5114c2020b2c0fb8e97278a6699e5d:docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.036
+    },
+    {
+      "cwd": "C:/Users/nukei/Desktop/agent_env",
+      "argv": [
+        "git",
+        "show",
+        "8647091fbd5114c2020b2c0fb8e97278a6699e5d:docs/IKARUS_ARIADNE_MASTER_PLAN.md"
+      ],
+      "rc": 0,
+      "wall_s_INHERITED_under_load": 0.035
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "task": "CENSUS-TRUNK guard cross-tree resolution",
+  "utc": "2026-08-22T07:26:03Z",
+  "trunk_sha": "93f11adfb08efa713711fd62e9be7b46d8957166",
+  "trunk_worktree": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+  "checkpoint_primary": "C:\\Users\\nukei\\Desktop\\agent_env",
+  "editable_install_target": "C:\\Users\\nukei\\Desktop\\agent_env\\daedalus",
+  "plan_files": {
+    "TRUNK_worktree": {
+      "present": true,
+      "path": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0\\docs\\IKARUS_ARIADNE_MASTER_PLAN.md",
+      "sha256_on_disk": "4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+      "header_lines_RAW": [
+        "# Ikarus & Ariadne: Der eiserne Daedalus-Masterplan",
+        "",
+        "Plan-ID: `daedalus-master-plan`  ",
+        "Revision: 6",
+        "Version: 1.2.3",
+        "Status: adopted  ",
+        "Date: 2026-08-02",
+        "Owner: repository owner  ",
+        "Active delivery gate: Gate 0 \u2014 Canonical Kernel  ",
+        "Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`",
+        "",
+        "This is the sole semantic authority for Daedalus architecture, product order,"
+      ]
+    },
+    "CHECKPOINT_primary": {
+      "present": true,
+      "path": "C:\\Users\\nukei\\Desktop\\agent_env\\docs\\IKARUS_ARIADNE_MASTER_PLAN.md",
+      "sha256_on_disk": "d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+      "header_lines_RAW": [
+        "# Ikarus & Ariadne: Der eiserne Daedalus-Masterplan",
+        "",
+        "Plan-ID: `daedalus-master-plan`  ",
+        "Revision: 2  ",
+        "Version: 1.0.0  ",
+        "Status: adopted  ",
+        "Date: 2026-07-30  ",
+        "Owner: repository owner  ",
+        "Active delivery gate: Gate 0 \u2014 Canonical Kernel  ",
+        "Amendment chain: `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`",
+        "",
+        "This is the sole semantic authority for Daedalus architecture, product order,"
+      ]
+    }
+  },
+  "runs": {
+    "guard_from_trunk_worktree_unpinned": {
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "env_overrides": {},
+      "returncode": 0,
+      "stdout_RAW": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+      "stderr_tail_RAW": ""
+    },
+    "guard_from_trunk_worktree_pinned": {
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0",
+      "env_overrides": {
+        "PYTHONPATH": "C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\preruling-g0"
+      },
+      "returncode": 0,
+      "stdout_RAW": "Iron Plan OK: revision 6, Gate 0 \u2014 Canonical Kernel, sha256 4dc60d932b8e6233658486607565c8ca21a13e835afd3f57c94c8b41000e30e1",
+      "stderr_tail_RAW": ""
+    },
+    "guard_from_checkpoint_primary": {
+      "command": "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe tools/iron_plan_guard.py verify",
+      "cwd": "C:\\Users\\nukei\\Desktop\\agent_env",
+      "env_overrides": {},
+      "returncode": 0,
+      "stdout_RAW": "Iron Plan OK: revision 2, Gate 0 \u2014 Canonical Kernel, sha256 d0756fa3772b2153d03a6c8b8bbeef6e487fc5830c3ccb62d9978bd5a22b27fd",
+      "stderr_tail_RAW": ""
+    }
+  },
+  "stamp": "MEASURED"
+}
