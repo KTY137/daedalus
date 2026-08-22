@@ -1,7 +1,27 @@
 # Der Giga-Plan in Klartext (2026-08-22)
 
 Die Langfassung (`GIGA_PLAN_2026-08-22.md`) ist für Agenten geschrieben. Das hier ist
-dieselbe Sache für Menschen. Status: Entwurf, Codex-Runde 2 steht noch aus.
+dieselbe Sache für Menschen. Status: Arbeitsfassung, Codex-Runde 2 ist eingearbeitet.
+
+> **Zwei Dinge haben sich seit dem Schreiben dieser Tabelle geändert (2026-08-22):**
+>
+> 1. **Schritt 1 ist erledigt.** Du hast entschieden: Option A — `main` ist der
+>    g0-Trunk, die Guard-Zeremonie ist zurückgezogen. [MEASURED] an `main 79825b57`,
+>    Regelbuch-Nachtrag Nr. 7, Revision 7. Die Schritte 0, 0b und 1 unten sind damit
+>    Geschichte, keine offene Arbeit mehr; sie bleiben nur als Protokoll stehen.
+>    Die Ausführung steht jetzt bei Schritt 2 (Ernte).
+> 2. **Vier Codex-Prüfer haben den Plan ein zweites Mal angegriffen** (der fünfte
+>    Sitz fiel mit Timeout aus, 0,0 s, ohne Befund). Ihr Hauptvorwurf: an dreizehn
+>    Stellen konnte man ein „fertig" abhaken, **ohne irgendetwas gemessen zu haben** —
+>    zum Beispiel Phase 7b abschließen, ohne ein einziges fremdes Repo abzuspielen,
+>    oder Gate 0 „geschlossen" nennen, während alle dreizehn Türen unverändert offen
+>    stehen und nur ein Zettel danebenliegt. Diese Schlupflöcher sind jetzt zu.
+>    Außerdem: sieben der achtzehn „Entscheidungen" waren gar keine — es gab nur eine
+>    zulässige Antwort. Sie heißen jetzt **vorgeschriebene Handlungen**; du
+>    unterschreibst sie weiter, aber deine echte Entscheidungsliste ist elf lang, nicht
+>    achtzehn. Alles Einzelne steht am Ende der Langfassung unter
+>    „Codex round 2 incorporated (2026-08-22)", mit Sitznummer pro Änderung und einer
+>    Liste dessen, was ich **nicht** übernommen habe und warum.
 
 ## Die Lage in drei Sätzen
 
