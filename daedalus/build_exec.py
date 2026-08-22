@@ -256,6 +256,11 @@ class WaveResult:
     results: list[dict[str, Any]]          # dispatch()'s raw per-task dicts (or, for
                                             # mode=="gated", gated_writes.run_write_wave's --
                                             # same position-matched contract either way
+    #: WHAT THE LEASED CEILING COST. ``{"cap_usd": ..., "spent_usd": ...}`` from
+    #: the wave's budget envelope (see WaveExecutor._open_spend_envelope), so a
+    #: report carries the money actually spent NEXT TO the money that was
+    #: authorised, instead of only the declaration.
+    spend_envelope: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -264,6 +269,7 @@ class WaveResult:
             "landed_tasks": self.landed_tasks, "bounced_tasks": self.bounced_tasks,
             "forced_sequential_reason": self.forced_sequential_reason,
             "path_conflicts": self.path_conflicts, "results": self.results,
+            "spend_envelope": self.spend_envelope,
         }
 
 
@@ -388,10 +394,40 @@ class WaveExecutor:
         return head if len(head) == 40 and all(
             c in "0123456789abcdef" for c in head) else None
 
+    @staticmethod
+    def _wave_concurrency(scheduler: KairosScheduler, wave: Wave, *,
+                          gated: bool, parallel: bool) -> int:
+        """How many attempts of this wave can be IN FLIGHT AT ONCE.
+
+        The lease's ``max_concurrency`` is the ceiling the effect ledger
+        enforces (``daedalus/kernel/effects.py``: a start past it raises
+        ``EffectLeaseConcurrencyError``). Handing it ``len(wave.tasks)`` made
+        that ceiling equal to the number of executions the wave derives, so it
+        could never bind -- a bound that is always slack is not a bound.
+
+        These are the REAL numbers, read from the same scheduler that will run
+        the wave: ``ThreadPoolExecutor(max_workers=self.max_workers)`` for an
+        advisory parallel dispatch, ``min(max_parallel_writes, max_workers)``
+        for the gated write path (``KairosScheduler.gate_concurrent_writes``),
+        and exactly one for a sequential dispatch. Capped by the wave size,
+        because a lease may not authorise more concurrency than the wave can
+        possibly use.
+        """
+        workers = max(1, int(getattr(scheduler, "max_workers", 1) or 1))
+        if gated:
+            writes = max(1, int(getattr(scheduler, "max_parallel_writes", 1) or 1))
+            bound = min(writes, workers)
+        elif parallel:
+            bound = workers
+        else:
+            bound = 1
+        return max(1, min(len(wave.tasks) or 1, bound))
+
     def _acquire_wave_lease(self, scheduler: KairosScheduler, wave: Wave,
                             assignments: list[Assignment], repo_root: str, *,
                             task_dicts: list[dict[str, Any]],
-                            attempt_id: str, gated: bool, has_writes: bool) -> Any:
+                            attempt_id: str, gated: bool, has_writes: bool,
+                            parallel: bool = False) -> Any:
         """Acquire the ONE ``python.offload`` Effect Lease this wave runs under.
 
         Once per wave, here, because this is the last scope that knows the whole
@@ -479,7 +515,12 @@ class WaveExecutor:
             mission_id=(bounds.mission_id if bounds and bounds.mission_id
                         else f"build-wave-{wave.index}"),
             attempt_id=attempt_id,
-            positions=len(wave.tasks),
+            # THE WAVE'S REAL CONCURRENCY, not its size. See
+            # _wave_concurrency: `positions` is the issuer's name for the
+            # lease's `max_concurrency`, and passing the task count made the
+            # effect ledger's concurrency ceiling unfireable by construction.
+            positions=self._wave_concurrency(scheduler, wave, gated=gated,
+                                             parallel=parallel),
             writable_paths=declared,
             lanes=sorted({a.lane for a in live}),
             tools=tools,
@@ -501,6 +542,63 @@ class WaveExecutor:
             switch=(bounds.switch if bounds else None),
             trace_id=(bounds.trace_id if bounds else None),
         )
+
+    @staticmethod
+    def _open_spend_envelope(lease: Any, wave: Wave) -> tuple[Any, dict[str, Any] | None]:
+        """Turn the lease's ``max_cost_microusd`` into money that actually stops.
+
+        THE GAP THIS CLOSES. ``EffectScope.max_cost_microusd`` was, until this
+        call, compared only against another declaration
+        (``daedalus/kernel/effects.py::_validate_narrowed_scope`` checks the
+        execution's claim against the lease's claim). No code subtracted a
+        dollar from it. The only ceiling a live wave ever ran under was
+        ``daedalus.budget``'s PERIOD ceiling -- ``DAEDALUS_BUDGET_USD``,
+        default $5.00/day -- which has nothing to do with the
+        ``--max-spend-usd`` the operator typed and the lease then published.
+
+        So the wave places a budget RESERVATION for exactly its leased ceiling
+        before it dispatches anything. From here until the envelope closes,
+        ``daedalus.budget``'s process guard refuses at the LEASE's number
+        (naming the lease in the refusal), not at the day's; the unused hold is
+        released at wave end and the realized spend is reported back for the
+        receipt.
+
+        Returns ``(envelope, refusal)``. A refusal is a wave that must not run:
+        the money it was authorised for cannot be pre-authorised, or the ledger
+        cannot be read at all -- and an unreadable budget is a refusal
+        everywhere else in this repository too.
+        """
+        if lease is None or not getattr(lease, "granted", False):
+            return None, None
+        from . import budget
+
+        scope = lease.lease.effect_scope
+        micro = scope.max_cost_microusd
+        cap_usd = 0.0 if not micro else float(micro) / 1_000_000.0
+        # The envelope outlives the lease by nothing: a hold whose wave is over
+        # must stop holding the day's money. `timeout_s` is the wave's own
+        # bound, doubled so a wave that ends exactly at its timeout still
+        # closes its envelope itself rather than being closed by expiry.
+        ttl = None
+        if scope.timeout_s:
+            ttl = max(60.0, float(scope.timeout_s) * 2.0)
+        try:
+            envelope = budget.ledger().open_envelope(
+                cap_usd,
+                label=(f"wave {wave.index} "
+                       f"({getattr(lease.request, 'mission_id', '') or '?'})"),
+                lease_id=lease.lease.lease_id,
+                ttl_s=ttl)
+        except budget.BudgetRefused as exc:
+            return None, {"reason": exc.message(), "detail": exc.as_dict(),
+                          "cap_usd": cap_usd}
+        except budget.BudgetUnavailable as exc:
+            return None, {"reason": (
+                f"the budget ledger could not be established ({exc}), so the "
+                "leased spend ceiling cannot be enforced; a wave that cannot "
+                "measure its own spend does not dispatch"),
+                "detail": None, "cap_usd": cap_usd}
+        return envelope, None
 
     def classify_wave(self, scheduler: KairosScheduler, wave: Wave, repo_root: str) -> list[Assignment]:
         """Read-only: route every task in ``wave`` without executing anything.
@@ -692,11 +790,13 @@ class WaveExecutor:
         # which is precisely what runs/loop/blocker_9887a98e.json measured.
         nonce = uuid.uuid4().hex[:8]
         lease = None
+        envelope = None
         if not dry_run:
             lease = self._acquire_wave_lease(
                 scheduler, wave, assignments, repo_root, task_dicts=tasks,
                 attempt_id=f"w{wave.index}-{nonce}",
-                gated=gated_write_wave, has_writes=has_writes)
+                gated=gated_write_wave, has_writes=has_writes,
+                parallel=wave_parallel)
             if lease is not None and not getattr(lease, "granted", False):
                 receipt = lease.receipt()
                 refused = [
@@ -720,6 +820,40 @@ class WaveExecutor:
                         "no python.offload Effect Lease was issued for this wave: "
                         + "; ".join(lease.reasons)),
                     path_conflicts=conflicts, results=refused)
+
+            # ---- THE MONEY, RESERVED AT THE LEASE'S CEILING --------------- #
+            # Immediately after the grant and before anything is dispatched,
+            # for the same reason the lease itself is acquired here: a wave
+            # that cannot hold its own budget must leave no half-open attempt
+            # behind. Without this the lease's max_cost_microusd was a number
+            # in a receipt and the only real cap was the day's.
+            envelope, spend_refusal = self._open_spend_envelope(lease, wave)
+            if spend_refusal is not None:
+                receipt = lease.receipt() if lease is not None else None
+                refused = [
+                    {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                     "owner": a.owner, "objective": a.objective,
+                     "paths": list(a.paths),
+                     "status": "spend_envelope_denied",
+                     "reason": spend_refusal["reason"],
+                     "wrote": [], "changed_paths": [],
+                     "provider_receipt": receipt,
+                     "effect_lease": receipt,
+                     "budget_refusal": spend_refusal["detail"]}
+                    for a in assignments
+                ]
+                for t in wave.tasks:
+                    t.mark("bounced")
+                return WaveResult(
+                    index=wave.index, mode="spend_denied", dry_run=dry_run,
+                    write_tasks=write_n, advisory_tasks=advisory_n,
+                    landed_tasks=0, bounced_tasks=len(refused),
+                    forced_sequential_reason=(
+                        "the leased spend ceiling could not be reserved on the "
+                        "budget ledger: " + spend_refusal["reason"]),
+                    path_conflicts=conflicts, results=refused,
+                    spend_envelope={"cap_usd": spend_refusal["cap_usd"],
+                                    "spent_usd": 0.0, "opened": False})
 
         if not dry_run:
             for t in wave.tasks:
@@ -863,7 +997,17 @@ class WaveExecutor:
         # long ago. A stale "still working" signal is worse than no signal: it
         # is the exact lie the stall detector exists to catch.
         try:
-            raw = _dispatch()
+            if envelope is not None:
+                # INSIDE THE ENVELOPE. Entering it publishes the envelope id in
+                # the environment, so a child process that installs
+                # daedalus.budget's own process guard draws on the SAME leased
+                # ceiling instead of only on the day's; leaving it releases the
+                # unused hold on every exit, including a raise, so an
+                # interrupted wave does not keep the day's money hostage.
+                with envelope:
+                    raw = _dispatch()
+            else:
+                raw = _dispatch()
         finally:
             beat_stop.set()
             beat_thread.join(timeout=2.0)
@@ -889,6 +1033,14 @@ class WaveExecutor:
         # and so an operator reading runs/loop/loop-*.json can join a spend to
         # the exact lease id, effect set and execution that authorised it.
         lease_receipt = lease.receipt() if lease is not None else None
+        # WHAT THE CEILING ACTUALLY COST, closed and measured by the block
+        # above. Carried beside `max_cost_microusd` (the declaration) so a
+        # reader of runs/loop/*.json sees authorised and realized money in one
+        # place instead of inferring the second from a ledger elsewhere.
+        spend_envelope = (dict(envelope.result) if envelope is not None
+                          and envelope.result else None)
+        if lease_receipt is not None and spend_envelope is not None:
+            lease_receipt["spend_envelope"] = spend_envelope
         for pos, (task, result) in enumerate(zip(wave.tasks, raw)):
             if lease_receipt is not None and isinstance(result, dict):
                 stamped = dict(lease_receipt)
@@ -922,6 +1074,7 @@ class WaveExecutor:
             dry_run=dry_run, write_tasks=write_n, advisory_tasks=advisory_n,
             landed_tasks=landed_n, bounced_tasks=bounced_n,
             forced_sequential_reason=forced_reason, path_conflicts=conflicts, results=raw,
+            spend_envelope=spend_envelope,
         )
 
     def run(self, session: BuildSession, *, repo_root: str | None = None,

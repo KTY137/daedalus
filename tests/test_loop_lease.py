@@ -225,7 +225,7 @@ def test_one_wave_acquires_exactly_one_lease(switch):
     # 2 here, and would make the number of live capabilities a function of what
     # the picker happened to return.
     assert len(calls) == 1
-    assert calls[0]["positions"] == 2
+    assert calls[0]["positions"] == 1  # the wave's real concurrency, not its size
     lease_ids = {row["effect_lease"]["lease_id"] for row in result.results}
     execution_ids = {row["effect_lease"]["execution_id"]
                      for row in result.results}

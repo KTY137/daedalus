@@ -70,6 +70,11 @@ ENV_CEILING = "DAEDALUS_BUDGET_USD"
 ENV_MAX_CALLS = "DAEDALUS_BUDGET_MAX_CALLS"
 ENV_PERIOD = "DAEDALUS_BUDGET_PERIOD"
 ENV_ON_UNKNOWN = "DAEDALUS_BUDGET_ON_UNKNOWN"
+# Which SPEND ENVELOPES this process (and every child that inherits its
+# environment) is spending inside. Comma-separated envelope ids, written by
+# :meth:`SpendEnvelope.__enter__`, never by a human. See "spend envelopes"
+# below for why a second, tighter ceiling exists at all.
+ENV_ENVELOPE = "DAEDALUS_BUDGET_ENVELOPE"
 
 # The default cap. Chosen so that an operator who has configured NOTHING still
 # has a cap, and so that the cap is crossed loudly on the third A/B arm rather
@@ -93,9 +98,17 @@ DEFAULT_PERIOD = "day"
 LOCK_TIMEOUT_S = 30.0
 MAX_ENTRIES = 500
 
+#: How long an unclosed envelope keeps holding money. A crashed wave must not
+#: hold the day's whole ceiling forever, and a hold with no lifetime is exactly
+#: what an abandoned process leaves behind. EXPIRY RELEASES ONLY THE UNUSED
+#: HOLD -- spend already recorded inside the envelope stays recorded, and a
+#: draw attributed to an expired envelope is REFUSED, not waved through.
+DEFAULT_ENVELOPE_TTL_S = 6 * 3600.0
+
 __all__ = [
     "BudgetError", "BudgetRefused", "BudgetUnavailable", "UnknownPrice",
     "Estimate", "BudgetState", "Reservation", "Ledger",
+    "SpendEnvelope", "open_envelope", "ENV_ENVELOPE",
     "price_call", "reserve", "guard", "ledger", "reset_default_ledger",
     "classify_argv", "classify_url",
     "install_process_guard", "uninstall_process_guard",
@@ -126,7 +139,13 @@ class BudgetRefused(BudgetError):
     def __init__(self, *, label: str, vendor: str, model: str, estimate_usd: float,
                  spent_usd: float, reserved_usd: float, ceiling_usd: float,
                  calls: int, open_calls: int, want_calls: int, max_calls: int,
-                 reason: str) -> None:
+                 reason: str, envelope: dict[str, Any] | None = None) -> None:
+        # WHICH CEILING REFUSED. Defaulted to None so every existing raise site
+        # is unchanged; set when the refusal came from a SPEND ENVELOPE (a
+        # lease's own ceiling) rather than from the period ceiling, so a
+        # receipt can name the lease that stopped the money instead of
+        # reporting the day's cap for a wave that never came near it.
+        self.envelope = dict(envelope) if envelope else None
         self.label = label
         self.vendor = vendor
         self.model = model
@@ -142,6 +161,22 @@ class BudgetRefused(BudgetError):
         super().__init__(self.message())
 
     def message(self) -> str:
+        if self.envelope is not None:
+            env = self.envelope
+            return (
+                f"BUDGET REFUSED: {self.reason}. "
+                f"refused='{self.label}' (vendor={self.vendor or '?'}, "
+                f"model={self.model or '?'}, {self.want_calls} call(s), "
+                f"estimate=${self.estimate_usd:.4f}). "
+                f"envelope={env.get('label') or env.get('id')!r} "
+                f"lease={env.get('lease_id') or '<none>'} "
+                f"cap=${float(env.get('cap_usd') or 0.0):.4f}, "
+                f"drawn=${float(env.get('drawn_usd') or 0.0):.4f}, "
+                f"remaining=${float(env.get('remaining_usd') or 0.0):.4f}. "
+                f"This is the LEASED ceiling, not the period ceiling "
+                f"(${self.ceiling_usd:.4f}): the wave was authorised for "
+                f"exactly this much money and has now asked for more."
+            )
         return (
             f"BUDGET REFUSED: {self.reason}. "
             f"refused='{self.label}' (vendor={self.vendor or '?'}, "
@@ -162,7 +197,7 @@ class BudgetRefused(BudgetError):
             "reserved_usd": self.reserved_usd, "ceiling_usd": self.ceiling_usd,
             "calls": self.calls, "open_calls": self.open_calls,
             "want_calls": self.want_calls, "max_calls": self.max_calls,
-            "reason": self.reason,
+            "reason": self.reason, "envelope": self.envelope,
         }
 
 
@@ -487,6 +522,14 @@ class BudgetState:
     open_calls: int
     period: str
     period_key: str
+    #: The part of ``reserved_usd`` that is UNUSED envelope hold -- money
+    #: pre-authorised to a lease that has not been drawn yet. Defaulted so
+    #: every existing construction of this dataclass is unchanged.
+    envelope_hold_usd: float = 0.0
+    #: One row per OPEN envelope: id, label, lease_id, cap, drawn, remaining,
+    #: expired. Published so a receipt can report the leased ceiling beside
+    #: the realized spend without re-reading the ledger file.
+    envelopes: tuple[dict[str, Any], ...] = ()
 
     @property
     def committed_usd(self) -> float:
@@ -502,7 +545,9 @@ class BudgetState:
                 "committed_usd": self.committed_usd,
                 "remaining_usd": self.remaining_usd, "calls": self.calls,
                 "open_calls": self.open_calls, "period": self.period,
-                "period_key": self.period_key}
+                "period_key": self.period_key,
+                "envelope_hold_usd": self.envelope_hold_usd,
+                "envelopes": [dict(e) for e in self.envelopes]}
 
 
 @dataclass
@@ -541,6 +586,111 @@ class Reservation:
             raise ValueError("release() requires a reason naming why no call happened")
         self.ledger._close(self, 0.0, released=True, reason=reason)
         self._closed = True
+
+
+@dataclass
+class SpendEnvelope:
+    """A SECOND, TIGHTER CEILING for the duration of one leased scope.
+
+    WHY THIS EXISTS. An Effect Lease declares ``max_cost_microusd``, and until
+    this class nothing on any path turned that number into money enforcement:
+    ``daedalus/kernel/effects.py`` only compared the execution's declaration
+    against the lease's declaration (a narrowing check between two *claims*),
+    so the only real ceiling a wave ever ran under was the period ceiling in
+    this module -- the day's ``DAEDALUS_BUDGET_USD``, which is unrelated to the
+    ``--max-spend-usd`` the operator typed. A wave leased for $0.25 could spend
+    $4.99 without one refusal, because nobody was subtracting.
+
+    An envelope is a PRE-AUTHORISATION, not an extra pot of money:
+
+    * opening one commits its whole ``cap_usd`` to the ledger as hold, so the
+      period ceiling accounts for the lease the moment it is granted (and an
+      envelope that does not fit under the period ceiling cannot be opened);
+    * every reservation attributed to it draws the hold down instead of adding
+      to it -- spend inside the envelope does not double-count;
+    * a draw that would cross ``cap_usd`` is refused with the lease named, even
+      when the period ceiling has room;
+    * closing it releases whatever hold was never drawn and reports the
+      REALIZED spend, which is what belongs in the wave receipt beside the
+      ceiling it was granted.
+
+    ATTRIBUTION -- and its exact boundary. A reservation is charged to this
+    envelope when the reserving process is the one that opened it (same pid) or
+    when the envelope's id is in ``DAEDALUS_BUDGET_ENVELOPE``, which
+    :meth:`__enter__` sets so child processes inherit it. That covers the two
+    shapes this repository actually spends in: an in-process interposed
+    reservation (``install_process_guard`` monkeypatches this process's
+    ``subprocess``/``urlopen``, and worker threads share the pid) and a child
+    that installs the guard for itself. It does NOT cover a child spawned with
+    a scrubbed environment from a different pid, and it cannot: this module has
+    no way to observe a spend it never sees.
+    """
+
+    id: str
+    label: str
+    cap_usd: float
+    ledger: "Ledger"
+    lease_id: str | None = None
+    expires_at: float | None = None
+    #: What :meth:`close` reported, kept so a caller that used the context
+    #: manager can still read the realized spend after the block.
+    result: dict[str, Any] | None = None
+    _closed: bool = False
+    _prev_env: str | None = None
+
+    def state(self) -> dict[str, Any] | None:
+        """This envelope's cap/drawn/remaining right now, or None once closed."""
+        return self.ledger.envelope_state(self.id)
+
+    def close(self, reason: str = "") -> dict[str, Any]:
+        """Release the unused hold and report what was really spent."""
+        if self._closed:
+            return self.result or {}
+        self.result = self.ledger.close_envelope(self, reason=reason)
+        self._closed = True
+        return self.result
+
+    def __enter__(self) -> "SpendEnvelope":
+        self._prev_env = os.environ.get(ENV_ENVELOPE)
+        ids = [i for i in (self._prev_env or "").split(",") if i.strip()]
+        if self.id not in ids:
+            ids.append(self.id)
+        os.environ[ENV_ENVELOPE] = ",".join(ids)
+        return self
+
+    def __exit__(self, *exc: Any) -> bool:
+        if self._prev_env is None:
+            os.environ.pop(ENV_ENVELOPE, None)
+        else:
+            os.environ[ENV_ENVELOPE] = self._prev_env
+        # CLOSED ON EVERY EXIT INCLUDING A RAISE. An envelope that survives its
+        # own scope holds the day's money against a wave that is already over.
+        self.close(reason="scope exited" if not exc[0] else
+                   f"scope raised {exc[0].__name__}")
+        return False
+
+
+def _env_envelope_ids() -> set[str]:
+    raw = os.environ.get(ENV_ENVELOPE) or ""
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _attributed(envelope_view: dict[str, Any]) -> bool:
+    """Does a reservation made HERE, NOW draw on this envelope?
+
+    Two answers, both required. The pid covers the process that opened the
+    envelope -- including every worker thread in it, which is where the
+    interposed reservations of a wave are actually made. The environment
+    variable covers a child that inherited the scope and installed the process
+    guard for itself. A spend that satisfies neither is invisible to this
+    module and is bounded by the period ceiling alone.
+    """
+    if envelope_view["id"] in _env_envelope_ids():
+        return True
+    try:
+        return int(envelope_view.get("pid") or -1) == os.getpid()
+    except (TypeError, ValueError):
+        return False
 
 
 def _num(value: Any, name: str, *, allow_zero: bool = True) -> float:
@@ -686,17 +836,46 @@ class Ledger:
             if isinstance(n, bool) or not isinstance(n, int) or n < 0:
                 raise BudgetUnavailable(f"budget ledger open[{key}].calls is not a count")
             row["calls"] = n
+            names = row.get("envelopes", [])
+            if not isinstance(names, list) or any(
+                    not isinstance(n2, str) for n2 in names):
+                raise BudgetUnavailable(
+                    f"budget ledger open[{key}].envelopes is not a list of ids")
+        # ENVELOPES ARE VALIDATED AS HARD AS RESERVATIONS. A malformed envelope
+        # is a ceiling we cannot compute, and an uncomputable ceiling is a
+        # refusal -- the same rule the rest of this loader follows.
+        envs = data.get("envelopes")
+        if envs is None:
+            envs = {}
+            data["envelopes"] = envs
+        if not isinstance(envs, dict):
+            raise BudgetUnavailable("budget ledger 'envelopes' is not an object; refusing")
+        for key, row in envs.items():
+            if not isinstance(row, dict):
+                raise BudgetUnavailable(f"budget ledger envelope {key!r} is malformed")
+            row["cap_usd"] = _num(row.get("cap_usd"), f"envelopes[{key}].cap_usd")
+            row["settled_usd"] = _num(row.get("settled_usd", 0.0),
+                                      f"envelopes[{key}].settled_usd")
+            exp = row.get("expires_at")
+            if exp is not None:
+                row["expires_at"] = _num(exp, f"envelopes[{key}].expires_at")
         if not isinstance(data.get("entries"), list):
             data["entries"] = []
         return self._roll(data)
 
     def _fresh(self) -> dict[str, Any]:
         return {"version": 1, "period": self.period(), "period_key": self.period_key(),
-                "spent_usd": 0.0, "calls": 0, "open": {}, "entries": []}
+                "spent_usd": 0.0, "calls": 0, "open": {}, "envelopes": {},
+                "entries": []}
 
     def _roll(self, data: dict[str, Any]) -> dict[str, Any]:
         """Roll the period over. Settled spend resets; OPEN reservations do NOT
-        -- money in flight is still in flight when the clock strikes midnight."""
+        -- money in flight is still in flight when the clock strikes midnight.
+
+        OPEN ENVELOPES DO NOT RESET EITHER, and their drawn total least of all:
+        a lease's ceiling is a property of the lease, not of the calendar. A
+        wave that straddles midnight keeps exactly the ceiling it was granted.
+        """
         want = self.period_key()
         if data.get("period_key") == want and data.get("period") == self.period():
             return data
@@ -706,17 +885,64 @@ class Ledger:
         data["calls"] = 0
         return data
 
+    def _envelope_views(self, data: dict[str, Any]) -> list[dict[str, Any]]:
+        """One row per OPEN envelope, with its draw computed rather than stored.
+
+        ``drawn`` is DERIVED (settled charges + still-open reservations that
+        named this envelope) instead of maintained as a counter, so the two can
+        never disagree: there is only one number, and it is recomputed from the
+        same rows the period ceiling is computed from.
+        """
+        open_res = data.get("open") or {}
+        now = self._now()
+        rows: list[dict[str, Any]] = []
+        for eid, row in (data.get("envelopes") or {}).items():
+            in_flight = sum(float(r["usd"]) for r in open_res.values()
+                            if eid in (r.get("envelopes") or []))
+            cap = float(row["cap_usd"])
+            drawn = float(row["settled_usd"]) + in_flight
+            expires_at = row.get("expires_at")
+            expired = expires_at is not None and now >= float(expires_at)
+            rows.append({
+                "id": eid,
+                "label": str(row.get("label") or ""),
+                "lease_id": row.get("lease_id"),
+                "cap_usd": cap,
+                "drawn_usd": drawn,
+                "settled_usd": float(row["settled_usd"]),
+                "in_flight_usd": in_flight,
+                "remaining_usd": max(0.0, cap - drawn),
+                "opened_at": row.get("opened_at"),
+                "expires_at": expires_at,
+                "expired": expired,
+                "pid": row.get("pid"),
+                # UNUSED PRE-AUTHORISATION. Zero once the envelope has expired:
+                # an abandoned wave must not hold the day's ceiling forever.
+                # Expiry frees the HOLD only -- `drawn` above keeps every
+                # dollar that was actually spent.
+                "hold_usd": 0.0 if expired else max(0.0, cap - drawn),
+            })
+        return rows
+
     def _state(self, data: dict[str, Any]) -> BudgetState:
         open_res = data.get("open") or {}
+        envelopes = self._envelope_views(data)
+        hold = float(sum(e["hold_usd"] for e in envelopes))
         return BudgetState(
             ceiling_usd=self.ceiling_usd(),
             max_calls=self.max_calls(),
             spent_usd=float(data["spent_usd"]),
-            reserved_usd=float(sum(float(r["usd"]) for r in open_res.values())),
+            # THE HOLD IS RESERVED MONEY. A granted lease has already committed
+            # its ceiling; counting it here is what makes the period ceiling
+            # aware of a wave the instant it is authorised rather than only
+            # once it starts billing.
+            reserved_usd=float(sum(float(r["usd"]) for r in open_res.values())) + hold,
             calls=int(data["calls"]),
             open_calls=int(sum(int(r.get("calls", 1)) for r in open_res.values())),
             period=str(data.get("period", self.period())),
             period_key=str(data.get("period_key", self.period_key())),
+            envelope_hold_usd=hold,
+            envelopes=tuple(envelopes),
         )
 
     def state(self) -> BudgetState:
@@ -764,6 +990,43 @@ class Ledger:
             st = self._state(data)
             want = max(1, int(estimate.calls))
 
+            # ---- THE LEASED CEILING, CHECKED BEFORE THE PERIOD CEILING ----
+            # Order is deliberate: when a wave crosses its own lease's ceiling
+            # the refusal must name the LEASE, not the day's cap. Reporting
+            # "spend ceiling would be crossed, ceiling=$5.00" for a wave leased
+            # $0.25 tells an operator to raise the wrong number.
+            attributed = [e for e in st.envelopes if _attributed(e)]
+            relief = 0.0
+            if estimate.usd > 0 and attributed:
+                for env in attributed:
+                    if env["expired"]:
+                        raise BudgetRefused(
+                            label=label, vendor=estimate.vendor, model=estimate.model,
+                            estimate_usd=estimate.usd, spent_usd=st.spent_usd,
+                            reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                            calls=st.calls, open_calls=st.open_calls, want_calls=want,
+                            max_calls=st.max_calls, envelope=env,
+                            reason=("the spend envelope for this lease has expired; "
+                                    "an expired pre-authorisation is not a licence "
+                                    "to keep spending"))
+                    if env["drawn_usd"] + estimate.usd > env["cap_usd"]:
+                        raise BudgetRefused(
+                            label=label, vendor=estimate.vendor, model=estimate.model,
+                            estimate_usd=estimate.usd, spent_usd=st.spent_usd,
+                            reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                            calls=st.calls, open_calls=st.open_calls, want_calls=want,
+                            max_calls=st.max_calls, envelope=env,
+                            reason="the leased spend ceiling would be crossed")
+                # A DRAW INSIDE AN ENVELOPE IS NOT NEW COMMITMENT. Its hold was
+                # already counted against the period ceiling when the lease was
+                # granted, so the draw converts hold into an open reservation
+                # rather than adding to the total. ``min`` across several
+                # attributed envelopes is the conservative reading: relief only
+                # up to the smallest hold available.
+                relief = min(float(e["hold_usd"]) for e in attributed)
+            names = [e["id"] for e in attributed]
+            extra = max(0.0, estimate.usd - relief)
+
             # ``> 0`` and not ``>= 0``: the question this axis asks is "does THIS
             # call push the total over", not "is the total already over". A call
             # that adds nothing cannot cross a dollar ceiling, and refusing it
@@ -778,7 +1041,7 @@ class Ledger:
             # host-certified ``free_local`` basis is exempt there), so an
             # under-priced runaway is still bounded -- by call count, which is
             # the axis this module already says it trusts more than price.
-            if estimate.usd > 0 and st.committed_usd + estimate.usd > st.ceiling_usd:
+            if estimate.usd > 0 and st.committed_usd + extra > st.ceiling_usd:
                 raise BudgetRefused(
                     label=label, vendor=estimate.vendor, model=estimate.model,
                     estimate_usd=estimate.usd, spent_usd=st.spent_usd,
@@ -810,11 +1073,17 @@ class Ledger:
                 "vendor": estimate.vendor, "model": estimate.model,
                 "basis": estimate.basis, "label": label, "at": self._now(),
                 "pid": os.getpid(),
+                # WHICH LEASED CEILINGS THIS CALL DRAWS ON. Written on the
+                # reservation, not on the envelope, so the draw disappears with
+                # the reservation if it is released and cannot be lost if this
+                # process dies between the two writes.
+                "envelopes": names,
             }
             data["entries"].append(
                 {"kind": "reserve", "id": rid, "usd": float(estimate.usd),
                  "calls": want, "vendor": estimate.vendor, "model": estimate.model,
-                 "basis": estimate.basis, "label": label, "at": self._now()})
+                 "basis": estimate.basis, "label": label, "at": self._now(),
+                 "envelopes": names})
             self._store(data)
         return Reservation(id=rid, estimate=estimate, label=label, ledger=self)
 
@@ -837,12 +1106,120 @@ class Ledger:
                 charge = 0.0
             data["spent_usd"] = float(data["spent_usd"]) + charge
             data["calls"] = int(data["calls"]) + (0 if released else int(row.get("calls", 1)))
+            # THE DRAW MOVES FROM IN-FLIGHT TO SETTLED, on every envelope this
+            # reservation named. A released reservation charges zero here for
+            # the same reason it charges zero to the period ceiling: no vendor
+            # bytes moved. An envelope that was closed while the call was in
+            # flight is simply gone -- its money is already in ``spent_usd``.
+            drawn_on = [str(e) for e in (row.get("envelopes") or [])]
+            for eid in drawn_on:
+                env_row = (data.get("envelopes") or {}).get(eid)
+                if env_row is not None:
+                    env_row["settled_usd"] = float(env_row["settled_usd"]) + charge
             data["entries"].append(
                 {"kind": "release" if released else "settle", "id": res.id,
                  "usd": charge, "estimate_usd": float(row["usd"]),
                  "vendor": row.get("vendor"), "model": row.get("model"),
-                 "label": res.label, "reason": reason, "at": self._now()})
+                 "label": res.label, "reason": reason, "at": self._now(),
+                 "envelopes": drawn_on})
             self._store(data)
+
+    # -- spend envelopes --------------------------------------------------
+
+    def open_envelope(self, cap_usd: float, *, label: str,
+                      lease_id: str | None = None,
+                      ttl_s: float | None = None) -> SpendEnvelope:
+        """PRE-AUTHORISE ``cap_usd`` and refuse anything past it inside.
+
+        This is the enforcement point for a lease's ``max_cost_microusd``. The
+        whole cap is written to the ledger before this returns, exactly as
+        :meth:`reserve` writes a call's estimate before the call: an envelope
+        that cannot fit under the period ceiling is refused here, not
+        discovered halfway through a wave.
+
+        ``cap_usd == 0`` is legal and means what it says -- a lease granted no
+        money refuses every priced call attributed to it, while free local work
+        (basis ``free_local``, priced at zero) still runs.
+        """
+        cap = _num(cap_usd, "cap_usd")
+        label = (label or "").strip() or "<unlabelled envelope>"
+        ttl = DEFAULT_ENVELOPE_TTL_S if ttl_s is None else float(ttl_s)
+        if not isfinite(ttl) or ttl <= 0:
+            ttl = DEFAULT_ENVELOPE_TTL_S
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            data = self._load()
+            st = self._state(data)
+            if cap > 0 and st.committed_usd + cap > st.ceiling_usd:
+                raise BudgetRefused(
+                    label=label, vendor="", model="", estimate_usd=cap,
+                    spent_usd=st.spent_usd, reserved_usd=st.reserved_usd,
+                    ceiling_usd=st.ceiling_usd, calls=st.calls,
+                    open_calls=st.open_calls, want_calls=0,
+                    max_calls=st.max_calls,
+                    reason=(f"the lease asked to pre-authorise ${cap:.4f} and the "
+                            f"period ceiling has ${st.remaining_usd:.4f} left; a "
+                            "capability nobody can pay for is not issued"))
+            eid = uuid.uuid4().hex
+            now = self._now()
+            data.setdefault("envelopes", {})[eid] = {
+                "cap_usd": cap, "settled_usd": 0.0, "label": label,
+                "lease_id": lease_id, "opened_at": now,
+                "expires_at": now + ttl, "pid": os.getpid(),
+            }
+            data["entries"].append(
+                {"kind": "envelope_open", "id": eid, "usd": cap, "label": label,
+                 "lease_id": lease_id, "at": now})
+            self._store(data)
+        return SpendEnvelope(id=eid, label=label, cap_usd=cap, ledger=self,
+                             lease_id=lease_id, expires_at=now + ttl)
+
+    def envelope_state(self, envelope_id: str) -> dict[str, Any] | None:
+        """One envelope's cap/drawn/remaining, or None when it is not open."""
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            for row in self._envelope_views(self._load()):
+                if row["id"] == envelope_id:
+                    return row
+        return None
+
+    def close_envelope(self, envelope: "SpendEnvelope | str", *,
+                       reason: str = "") -> dict[str, Any]:
+        """Release the unused hold; report the REALIZED spend.
+
+        The returned dict is what a wave receipt carries beside the ceiling it
+        was granted: ``cap_usd`` (what the lease allowed) and ``spent_usd``
+        (what it actually cost). ``in_flight_usd`` is non-zero only when a call
+        reserved inside the envelope had not settled yet -- that money is still
+        charged to the period ledger when it settles; it just stops being
+        charged to a lease that is over.
+        """
+        eid = envelope if isinstance(envelope, str) else envelope.id
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            data = self._load()
+            views = {row["id"]: row for row in self._envelope_views(data)}
+            view = views.get(eid)
+            if view is None:
+                # Already closed, hand-edited, or rolled away. Recorded rather
+                # than raised: closing twice must not take down a wave that has
+                # already finished spending.
+                data["entries"].append(
+                    {"kind": "envelope_orphan_close", "id": eid,
+                     "reason": reason, "at": self._now()})
+                self._store(data)
+                return {"id": eid, "cap_usd": None, "spent_usd": None,
+                        "closed": False, "reason": "envelope was not open"}
+            (data.get("envelopes") or {}).pop(eid, None)
+            out = {
+                "id": eid, "label": view["label"], "lease_id": view["lease_id"],
+                "cap_usd": view["cap_usd"],
+                "spent_usd": view["settled_usd"],
+                "in_flight_usd": view["in_flight_usd"],
+                "released_hold_usd": view["hold_usd"],
+                "expired": view["expired"], "closed": True, "reason": reason,
+            }
+            data["entries"].append(dict(out, kind="envelope_close",
+                                        at=self._now()))
+            self._store(data)
+        return out
 
 
 # --------------------------------------------------------------------------
@@ -886,6 +1263,16 @@ def reserve(
     est = price_call(vendor, model, calls=calls, host=host,
                      input_tokens=input_tokens, output_tokens=output_tokens)
     return (led or ledger()).reserve(est, label=label)
+
+
+def open_envelope(cap_usd: float, *, label: str, lease_id: str | None = None,
+                  ttl_s: float | None = None,
+                  led: Ledger | None = None) -> SpendEnvelope:
+    """Open a spend envelope on the process-wide ledger. See
+    :meth:`Ledger.open_envelope`; raises :class:`BudgetRefused` when the
+    pre-authorisation does not fit under the period ceiling."""
+    return (led or ledger()).open_envelope(
+        cap_usd, label=label, lease_id=lease_id, ttl_s=ttl_s)
 
 
 @contextmanager
