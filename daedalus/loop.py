@@ -447,6 +447,27 @@ def _head_revision(repo_root: str | Path) -> str:
     return ""
 
 
+def _same_revision(a: str, b: str) -> bool:
+    """True only when both revisions are KNOWN and name the same commit.
+
+    "Unknown" is not a match, deliberately. A governance verdict that cannot be
+    tied to a revision cannot be shown to be about the revision this loop is
+    running, and promotion is the one decision where "probably the same tree"
+    is not good enough. Narrowing only, exactly like :func:`_same_checkout`: a
+    failure here locks promotion, it can never unlock it.
+
+    Compared by common prefix so an abbreviated sha from either producer still
+    matches its full form -- and floored at 7 characters so a one-character
+    "revision" cannot match everything.
+    """
+    x = (a or "").strip().lower()
+    y = (b or "").strip().lower()
+    if len(x) < 7 or len(y) < 7:
+        return False
+    n = min(len(x), len(y))
+    return x[:n] == y[:n]
+
+
 def _same_checkout(a: str, b: str) -> bool:
     if not a or not b:
         return False
@@ -1127,6 +1148,16 @@ class LoopDriver:
         governance_is_ours = _same_checkout(gov_repo_root, self.repo_root)
         if not governance_is_ours:
             promotion_allowed = False
+        # AND ABOUT THIS REVISION, not merely this directory. The path check
+        # above compares WHERE the verdict was measured; it says nothing about
+        # WHEN. `gov_head` was already published beside `source_revision` for a
+        # human to compare by eye -- and nothing compared them, so a verdict
+        # measured at an older HEAD of this very checkout still unlocked
+        # promotion for code it never saw. The discrimination gate's whole
+        # claim is "at THIS revision"; a revision mismatch retires it.
+        governance_head_matches = _same_revision(gov_head, self.source_revision)
+        if not governance_head_matches:
+            promotion_allowed = False
         report = LoopReport(
             run_id=self.run_id, trace_id=self.trace_id,
             repo_root=self.repo_root, project=self.project,
@@ -1151,6 +1182,18 @@ class LoopDriver:
                 "registry, not from --repo-root, so name --project (or register "
                 "this checkout) to get a verdict about this tree. Promotion is "
                 "held closed for this run regardless of what that verdict says.")
+        if governance_is_ours and not governance_head_matches:
+            # Only when the CHECKOUT matched: otherwise the note above already
+            # says the verdict is about another tree, and a second note would
+            # report the same fact as two problems.
+            report.notes.append(
+                f"GOVERNANCE IS ABOUT ANOTHER REVISION: the verdict below was "
+                f"measured for {gov_repo_root or self.repo_root} at HEAD "
+                f"{gov_head or '<unknown>'}, while this loop is running at "
+                f"{self.source_revision or '<unknown>'}. The discrimination "
+                "gate's claim is bounded to the revision it was measured at, "
+                "so it does not carry to this one. Promotion is held closed "
+                "for this run; re-run the gate at this HEAD to lift it.")
         if not promotion_allowed:
             report.notes.append(
                 f"NOMINATING WITH PROMOTION LOCKED: governance state="
