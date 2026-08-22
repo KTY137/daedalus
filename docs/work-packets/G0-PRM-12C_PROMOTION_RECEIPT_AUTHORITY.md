@@ -13,7 +13,7 @@ or wire authority.
 
 ## In scope
 
-- adopt ADR-0002;
+- adopt ADR-021 (renumbered 2026-08-22 from ADR-0002);
 - pin `daedalus.schemas.PromotionReceipt` as the sole named authority;
 - reject duplicate class definitions and the obsolete
   `daedalus.kernel.promotion_receipts` module path;
@@ -61,5 +61,5 @@ or wire authority.
 Gate 0 still lacks a redesigned durable promotion-execution ledger wired to the
 single sealed mutation seam. That dependent packet must use
 `PromotionExecutionStart` / `PromotionExecutionReceipt`, bind the canonical
-owner-decision receipt and satisfy ADR-0002. This packet only prevents receipt
+owner-decision receipt and satisfy ADR-021. This packet only prevents receipt
 authority drift.

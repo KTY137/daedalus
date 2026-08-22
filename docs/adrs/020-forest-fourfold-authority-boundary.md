@@ -1,4 +1,7 @@
-# ADR-0001 — Forest and Fourfold authority boundary
+# ADR-020 — Forest and Fourfold authority boundary
+
+Renumbered 2026-08-22 from `docs/adr/ADR-0001-FOREST-FOURFOLD-AUTHORITY.md`; the
+`docs/adr/` namespace was merged into `docs/adrs/`. See `docs/adrs/README.md`.
 
 Status: proposed for independent review  
 Date: 2026-08-01  

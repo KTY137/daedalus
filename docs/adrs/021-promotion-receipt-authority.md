@@ -1,4 +1,7 @@
-# ADR-0002 — One promotion receipt authority
+# ADR-021 — One promotion receipt authority
+
+Renumbered 2026-08-22 from `docs/adr/ADR-0002-PROMOTION-RECEIPT-AUTHORITY.md`; the
+`docs/adr/` namespace was merged into `docs/adrs/`. See `docs/adrs/README.md`.
 
 Status: accepted for Gate-0 implementation  
 Date: 2026-08-03  
