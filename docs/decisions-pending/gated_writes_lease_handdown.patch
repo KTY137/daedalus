@@ -1,0 +1,147 @@
+HERACLES-LEASE proposed hunk -- NOT APPLIED (owned by another lane).
+
+WHAT IT DOES. Threads the wave's already-issued python.offload Effect Lease
+through the GATED WRITE path, which is the path the live loop actually takes:
+
+  build_exec.WaveExecutor.run_wave  (lease acquired here, already landed)
+    -> gated_writes.run_write_wave          <- needs the two new kwargs
+      -> gated_writes.gate_candidates        <- needs them
+        -> gated_writes._attempt_assignment  <- puts them in runner_kwargs
+          -> spine.attempt.offload_runner    <- NO CHANGE NEEDED
+            -> offload(live=True, effect_authorization=..., effect_execution=...)
+
+daedalus/spine/attempt.py needs no edit at all: offload_runner already forwards
+every extra kwarg to offload verbatim (attempt.py:1113-1127). It also carries
+the non-write tasks of a mixed wave, which run_write_wave delegates back to
+scheduler.dispatch -- re-keyed, because that call passes a COMPACTED task list
+and dispatch derives each execution from the position it sees.
+
+WHY IT IS NOT APPLIED HERE. daedalus/kairos/gated_writes.py is in this lane's
+do-not-edit set, and its body is the sealed strangler resource
+_gated_writes_legacy.py.src, pinned by git blob sha1 inside gated_writes.py.
+
+TWO CHANGES ARE REQUIRED TOGETHER:
+  1. the hunks below (verified: `git apply --check -p1` passes at
+     agent_env_g0 HEAD 4de21f5b);
+  2. in daedalus/kairos/gated_writes.py, bump
+       _RETAINED_SOURCE_GIT_BLOB_SHA1 = "e31d24ec67f7c208ace34f5dd2e9fefe4e654a86"
+     to
+       _RETAINED_SOURCE_GIT_BLOB_SHA1 = "c10cfebe5f0782b05df8a02578c963dd042108c4"
+     (MEASURED over the patched bytes; recompute if the hunks are edited).
+Without (2) the module refuses to import: "retained gated-write source
+integrity mismatch".
+
+MEASURED CONSEQUENCE OF LEAVING IT UNAPPLIED -- this lane's product run,
+runs/loop/loop-20260822-124627-bd9a26.json: the lease IS issued and IS in the
+receipt (verdict allow, lease_id, the complete effect set, 250000 microUSD),
+but provider_receipt.action is still "effect_lease_required" and
+effect_lease.execution_id is null, because run_write_wave does not accept the
+capability and run_wave's conditional hand-down correctly declines to invent a
+keyword. The advisory dispatch path is already closed and MEASURED closed.
+
+CALLER SIDE, ALREADY LANDED: build_exec.run_wave asks the callable itself --
+_accepts_kwarg(run_write_wave, "effect_authorization") -- so it starts handing
+the lease down the instant this parameter exists. No flag day, no coordination.
+
+CONCURRENCY NOTE FOR THE REVIEWER: gate_candidates fans out over a thread pool.
+The lease's effect_scope.max_concurrency is issued as the number of tasks in
+the wave, so N concurrent STARTED executions are permitted; the effect ledger
+(EffectLeaseConcurrencyError) is what enforces that ceiling, not the pool.
+
+diff --git a/daedalus/kairos/_gated_writes_legacy.py.src b/daedalus/kairos/_gated_writes_legacy.py.src
+index e31d24ec..c10cfebe 100644
+--- a/daedalus/kairos/_gated_writes_legacy.py.src
++++ b/daedalus/kairos/_gated_writes_legacy.py.src
+@@ -371,6 +371,8 @@ def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_ro
+                          gate: Mapping[str, Any] | None = None,
+                          model: str | None = None,
+                          artifact_dir: Path | None = None,
++                         effect_authorization: Any = None,
++                         effect_execution: Any = None,
+                          ) -> GatedCandidate:
+     from daedalus.spine.attempt import run_attempt
+ 
+@@ -386,6 +388,14 @@ def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_ro
+         runner_kwargs["rewrite_windows"] = dict(rewrite_windows)
+     if model:
+         runner_kwargs["model"] = str(model)
++    # THE WAVE'S CAPABILITY, HANDED THROUGH. offload_runner forwards every
++    # extra kwarg to offload() verbatim (daedalus/spine/attempt.py:1113-1127),
++    # so nothing in the attempt layer needs to change. Both or neither:
++    # offload refuses a half-supplied authorization, and passing one alone
++    # would turn a missing capability into a confusing refusal.
++    if effect_authorization is not None and effect_execution is not None:
++        runner_kwargs["effect_authorization"] = effect_authorization
++        runner_kwargs["effect_execution"] = effect_execution
+     runner, box = _recording_runner(**runner_kwargs)
+     gate_fn = _curated_relay_gate(box, spec) if spec.gate_argv else _relay_gate(box)
+     result = run_attempt(
+@@ -413,6 +423,8 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
+                      cancel: Any = None,
+                      gates: list[Mapping[str, Any] | None] | None = None,
+                      artifact_dir: Path | None = None,
++                     effect_authorization: Any = None,
++                     effect_executions: Mapping[int, Any] | None = None,
+                      ) -> list[GatedCandidate]:
+     """PHASE 1: run every write Assignment through ``TaskAttempt``, concurrently.
+ 
+@@ -473,6 +485,14 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
+                 model=(str(model_assignments.get(a.owner))
+                        if model_assignments.get(a.owner) else None),
+                 artifact_dir=artifact_dir,
++                effect_authorization=effect_authorization,
++                # KEYED BY THIS LIST'S OWN INDEX. The caller re-keys the wave's
++                # executions into `assignments` order before calling, so no
++                # index arithmetic is repeated here and one candidate's
++                # capability can never be handed to another. How many of these
++                # may be STARTED at once is the lease's own max_concurrency,
++                # enforced by the effect ledger -- not by this pool.
++                effect_execution=((effect_executions or {}).get(i)),
+             ): i
+             for i, a in enumerate(assignments)
+         }
+@@ -1080,7 +1100,10 @@ def _governance_verdict(project: str | None) -> tuple[bool, str, str]:
+ 
+ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: list,
+                     *, auto_promote: str, ledger_path=None,
+-                    cancel: Any = None) -> list[dict]:
++                    cancel: Any = None,
++                    effect_authorization: Any = None,
++                    effect_executions: Mapping[int, Any] | None = None,
++                    ) -> list[dict]:
+     """Execute one build-session wave's WRITE-mode tasks through the gated,
+     isolated-worktree path and hold every resulting candidate for an explicit
+     owner-controlled promotion decision.
+@@ -1142,8 +1165,16 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
+ 
+     if other_idx:
+         other_tasks = [tasks[i] for i in other_idx]
+-        other_raw = scheduler.dispatch(str(root), other_tasks, dry_run=False,
+-                                       parallel=False)
++        # RE-KEYED, because `other_tasks` is a compacted list and dispatch
++        # derives each execution from the position IT sees. Handing it the
++        # wave's original indices would authorise the wrong task.
++        other_raw = scheduler.dispatch(
++            str(root), other_tasks, dry_run=False, parallel=False,
++            effect_authorization=effect_authorization,
++            effect_executions=({pos: effect_executions[i]
++                                for pos, i in enumerate(other_idx)
++                                if i in effect_executions}
++                               if effect_executions else None))
+         if len(other_raw) != len(other_idx):
+             raise RuntimeError(
+                 f"run_write_wave: dispatch() returned {len(other_raw)} result(s) "
+@@ -1165,7 +1196,12 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
+         availability=avail,
+         max_workers=min(scheduler.max_parallel_writes, scheduler.max_workers),
+         ledger_path=ledger_path, cancel=cancel, gates=write_gates,
+-        artifact_dir=_artifact_root_for(root))
++        artifact_dir=_artifact_root_for(root),
++        effect_authorization=effect_authorization,
++        effect_executions=({pos: effect_executions[i]
++                            for pos, i in enumerate(write_idx)
++                            if i in effect_executions}
++                           if effect_executions else None))
+ 
+     promotion_allowed, gov_state, gov_verdict = _governance_verdict(scheduler.project)
+ 

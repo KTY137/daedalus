@@ -1,0 +1,24 @@
+# Keys whose signature the promotion boundary accepts.
+#
+# Format is git's allowed-signers format (see `man ssh-keygen`, ALLOWED SIGNERS):
+#
+#     <principal> <keytype> <base64 key>
+#
+# One line per key, no wildcards. This file is read by
+# `daedalus.spine.promotion_approval` AS COMMITTED AT HEAD -- editing the
+# working copy changes nothing, by design. Adding a key here is a reviewable
+# commit, which is the point: it is the entire list of identities that can
+# authorise a promotion.
+#
+# EMPTY OF KEYS ON PURPOSE. No signature can verify against this file as it
+# stands, so every promotion refuses. That is the correct state until the
+# owner adds their own public key: an allowed-signers file populated by an
+# implementer would mean the implementer, not the owner, chose who may promote.
+#
+# The owner adds a key with, from the repository root:
+#
+#     ssh-keygen -Y find-principals ...   # to inspect an existing key, or
+#     echo "owner@example ssh-ed25519 AAAA..." >> .agentenv/promotion_allowed_signers
+#
+# and commits it. See docs/GATE0_SEALED_OWNER_APPROVAL.md for the decision this
+# file implements.
