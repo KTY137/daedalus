@@ -246,6 +246,12 @@ if not DRY:
     to_add = [".claude/settings.json"]
     if (G0 / ".claude/hooks/serena-first.py").exists():
         to_add.append(".claude/hooks/serena-first.py")
+    sweep_src = CP / ".claude/watchdog/docs-sweep-prompt.md"
+    if sweep_src.exists():  # docs watchdog prompt (untracked on the checkpoint line)
+        sweep_dst = G0 / ".claude/watchdog/docs-sweep-prompt.md"
+        sweep_dst.parent.mkdir(parents=True, exist_ok=True)
+        sweep_dst.write_bytes(sweep_src.read_bytes())
+        to_add.append(".claude/watchdog/docs-sweep-prompt.md")
     git(G0, "add", *to_add)
 print("  hook events now:", sorted(hooks))
 
