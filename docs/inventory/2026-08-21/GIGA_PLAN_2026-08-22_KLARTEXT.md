@@ -65,6 +65,10 @@ Die Verlierer-Version wird nicht gelöscht, sondern eingefroren und abgeerntet.
 - **D6 – Der Guard.** Er schlägt bei harmlosen Lese-Befehlen an, sobald ein Dateiname im Text steht (8 gemessene Fehlalarme). Regel ändern: Schreibabsicht prüfen, nicht Wortlaut.
 - **D16 – Die Forschungs-Schwelle.** Die 15 %-Schwelle für „Tensoren lohnen sich" war nicht vorregistriert; du legst sie fest, bevor jemand die Daten sieht.
 
+> **D9 ist am 22.08. neu gefasst:** der Scanner-Absturz, der den ganzen Gate-0-Bericht mitriss, ist repariert (`b52f5f9a`) — die Ursache aber nicht, und sie zu beheben zwingt die Versionsnummer des Datensatzes umzuziehen, obwohl die Nummer, die der alte Plan dafür vorsah, seit dem 04.08. schon an eine andere Datensatzform vergeben ist.
+>
+> Du wählst deshalb nicht mehr „umnummerieren ja oder nein", sondern zwischen zwei Nummerierungen — eine gemeinsame Zählung für beide Datensatzformen oder je eine eigene Linie pro Form; beide kosten dasselbe (5 Stellen im Code, 16 Testdateien, [MEASURED] an `e23d342d`), und die Messung spricht für die getrennten Linien (Langfassung, Abschnitt „D9(ii) schema identity").
+
 ## Was den Plan stoppt
 
 - Eine der beiden Regelbuch-Ketten ist in sich kaputt → kein sauberer Nachtrag möglich, erst reparieren.
