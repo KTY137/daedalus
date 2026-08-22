@@ -81,6 +81,11 @@ TEXT_SUFFIXES = frozenset({
     ".md", ".txt", ".py", ".js", ".cjs", ".mjs", ".ts", ".tsx", ".jsx", ".json",
     ".csv", ".tsv", ".yml", ".yaml", ".toml", ".sh", ".ps1", ".bat", ".cmd",
     ".rb", ".pl", ".lua", ".sql", ".html", ".css", ".xml", ".ini", ".cfg",
+    # Odysseus 2026-08-21 F7. A PowerShell MODULE (.psm1) and its manifest
+    # (.psd1) carry exactly the code a .ps1 does, and an .mdx doc reaches a model
+    # the way an .md doc does; .jsonc is JSON with comments. Without these a
+    # payload in one was skipped as unscannable, not scanned.
+    ".psm1", ".psd1", ".mdx", ".jsonc",
 })
 
 # ── rule table ──────────────────────────────────────────────────────────────
@@ -88,21 +93,61 @@ TEXT_SUFFIXES = frozenset({
 # Patterns are deliberately broad. This gate over-reports on purpose: a false
 # REVIEW costs a human thirty seconds, a missed exfiltration costs a machine.
 
+# Odysseus 2026-08-21 F5. The generic ``exec.eval`` rule keeps its negative
+# lookbehind ``(?<![\w.])`` ON PURPOSE: without it, every ``df.eval(...)``
+# (pandas), ``cursor.exec(...)`` and other harmless method call floods the gate
+# with a BLOCK a human then learns to ignore. So the qualified DANGEROUS
+# spellings are not caught by loosening that rule — they are named EXACTLY, one
+# namespace at a time, so ``builtins.exec`` blocks while ``obj.exec`` stays
+# quiet. Naming the module is what buys the strictness without the flood.
 _EXEC = [
-    ("exec.subprocess", BLOCK, r"\bsubprocess\.(?:run|call|Popen|check_output)\b",
+    ("exec.subprocess", BLOCK,
+     r"\bsubprocess\.(?:run|call|Popen|check_output|check_call|getoutput|getstatusoutput)\b",
      "spawns a process"),
     ("exec.os_system", BLOCK, r"\bos\.system\s*\(", "spawns a shell"),
+    # ``os.execv``/``execve``/``spawnv``/``spawnl``/``posix_spawn``/``popen`` all
+    # hand control to another program; the ``os.`` qualifier is the whole reason
+    # a benign local ``.popen`` or ``.spawn`` method does not match.
+    ("exec.os_exec", BLOCK,
+     r"\bos\.(?:popen|exec[lv]\w*|spawn[lv]\w*|posix_spawn\w*)\s*\(",
+     "hands control to another program"),
     ("exec.eval", BLOCK, r"(?<![\w.])(?:eval|exec)\s*\(", "evaluates code at runtime"),
+    # ``builtins.exec(``/``builtins.eval(`` is the qualified spelling the
+    # lookbehind above deliberately drops; nobody's own object is named
+    # ``builtins``, so naming it is safe.
+    ("exec.builtins", BLOCK, r"\bbuiltins\.(?:eval|exec)\s*\(",
+     "evaluates code at runtime through builtins"),
+    ("exec.pty_spawn", BLOCK, r"\bpty\.spawn\s*\(", "spawns a shell on a pseudo-terminal"),
     ("exec.dynamic_import", REVIEW, r"__import__\s*\(", "imports by computed name"),
     ("exec.node_child_process", BLOCK, r"require\s*\(\s*['\"]child_process['\"]|from\s+['\"]child_process['\"]",
      "spawns a process"),
     ("exec.shell_pipe", REVIEW, r"\|\s*(?:bash|sh|powershell|iex)\b", "pipes content into a shell"),
+    # PowerShell dynamic evaluation. REVIEW, not BLOCK: ``iex`` is a bare word
+    # with legitimate (if rare) uses and ``Invoke-Expression`` appears in real
+    # automation, so the newly-captured spelling costs a human thirty seconds
+    # rather than a false refusal. Odysseus 2026-08-21 F5.
+    ("exec.powershell_iex", REVIEW, r"\bInvoke-Expression\b|(?<![\w-])iex(?![\w-])",
+     "evaluates a string as PowerShell"),
+    # ``-EncodedCommand`` / its ``-enc`` abbreviation runs base64'd PowerShell.
+    # ``-enc(?:odedcommand)?\b`` matches ``-enc`` and ``-EncodedCommand`` but NOT
+    # ``-Encoding`` (no word boundary after ``-enc`` in ``encoding``), so the
+    # extremely common ``Set-Content -Encoding`` does not flood the gate.
+    ("exec.powershell_encoded", REVIEW, r"-enc(?:odedcommand)?\b",
+     "runs a base64-encoded PowerShell command"),
 ]
 
 _NET = [
     ("net.python_http", REVIEW, r"\b(?:urllib\.request|httpx|requests)\.\w+\s*\(|\brequests\.(?:get|post)\b",
      "makes an outbound request"),
-    ("net.socket", BLOCK, r"\bsocket\.socket\s*\(", "opens a raw socket"),
+    # Odysseus 2026-08-21 F5. A bare ``urlopen(`` (``from urllib.request import
+    # urlopen``) never reached ``urllib.request.\w+``; ``socket.create_connection``
+    # opens a connection the same as ``socket.socket``; ``http.client``'s
+    # connection classes are the stdlib HTTP client under another name.
+    ("net.urlopen", REVIEW, r"\burlopen\s*\(", "makes an outbound request"),
+    ("net.socket", BLOCK, r"\bsocket\.(?:socket|create_connection)\s*\(",
+     "opens a socket connection"),
+    ("net.http_client", REVIEW, r"\b(?:http\.client\.)?HTTPS?Connection\s*\(",
+     "opens an HTTP client connection"),
     ("net.fetch", REVIEW, r"\bfetch\s*\(\s*['\"]https?://", "makes an outbound request"),
     ("net.curl_wget", REVIEW, r"\b(?:curl|wget)\s+(?:-\S+\s+)*https?://", "downloads at runtime"),
     ("net.websocket", REVIEW, r"\bnew\s+WebSocket\s*\(", "opens a persistent connection"),
@@ -623,8 +668,13 @@ def _scan_file(path: Path, rel: str) -> tuple[list[Finding], str | None]:
     # obfuscation.invisible_chars finding (Odysseus 2026-08-21 F6). skills.py:409
     # strips it before its own scan; match that here so the two agree.
     raw = raw.removeprefix(b"\xef\xbb\xbf")
-    if b"\x00" in raw[:4096]:
-        return [], f"{rel}: looks binary (NUL byte in the first 4 KiB)"
+    # Odysseus 2026-08-21 F8. The old check read only the first 4 KiB, so a NUL
+    # byte after that offset read as clean text. A NUL anywhere means the file
+    # cannot be honestly read as text, so scan the WHOLE buffer -- it is already
+    # bounded by MAX_FILE_BYTES above, so this is a single membership test over
+    # at most a couple of megabytes.
+    if b"\x00" in raw:
+        return [], f"{rel}: looks binary (contains a NUL byte)"
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -848,6 +898,12 @@ def _exe_name(token: str) -> str:
     if "://" in raw:
         return ""
     name = raw.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    # Odysseus 2026-08-21 F10. Quotes INSIDE the word are stripped, not just the
+    # surrounding pair: a shell reads ``n"p"x`` as the single program ``npx``,
+    # and without this the token normalised to ``n"p"x`` and matched nothing.
+    # Removal only ever concatenates, so it can reveal a hidden launcher but
+    # never hide a visible one -- the strict direction.
+    name = name.replace('"', '').replace("'", "")
     for suf in _EXE_SUFFIXES:
         if name.endswith(suf):
             return name[: -len(suf)]
@@ -1124,7 +1180,19 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
     # userinfo and unwraps brackets. Handing it the whole match deletes the
     # second parser instead of repairing it, and the finding then quotes the
     # URL that was actually written -- which is the evidence a human needs.
-    urls = sorted({m.group(0) for a in [cmd, url, *args]
+    # Odysseus 2026-08-21 F9 / Cerberus residual. A destination can hide in an
+    # env VALUE (``WEBHOOK=https://evil.tld/x``) or in ``cwd`` as easily as on the
+    # command line, and those reached no lane check. Env values are OPAQUE, so
+    # only a real ``scheme://host`` (what `_URL_IN_ARG` already matches) is
+    # considered -- a plain token is never reported as egress.
+    egress_sources = [cmd, url, *args]
+    cwd = spec.get("cwd")
+    if isinstance(cwd, str):
+        egress_sources.append(cwd)
+    env = spec.get("env")
+    if isinstance(env, dict):
+        egress_sources.extend(str(v) for v in env.values())
+    urls = sorted({m.group(0) for a in egress_sources
                    for m in _URL_IN_ARG.finditer(a)})
     for u in urls:
         lane = lane_for_host(u)

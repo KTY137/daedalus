@@ -1131,5 +1131,212 @@ class BomIsNotObfuscation(unittest.TestCase):
                 "an interior zero-width is still obfuscation")
 
 
+class QualifiedDangerousCallsAreReported(unittest.TestCase):
+    """Odysseus 2026-08-21 F5. The rule table under-reported qualified spellings:
+    ``builtins.exec(``, ``subprocess.getoutput``/``check_call``, bare ``urlopen``,
+    ``http.client.HTTPSConnection``, ``socket.create_connection``, ``os.execv``/
+    ``spawnv``/``popen``, ``pty.spawn`` and PowerShell ``Invoke-Expression``/
+    ``iex``/``-EncodedCommand`` all reached ``scan_text`` and produced no finding.
+    Each is caught by a NARROWLY-NAMED rule, not by loosening the generic
+    ``eval|exec`` lookbehind — see the flood control class below."""
+
+    def _rules(self, text):
+        return {f.rule for f in vet.scan_text(text, "x.py")}
+
+    def _worst(self, text):
+        out = vet.CLEAR
+        for f in vet.scan_text(text, "x.py"):
+            out = vet._worst(out, f.severity)
+        return out
+
+    def test_builtins_exec_is_blocked(self):
+        r = self._rules("builtins.exec(compile(src, 'x', 'exec'))\n")
+        self.assertIn("exec.builtins", r)
+        self.assertEqual(self._worst("builtins.exec(x)\n"), vet.BLOCK)
+
+    def test_builtins_eval_is_blocked(self):
+        self.assertIn("exec.builtins", self._rules("builtins.eval(userinput)\n"))
+
+    def test_subprocess_getoutput_is_blocked(self):
+        self.assertIn("exec.subprocess", self._rules("subprocess.getoutput('id')\n"))
+
+    def test_subprocess_check_call_is_blocked(self):
+        self.assertIn("exec.subprocess", self._rules("subprocess.check_call(['x'])\n"))
+
+    def test_subprocess_getstatusoutput_is_blocked(self):
+        self.assertIn("exec.subprocess", self._rules("subprocess.getstatusoutput('id')\n"))
+
+    def test_bare_urlopen_is_a_net_finding(self):
+        self.assertIn("net.urlopen", self._rules("from urllib.request import urlopen\nurlopen(u)\n"))
+
+    def test_http_client_connection_is_a_net_finding(self):
+        self.assertIn("net.http_client", self._rules("http.client.HTTPSConnection('evil.tld')\n"))
+        self.assertIn("net.http_client", self._rules("c = HTTPSConnection(host)\n"))
+
+    def test_socket_create_connection_is_blocked(self):
+        self.assertIn("net.socket", self._rules("socket.create_connection((h, p))\n"))
+
+    def test_os_exec_family_is_blocked(self):
+        for call in ("os.execv('/bin/sh', a)", "os.execve(p, a, e)", "os.spawnv(m, p, a)",
+                     "os.spawnl(m, p)", "os.popen('id')", "os.posix_spawn(p, a, e)"):
+            with self.subTest(call=call):
+                self.assertIn("exec.os_exec", self._rules(call + "\n"))
+
+    def test_pty_spawn_is_blocked(self):
+        self.assertIn("exec.pty_spawn", self._rules("pty.spawn('/bin/sh')\n"))
+
+    def test_powershell_invoke_expression_is_reported(self):
+        self.assertIn("exec.powershell_iex", self._rules("Invoke-Expression $payload\n"))
+
+    def test_powershell_iex_alias_is_reported(self):
+        self.assertIn("exec.powershell_iex", self._rules("iex (New-Object Net.WebClient).Foo()\n"))
+
+    def test_powershell_encoded_command_is_reported(self):
+        self.assertIn("exec.powershell_encoded",
+                      self._rules("Start-Process powershell -EncodedCommand aGVsbG8=\n"))
+        self.assertIn("exec.powershell_encoded",
+                      self._rules("powershell -enc aGVsbG8=\n"))
+
+
+class F5FloodControl(unittest.TestCase):
+    """Odysseus 2026-08-21 F5, the OTHER direction. The generic ``eval|exec``
+    lookbehind ``(?<![\\w.])`` exists to keep a harmless method call — pandas
+    ``df.eval``, an object's own ``.exec`` — from flooding the gate. The new
+    qualified rules must not resurrect that flood: a benign method name must
+    stay CLEAR, and PowerShell ``-Encoding`` must not read as ``-EncodedCommand``."""
+
+    def _rules(self, text):
+        return {f.rule for f in vet.scan_text(text, "x.py")}
+
+    def test_a_plain_method_eval_stays_clear(self):
+        """The whole reason the lookbehind is there."""
+        self.assertEqual(self._rules("result = df.eval('a + b')\n"), set())
+
+    def test_a_method_named_exec_on_a_cursor_stays_clear(self):
+        self.assertEqual(self._rules("cursor.exec(query)\n"), set())
+
+    def test_powershell_encoding_flag_is_not_an_encoded_command(self):
+        """``Set-Content -Encoding utf8`` is ordinary; it must not match the
+        ``-enc``/``-EncodedCommand`` rule — a false BLOCK on every PS script that
+        writes a file would switch the gate off."""
+        self.assertNotIn("exec.powershell_encoded",
+                         self._rules("Set-Content out.txt -Encoding utf8\n"))
+
+    def test_a_word_containing_iex_is_not_a_powershell_alias(self):
+        self.assertNotIn("exec.powershell_iex", self._rules("value = compute_fiexed(n)\n"))
+
+    def test_builtins_rule_does_not_fire_on_a_variable_named_builtins(self):
+        self.assertNotIn("exec.builtins", self._rules("builtins_table = {}\n"))
+
+
+class TextSuffixesCoverModulesAndMdx(unittest.TestCase):
+    """Odysseus 2026-08-21 F7. ``.psm1``/``.psd1``/``.mdx``/``.jsonc`` were not in
+    TEXT_SUFFIXES, so a PowerShell module or an MDX doc was skipped as
+    unscannable instead of scanned — a payload there left no finding at all."""
+
+    def _scan(self, tmp, name, payload):
+        p = Path(tmp) / name
+        p.write_text(payload, encoding="utf-8")
+        return vet._scan_file(p, name)
+
+    def test_a_psm1_module_with_a_payload_is_scanned_not_skipped(self):
+        with TemporaryDirectory() as tmp:
+            findings, why = self._scan(tmp, "mod.psm1", "os.system('rm -rf /')\n")
+            self.assertIsNone(why, "a .psm1 module must be scannable text")
+            self.assertIn("exec.os_system", {f.rule for f in findings})
+
+    def test_psd1_mdx_and_jsonc_are_scannable(self):
+        with TemporaryDirectory() as tmp:
+            for name in ("data.psd1", "doc.mdx", "cfg.jsonc"):
+                with self.subTest(name=name):
+                    findings, why = self._scan(tmp, name, "subprocess.run(['x'])\n")
+                    self.assertIsNone(why, f"{name} must be scannable text")
+                    self.assertIn("exec.subprocess", {f.rule for f in findings})
+
+    def test_an_unknown_suffix_is_still_skipped(self):
+        with TemporaryDirectory() as tmp:
+            _findings, why = self._scan(tmp, "blob.bin", "os.system('x')\n")
+            self.assertIsNotNone(why, "an unknown suffix must remain unscannable")
+
+
+class NulByteBeyondFourKiBIsStillBinary(unittest.TestCase):
+    """Odysseus 2026-08-21 F8. The binary heuristic only looked at the first
+    4 KiB, so a NUL byte after that offset read as CLEAR text. A file that
+    cannot be honestly read as text must be UNSCANNABLE wherever the NUL sits."""
+
+    def test_a_nul_after_the_first_4kib_makes_the_file_unscannable(self):
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / "sneaky.py"
+            p.write_bytes(b"# harmless\n" + b"a" * 5000 + b"\x00" + b"more")
+            findings, why = vet._scan_file(p, "sneaky.py")
+            self.assertEqual(findings, [], "a file with an embedded NUL is not scanned")
+            self.assertIsNotNone(why, "a NUL past 4 KiB must still be caught")
+            self.assertIn("binary", why)
+
+    def test_a_clean_large_text_file_is_still_scanned(self):
+        with TemporaryDirectory() as tmp:
+            p = Path(tmp) / "big.py"
+            p.write_text("x = 1\n" * 2000 + "os.system('id')\n", encoding="utf-8")
+            findings, why = vet._scan_file(p, "big.py")
+            self.assertIsNone(why, "a NUL-free text file over 4 KiB stays scannable")
+            self.assertIn("exec.os_system", {f.rule for f in findings})
+
+
+class EgressReadsEnvValuesAndCwd(unittest.TestCase):
+    """Odysseus 2026-08-21 F9 / Cerberus residual. The egress scan read only
+    ``command``/``args``/``url``; a URL hiding in an env VALUE or in ``cwd``
+    reached no lane check. Only a real ``scheme://host`` is reported — env values
+    are opaque, so a non-URL value must stay quiet."""
+
+    def _egress(self, spec):
+        return [f for f in vet.vet_mcp_server("t", spec).findings if f.rule == "mcp.egress"]
+
+    def test_a_url_in_an_env_value_is_flagged(self):
+        spec = {"command": "node", "args": ["server.js"],
+                "env": {"WEBHOOK_URL": "https://evil.tld/collect"}}
+        egress = self._egress(spec)
+        self.assertTrue(egress, "a URL in an env value must reach the lane check")
+        self.assertIn("evil.tld", egress[0].excerpt)
+        self.assertEqual(egress[0].severity, vet.BLOCK)
+
+    def test_a_url_in_cwd_is_flagged(self):
+        egress = self._egress({"command": "node", "args": ["s.js"],
+                               "cwd": "http://evil.tld/x"})
+        self.assertTrue(egress)
+        self.assertIn("evil.tld", egress[0].excerpt)
+
+    def test_a_non_url_env_value_stays_quiet(self):
+        """Env values are opaque; a plain token must not be reported as egress."""
+        self.assertEqual(self._egress({"command": "node", "args": ["s.js"],
+                                       "env": {"LOG_LEVEL": "debug", "PORT": "8080"}}), [])
+
+    def test_a_loopback_url_in_an_env_value_is_not_egress(self):
+        self.assertEqual(self._egress({"command": "node", "args": ["s.js"],
+                                       "env": {"API": "http://127.0.0.1:8080/mcp"}}), [])
+
+
+class QuotedLauncherTokensAreSplit(unittest.TestCase):
+    """Odysseus 2026-08-21 F10. ``_shell_tokens`` did not split on quotes, so
+    ``n"p"x`` was one opaque token and normalised to ``n"p"x`` rather than
+    ``npx`` — zero findings. Interior quotes are stripped so a quote-obfuscated
+    launcher resolves. ``$NPX`` (an env-var launcher) stays a documented gap:
+    this gate does not expand environment variables."""
+
+    def _rules(self, spec):
+        return {f.rule for f in vet.vet_mcp_server("w", spec).findings}
+
+    def test_interior_quotes_do_not_hide_the_launcher(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "cmd", "args": ["/c", 'n"p"x -y evil-mcp']}))
+
+    def test_single_quotes_inside_the_name_are_stripped_too(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "cmd", "args": ["/c", "u'v'x evil-mcp"]}))
+
+    def test_a_normal_local_launcher_still_stays_quiet(self):
+        self.assertNotIn("mcp.remote_fetch",
+                         self._rules({"command": "sh", "args": ["-c", "node ./server.js"]}))
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
