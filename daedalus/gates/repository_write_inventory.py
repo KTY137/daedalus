@@ -21,6 +21,10 @@ from daedalus.spine.envelope import canonical_json
 
 _SOURCE_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+# A Python file mode string and nothing else.  Anything outside this alphabet in
+# the mode position is treated as evidence that the position was misread, never
+# as evidence that the call is read-only.
+_MODE_LITERAL = re.compile(r"^[rwxab+tU]+$")
 _FILESYSTEM_FUNCTIONS = frozenset(
     {
         "os.remove",
@@ -437,6 +441,34 @@ def _open_mode(call: ast.Call, *, method: bool) -> tuple[str, str] | None:
     return None
 
 
+def _ambiguous_receiver_open(call: ast.Call) -> tuple[str, str] | None:
+    """Decide ``X.open(...)`` when the scanner cannot name the receiver ``X``.
+
+    Returns ``("write", mode)`` or ``("read", mode)`` when the mode argument
+    alone settles the call, and ``None`` when it does not, in which case the
+    caller keeps the binding blocker.  Unlike :func:`_open_mode` this refuses a
+    string literal that is not a mode string: on an unnameable receiver such a
+    literal is evidence that the inspected argument is not the mode argument at
+    all (``shelve.open(path)``, whose default flag creates the database), never
+    evidence that the call is read-only.
+    """
+
+    mode_node, duplicated = _keyword_value(call, "mode")
+    if duplicated:
+        return None
+    if mode_node is None and call.args:
+        mode_node = call.args[0]
+    if mode_node is None:
+        # No mode argument in any position: the receiver was opened at its
+        # default, and every ``open`` that takes no path argument here is a
+        # bound reader such as ``Path.open()``.
+        return ("read", "")
+    mode = _literal_string(mode_node)
+    if mode is None or not _MODE_LITERAL.fullmatch(mode):
+        return None
+    return (("write" if any(token in mode for token in "wax+") else "read"), mode)
+
+
 def _os_open_flags(call: ast.Call) -> tuple[str, str] | None:
     node, ambiguous = _keyword_value(call, "flags")
     if node is None and len(call.args) > 1:
@@ -622,6 +654,23 @@ def _classify_call(
         return None
     if raw in indirect or terminal in indirect:
         return ("ambiguous_binding", raw, "indirect-call-alias")
+    if ambiguous and "." in raw and terminal == "open":
+        # The receiver of ``X.open(...)`` is rebound somewhere in the module, so
+        # the scanner cannot say which object it is.  That ambiguity is about
+        # the receiver, not about the mode argument: the same mode analysis the
+        # unambiguous ``terminal == "open"`` branch below already applies to an
+        # arbitrary receiver decides this call too.  Deciding it here keeps a
+        # proven read-only open (``path.open("rb")``) out of the write-surface
+        # inventory and gives a proven write its exact mode instead of an
+        # unexplained binding blocker.  A dynamic, duplicated, or non-mode
+        # argument still falls through to the binding blocker below, and a bare
+        # (undotted) ``open`` is excluded because rebinding it changes which
+        # callable runs, not merely which object is opened.
+        decided = _ambiguous_receiver_open(call)
+        if decided is not None:
+            if decided[0] == "write":
+                return ("write_mode_open", raw, decided[1])
+            return None
     if ambiguous and (
         terminal in _TRACKED_TERMINALS
         or _targets_tracked(aliases.get(root, ()))

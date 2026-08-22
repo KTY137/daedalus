@@ -1,0 +1,210 @@
+# Write-surface closure: what actually clears a blocker
+
+Revision scanned: working tree at `a4a25718` (g0 `main`), 2026-08-22.
+Instrument: `daedalus.gates.repository_write_inventory_v2.scan_repository_write_surfaces_v2`,
+the exact call `daedalus/gates/report_v3.py` makes. All counts below are
+`[MEASURED]` on that scan, not estimated.
+
+## 1. The coverage rule (read this before proposing any closure work)
+
+1. `report_v3._repository_write_inventory` sets `repository_write_failures` to
+   `scan_repository_write_surfaces_v2(root).blockers` and to nothing else.
+2. `blockers` is `[s for s in surfaces if s.blocking]`, and `blocking` is
+   `kind in _ALLOWED_KINDS - {"sqlite_read_only"}` — decided by the **syntactic
+   kind of the callsite**, per file, per AST node.
+3. The scanner is a per-file AST walk with same-module alias resolution. It has
+   no call graph, no anchor reachability, no entrypoint lookup, and no
+   declaration table on the v3 path.
+4. Therefore **nothing can mark a write surface "covered" today** — not a
+   registry door, not a guard contract, not a source annotation. A surface
+   leaves the report only when the scanner stops emitting it, i.e. only when the
+   call provably cannot write.
+5. The classification machinery that *is* designed to clear surfaces
+   (`repository_write_classification` → `_effect_lease` → `_evidence_materialization`
+   → `_evidence_origin` → `_source_anchor_semantics` → `_guard_structure` →
+   `_runtime_conformance`) exists, is tested, and is **not imported by
+   `report_v3`**. Every one of those modules says so in its own docstring.
+
+Two consequences that overturn the working assumption of the recon note:
+
+- "37 files have a covering registry door, so 171 of the 418 blockers are
+  covered" describes an overlay computed outside the gate. Measured here: 165
+  surfaces live in modules that *are* registered entrypoint targets, and all 165
+  are still blockers. Door coverage subtracts zero.
+- Even under the classification contract, what clears a surface is
+  `TargetDisposition` + `GuardDisposition` + evidence bindings. Door
+  reachability only decides the `production_reachable` flag. A door row is
+  never, by itself, closure.
+
+Pinned by `tests/test_write_surface_coverage.py::test_a_registered_door_does_not_clear_the_write_surfaces_behind_it`
+and `::test_blocking_is_decided_by_kind_alone`.
+
+## 2. The three worked kernel files
+
+None of the three is a door. None is a registered entrypoint target, none has
+`__main__`, none parses arguments; each is reached through a caller
+(`daedalus.storage` → `atomic`; the attempt/promotion spine and the provider
+ledgers → `source_trees`; `kernel.promotion` and `spine.attempt` →
+`promotion_trust_root`). Registering rows for them would have been a
+declaration the code does not justify, and — per section 1 — would not have
+removed a single blocker. No registry row was added and no annotation was
+painted into these files.
+
+What the surfaces actually are:
+
+| file | before | after | true state |
+| --- | ---: | ---: | --- |
+| `daedalus/kernel/source_trees.py` | 18 | 17 | 15 genuine CAS writes into the store root (`mkstemp`, `os.link`, `os.replace`, `rmtree`, `mkdir`, `chmod`, `output.open("xb")`) — all real, all caller-supplied paths. 1 false positive removed: `os.open(path, os.O_RDONLY)` at line 261, which the base scanner already proved read-only and the stdlib delta re-flagged. 2 residual: `os.open(target, self._open_flags())` at 333/378, genuinely read-only but the flags come from a helper. |
+| `daedalus/kernel/promotion_trust_root.py` | 14 | 13 | 12 genuine: the claim-ledger append (`open(..., "a")` ×2 plus the handle writes), the `O_CREAT\|O_EXCL\|O_WRONLY` marker claim, `mkstemp`/`os.unlink` for the signers file, and `subprocess.run(["git", *pre, *args])` with a dynamic verb. 1 false positive removed: `open(path, "r", encoding="utf-8")` at line 706, again a base-cleared read the delta restated. |
+| `daedalus/atomic.py` | 11 | 11 | all 11 genuine. This module *is* the atomic-write primitive: temp sibling, `write_text`/`write_bytes`/`open("xb")`, `os.link`, `os.replace`, `os.unlink`. Nothing here is dead and nothing here is a scanner artefact; the target is whatever the caller passed. |
+
+The `ambiguous_binding` label on `target.parent.mkdir` and `tmp.write_text` is
+not a false positive either — the receiver is a local, so the scanner cannot
+name it, but the call really does mutate the filesystem. Fail-closed is correct
+here; only the *label* is imprecise.
+
+## 3. What changed, and what it measured
+
+Two scanner corrections, both in files this lane owns. Neither weakens a
+blocker that a human could not decide from the callsite alone.
+
+**F1 — an unnameable receiver no longer hides a decided mode**
+(`daedalus/gates/repository_write_inventory.py`, `_ambiguous_receiver_open`).
+`X.open(...)` where `X` is rebound somewhere in the module was emitted as
+`ambiguous_binding` regardless of mode. The ambiguity is about the *receiver*,
+not the *mode literal*, and the unambiguous branch below already trusts mode
+semantics for an arbitrary receiver. A proven read is now dropped; a proven
+write now carries its exact mode. A dynamic mode, a duplicated `mode=`, a
+non-mode string literal (`shelve.open(path)` creates its database), and the
+undotted `open` — where rebinding changes which callable runs — all keep the
+blocker.
+
+**F2 — the delta no longer restates a base-owned `open`**
+(`daedalus/gates/repository_write_stdlib_delta.py`, `_BASE_OWNED_TERMINALS`).
+`open` enters the delta's tracked terminals only through the five
+`_MODE_OPENERS`, which are matched by resolved name before any fallback. Every
+remaining call whose terminal is `open` — `os.open`, builtin `open`, `io.open`,
+`X.open(mode)` — is classified by the base scanner with exact flag/mode
+semantics, and the base deliberately leaves the position empty when it proves
+the call read-only. The delta was re-adding exactly those cleared positions as
+"unresolved". `daedalus/council/vendors.py:419` is the clean witness: three
+`open` calls on one line, base kept both `"wb"` writes (cols 45, 75) and the
+delta re-flagged only the `"rb"` read (col 17).
+
+Measured on isolated before/after snapshots of `daedalus/`, so concurrent lane
+edits cannot contaminate the comparison:
+
+| | surfaces | blockers |
+| --- | ---: | ---: |
+| before (HEAD scanner) | 433 | 433 |
+| after (F1 + F2) | 410 | 410 |
+
+23 removed, **0 added**, 13 relabelled `ambiguous_binding` → `write_mode_open`
+with the exact mode. Every one of the 23 was read back from source and is
+unambiguously read-only (`open(p,"r")`, `path.open("rb")`, `os.open(p, O_RDONLY)`,
+`csv_file.open(newline="", encoding="utf-8")`). Kind deltas:
+`ambiguous_binding` 189→167, `ambiguous_stdlib_binding` 51→37,
+`write_mode_open` 11→24; all other kinds unchanged.
+
+The 418 in the v3 report at `b52f5f9a` and the 433 here are the same instrument
+on different trees; the tree moved between them.
+
+## 4. Projection for the rest
+
+108 files carry the remaining 410 blockers: 36 files (165 surfaces) are
+registered entrypoint target modules, 72 files (245 surfaces) are not. Because
+door coverage subtracts nothing, the split that matters is *what evidence would
+clear the surface*, not *whether a door exists*. Categories over the 245
+no-door surfaces:
+
+| cat | count | what it is | what closes it |
+| --- | ---: | --- | --- |
+| A | 6 | residual scanner gap: `os.open(p, self._open_flags())` where a module-local helper returns only read-only flags | intra-module constant propagation in the scanner, or inlining the flags. **Not done** — see section 5 |
+| B | 106 | `.mkdir` / `.write_text` / `.write_bytes` / `.unlink` on a local whose name the scanner cannot resolve; caller-supplied path | `TargetDisposition` per calling door + guard contract. Classification work, not scanner work |
+| C | 58 | decided writes: `filesystem_mutation`, `write_mode_open`, `path_mutation`, `os_open_write` | same as B; these are the easiest to classify because the operation is already exact |
+| D | 26 | `fh.write` / `json.dump` on a handle whose opener is already counted (28 of the 43 handle sinks repo-wide sit in a file that already carries a counted opener) | a "sink follows its opener" rule would collapse most of these, but it is a fail-open change and needs its own decision |
+| E | 33 | `subprocess.run` / `asyncio.create_subprocess_*` with a dynamic command | process guard contract + command binding at the door |
+| F | 16 | `sqlite3.connect(dynamic_path)`, one per ledger/store module | target binding of the database path (all 16 are `daedalus/**` ledger stores) |
+
+B + C = 164 of 245 are ordinary classification work: one
+`SurfaceClassification` each, with target disposition, guard disposition and
+evidence bindings. There is no shortcut that clears them in bulk without
+building the missing wire from `repository_write_classification` into
+`report_v3`, which is a packet of its own (G0-RWI-20C..20F already scope it).
+
+## 5. Genuine new doors — the mechanical sweep list
+
+14 no-door files carry mechanical entrypoint evidence (`if __name__ ==
+"__main__"`, an `argparse` `main`, or a listening socket). These are the real
+registry candidates; the next lane can sweep them, one row each, after
+confirming the guard contract and anchor per file. **Registering them will not
+lower the blocker count** — it closes the *entrypoint registry* gap, which is a
+different Gate-0 line item.
+
+| file | surfaces | evidence |
+| --- | ---: | --- |
+| `daedalus/spine/killswitch.py` | 6 | `__main__` |
+| `daedalus/memory/__init__.py` | 5 | `__main__`, argparse `main` |
+| `daedalus/health.py` | 4 | `__main__`, argparse `main` |
+| `daedalus/memory/projection_worker.py` | 3 | `__main__`, argparse `main` |
+| `daedalus/metrics.py` | 3 | `__main__`, argparse `main` |
+| `daedalus/progress.py` | 3 | `__main__`, argparse `main` |
+| `daedalus/build_exec.py` | 2 | `__main__`, argparse `main` |
+| `daedalus/eval/__main__.py` | 2 | `__main__`, argparse `main` |
+| `daedalus/kernel/approvals.py` | 2 | `__main__`, argparse `main` |
+| `daedalus/spine/picker.py` | 2 | `__main__`, argparse `main` |
+| `daedalus/benchmark.py` | 1 | `__main__`, argparse `main` |
+| `daedalus/claude_bridge.py` | 1 | `__main__`, argparse `main` |
+| `daedalus/spine/bootstrap.py` | 1 | `__main__`, argparse `main` |
+| `daedalus/structcore/index.py` | 1 | `HTTPServer` |
+
+`daedalus/spine/killswitch.py` is live in another lane at the time of writing;
+coordinate before adding its row.
+
+The other 58 no-door files show no entrypoint evidence at all. They are library
+modules in the same position as the three worked here: their writes are
+reached through a caller, and they need classification, not a row.
+
+## 6. Residuals deliberately not fixed (negative evidence)
+
+- **6× `ambiguous_os_open_flags` from a helper.** `os.open(p, self._open_flags())`
+  in `source_trees.py` (×2), `provider_observation_store.py`,
+  `repository_tree.py`, `repository_write_artifact_cas.py`,
+  `repository_write_source_anchor_semantics.py`. All are genuinely read-only.
+  Fixing them needs interprocedural constant propagation inside a scanner that
+  is deliberately syntax-only and fail-closed, for 6 surfaces. Inlining the
+  flags at the callsites would duplicate the `hasattr(os, "O_BINARY")` platform
+  logic and make the kernel code worse to please a scanner. Left blocking.
+- **1× `ast.dump` counted as a stream sink** (`daedalus/eval/correctness.py:1429`).
+  `dump` is tracked because of `json.dump`/`pickle.dump`/`marshal.dump`;
+  `ast.dump` returns a string. A general "resolved-but-not-a-known-sink is out
+  of scope" rule would fix it and would also let a genuine in-repo sink module
+  through. Not worth one surface. Left blocking.
+- **Base scanner reads argument 0 as the mode for resolved mode-openers.**
+  `gzip.open("read.gz", "rb")` is scored by the base against the *path* string;
+  a path containing `a`, `w`, `x` or `+` would be labelled `write_mode_open`
+  with a nonsense operation. It does not fire anywhere in this tree (measured:
+  1 site reaches that branch, with a valid mode literal) and the delta covers
+  the five mode-openers correctly, so the composed result is right today. Left
+  as-is: tightening it made the base and the delta claim the same position and
+  the v2 composition refused the whole scan. That attempt is recorded here
+  because the next person will try the same thing.
+
+## 7. Verification
+
+`tests/test_write_surface_coverage.py`, 15 cases, all green. Each fix was
+disabled in an isolated tree and the tests went red as follows:
+
+| mutant | red |
+| --- | --- |
+| both fixes reverted | 6 (both correction groups + all three kernel-file pins) |
+| F1 reverted only | 4 (receiver-mode tests, `atomic.py`, `source_trees.py`; `promotion_trust_root.py` stays green — it has no ambiguous `.open`) |
+| F2 reverted only | 4 (delta-restatement test, `promotion_trust_root.py`, `source_trees.py`; `atomic.py` stays green — it has no base-owned `open`) |
+| `ambiguous_binding` removed from `_BLOCKING_KINDS` | 3 (the door test, the kind test, the undecidable-writer test) |
+
+The four `tests/gates/test_gate_report_v3*.py` pins are untouched and did not
+need updating: the wire shape does not move, and the only real-repo assertion
+is `assert report.repository_write_failures` (non-empty), with no pinned count.
+The two stdlib-delta fixtures that could have collided
+(`COMPRESSED_AND_ARCHIVE_SOURCE`, `ALIAS_AND_REBINDING_SOURCE`) were replayed
+against both scanners and are byte-identical before and after.

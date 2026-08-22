@@ -94,6 +94,17 @@ _GENERIC_SINK_METHODS = frozenset(
     {"write", "writelines", "writerow", "writerows", "truncate"}
 )
 
+# ``open`` enters this scanner's tracked terminals only through the five
+# ``_MODE_OPENERS`` above, and those are matched by their resolved name before
+# any terminal fallback runs.  Every remaining call whose syntactic terminal is
+# ``open`` -- ``os.open``, the builtin ``open``, ``io.open``, ``X.open(mode)``
+# -- is classified by the generation-1 base scanner with exact flag and mode
+# semantics, and the base deliberately leaves the position empty when it proves
+# the call read-only.  Re-flagging those as "unresolved" here would contradict a
+# decision made with more information and would re-add a surface the base just
+# cleared.  This scanner is the delta; it does not restate the base.
+_BASE_OWNED_TERMINALS = frozenset({"open"})
+
 _TRACKED_TERMINALS = frozenset(
     {
         *(name.rsplit(".", 1)[-1] for name in _MODE_OPENERS),
@@ -344,7 +355,7 @@ def _classify(
 ) -> tuple[str, str, str] | None:
     terminal = raw.rsplit(".", 1)[-1]
     root = raw.partition(".")[0]
-    if ambiguous and (
+    if ambiguous and terminal not in _BASE_OWNED_TERMINALS and (
         terminal in _TRACKED_TERMINALS
         or any(
             candidate.rsplit(".", 1)[-1] in _TRACKED_TERMINALS
@@ -379,7 +390,7 @@ def _classify(
         )
     if terminal in _GENERIC_SINK_METHODS:
         return ("stream_write_sink", resolved or raw, terminal)
-    if terminal in _TRACKED_TERMINALS:
+    if terminal in _TRACKED_TERMINALS and terminal not in _BASE_OWNED_TERMINALS:
         return (
             "ambiguous_stdlib_binding",
             resolved or raw,
