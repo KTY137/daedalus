@@ -1,6 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-
   "permissions": {
     "allow": [
       "Bash(git status:*)",
@@ -13,7 +12,6 @@
       "Bash(git rev-parse:*)",
       "Bash(git stash list:*)",
       "Bash(git worktree list:*)",
-
       "Bash(python -m pytest:*)",
       "Bash(pytest:*)",
       "Bash(python -m unittest:*)",
@@ -21,7 +19,6 @@
       "Bash(python -m ruff:*)",
       "Bash(ruff:*)",
       "Bash(npx tsc:*)",
-
       "Bash(python --version)",
       "Bash(python -c:*)",
       "Bash(uv pip list:*)",
@@ -34,74 +31,11 @@
       "Bash(rm -rf /:*)"
     ]
   },
-
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "teammateMode": "in-process",
-
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Loading the Daedalus Iron Plan..."
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Checking plan alignment..."
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Guarding the Iron Plan..."
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Binding subagent to the Iron Plan..."
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$(git rev-parse --show-toplevel)/tools/iron_plan_hook_runner.py\" || exit 2",
-            "timeout": 10,
-            "statusMessage": "Verifying Iron Plan handoff..."
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
@@ -111,6 +45,19 @@
             "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/docs-drift-reminder.py\"",
             "timeout": 10,
             "statusMessage": "Checking docs drift..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
+            "timeout": 10,
+            "statusMessage": "Routing symbol work through Serena..."
           }
         ]
       }

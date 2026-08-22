@@ -1,7 +1,7 @@
 # Ikarus & Ariadne: Der eiserne Daedalus-Masterplan
 
 Plan-ID: `daedalus-master-plan`  
-Revision: 6
+Revision: 7
 Version: 1.2.3
 Status: adopted  
 Date: 2026-08-02
@@ -580,3 +580,6 @@ guards. To amend:
 The environment token only unlocks the protected files for that process. It
 does not waive owner approval, the amendment record, review, or evidence.
 Rollback is a new amendment, never a history rewrite.
+
+
+Retirement note (2026-08-22, revision 7): the mechanical guard (tools/iron_plan_guard.py, hooks, commit hooks, CI) is retired by owner decision. This plan stays the design authority as a document; changes are owner commits that append a record to the amendment chain by hand. The checkpoint line is frozen at tag archive/checkpoint-2026-07-20-session (e37294c3ff3b); its work is harvested onto main.
