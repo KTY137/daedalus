@@ -1,3 +1,56 @@
 .githooks/* text eol=lf
-daedalus/kairos/_gated_writes_legacy.py.src -text
+
+# ---------------------------------------------------------------------------
+# BYTE-PIN SUBJECTS -- owner decision D7 (giga plan 2026-08-22, line 212)
+# ---------------------------------------------------------------------------
+#
+# WHAT THE "CRLF DAEMON" ACTUALLY IS. Not a process: `core.autocrlf` is true on
+# this host, so every fresh checkout translates LF to CRLF, while a file whose
+# OWN BYTES are hashed into an identity was pinned on the LF form. The pin then
+# fails on a Windows worktree and passes on Linux from the same commit. Four
+# recorded appearances (docs/GATE0_OWNER_DECISIONS_20260817.md sections 5 and 6,
+# and the Wave-1 "fixtures stop writing CRLF into byte-exact files" family). It
+# recurs because the protection was a hand-maintained per-file list and every
+# new byte-pin subject arrives unlisted.
+#
+# The list below is therefore paired with tests/test_byte_pin_eol_durability.py,
+# which re-derives the census from the source and fails when a subject is not
+# covered here. Adding a file that hashes its own bytes without adding a line
+# here is a test failure, not a Windows-only surprise three sessions later.
+#
+# MEASURED 2026-08-22 on this worktree, `git ls-files --eol`: of the 12 byte-pin
+# subjects, 2 carried an attribute and 4 were checked out CRLF.
+#
+# Setting `-text` changes no committed byte -- every subject is already `i/lf`.
+# It only stops the checkout translation. Files already CRLF in an existing
+# worktree stay CRLF until they are re-checked-out or renormalised; that is a
+# working-tree operation, deliberately not performed here.
+#
+# NARROWER THAN THE ALTERNATIVE, ON PURPOSE. `*.py -text` would end the family
+# for every Python file at once (measured blast radius: 947 tracked files are
+# CRLF in this worktree, all `i/lf`, so the index would not change at all). That
+# is a whole-repository EOL policy and belongs to the owner, not to this list.
+
+# Retained, non-importable package resource verified against its exact Git blob
+# SHA-1 in daedalus/kairos/gated_writes.py. A CRLF checkout makes the module
+# unimportable, which is fail-closed but is an availability break, not a finding.
+*.py.src -text
+
+# Sources hashed by the gate inventories (daedalus/gates/*_inventory.py read the
+# WORKING-TREE bytes of the module named in their _SOURCE_PATH).
 daedalus/runtimes/provider_target_receipt_ledger.py -text
+daedalus/runtimes/provider_observation.py -text
+
+# Modules and fixtures that hash their own file to identify the implementation
+# that produced an observation or a fault receipt. Under CRLF the same revision
+# reports two different implementation digests depending on the host, which
+# breaks Invariant 6 (reproducible, revision-consistent evidence) quietly.
+daedalus/runtimes/live_probe_drivers.py -text
+tests/fixtures/container_oom_fault_executor.py -text
+tests/fixtures/effect_ledger_contention_fault_executor.py -text
+tests/fixtures/linux_process_fault_executor.py -text
+tests/fixtures/runtime_trust_contention_fault_executor.py -text
+tests/fixtures/sandbox_unavailable_fault_executor.py -text
+tests/fixtures/undeclared_secret_fault_executor.py -text
+tests/fixtures/unauthorized_egress_fault_executor.py -text
+tests/fixtures/unknown_outcome_reconciliation_fault_executor.py -text
