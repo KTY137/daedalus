@@ -1,31 +1,28 @@
-# Daedalus — Current Claude Handoff (2026-08-17 — READ THIS FIRST)
+# Daedalus — Current Claude Handoff (2026-08-22 — READ THIS FIRST)
 
 This section supersedes everything below it, including the session-8 block.
 Everything below is history: its branch, test counts, and open items describe a
 tree that is no longer where the work happens.
 
-**The one thing to know first: this repository is not the truth anymore.**
+**The one thing to know first: main is now the g0 trunk. The fork ruling settled on Option A (2026-08-22).**
 
 | | path | branch | commit |
 | --- | --- | --- | --- |
-| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env_g0` | `work/g0-trunk-20260817` | `7c88f72` |
-| docs + vault (you are here) | `C:/Users/nukei/Desktop/agent_env` | `checkpoint/2026-07-20-session` | — |
+| truth (code + tests) | `C:/Users/nukei/Desktop/agent_env_g0` | `main` | `1e0f6a3c` |
+| archived checkpoint | `C:/Users/nukei/Desktop/agent_env` | `checkpoint/2026-07-20-session` (tag: `archive/checkpoint-2026-07-20-session`) | — |
 
-Read from the trunk checkout; write docs here. [MEASURED 2026-08-17 16:40+02:00,
-Penelope: `git -C agent_env_g0 rev-parse HEAD` → `7c88f72b120f…`, `git branch
---show-current` → `work/g0-trunk-20260817`.]
+[MEASURED 2026-08-22, Mnemosyne: `git rev-parse HEAD` → `1e0f6a3c…`, `git branch
+--show-current` → `main`.] The iron guard was retired (record 7 in ledger, owner
+decision recorded at 2026-08-22). The mission for this session is recorded at
+`docs/missions/MISSION_2026-08-22.md` — read it before making significant architectural decisions.
+---
 
-## The trap: this workspace announces a constitution two amendments old
+# HISTORY: Pre-ruling documents below (checkpoint/2026-07-20-session archived)
 
-The SubagentStart hook in *this* checkout announces "revision 1, sha256
-`a47d84ee…26d4`". The trunk enforces revision 4. Both sides, cited:
-
-- `docs/IKARUS_ARIADNE_MASTER_PLAN.md:4-5` (checkpoint, here) — `Revision: 1`, `Version: 1.0.0`
-- `docs/IKARUS_ARIADNE_MASTER_PLAN.md:4-5` (trunk `7c88f72`) — `Revision: 4`, `Version: 1.2.1`
-
-[MEASURED 2026-08-17, Penelope: `sed -n '1,12p'` on both files.] An agent that
-trusts this workspace's hook is reasoning against a superseded constitution.
-When a rule matters, read the plan at the trunk.
+The following sections record the state before the fork ruling (2026-08-22).
+They describe a split between a checkpoint branch and a trunk branch that no
+longer exists. Read them as evidence of what was measured at that time, not as
+current status. The active work is now on main.
 
 ## Amendment 005 — landed
 
@@ -135,19 +132,6 @@ From `vault/Sessions/2026-08-17.md:43-46` [INHERITED]:
       session (enables statusline, serena-first, PreCompact audit, toasts).
 - [ ] Athena: remove the `wt_*` worktrees. (Full-suite balance: now recorded.)
 
-## Navigation gotcha: the Gate-0 docs are split across two branches
-
-`vault/Gates/Gate-Status.md:27-30` links four artifacts; they do not all live in
-one place [MEASURED 2026-08-17, Penelope: existence checks in both checkouts]:
-
-- **Trunk `7c88f72` only** — `docs/GATE0_EFFECT_BOUNDARY_INVENTORY.md`
-- **Both** — `docs/GATE0_SEALED_OWNER_APPROVAL.md`
-- **Checkpoint branch only** — `docs/GATE0_RECON_20260817_FINDINGS.md`,
-  `docs/GATE0_TRUNK_FAILURE_TAXONOMY.md`,
-  `docs/GATE0_PROMOTION_TRUST_ROOT_CONFLICT.md`
-
-The analysis lives here; the inventory and the code live at the trunk. A reader
-who opens only one checkout will conclude three of these documents were lost.
 
 ## Gate 0 remains open
 
