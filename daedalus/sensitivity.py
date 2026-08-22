@@ -203,9 +203,48 @@ GENERIC_MID_RISK_TERMS: tuple[str, ...] = (
 # in (any repo-local policy extends it, never removes it) so that dropping the
 # harness onto an arbitrary repo can't leave hardware/safety/system code writable
 # by the local model just because the operator didn't enumerate those paths.
+#
+# THE SECOND HALF OF THIS TUPLE IS THE HARNESS'S OWN GOVERNANCE, and it was
+# missing. MEASURED against ``DEFAULT_POLICY`` -- which is what
+# ``path_write_blocked(path, None)`` uses, and what a
+# ``python -m daedalus.loop --repo-root ... --arm`` without ``--project``
+# reaches through ``KairosScheduler(project=None)``:
+#
+#     WRITABLE  AGENTS.md
+#     WRITABLE  docs/IKARUS_ARIADNE_MASTER_PLAN.md
+#     WRITABLE  tools/iron_plan_guard.py
+#     WRITABLE  .agentenv/agentenv.json
+#     WRITABLE  daedalus/kairos/gated_writes.py
+#     WRITABLE  .git/config
+#
+# Only ``/kernel/`` was fenced, so an unattended local write lane could edit the
+# constitution it is governed by, the guard that checks it, the capability
+# policy that bounds it, the gate that promotes its work, and the git config
+# that decides which program verifies the owner's signature -- and then report
+# success. These entries are project-INDEPENDENT because the files ship WITH
+# the harness: dropping it on an arbitrary repo carries them along, so the
+# fence has to as well. ``daedalus/sensitivity.py`` is in the list for the same
+# reason ``daedalus/config.py`` was the memorable failure in
+# :func:`path_write_blocked`'s docstring: a policy that can rewrite itself is
+# not a policy.
+#
+# NOTE the matching rule (``_fence_norm``): forward-slashed, lower-cased, and
+# root-anchored with a leading '/', so ``/agents.md`` matches both ``AGENTS.md``
+# and ``docs/AGENTS.md``, and a prefix such as
+# ``/docs/ikarus_ariadne_master_plan`` covers the plan, its ``.lock`` and its
+# ``.amendments.jsonl`` in one entry. This fence may only ever over-block.
 GENERIC_HIGH_RISK_PATHS: tuple[str, ...] = (
     "/devices/", "/drivers/", "/firmware/", "/hardware/", "/controller",
     "state_machine", "interlock", "/safety", "/hv", "motion/", "/kernel/", "/boot/",
+    # the constitution and its derived projections
+    "/agents.md", "/claude.md", "/docs/ikarus_ariadne_master_plan",
+    # the guards, the capability policy, and the harness control surfaces
+    "/tools/", "/.agentenv/", "/.git/", "/.claude/",
+    # the promotion gate and the policy module itself
+    # bare, like ``state_machine`` above: the legacy sibling is
+    # ``_gated_writes_legacy.py.src``, which an anchored entry misses by one
+    # underscore -- MEASURED, it stayed WRITABLE against the first draft.
+    "gated_writes", "/daedalus/sensitivity.py",
 )
 
 
