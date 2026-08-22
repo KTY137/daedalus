@@ -9,6 +9,10 @@ orchestrator that writes its run logs and agent experiments into an application'
 history stops being reusable, and starts being a second codebase nobody owns.
 Point it at any repo; it carries its own state.
 
+**Start at [docs/STATUS.md](docs/STATUS.md)** — one page, no numbers of its own,
+saying where the truth is today and what is still unsettled. From there it is
+four more hops to everything: the plan, the narrative, the snapshot, the ADRs.
+
 The long-horizon architecture and the dependency-gated delivery program live in
 [Ikarus & Ariadne: Der Daedalus-Masterplan](docs/IKARUS_ARIADNE_MASTER_PLAN.md).
 In that vocabulary **Ikarus** is the user-facing assistant and **Ariadne** is the
@@ -71,7 +75,7 @@ explicitly with a date and an owner.
 | `templates/` | Project-neutral defaults copied into any repo (`agents/`, `agentenv.json`, `project.example.json`, `CLAUDE.md`, `AGENTS.md`) |
 | `projects/` | Registered repos — one `<name>.json` per project, carrying its policy |
 | `tests/` | Harness test suite |
-| `docs/` | Architecture, protocol, ADR-style decision records, audit reports |
+| `docs/` | Architecture, protocol, decision records (`docs/adrs/`, one namespace), audit reports |
 | `tools/` | Standalone scripts that are not part of the shipped package |
 | `apps/`, `catalogue/`, `configs/` | Web/app surfaces, GUI catalogue, runtime configuration |
 | `structcore-rs/` | Rust structural core |
@@ -254,8 +258,11 @@ Install via **Developer: Install Extension from Location...** and select
 { "daedalus.root": "C:\\Users\\nukei\\Desktop\\agent_env" }
 ```
 
-Writes and model pulls require explicit confirmation. Full detail in
-[`docs/MISSION_CONTROL.md`](docs/MISSION_CONTROL.md).
+Writes and model pulls require explicit confirmation.
+[`docs/MISSION_CONTROL.md`](docs/MISSION_CONTROL.md) describes the tabbed
+dashboard template, which is **not shipped**: `dashboardHtml` has no callers and
+the doc carries a tombstone banner saying so. The live webview renders the web
+app (`agentOsHtml`); read the doc as history, not as a feature list.
 
 `.vscode/tasks.json` ships ready-made tasks (Terminal → Run Task) for the
 watcher, doctor/status/benchmark, project listing, local-only and auto enqueue,
@@ -286,9 +293,11 @@ writes a heartbeat to `runs/bridge_heartbeat.json` every loop. `daedalus doctor`
 warns with the exact restart one-liner when the heartbeat goes stale (> 2 min)
 or a task outlives the codex budget.
 
-Codex-lane protocol: put full task briefs in `docs/CODEX_QUEUE.md` inside the
-target repo and enqueue a short pointer ("Execute task C9 from
-docs/CODEX_QUEUE.md"). Long inline objectives on `--lane codex` bounce, and
+Codex-lane protocol: put full task briefs in a queue file inside the TARGET
+repo — `docs/CODEX_QUEUE.md` is the conventional name, and it is a file the
+target project creates, not one this repo ships (there has never been a
+`docs/CODEX_QUEUE.md` here) — and enqueue a short pointer ("Execute task C9
+from docs/CODEX_QUEUE.md"). Long inline objectives on `--lane codex` bounce, and
 `enqueue` warns when an objective smells like an inline brief.
 
 ## Operating model
