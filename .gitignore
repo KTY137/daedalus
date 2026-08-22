@@ -40,6 +40,14 @@ runs/audit_swarm/**
 runs/audit_swarm_v1_invalid/**
 runs/plan_critique/**
 
+# The budget ledger is live operational state, appended to on every guarded
+# spend. Tracking it made every run a working-tree modification and put a
+# mutable counter into the history as if it were a measurement. The ledger's
+# durability requirement is Invariant 8 (enforced at the effect boundary), not
+# Invariant 7 (provenance in git).
+runs/budget/ledger.json
+runs/budget/ledger.json.lock
+
 # Rust build output (structcore-rs) -- ~0.6 GB of compiled artifacts
 target/
 
@@ -62,7 +70,19 @@ runs/council/.codex_prompt.txt
 runs/council/.agy_prompt.txt
 runs/council/.stream_seen
 runs/council/cursors.json
-runs/spine/
+# TRACKING POLARITY -- giga plan Phase 4 (docs/inventory/2026-08-21/
+# GIGA_PLAN_2026-08-22.md:112), the half labelled D15. Generated evidence is
+# untracked; gate-exit evidence is tracked. The rule that decides which is
+# which: can this file be regenerated from the repository, or is it the only
+# copy of a measurement someone made?
+#
+# `runs/spine/` used to exclude the DIRECTORY, and git cannot re-include a file
+# whose parent directory is excluded -- so the two gate-exit receipts written
+# into it were invisible no matter what a later negation said. Excluding the
+# CONTENTS instead keeps the sqlite spine ignored and lets the receipts through.
+runs/spine/*
+!runs/spine/gate_discrimination.json
+!runs/spine/operability_drill.json
 runs/canary/
 .serena/
 runs/ikarus/

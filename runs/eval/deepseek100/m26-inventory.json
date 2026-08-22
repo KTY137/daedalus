@@ -1,6 +1,0 @@
-{
- "error": "IncompleteRead: IncompleteRead(1 bytes read)",
- "name": "m26-inventory",
- "model": "deepseek-v4-pro",
- "elapsed_s": 60.6
-}

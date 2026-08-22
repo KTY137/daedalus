@@ -1,9 +1,0 @@
-{
- "error": "IncompleteRead: IncompleteRead(3 bytes read)",
- "name": "i09-tests-shift",
- "requested_paths": [
-  "daedalus/shift.py",
-  "tests/test_shift.py"
- ],
- "elapsed_s": 225.5
-}
