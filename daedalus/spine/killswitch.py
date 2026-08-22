@@ -169,6 +169,8 @@ __all__ = [
     "LEGACY_CONTROL_ARTIFACTS",
     "LoopHalted",
     "MAX_PERMIT_BYTES",
+    "OS_PROFILE_DIR",
+    "OS_PROFILE_SOURCE",
     "REPLACE_RETRY_S",
     "RUN_TOKEN",
     "STOP_TOKEN",
@@ -176,6 +178,8 @@ __all__ = [
     "control_root",
     "default_switch_path",
     "legacy_control_root",
+    "os_control_root",
+    "profile_root_disagreement",
     "repo_control_digest",
     "verify_control_root",
 ]
@@ -246,6 +250,176 @@ def repo_control_digest(repo_root: str | Path | None = None) -> str:
     return hashlib.sha256(str(repo).encode("utf-8")).hexdigest()[:12]
 
 
+#: What :data:`OS_PROFILE_DIR` was derived from. ``"environment"`` is the one
+#: value that means "this process could not ask the operating system", and it
+#: is the only value for which :func:`profile_root_disagreement` stays silent:
+#: there is nothing to compare against, and refusing every box whose ctypes
+#: call fails would be a fail-closed that closes on the wrong thing.
+_PROFILE_SOURCE_ENV = "environment"
+
+#: ``FOLDERID_Profile`` -- {5E6C858F-0E22-4760-9AFE-EA3317B67173}.
+_FOLDERID_PROFILE_FIELDS = (
+    0x5E6C858F, 0x0E22, 0x4760,
+    (0x9A, 0xFE, 0xEA, 0x33, 0x17, 0xB6, 0x71, 0x73),
+)
+
+#: ``CSIDL_PROFILE`` for the ``SHGetFolderPathW`` fallback.
+_CSIDL_PROFILE = 0x28
+
+
+def _win_profile_dir() -> str | None:
+    """The profile directory from the Windows shell, never from the block.
+
+    ``SHGetKnownFolderPath(FOLDERID_Profile)`` first, ``SHGetFolderPathW``
+    (``CSIDL_PROFILE``) second. Both read the token/registry, so neither is
+    movable by an in-process ``os.environ`` write -- which is the entire point:
+    ``%USERPROFILE%`` is an ordinary environment variable and any library, test
+    harness, or "sandboxed environment" layer can set it before this module's
+    first use.
+    """
+    try:
+        import ctypes
+    except Exception:                                        # pragma: no cover
+        return None
+    try:
+        class _GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", ctypes.c_uint32),
+                ("Data2", ctypes.c_uint16),
+                ("Data3", ctypes.c_uint16),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
+
+        d1, d2, d3, d4 = _FOLDERID_PROFILE_FIELDS
+        guid = _GUID(d1, d2, d3, (ctypes.c_ubyte * 8)(*d4))
+        shell32 = ctypes.windll.shell32                      # type: ignore[attr-defined]
+        ptr = ctypes.c_void_p()
+        hresult = shell32.SHGetKnownFolderPath(
+            ctypes.byref(guid), 0, None, ctypes.byref(ptr))
+        try:
+            if hresult == 0 and ptr.value:
+                return ctypes.wstring_at(ptr.value)
+        finally:
+            if ptr.value:
+                ctypes.windll.ole32.CoTaskMemFree(ptr)       # type: ignore[attr-defined]
+    except Exception:                                        # pragma: no cover
+        pass
+    try:
+        shell32 = ctypes.windll.shell32                      # type: ignore[attr-defined]
+        buf = ctypes.create_unicode_buffer(1024)
+        if shell32.SHGetFolderPathW(None, _CSIDL_PROFILE, None, 0, buf) == 0:
+            return buf.value or None
+    except Exception:                                        # pragma: no cover
+        pass
+    return None
+
+
+def _posix_profile_dir() -> str | None:
+    """The passwd entry for this uid. ``$HOME`` is environment, ``pwd`` is not."""
+    try:
+        import pwd
+
+        entry = pwd.getpwuid(os.getuid())                    # type: ignore[attr-defined]
+    except Exception:                                        # pragma: no cover
+        return None
+    return entry.pw_dir or None
+
+
+def _resolve_os_profile_dir() -> tuple[Path, str]:
+    """``(directory, source)``. Called exactly once, at import."""
+    raw = _win_profile_dir() if os.name == "nt" else _posix_profile_dir()
+    if raw:
+        return Path(raw), (
+            "shell32.SHGetKnownFolderPath/SHGetFolderPathW"
+            if os.name == "nt" else "pwd.getpwuid")
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    if not home:
+        expanded = os.path.expanduser("~")
+        home = expanded if expanded and expanded != "~" else ""
+    return (Path(home) if home else Path(tempfile.gettempdir())), _PROFILE_SOURCE_ENV
+
+
+#: The profile directory as the OPERATING SYSTEM reports it, frozen at import
+#: so that nothing which runs later can move it. THIS is the base of the
+#: control root. See :func:`profile_root_disagreement` for why an environment
+#: that disagrees with it is a refusal rather than a preference.
+OS_PROFILE_DIR: Path
+OS_PROFILE_SOURCE: str
+OS_PROFILE_DIR, OS_PROFILE_SOURCE = _resolve_os_profile_dir()
+
+
+def _same_directory(left: Path | str, right: Path | str) -> bool:
+    """Two spellings of one directory. Compares the literal AND the resolved
+    form, so neither a trailing separator nor a junction reads as a difference.
+    """
+    def spellings(value: Path | str) -> set[str]:
+        text = os.path.abspath(str(value))
+        out = {os.path.normcase(os.path.normpath(text))}
+        try:
+            out.add(os.path.normcase(os.path.normpath(os.path.realpath(text))))
+        except OSError:                                      # pragma: no cover
+            pass
+        return out
+
+    return bool(spellings(left) & spellings(right))
+
+
+def _env_profile_dir() -> str | None:
+    """What the ENVIRONMENT claims the profile directory is, or ``None``."""
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    return home or None
+
+
+def profile_root_disagreement() -> str | None:
+    """``None`` when the environment agrees with the OS, else WHY it must stop.
+
+    THE SEAM THIS CLOSES. ``control_root`` used to read ``%USERPROFILE%`` out
+    of the environment of the very process it protects. Anything that writes
+    ``os.environ["USERPROFILE"]`` in-process -- a test harness, an SDK that
+    "sandboxes the environment", a library that normalises a home directory --
+    relocates the control root, and it does so silently:
+
+    MEASURED on this box (2026-08-22), with ``%USERPROFILE%`` and
+    ``%LOCALAPPDATA%`` both redirected to fresh temp directories before the
+    first :class:`KillSwitch` construction::
+
+        control_root()      -> ...\\Temp\\heracles-seams2-home-qqhk94xi\\.daedalus\\control\\2ea46e496ce4
+        legacy_control_root -> ...\\Temp\\heracles-seams2-la-mk7hjrdi\\daedalus\\control\\2ea46e496ce4
+        arm(force=True)     -> running=True          <-- ARMED SOMEWHERE ELSE
+        control_check.ok    -> True
+
+    Two failures at once. The operator's ``C:\\Users\\<u>\\.daedalus\\control``
+    is not the file being watched, so a stop written there is never read; and
+    the pre-migration refusal inspected a temp directory instead of the real
+    ``%LOCALAPPDATA%`` root, which on this box genuinely holds ``killswitch``,
+    ``effect-leases.sqlite3`` and ``effect-lease-issuer.key`` -- so the replay
+    window that refusal exists to catch was waved through.
+
+    The fix is deliberately a REFUSAL and not a silent correction. Silently
+    using :data:`OS_PROFILE_DIR` while the rest of the process believes in its
+    own ``%USERPROFILE%`` would put the permit somewhere the caller does not
+    expect, which is the same class of lie one directory further along.
+    """
+    if OS_PROFILE_SOURCE == _PROFILE_SOURCE_ENV:
+        return None
+    env_home = _env_profile_dir()
+    if env_home is None or _same_directory(env_home, OS_PROFILE_DIR):
+        return None
+    return (
+        f"the profile directory in this process's environment ({env_home}) is "
+        f"not the one the operating system reports ({OS_PROFILE_DIR}, via "
+        f"{OS_PROFILE_SOURCE}). The control root is derived from the profile "
+        "directory, so an in-process environment edit moves the permit, the "
+        "lease ledger and the promotion ledger somewhere no operator can "
+        "find, and makes the pre-migration check inspect the wrong tree. "
+        "Refusing to treat a relocated control root as this machine's.")
+
+
+def os_control_root(repo_root: str | Path | None = None) -> Path:
+    """The control root as derived from the OS, ignoring the environment."""
+    return OS_PROFILE_DIR / ".daedalus" / "control" / repo_control_digest(repo_root)
+
+
 def control_root(repo_root: str | Path | None = None) -> Path:
     """THE control root for ``repo_root``. One function, three consumers.
 
@@ -261,12 +435,22 @@ def control_root(repo_root: str | Path | None = None) -> Path:
     the permit FILE has one (``DAEDALUS_KILLSWITCH``), for tests and for an
     operator with an unusual layout; an overridable control root would be an
     overridable uniqueness store, which is the A12 finding one layer up.
+
+    The environment is still what this function READS, because a caller that
+    moved it deserves a truthful answer about where its own derivation lands.
+    It is not what a switch is allowed to USE: a derived
+    :class:`KillSwitch` folds :func:`profile_root_disagreement` into its
+    control check, so an environment that disagrees with :data:`OS_PROFILE_DIR`
+    produces a refusal, never a permit at the moved address. When the two
+    agree -- every unmodified process -- this returns exactly
+    :func:`os_control_root`.
+
+    The empty-environment fall-back is :data:`OS_PROFILE_DIR` rather than the
+    temp directory it used to be: a control root under ``%TEMP%`` is a control
+    root that a cleaner may delete between two polls.
     """
-    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
-    if not home:
-        expanded = os.path.expanduser("~")
-        home = expanded if expanded and expanded != "~" else ""
-    base_dir = Path(home) if home else Path(tempfile.gettempdir())
+    home = _env_profile_dir()
+    base_dir = Path(home) if home else OS_PROFILE_DIR
     return base_dir / ".daedalus" / "control" / repo_control_digest(repo_root)
 
 
@@ -566,10 +750,35 @@ class KillSwitch:
         """
         check = self._control_check
         if check is None:
-            check = verify_control_root(
-                self._path.parent,
-                repo_root=self._repo_root,
-                check_legacy=self._derived_path)
+            # FIRST, AND BEFORE `verify_control_root`. Two reasons, both
+            # load-bearing:
+            #
+            # * it is the CAUSE, and the pre-migration check is one of its
+            #   symptoms. `legacy_control_root` reads `%LOCALAPPDATA%` from the
+            #   same relocated environment, so once the profile has moved that
+            #   check is inspecting the wrong tree -- reporting it as the
+            #   headline would send an operator to clean a directory that was
+            #   never the problem.
+            # * `_CONTROL_CHECK_CACHE` is keyed by the root PATH, so a process
+            #   that relocated the profile could otherwise seed an ok=True
+            #   verdict for the moved root and have every later switch read it
+            #   back: first-writer-wins. This check is per switch and never
+            #   consults that cache.
+            #
+            # Only for a DERIVED root: a caller who named a path, or set
+            # `DAEDALUS_KILLSWITCH`, chose that file deliberately and is not
+            # the caller this refusal protects -- the same reasoning that
+            # scopes the pre-migration check to `_derived_path`.
+            disagreement = (
+                profile_root_disagreement() if self._derived_path else None)
+            if disagreement is not None:
+                literal = str(self._path.parent)
+                check = ControlRootCheck(False, disagreement, literal, literal)
+            else:
+                check = verify_control_root(
+                    self._path.parent,
+                    repo_root=self._repo_root,
+                    check_legacy=self._derived_path)
             self._control_check = check
         return check
 
