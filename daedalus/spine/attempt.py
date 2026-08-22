@@ -1502,20 +1502,28 @@ class TaskAttempt:
                     state = STATE_NO_CHANGE
                     error = "the runner produced no change to gate"
                 else:
-                    allowed = {
-                        str(path).replace("\\", "/").removeprefix("./")
-                        for path in self.task.target_paths
-                    }
-                    escaped = tuple(
-                        path for path in artifact.changed_paths
-                        if self.task.target_paths
-                        and path.replace("\\", "/").removeprefix("./")
-                        not in allowed)
+                    # ONE NORMAL FORM, SHARED WITH THE SEAL. This used to
+                    # normalise with `.replace("\\","/").removeprefix("./")` and
+                    # then test exact membership, which meant a declared
+                    # DIRECTORY matched nothing and rejected the whole patch --
+                    # while `receipts._criterion_seal`, reading the same field,
+                    # already treated a directory as covering what is under it.
+                    # `containment_escapes` is that comparison, so the boundary
+                    # the receipt describes is the boundary that was enforced.
+                    from daedalus.spine.receipts import containment_escapes
+
+                    escaped: tuple[str, ...] = ()
+                    scope_error: str | None = None
+                    if self.task.target_paths:
+                        escaped, scope_error = containment_escapes(
+                            artifact.changed_paths, self.task.target_paths)
                     if escaped:
                         state = STATE_GATES_FAILED
                         error = (
                             "artifact changed path(s) outside declared "
                             f"target_paths: {', '.join(escaped)}")
+                        if scope_error:
+                            error = f"{error} ({scope_error})"
                         gates = GateResult(
                             passed=False,
                             name="target-scope",
@@ -1875,7 +1883,22 @@ class TaskAttempt:
             return {}
         if not base_revision:
             return None
-        listings: dict[str, dict[bytes, bytes]] = {}
+        return self._tree_presence(base_revision, probes, {})
+
+    def _tree_presence(
+            self,
+            base_revision: str,
+            probes: Sequence[tuple[str, str]],
+            listings: dict[str, dict[bytes, bytes]],
+    ) -> dict[str, bool]:
+        """``{key: is a regular file in <base_revision>}`` for each probe.
+
+        The directory listing cache is passed IN rather than owned here, so one
+        projection's criterion probe and its import probes read each shared
+        parent directory once. See :meth:`_criterion_presence` for why the tree
+        is read instead of the filesystem, and why the admin dir is not pinned.
+        """
+
         presence: dict[str, bool] = {}
         for key, path in probes:
             parent, _, name = path.rpartition("/")
@@ -1901,6 +1924,61 @@ class TaskAttempt:
             mode = listings[parent].get(name.encode("utf-8", "replace"))
             presence[key] = mode in self._REGULAR_BLOB_MODES
         return presence
+
+    def _criterion_imports(
+            self, base_revision: str | None) -> dict[str, tuple[str, ...]] | None:
+        """Which IN-TREE files each declared criterion imports, per the base tree.
+
+        The second half of the same measurement/judgement seam as
+        :meth:`_criterion_presence`: only this class can read the frozen base,
+        so the reading happens here and
+        :func:`daedalus.spine.receipts._criterion_seal` decides what it means.
+
+        WHY THE BLOB AND NOT THE WORKTREE. The criterion's text in the
+        candidate's worktree is the text the candidate may have written; the
+        question the seal asks is what the criterion imported in the revision it
+        was sealed from. ``cat-file -p <rev>:<path>`` answers exactly that, is
+        already inside :data:`READ_ONLY_REPO_VERBS`, and runs no filter.
+
+        RESOLVED, THEN CONFIRMED. ``criterion_import_probe_paths`` over-reads --
+        it names every file an import line COULD reach from the repository root
+        or the criterion's own directory -- and each candidate is then confirmed
+        as a regular blob in the base tree before it is reported. An import that
+        resolves through a runtime ``sys.path`` insertion or a ``src/`` layout
+        therefore resolves to nothing and is not reported, which is a MISS and
+        not a false grant: the seal is then exactly as strong as it was before
+        this measurement existed. ``None`` means the question could not be
+        asked at all, which the seal refuses on rather than passes.
+        """
+        from daedalus.spine.receipts import (
+            criterion_import_probe_paths, criterion_probe_paths)
+
+        probes = criterion_probe_paths(self.task)
+        if not probes:
+            return {}
+        if not base_revision:
+            return None
+        listings: dict[str, dict[bytes, bytes]] = {}
+        imports: dict[str, tuple[str, ...]] = {}
+        for key, path in probes:
+            try:
+                blob = _git(["cat-file", "-p", f"{base_revision}:{path}"],
+                            cwd=self.repo_root, repo_root=self.repo_root).stdout
+            except Exception:
+                # An unreadable criterion is already refused by the presence
+                # check; reporting "no imports" here keeps that refusal the one
+                # the receipt names instead of stacking a second, vaguer one.
+                imports[key] = ()
+                continue
+            candidates = criterion_import_probe_paths(
+                blob.decode("utf-8", "replace"), path)
+            if not candidates:
+                imports[key] = ()
+                continue
+            present = self._tree_presence(base_revision, candidates, listings)
+            imports[key] = tuple(
+                sorted(probe for probe, _ in candidates if present.get(probe)))
+        return imports
 
     @staticmethod
     def _shed_telemetry_from(runner_detail: Any) -> Any:
@@ -1953,8 +2031,10 @@ class TaskAttempt:
         # has the pinned git invocation that can answer it, so the measurement
         # is taken here and the judgement stays in `receipts`.
         criterion_present = self._criterion_presence(base_revision)
+        criterion_imports = self._criterion_imports(base_revision)
         assurance, assurance_reason = evaluator_assurance_detail(
-            result, self.task, criterion_present=criterion_present)
+            result, self.task, criterion_present=criterion_present,
+            criterion_imports=criterion_imports)
         return canonicalise_attempt(
             result,
             task=self.task,
@@ -1967,6 +2047,7 @@ class TaskAttempt:
             assurance=assurance,
             assurance_reason=assurance_reason,
             criterion_present=criterion_present,
+            criterion_imports=criterion_imports,
             # The measured half of usage. Spend and server-counted tokens are
             # absent because nothing on this path meters them -- see
             # receipts.UNMETERED_SPEND_REASON, which travels inside the

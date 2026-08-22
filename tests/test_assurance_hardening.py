@@ -69,6 +69,18 @@ def repo(tmp_path):
         "sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'src'))\n"
         "from foo import answer\n"
         "assert answer() == 42, 'criterion FAILS'\n")
+    # A sibling the criterion's execution never touches, and a criterion whose
+    # judging code lives in an in-tree module beside it. Both are base-revision
+    # facts, so the import resolver has something real to confirm against.
+    (root / "tests" / "test_other.py").write_text("assert True\n")
+    (root / "tests" / "helpers.py").write_text(
+        "def check(v):\n    assert v == 42, 'helper FAILS'\n")
+    (root / "tests" / "test_helped.py").write_text(
+        "import pathlib, sys\n"
+        "sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'src'))\n"
+        "from helpers import check\n"
+        "from foo import answer\n"
+        "check(answer())\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "base")
     # A symlink tree entry, written straight into the index so the fixture does
@@ -214,6 +226,158 @@ def test_an_empty_write_scope_seals_nothing(repo, tmp_path):
 
     assert verdict == "unverified"
     assert "NO target_paths" in why
+
+
+# --------------------------------------------------------------------------- #
+# 1b. the criterion FILE was never the criterion                               #
+#                                                                              #
+# Checks 1-4 above all measure the criterion as a BLOB. A candidate that never  #
+# touches that blob still changes what it DOES by writing a file python or      #
+# pytest loads on the way to it -- a conftest.py beside it, a root config, an   #
+# __init__.py on its package path -- or by rewriting an in-tree module the      #
+# criterion imports. Every case below leaves the criterion byte-identical and   #
+# still must not read `deterministic`.                                          #
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("label,in_scope", [
+    # beside the criterion: fixtures, hooks, assertion rewriting, collect_ignore
+    ("conftest", "tests/conftest.py"),
+    # the criterion's own package path
+    ("pkginit", "tests/__init__.py"),
+    # the repository root, which no "is the criterion inside the scope" test
+    # can see, because the criterion is not inside a file
+    ("pyproject", "pyproject.toml"),
+    ("pytestini", "pytest.ini"),
+    ("setupcfg", "setup.cfg"),
+    ("toxini", "tox.ini"),
+    # executed by CPython before anything the criterion says
+    ("sitecustomize", "sitecustomize.py"),
+    ("pth", "tests/evil.pth"),
+])
+def test_an_execution_influencing_file_in_scope_breaks_the_seal(
+        repo, tmp_path, label, in_scope):
+    """The write scope reaches the criterion's execution, not its bytes."""
+    _, result, contracts = _run(
+        repo, tmp_path, f"influence-{label}", runner=_honest,
+        target_paths=("src/foo.py", in_scope),
+        criterion=("tests/test_gate.py",))
+
+    assert result.state == "clean", result.error
+    assert list(result.artifact.changed_paths) == ["src/foo.py"]
+    assert _assurance(contracts) == "unverified"
+    # The reason NAMES the file, because a receipt whose refusal cannot be
+    # triaged back to one declaration is a refusal nobody can act on.
+    why = _why(contracts)
+    assert repr(in_scope) in why
+    assert "execution-influencing file" in why
+
+
+def test_a_sibling_that_influences_nothing_still_seals(repo, tmp_path):
+    """The guard above must refuse a mechanism, not a directory.
+
+    ``tests/test_other.py`` sits beside the criterion and is nonetheless loaded
+    by nothing on the criterion's path. Refusing it too would make the seal
+    unreachable for any task whose scope touches the test tree at all, which is
+    a guard that closes the hole by breaking the feature.
+    """
+    _, _, contracts = _run(
+        repo, tmp_path, "sibling-neutral", runner=_honest,
+        target_paths=("src/foo.py", "tests/test_other.py"),
+        criterion=("tests/test_gate.py",))
+
+    assert _assurance(contracts) == "deterministic"
+
+
+def test_an_in_tree_module_the_criterion_imports_breaks_the_seal(
+        repo, tmp_path):
+    """The criterion's judging code moved into a file the candidate may write.
+
+    ``tests/test_helped.py`` does ``from helpers import check`` and
+    ``tests/helpers.py`` holds the assertion. The criterion file is untouched
+    and present in the base tree, the gate names it, and the verdict is still
+    worth nothing: ``check`` is candidate-authored.
+    """
+    def gate(ctx):
+        return GateResult(passed=True, name="probe-gate", returncode=0,
+                          command=("pytest", "tests/test_helped.py"),
+                          output="green\n", duration_s=0.1)
+
+    def runner(ctx):
+        (ctx.worktree / "tests" / "helpers.py").write_text(
+            "def check(v):\n    return True\n", encoding="utf-8")
+
+    _, result, contracts = _run(
+        repo, tmp_path, "import-in-scope", runner=runner, gate=gate,
+        target_paths=("tests/helpers.py",),
+        criterion=("tests/test_helped.py",))
+
+    assert result.state == "clean", result.error
+    assert _assurance(contracts) == "unverified"
+    why = _why(contracts)
+    assert "imports 'tests/helpers.py'" in why
+    assert "INSIDE the declared write scope" in why
+
+
+def test_an_import_that_resolves_to_nothing_in_the_tree_does_not_refuse(
+        repo, tmp_path):
+    """The measurement is an over-read CONFIRMED against the base tree.
+
+    ``tests/test_gate.py`` reaches ``src/foo.py`` -- the file the task declares
+    -- through a runtime ``sys.path`` insertion, which is exactly how the Gate-1
+    conformance suite reaches ``ignition_app``. A resolver that guessed instead
+    of confirming would call every repair task's own subject an import inside
+    the scope and take the seal away from the one production producer of
+    ``gate_criterion_paths``.
+    """
+    from daedalus.spine.receipts import criterion_import_probe_paths
+
+    source = (repo / "tests" / "test_gate.py").read_text(encoding="utf-8")
+    candidates = [path for _, path in
+                  criterion_import_probe_paths(source, "tests/test_gate.py")]
+    # `foo` is looked for at the root and beside the criterion, never under
+    # `src/`, so nothing it names exists and nothing is reported.
+    assert "foo.py" in candidates and "tests/foo.py" in candidates
+    assert "src/foo.py" not in candidates
+
+    _, _, contracts = _run(
+        repo, tmp_path, "import-unresolved", runner=_honest,
+        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
+
+    assert _assurance(contracts) == "deterministic"
+
+
+def test_unmeasured_imports_do_not_grant_the_seal():
+    """Not knowable is not a pass, for this check like every other one here."""
+    task = TaskSpec(task_id="unmeasured", instruction="i",
+                    base_revision="0" * 40, target_paths=("src/foo.py",),
+                    gate_criterion_paths=("tests/test_gate.py",))
+    result = type("R", (), {"gates": GateResult(passed=True, name="g",
+                                                command=GATE_COMMAND)})()
+
+    verdict, why = evaluator_assurance_detail(
+        result, task, criterion_present={"tests/test_gate.py": True})
+
+    assert verdict == "unverified"
+    assert "were not resolved against the base revision tree" in why
+
+
+@pytest.mark.parametrize("source,expected", [
+    ("from helpers import check\n", "tests/helpers.py"),
+    ("import helpers\n", "tests/helpers.py"),
+    ("from . import helpers\n", "tests/helpers.py"),
+    ("from .helpers import check\n", "tests/helpers.py"),
+    ("from tests.helpers import check\n", "tests/helpers.py"),
+    # the prefix chain executes too: `import a.b` runs `a/__init__.py`
+    ("import pkg.mod\n", "pkg/__init__.py"),
+    ("from pkg.mod import x\n", "pkg/mod/x.py"),
+])
+def test_the_import_reader_names_the_files_an_import_would_execute(
+        source, expected):
+    from daedalus.spine.receipts import criterion_import_probe_paths
+
+    paths = [path for _, path in
+             criterion_import_probe_paths(source, "tests/test_gate.py")]
+
+    assert expected in paths
 
 
 # --------------------------------------------------------------------------- #

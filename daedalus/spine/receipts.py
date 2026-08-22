@@ -480,6 +480,242 @@ def _inside_scope(path: str, scope: Sequence[str]) -> bool:
     return False
 
 
+def containment_escapes(
+    changed_paths: Sequence[Any], target_paths: Sequence[Any]
+) -> tuple[tuple[str, ...], str | None]:
+    """The changed paths a declared write scope does NOT cover, plus a refusal.
+
+    THE OTHER HALF OF :func:`_inside_scope`, and it has to be the same half.
+    The attempt spine's ``target-scope`` gate used to normalise with a bare
+    ``.replace("\\\\", "/").removeprefix("./")`` and then test exact string
+    membership against git's canonical ``changed_paths``. Two consequences, one
+    silent in each direction:
+
+    * a declaration naming a DIRECTORY (``tests``) matched nothing, so a task
+      that scoped a directory had its entire patch rejected as escaped -- while
+      :func:`_criterion_seal`, reading the same field through
+      :func:`_inside_scope`, already treated that declaration as covering
+      ``tests/test_gate.py``. One field, two meanings, and the receipt was
+      written by the generous one;
+    * a declaration git could never match (``C:/x``, ``../x``) simply failed to
+      cover anything, which happened to be fail-closed but said nothing about
+      WHY, so an operator read "changed path outside target_paths" for a patch
+      that was inside the directory they meant to declare.
+
+    Directories are therefore the accepted shape on BOTH sides, normalised by
+    :func:`_normalise_tree_path` and compared on path SEGMENT boundaries: a
+    declared ``tests`` covers ``tests/test_gate.py`` and never ``tests_evil.py``.
+    Returns ``(escaped, declaration_error)``. A declaration with no normal form
+    inside the tree yields every changed path as escaped AND a reason naming the
+    spelling -- refusing the patch rather than pretending an unusable boundary
+    bounded it. Escaped paths are reported in their ORIGINAL spelling, because
+    that is what the operator has to go look at.
+    """
+
+    scope: list[str] = []
+    for raw in target_paths:
+        normalised = _normalise_tree_path(raw)
+        if normalised is None:
+            return (
+                tuple(str(path) for path in changed_paths),
+                f"declared target path {str(raw)!r} has no normal form inside "
+                "the tree (absolute or root-escaping), so no changed path can "
+                "be shown to be contained by it",
+            )
+        scope.append(normalised)
+    escaped: list[str] = []
+    for raw in changed_paths:
+        path = _normalise_tree_path(raw)
+        # A changed path with no normal form is escaped BY DEFINITION: git does
+        # not produce one today, and a future producer that did must not be
+        # able to slip past a boundary by spelling itself unrepresentably.
+        if path is None or not _inside_scope(path, scope):
+            escaped.append(str(raw))
+    return tuple(escaped), None
+
+
+#: Files whose presence CHANGES WHAT A CRITERION DOES without the criterion
+#: naming them: pytest loads ``conftest.py`` from every directory on the
+#: collection path (fixtures, hooks, collection filters, assertion rewriting),
+#: reads its configuration out of the first ``pytest.ini``/``pyproject.toml``/
+#: ``setup.cfg``/``tox.ini`` it finds, imports ``__init__.py`` for every package
+#: directory it walks through, and CPython executes ``.pth`` files and
+#: ``sitecustomize``/``usercustomize`` before any of it. A candidate allowed to
+#: write one of these on the criterion's own path chain can skip the criterion,
+#: monkeypatch what it asserts against, or replace the assertion machinery --
+#: while the criterion file itself, which is all the seal used to look at, stays
+#: byte-identical.
+_EXECUTION_INFLUENCING_NAMES = frozenset({
+    "conftest.py",
+    "__init__.py",
+    "pytest.ini",
+    "pyproject.toml",
+    "setup.cfg",
+    "tox.ini",
+    "sitecustomize.py",
+    "usercustomize.py",
+})
+_EXECUTION_INFLUENCING_SUFFIX = ".pth"
+
+
+def _is_execution_influencing(name: str) -> bool:
+    return (name in _EXECUTION_INFLUENCING_NAMES
+            or name.endswith(_EXECUTION_INFLUENCING_SUFFIX))
+
+
+def _chain_dirs(criterion: str) -> tuple[str, ...]:
+    """Repo root down to the criterion's own directory, as normalised prefixes.
+
+    ``"tests/unit/test_gate.py"`` yields ``("", "tests", "tests/unit")``. The
+    empty string IS the repository root and is a real member: a root
+    ``conftest.py`` or ``pyproject.toml`` reaches every test under it.
+    """
+
+    parts = criterion.split("/")[:-1]
+    return tuple([""] + ["/".join(parts[: i + 1]) for i in range(len(parts))])
+
+
+def _scope_reaches_criterion_execution(
+    criterion: str, scope: Sequence[str]
+) -> str | None:
+    """``None`` when no scope entry can alter what ``criterion`` DOES.
+
+    A scope entry naming an execution-influencing file that sits on the chain
+    from the repository root down to the criterion's own directory -- a root
+    ``pyproject.toml``, a ``tests/conftest.py`` beside the criterion, a
+    ``__init__.py`` on its package path. Segment boundaries, via the same
+    comparison :func:`_inside_scope` makes: ``tests`` is on the chain of
+    ``tests/test_gate.py`` and ``tests_evil`` is not.
+
+    THE OTHER HALF IS DELIBERATELY ABSENT, AND WAS MEASURED BEFORE IT WAS CUT.
+    The obvious companion check -- "a scope entry that IS or CONTAINS a chain
+    DIRECTORY lets the candidate create a conftest.py there" -- cannot fire.
+    Every chain directory is an ancestor of the criterion, so a scope entry
+    covering one covers the criterion itself, and check 2 of
+    :func:`_criterion_seal` has already refused. Written, run, found to be
+    unreachable on every input, and removed: a guard that can never fire reads
+    like protection in a diff and provides none.
+    """
+
+    chain = set(_chain_dirs(criterion))
+    for target in scope:
+        head, _, name = target.rpartition("/")
+        if head in chain and _is_execution_influencing(name):
+            return (
+                f"the declared write scope contains {target!r}, an "
+                f"execution-influencing file on {criterion!r}'s own "
+                "collection/import path, so the candidate can change what the "
+                "criterion DOES without touching the criterion file"
+            )
+    return None
+
+
+#: One import statement, cheaply. Deliberately a regex over lines and not an
+#: ``ast`` parse: the criterion is untrusted-adjacent text read out of a git
+#: blob, this runs on the receipt path of every attempt that declares one, and
+#: the answer is only ever used to ADD a refusal -- so a line this misses leaves
+#: the seal exactly as strong as it was before the check existed, while a parse
+#: that raised on an unparseable blob would destroy a finished projection.
+_IMPORT_LINE_RE = re.compile(
+    r"^[ \t]*(?:"
+    r"from[ \t]+(?P<pkg>\.*[A-Za-z_][A-Za-z0-9_.]*|\.+)[ \t]+import[ \t]+"
+    r"(?P<names>[^#\n]*)"
+    r"|import[ \t]+(?P<mods>[^#\n]*)"
+    r")",
+    re.MULTILINE,
+)
+
+
+def _tree_join(root: str, rel: str) -> str:
+    return rel if not root else f"{root}/{rel}"
+
+
+def _module_tree_paths(root: str, dotted: str) -> list[str]:
+    """Every in-tree file importing ``dotted`` from ``root`` would EXECUTE.
+
+    ``import a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` on the way,
+    so the whole prefix chain is named, not just the leaf. The leaf gets both
+    spellings a module can have (``a/b/c.py`` and ``a/b/c/__init__.py``).
+    """
+
+    parts = [part for part in dotted.split(".") if part]
+    if not parts:
+        return []
+    out = [
+        _tree_join(root, "/".join(parts[: i + 1]) + "/__init__.py")
+        for i in range(len(parts))
+    ]
+    out.append(_tree_join(root, "/".join(parts) + ".py"))
+    return out
+
+
+def criterion_import_probe_paths(
+    source: str, criterion: str
+) -> tuple[tuple[str, str], ...]:
+    """``(comparison key, git-facing path)`` for what the criterion imports.
+
+    Resolved against TWO roots -- the repository root and the criterion's own
+    directory -- plus explicit relative imports, which are the three routes an
+    in-tree helper module is reached by in practice. It does NOT model
+    ``sys.path`` manipulation, ``src/`` layouts, installed distributions, or
+    namespace packages, and saying so is the point: this is a cheap over-read
+    whose hits the caller still has to confirm against the base tree, and whose
+    misses cost nothing because a miss is simply the seal as it stood before.
+
+    Same ``(key, path)`` seam as :func:`criterion_probe_paths`, for the same
+    reason -- the caller asks git in the tree's spelling and the seal compares
+    in this host's case semantics, and those two must not drift apart.
+    """
+
+    directory = criterion.rpartition("/")[0]
+    candidates: list[str] = []
+    for match in _IMPORT_LINE_RE.finditer(source):
+        pkg, names, mods = match.group("pkg"), match.group("names"), match.group("mods")
+        if mods is not None:
+            for piece in mods.split(","):
+                dotted = piece.strip().split(" as ")[0].strip()
+                if not dotted or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", dotted):
+                    continue
+                for root in ("", directory):
+                    candidates.extend(_module_tree_paths(root, dotted))
+            continue
+        dots = len(pkg) - len(pkg.lstrip("."))
+        stem = pkg[dots:]
+        if dots:
+            # `from . import x` is this directory; every extra dot climbs one.
+            climbed = directory
+            for _ in range(dots - 1):
+                if not climbed:
+                    climbed = None
+                    break
+                climbed = climbed.rpartition("/")[0]
+            if climbed is None:
+                continue
+            roots = (climbed,)
+        else:
+            roots = ("", directory)
+        imported = []
+        for piece in (names or "").replace("(", " ").replace(")", " ").split(","):
+            name = piece.strip().split(" as ")[0].strip()
+            if name and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                imported.append(name)
+        for root in roots:
+            base = _tree_join(root, stem.replace(".", "/")) if stem else root
+            if stem:
+                candidates.extend(_module_tree_paths(root, stem))
+            for name in imported:
+                candidates.extend(_module_tree_paths(base, name))
+    probes: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        collapsed = _collapse_tree_path(raw)
+        if collapsed is None or collapsed in seen:
+            continue
+        seen.add(collapsed)
+        probes.append((_fold_case(collapsed), collapsed))
+    return tuple(probes)
+
+
 def _gate_mentions(criterion: str, args: Sequence[Any]) -> bool:
     """Whether the gate that ran actually named this criterion path.
 
@@ -513,6 +749,7 @@ def evaluator_assurance_detail(
     task: Any,
     *,
     criterion_present: Mapping[str, bool] | None = None,
+    criterion_imports: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[str, str]:
     """How much the gate verdict is worth, and WHY -- derived, never asserted.
 
@@ -521,13 +758,13 @@ def evaluator_assurance_detail(
 
     * a spine-authored gate (``target-scope``) reads the patch, never the
       candidate's own code, so no candidate can influence its verdict;
-    * a declared ``gate_criterion_paths`` seal, which now has to survive four
+    * a declared ``gate_criterion_paths`` seal, which now has to survive six
       separate checks rather than one string-set intersection (below);
     * a FAIL_TO_PASS/PASS_TO_PASS gate carries a frozen, pre-verified receipt
       the candidate cannot author, but only counts when the measured
       containment attestation says the child was in fact contained.
 
-    WHY THE CRITERION SEAL IS FOUR CHECKS AND NOT ONE. The first version of
+    WHY THE CRITERION SEAL IS SIX CHECKS AND NOT ONE. The first version of
     this compared two raw string sets. Every one of ``tests/../tests/x.py``,
     ``.//tests/x.py`` and ``Tests/X.py`` therefore read as disjoint from a
     scope containing ``tests/x.py`` -- so a candidate allowed to write the very
@@ -547,10 +784,19 @@ def evaluator_assurance_detail(
        there;
     4. **the gate that ran actually named it**, in ``task.gate_argv`` or in the
        command the :class:`GateResult` recorded. A file the gate never reads
-       seals nothing.
+       seals nothing;
+    5. **nothing on its execution path is writable**: no scope entry names a
+       ``conftest.py``/``__init__.py``/config/``.pth``/``sitecustomize`` on the
+       chain from the repository root down to the criterion's own directory,
+       because those change what the criterion DOES while its bytes stay
+       identical (checks 1-4 all measure it as a blob);
+    6. **nothing it imports is writable**: no in-tree module the criterion
+       imports, resolved and then CONFIRMED against the base revision tree,
+       lies inside the scope. See :func:`_criterion_seal` for what this
+       deliberately does not model.
 
-    Where a check is not knowable -- no presence map, no recorded command --
-    the seal is NOT granted and the reason says which fact was missing.
+    Where a check is not knowable -- no presence map, no measured imports, no
+    recorded command -- the seal is NOT granted and the reason names the fact.
     Everything else is ``unverified``, including a plain pytest gate over the
     candidate's own worktree. That is not pessimism: a conclusive
     EvidencePacket may not rest on unverified evidence, so calling this
@@ -577,14 +823,17 @@ def evaluator_assurance_detail(
 
     if criterion_raw:
         why = _criterion_seal(
-            criterion_raw, task, gate, criterion_present=criterion_present
+            criterion_raw, task, gate,
+            criterion_present=criterion_present,
+            criterion_imports=criterion_imports,
         )
         if why is None:
             return (
                 "deterministic",
                 "declared gate criterion is outside the armed write scope, "
-                "present in the base revision tree, and named by the gate that "
-                "ran",
+                "present in the base revision tree, reached by no "
+                "execution-influencing file or in-tree import the scope "
+                "covers, and named by the gate that ran",
             )
         if not (frozen_criterion and contained):
             return "unverified", why
@@ -614,12 +863,39 @@ def _criterion_seal(
     gate: Any,
     *,
     criterion_present: Mapping[str, bool] | None,
+    criterion_imports: Mapping[str, Sequence[str]] | None = None,
 ) -> str | None:
     """``None`` when the declared criterion seals the verdict, else the reason.
 
     Split out of :func:`evaluator_assurance_detail` so each refusal returns a
     sentence naming the exact fact that was missing. A seal that fails silently
     into a boolean is a seal whose failures cannot be triaged from a receipt.
+
+    THE CRITERION FILE IS NOT THE CRITERION. Checks 1-4 all measured the
+    criterion as a BLOB: normal form, disjointness from the scope, presence in
+    the base tree, and mention by the gate. A candidate that never touches that
+    blob can still change what it DOES -- by adding or editing a ``conftest.py``
+    (fixtures, hooks, assertion rewriting, ``collect_ignore``), a
+    ``pytest.ini``/``pyproject.toml``/``setup.cfg``/``tox.ini``, an
+    ``__init__.py`` on the package path, or a ``.pth``/``sitecustomize`` that
+    runs before anything else -- anywhere on the criterion's own path chain, and
+    by rewriting an in-tree module the criterion imports. Two more checks
+    therefore ask about the criterion's EXECUTION, not its bytes:
+
+    5. no scope entry is, contains, or names an execution-influencing file on
+       the chain from the repository root down to the criterion's directory
+       (:func:`_scope_reaches_criterion_execution`);
+    6. no in-tree module the criterion imports lies inside the scope.
+
+    Check 6 is deliberately conservative and deliberately incomplete. The
+    caller resolves the import lines against the BASE TREE and passes only the
+    files that really exist there, so a subject reached through a runtime
+    ``sys.path`` insertion or a ``src/`` layout -- which is how the Gate-1
+    conformance suite reaches ``ignition_app``, measured -- is not named and not
+    refused. Where it DOES fire, it fires on a repair task whose criterion
+    imports its own subject by an in-tree path; that is a downgrade to
+    ``unverified``, never a false grant, and the honest reading of a gate whose
+    judging code is partly candidate-authored.
     """
 
     scope_raw = tuple(getattr(task, "target_paths", ()) or ())
@@ -657,6 +933,9 @@ def _criterion_seal(
                 "write scope, so the candidate was allowed to edit the thing "
                 "that judged it"
             )
+        reached = _scope_reaches_criterion_execution(criterion, scope)
+        if reached is not None:
+            return reached
         if criterion_present is None:
             return (
                 "the criterion's presence in the base revision tree was not "
@@ -668,6 +947,19 @@ def _criterion_seal(
                 f"declared gate criterion {criterion!r} is not a regular file "
                 "in the base revision tree, so it sealed nothing"
             )
+        if criterion_imports is None:
+            return (
+                f"the modules {criterion!r} imports were not resolved against "
+                "the base revision tree, so it cannot be shown the candidate "
+                "had no reach over the code that judges with it"
+            )
+        for imported in criterion_imports.get(criterion, ()) or ():
+            if _inside_scope(str(imported), scope):
+                return (
+                    f"{criterion!r} imports {str(imported)!r}, which is INSIDE "
+                    "the declared write scope, so the candidate was allowed to "
+                    "author code the criterion executes"
+                )
         if not mentions:
             return (
                 "the gate recorded no command and the task declares no "
@@ -687,11 +979,14 @@ def evaluator_assurance(
     task: Any,
     *,
     criterion_present: Mapping[str, bool] | None = None,
+    criterion_imports: Mapping[str, Sequence[str]] | None = None,
 ) -> str:
     """The assurance string alone. See :func:`evaluator_assurance_detail`."""
 
     return evaluator_assurance_detail(
-        result, task, criterion_present=criterion_present
+        result, task,
+        criterion_present=criterion_present,
+        criterion_imports=criterion_imports,
     )[0]
 
 
@@ -913,6 +1208,7 @@ def canonicalise_attempt(
     assurance: str | None = None,
     assurance_reason: str = "",
     criterion_present: Mapping[str, bool] | None = None,
+    criterion_imports: Mapping[str, Sequence[str]] | None = None,
     boundary_receipt: Any = None,
     shed_telemetry: Any = None,
     mission_policy_sha256: str | None = None,
@@ -1124,7 +1420,9 @@ def canonicalise_attempt(
                 ),
             )
         packet_assurance = assurance or evaluator_assurance(
-            result, task, criterion_present=criterion_present
+            result, task,
+            criterion_present=criterion_present,
+            criterion_imports=criterion_imports,
         )
         evidence = EvidencePacket.from_attempt_result(
             result,
@@ -1349,6 +1647,8 @@ __all__ = [
     "attempt_runtime_manifest",
     "read_contract_set",
     "canonicalise_attempt",
+    "containment_escapes",
+    "criterion_import_probe_paths",
     "criterion_probe_paths",
     "evaluator_assurance",
     "evaluator_assurance_detail",
