@@ -783,6 +783,33 @@ def _scan_input(files: Iterable[Path], repository_root: Path) -> str:
     return hashlib.sha256(canonical_json(entries).encode("ascii")).hexdigest()
 
 
+def _ambiguity_hint(
+    callsites: Iterable[RepositoryWriteCallsite],
+    *,
+    limit: int = 5,
+) -> str:
+    """Name the source positions that hold more than one callsite record.
+
+    Chained calls on an expression receiver (`p.replace(a).replace(b)`) give
+    every link the receiver's `lineno`/`col_offset`, so the position is not an
+    identity.  The scanner may not drop a link -- that would lose a write
+    surface -- so it refuses and reports where the collision is.
+    """
+
+    seen: dict[tuple[str, int, int], int] = {}
+    for site in callsites:
+        key = (site.path, site.line, site.column)
+        seen[key] = seen.get(key, 0) + 1
+    collisions = sorted(key for key, count in seen.items() if count > 1)
+    if not collisions:
+        return ""
+    shown = ", ".join(
+        f"{path}:{line}:{column}" for path, line, column in collisions[:limit]
+    )
+    suffix = "" if len(collisions) <= limit else f" (+{len(collisions) - limit} more)"
+    return f"; colliding positions: {shown}{suffix}"
+
+
 def scan_repository_write_surfaces(
     repository_root: str | Path,
     *,
@@ -823,10 +850,22 @@ def scan_repository_write_surfaces(
             for site in _callsites_for_file(root, package_root, path)
         )
     )
-    return RepositoryWriteInventory(
-        source_revision=source_revision,
-        package_root=package_root.relative_to(root).as_posix(),
-        scan_input_sha256=_scan_input(files, root),
-        files_scanned=len(files),
-        callsites=callsites,
-    )
+    try:
+        return RepositoryWriteInventory(
+            source_revision=source_revision,
+            package_root=package_root.relative_to(root).as_posix(),
+            scan_input_sha256=_scan_input(files, root),
+            files_scanned=len(files),
+            callsites=callsites,
+        )
+    except ValueError as exc:
+        # The container's identity invariants are the scanner's own contract.
+        # A bare ValueError here escapes every declared fail-closed handler in
+        # daedalus/gates/repository_write_inventory_v2.py and
+        # daedalus/gates/report_v3.py, which turns one ambiguous callsite into
+        # a report with no counters at all.  Convert to the declared error and
+        # name the ambiguity so the refusal is actionable evidence.
+        raise RepositoryWriteInventoryError(
+            "repository write inventory identity is not decidable: "
+            f"{exc}{_ambiguity_hint(callsites)}"
+        ) from exc

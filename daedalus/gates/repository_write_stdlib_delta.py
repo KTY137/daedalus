@@ -534,6 +534,10 @@ def scan_repository_write_stdlib_delta(
             if (finding.path, finding.line, finding.column) not in base_positions
         )
     )
+    # An identity failure of the container below raises a bare ValueError from
+    # the frozen dataclass.  The composing scanner
+    # (daedalus/gates/repository_write_inventory_v2.py) converts it to its
+    # declared refusal type so it cannot escape a caller's fail-closed handler.
     return RepositoryWriteStdlibDelta(
         source_revision=source_revision,
         base_inventory_digest=base.digest,

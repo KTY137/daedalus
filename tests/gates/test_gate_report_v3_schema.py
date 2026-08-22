@@ -6,7 +6,7 @@ import daedalus.gates.report_v3 as report_v3
 from daedalus.spine.ledger import ROOT
 
 
-SCHEMA = ROOT / "configs" / "schemas" / "gate-report-v3.schema.json"
+SCHEMA = ROOT / "configs" / "schemas" / "gate-report-v4.schema.json"
 
 
 def test_gate_report_v3_schema_matches_exact_runtime_shape() -> None:

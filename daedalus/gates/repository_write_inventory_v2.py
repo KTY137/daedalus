@@ -241,7 +241,17 @@ def scan_repository_write_surfaces_v2(
             repository_root,
             source_revision=source_revision,
         )
-    except (RepositoryWriteInventoryError, RepositoryWriteStdlibDeltaError) as exc:
+    except (
+        RepositoryWriteInventoryError,
+        RepositoryWriteStdlibDeltaError,
+        # A component's frozen-dataclass identity check raises a bare
+        # ValueError.  Both declared refusal types are RuntimeError
+        # subclasses, so ValueError here is disjoint from them and always
+        # means "a component could not decide its own record identity".
+        # Without this clause it escapes every fail-closed handler above and
+        # the caller emits an error document with no counters at all.
+        ValueError,
+    ) as exc:
         raise RepositoryWriteInventoryV2Error(
             "repository write inventory component failed"
         ) from exc
@@ -264,7 +274,33 @@ def scan_repository_write_surfaces_v2(
             "scanner components overlap at one source position"
         )
 
-    surfaces = tuple(
+    try:
+        surfaces = _compose_surfaces(base_before, delta)
+        return RepositoryWriteInventoryV2(
+            source_revision=source_revision,
+            package_root=base_before.package_root,
+            scan_input_sha256=base_before.scan_input_sha256,
+            files_scanned=base_before.files_scanned,
+            base_inventory_digest=base_before.digest,
+            stdlib_delta_digest=delta.digest,
+            surfaces=surfaces,
+        )
+    except ValueError as exc:
+        # Composition identity failures ("surfaces must be unique", "surface
+        # positions must be unique across components") were raised outside the
+        # try block above and escaped as bare ValueError, past every declared
+        # fail-closed handler in daedalus/gates/report_v3.py.  A refusal is
+        # evidence; an uncaught crash is a report with no counters.
+        raise RepositoryWriteInventoryV2Error(
+            f"repository write surface identity is not decidable: {exc}"
+        ) from exc
+
+
+def _compose_surfaces(
+    base_before: RepositoryWriteInventory,
+    delta: RepositoryWriteStdlibDelta,
+) -> tuple[RepositoryWriteSurface, ...]:
+    return tuple(
         sorted(
             [
                 RepositoryWriteSurface(
@@ -293,13 +329,4 @@ def scan_repository_write_surfaces_v2(
                 for finding in delta.findings
             ]
         )
-    )
-    return RepositoryWriteInventoryV2(
-        source_revision=source_revision,
-        package_root=base_before.package_root,
-        scan_input_sha256=base_before.scan_input_sha256,
-        files_scanned=base_before.files_scanned,
-        base_inventory_digest=base_before.digest,
-        stdlib_delta_digest=delta.digest,
-        surfaces=surfaces,
     )

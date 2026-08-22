@@ -10,7 +10,7 @@ def test_v3_is_additive_and_does_not_replace_v2_import_path() -> None:
     source = inspect.getsource(report_v3)
     assert "from .report import GateReport, build_gate0_report" in source
     assert "class GateReportV3(GateReport)" in source
-    assert "daedalus-gate-report/3" in source
+    assert "daedalus-gate-report/4" in source
     assert "GateReport =" not in source
 
 

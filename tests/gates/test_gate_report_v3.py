@@ -40,6 +40,9 @@ def _clean_report(**changes) -> GateReportV3:
         repository_write_scan_input_sha256="d" * 64,
         repository_write_files_scanned=1,
         repository_write_inventory_generation=2,
+        repository_write_inventory_schema=(
+            "daedalus-gate0-repository-write-inventory/2"
+        ),
     )
     return dataclasses.replace(report, **changes)
 
@@ -49,7 +52,7 @@ def test_complete_v3_report_can_close_only_with_repository_write_evidence() -> N
     assert report.closed is True
     assert report.blockers == ()
     payload = report.to_dict()
-    assert payload["schema"] == "daedalus-gate-report/3"
+    assert payload["schema"] == "daedalus-gate-report/4"
     assert payload["closed"] is True
     assert payload["repository_write_inventory_sha256"] == SHA_C
     assert payload["repository_write_scan_input_sha256"] == "d" * 64

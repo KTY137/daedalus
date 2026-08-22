@@ -15,7 +15,7 @@ def test_cli_emits_machine_v3_report_and_blocked_exit(capsys) -> None:
     assert result == 1
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
-    assert payload["schema"] == "daedalus-gate-report/3"
+    assert payload["schema"] == "daedalus-gate-report/4"
     assert payload["closed"] is False
     assert payload["security_boundary_claimed"] is False
     assert payload["repository_write_inventory_sha256"] is not None

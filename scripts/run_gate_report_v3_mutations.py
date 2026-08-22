@@ -48,13 +48,17 @@ MUTATIONS = {
         """        body[\"repository_write_inventory_sha256\"] = (\n            self.repository_write_inventory_sha256\n        )\n""",
         """        body[\"repository_write_inventory_sha256\"] = None\n""",
     ),
+    # These two anchors carried an extra indentation level and matched zero
+    # times, so the harness aborted on "expected one source anchor, found 0"
+    # before it applied any mutation: the whole file was a dead guard.  The
+    # fences live at function-body indentation in build_gate0_report_v3.
     "disable-base-report-drift-fence": (
-        "        if base_before.to_dict() != base_after.to_dict():\n",
-        "        if False and base_before.to_dict() != base_after.to_dict():\n",
+        "    if base_before.to_dict() != base_after.to_dict():\n",
+        "    if False and base_before.to_dict() != base_after.to_dict():\n",
     ),
     "disable-repository-inventory-drift-fence": (
-        "        if inventory_before != inventory_after:\n",
-        "        if False and inventory_before != inventory_after:\n",
+        "    if inventory_before != inventory_after:\n",
+        "    if False and inventory_before != inventory_after:\n",
     ),
     "disable-v3-monotonicity": (
         "    return tuple(sorted(set(current.blockers) - set(baseline.blockers)))\n",

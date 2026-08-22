@@ -4,6 +4,13 @@ The existing GateReport-v2 import path remains unchanged.  This strangler model
 adds mandatory repository-write inventory identity and blocker fields so a
 future release verifier cannot infer mutation safety from the entrypoint registry
 alone.  It does not issue a release receipt, approval, promotion, or Gate close.
+
+The class name records the strangler generation; ``_SCHEMA`` records the wire
+shape.  The shape moved to ``daedalus-gate-report/4`` when the report gained
+``repository_write_inventory_schema`` (which inventory schema produced the
+evidence) and ``repository_write_scanner_error`` (0 when the scanner produced
+evidence, 1 when it refused).  Adding those keys under the old ``/3`` const
+would have left one schema id naming two shapes.
 """
 from __future__ import annotations
 
@@ -25,7 +32,12 @@ from .repository_write_inventory_v2 import (
 )
 
 
-_SCHEMA = "daedalus-gate-report/3"
+_SCHEMA = "daedalus-gate-report/4"
+# The exact repository-write inventory schema this reporter is written
+# against.  The report declares the schema it observed; a mismatch is a
+# blocker, never a silent acceptance.  Moving the scanner record shape
+# (GATE0_V3_SCANNER_IDENTITY_DECISION.md option A) moves this const with it.
+_INVENTORY_SCHEMA = "daedalus-gate0-repository-write-inventory/2"
 _MAX_REPORT_BYTES = 4 * 1024 * 1024
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _V2_SHARED_FIELDS = {
@@ -55,6 +67,8 @@ _V3_FIELDS = frozenset(
         "repository_write_scan_input_sha256",
         "repository_write_files_scanned",
         "repository_write_inventory_generation",
+        "repository_write_inventory_schema",
+        "repository_write_scanner_error",
         "repository_write_failures",
         *_V2_SHARED_FIELDS,
     }
@@ -70,6 +84,14 @@ def _sha256_or_none(value: object, label: str) -> str | None:
         return None
     if not isinstance(value, str) or not _SHA256.fullmatch(value):
         raise GateReportV3Error(f"{label} must be lowercase sha256 or null")
+    return value
+
+
+def _bounded_string_or_none(value: object, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or len(value) > 4000:
+        raise GateReportV3Error(f"{label} must be a bounded string or null")
     return value
 
 
@@ -140,6 +162,8 @@ class GateReportV3(GateReport):
     repository_write_scan_input_sha256: str | None = None
     repository_write_files_scanned: int = 0
     repository_write_inventory_generation: int = 0
+    repository_write_inventory_schema: str | None = None
+    repository_write_scanner_error: int = 0
     repository_write_failures: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -174,6 +198,21 @@ class GateReportV3(GateReport):
             raise GateReportV3Error(
                 "repository_write_inventory_generation must be a non-negative integer"
             )
+        if self.repository_write_inventory_schema is not None and (
+            not isinstance(self.repository_write_inventory_schema, str)
+            or not self.repository_write_inventory_schema
+            or len(self.repository_write_inventory_schema) > 4000
+        ):
+            raise GateReportV3Error(
+                "repository_write_inventory_schema must be a bounded string or null"
+            )
+        if (
+            type(self.repository_write_scanner_error) is not int
+            or self.repository_write_scanner_error < 0
+        ):
+            raise GateReportV3Error(
+                "repository_write_scanner_error must be a non-negative integer"
+            )
         object.__setattr__(
             self,
             "repository_write_failures",
@@ -199,6 +238,16 @@ class GateReportV3(GateReport):
             rows.append(
                 "repository_write_inventory_generation:unsupported:"
                 f"{self.repository_write_inventory_generation}"
+            )
+        if self.repository_write_scanner_error != 0:
+            rows.append(
+                "repository_write_scanner_error:"
+                f"{self.repository_write_scanner_error}"
+            )
+        if self.repository_write_inventory_schema != _INVENTORY_SCHEMA:
+            rows.append(
+                "repository_write_inventory_schema:unsupported:"
+                f"{self.repository_write_inventory_schema}"
             )
         rows.extend(
             f"repository_write_failures:{row}"
@@ -228,6 +277,12 @@ class GateReportV3(GateReport):
         )
         body["repository_write_inventory_generation"] = (
             self.repository_write_inventory_generation
+        )
+        body["repository_write_inventory_schema"] = (
+            self.repository_write_inventory_schema
+        )
+        body["repository_write_scanner_error"] = (
+            self.repository_write_scanner_error
         )
         body["repository_write_failures"] = list(
             self.repository_write_failures
@@ -320,6 +375,13 @@ class GateReportV3(GateReport):
             repository_write_inventory_generation=_strict_int(
                 payload, "repository_write_inventory_generation"
             ),
+            repository_write_inventory_schema=_bounded_string_or_none(
+                payload.get("repository_write_inventory_schema"),
+                "repository_write_inventory_schema",
+            ),
+            repository_write_scanner_error=_strict_int(
+                payload, "repository_write_scanner_error"
+            ),
             repository_write_failures=_strict_rows(
                 payload, "repository_write_failures"
             ),
@@ -335,7 +397,16 @@ def _repository_write_evidence(
     root: Path,
     *,
     source_revision: str,
-) -> tuple[str | None, str | None, int, int, tuple[str, ...], tuple[str, ...]]:
+) -> tuple[
+    str | None,
+    str | None,
+    int,
+    int,
+    tuple[str, ...],
+    tuple[str, ...],
+    str | None,
+    int,
+]:
     try:
         inventory = scan_repository_write_surfaces_v2(
             root,
@@ -349,12 +420,18 @@ def _repository_write_evidence(
             0,
             ("inventory-refused",),
             ("blocker:repository_write_inventory:refused",),
+            None,
+            1,
         )
     failures = tuple(
         f"{surface.path}:{surface.line}:{surface.column}:"
         f"{surface.kind}:{surface.callee}:{surface.operation}"
         for surface in inventory.blockers
     )
+    # Observed, not asserted: the schema string is read back out of the
+    # artifact the scanner produced, so a scanner schema change shows up in
+    # the report as a mismatch blocker instead of passing silently.
+    declared = inventory.to_dict().get("schema")
     return (
         inventory.digest,
         inventory.scan_input_sha256,
@@ -362,6 +439,8 @@ def _repository_write_evidence(
         2,
         failures,
         (),
+        declared if isinstance(declared, str) and declared else None,
+        0,
     )
 
 
@@ -455,6 +534,8 @@ def build_gate0_report_v3(
         generation,
         failures,
         diagnostics,
+        inventory_schema,
+        scanner_error,
     ) = inventory_after
     base_fields = {
         field.name: getattr(base_after, field.name)
@@ -469,6 +550,8 @@ def build_gate0_report_v3(
         repository_write_scan_input_sha256=scan_input_digest,
         repository_write_files_scanned=files_scanned,
         repository_write_inventory_generation=generation,
+        repository_write_inventory_schema=inventory_schema,
+        repository_write_scanner_error=scanner_error,
         repository_write_failures=failures,
     )
 
