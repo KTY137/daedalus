@@ -866,3 +866,299 @@ def read_inlined_context(
         chunks.append(header + body)
         used += len(header) + len(body)
     return "".join(chunks), skipped
+
+
+# ---------------------------------------------------------------------------
+# WRITE INTENT -- owner decision D6 (giga plan 2026-08-22, line 211)
+# ---------------------------------------------------------------------------
+#
+# THE DEFECT THIS EXISTS TO CLOSE. Protected-artifact protection used to be
+# answered by running a substring list over whatever path-shaped string was to
+# hand. Measured consequence, 8 misfires across three sessions (2 council Bash
+# denials, 4 slice agents, 2 read-only git commands plus a scratchpad redirect;
+# see docs/inventory/2026-08-21/preruling/DECISION_PACKAGE_2026-08-22.md:430):
+# every single one fired on a READ-ONLY payload that merely *named* a protected
+# artifact, and not one blocked a write. The second-order effect is worse than
+# the noise: agents began encoding protected paths so their evidence would slip
+# past the matcher, i.e. the guard was manufacturing anti-provenance -- an
+# Invariant-7 defect, not acceptable strictness.
+#
+# THE RULE. Protection matches WRITE INTENT: a caller at an effect boundary
+# names the operation and the single filesystem target it is about to open for
+# write, replace, rename or unlink, and the target is resolved before any
+# matching happens. Nothing here infers a target from a command string; that
+# inference is the defect. Reading, listing, diffing or quoting a protected path
+# is not a write and is never denied here.
+#
+# COMPOSITION. The resolved target is matched twice and the results are OR-ed:
+# an anchored path rule (exact file / subtree prefix, root-anchored) and the
+# historical substring rule. The substring rule is therefore a SECONDARY
+# heuristic that can only ever ADD a denial. It cannot grant, so this change
+# cannot open a path that was closed before it.
+
+import os as _os
+
+
+class WriteIntentError(ValueError):
+    """The protected-artifact matcher was handed something that is not a target.
+
+    Deliberately an exception rather than a verdict. A command string is neither
+    "blocked" nor "allowed" -- it is the wrong question, and answering it either
+    way is how the eight measured misfires happened. The effect boundary must
+    resolve its own target and say what it intends to do to it.
+    """
+
+
+#: Operations that put bytes on disk, move them, or take them away. Only these
+#: reach the protected-artifact match.
+WRITE_INTENT_OPS: frozenset[str] = frozenset({
+    "create", "write", "append", "replace", "truncate", "open_w", "open_a",
+    "rename", "rename_from", "rename_to", "unlink", "delete", "rmdir", "mkdir",
+    "chmod", "symlink", "copy_to", "move_to",
+})
+
+#: Operations that only observe. Present so a boundary can route every effect
+#: through one predicate instead of deciding for itself what "read" means.
+READ_ONLY_OPS: frozenset[str] = frozenset({
+    "read", "open_r", "stat", "list", "walk", "log", "diff", "show", "grep",
+    "cat", "inspect", "exists", "hash",
+})
+
+# Unambiguous shell signals. A target may legally contain spaces (Windows
+# "Program Files"), so whitespace alone proves nothing; these do.
+_SHELL_SIGNALS: tuple[str, ...] = (
+    "\n", "\r", "\t", "\0", ";", "|", "&", "<", ">", "`", "$(", "*", "?",
+    chr(34), chr(39),
+)
+
+
+def _looks_like_command(raw: str) -> bool:
+    """True when ``raw`` is a command line rather than one filesystem target.
+
+    Three signals, each independently sufficient. Any shell metacharacter; a
+    flag token (a later token starting with ``-``), which covers
+    ``git log -- <path>`` and ``rm -rf <path>``; or a multi-token string whose
+    FIRST token is a bare verb -- no separator and no extension -- which covers
+    ``cat <path>``. A real Windows path with spaces survives all three because
+    its first token carries a drive letter or a separator.
+    """
+    if any(sig in raw for sig in _SHELL_SIGNALS):
+        return True
+    tokens = raw.split()
+    if len(tokens) < 2:
+        return False
+    if any(tok.startswith("-") for tok in tokens[1:]):
+        return True
+    head = tokens[0]
+    return "/" not in head and "\\" not in head and not _os.path.splitext(head)[1]
+
+
+def _expand_short_name(path: str) -> str:
+    """Expand a Windows 8.3 short name (``DAEDAL~1``) to its long form.
+
+    ``os.path.realpath`` resolves symlinks and junctions but leaves 8.3 aliases
+    intact, so ``DAEDAL~1/SENSIT~1.PY`` would miss every policy entry while
+    naming a protected file. Best effort and non-fatal: on any failure the
+    caller keeps the unexpanded form and the substring rule still applies.
+    """
+    if _os.name != "nt" or "~" not in path:
+        return path
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        fn = ctypes.windll.kernel32.GetLongPathNameW
+        fn.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        fn.restype = wintypes.DWORD
+        buf = ctypes.create_unicode_buffer(32768)
+        used = fn(path, buf, len(buf))
+        if 0 < used < len(buf) and buf.value:
+            return buf.value
+    except Exception:  # pragma: no cover - platform/ctypes availability
+        return path
+    return path
+
+
+def _resolve_existing_prefix(p: Path) -> str:
+    """Resolve ``p`` through its deepest EXISTING ancestor.
+
+    A file about to be created does not exist yet, so ``realpath`` on the leaf
+    would resolve nothing. Walking up to the first component that is really
+    there, resolving THAT (symlinks, junctions, 8.3 aliases, ``..``) and
+    re-attaching the tail gives the path the write will actually land on.
+    """
+    tail: list[str] = []
+    probe = Path(_os.path.normpath(str(p)))
+    while not _os.path.exists(str(probe)) and probe.parent != probe:
+        tail.append(probe.name)
+        probe = probe.parent
+    anchor = _expand_short_name(_os.path.realpath(str(probe)))
+    if not tail:
+        return _os.path.normpath(anchor)
+    return _os.path.normpath(_os.path.join(anchor, *reversed(tail)))
+
+
+def resolve_write_target(target, repo_root: str | None = None) -> tuple[str, ...]:
+    """Resolve a write target to every absolute path the write could land on.
+
+    Returns one or two absolute, ``..``-collapsed, symlink- and junction-resolved
+    paths: the target as named, and -- when the leaf is itself a link -- its
+    destination. BOTH are matched, because operations differ in which one they
+    touch: ``unlink``/``rename`` act on the link, ``open(..., "w")`` acts on the
+    destination. Checking both is the only composition that cannot grant.
+
+    Raises :class:`WriteIntentError` when handed a command line instead of a
+    target. That is not defensive paranoia: inferring a target from a command
+    string is the exact computation D6 removes from the enforcement path.
+    """
+    raw = _os.fspath(target)
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", "surrogateescape")
+    if isinstance(target, str) and _looks_like_command(raw):
+        raise WriteIntentError(
+            "write intent needs one filesystem target, got a command line: "
+            + repr(raw)
+            + ". Resolve the target at the effect boundary; naming a protected "
+            "path in a command is not a write (owner decision D6)."
+        )
+    if not raw.strip():
+        raise WriteIntentError("write intent needs a non-empty target")
+
+    base = Path(repo_root) if repo_root else Path(_os.getcwd())
+    p = Path(raw)
+    if not p.is_absolute():
+        p = base / p
+
+    # (1) The leaf's OWN identity: the directory chain above it is resolved,
+    # the leaf name is kept as written. ``unlink`` and ``rename`` act on this,
+    # not on whatever it points at -- so resolving the leaf away here would let
+    # a symlink NAMED as a protected artifact be deleted while the matcher
+    # cheerfully inspected its harmless destination.
+    if p.name:
+        named = _os.path.normpath(_os.path.join(_resolve_existing_prefix(p.parent), p.name))
+    else:
+        named = _resolve_existing_prefix(p)
+    out = [named]
+    # (2) Where the bytes actually land: the leaf link followed. ``open(..., "w")``
+    # acts on this one. Both are matched; neither can grant.
+    landed = _os.path.normpath(_os.path.realpath(named))
+    if landed not in out:
+        out.append(landed)
+    return tuple(out)
+
+
+def anchor_for_policy(resolved_abs: str, repo_root: str | None = None) -> str:
+    """Root-anchored, forward-slashed, lower-cased form of a resolved path.
+
+    Inside the repository the path is expressed relative to the root with a
+    leading ``/`` so policy entries such as ``daedalus/spine/`` match a subtree
+    from the root. Outside it the whole absolute path is used, so entries like
+    ``/.git/`` still bite on a target the caller escaped the repo with.
+    """
+    if repo_root:
+        try:
+            root = _os.path.realpath(str(repo_root))
+            rel = _os.path.relpath(resolved_abs, root)
+            if rel != ".." and not rel.startswith(".." + _os.sep):
+                return _fence_norm(rel)
+        except (ValueError, OSError):
+            pass
+    return _fence_norm(resolved_abs)
+
+
+def _entry_is_path_shaped(entry: str) -> bool:
+    """A policy entry that names a file or a subtree, not a bare fragment.
+
+    ``daedalus/spine/`` and ``.gitattributes`` are path-shaped; ``state_machine``
+    and ``interlock`` from the generic high-blast-radius floor are fragments and
+    keep their substring meaning, which is what they were written for.
+    """
+    if entry.endswith("/"):
+        return True
+    if re.search(r"\.[a-z0-9]{1,8}$", entry) is not None:
+        return True
+    return entry.strip("/").count("/") >= 1
+
+
+def protected_artifact_reason(anchored: str, policy: Policy | None = None) -> str | None:
+    """Anchored match of a resolved, anchored path against the protected list.
+
+    A trailing ``/`` names a subtree; anything else names THAT file. Both are
+    anchored at the repository root, so ``/vendor/agents.md`` does not satisfy
+    an ``agents.md`` entry and ``/docs/adrs/`` matches only from the root.
+    Fragment entries are skipped here and left to the substring rule, which
+    still runs -- so skipping one can never turn a denial into a permission.
+    """
+    policy = policy or DEFAULT_POLICY
+    for entry in policy.high_risk_path_substrings:
+        if not _entry_is_path_shaped(entry):
+            continue
+        anchored_entry = "/" + entry.lstrip("/")
+        if anchored_entry.endswith("/"):
+            if anchored.startswith(anchored_entry):
+                return "protected subtree '" + entry + "'"
+        elif anchored == anchored_entry or anchored.startswith(anchored_entry + "/"):
+            return "protected artifact '" + entry + "'"
+    return None
+
+
+def write_intent_blocked(
+    target,
+    *,
+    op: str,
+    policy: Policy | None = None,
+    repo_root: str | None = None,
+) -> str | None:
+    """Reason a write to ``target`` is refused, or ``None``.
+
+    ``op`` is the caller's declared intent and must be a member of
+    :data:`WRITE_INTENT_OPS` or :data:`READ_ONLY_OPS`. A read-only op returns
+    ``None`` without consulting any list: observing a protected artifact has
+    never been the thing worth blocking. An unknown op raises rather than
+    guessing, because a guess here is the defect D6 names.
+
+    The verdict is the OR of an anchored path match and the historical substring
+    predicate :func:`path_write_blocked`, evaluated over EVERY path the write
+    could reach. The substring half can only add denials, never remove one.
+    """
+    policy = policy or DEFAULT_POLICY
+    if op in READ_ONLY_OPS:
+        return None
+    if op not in WRITE_INTENT_OPS:
+        raise WriteIntentError(
+            "unknown effect op " + repr(op) + "; declare one of WRITE_INTENT_OPS "
+            "or READ_ONLY_OPS at the boundary"
+        )
+    try:
+        candidates = resolve_write_target(target, repo_root=repo_root)
+    except WriteIntentError:
+        raise
+    except OSError as exc:
+        # Resolution failed on a real target: refuse. Fail-closed is the only
+        # safe direction for a write whose destination cannot be determined.
+        return "write target could not be resolved (" + type(exc).__name__ + ")"
+    for resolved in candidates:
+        anchored = anchor_for_policy(resolved, repo_root=repo_root)
+        reason = protected_artifact_reason(anchored, policy)
+        if reason is not None:
+            return reason + " (op=" + op + ", resolved=" + anchored + ")"
+        if path_write_blocked(anchored, policy):
+            return (
+                "write-lane denial on resolved path (op=" + op
+                + ", resolved=" + anchored + ")"
+            )
+    return None
+
+
+def mentions_protected_path(text: str, policy: Policy | None = None) -> tuple[str, ...]:
+    """REPORT ONLY. Protected entries a piece of text happens to name.
+
+    This exists so a receipt can say "this payload mentioned the plan" without
+    any caller being tempted to turn that observation back into a denial. It is
+    the exact computation D6 removed from the enforcement path; wiring its
+    result into a gate re-creates the eight measured misfires. Nothing in this
+    module calls it.
+    """
+    policy = policy or DEFAULT_POLICY
+    low = _norm(text)
+    return tuple(e for e in policy.high_risk_path_substrings if e and e in low)
