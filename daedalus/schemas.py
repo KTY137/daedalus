@@ -663,19 +663,28 @@ class AttemptContract(CanonicalContract):
         provenance: ContractProvenance,
         campaign_id: str | None = None,
         read_only: bool = False,
+        base_revision: str | None = None,
     ) -> "AttemptContract":
         """Adapt the existing spine TaskSpec without inventing a second task.
 
         A legacy write task with an empty target scope is deliberately refused:
         it may still run through the old harness, but it cannot masquerade as a
         bounded Gate-0 contract.
+
+        ``base_revision`` overrides ``task.base_revision`` and exists because
+        the live spine RESOLVES the task's request (``None``, ``"HEAD"``, a
+        branch name) into one exact revision at run time, and the resolved
+        value -- not the request -- is what the candidate was actually built
+        on. Taking the request here would bind the contract to a moving
+        reference, which is the opposite of an atomic revision.
         """
 
         required = ("task_id", "instruction", "base_revision", "digest")
         missing = [name for name in required if not hasattr(task, name)]
         if missing:
             raise ValueError(f"task spec is missing adapter field(s): {missing}")
-        base_revision = getattr(task, "base_revision")
+        if base_revision is None:
+            base_revision = getattr(task, "base_revision")
         if not base_revision:
             raise ValueError("canonical attempt requires a frozen base_revision")
         paths = tuple(getattr(task, "target_paths", ()) or ())
@@ -763,6 +772,86 @@ class EvidenceItem:
         body = _record_payload(cls, payload, "evidence item")
         body["provenance"] = ContractProvenance.from_dict(body["provenance"])
         return cls(**body)
+
+
+def _attempt_evidence_projection(
+    result: Any, attempt: "AttemptContract"
+) -> dict[str, Any]:
+    """The ONE reading of a legacy AttemptResult used to build evidence.
+
+    Extracted from :meth:`EvidencePacket.from_attempt_result` so that a live
+    producer can compute the input digests its provenance must bind WITHOUT
+    re-deriving this projection in a second place and drifting from it. The
+    duplicate would not fail loudly: it would fail as a provenance that binds
+    the wrong gate output, which is exactly the class of silent lie this
+    contract exists to prevent.
+
+    It decides nothing. No verdict is promoted, no evaluation status is chosen
+    and no artifact is persisted here; this is a pure read of an already
+    finished attempt.
+    """
+
+    if str(getattr(result, "task_id", "")) != attempt.task_id:
+        raise ValueError("attempt result task_id does not match attempt contract")
+    result_base = getattr(result, "base_revision", None)
+    if result_base and str(result_base) != attempt.base_revision:
+        raise ValueError("attempt result base_revision does not match attempt contract")
+    gate = getattr(result, "gates", None)
+    artifact = getattr(result, "artifact", None)
+    locator = getattr(result, "artifact_locator", None)
+    persist_error = getattr(result, "persist_error", None)
+    state = str(getattr(result, "state", ""))
+    if gate is not None:
+        if bool(getattr(gate, "cancelled", False)):
+            verdict = "cancelled"
+        elif bool(getattr(gate, "passed", False)):
+            verdict = "passed"
+        else:
+            verdict = "failed"
+        evidence_sha = str(getattr(gate, "output_sha256"))
+        evaluator = str(getattr(gate, "name", "") or "gate")
+        details = gate.summary()
+    else:
+        verdict = "cancelled" if state == "cancelled" else "error"
+        details = {
+            "state": state,
+            "error": getattr(result, "error", None),
+            "ledger_error": getattr(result, "ledger_error", None),
+        }
+        evidence_sha = canonical_sha(_json_value(details))
+        evaluator = "attempt-state"
+    candidate_sha = (
+        str(getattr(artifact, "diff_sha256"))
+        if artifact is not None and not artifact.is_empty
+        else None
+    )
+    candidate_locator: str | None = None
+    locator_matches = False
+    if isinstance(locator, Mapping) and candidate_sha is not None:
+        locator_uri = str(locator.get("locator_uri") or "")
+        artifact_uri = str(locator.get("uri") or "")
+        try:
+            candidate_locator = _artifact_locator(
+                locator_uri, "attempt result artifact_locator.locator_uri"
+            )
+        except ValueError:
+            candidate_locator = None
+        locator_matches = (
+            candidate_locator is not None
+            and artifact_uri == f"sha256:{candidate_sha}"
+        )
+    return {
+        "state": state,
+        "verdict": verdict,
+        "evaluator": evaluator,
+        "evidence_sha256": evidence_sha,
+        "details": details,
+        "candidate_sha256": candidate_sha,
+        "candidate_locator": candidate_locator,
+        "locator_matches": locator_matches,
+        "persist_error": persist_error,
+        "has_artifact": artifact is not None,
+    }
 
 
 @dataclass(frozen=True)
@@ -880,6 +969,51 @@ class EvidencePacket(CanonicalContract):
         )
 
     @classmethod
+    def attempt_provenance(
+        cls,
+        result: Any,
+        *,
+        attempt: AttemptContract,
+        evidence_locator: str,
+        origin: str,
+        created_at: str,
+        trace_id: str | None = None,
+        extra_digests: Sequence[str] = (),
+    ) -> ContractProvenance:
+        """Build the provenance :meth:`from_attempt_result` will demand.
+
+        Every digest this packet and its single evidence item reference has to
+        appear in ``provenance.input_digests`` or construction fails closed.
+        Working that set out by hand at the call site is how a producer ends up
+        binding a stale gate output, so the schema computes it from the same
+        projection the packet itself uses.
+        """
+
+        projection = _attempt_evidence_projection(result, attempt)
+        locator = _artifact_locator(evidence_locator, "evidence_locator")
+        candidate_sha = projection["candidate_sha256"]
+        digests: list[str] = [
+            attempt.digest,
+            attempt.policy_decision_sha256,
+            str(projection["evidence_sha256"]),
+            _locator_sha256(locator),
+            # subject_sha256, exactly as from_attempt_result derives it.
+            str(candidate_sha or attempt.digest),
+        ]
+        if candidate_sha is not None:
+            digests.append(str(candidate_sha))
+        if projection["locator_matches"] and projection["candidate_locator"]:
+            digests.append(_locator_sha256(str(projection["candidate_locator"])))
+        digests.extend(str(value) for value in extra_digests)
+        return ContractProvenance(
+            origin=origin,
+            source_revision=attempt.base_revision,
+            created_at=created_at,
+            input_digests=tuple(sorted(set(digests))),
+            trace_id=trace_id,
+        )
+
+    @classmethod
     def from_attempt_result(
         cls,
         result: Any,
@@ -893,55 +1027,17 @@ class EvidencePacket(CanonicalContract):
     ) -> "EvidencePacket":
         """Project an AttemptResult into evidence without turning green into promotion."""
 
-        if str(getattr(result, "task_id", "")) != attempt.task_id:
-            raise ValueError("attempt result task_id does not match attempt contract")
-        result_base = getattr(result, "base_revision", None)
-        if result_base and str(result_base) != attempt.base_revision:
-            raise ValueError("attempt result base_revision does not match attempt contract")
-        gate = getattr(result, "gates", None)
+        projection = _attempt_evidence_projection(result, attempt)
         artifact = getattr(result, "artifact", None)
-        locator = getattr(result, "artifact_locator", None)
-        persist_error = getattr(result, "persist_error", None)
-        state = str(getattr(result, "state", ""))
-        if gate is not None:
-            if bool(getattr(gate, "cancelled", False)):
-                verdict = "cancelled"
-            elif bool(getattr(gate, "passed", False)):
-                verdict = "passed"
-            else:
-                verdict = "failed"
-            evidence_sha = str(getattr(gate, "output_sha256"))
-            evaluator = str(getattr(gate, "name", "") or "gate")
-            details = gate.summary()
-        else:
-            verdict = "cancelled" if state == "cancelled" else "error"
-            details = {
-                "state": state,
-                "error": getattr(result, "error", None),
-                "ledger_error": getattr(result, "ledger_error", None),
-            }
-            evidence_sha = canonical_sha(_json_value(details))
-            evaluator = "attempt-state"
-        candidate_sha = (
-            str(getattr(artifact, "diff_sha256"))
-            if artifact is not None and not artifact.is_empty
-            else None
-        )
-        candidate_locator: str | None = None
-        locator_matches = False
-        if isinstance(locator, Mapping) and candidate_sha is not None:
-            locator_uri = str(locator.get("locator_uri") or "")
-            artifact_uri = str(locator.get("uri") or "")
-            try:
-                candidate_locator = _artifact_locator(
-                    locator_uri, "attempt result artifact_locator.locator_uri"
-                )
-            except ValueError:
-                candidate_locator = None
-            locator_matches = (
-                candidate_locator is not None
-                and artifact_uri == f"sha256:{candidate_sha}"
-            )
+        persist_error = projection["persist_error"]
+        state = projection["state"]
+        verdict = projection["verdict"]
+        evidence_sha = projection["evidence_sha256"]
+        evaluator = projection["evaluator"]
+        details = projection["details"]
+        candidate_sha = projection["candidate_sha256"]
+        candidate_locator = projection["candidate_locator"]
+        locator_matches = projection["locator_matches"]
         budget_violations = attempt.budget.violations(usage)
         details = {
             **details,
@@ -1353,9 +1449,21 @@ class AttemptReceipt(CanonicalContract):
             "cancelled",
             "no-change",
             "error",
+            # ADDITIVE. The legacy attempt state ``clean`` means only "the gate
+            # returned green"; it does not mean the evidence is conclusive. A
+            # green gate whose evaluator assurance is ``unverified`` -- pytest
+            # run over the candidate's own worktree, where the candidate could
+            # have edited the tests that judge it -- yields an INCONCLUSIVE
+            # EvidencePacket by the packet's own rules. Without this outcome the
+            # receipt for that attempt could not be built at all, and the live
+            # path would have had to choose between minting no receipt and
+            # claiming a "passed" the evidence refuses to support. Neither is
+            # acceptable, so the honest verdict gets a name.
+            "inconclusive",
         }:
             raise ValueError(
-                "receipt outcome must be passed, failed, cancelled, no-change, or error"
+                "receipt outcome must be passed, failed, cancelled, no-change, "
+                "inconclusive, or error"
             )
         object.__setattr__(self, "started_at", _utc_timestamp(self.started_at, "started_at"))
         object.__setattr__(
@@ -1407,6 +1515,17 @@ class AttemptReceipt(CanonicalContract):
             outcome = state_to_outcome[state]
         except KeyError as exc:
             raise ValueError(f"unknown legacy attempt state {state!r}") from exc
+        # THE EVIDENCE OUTRANKS THE LEGACY STATE. ``clean`` is a statement about
+        # the gate's exit code; ``evaluation_status`` is a statement about
+        # whether that verdict can be relied on. When the packet says
+        # inconclusive -- unverified evaluator, unbound candidate locator, a
+        # persist error, or a budget violation -- the receipt says inconclusive
+        # too, rather than laundering a green exit code into a "passed" the
+        # evidence boundary explicitly declined to certify.
+        if outcome in {"passed", "failed"} and (
+            evidence.evaluation_status == "inconclusive"
+        ):
+            outcome = "inconclusive"
         if str(getattr(result, "task_id", "")) != attempt.task_id:
             raise ValueError("attempt result task_id does not match attempt contract")
         if evidence.mission_id != attempt.mission_id or evidence.attempt_id != attempt.attempt_id:

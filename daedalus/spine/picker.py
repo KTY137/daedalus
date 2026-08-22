@@ -2779,6 +2779,10 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     Split out as the single injection seam so ``--dry-run`` can be tested by
     passing an ``attempt_fn`` that raises: proving the flag does not attempt
     anything requires a way to observe an attempt that never happens.
+
+    It is also where one MissionContract per picked candidate is minted: the
+    picker is the only live code that decides what to work on next, so it is
+    the only place a mission can honestly be compiled from user-facing intent.
     """
     from daedalus.spine.attempt import offload_runner, run_attempt
 
@@ -2787,12 +2791,38 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     if ledger_error or ledger_path is None:
         raise RuntimeError(
             f"repo-bound spine ledger is unavailable: {ledger_error}")
+
+    # ONE MISSION PER PICKED CANDIDATE. Failure to compile a mission must not
+    # stop the attempt -- the ranked work is still real work -- so the mission
+    # is optional and its absence falls back to TaskAttempt's task-derived
+    # default, which is a deterministic id, not a fresh uuid per attempt.
+    import subprocess as _subprocess
+    from datetime import datetime as _datetime, timezone as _timezone
+
+    from daedalus.schemas import ResourceBudget
+    from daedalus.spine.receipts import mission_contract_for_candidate
+
+    mission_id = None
+    try:
+        head = _subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=args.repo_root,
+            check=True, capture_output=True).stdout.decode().strip()
+        mission = mission_contract_for_candidate(
+            candidate,
+            source_revision=head,
+            created_at=_datetime.now(_timezone.utc).isoformat(),
+            budget=ResourceBudget(max_wall_time_s=int(candidate.gate_timeout_s)),
+        )
+        mission_id = mission.mission_id
+    except Exception:                       # noqa: BLE001 - reported by absence
+        mission_id = None
     return run_attempt(
         spec,
         runner=offload_runner(live=bool(args.live)),
         repo_root=args.repo_root,
         ledger_path=ledger_path,
         artifact_dir=args.artifact_dir,
+        mission_id=mission_id,
         keep_worktree=bool(args.keep_worktree))
 
 

@@ -132,7 +132,7 @@ from daedalus.primary_tree import (
     nearest_existing,
     overlap_reason as _overlap_reason,
 )
-from daedalus.schemas import ContractProvenance
+from daedalus.schemas import ContractProvenance, ResourceBudget, ResourceUsage
 from daedalus.spine.durability import open_gate0_spine_writer
 from daedalus.spine.envelope import current_trace_id
 from daedalus.spine.ledger import SpineLedger, canonical_json
@@ -726,6 +726,16 @@ class AttemptResult:
     runner_detail: Any = None
     reaped: tuple = ()
     reap_error: str | None = None
+    #: The canonical Gate-0 projection of this attempt --
+    #: ``AttemptContract`` / ``EvidencePacket`` / ``AttemptReceipt`` plus the
+    #: ``PolicyDecision`` and ``RuntimeManifest`` they bind -- as the wire dict
+    #: written to the spine ledger. See :mod:`daedalus.spine.receipts`. ``None``
+    #: only for the early refusals that never reached the ledger at all.
+    contracts: dict[str, Any] | None = None
+    #: Why the canonical projection is incomplete, when it is. An attempt is
+    #: never failed for this: losing a gated candidate because its projection
+    #: could not be built would be strictly worse than reporting the gap.
+    contracts_error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -761,7 +771,22 @@ class AttemptResult:
             "runner_detail": _jsonable(self.runner_detail),
             "reaped": _jsonable(list(self.reaped)),
             "reap_error": self.reap_error,
+            "contracts": _jsonable(self.contracts),
+            "contracts_error": self.contracts_error,
         }
+
+    def contract_set(self) -> "Any":
+        """Read this attempt's canonical records back as contracts, not dicts.
+
+        The consuming half of the wiring lives here so a caller never has to
+        interpret the projection by hand: a tampered or malformed record fails
+        to reconstruct instead of quietly reappearing as a plausible object.
+        """
+        from daedalus.spine.receipts import AttemptContractSet
+
+        if self.contracts is None:
+            return None
+        return AttemptContractSet.from_dict(self.contracts)
 
 
 # --------------------------------------------------------------------------- #
@@ -1124,7 +1149,11 @@ class TaskAttempt:
                  worktree_manager: GitWorktreeManager | None = None,
                  keep_worktree: bool = False,
                  reap: bool = True,
-                 artifact_dir: str | Path | None = None) -> None:
+                 artifact_dir: str | Path | None = None,
+                 mission_id: str | None = None,
+                 campaign_id: str | None = None,
+                 budget: "ResourceBudget | None" = None,
+                 spend_grant_microusd: int = 0) -> None:
         if not isinstance(task, TaskSpec):
             raise TypeError("task must be a TaskSpec")
         if runner is None or not callable(runner):
@@ -1190,6 +1219,27 @@ class TaskAttempt:
         self.branch = (f"{BRANCH_PREFIX}-{_slug(task.task_id)}-"
                        f"{task.digest[:8]}-{uuid.uuid4().hex[:6]}")
         self.effect_key = self.branch
+        # CANONICAL IDENTITY (see daedalus.spine.receipts). The attempt id IS
+        # the effect key: one string names the branch in the world, the ledger
+        # row, and the AttemptContract, so no join table can drift.
+        #
+        # ``mission_id`` defaults to a value DERIVED from the task rather than
+        # a fresh uuid, so two attempts at the same task under the same missing
+        # mission land under the same mission id instead of inventing a new
+        # mission per attempt. A caller that has a real MissionContract passes
+        # its id and this default never applies.
+        self.attempt_id = self.branch
+        self.mission_id = str(mission_id) if mission_id else (
+            f"mission-{_slug(task.task_id)}-{task.digest[:12]}")
+        self.campaign_id = str(campaign_id) if campaign_id else None
+        # The budget the CONTRACT declares. The default binds the one execution
+        # bound this class actually enforces -- the gate timeout -- and binds
+        # nothing else. It deliberately does NOT declare a token or cost
+        # ceiling: this spine measures neither, and a ceiling nothing measures
+        # is a claim, not a bound.
+        self.budget = budget if budget is not None else ResourceBudget(
+            max_wall_time_s=int(float(task.gate_timeout_s)))
+        self.spend_grant_microusd = int(spend_grant_microusd)
         # Filled in by run() from the fresh worktree, BEFORE the runner is
         # invoked. None until then, and None afterwards for a worktree whose
         # `.git` was not the expected pointer file.
@@ -1647,6 +1697,111 @@ class TaskAttempt:
             return None, (
                 f"artifact could not be persisted: {type(e).__name__}: {e}")
 
+    def _persist_gate_output(
+            self,
+            gates: GateResult | None,
+            base_revision: str | None,
+            created_ts: str) -> tuple[str | None, str | None]:
+        """Put the RAW gate output in the content-addressed store.
+
+        ``EvidenceItem.evidence_locator`` must be a durable
+        ``artifact-locator:sha256:`` URI, and the point of that requirement is
+        that a verdict has to be re-readable later. The trimmed
+        ``GateResult.summary()`` tail already in the ledger is not that: it is a
+        4000-character excerpt. So the FULL bytes go to the same store the
+        candidate patch goes to, behind the same primary-checkout fence, and the
+        locator -- not the excerpt -- is what the evidence binds.
+
+        The bytes are encoded exactly as :func:`_sha256_text` encodes them, so
+        ``expected_sha256`` is the gate's own ``output_sha256`` and the store
+        verifies the two agree before publishing. A mismatch is a refusal here
+        rather than an evidence item pointing at different bytes than it claims.
+
+        Returns ``(locator_uri, error)``; failure is reported, never raised.
+        """
+        if gates is None:
+            return None, ("no gate ran, so there is no evaluator output to bind "
+                          "as evidence")
+        if self._artifact_dir is None:
+            return None, ("no artifact store configured (artifact_dir is None), "
+                          "so the gate output has no durable locator")
+        if base_revision is None:
+            return None, "no resolved base revision to bind the gate output to"
+        store = ArtifactStore(self._artifact_dir)
+        try:
+            assert_write_allowed(
+                store.root,
+                self.repo_root,
+                what="to persist a gate output artifact store to")
+        except PrimaryCheckoutWrite as e:
+            return None, str(e)
+        try:
+            payload = gates.output.encode("utf-8", "replace")
+            locator = store.put_bytes(
+                payload,
+                expected_sha256=gates.output_sha256,
+                media_type="text/plain",
+                metadata={
+                    "kind": "gate_output",
+                    "gate": gates.name,
+                    "task_id": self.task.task_id,
+                    "attempt_id": self.attempt_id,
+                    "passed": bool(gates.passed),
+                    "returncode": gates.returncode,
+                    "filename_hint": f"{_slug(self.task.task_id)}-{gates.name}.log",
+                },
+                provenance=ContractProvenance(
+                    origin="daedalus.spine.attempt.TaskAttempt",
+                    source_revision=base_revision,
+                    created_at=created_ts,
+                    input_digests=(self.task.digest,),
+                    trace_id=current_trace_id(),
+                ).to_dict(),
+            )
+            return locator.locator_uri, None
+        except Exception as e:                 # noqa: BLE001 - reported side effect
+            return None, (
+                f"gate output could not be persisted: {type(e).__name__}: {e}")
+
+    def _canonicalise(self, result: AttemptResult, base_revision: str | None):
+        """Project one finished attempt onto the canonical Gate-0 contracts.
+
+        THE WIRING THIS CLASS WAS MISSING. ``daedalus.schemas`` has carried
+        ``AttemptContract.from_task_spec`` and
+        ``EvidencePacket``/``AttemptReceipt.from_attempt_result`` -- adapters
+        written for exactly these legacy records -- with no caller anywhere in
+        production. Invariant 1 says Mission, Attempt, Evidence and policy
+        decisions have ONE canonical contract; a contract nothing produces does
+        not satisfy it. This call is what makes the live attempt path produce
+        them.
+        """
+        from daedalus.spine.receipts import adapter_identity, canonicalise_attempt
+
+        locator_uri, locator_error = self._persist_gate_output(
+            result.gates, base_revision, result.finished_ts)
+        gate_ms = (int(round(result.gates.duration_s * 1000))
+                   if result.gates is not None else 0)
+        return canonicalise_attempt(
+            result,
+            task=self.task,
+            mission_id=self.mission_id,
+            attempt_id=self.attempt_id,
+            base_revision=str(base_revision or ""),
+            adapter_id=adapter_identity(self._runner),
+            evidence_locator=locator_uri,
+            locator_error=locator_error,
+            # The measured half of usage. Tokens and spend are absent because
+            # nothing on this path meters them -- see receipts.UNMETERED_SPEND_REASON,
+            # which travels inside the PolicyDecision digest rather than in a
+            # comment a reader of the record would never see.
+            usage=ResourceUsage(wall_time_ms=gate_ms),
+            budget=self.budget,
+            created_at=result.finished_ts,
+            spend_grant_microusd=self.spend_grant_microusd,
+            campaign_id=self.campaign_id,
+            trace_id=current_trace_id(),
+        )
+
     def _cleanup(self, worktree: Path) -> tuple[bool, str | None]:
         if self._keep_worktree:
             return False, None
@@ -1665,6 +1820,18 @@ class TaskAttempt:
                             gates: GateResult | None = None,
                             **kw: Any) -> AttemptResult:
         ledger_error: str | None = None
+        # THE RESULT IS BUILT BEFORE THE LEDGER WRITE, not after, and that
+        # ordering is load-bearing now. The canonical projection reads a
+        # finished AttemptResult, and its EvidencePacket digest binds the exact
+        # gate output bytes; building the projection from a result that does not
+        # exist yet would mean re-deriving the same fields a second time in a
+        # second place -- the drift this whole change exists to remove. The only
+        # field the ledger write can still change is ``ledger_error``, and that
+        # is applied by the ``replace`` below.
+        result = finish(state, intent_id=intent_id, artifact=artifact,
+                        gates=gates, ledger_error=None, **kw)
+        contracts = self._canonicalise(result, kw.get("base_revision"))
+        contract_body = contracts.to_dict()
         result_body = {
             "state": state,
             "branch": self.branch,
@@ -1677,6 +1844,10 @@ class TaskAttempt:
             "persist_error": kw.get("persist_error"),
             "gates": gates.summary() if gates else None,
             "error": kw.get("error"),
+            # ADDITIVE: every pre-existing key above keeps its exact shape, so
+            # no existing reader of a spine row breaks. The canonical records
+            # join the SAME row rather than opening a second store.
+            "contracts": contract_body,
         }
         try:
             if artifact is not None:
@@ -1689,8 +1860,10 @@ class TaskAttempt:
                     canonical_json(_jsonable(result_body)))
         except Exception as e:
             ledger_error = f"{type(e).__name__}: {e}"
-        return finish(state, intent_id=intent_id, artifact=artifact,
-                      gates=gates, ledger_error=ledger_error, **kw)
+        return replace(result,
+                       ledger_error=ledger_error,
+                       contracts=contract_body,
+                       contracts_error=contracts.error)
 
     def _get_ledger(self) -> SpineLedger:
         if self._ledger is None:
