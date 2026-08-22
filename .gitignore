@@ -91,3 +91,18 @@ tests/_looptmp/
 
 # Playwright MCP scratch dir -- tool cache, never source.
 .playwright-mcp/
+
+# Watchdog runtime -- giga plan Phase 3 (docs/inventory/2026-08-21/
+# GIGA_PLAN_2026-08-22.md, "Watchdog hygiene"). The PowerShell watchdog writes
+# attempt logs, sweep logs and state under .claude/watchdog/. Those are traces
+# of a loop that already ran -- regenerable, and worthless as history -- while
+# the prompt files that DRIVE it are source and stay tracked. Before this block
+# only `*.log` caught anything here, so a state or attempt file with any other
+# extension was landing in `git status` as a candidate for the next commit.
+#
+# CONTENTS, not the directory, for exactly the reason the runs/spine block
+# above states in full: git cannot re-include a file whose parent directory is
+# excluded, so `.claude/watchdog/` would silently turn the negation into a
+# no-op the moment the tracked prompt is added again on a fresh clone.
+.claude/watchdog/*
+!.claude/watchdog/docs-sweep-prompt.md
