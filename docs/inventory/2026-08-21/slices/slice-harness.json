@@ -1,0 +1,287 @@
+{
+  "slice": "harness: .claude/ (agents, skills, hooks, workflows, watchdog, settings) + vscode-agent-env/ (Perdix extension) + claude-serena-watchdog*.ps1",
+  "summary": "This slice is the Claude-side operator harness, not part of the Daedalus runtime: 21 subagent charters, 7 repo skills + 1 user-level skill, 2 project hooks plus 5 Iron-Plan hook bindings in the project settings file, 2 JS workflow scripts (ship/audit), an owner-run PowerShell watchdog for 48h autonomous runs, and the VS Code cockpit. Per the plan's authority table these are a 'derived projection' (load the plan, report drift, block ordinary mutation) and are explicitly NOT a security boundary (plan section 1) - the harness is honest about that in serena-first.py's docstring. Health is good: everything except the watchdog runtime state is tracked, the extension is held to its manifest by two real test modules, and the one dead webview template is labelled and pinned by a test rather than believed. The weak spots are runtime residue leaking into a protected directory (.claude/watchdog/ untracked and not ignored), owner-machine absolute paths hardcoded in the watchdog launcher, and the fact that the extension still drives the legacy daedalus.cli/file_bridge surface rather than a Gate-0 canonical entrypoint.",
+  "modules": [
+    {
+      "path": ".claude/settings*.json (project settings + untracked local overlay)",
+      "purpose": "Project harness policy: Bash allow/deny lists, agent-teams env flag, and the five Iron-Plan hook bindings (SessionStart, UserPromptSubmit, PreToolUse, SubagentStart, Stop) plus serena-first and docs-drift-reminder; the untracked local overlay adds 3 Bash allowances, the enabled MCP servers (serena, playwright, context7, shadcn) and MCP_TIMEOUT=120000.",
+      "status": "protected",
+      "plan_mapping": "Invariant 10 (no silent constitution change); plan section 0 (derived projection); Invariant 8 partially (bounded effects, advisory only)",
+      "issues": [
+        "The project settings file is named protected in .claude/proposals/README.md; ordinary sessions must not edit it (AGENTS.md 'Protected changes'). The guard enforces this hard - even naming the file in a tool payload is refused.",
+        "The deny list is 4 literal git/rm patterns - a mechanical convenience, not the effect boundary the plan requires; the real veto lives in .agentenv/ policy.",
+        "MCP_TIMEOUT raised to 120s lives only in the untracked local overlay; it is the workaround for the measured Serena cold-start race (28.35s vs a 30s default), so a fresh clone reintroduces the race."
+      ]
+    },
+    {
+      "path": ".claude/agents/ (21 charters)",
+      "purpose": "Claude Code subagent definitions in three cost tiers: opus specialists (core-dev/Daedalus, safety-dev/Minos, orchestration-dev/Theseus, iris, aristaeus), the Athena worker group (heracles, atalanta, odysseus, penelope, hephaestus), adversarial gates (momus, qa-critic/Nemesis, cerberus), sonnet owners (extension-dev/Perdix, test-dev/Talos, provider-researcher/Pythia), and haiku delegates (argus, kadmos, metron, mnemosyne, docs-dev/Clio).",
+      "status": "wired",
+      "plan_mapping": "plan section 0 derived projection; charters restate the section 14 alignment protocol (guard verify, ALIGNED|EXPERIMENT|AMENDMENT, Iron-Plan footer)",
+      "issues": [
+        "Two overlapping generations coexist: the older 'Ikarus crew' role charters (core-dev/safety-dev/test-dev/extension-dev/orchestration-dev, .claude/agents/core-dev.md:1) and the newer Athena worker group (heracles/atalanta/odysseus/penelope/hephaestus). Only the newer set carries the Iron-Plan footer requirement in its charter body.",
+        "test-dev.md:11 still describes tests/ as 'plain unittest, run with python -m unittest discover tests' and names five test files; the suite is pytest-based and far larger (tests/test_extension_manifest.py, test_serena_first_hook.py, test_skills.py, ...). Stale charter docstring.",
+        "core-dev.md domain list predates the canonical-kernel work (router/ikarus/offload/orchestrate/schemas), so a core-dev dispatch is pointed at legacy modules rather than the Gate-0 kernel."
+      ]
+    },
+    {
+      "path": ".claude/hooks/serena-first.py",
+      "purpose": "PreToolUse hook on Read|Grep that denies symbol-shaped Grep patterns and whole-file Reads when Serena's dashboard port is reachable, forcing LSP tools instead.",
+      "status": "wired",
+      "plan_mapping": "plan section 1 (a hook is not a security boundary); landed via amendment 003 (branch amendment/003-serena-first)",
+      "issues": [
+        "Fail-open by construction (serena-first.py:15-30): if Serena is down every call passes. Correct per its own reasoning, but it means the guard is unobservable in most sessions.",
+        "Reachability is probed by a TCP connect to 127.0.0.1:24282 (serena-first.py:41-43) - any listener on that port satisfies it."
+      ]
+    },
+    {
+      "path": ".claude/hooks/docs-drift-reminder.py",
+      "purpose": "PostToolUse hook on Bash: after a real `git commit`, emits additionalContext telling the session to dispatch mnemosyne and stamp provenance. Never blocks.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance) as a reminder only - advisory, not enforcement",
+      "issues": [
+        "Substring match on 'git commit' (docs-drift-reminder.py:35) fires on any command mentioning it; harmless because it only prints."
+      ]
+    },
+    {
+      "path": ".claude/workflows/ship.js",
+      "purpose": "Encodes the ship sequence as a script: Plan -> Momus critique -> owner-per-lane build -> Metron gate -> Mnemosyne docs, so skipping an adversarial gate requires editing code, not just forgetting.",
+      "status": "wired",
+      "plan_mapping": "plan section 14 alignment protocol, mechanised; AGENTS.md review rules",
+      "issues": [
+        "OWNERS list (ship.js:22-27) is the older Ikarus-crew role set; the Athena worker group is not reachable through this workflow."
+      ]
+    },
+    {
+      "path": ".claude/workflows/audit.js",
+      "purpose": "Multi-lens bug hunt: one finder per lens (qa-critic, cerberus, aristaeus, test-dev) run in rounds until two rounds add nothing, then three skeptics per finding told to refute it.",
+      "status": "wired",
+      "plan_mapping": "Invariant 9 (honest claims) - adversarial refutation before reporting",
+      "issues": []
+    },
+    {
+      "path": ".claude/skills/council/SKILL.md",
+      "purpose": "Cross-vendor Council skill; drives daedalus/council/{session,bus,vendors,publish}.py and writes transcripts to runs/council/<id>.jsonl. Explicitly ADVISORY, promotes nothing.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary) and Invariant 5 - the skill states the verdict gates and promotes nothing",
+      "issues": [
+        "Backing modules verified present (daedalus/council/session.py, bus.py, publish.py)."
+      ]
+    },
+    {
+      "path": ".claude/skills/funnel/SKILL.md",
+      "purpose": "Tiered DeepSeek swarm skill over tools/funnel.py + tools/funnel_report.py; wide tiers observe, narrow tiers synthesise. Advisory, gates nothing.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (models propose, evaluators decide); Invariant 8 (spend bounded - the skill's dry-run/budget verdict step)",
+      "issues": [
+        "External-vendor egress lane; the SKILL.md is the only place the dry-run-before-spend discipline is written down."
+      ]
+    },
+    {
+      "path": ".claude/skills/vault-recall/SKILL.md, .claude/skills/vault-sync/SKILL.md",
+      "purpose": "Read-before-work and write-after-work skills over the Obsidian vault/; append-only, provenance-stamped, links instead of copies.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance); plan section 7 knowledge separation (product memory vs research memory)",
+      "issues": []
+    },
+    {
+      "path": ".claude/skills/ui-ux-pro-max/, frontend-design/, web-design-guidelines/",
+      "purpose": "Vendored UI/UX design skills (styles/palettes/font-pairing CSVs plus per-stack data, design guidance, and a UI-code review checklist).",
+      "status": "island",
+      "plan_mapping": "none - no delivery gate 0-5 covers UI craft; supports the Ikarus cockpit surface only",
+      "issues": [
+        "Largest tracked payload in .claude/ (data/ + references/ + scripts/) and unreferenced by any hook, workflow, or agent charter; it activates only by model choice.",
+        "The standing owner rule 'React Bits via shadcn MCP is mandatory for UI work' lives in user memory, not in any of these SKILL.md files."
+      ]
+    },
+    {
+      "path": ".claude/skills/ (repo) vs ~/.claude/skills/room/",
+      "purpose": "Skill surface split: 7 skills tracked in the repo, the `room` (Der Raum) cross-vendor chatroom skill exists only user-level.",
+      "status": "drifted",
+      "plan_mapping": "none",
+      "issues": [
+        "The room skill advertises itself as 'portable - the room is a plain markdown file under the current project', yet it is not in the repo; a clone of agent_env does not get it. runs/council/room.md in this tree is modified, so the room is in active use.",
+        "Its runtime state (runs/council/room.md) is a chat transcript - keep it as interface only, never orchestration state (plan section 7 / forbidden direction 'chat transcripts as orchestration state')."
+      ]
+    },
+    {
+      "path": ".claude/proposals/",
+      "purpose": "Deliberately-inactive harness proposals: statusline.py, hook_precompact_vault.py, hook_notification_toast.py plus the settings snippets, with a README explaining they stay unmerged because the project settings file is protected.",
+      "status": "island",
+      "plan_mapping": "Invariant 10 / AGENTS.md 'Protected changes' - the correct way to propose a guard change without editing a protected artifact",
+      "issues": [
+        "Intentional island: runnable and tested but wired to nothing until the owner merges a snippet. README.md:1-8 states this explicitly.",
+        "A model-facing note in README.md:24 hints the merge could be done 'ggf. Amendment-frei'; that judgement belongs to the owner, not to a session."
+      ]
+    },
+    {
+      "path": ".claude/watchdog/active-state.json + 43e2809c-.../",
+      "purpose": "Runtime state of the last 48h watchdog run: schema v1 state file (attempt 13, deadline 2026-08-21T17:49Z, lastExitCode 0), 13 attempt logs, mission.md, the refreshed Serena system-prompt override, and the MISSION_COMPLETE marker.",
+      "status": "experiment",
+      "plan_mapping": "the run itself was EXPERIMENT / Gate 0 (higher-twin-nc-v1, runs/higher_twin_nc); the directory is its receipt",
+      "issues": [
+        "UNTRACKED AND NOT IGNORED: `git status` shows `?? .claude/watchdog/`, and `git check-ignore` matches only the scheduled-task lock (via .git/info/exclude:8). Runtime residue sits one `git add -A` away from being committed into a protected policy directory.",
+        "Availability is poor: attempts 1-6 died on ENOTFOUND ('Can't reach the API server'), 7-11 on the same class, 12 on 'Request timed out'. Only attempt 13 of 13 produced work. That is ~11 wasted restarts per successful mission.",
+        "MISSION_COMPLETE carries a full Iron-Plan footer (EXPERIMENT / Gate 0 / 63 passed, 12 receipt chains anchor-verified, no merge/push/promotion) - the honest half of the story."
+      ]
+    },
+    {
+      "path": "claude-serena-watchdog.ps1",
+      "purpose": "622-line resumable supervisor: stable session id, --resume on early exit, Serena system-prompt override refreshed per invocation, bounded exponential backoff on quota/transient errors, mutex per project, MISSION_COMPLETE/BLOCKED/STOP markers, MaxHours 1-168.",
+      "status": "wired",
+      "plan_mapping": "plan section 1 (guards prevent accidental drift, are not a security boundary); Invariant 8 in spirit - it refuses bypassPermissions",
+      "issues": [
+        "Good discipline at line 413: 'Permission mode: $PermissionMode (bypassPermissions is deliberately unsupported)' - the ValidateSet at line 51 enforces it.",
+        "Never resets project files or Git state (docstring line 14) and preflights `claude`/`serena` on PATH plus `claude mcp list` for Serena (lines 257-294).",
+        "It grants a Claude session up to 48h of acceptEdits-class autonomy in the repo; nothing in it consults .agentenv policy, so its effect bound is whatever the in-session guards happen to be."
+      ]
+    },
+    {
+      "path": "claude-serena-watchdog-launch-clean.ps1",
+      "purpose": "38-line launcher that strips inherited CLAUDE*/CLAUDECODE/AI_AGENT/MCP_CLAUDE* env markers before starting the watchdog, so a watchdog started from inside a Claude session does not fail as a nested session.",
+      "status": "drifted",
+      "plan_mapping": "none (operator ergonomics); carries MEASURED evidence 2026-08-17 attempts 1-9 = 0 work",
+      "issues": [
+        "Hardcodes owner-machine absolute defaults: ProjectPath C:\\Users\\nukei\\Desktop\\agent_env.worktrees\\watchdog-mission and PromptFile claude-mission-gate-arc.md (lines 14-15). The worktree still exists, but the file is unportable and pins a stale mission.",
+        "Two watchdog entrypoints at repo root with no doc pointing at either; the launcher is the one you must actually use, and only its comment says so."
+      ]
+    },
+    {
+      "path": ".claude/AGENT_PROTOCOL.md",
+      "purpose": "The crew constitution: three cost tiers, always-on cheap tier, adversarial review as structure (Momus on paper, Nemesis on the running result, Cerberus with a blocking veto), one router, no agent-to-agent chat, named owners, every proposal carries a named test-thermometer.",
+      "status": "wired",
+      "plan_mapping": "AGENTS.md review rules; plan section 0 derived projection",
+      "issues": [
+        "Explicitly disambiguates the Claude crew (.claude/agents/*.md) from the Ikarus runtime personas (agents/*.json) - the single most important boundary in this slice and it is only stated here."
+      ]
+    },
+    {
+      "path": ".claude/COFFEE_PROTOCOL.md",
+      "purpose": "In-character crew retro ritual (v2, tuned to produce ideas rather than vent), run after an Era/merge or on demand.",
+      "status": "island",
+      "plan_mapping": "none",
+      "issues": [
+        "No hook, workflow, or charter invokes it; it fires only if a human calls a coffee."
+      ]
+    },
+    {
+      "path": ".claude/scheduled_tasks.lock",
+      "purpose": "Claude Code scheduled-task session lock (sessionId 6520e1ed-..., pid 4792, acquired 1785494085151).",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Stale lock from a long-dead session; excluded via .git/info/exclude:8 rather than .gitignore, so the exclusion is machine-local."
+      ]
+    },
+    {
+      "path": ".claude/worktrees/",
+      "purpose": "Empty directory.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Empty and untracked; the real lanes live in Desktop/agent_env.worktrees/ (git worktree list shows ~10+ active). Vestigial."
+      ]
+    },
+    {
+      "path": "vscode-agent-env/extension.js",
+      "purpose": "1850-line Perdix cockpit: Activity Bar container with a webview (daedalusDashboardView) plus Projects and Queue trees, 20 registered commands, a spawned `python -m daedalus.cli web` backend with a four-state bootstrap (checking/unknown/degraded/absent), SSE task-event streaming, and the task-lifecycle client over /api/queue/<id>.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 partially - it is an effectful entrypoint (spawns processes, enqueues paid work) but drives the legacy daedalus.cli/file_bridge surface, not a canonical kernel entrypoint",
+      "issues": [
+        "REVIEW-RULE RISK (AGENTS.md 'a new effectful entrypoint that bypasses policy'): extension.js:117-121 spawns `python -m daedalus.cli web` and :514 `-m daedalus.file_bridge watch` directly via child_process, with no .agentenv policy consultation on the VS Code side. The only brake is a UI confirm string (extension.js:1815 warns that the watcher 'may incur Claude spend with no further prompt per task').",
+        "Mitigating discipline is real and documented in-code: passive tree renders must never spawn the backend (:1743), spawn-on-demand only for explicit user commands (:152-166), and BackendUnavailable distinguishes absent/degraded/unknown honestly (:136-141).",
+        "dashboardHtml (:790) is a dead 5-tab Mission Control template with ZERO callers - both webview entry points render agentOsHtml() (:309, :1655), an iframe onto apps/web/. Correctly labelled at :767 and pinned by tests/test_ui_governance.py::test_dead_mission_control_template_is_labelled_not_believed. Dead code kept deliberately as reference, not drift."
+      ]
+    },
+    {
+      "path": "vscode-agent-env/package.json",
+      "purpose": "Extension manifest v0.5.1: 20 commands, 20 activation events, 3 views, 3 config keys (daedalus.root/python/defaultProject), viewsWelcome, menus.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 conformance surface for the UI; checked by tests",
+      "issues": [
+        "Held to the source in both directions by tests/test_extension_manifest.py (declared-but-unhandled commands, registered-but-uncontributed commands, activation-event typos, main path) and tests/test_comms.py; the manifest is the best-tested artifact in this slice.",
+        "No compile/test step of its own beyond `node --check extension.js` (scripts.check) - deliberate, and the test module says why (no JS AST package available offline)."
+      ]
+    },
+    {
+      "path": "vscode-agent-env/DESIGN.md",
+      "purpose": "Mission Control v1 design system for the 5-tab webview.",
+      "status": "drifted",
+      "plan_mapping": "none",
+      "issues": [
+        "Self-labelled: a MEASURED 2026-07-29 banner at the top says the template it specifies has zero callers and the live surface is the apps/web iframe. Honest drift-marking rather than a stale doc, but the body below the banner still reads as a current spec."
+      ]
+    },
+    {
+      "path": "vscode-agent-env/mockup.html, wheel-mock.html",
+      "purpose": "Standalone static UI mocks for the cockpit.",
+      "status": "island",
+      "plan_mapping": "none",
+      "issues": [
+        "Tracked, no importer, no test; design residue that predates the apps/web cockpit."
+      ]
+    },
+    {
+      "path": "vscode-agent-env/daedalus-vscode-0.4.0.vsix, -0.5.1.vsix, node_modules/",
+      "purpose": "Packaged extension builds and the vsce toolchain install.",
+      "status": "dead",
+      "plan_mapping": "none",
+      "issues": [
+        "Correctly gitignored (.gitignore:33 node_modules/, :35 vscode-agent-env/*.vsix; 0 node_modules paths tracked), but the superseded 0.4.0 .vsix still sits on disk next to 0.5.1 with nothing recording which one is installed."
+      ]
+    }
+  ],
+  "docs": [
+    {
+      "path": ".claude/AGENT_PROTOCOL.md",
+      "verdict": "authority",
+      "reason": "The only written definition of the Claude crew's tier/ownership/adversarial-gate model and of the crew-vs-Ikarus-runtime boundary. Subordinate to the master plan but authoritative for this slice."
+    },
+    {
+      "path": ".claude/COFFEE_PROTOCOL.md",
+      "verdict": "keep",
+      "reason": "Ritual doc, harmless, occasionally used; nothing else describes it."
+    },
+    {
+      "path": ".claude/proposals/README.md",
+      "verdict": "keep",
+      "reason": "Explains why four working scripts are deliberately unwired and exactly what the owner must merge; deleting it would turn an intentional island into mystery code."
+    },
+    {
+      "path": "vscode-agent-env/README.md",
+      "verdict": "keep",
+      "reason": "Accurate as of the iframe cockpit: says plainly the extension is a window onto apps/web, not a second implementation, and lists the backend-state UX."
+    },
+    {
+      "path": "vscode-agent-env/DESIGN.md",
+      "verdict": "archive",
+      "reason": "Its own banner declares the surface it specifies dead; keep as historical reference under a docs archive rather than as a live design spec next to the source."
+    },
+    {
+      "path": "vscode-agent-env/LICENSE",
+      "verdict": "keep",
+      "reason": "UNLICENSED marker required by the manifest's files list."
+    }
+  ],
+  "integration_gaps": [
+    ".claude/watchdog/ is untracked AND unignored (git status: `?? .claude/watchdog/`; git check-ignore matches only the scheduled-task lock via .git/info/exclude:8) - watchdog run receipts and a Serena system-prompt dump are one `git add -A` from landing inside a protected policy directory. Either ignore it or move run state under runs/.",
+    "The VS Code extension is an effectful entrypoint outside the canonical guard path: extension.js:117 spawns `python -m daedalus.cli web` and :514 `python -m daedalus.file_bridge watch` with only a UI confirm dialog between the user and unbounded Claude spend. Gate 0 requires a centralized start/guard path for every effectful runtime entrypoint.",
+    "Two agent generations coexist with no router between them: the Ikarus-crew role charters (core-dev/safety-dev/test-dev/extension-dev/orchestration-dev) and the Athena worker group (heracles/atalanta/odysseus/penelope/hephaestus). .claude/workflows/ship.js:22 only knows the older set, so the workers are unreachable from the encoded ship sequence.",
+    "The `room` skill (~/.claude/skills/room/) is user-level only while its state file (runs/council/room.md, currently modified) lives in the repo. The repo carries the transcript but not the instrument that writes it - a clone cannot reproduce a room session.",
+    "MCP_TIMEOUT=120000, the measured fix for the Serena cold-start race, exists only in the untracked local settings overlay; a fresh checkout silently reintroduces the race that makes the serena-first hook fail open.",
+    ".claude/proposals/ (statusline + PreCompact vault marker + Notification toast) is a deliberate island awaiting one owner decision; it has been pending since 2026-08-17 while long unattended watchdog runs - exactly the case the Notification hook was written for - have run without it.",
+    "claude-serena-watchdog-launch-clean.ps1 hardcodes an owner-machine ProjectPath/PromptFile (lines 14-15); the correct launcher is unusable elsewhere and pins a stale mission file."
+  ],
+  "notable": [
+    "The dead-code discipline here is exemplary and worth copying elsewhere: extension.js:767 labels dashboardHtml as UNREACHABLE with a MEASURED date, and tests/test_ui_governance.py::test_dead_mission_control_template_is_labelled_not_believed holds the comment to the code, so the label cannot rot silently.",
+    "serena-first.py:15-30 chooses fail-open on purpose and cites amendment proposal 002 point B - 'an unrecoverable guard state is a defect, not a protection'. The consequence is that the hook is inert in any session where Serena did not start, which is exactly the session where symbol drift is most likely.",
+    "The watchdog's availability record is the honest headline: attempts 1-11 lost to 'Can't reach the API server (ENOTFOUND)', attempt 12 to 'Request timed out', only attempt 13 of 13 did work (.claude/watchdog/43e2809c-.../attempt-*.log). Any claim about unattended-run throughput must be stated per successful attempt, not per elapsed hour.",
+    "claude-serena-watchdog.ps1:413 refuses bypassPermissions by ValidateSet rather than by convention - the one place in this slice where an effect bound is mechanical instead of advisory.",
+    "STALE MODULE DOCSTRING: .claude/agents/test-dev.md:11 tells Talos the suite is 'plain unittest, run with python -m unittest discover tests' and names five files; the real suite is pytest with dozens of modules. A dispatched test-dev starts from a false map.",
+    "STALE MODULE DOCSTRING: .claude/agents/core-dev.md:8-11 scopes Daedalus to router.py/ikarus.py/offload.py/orchestrate.py/schemas.py - the pre-Gate-0 module set - so the charter points the core owner away from the canonical kernel it is supposed to be building.",
+    "Both surviving webview entry points render an iframe onto apps/web/ (extension.js:309, :1655), which means the VS Code extension is now a shell, not the cockpit; the extension-dev/Perdix charter still describes it as owning 'the Mission Control webview, dashboard'.",
+    ".claude/worktrees/ is empty while ~10+ real worktrees live under Desktop/agent_env.worktrees/ - matches the owner's standing rule that lanes belong in agent_env.worktrees/, so the empty directory is vestigial and can go.",
+    "Skills split cleanly into instruments backed by repo code (council -> daedalus/council/*, funnel -> tools/funnel*.py - both verified present, both self-declaring ADVISORY and promoting nothing, consistent with Invariants 4 and 5) and vendored design content (ui-ux-pro-max, frontend-design, web-design-guidelines) that nothing in the harness references.",
+    "The Iron-Plan guard is strict enough that it refused this read-only inventory twice for merely naming the protected settings files in a tool payload - a real fail-closed data point for the guard, and a note for future inventory agents: refer to them descriptively."
+  ]
+}

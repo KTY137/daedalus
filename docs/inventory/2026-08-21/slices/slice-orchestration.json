@@ -1,0 +1,406 @@
+{
+  "slice": "orchestration surface: daedalus/kairos/ (11), daedalus/lanes/ (5), daedalus/council/ (6), daedalus/providers/ (10)",
+  "summary": "This slice is the orchestration surface: kairos plans and isolates work (scheduler, worktree, gated_writes), lanes holds the one shared write-lane guard baseline, council runs advisory cross-vendor deliberation, and providers are the vendor adapters. It is the healthiest-consolidated part of the repo on the anti-duplication axis -- lanes/ was an explicit de-duplication of per-provider guards and both write lanes (ollama, deepseek) now call the same run_checks; council/ enforces Invariant 4 structurally by having no approve/score field at all. The weakness is Gate-0 shaped, not design shaped: council/ and lanes/fanout perform real network egress, subprocess spawn and filesystem writes but have zero rows in daedalus/spine/effect_boundary.py, and lanes/fanout is only reachable from unregistered tools/ scripts. There is also a live packaging hole -- daedalus.lanes is absent from pyproject.toml's explicit package list, so a non-editable install ships both write lanes importing a package that is not there. Three kairos modules (archive, evolution, shadow_shell) are test-only islands, and kairos/orchestrate.py is a second, unregistered CLI door.",
+  "modules": [
+    {
+      "path": "daedalus/kairos/__init__.py",
+      "purpose": "Empty package marker for the kairos orchestration package.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (Invariant 1, one kernel)",
+      "issues": ["0 bytes; exports nothing, so every consumer imports submodules directly (no facade like daedalus/lanes/__init__.py provides)"]
+    },
+    {
+      "path": "daedalus/kairos/scheduler.py",
+      "purpose": "Kairos, the bounded scheduler that fans one objective out over the local/external worker bench and returns a consolidated report.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 canonical kernel; Invariant 8 (bounded effects) -- section 7 Ikarus orchestration",
+      "issues": [
+        "reachable from daedalus/cli.py:91,1087, daedalus/core.py:953,983,1109, daedalus/build.py:43, daedalus/build_exec.py:81, daedalus/ikarus.py:8, daedalus/offload.py:28",
+        "scheduler.py:341 defines its own main() plus __main__ block at :370 -- a second process door, only coarsely covered because cli.main is the registered entrypoint",
+        "docstring (scheduler.py:3-14) still names 'Adam' as the trust owner and 'the Chinese DeepSeek bench' -- pre-plan mythology that section 3 of the master plan retired in favour of Daedalus/Ikarus/Ariadne"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/worktree.py",
+      "purpose": "GitWorktreeManager: fail-closed isolated git worktrees for candidate (agent-written) code, with symlink/junction-proof cleanup.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 exit criterion (workspace isolation); Invariant 3 (isolation)",
+      "issues": [
+        "consumed by daedalus/spine/attempt.py:121, daedalus/eval/correctness.py:116,568, daedalus/kairos/gated_writes.py:83, daedalus/selftest.py:98, tools/bootstrap_receipt.py:310",
+        "four of its methods are registered in daedalus/spine/effect_boundary.py:392,407,422,613 -- the best-covered module in this slice"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/gated_writes.py",
+      "purpose": "Concurrent write dispatch that produces gated candidates through spine.attempt rather than re-implementing isolation.",
+      "status": "wired",
+      "plan_mapping": "Gate 0; Invariant 5 (sealed promotion) and Invariant 3 (isolation)",
+      "issues": [
+        "called from daedalus/build_exec.py:562; promote_candidates registered at daedalus/spine/effect_boundary.py:303 and asserted non-bypassing by tests/test_effect_boundary.py:83",
+        "docstring records that an earlier draft hand-rolled worktree/commit/patch capture -- the correct consolidation, worth keeping as the model for the rest of the slice"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/gated_writes.py#promotion-surface",
+      "purpose": "Promotion-facing half of gated_writes (promote_candidates), referenced by the effect boundary and by spine/promotion_approval.py.",
+      "status": "protected",
+      "plan_mapping": "Invariant 5 (sealed promotion), master plan section 15",
+      "issues": [
+        "daedalus/spine/promotion_approval.py:57 warns REGENERATION VOIDS AN APPROVAL against this path; promotion_approval.py:169 keeps an INDEPENDENT copy of gated_writes._hardened_env by design -- deliberate duplication, but it is duplication that can drift silently and nothing tests the two against each other"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/decompose.py",
+      "purpose": "Turn one objective into a bounded list of scoped subtasks via the local model, with a deterministic path-split fallback.",
+      "status": "wired",
+      "plan_mapping": "Gate 1 ignition slice (MissionContract -> WorkItems); section 7",
+      "issues": [
+        "used by daedalus/build.py:42 and daedalus/kairos/scheduler.py:311; shadowed by a 0-reference legacy shim at daedalus/decompose.py:1",
+        "it produces WorkItem-shaped output but not a typed MissionContract/WorkItem -- Gate 1 needs the typed contract, this is still ad-hoc dicts"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/drafts.py",
+      "purpose": "Persist advisory (non-write) lane proposals to runs/drafts/ so a free model can propose without ever merging.",
+      "status": "wired",
+      "plan_mapping": "Invariant 5 (no auto-promotion) / Invariant 4 (models propose)",
+      "issues": [
+        "reached from daedalus/cli.py:452 and daedalus/offload.py:637; shadowed by a 0-reference legacy shim at daedalus/drafts.py:1",
+        "daedalus/web_api.py:538 states it REIMPLEMENTS kairos.drafts._safe_path locally -- a knowingly duplicated path-safety check on an HTTP-facing surface"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/control.py",
+      "purpose": "Thin argparse wrappers over daedalus.core for the Mission Control dashboard/models/squads/watcher/review-diff views.",
+      "status": "wired",
+      "plan_mapping": "none (product surface, not a plan gate)",
+      "issues": [
+        "five separate main_* entrypoints dispatched from daedalus/cli.py:1118-1128; shadowed by a 0-reference legacy shim at daedalus/mission_control.py:1",
+        "pure passthrough to core.* -- no logic of its own, a candidate for deletion in favour of cli calling core directly"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/orchestrate.py",
+      "purpose": "CLI that infers paths from free text, routes a task and enqueues it onto the file bridge.",
+      "status": "drifted",
+      "plan_mapping": "Gate 0 exit criterion 'centralized start/guard path for every effectful runtime entrypoint' -- VIOLATED",
+      "issues": [
+        "orchestrate.py:95 main() + :123 __main__ block form a standalone CLI that enqueues via file_bridge, but daedalus/cli.py has NO orchestrate subcommand (grep: only 'drafts' at cli.py:1141)",
+        "not present in daedalus/spine/effect_boundary.py's registry, although file_bridge:enqueue itself is (effect_boundary.py:209) -- the door is unregistered even though the room behind it is",
+        "the only importer outside the 0-reference shim daedalus/orchestrate.py:1 is tests/test_agent_env.py:8"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/archive.py",
+      "purpose": "Advisory inspiration notebook -- a two-tier (elite + diverse) draw over past attempts, adapted in shape from OpenEvolve.",
+      "status": "island",
+      "plan_mapping": "Gate 3 baseline lab (archive/MAP-Elites is a REQUIRED baseline); section 8 step 3 (parent selection)",
+      "issues": [
+        "zero production importers repo-wide; the only consumer is tests/test_kairos_archive.py:11",
+        "archive.py:74 states it 'is meant to stay a leaf', which makes islandhood intentional -- but nothing in the Ariadne loop reads it, so the Gate 3 archive baseline is unimplemented in practice",
+        "attribution block (archive.py:3-15) is exemplary: upstream, commit, licence, exact upstream line ranges"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/evolution.py",
+      "purpose": "EvolutionaryOrchestrator -- generate N isolated candidate branches, run a test command in each, keep only passers.",
+      "status": "island",
+      "plan_mapping": "Gate 3 baseline (Best-of-N); section 8 Ariadne loop -- currently a stub of it",
+      "issues": [
+        "zero production callers; only tests/test_kairos_evolution.py:7 and tests/test_evolution_baseline.py:24 import it",
+        "independently confirmed frozen by docs/recovery/fable/legacy-matrix.md:123-125 ('zero callers repo-wide') and its summary row :221",
+        "no module docstring at all (evolution.py:1 starts with imports) -- the class docstring correctly disclaims 'not a promotion boundary', but the file's status as a frozen Best-of-N baseline is only recorded in a recovery doc, not in the code"
+      ]
+    },
+    {
+      "path": "daedalus/kairos/shadow_shell.py",
+      "purpose": "Spawn an agent adapter inside a given GitWorktree and return a CandidateBranch.",
+      "status": "island",
+      "plan_mapping": "Invariant 3 (isolation) -- superseded in practice by daedalus/spine/attempt.py",
+      "issues": [
+        "only importer in daedalus/ is the equally-islanded kairos/evolution.py:8; otherwise tests only (tests/test_kairos_evolution.py:6, tests/test_evolution_baseline.py:25)",
+        "functionally overlaps daedalus/spine/attempt.py:TaskAttempt, which gated_writes.py's own docstring names as the canonical isolation mechanism -- this is the second, unregistered one",
+        "kairos/worktree.py:1133 still documents 'the shadow_shell flow' as a live caller of commit_candidate"
+      ]
+    },
+    {
+      "path": "daedalus/lanes/__init__.py",
+      "purpose": "Facade for the shared write-lane baseline; its docstring is the measured argument for why per-provider guard copies are forbidden.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (Invariant 1, one canonical contract); the anti-duplication rule in AGENTS.md step 4",
+      "issues": [
+        "re-exports run_checks/WriteAttempt/BASELINE_POLICY/render_brief/grounding at :40-53; both write lanes import from here (providers/ollama.py:13, providers/deepseek.py:8)",
+        "PACKAGING HOLE: 'daedalus.lanes' is absent from pyproject.toml's explicit packages list (:38-49) -- so a non-editable `pip install .` ships ollama.py and deepseek.py importing a package that is not in the wheel. This is the exact bug pyproject.toml:33-37 says was already found once for structcore and eval"
+      ]
+    },
+    {
+      "path": "daedalus/lanes/checks.py",
+      "purpose": "The cheapest-first, fail-closed guard baseline every write lane runs before a model's output becomes a file.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects) and Invariant 4 (models propose, evidence decides)",
+      "issues": [
+        "called at providers/ollama.py:1120 and providers/deepseek.py:385 -- parity restored, which was the whole point",
+        "each check carries the measurement that produced it; a raising check is treated as refusal (checks.py:3-6) -- correct fail-closed semantics",
+        "checks.py:427-428 is a pointer comment to grounding.py explaining a de-duplication that already happened; good hygiene, but the comment will rot if grounding moves"
+      ]
+    },
+    {
+      "path": "daedalus/lanes/grounding.py",
+      "purpose": "Answer one question -- does what a model asserted correspond to the tree (audit_references, judge)?",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (evidence boundary) / Invariant 9 (honest claims)",
+      "issues": [
+        "exported via lanes/__init__.py:41; consumed by tools/funnel_report.py:72 and tests (test_funnel_truth.py:18, test_reference_audit.py:16)",
+        "no importer inside daedalus/ other than the lanes facade -- the refutation machinery is currently used only by tools/, not by any write lane at decision time"
+      ]
+    },
+    {
+      "path": "daedalus/lanes/graph_brief.py",
+      "purpose": "Render the threefold graph as ~6.5k characters of prose so a write lane finally sees structure instead of raw bytes.",
+      "status": "wired",
+      "plan_mapping": "Gate 4 (graph-conditioned representation search) precondition; section 6 Project Twin -> context compilation",
+      "issues": [
+        "consumed by lanes/fanout.py:64,415 and by both providers via render_brief (providers/ollama.py:801, providers/deepseek.py:8)",
+        "ollama.py:822-827 sheds the brief FIRST under window pressure -- so on the local lane the graph conditioning silently disappears exactly when context is tight; that is an unmeasured confound for any future Gate 4 comparison",
+        "cited as the shared-representation surface by docs/research/LATENT_CEILING_SHARED_REPRESENTATION.md:28"
+      ]
+    },
+    {
+      "path": "daedalus/lanes/fanout.py",
+      "purpose": "Bounded, resumable, budget-guarded fan-out of N advisory tasks over the paid DeepSeek lane, one answer per file on disk.",
+      "status": "island",
+      "plan_mapping": "Gate 3 baseline lab (volume half of the two-judge plan); Invariant 8 (bounded effects)",
+      "issues": [
+        "no importer inside daedalus/; reachable only from tools/funnel.py:71 and tools/audit_swarm.py:54, neither of which appears in daedalus/spine/effect_boundary.py",
+        "it performs paid network egress (constructs DeepSeekProvider directly at fanout.py:214) and filesystem writes -- an effectful path with no registry row, precisely the Gate 0 exit criterion",
+        "it does install the budget guard itself (fanout.py:371-372) and fails closed if it cannot (:385) -- the right behaviour, but self-installed rather than boundary-enforced"
+      ]
+    },
+    {
+      "path": "daedalus/council/__init__.py",
+      "purpose": "Package docstring that makes 'the gate decides, not a model' structural: no approve/reject/score/consensus field exists anywhere in the package.",
+      "status": "protected",
+      "plan_mapping": "Invariant 4 (evidence boundary) and section 12 ('an LLM judgment as a hard correctness gate' is forbidden)",
+      "issues": [
+        "'ABSENCE OF THE FIELD is the control' is the strongest formulation of Invariant 4 in the repo, but nothing mechanically tests that absence -- a future field would pass CI silently"
+      ]
+    },
+    {
+      "path": "daedalus/council/bus.py",
+      "purpose": "Append-only, hash-chained JSONL transcript (runs/council/<id>.jsonl) that is the canonical council record.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance); Invariant 1 -- but see issue",
+      "issues": [
+        "consumed by council/__init__.py, council/session.py, runs/council/room.py:744,801,861 and tests/test_council_bus.py",
+        "SECOND EVENT STORE RISK: this is an independent hash-chained append-only log alongside daedalus/spine's event spine. AGENTS.md lists 'another event store' as a release-blocking defect. It is defensible as advisory-only, but the master plan's Invariant 1 says one event spine and nothing states the exemption in code"
+      ]
+    },
+    {
+      "path": "daedalus/council/vendors.py",
+      "purpose": "Vendor transport adapters (claude/codex CLIs, agy over ssh, Ollama HTTP) with hardened subprocess environment and fresh empty temp cwd.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 (policy coverage for Claude, Codex, Ollama, Web/API); Invariant 8",
+      "issues": [
+        "imported by cli.py:512, council/session.py, council/canary.py, gui_catalogue.py:122 (PROMPT_DATA_NOTICE, the repo's single such notice)",
+        "spawns subprocesses and performs egress (vendors.py:362-409) but has NO row in daedalus/spine/effect_boundary.py -- the whole council package is missing from the entrypoint registry",
+        "it deliberately does NOT use adapters.subprocess_adapter.RUNTIME_PROFILES (vendors.py:41) -- a second, parallel hardening profile for the same class of effect"
+      ]
+    },
+    {
+      "path": "daedalus/council/session.py",
+      "purpose": "Run one cross-vendor deliberation: dispatch to vendors, mirror every turn into the bus, return a CouncilRecord.",
+      "status": "wired",
+      "plan_mapping": "Invariant 4 (propose only); ADR-012",
+      "issues": [
+        "entered from daedalus/cli.py:511; session.py:114 and :1003 document a dispatch-injection seam for tests, which is also the seam by which a host could substitute a vendor -- worth an explicit test that the seam is closed outside tests",
+        "1401 lines, the largest module in the slice, no effect-boundary row"
+      ]
+    },
+    {
+      "path": "daedalus/council/canary.py",
+      "purpose": "Cheap repeatable per-lane health check that catches silent transport corruption (truncated argv on Windows shims, self-anchoring local models).",
+      "status": "wired",
+      "plan_mapping": "Gate 0 'real adapter fixtures' + fault-injection matrix; Invariant 9",
+      "issues": [
+        "entered from daedalus/cli.py:793 with a --dry-run plan mode (cli.py:900-914) that names the lanes before spending -- exactly the right shape for a paid probe",
+        "the incident it documents (canary.py:5-20) is the strongest argument in the repo for measuring transport rather than exit codes",
+        "1318 lines and it spends real money; no effect-boundary row"
+      ]
+    },
+    {
+      "path": "daedalus/council/publish.py",
+      "purpose": "Render a deliberation to markdown, post it as a GitHub PR comment, and read the PR thread back -- the bus stays canonical.",
+      "status": "wired",
+      "plan_mapping": "Invariant 7 (provenance: the bus is right, the PR is a rendering)",
+      "issues": [
+        "wired at daedalus/cli.py:711 (docs/archive/TODO_2026-07-30_SESSION.md:284 records it was an island and is now reached); still has no main() of its own",
+        "docs/recovery/fable/legacy-matrix.md:169-176 flags the open item verbatim: it spawns subprocesses (gh) at L64/L133/L143 and 'no council row exists in the registry' -- STILL TRUE as of this pass",
+        ".claude/skills/council/SKILL.md:80 still instructs agents to hand-write `from daedalus.council.publish import publish_to_pr` instead of using the CLI subcommand -- the doc lags the wiring"
+      ]
+    },
+    {
+      "path": "daedalus/providers/__init__.py",
+      "purpose": "Provider registry: metadata, lazy get_provider, health/availability probes.",
+      "status": "drifted",
+      "plan_mapping": "Gate 0 'one vendor-neutral Agent Contract' -- this is the closest thing to it",
+      "issues": [
+        "STALE DOCSTRING: :9 says ollama is 'read-only, local (no egress)', but _PROVIDERS['ollama'] at :45-52 declares can_write=True, agentic=True, and providers/ollama.py runs a full write lane through run_checks (:1120)",
+        "'no egress' is also contradicted by tests/test_egress_lane_by_host.py, which exists because a remote OLLAMA_HOST turns the local lane into an egress lane",
+        "get_provider (:110-128) is a hand-written if-chain rather than a registry lookup, so metadata and constructors can disagree without failing"
+      ]
+    },
+    {
+      "path": "daedalus/providers/base.py",
+      "purpose": "Provider ABC plus the frozen ProviderCapabilities record (can_write / local / trusted_with_ip / agentic).",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (bounded effects declared structurally, not promised)",
+      "issues": [
+        "'structural guarantees enforced by the harness, not promises the model must keep' (base.py:14-15) is the right framing; the enforcement actually lives in sensitivity.py and lanes/checks.py, not here",
+        "tests/test_provider_rollback_single_source.py:102 asserts the shared restore loop must be defined on base -- a real single-source constraint, correctly test-pinned"
+      ]
+    },
+    {
+      "path": "daedalus/providers/ollama.py",
+      "purpose": "Local lane: native Ollama chat, structural brief, full write path through the shared lane baseline.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 policy coverage (Ollama); Invariant 8",
+      "issues": [
+        "1251 lines, the largest provider; OllamaProvider.run registered at daedalus/spine/effect_boundary.py:372, rollback at :592",
+        "ollama.py:137 keeps 'this lane's own policy over the shared daedalus.lanes baseline' -- a legitimate per-lane override, but it is the same shape that produced the 2026-07-30 divergence lanes/ was created to prevent; nothing tests that the override only tightens"
+      ]
+    },
+    {
+      "path": "daedalus/providers/deepseek.py",
+      "purpose": "External paid lane: OpenAI-compatible endpoint, non-sensitive content only, opt-in writes through the shared baseline.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (egress bounded); Gate 0 policy coverage",
+      "issues": [
+        "run/rollback registered at daedalus/spine/effect_boundary.py:578,585; egress gated via sensitivity.classify_data (deepseek.py:12-19)",
+        "carries the measured content-substitution guard (test_deepseek_substitution_guard.py) that was the origin of daedalus/lanes -- and still re-imports three of its own checks by alias (deepseek.py:9-13), so the local aliases could drift from the shared originals"
+      ]
+    },
+    {
+      "path": "daedalus/providers/codex_cli.py",
+      "purpose": "OpenAI Codex CLI adapter: agentic, write-capable, egress-gated like DeepSeek.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 policy coverage (Codex)",
+      "issues": [
+        "run registered at daedalus/spine/effect_boundary.py:351,363; well covered by tests/test_codex_provider.py",
+        "the Windows npm .cmd argv-truncation failure that council/canary.py:9-13 documents lives on this transport -- the canary catches it, but codex_cli.py itself carries no note of the hazard"
+      ]
+    },
+    {
+      "path": "daedalus/providers/claude_cli.py",
+      "purpose": "Primary lane: the agentic, write-capable, IP-trusted Claude CLI, delegating to claude_bridge.ask_claude.",
+      "status": "wired",
+      "plan_mapping": "Gate 0 policy coverage (Claude); Invariant 8",
+      "issues": [
+        "46 lines, the thinnest adapter; run registered at daedalus/spine/effect_boundary.py:336",
+        "policy argument is accepted and explicitly ignored ('unused: Claude is agentic + trusted', claude_cli.py:~40) -- the most privileged lane is the one that applies no lane policy at all; that is a deliberate trust decision but it is the widest door in the slice"
+      ]
+    },
+    {
+      "path": "daedalus/providers/_openai_compat.py",
+      "purpose": "Shared OpenAI-compatible HTTP transport: chat_completion, chat_stream, server_reachable, ProviderHTTPError.",
+      "status": "wired",
+      "plan_mapping": "Invariant 1 (one transport contract for OpenAI-shaped vendors)",
+      "issues": ["imported by deepseek.py:21, _ollama_native.py:21, kairos/decompose.py, ikarus_os.py:93,1136,1153, council/vendors.py:95 -- the single most shared low-level module in the slice, and correctly so"]
+    },
+    {
+      "path": "daedalus/providers/_ollama_native.py",
+      "purpose": "Ollama's native (non-OpenAI) chat endpoint plus context-window arithmetic (effective_input_window, num_ctx_value).",
+      "status": "wired",
+      "plan_mapping": "Gate 0 policy coverage (Ollama egress)",
+      "issues": ["native_chat registered at daedalus/spine/effect_boundary.py:382; also used by council/vendors.py:94, so the council's local lane shares the production transport rather than forking it"]
+    },
+    {
+      "path": "daedalus/providers/_report.py",
+      "purpose": "Turn a raw model response into a validated agent_report_v1 and build the prompt for non-agentic providers; holds the budget reservation seam.",
+      "status": "wired",
+      "plan_mapping": "Invariant 8 (spend bounded) and Invariant 4 (validated evidence shape)",
+      "issues": ["reserve_or_report is the priced boundary tested by tests/test_budget.py:875-911; shared by ollama.py:23, deepseek.py:22, codex_cli.py:50 -- no per-provider copy, which is the desired state"]
+    },
+    {
+      "path": "daedalus/providers/personas.py",
+      "purpose": "Cosmetic shadow-persona names for the free lanes, loaded from personas.json.",
+      "status": "wired",
+      "plan_mapping": "none (cosmetic)",
+      "issues": [
+        "used by ollama.py:25, deepseek.py:24, codex_cli.py:52, provider_router.py:32, kairos/scheduler.py:27",
+        "the persona vocabulary ('a Chinese name on DeepSeek, a Mexican/Italian name on local Ollama') is nationality-keyed naming that also leaks into scheduler.py's docstring; purely cosmetic per the plan, but it is a naming layer the master plan's section 3 does not sanction"
+      ]
+    },
+    {
+      "path": "daedalus/providers/personas.json",
+      "purpose": "Data file backing personas.py.",
+      "status": "wired",
+      "plan_mapping": "none (data)",
+      "issues": ["loaded by path from personas.py:_REGISTRY_PATH; it IS shipped because daedalus.providers is in pyproject.toml packages, unlike daedalus.lanes"]
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/adrs/012-council-cross-vendor-review.md",
+      "verdict": "authority",
+      "reason": "The design record for daedalus/council/*; status is still 'Proposed' although bus/session/vendors/canary/publish are all built and CLI-wired (cli.py:511,711,793). Promote its status or the ADR understates the shipped system."
+    },
+    {
+      "path": "docs/adrs/013-dual-space-intercom.md",
+      "verdict": "keep",
+      "reason": "Explicitly PROPOSED, not built, not scheduled, and honest about it; it names council.bus (:133) with a measured cursor figure. Correct as design history."
+    },
+    {
+      "path": "docs/PROVIDERS_RESEARCH.md",
+      "verdict": "keep",
+      "reason": "Dated 2026-07-05 research behind providers/deepseek.py and providers/ollama.py; deepseek.py:26-30 still cites it for the json_object and model-deprecation decisions. Historical evidence, not authority."
+    },
+    {
+      "path": "docs/LOCAL_MODELS.md",
+      "verdict": "keep",
+      "reason": "Operator-facing env-var contract (OLLAMA_HOST/MODEL/EMBED_MODEL) for the local lane; matches providers/ollama.py DEFAULT_HOST/DEFAULT_MODEL, which are imported repo-wide (doctor.py:17, runtime_registry.py:19, memory/embeddings.py:94)."
+    },
+    {
+      "path": "docs/HANDOFF_2026-07-30_NIGHT.md",
+      "verdict": "keep",
+      "reason": "Source of the daedalus/lanes design; lanes/checks.py:11-14 records a deliberate DEVIATION from the shape this handoff proposed. Both must stay readable together or the deviation note loses its referent."
+    },
+    {
+      "path": "docs/recovery/fable/legacy-matrix.md",
+      "verdict": "keep",
+      "reason": "Independently confirms two of this slice's findings (kairos.evolution frozen with 0 callers at :123-125; council has no entrypoint-registry row at :169-176). Its 'Remains' item for council.publish is still open."
+    },
+    {
+      "path": ".claude/skills/council/SKILL.md",
+      "verdict": "merge",
+      "reason": "Line 80 still tells agents to hand-write `from daedalus.council.publish import publish_to_pr`, which cli.py:554 explicitly says the subcommand exists to replace. Update to the CLI path."
+    },
+    {
+      "path": "docs/MISSION_CONTROL.md",
+      "verdict": "keep",
+      "reason": "The only doc describing what kairos/control.py serves; unchanged v1 dashboard contract, still matches the five main_* wrappers."
+    }
+  ],
+  "integration_gaps": [
+    "daedalus.lanes is MISSING from pyproject.toml's explicit packages list (pyproject.toml:38-49) while providers/ollama.py:13 and providers/deepseek.py:8 both import it at module scope -- a non-editable `pip install .` ships two write lanes that cannot import their guard baseline. pyproject.toml:33-37 documents this exact bug class as already-found-once for structcore and eval. daedalus.gui, daedalus.wiki, daedalus.observe and daedalus.tools are missing too.",
+    "The entire daedalus/council/ package (subprocess spawn in vendors.py:362-409 and publish.py, real paid egress in canary.py and session.py) has ZERO rows in daedalus/spine/effect_boundary.py, whose registry covers cli/web_api/file_bridge/spine/offload/kairos/providers. Council effects are reached only transitively through the registered cli.main. Independently flagged and still open at docs/recovery/fable/legacy-matrix.md:175.",
+    "daedalus/lanes/fanout.py performs paid egress (constructs DeepSeekProvider at :214) and filesystem writes, and is reachable ONLY from tools/funnel.py:71 and tools/audit_swarm.py:54 -- neither script is in the effect-boundary registry. It self-installs the budget guard (:371) rather than being guarded at a boundary, so the Gate 0 criterion 'centralized start/guard path for every effectful runtime entrypoint' is unmet on this path.",
+    "daedalus/kairos/orchestrate.py:95 main() + :123 __main__ is a standalone CLI door that enqueues onto the file bridge, with no cli.py subcommand and no registry row, even though file_bridge:enqueue itself is registered (effect_boundary.py:209).",
+    "Two parallel candidate-isolation mechanisms coexist: daedalus/spine/attempt.py:TaskAttempt (canonical, named as such by gated_writes.py's own docstring) and daedalus/kairos/shadow_shell.py + evolution.py (islanded, test-only). Invariant 3 wants one; worktree.py:1133 still documents the shadow_shell flow as live.",
+    "daedalus/council/bus.py is a second append-only hash-chained event log alongside the spine event store. AGENTS.md names 'another event store' a release-blocking defect. Advisory scope is a plausible exemption but it is stated nowhere in code or plan.",
+    "daedalus/council/vendors.py:41 deliberately does not use adapters.subprocess_adapter.RUNTIME_PROFILES, so there are two independent subprocess-hardening profiles for the same effect class, free to drift.",
+    "daedalus/spine/promotion_approval.py:169 keeps an intentionally independent copy of kairos/gated_writes._hardened_env, and daedalus/web_api.py:538 an intentionally independent copy of kairos/drafts._safe_path. Both duplications are documented and defensible; neither has a test asserting the two copies still agree.",
+    "The council package's core control -- 'no approve/reject/score/consensus field exists' (council/__init__.py) -- is enforced only by convention. No test asserts the absence, so the one structural guarantee of Invariant 4 in this package can be dissolved by an ordinary commit."
+  ],
+  "notable": [
+    "STALE DOCSTRING (providers/__init__.py:9): 'ollama -- read-only, local (no egress)'. Both halves are now false: _PROVIDERS['ollama'] declares can_write=True/agentic=True (:45-52), ollama.py runs a full write lane through run_checks (:1120), and tests/test_egress_lane_by_host.py exists because a remote OLLAMA_HOST makes it an egress lane. This is the single most misleading sentence in the slice -- it describes the least-trusted-looking lane as the safest.",
+    "STALE DOCSTRING (kairos/scheduler.py:3-14): still frames the system as 'Adam owns trust... he hands Ikarus work', names 'the Chinese DeepSeek bench' and 'the Mexican/Italian Ollama bench'. Master plan section 3 permits exactly three public concepts (Daedalus/Ikarus/Ariadne); 'Adam' is pre-plan mythology surviving in the docstring of a module imported by six production callers.",
+    "STALE DOCSTRING (kairos/worktree.py:1133): documents 'the shadow_shell flow' as a caller of commit_candidate, but shadow_shell.py is an island whose only in-package importer is the equally islanded evolution.py.",
+    "MISSING DOCSTRING (kairos/evolution.py:1): the file opens on imports. Its frozen, zero-caller, Best-of-N-baseline status is recorded only in docs/recovery/fable/legacy-matrix.md:123 -- a recovery doc a reader of the module will never open.",
+    "LEGACY SHIM DUPLICATION confirmed for this slice's four kairos modules: daedalus/decompose.py:1, daedalus/drafts.py:1, daedalus/mission_control.py:1 and daedalus/orchestrate.py:1 are pure re-export wrappers over kairos/*, and grep finds no importer of any of them outside build/lib copies. daedalus/ikarus.py is the same shape over kairos/scheduler. Five 0-reference shims; safe deletion candidates that would also remove five ways to reach kairos without going through cli.",
+    "EXEMPLARY: daedalus/lanes/__init__.py's docstring is the best piece of engineering writing in the slice -- it states the measured 2026-07-30 failure (two guards landed in the paid lane and not the free one within the same hours, making the untrusted external lane strictly safer than the default local one), names the mechanism ('nobody decided that; it is what per-provider copies do'), and the module is the fix.",
+    "EXEMPLARY: daedalus/kairos/archive.py:3-15 is the attribution standard the repo should hold everywhere -- upstream URL, commit SHA, date, licence, the exact upstream line ranges taken, and an explicit list of what was deliberately NOT ported.",
+    "EXEMPLARY: daedalus/council/__init__.py's 'ABSENCE OF THE FIELD is the control' and 'advisory-by-docstring is not a control' -- the correct structural reading of Invariant 4, undermined only by having no test.",
+    "RISK, local lane graph conditioning is silently shed: providers/ollama.py:822-827 drops the structural brief FIRST when the estimated prompt exceeds the window. So the Gate 4 prior (graph-conditioned context helps) is unmeasurably applied on the default lane -- present on small tasks, absent on large ones, with no signal in the report. Any future budget-equal comparison on this lane is confounded until the shed is recorded.",
+    "The claude_cli lane -- the only can_write + trusted_with_ip + agentic provider -- explicitly ignores the policy argument (claude_cli.py, 'unused: Claude is agentic + trusted'). Every other lane runs lanes/checks.py. That is the intended trust model, but it means the shared write-lane baseline covers the two cheap lanes and not the privileged one."
+  ]
+}
