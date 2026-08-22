@@ -12,6 +12,23 @@ different ``index_id``.
 What is actually ENFORCED by code in this module
 ------------------------------------------------
 
+* **Egress is decided before the socket.**  ``OllamaEmbeddingBackend.embed``
+  puts the one host-admission decision for this lane
+  (:func:`daedalus.providers.ollama.ollama_endpoint_admission`, which is
+  ``lane_for_host`` plus exact-endpoint operator consent) and the canonical
+  effect-boundary start (:func:`daedalus.spine.effect_boundary.begin_effect`,
+  row ``memory.embeddings``) AHEAD of building the request object, so a refused
+  host costs zero connections.  A refusal raises :class:`EmbeddingEgressRefused`
+  carrying a content-addressed deny receipt that names the host, the lane, and
+  the contract that said no.
+
+* **The endpoint is bound to the index at creation.**  ``embedding_indexes``
+  records the ``egress_host`` that first wrote the index.  A later ingest or
+  search through a *different* endpoint is refused with ``host_drift`` before a
+  single projection is written or scored -- the anchor check never even runs,
+  because two endpoints are not one coordinate system regardless of what they
+  re-embed to.
+
 * **One index per search.**  ``search_report`` resolves exactly one
   ``index_id`` and its SQL is filtered on ``p.index_id = ?``.  A spec that has
   never been written returns ``index_unavailable`` rather than falling back to
@@ -40,17 +57,28 @@ What is actually ENFORCED by code in this module
 STATED LIMITS - promises this module does NOT keep
 --------------------------------------------------
 
-* **The service endpoint is not part of the spec identity.**  ``host`` is a
-  call argument, not an ``EmbeddingSpec`` field, so two different Ollama hosts
-  serving the same tag produce the same ``index_id``.  Adding ``host`` to the
-  spec would change every existing ``index_id``.  The identity anchor is the
-  control that covers this case empirically; the spec hash does not.
-* **The identity anchor is trust-on-first-use.**  An index written before the
-  anchor existed (or written by a process that only inserted duplicates)
-  *adopts* an existing projection as its anchor on first touch.  Drift that
-  happened before adoption is undetectable and is reported as
+* **``index_id`` still hashes the spec alone; the endpoint-bound identity is
+  a second value.**  Putting ``host`` into :class:`EmbeddingSpec` would change
+  every existing ``index_id`` and orphan every shipped index, so the endpoint
+  is folded in at the index row instead and reported as :func:`index_identity`,
+  which hashes spec + endpoint together and is exposed as
+  ``IndexStatus.identity_id``.  Two hosts serving the same tag therefore still
+  compute the same ``index_id`` -- but the second one is REFUSED rather than
+  merged, so the collision is unreachable rather than silent.  Do not read
+  ``index_id`` as "these vectors share an endpoint"; read ``identity_id``.
+* **The identity anchor is still trust-on-first-use, but no longer
+  trust-on-first-HOST.**  An index written before the anchor existed (or
+  written by a process that only inserted duplicates) *adopts* an existing
+  projection as its anchor on first touch.  Drift that happened before
+  adoption, *at the same endpoint*, is undetectable and is reported as
   ``identity_anchor == "adopted"`` by :meth:`EventVectorStore.index_status`.
-  Only ``"created"`` anchors were laid down at index creation time.
+  Only ``"created"`` anchors were laid down at index creation time.  What
+  adoption can no longer do is accept a different endpoint's vectors as the
+  coordinate system.  ONE TOFU WINDOW REMAINS AND IS REPORTED: an index
+  migrated from a database written before the endpoint column existed has no
+  recorded endpoint and adopts the first one it is opened with, which
+  ``index_status`` reports as ``egress_host_provenance == "adopted"``.  Only
+  ``"created"`` means "this endpoint is the one that wrote the vectors".
 * **Anchoring is cosine-based, so it is scale-invariant.**  A backend that
   rescales every vector by a constant is not treated as drift.  Search is
   cosine too, so this does not change results.
@@ -108,9 +136,45 @@ IDENTITY_DRIFT_TOLERANCE = 1e-4
 #: :meth:`EventVectorStore.index_status` reports when it is not.
 MOVABLE_TAG_PROVIDERS = frozenset({"ollama"})
 
+#: Canonical effect-boundary row for this module's outbound POST.  The row
+#: lives in :mod:`daedalus.spine.effect_boundary`; this module never keeps a
+#: second allow-list and never widens the decision that row's guard contract
+#: makes.
+EGRESS_ENTRYPOINT_ID = "memory.embeddings"
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _canonical_endpoint(host: str | None) -> str:
+    """Normalise an endpoint string for comparison and for binding.
+
+    Exactly the spelling
+    :func:`daedalus.providers.ollama.remote_endpoint_consented` compares with
+    (``strip()`` then ``rstrip("/")``), so operator consent and the index
+    binding can never disagree about which string a host is.  Nothing else is
+    normalised: this is a comparison key, not a URL parser, and inventing a
+    canonical form here would be a second answer to a question
+    :func:`daedalus.sensitivity.lane_for_host` already owns.
+    """
+    return (host or "").strip().rstrip("/")
+
+
+def index_identity(spec: EmbeddingSpec, host: str | None) -> str:
+    """Content address of one coordinate system INCLUDING its endpoint.
+
+    ``spec.index_id`` is the identity the storage layer partitions on and it
+    cannot change without orphaning every shipped index.  This is the identity
+    a reader should quote when the question is "are these vectors comparable",
+    because two endpoints serving the same movable tag are two coordinate
+    systems whatever their spec hashes say.
+    """
+
+    payload = dict(spec.to_dict())
+    payload["egress_host"] = _canonical_endpoint(host)
+    digest = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+    return f"embid:{digest}"
 
 
 def _canonical_json(value: Any) -> str:
@@ -285,6 +349,17 @@ class IndexStatus:
     #: False when the declared spec alone cannot distinguish two different sets
     #: of weights behind one movable model tag.
     revision_pinned: bool = True
+    #: The endpoint this index is bound to, as recorded at creation.
+    egress_host: str | None = None
+    #: ``"created"`` (bound when the index was first written, therefore
+    #: authoritative), ``"adopted"`` (an index migrated from a database written
+    #: before the endpoint column existed, therefore trust-on-first-open), or
+    #: ``"missing"`` (no index row yet).
+    egress_host_provenance: str = "missing"
+    #: :func:`index_identity` -- spec AND endpoint. This, not ``index_id``, is
+    #: the identity to quote when asking whether two sets of vectors are
+    #: comparable.
+    identity_id: str | None = None
 
 
 class EmbeddingError(RuntimeError):
@@ -297,6 +372,22 @@ class EmbeddingUnavailableError(EmbeddingError):
 
 class EmbeddingProtocolError(EmbeddingError):
     """The embedding service returned a malformed response."""
+
+
+class EmbeddingEgressRefused(EmbeddingError):
+    """Policy refused the endpoint; nothing was sent.
+
+    Deliberately NOT a subclass of :class:`EmbeddingUnavailableError`.  A
+    refusal and an outage are opposite facts -- one says the operator has not
+    declared this lane, the other says the declared lane is down -- and
+    collapsing them is how a withheld POST turns into "the embedder is flaky".
+    Every catch site in this module treats it as its own status code
+    (``egress_refused``), and ``receipt`` is the inspectable evidence.
+    """
+
+    def __init__(self, receipt: dict[str, Any]):
+        super().__init__(str(receipt.get("evidence") or "egress refused"))
+        self.receipt = receipt
 
 
 class EmbeddingBackend(Protocol):
@@ -314,14 +405,82 @@ class EmbeddingBackend(Protocol):
         """Return exactly one vector per input text."""
 
 
+def _authorize_egress(host: str | None) -> Any:
+    """Run the ``provider.egress_policy`` contract and start at the boundary.
+
+    Returns the :class:`~daedalus.spine.effect_boundary.EffectStartReceipt` for
+    an admitted endpoint and raises :class:`EmbeddingEgressRefused` with a deny
+    receipt for a refused one.  It is pure with respect to the network: it
+    performs no I/O, it authorises it, and it is called before the request
+    object exists.
+
+    THE DECISION IS NOT TAKEN HERE.  ``ollama_endpoint_admission`` owns it, in
+    the module that already owns this lane's remote-host refusal, so there is
+    one answer to "may bytes reach this endpoint" rather than a second copy
+    that can drift.  ``begin_effect`` owns the start: it re-checks the registry
+    row, the declared effects and the guard contract, and refuses a decision
+    that says no.  This function only carries the answer between them and
+    shapes the refusal into something a reader can act on.
+    """
+
+    from daedalus.providers.ollama import ollama_endpoint_admission
+    from daedalus.spine.effect_boundary import (
+        EffectStartRefused,
+        GuardDecision,
+        REGISTRY_BY_ID,
+        begin_effect,
+        registry_sha256,
+    )
+
+    endpoint = _canonical_endpoint(host)
+    allowed, lane, evidence = ollama_endpoint_admission(endpoint)
+    decision = GuardDecision("provider.egress_policy", allowed, evidence)
+    try:
+        return begin_effect(
+            EGRESS_ENTRYPOINT_ID,
+            REGISTRY_BY_ID[EGRESS_ENTRYPOINT_ID].effects,
+            (decision,),
+        )
+    except EffectStartRefused as exc:
+        # The boundary refused. Name the endpoint in the receipt: a withheld
+        # POST whose host nobody can read is a refusal nobody can fix, and the
+        # whole point of this row is that the host was previously invisible.
+        receipt = {
+            "entrypoint_id": EGRESS_ENTRYPOINT_ID,
+            "verdict": "deny",
+            "contract": "provider.egress_policy",
+            "host": endpoint,
+            "lane": lane,
+            "evidence": evidence,
+            "boundary_error": str(exc),
+            "connected": False,
+            "registry_sha256": registry_sha256(),
+            "security_boundary_claimed": False,
+            "at": _utc_now(),
+        }
+        receipt["receipt_sha256"] = hashlib.sha256(
+            _canonical_json(receipt).encode("utf-8")
+        ).hexdigest()
+        raise EmbeddingEgressRefused(receipt) from exc
+
+
 class OllamaEmbeddingBackend:
-    """Ollama's current batched ``POST /api/embed`` transport."""
+    """Ollama's current batched ``POST /api/embed`` transport.
+
+    ``host`` is a CALLER-SELECTED destination, which is why this class carries
+    the egress guard itself rather than trusting whoever constructed it: the
+    store hands it whatever ``host=`` argument reached the public method, and
+    an argument is not a policy.
+    """
 
     provider = "ollama"
 
     def __init__(self, host: str = DEFAULT_HOST, timeout: float = 10.0):
         self.host = host
         self.timeout = timeout
+        #: Receipt for the most recent authorisation attempt, allow or deny.
+        #: Inspectable state, never a decision input.
+        self.last_egress_receipt: Any | None = None
 
     def embed(
         self,
@@ -330,6 +489,17 @@ class OllamaEmbeddingBackend:
         model: str,
         dimensions: int | None = None,
     ) -> list[list[float]]:
+        # BEFORE the empty-batch shortcut, before the URL, before the payload,
+        # before urlopen. Placing it first means no branch of this method can
+        # reach a socket without having passed the boundary, and it costs an
+        # in-process dict comparison. On refusal this raises and the request
+        # object is never constructed, so "zero connects" is a property of the
+        # control flow rather than of a mock.
+        try:
+            self.last_egress_receipt = _authorize_egress(self.host)
+        except EmbeddingEgressRefused as exc:
+            self.last_egress_receipt = exc.receipt
+            raise
         if not texts:
             return []
         url = self.host.rstrip("/") + "/api/embed"
@@ -445,6 +615,12 @@ def _embed_batch(
     selected = backend or OllamaEmbeddingBackend(host)
     try:
         return selected.embed(texts, model=model)
+    except EmbeddingEgressRefused:
+        # A refusal is NOT an outage. Returning ``None`` here would render an
+        # undeclared egress lane indistinguishable from a down service, which
+        # is precisely the silence this helper's ``None`` was invented to
+        # avoid for the opposite case. It propagates.
+        raise
     except EmbeddingError:
         return None
 
@@ -577,10 +753,27 @@ class EventVectorStore:
                     dimension INTEGER NOT NULL,
                     normalization TEXT NOT NULL,
                     projector_version TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    egress_host TEXT,
+                    egress_host_provenance TEXT
                 )
                 """
             )
+            # In-place column migration, NOT a schema version bump: adding the
+            # endpoint binding neither invalidates a stored vector nor changes
+            # an ``index_id``, so an existing database keeps every projection
+            # it has. What it cannot do is retroactively learn which endpoint
+            # wrote them -- those rows bind on first open and say so
+            # (``egress_host_provenance == "adopted"``).
+            columns = {
+                row["name"]
+                for row in self._conn.execute("PRAGMA table_info(embedding_indexes)")
+            }
+            for column in ("egress_host", "egress_host_provenance"):
+                if column not in columns:
+                    self._conn.execute(
+                        f"ALTER TABLE embedding_indexes ADD COLUMN {column} TEXT"
+                    )
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS projection_sources (
@@ -679,6 +872,20 @@ class EventVectorStore:
         return self._backend_override or OllamaEmbeddingBackend(host)
 
     @staticmethod
+    def _endpoint(backend: EmbeddingBackend, requested_host: str) -> str:
+        """Where this call's vectors actually come from.
+
+        The backend's own resolved host wins, because that is where the bytes
+        go; a backend seam without one (the in-process fakes) falls back to the
+        host the caller declared, so an injected backend is still bound to the
+        endpoint its caller named rather than to nothing at all. Normalised
+        with :func:`_canonical_endpoint`, the same spelling operator consent is
+        compared with.
+        """
+
+        return _canonical_endpoint(getattr(backend, "host", None) or requested_host)
+
+    @staticmethod
     def _status(
         code: str,
         message: str,
@@ -735,15 +942,87 @@ class EventVectorStore:
             projector_version=projector_version,
         )
 
-    def _ensure_index(self, spec: EmbeddingSpec) -> None:
+    def _bind_endpoint(
+        self, spec: EmbeddingSpec, endpoint: str
+    ) -> OperationStatus | None:
+        """Refuse an index whose recorded endpoint is not this one.
+
+        ``None`` means "safe to proceed".  This is the control the module
+        docstring used to say did not exist: the spec hash cannot tell two
+        hosts serving one movable tag apart, and the identity anchor catches
+        them only *if the two backends happen to produce different vectors*.
+        A byte-identical mirror on another machine passes the anchor and is
+        still a different place for repository content to go, so the endpoint
+        is recorded and compared directly rather than inferred from cosine
+        distance.
+
+        Runs BEFORE any write and before the anchor: a wrong-host first write
+        must be refused, not adopted.
+        """
+
+        row = self._conn.execute(
+            """
+            SELECT egress_host, egress_host_provenance
+            FROM embedding_indexes WHERE index_id = ?
+            """,
+            (spec.index_id,),
+        ).fetchone()
+        if row is None:
+            # Nothing has been written for this spec yet; _ensure_index binds
+            # the endpoint at creation, with provenance "created".
+            return None
+        recorded = _canonical_endpoint(row["egress_host"])
+        if not recorded:
+            # Pre-binding database. One adoption, reported as such forever.
+            with self._conn:
+                self._conn.execute(
+                    """
+                    UPDATE embedding_indexes
+                    SET egress_host = ?, egress_host_provenance = 'adopted'
+                    WHERE index_id = ?
+                    """,
+                    (endpoint, spec.index_id),
+                )
+            return None
+        if recorded == endpoint:
+            return None
+        return self._status(
+            "host_drift",
+            (
+                f"this index was written through {recorded!r} and this call "
+                f"speaks to {endpoint!r}. The declared spec is identical, so "
+                f"nothing else here can tell the two apart: index_id "
+                f"{spec.index_id} hashes provider/model/dimension only, and "
+                f"the identity anchor cannot distinguish a byte-identical "
+                f"mirror from the original. Two endpoints are two coordinate "
+                f"systems and two egress destinations. Nothing was read or "
+                f"written. Re-index under the endpoint you mean, or point the "
+                f"host back at {recorded!r}."
+            ),
+            available=False,
+            spec=spec,
+        )
+
+    def _ensure_index(self, spec: EmbeddingSpec, endpoint: str = "") -> None:
+        """Create the index row, binding it to ``endpoint`` when there is one.
+
+        ``endpoint`` is empty for exactly one caller:
+        :meth:`record_journal_watermark`, which creates an index row without
+        embedding anything.  A watermark sends nothing anywhere, so it has no
+        endpoint to bind and must not invent one -- the row stays unbound and
+        the first real ingest adopts it, reported as
+        ``egress_host_provenance == "adopted"``.
+        """
+
         now = _utc_now()
         with self._conn:
             self._conn.execute(
                 """
                 INSERT OR IGNORE INTO embedding_indexes (
                     index_id, provider, model, model_revision, dimension,
-                    normalization, projector_version, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    normalization, projector_version, created_at,
+                    egress_host, egress_host_provenance
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     spec.index_id,
@@ -754,6 +1033,8 @@ class EventVectorStore:
                     spec.normalization,
                     spec.projector_version,
                     now,
+                    endpoint or None,
+                    "created" if endpoint else None,
                 ),
             )
         stored = self._conn.execute(
@@ -765,6 +1046,17 @@ class EventVectorStore:
         stored_spec = self._spec_from_row(stored)
         if stored_spec != spec:
             raise RuntimeError("embedding index hash collision or corrupt index metadata")
+        bound = _canonical_endpoint(stored["egress_host"])
+        if endpoint and bound and bound != endpoint:
+            # Unreachable through the public methods -- _bind_endpoint refuses
+            # first, with a status a caller can read. Kept as a hard invariant
+            # because this is the last statement before vectors are inserted,
+            # and a future caller that forgets the check must crash here rather
+            # than mix two endpoints into one index.
+            raise RuntimeError(
+                f"refusing to write index {spec.index_id} bound to {bound!r} "
+                f"through endpoint {endpoint!r}"
+            )
 
     @staticmethod
     def _spec_from_row(row: sqlite3.Row) -> EmbeddingSpec:
@@ -851,14 +1143,26 @@ class EventVectorStore:
         spec: EmbeddingSpec,
         backend: EmbeddingBackend,
         *,
+        endpoint: str,
         force: bool = False,
     ) -> OperationStatus | None:
         """Return a refusal status when the backend no longer matches the index.
 
-        ``None`` means "safe to proceed": either the identity anchor still
-        reproduces, or there is no anchor yet to reproduce.
+        ``None`` means "safe to proceed": the endpoint still matches AND either
+        the identity anchor still reproduces or there is no anchor yet to
+        reproduce.
         """
 
+        # ENDPOINT FIRST, AND OUTSIDE THE CACHE. The per-process
+        # ``_identity_verified`` set is keyed on index_id, which does not
+        # contain the host, so a process that verified this index against one
+        # endpoint would skip straight past a switch to another. It also runs
+        # ahead of the anchor because the anchor answers "does this backend
+        # reproduce our vectors", and two hosts serving one tag can both answer
+        # yes while being two different destinations for repository content.
+        binding = self._bind_endpoint(spec, endpoint)
+        if binding is not None:
+            return binding
         if not force and spec.index_id in self._identity_verified:
             return None
         anchor = self._anchor_row(spec.index_id)
@@ -877,6 +1181,13 @@ class EventVectorStore:
                 [anchor["projection_text"]],
                 model=spec.model,
                 dimensions=spec.dimension,
+            )
+        except EmbeddingEgressRefused as exc:
+            return self._status(
+                "egress_refused",
+                f"egress policy refused the embedding endpoint: {exc}",
+                available=False,
+                spec=spec,
             )
         except EmbeddingUnavailableError as exc:
             return self._status(
@@ -941,7 +1252,10 @@ class EventVectorStore:
     ) -> OperationStatus:
         """Re-check an index against the live backend, ignoring the cache."""
 
-        failure = self._verify_identity(spec, self._backend(host), force=True)
+        backend = self._backend(host)
+        failure = self._verify_identity(
+            spec, backend, endpoint=self._endpoint(backend, host), force=True
+        )
         if failure is not None:
             return failure
         provenance = self.anchor_provenance(spec)
@@ -972,6 +1286,8 @@ class EventVectorStore:
         be append-only, so either would mean the derivation is no longer sound.
         """
 
+        # No endpoint: a watermark is a statement about the journal, not a
+        # request to any host. See _ensure_index's docstring.
         self._ensure_index(spec)
         existing = self._conn.execute(
             """
@@ -1111,8 +1427,9 @@ class EventVectorStore:
         events: Sequence[AgentEvent],
         embeddings: Sequence[list[float]],
         spec: EmbeddingSpec,
+        endpoint: str,
     ) -> int:
-        self._ensure_index(spec)
+        self._ensure_index(spec, endpoint)
         now = _utc_now()
         inserted = 0
         with self._conn:
@@ -1182,10 +1499,21 @@ class EventVectorStore:
             raise ValueError("normalization must be 'l2' or 'none'")
 
         backend = self._backend(host)
+        endpoint = self._endpoint(backend, host)
         pending: list[AgentEvent] = []
         attempted = 0
         projected = 0
         resolved = spec
+
+        # With a DECLARED spec the index identity is known before the first
+        # request, so the endpoint binding is checked before any projection
+        # text leaves the process. Without one the dimension -- and therefore
+        # the index -- is only known from the response, and the check moves to
+        # _verify_identity, which still runs before anything is written.
+        if spec is not None:
+            binding = self._bind_endpoint(spec, endpoint)
+            if binding is not None:
+                return IngestReport(binding, attempted=0, projected=0, spec=spec)
 
         def process(batch: list[AgentEvent]) -> OperationStatus | None:
             nonlocal projected, resolved
@@ -1195,6 +1523,13 @@ class EventVectorStore:
                     texts,
                     model=model,
                     dimensions=resolved.dimension if resolved else None,
+                )
+            except EmbeddingEgressRefused as exc:
+                return self._status(
+                    "egress_refused",
+                    f"egress policy refused the embedding endpoint: {exc}",
+                    available=False,
+                    spec=resolved,
                 )
             except EmbeddingUnavailableError as exc:
                 return self._status(
@@ -1236,13 +1571,13 @@ class EventVectorStore:
 
             # Refuse BEFORE writing: a drifted backend must never contribute a
             # single vector to an index built in another coordinate system.
-            drift = self._verify_identity(candidate, backend)
+            drift = self._verify_identity(candidate, backend, endpoint=endpoint)
             if drift is not None:
                 return drift
 
             try:
                 pre_existing = self._projection_count(candidate.index_id)
-                projected += self._store_batch(batch, vectors, candidate)
+                projected += self._store_batch(batch, vectors, candidate, endpoint)
                 self._record_identity_anchor(
                     candidate,
                     provenance="adopted" if pre_existing else "created",
@@ -1437,12 +1772,32 @@ class EventVectorStore:
             model_revision = spec.model_revision
 
         backend = self._backend(host)
+        endpoint = self._endpoint(backend, host)
+
+        # A declared spec names the index before the query is embedded, so a
+        # host switch is refused before the QUERY TEXT itself is sent anywhere.
+        # Without a spec the index is only known from the response dimension,
+        # and the refusal lands at _verify_identity below -- still before any
+        # stored vector is read or scored.
+        if spec is not None:
+            binding = self._bind_endpoint(spec, endpoint)
+            if binding is not None:
+                return SearchReport(binding, [], spec)
+
         try:
             raw = backend.embed(
                 [query],
                 model=model,
                 dimensions=spec.dimension if spec else None,
             )
+        except EmbeddingEgressRefused as exc:
+            status = self._status(
+                "egress_refused",
+                f"egress policy refused the embedding endpoint: {exc}",
+                available=False,
+                spec=spec,
+            )
+            return SearchReport(status, [], spec)
         except EmbeddingUnavailableError as exc:
             status = self._status(
                 "embedder_unavailable",
@@ -1498,7 +1853,7 @@ class EventVectorStore:
             )
             return SearchReport(status, [], resolved)
 
-        drift = self._verify_identity(resolved, backend)
+        drift = self._verify_identity(resolved, backend, endpoint=endpoint)
         if drift is not None:
             return SearchReport(drift, [], resolved)
 
@@ -1627,6 +1982,23 @@ class EventVectorStore:
         spec: EmbeddingSpec,
         journal: JournalPosition | None = None,
     ) -> IndexStatus:
+        binding = self._conn.execute(
+            """
+            SELECT egress_host, egress_host_provenance
+            FROM embedding_indexes WHERE index_id = ?
+            """,
+            (spec.index_id,),
+        ).fetchone()
+        egress_host = (
+            _canonical_endpoint(binding["egress_host"]) or None
+            if binding is not None
+            else None
+        )
+        egress_provenance = (
+            str(binding["egress_host_provenance"] or "adopted")
+            if binding is not None and egress_host
+            else "missing"
+        )
         projection_count = self._projection_count(spec.index_id)
         legacy_count = self.legacy_unversioned_count()
         anchor = self.anchor_provenance(spec)
@@ -1648,6 +2020,8 @@ class EventVectorStore:
             caveats = []
             if anchor != "created":
                 caveats.append(f"identity anchor {anchor}")
+            if egress_provenance != "created":
+                caveats.append(f"endpoint binding {egress_provenance}")
             if not spec.pins_model_revision:
                 caveats.append("model_revision unpinned for a movable tag")
             if freshness != "fresh":
@@ -1667,6 +2041,9 @@ class EventVectorStore:
             freshness,
             anchor,
             spec.pins_model_revision,
+            egress_host,
+            egress_provenance,
+            index_identity(spec, egress_host) if egress_host else None,
         )
 
     def legacy_unversioned_count(self) -> int:

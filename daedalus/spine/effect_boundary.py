@@ -491,6 +491,33 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
     # decision to begin_effect before the first effect.  Read-only inspection
     # paths (status/summary printing) stay fail-open by design.
     EntrypointSpec(
+        id="cli.loop",
+        surface=Surface.CLI,
+        target="daedalus.loop:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.REPOSITORY_MUTATION,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.loop:main", "begin_effect"),),
+        notes=(
+            "`python -m daedalus.loop` is a SECOND console door into the same "
+            "effects as cli.daedalus and never passes through cli.main's "
+            "dispatch. It installed the spend guard by hand, which is the "
+            "right effect and the wrong evidence: nothing mechanically "
+            "required it, so deleting that line would have left the loop "
+            "driver -- the single entrypoint that spends the most per "
+            "invocation -- silently unpriced. The row plus the begin_effect "
+            "anchor make the install a checked precondition of the start "
+            "instead of a remembered habit."
+        ),
+        migration="complete for the cli.loop entrypoint",
+    ),
+    EntrypointSpec(
         id="cli.enforce",
         surface=Surface.CLI,
         target="daedalus.enforce:main",
@@ -929,6 +956,38 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         wiring=Wiring.LOCAL_GUARDS,
         runtime_id="ollama_http",
         notes="Remote-host refusal and resolved-path write checks exist locally.",
+    ),
+    EntrypointSpec(
+        id="memory.embeddings",
+        surface=Surface.OLLAMA,
+        target="daedalus.memory.embeddings:OllamaEmbeddingBackend.embed",
+        effects=(Effect.NETWORK_EGRESS,),
+        guard_contracts=("provider.egress_policy",),
+        wiring=Wiring.CENTRAL,
+        runtime_id="ollama_http",
+        anchors=(
+            GuardAnchor(
+                "daedalus.memory.embeddings:OllamaEmbeddingBackend.embed",
+                "_authorize_egress",
+            ),
+            GuardAnchor(
+                "daedalus.memory.embeddings:_authorize_egress",
+                "begin_effect",
+            ),
+        ),
+        notes=(
+            "The embedding transport POSTs projection text to a "
+            "CALLER-SELECTED host. Unlike provider.ollama_native this one "
+            "takes its own resolved-host decision -- ollama_endpoint_admission "
+            "-- immediately before the request object exists, so the sluice "
+            "sits above the socket rather than below the lane decision, and "
+            "the row is central rather than inventory_only. The two anchors "
+            "pin both halves: embed() must call the guard, and the guard must "
+            "start at this boundary. A refusal raises "
+            "EmbeddingEgressRefused carrying a deny receipt that names the "
+            "host, so a withheld POST is attributable instead of silent."
+        ),
+        migration="complete for the memory.embeddings entrypoint",
     ),
     EntrypointSpec(
         id="provider.ollama_native",

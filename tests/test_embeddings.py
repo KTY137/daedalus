@@ -134,6 +134,13 @@ def test_embedding_spec_index_identity_is_versioned():
     ).index_id
 
 
+# This test asserts the TRANSPORT CONTRACT, not the egress policy, and it
+# names its endpoint by hostname. `lane_for_host` refuses names on purpose (a
+# name that resolves to loopback when checked can resolve elsewhere when
+# connected), so the endpoint is declared here the way an operator would
+# declare it: by naming that exact host. Deleting this line does not weaken the
+# test -- it turns it into an egress-refusal test, loudly.
+@patch.dict("os.environ", {"DAEDALUS_OLLAMA_REMOTE_OK": "http://ollama:11434"})
 @patch("urllib.request.urlopen")
 def test_ollama_uses_current_embed_batch_contract(mock_urlopen):
     requests = []

@@ -350,6 +350,55 @@ def warm_model_async(host: str | None = None, model: str | None = None,
     ).start()
 
 
+def remote_endpoint_consented(host: str | None) -> bool:
+    """True only when the operator named THIS endpoint, exactly.
+
+    ``DAEDALUS_OLLAMA_REMOTE_OK`` holds a HOST, not a boolean, for the reason
+    spelled out on :meth:`OllamaProvider._remote_consented`: a ``=1`` flag is
+    consent to every future endpoint including one a config change substitutes
+    silently.  Normalisation is ``strip().rstrip("/")`` on both sides, and that
+    exact spelling is what the embedding index binds its endpoint with, so
+    consent and binding can never disagree about which string a host is.
+    """
+    declared = os.environ.get(REMOTE_CONSENT_VAR, "").strip().rstrip("/")
+    return bool(declared) and declared == (host or "").strip().rstrip("/")
+
+
+def ollama_endpoint_admission(host: str | None) -> tuple[bool, str, str]:
+    """THE host-admission decision for the ollama lane: (allowed, lane, why).
+
+    This is the ``provider.egress_policy`` contract for anything that speaks
+    the Ollama HTTP transport, expressed once.  It answers only "may bytes go
+    to this endpoint at all"; :func:`daedalus.sensitivity.slice_egress_rule`
+    still answers "which bytes", and the secret floor still runs underneath
+    both.  ``lane`` is :func:`daedalus.sensitivity.lane_for_host`'s verdict,
+    which is the ONLY implementation of "does this leave the machine".
+
+    Fails closed: an empty, unparseable, or unrecognised host is ``untrusted``
+    and, without exact-endpoint consent, denied.  The returned reason names the
+    host, because a refusal a reader cannot attribute to an endpoint is a
+    refusal nobody can fix.
+    """
+    from ..sensitivity import lane_for_host
+
+    lane = lane_for_host(host)
+    if lane == "trusted":
+        return True, lane, (
+            f"lane_for_host({host!r}) == 'trusted': the endpoint is this "
+            f"machine, so no bytes reach a wire"
+        )
+    if remote_endpoint_consented(host):
+        return True, lane, (
+            f"lane_for_host({host!r}) == {lane!r}; {REMOTE_CONSENT_VAR} names "
+            f"this exact endpoint, so the operator declared the egress lane"
+        )
+    return False, lane, (
+        f"lane_for_host({host!r}) == {lane!r}: the endpoint is not this "
+        f"machine and {REMOTE_CONSENT_VAR} does not name it, so this would be "
+        f"an undeclared network egress lane"
+    )
+
+
 class OllamaProvider(Provider):
     caps = ProviderCapabilities(
         name="ollama",
@@ -428,9 +477,15 @@ class OllamaProvider(Provider):
         Comparison is against ``self.host`` as resolved, so it covers the
         DEFAULT_HOST fallback too, and an unset or blank variable is no
         consent at all.
+
+        THE PREDICATE ITSELF LIVES AT MODULE LEVEL
+        (:func:`remote_endpoint_consented`) so a non-provider caller on the
+        same lane -- the embedding transport in ``daedalus/memory/embeddings.py``
+        is one -- asks the same question of the same variable instead of
+        growing a second answer.  This method is the instance-bound spelling of
+        it, nothing more.
         """
-        declared = os.environ.get(REMOTE_CONSENT_VAR, "").strip().rstrip("/")
-        return bool(declared) and declared == (self.host or "").strip().rstrip("/")
+        return remote_endpoint_consented(self.host)
 
     def __init__(self) -> None:
         self.host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)

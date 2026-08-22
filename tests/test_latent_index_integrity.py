@@ -155,11 +155,17 @@ def test_moved_model_tag_without_revision_is_refused_not_silently_mixed(tmp_path
     after.close()
 
 
-def test_pinned_revision_does_not_stop_a_second_host_but_the_anchor_does(tmp_path: Path):
+def test_pinned_revision_does_not_stop_a_second_host_but_the_binding_does(tmp_path: Path):
     """``host`` is not part of the spec; two hosts share one ``index_id``.
 
-    This is a stated limit of the spec hash.  Assert both halves: the declared
-    identity really does collide, and the runtime anchor really does refuse.
+    That collision is still real -- putting the endpoint into
+    :class:`EmbeddingSpec` would change every shipped ``index_id`` -- so the
+    endpoint is bound at the index row instead.  Assert all three halves: the
+    declared identity really does collide, the binding really does refuse, and
+    the refusal is ``host_drift`` rather than ``model_drift``, because it is
+    taken BEFORE the anchor is consulted.  Ordering is the point:
+    :func:`test_a_byte_identical_mirror_is_still_a_second_host` covers the case
+    the anchor provably cannot see.
     """
 
     db = tmp_path / "vectors.db"
@@ -188,11 +194,62 @@ def test_pinned_revision_does_not_stop_a_second_host_but_the_anchor_does(tmp_pat
 
     # The pinned revision did NOT partition these: same declared identity.
     assert report.status.index_id == spec.index_id
-    # The anchor did.
-    assert report.status.code == "model_drift"
+    # The endpoint binding did.
+    assert report.status.code == "host_drift"
+    assert "gpu-box" in report.status.message
+    assert "laptop" in report.status.message
     assert report.projected == 0
     assert laptop._projection_count(spec.index_id) == 1
+    assert laptop.index_status(spec).egress_host == "http://gpu-box:11434", (
+        "a refused endpoint must not repoint the binding it was refused against"
+    )
     laptop.close()
+
+
+def test_a_byte_identical_mirror_is_still_a_second_host(tmp_path: Path):
+    """The case the identity anchor cannot catch, and the binding must.
+
+    Two machines serving the SAME weights reproduce each other's vectors
+    exactly, so the anchor -- which asks "does this backend still produce our
+    numbers" -- returns a clean pass.  It is nevertheless a different place for
+    repository content to be sent, which is a question about a destination and
+    not about arithmetic.  Before the endpoint was bound to the index, this
+    ingest succeeded silently.
+    """
+
+    db = tmp_path / "vectors.db"
+    spec = EmbeddingSpec(
+        provider="ollama",
+        model="embeddinggemma:latest",
+        model_revision="sha256:pinned-and-identical",
+        dimension=8,
+    )
+
+    first = EventVectorStore(db, backend=FakeEmbeddingBackend(weights="same"))
+    assert first.ingest_events_report(
+        [_event("from-first", "indexed on the first box")],
+        spec=spec,
+        host="http://box-a:11434",
+    ).projected == 1
+    first.close()
+
+    mirror = EventVectorStore(db, backend=FakeEmbeddingBackend(weights="same"))
+    report = mirror.ingest_events_report(
+        [_event("from-mirror", "indexed on the mirror")],
+        spec=spec,
+        host="http://box-b:11434",
+    )
+
+    assert report.status.code == "host_drift"
+    assert report.projected == 0
+    # The anchor would have said yes: same weights, same vectors.
+    assert mirror._verify_identity(
+        spec,
+        FakeEmbeddingBackend(weights="same"),
+        endpoint="http://box-a:11434",
+        force=True,
+    ) is None
+    mirror.close()
 
 
 def test_two_specs_never_share_a_search(tmp_path: Path):
