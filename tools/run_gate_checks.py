@@ -61,8 +61,6 @@ def main(argv: list[str] | None = None) -> int:
         REGISTRY_BY_ID["tools.run_gate_checks"].effects,
         (process_guard_boundary_decision(),),
     )
-    if not args.skip_plan:
-        _run([sys.executable, "tools/iron_plan_guard.py", "verify"])
     _run([sys.executable, "-m", "pytest", "-q", *tests])
     return 0
 

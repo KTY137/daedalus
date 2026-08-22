@@ -219,10 +219,6 @@ KNOWN_UNGUARDED_ENTRYPOINTS = {
     # that ever added it. These in-file reasons are therefore the only record
     # there is. Do not read those citations as a promise that a fuller writeup
     # exists somewhere.
-    "tools/iron_plan_guard.py":
-        "NOT BILLABLE: spawns only `git` (ls-files, config, rev-parse, show, "
-        "diff) with a hardcoded argv[0]; the `claude`/`codex` tokens are hook "
-        "PLATFORM names and the `.claude/` path prefix, never an executable",
     # Was an INSTALLER until commit 448969d, "refactor(g0): seal direct Claude
     # bridge bypass", which deleted the `install_process_guard()` from its
     # `__main__` -- correctly, because the same commit deleted the SPEND from

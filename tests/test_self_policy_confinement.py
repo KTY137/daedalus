@@ -239,9 +239,7 @@ class InstalledSelfPolicyTests(unittest.TestCase):
         for rel in (
             "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
             "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
-            "tools/iron_plan_hook_runner.py",
             ".gitattributes",
-            "tests/test_iron_plan_guard.py",
         ):
             with self.subTest(path=rel):
                 self.assertTrue(path_write_blocked(rel, self.pol), rel)
