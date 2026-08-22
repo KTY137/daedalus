@@ -92,10 +92,23 @@ for _name in _OPERATOR_DECLARATIONS:
 
 
 @pytest.fixture(autouse=True)
-def _pin_latent_route_off():
+def _pin_latent_route_off(tmp_path_factory):
     """Re-pin before every test, so one test's environment edit cannot leak
-    non-determinism into the tests that follow it."""
+    non-determinism into the tests that follow it.
+
+    Since 83e41fcc the chat seam writes its turns into the canonical spine
+    (``runs/spine/spine.sqlite3``); a suite run that calls ``ikarus_os.ask``
+    would append real intents to the operator's event store. Every test
+    therefore gets a throwaway ``DAEDALUS_SPINE_DB`` unless it pins its own.
+    """
     os.environ[LATENT_ENV] = "0"
     for name in _OPERATOR_DECLARATIONS:
         os.environ.pop(name, None)
+    had_spine = "DAEDALUS_SPINE_DB" in os.environ
+    if not had_spine:
+        os.environ["DAEDALUS_SPINE_DB"] = str(
+            tmp_path_factory.mktemp("spine") / "spine.sqlite3"
+        )
     yield
+    if not had_spine:
+        os.environ.pop("DAEDALUS_SPINE_DB", None)
