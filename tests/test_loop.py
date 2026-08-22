@@ -21,6 +21,7 @@ test_seam_forwards_cancel_to_real_chain.
 from __future__ import annotations
 
 import json
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -125,13 +126,48 @@ def spend_series(*readings):
     return _next
 
 
+class _TempRootTests(unittest.TestCase):
+    """Every driver here gets a FRESH repo root, hence a fresh control root.
+
+    MEASURED on this box, and the reason this base class exists at all: these
+    tests used one fixed in-repo root, ``tests/_looptmp``. ``LoopDriver``
+    derives its ``KillSwitch`` from ``repo_root``, and the control root is
+    keyed by ``sha256(repo_root)[:12]`` -- so a fixed root means ONE control
+    root digest for every run on this machine, forever::
+
+        control_root(tests/_looptmp) -> ~/.daedalus/control/e9267964a961
+        legacy_control_root(...)     -> %LOCALAPPDATA%/daedalus/control/e9267964a961
+                                        EXISTS, still holding `killswitch`
+
+    and the pre-migration refusal in ``verify_control_root`` then made
+    ``control_check.ok`` False, so ``read_state()`` answered STOPPED with
+    "the control root is not usable" before the first iteration -- failing
+    every driver test for a reason that has nothing to do with the loop.
+
+    A per-test temp root hashes to a digest no legacy state was ever written
+    under, so the switch is verifiable again. It also stops the run's
+    ``runs/`` tree and progress logs from landing in the working copy.
+    """
+
+    def setUp(self):
+        tmpdir = tempfile.TemporaryDirectory()
+        # Windows holds handles open longer than the test does; a cleanup
+        # failure must not turn a passing test red.
+        self.addCleanup(lambda: _ignore_errors(tmpdir.cleanup))
+        self.tmp = Path(tmpdir.name)
+
+
+def _ignore_errors(fn):
+    try:
+        fn()
+    except OSError:
+        pass
+
+
 # --------------------------------------------------------------------------- #
 # 1. THE STOP                                                                  #
 # --------------------------------------------------------------------------- #
-class TestTheStop(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(__file__).parent / "_looptmp"
-        self.tmp.mkdir(exist_ok=True)
+class TestTheStop(_TempRootTests):
 
     def test_unarmed_switch_stops_before_any_iteration(self):
         """FAIL CLOSED: no permit means the loop never spends at all."""
@@ -180,10 +216,7 @@ class TestTheStop(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 2. THE THREE BOUNDS, each alone sufficient                                   #
 # --------------------------------------------------------------------------- #
-class TestBounds(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(__file__).parent / "_looptmp"
-        self.tmp.mkdir(exist_ok=True)
+class TestBounds(_TempRootTests):
 
     def test_no_bound_may_be_unlimited(self):
         for bad in ({"max_iterations": 0}, {"max_wall_clock_s": 0},
@@ -276,10 +309,7 @@ class TestBounds(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 3. GOVERNANCE: red = productive nomination with promotion locked             #
 # --------------------------------------------------------------------------- #
-class TestGovernance(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(__file__).parent / "_looptmp"
-        self.tmp.mkdir(exist_ok=True)
+class TestGovernance(_TempRootTests):
 
     def test_red_governance_still_runs_iterations(self):
         d, ex = make_driver(
@@ -315,10 +345,7 @@ class TestGovernance(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 4. CONVERGENCE                                                               #
 # --------------------------------------------------------------------------- #
-class TestConvergence(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(__file__).parent / "_looptmp"
-        self.tmp.mkdir(exist_ok=True)
+class TestConvergence(_TempRootTests):
 
     def test_repeatedly_failing_candidate_stops_being_repicked(self):
         """THE headline failure mode: one candidate, always failing, and only
@@ -423,10 +450,7 @@ class TestConvergence(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 5. OBSERVABILITY + dry run                                                    #
 # --------------------------------------------------------------------------- #
-class TestObservabilityAndDryRun(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(__file__).parent / "_looptmp"
-        self.tmp.mkdir(exist_ok=True)
+class TestObservabilityAndDryRun(_TempRootTests):
 
     def test_events_land_in_the_progress_log_under_the_candidate_id(self):
         from daedalus.progress import ProgressLog
@@ -554,17 +578,23 @@ class TestRealSeam(unittest.TestCase):
         from daedalus.build_exec import WaveExecutor
         from daedalus.spine.killswitch import KillSwitch, LoopHalted
 
-        sw = KillSwitch(Path(__file__).parent / "_looptmp" / "sw")
-        sw.clear()  # unarmed == stopped
-        ex = WaveExecutor()
-        sched = mock.MagicMock()
-        sched.accept.return_value = []
-        wave = mock.MagicMock(index=0, tasks=[])
-        with mock.patch("daedalus.build.wave_path_conflicts", return_value=[]):
-            with self.assertRaises(LoopHalted):
-                ex.run_wave(sched, wave, ".", dry_run=False, parallel=False,
-                            cancel=sw)
-        sched.dispatch.assert_not_called()
+        # A NAMED permit under a temp root, never the derived one: the halt
+        # this test asserts must not depend on the state of this operator's
+        # real control root, and it must not leave a permit in the checkout.
+        with tempfile.TemporaryDirectory() as control:
+            sw = KillSwitch(Path(control) / "sw")
+            self.assertTrue(sw.control_check.ok, sw.control_check.reason)
+            sw.clear()  # unarmed == stopped
+            ex = WaveExecutor()
+            sched = mock.MagicMock()
+            sched.accept.return_value = []
+            wave = mock.MagicMock(index=0, tasks=[])
+            with mock.patch("daedalus.build.wave_path_conflicts",
+                            return_value=[]):
+                with self.assertRaises(LoopHalted):
+                    ex.run_wave(sched, wave, ".", dry_run=False,
+                                parallel=False, cancel=sw)
+            sched.dispatch.assert_not_called()
 
 
 if __name__ == "__main__":

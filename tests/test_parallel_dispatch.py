@@ -5,6 +5,7 @@ tests pin the conservative contract: writable tasks run sequentially with
 whole-repo attribution even when their hints are disjoint.
 """
 
+import inspect
 import json
 import tempfile
 import threading
@@ -20,8 +21,43 @@ from daedalus.offload import _offload_impl
 _AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
 
 
+#: Arguments the LEASE GATE owns and the seam below it has never seen.
+_LEASE_ONLY_KWARGS = ("effect_authorization", "effect_execution")
+
+#: Frozen at import against the REAL impl, so a later patch of the module
+#: global cannot make the drift check below inspect a stand-in instead.
+_IMPL_PARAMS = frozenset(inspect.signature(_offload_impl).parameters)
+
+
 def _internal_offload(*args, **kwargs):
-    """Keep this scheduler-concurrency unit focused below the lease seam."""
+    """Stand in for the PUBLIC ``offload()`` at the seam just below its lease.
+
+    THE SEAM MOVED, and this is where it moved to. 18fc8b8a split the old
+    single ``offload()`` into a lease gate (still named ``offload``, still what
+    these tests patch) plus ``_offload_impl``, which is everything the gate
+    used to do once it decided to run. The gate grew two keyword-only
+    parameters, ``effect_authorization`` and ``effect_execution``; the impl
+    below it did not, and should not -- consuming a capability is the gate's
+    whole job. ``KairosScheduler._run_one`` passes both on every live call, so
+    forwarding ``**kwargs`` verbatim raised::
+
+        TypeError: _offload_impl() got an unexpected keyword argument
+                   'effect_authorization'
+
+    Consume exactly those two here (this unit is about scheduler concurrency,
+    which lives below the lease), and refuse anything else unrecognised, so the
+    NEXT signature move fails loudly here instead of being dropped on the floor
+    and mistaken for a scheduler bug.
+    """
+    for name in _LEASE_ONLY_KWARGS:
+        kwargs.pop(name, None)
+    unknown = set(kwargs) - _IMPL_PARAMS
+    if unknown:
+        raise TypeError(
+            f"offload() grew {sorted(unknown)}, which _offload_impl does not "
+            "take. Decide whether the new argument belongs to the lease gate "
+            "(add it to _LEASE_ONLY_KWARGS) or below it (thread it through "
+            "_offload_impl) -- do not let this shim swallow it.")
     repo_root = kwargs.get("repo_root")
     if repo_root is None and len(args) > 1:
         repo_root = args[1]
