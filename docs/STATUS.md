@@ -43,8 +43,8 @@ as evidence of what was measured then.
 | open thing | where it waits |
 | --- | --- |
 | signed approval root for promotion | `docs/decisions-pending/promotion_allowed_signers.proposed` |
-| control-root migration (the loop refuses to arm until it runs) | `docs/decisions-pending/control_root_migration.md` |
-| sealed source pin bump for the promotion seam | `docs/decisions-pending/gated_writes_lease_handdown.patch` |
+| control-root migration | TAKEN 2026-08-23 -- `docs/decisions-taken/2026-08-23/control_root_migration.md` |
+| sealed source pin bump for the promotion seam | TAKEN 2026-08-23 -- `docs/decisions-taken/2026-08-23/gated_writes_lease_handdown.patch` |
 | this session's mission and its ledger | `docs/missions/MISSION_2026-08-22.md` |
 | consolidation programme this page belongs to | `docs/inventory/2026-08-21/GIGA_PLAN_2026-08-22.md` |
 

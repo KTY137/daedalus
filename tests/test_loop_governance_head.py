@@ -20,7 +20,8 @@ and owned by another lane. Its fix rides in
 ``docs/decisions-pending/gated_writes_lease_handdown.patch``;
 ``test_the_sealed_write_path_fix_is_pending_and_applies`` keeps that patch
 honest until an owner applies it, and turns into a behavioural assertion the
-moment it lands.
+moment it lands. It landed 2026-08-23 (pin e7acc630); the patch now lives under
+``docs/decisions-taken/2026-08-23/``.
 """
 from __future__ import annotations
 
@@ -36,6 +37,9 @@ from daedalus.loop import LoopBounds, LoopDriver, _same_revision
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PENDING_PATCH = REPO_ROOT / "docs" / "decisions-pending" / "gated_writes_lease_handdown.patch"
+#: Where the patch went the day it landed (2026-08-23); kept so the test can
+#: still name the hunk it once guarded.
+TAKEN_PATCH = REPO_ROOT / "docs" / "decisions-taken" / "2026-08-23" / "gated_writes_lease_handdown.patch"
 SEALED_SRC = REPO_ROOT / "daedalus" / "kairos" / "_gated_writes_legacy.py.src"
 
 

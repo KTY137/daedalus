@@ -1,3 +1,14 @@
+> TAKEN 2026-08-23 12:25Z (Athena, owner order 'arbeite weiter ans backend').
+> Control root: every legacy digest under %LOCALAPPDATA%\daedalus\control was COPIED to
+> %USERPROFILE%\.daedalus\control and the legacy directory RENAMED to `<digest>.migrated-20260823`
+> -- nothing deleted. Two digests (2ea46e496ce4 = this checkout, e9267964a961) already had a
+> fresh new root; their legacy state is parked beside it as `<digest>.legacy-20260823`, not
+> merged (different issuer key; the old ledger stays inspectable). `killswitch status` now
+> reports the new path: 'no permit file: the loop is not armed' (MEASURED).
+> Sealed patch: applied with `git apply -p1`; `git hash-object` = e7acc630271146c4d84b9643a2047f0bb7960c8f
+> (matches the reviewed pin); `_RETAINED_SOURCE_GIT_BLOB_SHA1` bumped; import integrity check passed;
+> test_loop_governance_head 12/12, test_loop_lease 15/15 (MEASURED).
+
 # Owner action: move the control root out of the Store-virtualized LOCALAPPDATA
 
 Since 5d78d4b5 the kill switch, the lease issuer key and the promotion claim

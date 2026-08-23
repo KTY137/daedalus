@@ -371,6 +371,8 @@ def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_ro
                          gate: Mapping[str, Any] | None = None,
                          model: str | None = None,
                          artifact_dir: Path | None = None,
+                         effect_authorization: Any = None,
+                         effect_execution: Any = None,
                          ) -> GatedCandidate:
     from daedalus.spine.attempt import run_attempt
 
@@ -386,6 +388,14 @@ def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_ro
         runner_kwargs["rewrite_windows"] = dict(rewrite_windows)
     if model:
         runner_kwargs["model"] = str(model)
+    # THE WAVE'S CAPABILITY, HANDED THROUGH. offload_runner forwards every
+    # extra kwarg to offload() verbatim (daedalus/spine/attempt.py:1113-1127),
+    # so nothing in the attempt layer needs to change. Both or neither:
+    # offload refuses a half-supplied authorization, and passing one alone
+    # would turn a missing capability into a confusing refusal.
+    if effect_authorization is not None and effect_execution is not None:
+        runner_kwargs["effect_authorization"] = effect_authorization
+        runner_kwargs["effect_execution"] = effect_execution
     runner, box = _recording_runner(**runner_kwargs)
     gate_fn = _curated_relay_gate(box, spec) if spec.gate_argv else _relay_gate(box)
     result = run_attempt(
@@ -413,6 +423,8 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
                      cancel: Any = None,
                      gates: list[Mapping[str, Any] | None] | None = None,
                      artifact_dir: Path | None = None,
+                     effect_authorization: Any = None,
+                     effect_executions: Mapping[int, Any] | None = None,
                      ) -> list[GatedCandidate]:
     """PHASE 1: run every write Assignment through ``TaskAttempt``, concurrently.
 
@@ -473,6 +485,14 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
                 model=(str(model_assignments.get(a.owner))
                        if model_assignments.get(a.owner) else None),
                 artifact_dir=artifact_dir,
+                effect_authorization=effect_authorization,
+                # KEYED BY THIS LIST'S OWN INDEX. The caller re-keys the wave's
+                # executions into `assignments` order before calling, so no
+                # index arithmetic is repeated here and one candidate's
+                # capability can never be handed to another. How many of these
+                # may be STARTED at once is the lease's own max_concurrency,
+                # enforced by the effect ledger -- not by this pool.
+                effect_execution=((effect_executions or {}).get(i)),
             ): i
             for i, a in enumerate(assignments)
         }
@@ -1048,9 +1068,49 @@ def _promote_locked(root: Path, manager: GitWorktreeManager, live: list[GatedCan
 AUTO_PROMOTE_LEVELS = ("never",)
 
 
-def _governance_verdict(project: str | None) -> tuple[bool, str, str]:
+def _same_revision(a: str, b: str) -> bool:
+    """True only when both revisions are KNOWN and name the same commit.
+
+    Deliberately local rather than imported: this module is the sealed write
+    path and may not take a dependency on the loop driver to answer a question
+    this small. Compared by common prefix so an abbreviated sha still matches
+    its full form, floored at 7 characters so a stub cannot match everything.
+    """
+    x = (a or "").strip().lower()
+    y = (b or "").strip().lower()
+    if len(x) < 7 or len(y) < 7:
+        return False
+    n = min(len(x), len(y))
+    return x[:n] == y[:n]
+
+
+def _wave_source_revision(root: Path) -> str:
+    """This checkout's HEAD, or ``""`` when it cannot be read.
+
+    ``""`` is not "unknown, carry on": :func:`_governance_verdict` reads it as
+    a mismatch and locks promotion. A wave whose own revision cannot be read
+    cannot be shown to be the revision the gate was measured at.
+    """
+    try:
+        return _rev_parse_head(root)
+    except Exception:                              # noqa: BLE001
+        return ""
+
+
+def _governance_verdict(project: str | None,
+                         source_revision: str | None = None) -> tuple[bool, str, str]:
     """``(promotion_allowed, governance_state, headline)`` -- read straight off
     ``daedalus.core.get_governance``, never re-derived here.
+
+    ``source_revision``, when supplied, is the revision THIS wave is running
+    at, and an allow is narrowed to a hold unless the verdict was measured at
+    that same revision. ``get_governance`` publishes its ``head`` beside its
+    verdict and nothing compared the two, so a discrimination receipt measured
+    at an older HEAD of this very checkout still read as permission to promote
+    code it had never seen. The gate's claim is "at THIS revision"; outside it
+    the claim does not carry. Narrowing only: a mismatch can lock promotion, it
+    can never unlock it, and ``None`` is byte-identical to the old behaviour
+    for any caller that does not pass one.
 
     That function's own docstring is explicit that a SECOND opinion on
     ``promotion_allowed`` is how an override sneaks in ("the other gates
@@ -1075,12 +1135,25 @@ def _governance_verdict(project: str | None) -> tuple[bool, str, str]:
     allowed = bool(gov.get("promotion_allowed"))
     state = str(gov.get("state") or "unknown")
     verdict = str(gov.get("verdict") or "")
+    if allowed and source_revision is not None:
+        head = str(gov.get("head") or "")
+        if not _same_revision(head, source_revision):
+            return (False, state,
+                    f"promotion is REFUSED: the governance verdict was measured "
+                    f"at HEAD {head or '<unknown>'} and this wave is running at "
+                    f"{source_revision or '<unknown>'}. The discrimination gate "
+                    f"is bounded to the revision it was measured at, so it does "
+                    f"not carry to this one; re-run the gate at this HEAD. "
+                    f"(verdict there: {verdict})")
     return allowed, state, verdict
 
 
 def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: list,
                     *, auto_promote: str, ledger_path=None,
-                    cancel: Any = None) -> list[dict]:
+                    cancel: Any = None,
+                    effect_authorization: Any = None,
+                    effect_executions: Mapping[int, Any] | None = None,
+                    ) -> list[dict]:
     """Execute one build-session wave's WRITE-mode tasks through the gated,
     isolated-worktree path and hold every resulting candidate for an explicit
     owner-controlled promotion decision.
@@ -1142,8 +1215,16 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
 
     if other_idx:
         other_tasks = [tasks[i] for i in other_idx]
-        other_raw = scheduler.dispatch(str(root), other_tasks, dry_run=False,
-                                       parallel=False)
+        # RE-KEYED, because `other_tasks` is a compacted list and dispatch
+        # derives each execution from the position IT sees. Handing it the
+        # wave's original indices would authorise the wrong task.
+        other_raw = scheduler.dispatch(
+            str(root), other_tasks, dry_run=False, parallel=False,
+            effect_authorization=effect_authorization,
+            effect_executions=({pos: effect_executions[i]
+                                for pos, i in enumerate(other_idx)
+                                if i in effect_executions}
+                               if effect_executions else None))
         if len(other_raw) != len(other_idx):
             raise RuntimeError(
                 f"run_write_wave: dispatch() returned {len(other_raw)} result(s) "
@@ -1165,9 +1246,19 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
         availability=avail,
         max_workers=min(scheduler.max_parallel_writes, scheduler.max_workers),
         ledger_path=ledger_path, cancel=cancel, gates=write_gates,
-        artifact_dir=_artifact_root_for(root))
+        artifact_dir=_artifact_root_for(root),
+        effect_authorization=effect_authorization,
+        effect_executions=({pos: effect_executions[i]
+                            for pos, i in enumerate(write_idx)
+                            if i in effect_executions}
+                           if effect_executions else None))
 
-    promotion_allowed, gov_state, gov_verdict = _governance_verdict(scheduler.project)
+    # THE VERDICT MUST BE ABOUT THIS REVISION. `root` is the primary checkout
+    # these candidates would be promoted onto; an unreadable HEAD reads as a
+    # mismatch and holds them, which is the same direction every other failure
+    # on this path takes.
+    promotion_allowed, gov_state, gov_verdict = _governance_verdict(
+        scheduler.project, _wave_source_revision(root))
 
     held: list[tuple[GatedCandidate, str]] = []  # (candidate, why-held)
 

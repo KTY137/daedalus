@@ -269,11 +269,29 @@ def test_run_one_never_reaches_the_issuer(switch):
     must not even name the issuer, and a dispatch that IS handed a lease must
     not call the issuer while running.
     """
+    import ast
     import daedalus.kairos.scheduler as scheduler_module
 
+    # Measured on the SYNTAX TREE, not the text: a docstring may point a reader
+    # at the issuer (scheduler.py does, deliberately), a capability discovery
+    # is an import or a call. The raw-text form of this assertion went red on
+    # that cross-reference alone (FINAL queue 2026-08-22) while measuring
+    # nothing about what the module can do.
     source = Path(scheduler_module.__file__).read_text(encoding="utf-8")
-    assert "offload_lease" not in source
-    assert "issue_effect_lease" not in source
+    tree = ast.parse(source)
+    imported: list[str] = []
+    called: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imported.append(node.module or "")
+            imported.extend(f"{node.module}.{a.name}" for a in node.names)
+        elif isinstance(node, ast.Call):
+            called.append(ast.unparse(node.func))
+    assert not [n for n in imported if "offload_lease" in n], imported
+    assert not [n for n in called
+                if "issue_effect_lease" in n or "acquire_wave_offload_lease" in n], called
 
     lease = acquire_wave_offload_lease(
         REPO_ROOT, source_revision=REVISION, mission_id="loop-test",
