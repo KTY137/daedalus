@@ -25,6 +25,8 @@ Ledger: `runs/watchdog/mission-20260822/PROGRESS.md` (13 hours, 39 line items, l
 2. `control_root_migration.md` — the control-root migration; **loop refuses to arm until this runs**.
 3. `gated_writes_lease_handdown.patch` — sealed source pin bump for promotion seam.
 
+**Status update 2026-08-23:** [MEASURED 2026-08-23, Mnemosyne: commit `0f7f8187`] `tests/test_spine_attempt.py` green again (17 red → 0 green); was red since `57a2e7cb` due to `nearest_existing` climbing to ancestor. Fixed by `daedalus/primary_tree.planned_overlap_reason()` with forward-direction probing and shared renderer, both callers (`spine/attempt.py`, `kernel/offload_lease.py`) switched. Control-root migration and sealed lease hand-down patch remain pending owner actions in `docs/decisions-pending/`.
+
 ---
 
 # HISTORY: Pre-ruling documents below (checkpoint/2026-07-20-session archived)
