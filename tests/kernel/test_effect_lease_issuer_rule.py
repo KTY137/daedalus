@@ -60,6 +60,21 @@ SECOND_DOOR = "cli.eval_ceiling"
 #: ``test_the_gate_door_is_refused_for_an_unfenced_write``.
 GATE_DOOR = "python.command_gate"
 
+#: A CENTRAL, non-runtime-bearing row declaring a contract this issuer has no
+#: in-process implementation of. DERIVED, never named: this file used to spell
+#: ``python.attempt`` here, 11dc0195 implemented that row's two contracts, and
+#: three tests then asserted a refusal that no longer happens. Deriving the row
+#: means implementing the NEXT contract retargets these tests instead of
+#: reddening them. At 11dc0195 it is ``adapter.subprocess``, which declares
+#: ``runtime.adapter_profile``.
+UNRUNNABLE_DOOR = next(
+    row_id
+    for row_id in sorted(REGISTRY_BY_ID)
+    if REGISTRY_BY_ID[row_id].wiring is Wiring.CENTRAL
+    and not REGISTRY_BY_ID[row_id].runtime_id
+    and set(REGISTRY_BY_ID[row_id].guard_contracts) - ISSUER_CONTRACTS
+)
+
 
 @pytest.fixture
 def switch(tmp_path, monkeypatch):
@@ -129,21 +144,56 @@ def test_the_gate_door_is_refused_for_an_unfenced_write():
 
 
 def test_a_row_whose_contracts_this_issuer_cannot_run_is_refused_by_name():
-    """``python.attempt`` declares two contracts this module does not implement.
+    """A contract with no in-process implementation is refused BY NAME.
 
-    It declares ``spine.intent_ledger`` and ``containment.worktree``. This
-    module implements neither, and the only two ways past that are defects:
-    skip them (an unrun guard recorded as a passed one) or take the caller's
-    word for them (which ``WritePolicySource`` already measured). So the
-    refusal names them.
+    THIS TEST USED TO NAME ``python.attempt``, and 11dc0195 implemented that
+    row's two contracts, so the assertion became a statement about history
+    rather than about the rule. The rule is unchanged and is what matters: the
+    only two ways past an unimplemented contract are defects -- skip it (an
+    unrun guard recorded as a passed one) or take the caller's word for it
+    (which ``WritePolicySource`` already measured) -- so the issuer refuses and
+    says which contract it could not run.
+
+    The row is DERIVED from the registry rather than named, so implementing the
+    next contract retargets this test instead of turning it red. At 11dc0195 it
+    resolves to ``adapter.subprocess`` and ``runtime.adapter_profile``.
     """
 
-    spec, reasons = issuable_row("python.attempt")
+    spec, reasons = issuable_row(UNRUNNABLE_DOOR)
     assert spec is None
     contracts = [r for r in reasons if r.startswith("issuer.contracts")]
     assert len(contracts) == 1
-    assert "containment.worktree" in contracts[0]
-    assert "spine.intent_ledger" in contracts[0]
+    for contract in sorted(
+        set(REGISTRY_BY_ID[UNRUNNABLE_DOOR].guard_contracts) - ISSUER_CONTRACTS
+    ):
+        assert contract in contracts[0]
+
+
+def test_the_attempt_row_became_issuable_and_nothing_else_did():
+    """What 11dc0195 changed, pinned so the widening stays deliberate.
+
+    ``python.attempt`` declared ``spine.intent_ledger`` and
+    ``containment.worktree``; the issuer now runs both itself and the row also
+    declares ``provider.write_policy``, without which ``issuer.effect_bounds``
+    would still refuse its two write effects. The set of issuable rows is
+    enumerated rather than spot-checked: a registry or issuer edit that admits a
+    sixth row fails here instead of silently minting a capability for it.
+    """
+
+    spec, reasons = issuable_row("python.attempt")
+    assert reasons == ()
+    assert spec is not None and spec.id == "python.attempt"
+    assert "provider.write_policy" in spec.guard_contracts
+    issuable = tuple(
+        row_id for row_id in sorted(REGISTRY_BY_ID) if issuable_row(row_id)[0]
+    )
+    assert issuable == (
+        "cli.eval_ceiling",
+        "python.attempt",
+        "python.offload",
+        "tools.funnel_report",
+        "tools.run_gate_checks",
+    ), issuable
 
 
 def test_an_unregistered_row_is_refused_before_anything_else():
@@ -209,13 +259,13 @@ def test_a_row_whose_effects_the_scope_cannot_bound_is_refused():
 # what the refusal produces                                                    #
 # --------------------------------------------------------------------------- #
 def test_an_unissuable_row_denies_and_persists_nothing(switch, tmp_path):
-    denied = _acquire(switch, "python.attempt")
+    denied = _acquire(switch, UNRUNNABLE_DOOR)
     assert isinstance(denied, WaveLeaseDenied)
     assert denied.granted is False
     assert denied.policy_decision.verdict == "deny"
     # The receipt names the row that was refused, not the row this module was
     # once hard-coded to.
-    assert denied.receipt()["entrypoint_id"] == "python.attempt"
+    assert denied.receipt()["entrypoint_id"] == UNRUNNABLE_DOOR
     assert denied.receipt()["lease_id"] is None
     # Refused BEFORE any contract ran: no guard decision exists to report.
     assert denied.guard_decisions == ()
@@ -235,7 +285,7 @@ def test_the_refusal_happens_before_the_kill_switch_is_consulted(tmp_path, monke
     sw = KillSwitch(repo_root=REPO_ROOT)
     sw.arm(note="issuer rule test")
     sw.stop("stopped for this test")
-    denied = _acquire(sw, "python.attempt")
+    denied = _acquire(sw, UNRUNNABLE_DOOR)
     assert isinstance(denied, WaveLeaseDenied)
     assert any("issuer.contracts" in reason for reason in denied.reasons)
 
