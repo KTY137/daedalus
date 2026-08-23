@@ -1380,6 +1380,19 @@ class TaskAttempt:
         )
         from daedalus.spine.receipts import ATTEMPT_ENTRYPOINT_ID
 
+        #    THE HOLDER RETURNS; IT DOES NOT CARRY THE ATTEMPT. This used to be
+        #    `try: begin_effect(...) ... else: result = self._run_with_ledger(...)`,
+        #    and the `else:` is what made the anchor dominate nothing. The
+        #    declaration generator's dominance rule
+        #    (`scripts/declare_write_surfaces.py:_anchor_regions`) counts the
+        #    statements that follow the statement holding `begin_effect`, and
+        #    with the attempt inside that same statement's `else:` branch the
+        #    region was exactly one statement long -- MEASURED at 684b7503:
+        #    `python.attempt` scored `dominated_statements 1, declared 0`. A
+        #    boundary whose anchor provably precedes nothing is a boundary in
+        #    name only, whatever it does at runtime. Both handlers therefore
+        #    RETURN, and everything the attempt does is a sibling statement
+        #    below, where the anchor dominates it.
         try:
             self._boundary_receipt = begin_effect(
                 ATTEMPT_ENTRYPOINT_ID,
@@ -1389,25 +1402,29 @@ class TaskAttempt:
         except EffectBoundaryError as e:
             # A refused start is a STATE, like every other failure here: the
             # attempt never began, so nothing was created to clean up.
-            result = finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
-                            error=f"effect boundary refused this attempt: {e}")
+            return self._released(
+                ledger,
+                finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
+                       error=f"effect boundary refused this attempt: {e}"))
         except Exception as e:            # noqa: BLE001 - run() NEVER raises
             # A contract that cannot be EVALUATED is not a contract that
             # passed. An injected worktree manager without a `worktree_root`,
             # a ledger object that is a stub -- either way nothing has been
             # created yet, so refusing here is free and fail-closed. Broad on
             # purpose: this method's whole contract is that it returns.
-            result = finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
-                            error=(f"effect boundary could not be evaluated: "
-                                   f"{type(e).__name__}: {e}"))
-        else:
+            return self._released(
+                ledger,
+                finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
+                       error=(f"effect boundary could not be evaluated: "
+                              f"{type(e).__name__}: {e}")))
+
+        # -- BELOW THE ANCHOR ---------------------------------------------- #
+        # Every statement from here down runs only because `begin_effect`
+        # returned a receipt, and the dominance analysis can now see that.
+        try:
             result = self._run_with_ledger(ledger, base_revision, finish)
         finally:
-            if self._owns_ledger:
-                try:
-                    ledger.close()
-                except Exception:
-                    pass
+            self._close_ledger(ledger)
 
         # 9. reap the candidate branch -- and ONLY here.
         #
@@ -1420,6 +1437,31 @@ class TaskAttempt:
         # after a crash is `git branch --list <effect_key>`, and cleanup runs
         # BEFORE resolution. That would open a window where an OPEN intent has
         # no findable effect.
+        return self._reap(result)
+
+    def _close_ledger(self, ledger: SpineLedger) -> None:
+        """Close the durable writer, but only when this attempt opened it.
+
+        Extracted from ``run``'s old ``finally:`` unchanged, because the same
+        two lines now have to run on the boundary-refusal returns as well as on
+        the normal path -- and a second copy of "close it if we own it" is a
+        second place for the ownership rule to drift.
+        """
+        if self._owns_ledger:
+            try:
+                ledger.close()
+            except Exception:      # noqa: BLE001 - teardown may not fail a run
+                pass
+
+    def _released(self, ledger: SpineLedger,
+                  result: AttemptResult) -> AttemptResult:
+        """One early return: close the writer we own, then reap, then answer.
+
+        The refusal paths above `_run_with_ledger` used to reach the shared
+        ``finally``/``return`` tail by falling through. They now return, so the
+        tail travels with them: same close, same reap, same order.
+        """
+        self._close_ledger(ledger)
         return self._reap(result)
 
     def _reap(self, result: AttemptResult) -> AttemptResult:
