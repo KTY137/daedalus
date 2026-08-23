@@ -1,0 +1,16 @@
+{
+ "candidate_root": "C:\\Users\\nukei\\AppData\\Local\\Temp\\heracles-corpus-135t264x\\target",
+ "inside": [
+  "data/events.csv",
+  "src/ignition_app/__init__.py",
+  "src/ignition_app/__pycache__/__init__.cpython-310.pyc",
+  "src/ignition_app/__pycache__/models.cpython-310.pyc",
+  "src/ignition_app/__pycache__/repository.cpython-310.pyc",
+  "src/ignition_app/models.py",
+  "src/ignition_app/repository.py",
+  "tests/__pycache__/test_event_field.cpython-310-pytest-9.1.1.pyc",
+  "tests/test_event_field.py",
+  "wiki/Event.md"
+ ],
+ "outside_count": 1297
+}
