@@ -1,0 +1,45 @@
+{
+  "schema": "forest-v2-type-plane-ground-truth/1",
+  "corpus": "corpus_alias/",
+  "method": "hand-computed. For each annotation name the answer is the definition a Python reader would follow the name to, using only declarations. 'repo' means a definition exists inside the corpus and a correct declaration-only resolver could name it; 'builtin' means a name in builtins; 'none' means no definition exists anywhere in the corpus, so abstaining is the correct answer. Written before the resolver was run over the corpus; the failing rows were predicted, not discovered.",
+  "sites": [
+    {"file": "xpkg/alias_import.py", "line": 6, "written": "W", "case": "aliased_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "from xpkg.base import Widget as W"},
+    {"file": "xpkg/alias_import.py", "line": 6, "written": "G", "case": "aliased_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Gadget", "note": "from xpkg.base import Gadget as G"},
+
+    {"file": "xpkg/aliased_module.py", "line": 5, "written": "bs.Widget", "case": "aliased_module", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "import xpkg.base as bs"},
+    {"file": "xpkg/aliased_module.py", "line": 5, "written": "bs.Sprocket", "case": "aliased_module", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Sprocket", "note": "import xpkg.base as bs"},
+
+    {"file": "xpkg/module_attr.py", "line": 5, "written": "xpkg.base.Widget", "case": "module_attribute", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "import xpkg.base; fully qualified"},
+    {"file": "xpkg/module_attr.py", "line": 5, "written": "xpkg.base.Gadget", "case": "module_attribute", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Gadget", "note": "import xpkg.base; fully qualified"},
+
+    {"file": "xpkg/deep/nested.py", "line": 6, "written": "Widget", "case": "relative_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "from ..base import Widget, two levels up"},
+    {"file": "xpkg/deep/nested.py", "line": 6, "written": "Bracket", "case": "relative_import", "truth_bucket": "repo", "truth_canonical": "xpkg.deep.sibling.Bracket", "note": "from .sibling import Bracket"},
+
+    {"file": "xpkg/local_def.py", "line": 8, "written": "Cam", "case": "same_module", "truth_bucket": "repo", "truth_canonical": "xpkg.local_def.Cam", "note": "defined in the same module"},
+
+    {"file": "xpkg/partial.py", "line": 5, "written": "Widget", "case": "direct_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "plain from-import, one hop"},
+    {"file": "xpkg/partial.py", "line": 13, "written": "Flywheel", "case": "dangling_name", "truth_bucket": "none", "truth_canonical": null, "note": "no definition anywhere in the corpus; abstaining is correct"},
+    {"file": "xpkg/partial.py", "line": 13, "written": "int", "case": "builtin", "truth_bucket": "builtin", "truth_canonical": "int", "note": "builtin"},
+
+    {"file": "xpkg/reexport_hop.py", "line": 6, "written": "Widget", "case": "direct_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "plain from-import, one hop"},
+
+    {"file": "xpkg/conditional.py", "line": 8, "written": "Sprocket", "case": "type_checking_guard", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Sprocket", "note": "import under if TYPE_CHECKING, used as a string forward ref"},
+    {"file": "xpkg/conditional.py", "line": 8, "written": "int", "case": "builtin", "truth_bucket": "builtin", "truth_canonical": "int", "note": "builtin"},
+
+    {"file": "xpkg/reexport_consumer.py", "line": 7, "written": "Widget", "case": "reexport_two_hop", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "xpkg.reexport_hop re-exports xpkg.base.Widget; the definition is two hops away"},
+    {"file": "xpkg/reexport_consumer.py", "line": 11, "written": "Cog", "case": "reexport_two_hop_aliased", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Sprocket", "note": "re-export of an aliased import: Sprocket as Cog, then imported by the alias"},
+    {"file": "xpkg/reexport_consumer.py", "line": 15, "written": "Gizmo", "case": "reexport_via_package_init", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Gadget", "note": "from xpkg import Gizmo, where xpkg/__init__ aliases Gadget"},
+
+    {"file": "xpkg/star_import.py", "line": 7, "written": "Widget", "case": "star_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "from xpkg.base import *; decidable by expanding the exporting symbol table"},
+    {"file": "xpkg/star_import.py", "line": 7, "written": "Gadget", "case": "star_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Gadget", "note": "from xpkg.base import *"},
+
+    {"file": "xpkg/class_scope.py", "line": 8, "written": "Alias", "case": "class_scope_alias", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Widget", "note": "Alias = Widget in the class body; the annotation resolves through it"},
+    {"file": "xpkg/class_scope.py", "line": 8, "written": "int", "case": "builtin", "truth_bucket": "builtin", "truth_canonical": "int", "note": "builtin"},
+
+    {"file": "xpkg/shadow.py", "line": 13, "written": "Widget", "case": "closure_shadowing", "truth_bucket": "repo", "truth_canonical": "xpkg.shadow.outer.Widget", "note": "a class defined in the enclosing function shadows the imported name; the module-level binding is NOT what the annotation means"},
+    {"file": "xpkg/shadow.py", "line": 13, "written": "int", "case": "builtin", "truth_bucket": "builtin", "truth_canonical": "int", "note": "builtin"},
+
+    {"file": "xpkg/tryexcept.py", "line": 8, "written": "Sprocket", "case": "try_except_import", "truth_bucket": "repo", "truth_canonical": "xpkg.base.Sprocket", "note": "the try branch is the one that succeeds; the except branch is the fallback"},
+    {"file": "xpkg/tryexcept.py", "line": 8, "written": "int", "case": "builtin", "truth_bucket": "builtin", "truth_canonical": "int", "note": "builtin"}
+  ]
+}
