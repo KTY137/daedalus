@@ -694,6 +694,32 @@ def test_a_gate_with_no_measured_node_is_refused():
     assert "never classified" in blockers[0]
 
 
+def test_the_fixture_is_byte_identical_in_every_checkout():
+    """The fixture's tree digest IS the slice's base revision, so a checkout
+    that rewrites its line endings silently changes every identity the receipt
+    reports -- while git calls both trees clean.
+
+    MEASURED 2026-08-23: two worktrees of the same commit held a 19-byte and a
+    21-byte data/events.csv, and the replay comparison between their receipts
+    refused with "produced from a different fixture tree". `.gitattributes`
+    pins the fixture with `-text`; this test is what makes a future regression
+    of that pin fail loudly instead of moving the base revision.
+    """
+
+    offenders = []
+    for path in sorted(gate1.DEFAULT_FIXTURE.rglob("*")):
+        if not path.is_file():
+            continue
+        blob = path.read_bytes()
+        if bytes([13]) in blob:  # a carriage return
+            offenders.append(str(path.relative_to(gate1.DEFAULT_FIXTURE)))
+    assert offenders == [], (
+        "CRLF in the ignition fixture makes the base revision checkout-dependent; "
+        "check `.gitattributes` still carries tests/fixtures/ignition/voltage/** -text: "
+        + ", ".join(offenders)
+    )
+
+
 def test_every_rewritten_subject_is_read_by_some_evaluator(slice_result):
     """Reverting a subject that no evaluator reads changes no verdict, which is
     indistinguishable from a rename nobody checked. Measured per subject, and

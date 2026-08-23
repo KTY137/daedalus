@@ -54,3 +54,13 @@ tests/fixtures/sandbox_unavailable_fault_executor.py -text
 tests/fixtures/undeclared_secret_fault_executor.py -text
 tests/fixtures/unauthorized_egress_fault_executor.py -text
 tests/fixtures/unknown_outcome_reconciliation_fault_executor.py -text
+
+# The Gate-1 ignition fixture. Its tree digest IS the slice's base revision
+# (daedalus/ignition/gate1.py prepare_ignition_repo), so under CRLF the same
+# commit produces a different base revision, candidate revision and graph delta
+# per checkout -- while git reports both trees clean. MEASURED 2026-08-23:
+# data/events.csv is 19 bytes in one worktree and 21 in another at the same
+# commit, and the replay comparison between them refused with "produced from a
+# different fixture tree". The module's own docstring promises "the same 40-hex
+# sha on any machine"; this is what makes that true.
+tests/fixtures/ignition/voltage/** -text
