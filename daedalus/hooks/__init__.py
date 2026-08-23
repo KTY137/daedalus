@@ -35,8 +35,9 @@ in — the 2026-08-22 incident, where four edits landed in the archived tree.
 
 Effect boundary
 ---------------
-The package writes state and a ledger, spawns ``git`` and probes Serena's
-loopback port. It is therefore a registered entrypoint (``daedalus.hooks`` in
+The package writes state, a ledger, and the PreCompact vault marker, spawns
+``git`` and probes Serena's loopback port. It is therefore a registered
+entrypoint (``daedalus.hooks`` in
 ``daedalus/spine/effect_boundary.py``) and ``__main__.main`` starts through
 ``begin_effect`` before any of those effects. A boundary refusal prints a line
 to stderr and exits 0 — the hook protocol.

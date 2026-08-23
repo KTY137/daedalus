@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/proposals/hook_precompact_vault.py\"",
-            "timeout": 10,
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" pre_compact",
+            "timeout": 15,
             "statusMessage": "Logging compaction to vault..."
           }
         ]

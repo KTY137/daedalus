@@ -84,7 +84,7 @@ daedalus/hooks/                   one package, one process per event
 Events registered in `agent_env_g0/.claude/settings.json` (all repo-relative):
 SessionStart (`startup|resume|clear|compact|fork`), UserPromptSubmit, PreToolUse
 (`Read|Grep|mcp__serena__.*`), PostToolUse (`Bash`), SubagentStart, SubagentStop,
-ConfigChange, PreCompact (vault audit line, unchanged script). No Stop hook.
+ConfigChange, PreCompact (vault audit line through the same registered dispatcher). No Stop hook.
 
 User-level `~/.claude/settings.json` after migration: SessionStart + CwdChanged
 (orient), Notification (toast), statusLine. Removed there: stream_hook (user +
@@ -92,7 +92,8 @@ Stop), shift_hook, arch_hook, crew_hook, serena-first, PreCompact -- all of whic
 pointed at the archived tree. Backup: `~/.claude/settings.json.bak-2026-08-23`.
 
 Deleted from the repo: `daedalus/shift_hook.py`, `arch_hook.py`, `crew_hook.py`,
-`.claude/hooks/serena-first.py`, `.claude/hooks/docs-drift-reminder.py` (their
+`.claude/hooks/serena-first.py`, `.claude/hooks/docs-drift-reminder.py`,
+`.claude/proposals/hook_precompact_vault.py` (their
 rationale lives in the package docstrings). `runs/arch_memory.shown` is untracked
 and ignored; the per-session cursor is `runs/hooks/arch-<session>.shown`.
 
