@@ -506,3 +506,56 @@ def test_a_declaration_bound_to_a_foreign_scan_clears_nothing(
     census = _census(verdicts)
     assert "classification:input-refused" in failures
     assert census["unclassified"] == len(inventory.blockers)
+
+
+# --------------------------------------------------------------------------- #
+# the declaration's address is 12 hex; its identity stays 40                   #
+# --------------------------------------------------------------------------- #
+def test_the_declaration_address_is_twelve_hex_and_fresh(tmp_path):
+    """The 40-hex directory made the longest tracked path 154 characters and
+    killed the first armed loop run of 2026-08-23 in `git worktree add`
+    (Windows MAX_PATH). The address shrinks; the identity is the full
+    source_revision inside classification-input.json."""
+    out, refusal = GEN.declaration_out_dir(tmp_path, REVISION, None)
+    assert refusal is None
+    assert out == tmp_path / GEN.DEFAULT_OUT_ROOT / REVISION[:12]
+    assert len(out.name) == 12
+
+
+def test_the_same_revision_may_reenter_its_address(tmp_path):
+    out = tmp_path / GEN.DEFAULT_OUT_ROOT / REVISION[:12]
+    out.mkdir(parents=True)
+    (out / "classification-input.json").write_text(
+        json.dumps({"source_revision": REVISION}), encoding="utf-8")
+    again, refusal = GEN.declaration_out_dir(tmp_path, REVISION, None)
+    assert refusal is None and again == out
+
+
+def test_a_prefix_twin_is_refused_never_overwritten(tmp_path):
+    """Two revisions sharing 12 hex share an address only by accident; the
+    occupant wins and the newcomer is told to use --out-dir."""
+    twin = REVISION[:12] + "f" * 28
+    out = tmp_path / GEN.DEFAULT_OUT_ROOT / REVISION[:12]
+    out.mkdir(parents=True)
+    (out / "classification-input.json").write_text(
+        json.dumps({"source_revision": twin}), encoding="utf-8")
+    _, refusal = GEN.declaration_out_dir(tmp_path, REVISION, None)
+    assert refusal is not None and "REFUSED" in refusal
+    assert twin in refusal and "--out-dir" in refusal
+
+
+def test_an_unreadable_occupant_is_a_refusal_not_a_landlord_eviction(tmp_path):
+    out = tmp_path / GEN.DEFAULT_OUT_ROOT / REVISION[:12]
+    out.mkdir(parents=True)
+    (out / "classification-input.json").write_text("{not json", encoding="utf-8")
+    _, refusal = GEN.declaration_out_dir(tmp_path, REVISION, None)
+    assert refusal is not None and "cannot be read" in refusal
+
+
+def test_an_explicit_out_dir_is_checked_by_the_same_rule(tmp_path):
+    chosen = tmp_path / "elsewhere"
+    chosen.mkdir()
+    (chosen / "classification-input.json").write_text(
+        json.dumps({"source_revision": OTHER_REVISION}), encoding="utf-8")
+    _, refusal = GEN.declaration_out_dir(tmp_path, REVISION, str(chosen))
+    assert refusal is not None and OTHER_REVISION in refusal

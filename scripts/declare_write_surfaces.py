@@ -1292,6 +1292,45 @@ def _dominance(root: Path, door: DoorAnchor, index: NameIndex) -> ModuleDominanc
     )
 
 
+def declaration_out_dir(
+    root: Path, revision: str, explicit: str | None
+) -> tuple[Path, str | None]:
+    """Where this revision's declaration lands, or why it must not.
+
+    Twelve hex, not forty: the directory is an ADDRESS, the identity is the
+    full ``source_revision`` inside ``classification-input.json``. The 40-hex
+    spelling made this repository's longest tracked path 154 characters and
+    killed the first armed loop run of 2026-08-23 inside ``git worktree add``
+    (Windows MAX_PATH). Codex (room 56): the spelling is not identity, shrink
+    it -- but never let two revisions share a prefix silently. So a directory
+    that already holds a declaration is re-entered only for the SAME full
+    revision; a prefix twin or an unreadable occupant is a refusal, and an
+    explicit ``--out-dir`` is checked by the same rule.
+    """
+    out_dir = (
+        Path(explicit)
+        if explicit is not None
+        else root / DEFAULT_OUT_ROOT / revision[:12]
+    )
+    existing = out_dir / "classification-input.json"
+    if existing.exists():
+        try:
+            bound = json.loads(
+                existing.read_text(encoding="utf-8")).get("source_revision")
+        except (OSError, ValueError) as exc:
+            return out_dir, (
+                f"REFUSED: {existing} exists but cannot be read "
+                f"({type(exc).__name__}: {exc}); refusing to overwrite a "
+                f"declaration whose bound revision is unknown")
+        if bound != revision:
+            return out_dir, (
+                f"REFUSED: {out_dir} already holds the declaration for "
+                f"{bound}, which is not {revision}; a 12-hex address is only "
+                f"an address, and two revisions must never share one -- pass "
+                f"--out-dir to place this one explicitly")
+    return out_dir, None
+
+
 def declaration_document(derivation: Derivation) -> dict[str, object]:
     """Serialise the derivation, or refuse when it cannot be serialised.
 
@@ -1581,11 +1620,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     document = declaration_document(derivation)
     if not args.dry_run:
-        out_dir = (
-            Path(args.out_dir)
-            if args.out_dir is not None
-            else root / DEFAULT_OUT_ROOT / revision
-        )
+        out_dir, refusal = declaration_out_dir(root, revision, args.out_dir)
+        if refusal is not None:
+            print(refusal, file=sys.stderr)
+            return 2
         cas_dir = out_dir / "cas"
         cas_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "classification-input.json").write_bytes(
