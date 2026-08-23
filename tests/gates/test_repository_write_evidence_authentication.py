@@ -19,6 +19,7 @@ from daedalus.gates.repository_write_classification import (
     SurfaceClassification,
     TargetDisposition,
     applicable_authentication_stages,
+    _compose_authenticated_surfaces,
     authenticate_repository_write_surfaces,
     authenticated_over_stages,
     issue_non_runtime_conformity_binding,
@@ -364,8 +365,8 @@ def test_conjunction_is_false_when_one_applicable_stage_is_absent() -> None:
             report, materialization, surface_sha256
         ),
     }
-    complete = authenticate_repository_write_surfaces(
-        report, stage_reports=full
+    complete = _compose_authenticated_surfaces(
+        report, full
     )[surface]
     assert complete.authenticated is True
     assert complete.applicable == frozenset(
@@ -381,8 +382,8 @@ def test_conjunction_is_false_when_one_applicable_stage_is_absent() -> None:
     # unauthenticated, with that stage named ``absent``.
     for stage in sorted(complete.applicable, key=lambda item: item.value):
         partial = {key: value for key, value in full.items() if key is not stage}
-        result = authenticate_repository_write_surfaces(
-            report, stage_reports=partial
+        result = _compose_authenticated_surfaces(
+            report, partial
         )[surface]
         assert result.authenticated is False
         assert dict(result.verdicts)[stage.value] == STAGE_VERDICT_ABSENT
@@ -493,9 +494,9 @@ def test_not_applicable_without_a_collector_signature_is_refused() -> None:
         signature_sha256="0" * 64,
     )
     with pytest.raises(RepositoryWriteClassificationError):
-        authenticate_repository_write_surfaces(
+        _compose_authenticated_surfaces(
             report,
-            stage_reports=stage_reports,
+            stage_reports,
             non_runtime_bindings=(unsigned,),
             collector_secrets={"key.1": SECRET},
         )
@@ -524,9 +525,9 @@ def test_not_applicable_without_a_collector_signature_is_refused() -> None:
 
     # Signed, the same excuse removes conformity from the applicable set and
     # the remaining three stages authenticate the surface.
-    excused = authenticate_repository_write_surfaces(
+    excused = _compose_authenticated_surfaces(
         report,
-        stage_reports=stage_reports,
+        stage_reports,
         non_runtime_bindings=(_binding(surface_sha256),),
         collector_secrets={"key.1": SECRET},
     )[surface]
@@ -546,9 +547,9 @@ def test_runtime_writer_declared_non_runtime_is_refused() -> None:
     # The conformity stage retained a runtime replay for this exact surface,
     # so the signed non-runtime excuse is a lie about the same execution.
     with pytest.raises(RepositoryWriteClassificationError):
-        authenticate_repository_write_surfaces(
+        _compose_authenticated_surfaces(
             report,
-            stage_reports={
+            {
                 AuthenticationStage.MATERIALIZATION: materialization,
                 AuthenticationStage.CONFORMITY: _conformity(
                     report, materialization, surface_sha256
@@ -581,9 +582,9 @@ def test_signed_binding_is_checked_against_the_retained_lease_replay() -> None:
             execution_id=execution_id,
         )
         with pytest.raises(RepositoryWriteClassificationError):
-            authenticate_repository_write_surfaces(
+            _compose_authenticated_surfaces(
                 report,
-                stage_reports={
+                {
                     AuthenticationStage.MATERIALIZATION: materialization,
                     AuthenticationStage.LEASE: lease,
                 },
@@ -599,9 +600,9 @@ def test_signed_binding_is_checked_against_the_retained_lease_replay() -> None:
         runtime_id=None,
         execution_id="execution.1",
     )
-    result = authenticate_repository_write_surfaces(
+    result = _compose_authenticated_surfaces(
         report,
-        stage_reports={
+        {
             AuthenticationStage.MATERIALIZATION: materialization,
             AuthenticationStage.LEASE: agreeing,
         },
@@ -629,13 +630,13 @@ def test_stage_report_must_be_the_exact_typed_report() -> None:
         _origin(report, materialization),
     ):
         with pytest.raises(RepositoryWriteClassificationError):
-            authenticate_repository_write_surfaces(
+            _compose_authenticated_surfaces(
                 report,
-                stage_reports={AuthenticationStage.MATERIALIZATION: forged},
+                {AuthenticationStage.MATERIALIZATION: forged},
             )
     with pytest.raises(RepositoryWriteClassificationError):
-        authenticate_repository_write_surfaces(
-            report, stage_reports={"materialization": materialization}
+        _compose_authenticated_surfaces(
+            report, {"materialization": materialization}
         )
 
 
@@ -647,8 +648,8 @@ def test_stage_report_bound_to_a_foreign_classification_is_refused() -> None:
     foreign = _materialization(other, _retired(_surface("daedalus/other.py")))
 
     with pytest.raises(RepositoryWriteClassificationError):
-        authenticate_repository_write_surfaces(
-            report, stage_reports={AuthenticationStage.MATERIALIZATION: foreign}
+        _compose_authenticated_surfaces(
+            report, {AuthenticationStage.MATERIALIZATION: foreign}
         )
 
 
@@ -667,8 +668,8 @@ def test_materialization_speaks_only_for_the_kinds_it_retained() -> None:
         records=full.records[:1],
         missing_locators=(),
     )
-    result = authenticate_repository_write_surfaces(
-        report, stage_reports={AuthenticationStage.MATERIALIZATION: partial}
+    result = _compose_authenticated_surfaces(
+        report, {AuthenticationStage.MATERIALIZATION: partial}
     )[surface]
     assert dict(result.verdicts)["materialization"] == STAGE_VERDICT_ABSENT
     assert result.authenticated is False

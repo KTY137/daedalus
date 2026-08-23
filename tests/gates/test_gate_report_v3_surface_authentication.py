@@ -16,6 +16,7 @@ from daedalus.gates.repository_write_classification import (
     RepositoryWriteClassificationError,
     SurfaceClassification,
     TargetDisposition,
+    _compose_authenticated_surfaces,
     authenticate_repository_write_surfaces,
     project_repository_write_classifications,
     surface_binding_sha256,
@@ -215,8 +216,13 @@ def test_forged_stage_payload_with_a_correct_classification_digest_clears_nothin
     # objects, and every stage refuses a mapping.
     for stage in AuthenticationStage:
         with pytest.raises(RepositoryWriteClassificationError):
+            _compose_authenticated_surfaces(projection, {stage: forged})
+
+    # And the public entry has no parameter for one at all, under any name.
+    for keyword in ("stage_reports", "reports", "stages"):
+        with pytest.raises(TypeError):
             authenticate_repository_write_surfaces(
-                projection, stage_reports={stage: forged}
+                projection, **{keyword: {AuthenticationStage.MATERIALIZATION: forged}}
             )
 
     # And there is no reporter locator for it either: handed in where a

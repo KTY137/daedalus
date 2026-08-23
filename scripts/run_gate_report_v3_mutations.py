@@ -18,6 +18,7 @@ TESTS = (
     "tests/gates/test_gate_report_v3_schema.py",
     "tests/gates/test_gate_report_v3_cli.py",
     "tests/gates/test_gate_report_v3_surface_authentication.py",
+    "tests/gates/test_gate_report_v3_raw_input_composition.py",
 )
 
 MUTATIONS = {
@@ -77,6 +78,15 @@ MUTATIONS = {
     "assume-every-cleared-surface-is-authenticated": (
         "                if authentication is not None and authentication.authenticated:\n",
         "                if authentication is not None:\n",
+    ),
+    # Codex point 1.  The reporter hands the composition the projection and
+    # nothing else; a keyword here -- even one that changes no behaviour --
+    # reopens the door a caller-supplied stage object would come through.
+    "reopen-the-stage-report-keyword": (
+        "    authentications = authenticate_repository_write_surfaces(projection)\n",
+        "    authentications = authenticate_repository_write_surfaces(\n"
+        "        projection, inputs=None\n"
+        "    )\n",
     ),
 }
 

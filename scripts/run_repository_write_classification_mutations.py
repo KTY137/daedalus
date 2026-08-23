@@ -14,6 +14,8 @@ TESTS = (
     "tests/gates/test_repository_write_classification.py",
     "tests/gates/test_repository_write_classification_review.py",
     "tests/gates/test_repository_write_evidence_authentication.py",
+    "tests/gates/test_repository_write_non_runtime_conformity_admission.py",
+    "tests/gates/test_gate_report_v3_raw_input_composition.py",
 )
 MUTATIONS = {
     "force-closed": ('"closed": False', '"closed": True'),
@@ -128,6 +130,53 @@ MUTATIONS = {
         "                or record.execution_id != binding.execution_id\n"
         "            ):\n",
         "            if False:\n",
+    ),
+    # --- the row contract: what may replace a runtime receipt ------------
+    # A signature is not a replay.  Dropping the replay leaves a field that
+    # says "non_runtime" and nothing that ever checked it.
+    "admit-a-binding-without-a-replay": (
+        "        replay_non_runtime_effect_subject(\n"
+        "            self.subject,\n"
+        "            expected_execution_id=self.binding.execution_id,\n"
+        "        )\n",
+        "        pass\n",
+    ),
+    # And a replay is not a signature: an unsigned binding must not admit.
+    "admit-an-unverified-binding": (
+        "        verify_non_runtime_conformity_binding(\n"
+        "            self.binding,\n"
+        "            collector_secrets=self.collector_secrets,\n"
+        "        )\n",
+        "        pass\n",
+    ),
+    # Exactly one evidence kind may be excused.  Emptying the required set
+    # excuses the guard contract, the lease receipt and the disjointness
+    # receipt along with it.
+    "excuse-more-than-the-runtime-receipt": (
+        "                required.discard(EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT)\n",
+        "                required = set()\n",
+    ),
+    "admit-a-row-that-also-carries-a-receipt": (
+        "                if EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT in kinds:\n",
+        "                if False and EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT in kinds:\n",
+    ),
+    "admit-an-admission-on-a-noncentral-row": (
+        "            if self.guard is not GuardDisposition.CENTRAL:\n",
+        "            if False and self.guard is not GuardDisposition.CENTRAL:\n",
+    ),
+    "admit-an-admission-for-another-surface": (
+        "            if self.non_runtime_conformity.surface_sha256 != expected_surface_sha256:\n",
+        "            if False and self.non_runtime_conformity.surface_sha256 != expected_surface_sha256:\n",
+    ),
+    "applicability-ignores-the-row-admission": (
+        "        row.non_runtime_conformity is None\n"
+        "        and surface_binding_sha256(row.source_revision, row.surface)\n",
+        "        surface_binding_sha256(row.source_revision, row.surface)\n",
+    ),
+    # --- Codex point 1: the six verifiers must actually run --------------
+    "skip-the-stage-verifiers": (
+        "        _run_stage_verifiers(report, inputs) if inputs is not None else {},\n",
+        "        {},\n",
     ),
 }
 

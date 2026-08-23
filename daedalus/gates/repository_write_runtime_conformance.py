@@ -63,7 +63,11 @@ from daedalus.schemas import (
 from daedalus.spine.envelope import canonical_json
 
 
-_REPORT_SCHEMA = "daedalus-gate0-repository-write-runtime-conformance/1"
+# Revision 2 relaxed the one-receipt-per-production-surface rule to
+# "exactly one, or exactly zero with a verified NonRuntimeConformityBinding
+# for that surface", and added ``non_runtime_surfaces`` so the excused set
+# travels on the wire instead of being inferred.  One id, one shape.
+_REPORT_SCHEMA = "daedalus-gate0-repository-write-runtime-conformance/2"
 _EVIDENCE_SCHEMA = "daedalus-gate0-repository-write-evidence-object/1"
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -382,6 +386,11 @@ class RepositoryWriteRuntimeConformanceReport:
     runtime_binding_count: int
     runtime_set_sha256: str
     records: tuple[RuntimeConformanceReplayRecord, ...]
+    # Wire revision 2.  The surfaces this report verified ZERO receipts for,
+    # each because its row carried a verified NonRuntimeConformityBinding.
+    # Naming them is what keeps "exactly zero, excused" distinguishable from
+    # "missing" at the Effect-Lease consumer.
+    non_runtime_surfaces: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _strict_revision(self.source_revision, "source_revision")
@@ -393,13 +402,42 @@ class RepositoryWriteRuntimeConformanceReport:
             "runtime_set_sha256",
         ):
             _strict_sha(getattr(self, field_name), field_name)
-        for field_name in (
+        if _strict_int(
+            self.production_classification_count,
             "production_classification_count",
+        ) < 1:
+            raise ValueError("production_classification_count must be positive")
+        for field_name in (
             "runtime_subject_count",
             "runtime_binding_count",
         ):
-            if _strict_int(getattr(self, field_name), field_name) < 1:
-                raise ValueError(f"{field_name} must be positive")
+            # Revision 2: zero is now reachable, but only for a report whose
+            # every production surface is excused by name below.
+            if _strict_int(getattr(self, field_name), field_name) < 0:
+                raise ValueError(f"{field_name} must be non-negative")
+        if not isinstance(self.non_runtime_surfaces, tuple):
+            raise ValueError("non_runtime_surfaces must be an immutable tuple")
+        for value in self.non_runtime_surfaces:
+            _strict_sha(value, "non_runtime_surface")
+        if tuple(sorted(self.non_runtime_surfaces)) != self.non_runtime_surfaces:
+            raise ValueError("non_runtime_surfaces must be sorted")
+        if len(set(self.non_runtime_surfaces)) != len(self.non_runtime_surfaces):
+            raise ValueError("non_runtime_surfaces must be unique")
+        if set(self.non_runtime_surfaces).intersection(
+            record.surface_sha256 for record in self.records
+        ):
+            # A surface cannot be both excused and replayed: that is the
+            # runtime writer wearing a non-runtime label.
+            raise ValueError(
+                "a non-runtime surface cannot also retain a runtime replay record"
+            )
+        if not self.records and not self.non_runtime_surfaces:
+            # Zero receipts is permitted only WITH a binding.  Without one this
+            # report would claim runtime conformance was verified while having
+            # verified nothing at all.
+            raise ValueError(
+                "a report with no runtime records must name its non-runtime surfaces"
+            )
         if not isinstance(self.records, tuple) or any(
             not isinstance(record, RuntimeConformanceReplayRecord)
             for record in self.records
@@ -439,6 +477,7 @@ class RepositoryWriteRuntimeConformanceReport:
             "runtime_binding_count": self.runtime_binding_count,
             "runtime_set_sha256": self.runtime_set_sha256,
             "records": [record.to_dict() for record in self.records],
+            "non_runtime_surfaces": list(self.non_runtime_surfaces),
             "origin_authenticated": True,
             "source_anchor_semantics_verified": True,
             "guard_contract_structure_verified": True,
@@ -548,7 +587,19 @@ def verify_repository_write_runtime_conformance(
             if binding.kind is EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT
         )
         if row.production_reachable:
-            if len(runtime_bindings) != 1:
+            # Wire revision 2.  The rule was "exactly one receipt per
+            # production surface".  It is now "exactly one, or exactly zero
+            # with a verified NonRuntimeConformityBinding for that surface".
+            # The zero branch is not a loosening a caller can take: the row
+            # only holds an admission if the collector signature verified AND
+            # the retained execution replayed as a NonRuntimeEffectAuthorization
+            # at construction, and no declaration document has a key for it.
+            if row.non_runtime_conformity is not None:
+                if runtime_bindings:
+                    raise RepositoryWriteRuntimeConformanceBindingError(
+                        "non-runtime classification retains runtime-conformance evidence"
+                    )
+            elif len(runtime_bindings) != 1:
                 raise RepositoryWriteRuntimeConformanceBindingError(
                     "every production classification requires exactly one runtime receipt"
                 )
@@ -562,7 +613,19 @@ def verify_repository_write_runtime_conformance(
     }
     required_receipts: set[str] = set()
     payload_by_binding: dict[EvidenceBinding, tuple[str, str]] = {}
+    non_runtime_surfaces = tuple(
+        sorted(
+            row.non_runtime_conformity.surface_sha256
+            for row in production_rows
+            if row.non_runtime_conformity is not None
+        )
+    )
     for row in production_rows:
+        if row.non_runtime_conformity is not None:
+            # Zero receipts for this surface.  Its excuse is carried by the
+            # report's ``non_runtime_surfaces`` so the Effect-Lease consumer
+            # can tell "excused" from "missing" without re-deriving anything.
+            continue
         binding = next(
             item
             for item in row.evidence
@@ -651,6 +714,7 @@ def verify_repository_write_runtime_conformance(
         runtime_binding_count=len(records),
         runtime_set_sha256=runtime_set_sha256,
         records=records,
+        non_runtime_surfaces=non_runtime_surfaces,
     )
 
 

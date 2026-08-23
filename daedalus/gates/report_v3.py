@@ -588,14 +588,14 @@ def _classify_repository_write_surfaces(
 
     Authentication is composed here, in process.  This reporter hands
     ``authenticate_repository_write_surfaces`` nothing but the projection it
-    just built: no ``stage_reports`` argument, so no caller-supplied stage
-    object can reach the report path at all.  No stage input is wired into
-    this reporter yet, so every stage is ``absent``, every surface is
-    unauthenticated, and the count below equals the cleared count.  That is
-    the honest state, not a placeholder — a surface becomes authenticated when
-    a verifier has run over it, never when a document says so, and there is no
-    locator here for such a document to arrive through.  Wiring the raw stage
-    inputs and running the six verifiers from this call is the next packet.
+    just built, and that function has no parameter a stage report could arrive
+    through: stages exist only when it was given RAW inputs and ran all six
+    verifiers over them itself.  No raw stage input is wired into this reporter
+    yet, so every stage is ``absent``, every surface is unauthenticated, and
+    the count below equals the cleared count.  That is the honest state, not a
+    placeholder — a surface becomes authenticated when a verifier has run over
+    it, never when a document says so, and there is no locator here for such a
+    document to arrive through.
     """
 
     document: Mapping[str, Any] | None = None
