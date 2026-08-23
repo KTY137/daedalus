@@ -55,3 +55,18 @@ python -c "import daedalus.kairos.gated_writes"                 # integrity chec
 
 Afterwards flip tests/test_loop_governance_head.py::test_the_sealed_write_path_fix_is_pending_and_applies
 and tests/test_loop_lease.py::test_gated_write_wave_gets_the_lease_the_day_it_accepts_one.
+
+## Third move, same day: the artifact store (TAKEN 2026-08-23 14:15Z)
+
+`_artifact_root_for` in the sealed source now derives the held-patch store from
+`killswitch.OS_PROFILE_DIR` (`<profile>/.daedalus/artifacts/<digest>/patches`),
+patch `artifact_root_profile.patch` beside this note, pin ec2fa2d6, Odysseus
+APPLY-WITH-FIX. The OLD store is LEFT IN PLACE and not refused: unlike the
+control root it is create-once content-addressed evidence, so a missed old blob
+makes a locator unresolvable and never turns a spent thing unspent. Measured
+contents of the old root at the move: one blob (e3b0c442..., the empty patch of
+loop-20260823-145421-34bd80), four locators, one pre-CAS flat patch under digest
+8765452452df -- nothing of promotion value. The loop reports that name the
+LocalCache path (runs/loop/loop-20260822-*.json, loop-20260823-145421-34bd80.json,
+blocker_9887a98e.json) were already unreadable from any non-Store process; they
+stay as written (history), and every new write lands in the profile root.

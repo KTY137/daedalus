@@ -165,13 +165,21 @@ def _artifact_root_for(repo_root: Path) -> Path:
     returns.  Keep the archive beside the worktree/control state, namespaced by
     checkout identity, and let ``TaskAttempt._persist`` apply its primary-tree
     fence before it creates or writes anything.
+
+    Derived from the OS-reported profile directory, like the control root and
+    the worktree root, NOT from ``%LOCALAPPDATA%``: the Microsoft-Store python
+    virtualises that into ``Packages/PythonSoftwareFoundation.Python.3.10_.../
+    LocalCache/Local`` (Odysseus F1), so a candidate patch archived by one
+    interpreter was invisible to every other process -- measured on
+    loop-20260823-145421-34bd80, whose artifact_path named the LocalCache
+    redirect. A content-addressed artifact store that only one python build
+    can see is not an artifact store.
     """
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    base = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
+    from daedalus.spine.killswitch import OS_PROFILE_DIR
     digest = hashlib.sha256(
         str(Path(repo_root).resolve()).encode("utf-8")
     ).hexdigest()[:12]
-    return base / "daedalus" / "artifacts" / digest / "patches"
+    return OS_PROFILE_DIR / ".daedalus" / "artifacts" / digest / "patches"
 
 
 def _relay_gate(box: dict):

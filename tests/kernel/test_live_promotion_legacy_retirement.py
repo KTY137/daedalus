@@ -9,7 +9,14 @@ import daedalus.kairos.gated_writes as gated_writes
 from daedalus.kernel.promotion import PromotionAuthorizationError
 
 
-REVIEWED_LEGACY_BLOB = "e31d24ec67f7c208ace34f5dd2e9fefe4e654a86"
+# The blob a human-reviewed patch left the sealed source at. History, newest
+# first, each a reviewed patch under docs/decisions-taken/:
+#   ec2fa2d6  2026-08-23  artifact store from the OS profile (Odysseus APPLY-WITH-FIX)
+#   e7acc630  2026-08-23  lease hand-down + governance head (Odysseus APPLY-WITH-FIX)
+#   e31d24ec  before       the retained source as sealed
+# This pin went stale for one commit (aa5923d4..be7ae675) and was red without
+# anybody noticing -- which is why the three-way check below exists.
+REVIEWED_LEGACY_BLOB = "ec2fa2d6d01c990f1997a24029c414943d90a2a6"
 
 
 def test_retained_source_is_package_data_not_a_second_python_entrypoint() -> None:

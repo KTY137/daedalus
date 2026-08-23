@@ -40,6 +40,8 @@ PENDING_PATCH = REPO_ROOT / "docs" / "decisions-pending" / "gated_writes_lease_h
 #: Where the patch went the day it landed (2026-08-23); kept so the test can
 #: still name the hunk it once guarded.
 TAKEN_PATCH = REPO_ROOT / "docs" / "decisions-taken" / "2026-08-23" / "gated_writes_lease_handdown.patch"
+PENDING_DIR = REPO_ROOT / "docs" / "decisions-pending"
+SEALED_REL = "daedalus/kairos/_gated_writes_legacy.py.src"
 SEALED_SRC = REPO_ROOT / "daedalus" / "kairos" / "_gated_writes_legacy.py.src"
 
 
@@ -155,6 +157,43 @@ def test_same_revision_compares_commits_not_strings(a, b, same):
 # --------------------------------------------------------------------------- #
 def _git_blob_sha1(data: bytes) -> str:
     return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def _pending_sealed_source_patches():
+    """Every patch under decisions-pending that touches the sealed source."""
+    if not PENDING_DIR.exists():
+        return []
+    found = []
+    for path in sorted(PENDING_DIR.glob("*.patch")):
+        if SEALED_REL in path.read_text(encoding="utf-8", errors="replace"):
+            found.append(path)
+    return found
+
+
+@pytest.mark.parametrize("pending", _pending_sealed_source_patches() or [None],
+                         ids=lambda p: p.name if p else "none-pending")
+def test_every_pending_sealed_source_patch_applies_and_carries_its_pin(
+        tmp_path, pending):
+    """The rot check, generalised (Odysseus 2026-08-23 F3: the original was
+    bound to one file name and went dark the day that file moved to
+    decisions-taken). Any patch waiting under decisions-pending that edits the
+    sealed source must still apply to the CURRENT sealed bytes and must name,
+    in its own text, the blob pin its output hashes to -- so an owner pastes
+    a number that was measured, not typed."""
+    if pending is None:
+        pytest.skip("no sealed-source patch is pending")
+    if shutil.which("git") is None:
+        pytest.skip("git is not available to apply the pending patch")
+    work = tmp_path / "daedalus" / "kairos"
+    work.mkdir(parents=True)
+    shutil.copyfile(SEALED_SRC, work / SEALED_SRC.name)
+    proc = subprocess.run(["git", "apply", "-p1", str(pending)],
+                          cwd=str(tmp_path), capture_output=True, text=True)
+    assert proc.returncode == 0, f"{pending.name} no longer applies: {proc.stderr}"
+    pin = _git_blob_sha1((work / SEALED_SRC.name).read_bytes())
+    assert pin in pending.read_text(encoding="utf-8"), (
+        f"{pending.name} does not name the pin its own output hashes to "
+        f"(measured {pin}); recompute with `git hash-object`")
 
 
 def test_the_sealed_write_path_fix_is_pending_and_applies(tmp_path):
