@@ -178,3 +178,28 @@ def test_a_vendor_spawn_IS_intercepted_when_installed(monkeypatch, tmp_path):
     except (FileNotFoundError, OSError):
         pass
     assert seen, "a recognised vendor spawn was not reserved"
+
+
+def test_uninstall_never_resurrects_a_mock_that_was_active_during_install():
+    """The 2026-08-23 full-suite cascade, pinned. A test mocks subprocess.run,
+    the code under test installs the guard around the MOCK, the mock's context
+    exits and puts the real function back -- and uninstall must not write the
+    remembered mock over it. 400 red tests and 119 refused kill-switch arms
+    came from exactly that sequence."""
+    from unittest import mock
+
+    real_run = subprocess.run
+    budget.uninstall_process_guard()            # start from a clean interpreter
+    with mock.patch("subprocess.run", side_effect=lambda *a, **k: "fake") as fake:
+        budget.install_process_guard()          # wraps the mock, as ikarus_os did
+        assert subprocess.run is not fake
+    assert subprocess.run is real_run, "mock.patch put the real function back"
+    left = budget.uninstall_process_guard()
+    assert subprocess.run is real_run, "uninstall must not resurrect the mock"
+    assert "subprocess.run" in left
+    assert budget._INSTALLED == {}
+    # and a clean install/uninstall round-trip still restores the original
+    budget.install_process_guard()
+    assert subprocess.run is not real_run
+    assert budget.uninstall_process_guard() == []
+    assert subprocess.run is real_run

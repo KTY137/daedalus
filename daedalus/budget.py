@@ -1585,25 +1585,61 @@ def install_process_guard() -> Callable[[], None]:
     if _INSTALLED:
         return uninstall_process_guard
 
-    _INSTALLED["subprocess.run"] = subprocess.run
-    _INSTALLED["subprocess.Popen"] = subprocess.Popen
-    _INSTALLED["urllib.request.urlopen"] = urllib.request.urlopen
-    subprocess.run = _guarded_spawn(subprocess.run, "subprocess.run")            # type: ignore[assignment]
-    subprocess.Popen = _guarded_popen(subprocess.Popen)                          # type: ignore[assignment]
-    urllib.request.urlopen = _guarded_urlopen(urllib.request.urlopen)            # type: ignore[assignment]
+    # Each record is (what was there, what we put there). The second half is
+    # what makes uninstall safe: it restores ONLY if the attribute still holds
+    # our wrapper. Measured 2026-08-23 (full suite, 400 red): a test mocked
+    # `subprocess.run`, called into ikarus_os, which installed this guard
+    # AROUND THE MOCK; the mock's context exit put the real function back, and
+    # the conftest teardown's uninstall then wrote the MOCK back over it --
+    # every later process spawn in the interpreter returned `stdout="ok"` with
+    # a MagicMock returncode, and the kill switch's cross-process probe
+    # refused to arm 119 times for a reason that had nothing to do with it.
+    wrapped_run = _guarded_spawn(subprocess.run, "subprocess.run")
+    wrapped_popen = _guarded_popen(subprocess.Popen)
+    wrapped_urlopen = _guarded_urlopen(urllib.request.urlopen)
+    _INSTALLED["subprocess.run"] = (subprocess.run, wrapped_run)
+    _INSTALLED["subprocess.Popen"] = (subprocess.Popen, wrapped_popen)
+    _INSTALLED["urllib.request.urlopen"] = (urllib.request.urlopen, wrapped_urlopen)
+    subprocess.run = wrapped_run                                                 # type: ignore[assignment]
+    subprocess.Popen = wrapped_popen                                             # type: ignore[assignment]
+    urllib.request.urlopen = wrapped_urlopen                                     # type: ignore[assignment]
     return uninstall_process_guard
 
 
-def uninstall_process_guard() -> None:
+def uninstall_process_guard() -> list[str]:
+    """Take the net down. Returns the names it did NOT restore.
+
+    An attribute that no longer holds this guard's wrapper was replaced by
+    somebody else after we installed (a test's ``mock.patch``, another
+    interposer). Writing our remembered original over THEIR value would undo
+    a replacement we never made -- or, after their context has already
+    restored the real function, would resurrect their fake. So those are left
+    exactly as found and reported by name; the record is dropped either way,
+    so the guard can be installed again.
+    """
     import subprocess
     import urllib.request
 
     if not _INSTALLED:
-        return
-    subprocess.run = _INSTALLED.pop("subprocess.run")                            # type: ignore[assignment]
-    subprocess.Popen = _INSTALLED.pop("subprocess.Popen")                        # type: ignore[assignment]
-    urllib.request.urlopen = _INSTALLED.pop("urllib.request.urlopen")            # type: ignore[assignment]
+        return []
+    left: list[str] = []
+    original, wrapper = _INSTALLED.pop("subprocess.run")
+    if subprocess.run is wrapper:
+        subprocess.run = original                                                # type: ignore[assignment]
+    else:
+        left.append("subprocess.run")
+    original, wrapper = _INSTALLED.pop("subprocess.Popen")
+    if subprocess.Popen is wrapper:
+        subprocess.Popen = original                                              # type: ignore[assignment]
+    else:
+        left.append("subprocess.Popen")
+    original, wrapper = _INSTALLED.pop("urllib.request.urlopen")
+    if urllib.request.urlopen is wrapper:
+        urllib.request.urlopen = original                                        # type: ignore[assignment]
+    else:
+        left.append("urllib.request.urlopen")
     _INSTALLED.clear()
+    return left
 
 
 # --------------------------------------------------------------------------

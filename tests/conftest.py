@@ -117,6 +117,16 @@ def _pin_latent_route_off(tmp_path_factory):
         os.environ["DAEDALUS_BUDGET_LEDGER"] = str(
             tmp_path_factory.mktemp("budget") / "ledger.json"
         )
+    # The pin above is only half of isolation: budget.ledger() caches the
+    # default Ledger process-wide, so without this reset the FIRST test to
+    # spend pins its ledger for every test after it (MEASURED 2026-08-23:
+    # "committed $3.00 of $5.00, 1 of 40 calls used" leaking out of
+    # test_ikarus_context into test_budget_is_installed and test_loop_lease).
+    try:
+        from daedalus import budget as _budget_mod
+        _budget_mod.reset_default_ledger()
+    except Exception:  # noqa: BLE001 - the pin must never fail a test
+        pass
     # Since 2026-08-23 the default worktree root is <OS profile>/.daedalus/
     # worktrees (it was %LOCALAPPDATA%, where suite runs had left 1,149
     # digest directories of .daedalus-alloc litter, MEASURED). A test that
@@ -136,5 +146,9 @@ def _pin_latent_route_off(tmp_path_factory):
         os.environ.pop("DAEDALUS_SPINE_DB", None)
     if not had_ledger:
         os.environ.pop("DAEDALUS_BUDGET_LEDGER", None)
+    try:
+        _budget.reset_default_ledger()
+    except Exception:  # noqa: BLE001
+        pass
     if not had_worktrees:
         os.environ.pop("DAEDALUS_WORKTREE_ROOT", None)
