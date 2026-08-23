@@ -1,0 +1,158 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260823-145421-34bd80.json",
+      "digest": {
+        "sha256": "321f06f6a18f119f60cc573e0ea4f6db57a69e01869af1c445c93ef78bcceee6"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-archive-swarm-2026-07-30-census-syn-73d5a9": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-62831c65a7"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260823T145421-32dd3f80"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "the runner produced no change to gate",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "qwen2.5-coder:7b",
+            "provider_receipt": {
+              "provider": "ollama",
+              "model": "qwen2.5-coder:7b",
+              "action": "escalated_after_verify_fail",
+              "wrote": [],
+              "report_status": "done",
+              "verify": {
+                "ok": false,
+                "checks": [
+                  {
+                    "name": "schema",
+                    "ok": true,
+                    "detail": "valid"
+                  },
+                  {
+                    "name": "did_work",
+                    "ok": true,
+                    "detail": "verified on disk: docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md"
+                  },
+                  {
+                    "name": "prose:docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md",
+                    "ok": false,
+                    "status": "checked",
+                    "detail": "lost=4, reduced=1, demoted=1 | [lost] code: 'daedalus/kairos/gated_writes.py::_PromotionLock' (1x -> 0x); [lost] code: 'gated_writes._artifact_root_functions' (1x -> 0x); [lost] code: 'render.StatusWord' (1x -> 0x) (+1 more)"
+                  },
+                  {
+                    "name": "tests",
+                    "ok": false,
+                    "status": "timeout",
+                    "timeout_s": 120,
+                    "detail": "tests did not finish within the 120s budget and were killed. This is NOT a test failure -- the suite never reported a verdict. Raise 'test_timeout_s' in the project config or narrow 'test_command'."
+                  }
+                ],
+                "failed": [
+                  "prose:docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md",
+                  "tests"
+                ],
+                "verdict": "fail",
+                "inconclusive": [
+                  "tests"
+                ]
+              },
+              "handoff": {
+                "windowed_rewrite": [
+                  "docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md"
+                ]
+              }
+            },
+            "effect_lease": {
+              "verdict": "allow",
+              "entrypoint_id": "python.offload",
+              "lease_id": "loop-20260823-145421-34bd80-wave-offload-w0-b646d721-ff7a0dfe",
+              "lease_sha256": "80a0a01310c97bf9ee976c9c602af8c101b8e97ffbeaea9602fb0854ab09c1d2",
+              "requested_effects": [
+                "filesystem_write",
+                "network_egress",
+                "process_spawn",
+                "spend"
+              ],
+              "policy_decision_id": "loop-20260823-145421-34bd80-wave-offload-w0-b646d721-allow",
+              "policy_decision_sha256": "7a88cc3a0f2a1fda2c5de542b31f788ec7ee1aa5f54bfaabfae73f0bf7c38463",
+              "policy_version": "daedalus.wave-offload-lease/1",
+              "issuer_key_id": "daedalus.local.effect-issuer",
+              "issued_at": "2026-08-23T12:55:47.638265+00:00",
+              "expires_at": "2026-08-23T13:10:47.638265+00:00",
+              "kill_switch_ref": "daedalus.spine.killswitch",
+              "kill_switch_generation": 167283763098619,
+              "max_cost_microusd": 250000,
+              "max_concurrency": 1,
+              "timeout_s": 900,
+              "writable_paths": [
+                "docs/archive/swarm-2026-07-30/census/SYNTH-priorities.md"
+              ],
+              "egress_endpoints": [
+                "http://127.0.0.1:11434"
+              ],
+              "tools": [
+                "git",
+                "ollama",
+                "python",
+                "python.exe"
+              ],
+              "execution_ids": [
+                "loop-20260823-145421-34bd80-wave-offload-w0-b646d721-ff7a0dfe-exec-0"
+              ],
+              "registry_sha256": "a9c7f324daab583652a142bd5f265576f99103ca5b406de2a246465e17b98e12",
+              "write_policy": {
+                "origin": "C:\\Users\\nukei\\Desktop\\agent_env_g0\\.agentenv\\agentenv.json",
+                "sha256": "9fb7cd958e57c58ca70d96c9d6e6ad65110e8df682ea8c6875432a5360c19f04",
+                "error": null
+              },
+              "ledger_path": "C:\\Users\\nukei\\.daedalus\\control\\2ea46e496ce4\\effect-leases.sqlite3",
+              "security_boundary_claimed": false,
+              "spend_envelope": {
+                "id": "36cb67e5136e43bfba30dde083deb511",
+                "label": "wave 0 (loop-20260823-145421-34bd80)",
+                "lease_id": "loop-20260823-145421-34bd80-wave-offload-w0-b646d721-ff7a0dfe",
+                "cap_usd": 0.25,
+                "spent_usd": 0.0,
+                "in_flight_usd": 0,
+                "released_hold_usd": 0.25,
+                "expired": false,
+                "closed": true,
+                "reason": "scope exited"
+              },
+              "execution_id": "loop-20260823-145421-34bd80-wave-offload-w0-b646d721-ff7a0dfe-exec-0"
+            },
+            "budget_refusal": null,
+            "spend_usd": 0.0,
+            "artifact_path": "C:\\Users\\nukei\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\Local\\daedalus\\artifacts\\2ea46e496ce4\\patches\\blobs\\sha256\\e3\\b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260823T145421-32dd3f80"
+  },
+  "trace_id": "tr-20260823T145421-32dd3f80"
+}
