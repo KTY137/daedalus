@@ -137,7 +137,13 @@ def test_only_read_only_effect_replay_projections_are_called() -> None:
 
 
 def test_missing_and_started_states_explicitly_forbid_automatic_reexecution() -> None:
-    assert SOURCE.count("automatic re-execution is forbidden") == 2
+    # Wire revision 2 added a third: the typed non-runtime replay the
+    # classification row calls before it will admit a conformity binding.
+    assert SOURCE.count("automatic re-execution is forbidden") == 3
+    assert (
+        "non-runtime replay is not terminal; automatic re-execution is forbidden"
+        in SOURCE
+    )
     assert "has no durable start; automatic re-execution is forbidden" in SOURCE
     assert "is not terminal; automatic re-execution is forbidden" in SOURCE
 
@@ -162,7 +168,13 @@ def test_runtime_bound_effect_is_joined_to_surface_runtime_conformance() -> None
         "                != runtime_record.conformance_receipt_sha256"
     ) in SOURCE
     assert "runtime-bound replay omitted authenticated runtime trust" in SOURCE
-    assert "if set(runtime_by_surface) != required_surfaces:" in SOURCE
+    # /2: a production surface is covered by a replayed runtime record OR
+    # by a verified non-runtime excuse, and by exactly one of the two.
+    assert (
+        "if set(runtime_by_surface) | excused_surfaces != required_surfaces:"
+        in SOURCE
+    )
+    assert "if declared_non_runtime != excused_surfaces:" in SOURCE
     assert "runtime_trust_record_sha256" in SOURCE
 
 

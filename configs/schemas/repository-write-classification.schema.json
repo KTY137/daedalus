@@ -14,7 +14,6 @@
     "classifications",
     "missing_surfaces",
     "classification_ready",
-    "evidence_authenticated",
     "primary_checkout_target_proven",
     "gate_report_bound",
     "closed",
@@ -241,7 +240,7 @@
   },
   "properties": {
     "schema": {
-      "const": "daedalus-gate0-repository-write-classification/1"
+      "const": "daedalus-gate0-repository-write-classification/2"
     },
     "source_revision": {
       "$ref": "#/$defs/revision"
@@ -274,9 +273,6 @@
     },
     "classification_ready": {
       "type": "boolean"
-    },
-    "evidence_authenticated": {
-      "const": false
     },
     "primary_checkout_target_proven": {
       "const": false

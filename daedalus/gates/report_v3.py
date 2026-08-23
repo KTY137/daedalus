@@ -29,11 +29,10 @@ instead of one:
   verdicts, read back out of the projection rather than asserted.
 
 ``repository_write_failures`` is now the surfaces the chain leaves as genuine
-blockers.  Clearing a surface never empties the counter silently: the
-classification layer declares its own evidence unauthenticated, so every
-cleared surface is replaced by an aggregate ``classification:`` row naming how
-many surfaces rest on that declaration.  The report cannot be closed by a
-declaration alone.
+blockers.  Clearing a surface never empties the counter silently: every
+cleared surface whose evidence the six verifiers did not authenticate, per
+surface, is counted back into a ``classification:`` row.  The report cannot be
+closed by a declaration alone.
 """
 from __future__ import annotations
 
@@ -52,8 +51,11 @@ from .report import GateReport, build_gate0_report
 from .repository_write_classification import (
     CLASSIFICATION_SCHEMA,
     NON_BLOCKING_SURFACE_VERDICT,
+    STAGE_VERDICT_NOT_APPLICABLE,
+    STAGE_VERDICT_VERIFIED,
     UNCLASSIFIED_SURFACE_VERDICT,
     RepositoryWriteClassificationError,
+    authenticate_repository_write_surfaces,
     project_classification_input,
     project_repository_write_classifications,
     surface_classification_verdict,
@@ -543,6 +545,29 @@ def _surface_failure_row(surface: Any, verdict: str, doors: Sequence[str]) -> st
     return row
 
 
+def _surface_authentication_failure_row(surface: Any, authentication: Any) -> str:
+    """One row per cleared surface whose evidence no verifier authenticated.
+
+    The row names the surface and the stages still owed, so the failure list
+    stays a list of callsites rather than a single number.  A stage that does
+    not apply to this surface is not owed and is not named.
+    """
+
+    pending: list[str] = []
+    if authentication is not None:
+        pending = sorted(
+            name
+            for name, verdict in authentication.verdicts
+            if verdict
+            not in {STAGE_VERDICT_VERIFIED, STAGE_VERDICT_NOT_APPLICABLE}
+        )
+    return (
+        f"classification:surface-unauthenticated:"
+        f"{surface.path}:{surface.line}:{surface.column}:"
+        f"stages={','.join(pending) if pending else 'none'}"
+    )
+
+
 def _classify_repository_write_surfaces(
     inventory: RepositoryWriteInventoryV2,
     classification_input: Path | None,
@@ -557,9 +582,20 @@ def _classify_repository_write_surfaces(
 
     Without a declaration every blocking surface is ``unclassified`` and stays
     a failure — the fail-closed default, and the state of this repository
-    today.  With one, the chain decides; and because the chain declares its own
-    evidence unauthenticated, whatever it clears is replaced by an aggregate
-    ``classification:`` row so the failure list cannot be emptied by a file.
+    today.  With one, the chain decides; and every surface it clears whose
+    evidence this call did not authenticate is counted back into a
+    ``classification:`` row, so the failure list cannot be emptied by a file.
+
+    Authentication is composed here, in process.  This reporter hands
+    ``authenticate_repository_write_surfaces`` nothing but the projection it
+    just built, and that function has no parameter a stage report could arrive
+    through: stages exist only when it was given RAW inputs and ran all six
+    verifiers over them itself.  No raw stage input is wired into this reporter
+    yet, so every stage is ``absent``, every surface is unauthenticated, and
+    the count below equals the cleared count.  That is the honest state, not a
+    placeholder — a surface becomes authenticated when a verifier has run over
+    it, never when a document says so, and there is no locator here for such a
+    document to arrive through.
     """
 
     document: Mapping[str, Any] | None = None
@@ -584,10 +620,13 @@ def _classify_repository_write_surfaces(
     # Observed, not asserted, exactly as with the inventory schema above.
     declared = payload.get("schema")
     classified = {row.surface: row for row in projection.classifications}
+    authentications = authenticate_repository_write_surfaces(projection)
 
     census: dict[str, int] = {}
     failures: list[str] = []
+    unauthenticated_rows: list[str] = []
     cleared = 0
+    authenticated_cleared = 0
     for surface in inventory.surfaces:
         if not surface.blocking:
             # The scanner already proved this callsite cannot write; it was
@@ -608,16 +647,30 @@ def _classify_repository_write_surfaces(
                 )
             else:
                 cleared += 1
+                authentication = authentications.get(surface)
+                if authentication is not None and authentication.authenticated:
+                    authenticated_cleared += 1
+                else:
+                    unauthenticated_rows.append(
+                        _surface_authentication_failure_row(surface, authentication)
+                    )
         census[verdict] = census.get(verdict, 0) + 1
 
+    # Per surface, not per report.  The old row read one module-wide boolean
+    # off the classification payload and fired for every cleared surface at
+    # once; under any scope cap that flag was false for reasons having nothing
+    # to do with the surfaces in scope.  What is counted here is the surfaces
+    # this call cleared but could not authenticate — nothing more.
+    unauth = cleared - authenticated_cleared
+    if unauth:
+        failures.append(f"classification:evidence-unauthenticated:{unauth}")
+        # The count is still an aggregate, so it never travels alone: one row
+        # per surface names the callsite and the stages it still owes.
+        failures.extend(unauthenticated_rows)
     if cleared:
-        # The classification layer states in its own payload that its evidence
-        # is not authenticated and that it is not bound to a GateReport.  These
-        # rows carry that statement into the report: a declaration replaces N
-        # named surfaces with one row naming N, and closure stays impossible
-        # until the deeper verifiers in the chain have actually run.
-        if payload.get("evidence_authenticated") is not True:
-            failures.append(f"classification:evidence-unauthenticated:{cleared}")
+        # The classification layer is still not bound to a GateReport, so a
+        # declaration replaces N named surfaces with one row saying so, and
+        # closure stays impossible until that binding exists.
         if payload.get("gate_report_bound") is not True:
             failures.append("classification:gate-report-binding-missing")
     failures.extend(input_failures)

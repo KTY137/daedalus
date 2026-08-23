@@ -136,7 +136,9 @@ def test_missing_surface_remains_explicit_and_report_never_closes() -> None:
     material = report.to_dict()
     assert material["classification_ready"] is False
     assert material["closed"] is False
-    assert material["evidence_authenticated"] is False
+    # Revision 2 does not carry the key at all: authentication is per
+    # surface and was never a property of this report.
+    assert "evidence_authenticated" not in material
     assert material["primary_checkout_target_proven"] is False
     assert material["gate_report_bound"] is False
     assert material["missing_surfaces"] == [surface.to_dict()]
@@ -344,7 +346,8 @@ def test_schema_required_fields_match_report() -> None:
     assert set(schema["required"]) == set(material)
     assert schema["properties"]["schema"]["const"] == material["schema"]
     assert schema["properties"]["closed"]["const"] is False
-    assert schema["properties"]["evidence_authenticated"]["const"] is False
+    assert "evidence_authenticated" not in schema["properties"]
+    assert "evidence_authenticated" not in schema["required"]
     assert schema["properties"]["primary_checkout_target_proven"]["const"] is False
     assert schema["properties"]["gate_report_bound"]["const"] is False
 

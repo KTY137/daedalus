@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus/gates/repository_write_runtime_conformance.py"
 TEST_FILE = "tests/gates/test_repository_write_runtime_conformance.py"
+ADMISSION_FILE = "tests/gates/test_repository_write_non_runtime_conformity_admission.py"
 MUTATIONS = {
     "forge-complete-semantics": (
         '"semantic_receipts_verified": False',
@@ -62,6 +63,30 @@ MUTATIONS = {
         "if False and mismatches:\n        raise RepositoryWriteRuntimeConformanceBindingError(\n            \"repository-write runtime predecessor chain mismatch: \"",
         "test_predecessor_report_cannot_be_detached",
     ),
+    # --- wire revision 2: exactly one, or exactly zero with a binding -----
+    # Taking the zero branch for every production row drops the one-receipt
+    # rule instead of relaxing it for the surfaces a verified
+    # NonRuntimeConformityBinding excuses: an ordinary row that correctly
+    # retains its one receipt is then refused for retaining it.
+    "accept-zero-receipts-unconditionally": (
+        "            if row.non_runtime_conformity is not None:\n",
+        "            if True:\n",
+        "test_runtime_conformance_is_replayed_against_active_persisted_trust",
+    ),
+    # Zero receipts and nothing excused is a report that verified nothing
+    # while still claiming runtime conformance was verified.
+    "report-with-no-records-and-no-excuse": (
+        "        if not self.records and not self.non_runtime_surfaces:\n",
+        "        if False and not self.records and not self.non_runtime_surfaces:\n",
+        f"{ADMISSION_FILE}::test_conformance_v2_accepts_zero_plus_binding_and_refuses_zero_without",
+    ),
+    # A surface cannot be both replayed and excused: that is the runtime
+    # writer wearing a non-runtime label.
+    "surface-both-replayed-and-excused": (
+        "        if set(self.non_runtime_surfaces).intersection(\n",
+        "        if False and set(self.non_runtime_surfaces).intersection(\n",
+        f"{ADMISSION_FILE}::test_conformance_v2_accepts_zero_plus_binding_and_refuses_zero_without",
+    ),
 }
 
 
@@ -87,7 +112,9 @@ def main() -> int:
                         "-m",
                         "pytest",
                         "-q",
-                        f"{TEST_FILE}::{test_name}",
+                        # A node id that already names its file travels as
+                        # written; the older anchors name only a test.
+                        test_name if "::" in test_name else f"{TEST_FILE}::{test_name}",
                     ],
                     cwd=ROOT,
                     check=False,

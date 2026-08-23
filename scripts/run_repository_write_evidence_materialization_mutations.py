@@ -20,6 +20,14 @@ MUTATIONS = {
         '"origin_authenticated": False',
         '"origin_authenticated": True',
     ),
+    # Materialization proves the referenced bytes exist and bind; it never
+    # proves the other applicable stages ran.  This runner pinned
+    # ``origin_authenticated`` only, leaving the neighbouring
+    # ``evidence_authenticated`` literal free to be flipped unguarded.
+    "forge-evidence-authentication": (
+        '"evidence_authenticated": False',
+        '"evidence_authenticated": True',
+    ),
     "forge-semantic-verification": (
         '"semantic_receipts_verified": False',
         '"semantic_receipts_verified": True',

@@ -48,7 +48,7 @@ def _clean_report(**changes) -> GateReportV3:
         # that accounts for every one of them.
         repository_write_surfaces_total=1,
         repository_write_classification_schema=(
-            "daedalus-gate0-repository-write-classification/1"
+            "daedalus-gate0-repository-write-classification/2"
         ),
         repository_write_surface_verdicts=("cleared:central:1",),
     )
@@ -68,7 +68,7 @@ def test_complete_v3_report_can_close_only_with_repository_write_evidence() -> N
     assert payload["repository_write_inventory_generation"] == 2
     assert payload["repository_write_surfaces_total"] == 1
     assert payload["repository_write_classification_schema"] == (
-        "daedalus-gate0-repository-write-classification/1"
+        "daedalus-gate0-repository-write-classification/2"
     )
     assert payload["repository_write_surface_verdicts"] == ["cleared:central:1"]
     assert payload["repository_write_failures"] == []

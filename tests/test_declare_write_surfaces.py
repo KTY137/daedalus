@@ -469,7 +469,7 @@ def test_the_declaration_lowers_unclassified_by_exactly_the_declared_count(
     )
     after = _census(after_verdicts)
 
-    assert schema == "daedalus-gate0-repository-write-classification/1"
+    assert schema == "daedalus-gate0-repository-write-classification/2"
     assert before["unclassified"] - after["unclassified"] == len(rows)
     # An honest declaration clears nothing, so no aggregate row appears and the
     # failure count does not move: the verdicts get names, not absolution.

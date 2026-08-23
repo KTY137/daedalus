@@ -34,7 +34,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "daedalus-gate0-repository-write-effect-lease/1"
+      "const": "daedalus-gate0-repository-write-effect-lease/2"
     },
     "source_revision": {
       "type": "string",
@@ -216,7 +216,7 @@
           "$ref": "#/$defs/nullableSha256"
         },
         "runtime_conformance_receipt_sha256": {
-          "$ref": "#/$defs/sha256"
+          "$ref": "#/$defs/nullableSha256"
         },
         "replay_sha256": {
           "$ref": "#/$defs/sha256"

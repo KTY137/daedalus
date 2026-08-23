@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://daedalus.invalid/schemas/repository-write-runtime-conformance.schema.json",
-  "title": "Daedalus Gate-0 Repository Write Runtime Conformance Report",
+  "title": "Daedalus Gate-0 Repository Write Runtime Conformance Report (revision 2)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,6 +16,7 @@
     "runtime_binding_count",
     "runtime_set_sha256",
     "records",
+    "non_runtime_surfaces",
     "origin_authenticated",
     "source_anchor_semantics_verified",
     "guard_contract_structure_verified",
@@ -34,7 +35,7 @@
   ],
   "properties": {
     "schema": {
-      "const": "daedalus-gate0-repository-write-runtime-conformance/1"
+      "const": "daedalus-gate0-repository-write-runtime-conformance/2"
     },
     "source_revision": {
       "type": "string",
@@ -58,18 +59,17 @@
     },
     "runtime_subject_count": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 0
     },
     "runtime_binding_count": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 0
     },
     "runtime_set_sha256": {
       "$ref": "#/$defs/sha256"
     },
     "records": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "$ref": "#/$defs/record"
       }
@@ -124,6 +124,13 @@
     },
     "digest": {
       "$ref": "#/$defs/sha256"
+    },
+    "non_runtime_surfaces": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
     }
   },
   "$defs": {

@@ -55,7 +55,11 @@ from daedalus.runtimes.trust_store import RuntimeTrustLedger
 from daedalus.spine.envelope import canonical_json
 
 
-_REPORT_SCHEMA = "daedalus-gate0-repository-write-effect-lease/1"
+# Revision 2: a replay record's ``runtime_conformance_receipt_sha256`` is
+# ``null`` exactly when the runtime-conformance report excused that surface
+# with a verified NonRuntimeConformityBinding.  /1 promised a sha256 there
+# unconditionally, so the id moves with the shape.
+_REPORT_SCHEMA = "daedalus-gate0-repository-write-effect-lease/2"
 _EVIDENCE_SCHEMA = "daedalus-gate0-repository-write-evidence-object/1"
 _EFFECT_RECEIPT_SCHEMA = "daedalus-effect-lease-receipt/1"
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
@@ -216,7 +220,11 @@ class EffectLeaseReplayRecord:
     runtime_bound: bool
     runtime_id: str | None
     runtime_trust_record_sha256: str | None
-    runtime_conformance_receipt_sha256: str
+    # ``None`` exactly when this surface was excused by a verified
+    # NonRuntimeConformityBinding: there is no conformance receipt to name, and
+    # inventing a digest for one would be the fabrication the /2 relaxation
+    # exists to avoid.
+    runtime_conformance_receipt_sha256: str | None
     replay_sha256: str
 
     def __post_init__(self) -> None:
@@ -230,10 +238,20 @@ class EffectLeaseReplayRecord:
             "lease_sha256",
             "start_receipt_sha256",
             "terminal_receipt_sha256",
-            "runtime_conformance_receipt_sha256",
             "replay_sha256",
         ):
             _sha(getattr(self, name), name)
+        if self.runtime_conformance_receipt_sha256 is not None:
+            _sha(
+                self.runtime_conformance_receipt_sha256,
+                "runtime_conformance_receipt_sha256",
+            )
+        elif self.runtime_bound:
+            # A runtime-bound record has a conformance receipt by construction;
+            # only the excused non-runtime case may omit it.
+            raise ValueError(
+                "runtime-bound record requires a runtime conformance receipt"
+            )
         if self.terminal_state not in _TERMINAL_STATES:
             raise ValueError("terminal_state is invalid")
         if type(self.runtime_bound) is not bool:
@@ -289,7 +307,7 @@ class EffectLeaseReplayRecord:
         replay: EffectExecutionReplaySnapshot,
         runtime_id: str | None,
         runtime_trust_record_sha256: str | None,
-        runtime_conformance_receipt_sha256: str,
+        runtime_conformance_receipt_sha256: str | None,
     ) -> "EffectLeaseReplayRecord":
         terminal = replay.terminal_receipt
         if terminal is None:
@@ -527,9 +545,29 @@ def verify_repository_write_effect_leases(
     required_surfaces = {
         surface_binding_sha256(revision, row.surface) for row in production_rows
     }
-    if set(runtime_by_surface) != required_surfaces:
+    # Wire revision 2 of the runtime-conformance report.  A production surface
+    # is covered either by a replayed runtime record or by an excused
+    # non-runtime surface -- never by both, and never by neither.
+    # The two sets are disjoint by the report's own contract
+    # (``RepositoryWriteRuntimeConformanceReport.__post_init__`` refuses a
+    # surface that is both replayed and excused), so re-checking it here would
+    # be a guard nothing can make fire.  There is already one of those below --
+    # ``elif runtime_id is not None`` on the non-runtime branch, which
+    # ``_inspect_subject`` hard-codes to None and so can never observe -- and
+    # this chain does not need a second.
+    excused_surfaces = set(runtime_report.non_runtime_surfaces)
+    if set(runtime_by_surface) | excused_surfaces != required_surfaces:
         raise RepositoryWriteEffectLeaseBindingError(
             "runtime predecessor surface set differs from production classifications"
+        )
+    declared_non_runtime = {
+        surface_binding_sha256(revision, row.surface)
+        for row in production_rows
+        if row.non_runtime_conformity is not None
+    }
+    if declared_non_runtime != excused_surfaces:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "runtime predecessor excuses a different surface set than the rows admit"
         )
 
     verified: dict[
@@ -584,7 +622,13 @@ def verify_repository_write_effect_leases(
     for binding, (receipt_sha256, _, _) in payloads.items():
         subject, replay, runtime_id, trust_sha = verified[receipt_sha256]
         runtime_record = runtime_by_surface.get(binding.surface_sha256)
-        if type(runtime_record) is not RuntimeConformanceReplayRecord:
+        # Wire revision 2: an excused surface has no conformance record to
+        # find, and demanding one would be the /1 rule again.  Runtime work
+        # declared non-runtime is refused where it can actually be observed --
+        # in ``replay_non_runtime_effect_subject``, which the classification row
+        # calls before it will admit the binding at all.
+        excused = binding.surface_sha256 in excused_surfaces
+        if not excused and type(runtime_record) is not RuntimeConformanceReplayRecord:
             raise RepositoryWriteEffectLeaseBindingError(
                 "runtime predecessor record is missing for effect surface"
             )
@@ -613,7 +657,7 @@ def verify_repository_write_effect_leases(
                 runtime_id=runtime_id,
                 runtime_trust_record_sha256=trust_sha,
                 runtime_conformance_receipt_sha256=(
-                    runtime_record.conformance_receipt_sha256
+                    None if excused else runtime_record.conformance_receipt_sha256
                 ),
             )
         )
@@ -633,6 +677,61 @@ def verify_repository_write_effect_leases(
         effect_set_sha256=effect_set_sha256,
         records=canonical_records,
     )
+
+
+def replay_non_runtime_effect_subject(
+    subject: object,
+    *,
+    expected_execution_id: str,
+) -> EffectExecutionReplaySnapshot:
+    """Replay one retained execution and refuse it unless it is non-runtime.
+
+    This is the typed check the classification row calls before it will admit a
+    ``NonRuntimeConformityBinding`` in place of a runtime-conformance receipt.
+    It is deliberately not a field read: the snapshot comes back out of the
+    effect ledger through ``_inspect_subject``, the same path
+    ``verify_repository_write_effect_leases`` uses, and the terminal receipt
+    must already be durable.  Runtime work wearing a non-runtime label is
+    refused here rather than excused downstream.
+    """
+
+    if type(subject) is not EffectLeaseReplaySubject:
+        raise RepositoryWriteEffectLeaseError(
+            "non-runtime replay subject must be an exact typed subject"
+        )
+    if subject.runtime_bound:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "surface declared non-runtime replays as a runtime-bound authorization"
+        )
+    _identifier(expected_execution_id, "expected_execution_id")
+    replay, runtime_id, trust_sha = _inspect_subject(subject)
+    if runtime_id is not None or trust_sha is not None:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "non-runtime replay unexpectedly retained runtime authority"
+        )
+    if subject.execution.execution_id != expected_execution_id:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "non-runtime replay names another execution than the binding"
+        )
+    # Deliberately spelled differently from the fences in
+    # ``verify_repository_write_effect_leases`` below.  Each mutation anchor in
+    # scripts/run_repository_write_effect_lease_mutations.py must resolve to
+    # exactly one place in this file, and a copied line would silently give two
+    # guards one anchor -- disabling one of them would then go unnoticed.
+    receipt = replay.terminal_receipt
+    if replay.pending_reconciliation or receipt is None:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "non-runtime replay is not terminal; automatic re-execution is forbidden"
+        )
+    if receipt.execution_id != subject.execution.execution_id:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "non-runtime terminal execution identity differs from the typed request"
+        )
+    if receipt.lease_sha256 != subject.lease.digest:
+        raise RepositoryWriteEffectLeaseBindingError(
+            "non-runtime terminal lease identity differs from the typed authorization"
+        )
+    return replay
 
 
 def _inspect_subject(

@@ -27,7 +27,7 @@ def test_cli_emits_machine_v3_report_and_blocked_exit(capsys) -> None:
     # the census accounts for every syntactic surface.
     assert payload["repository_write_surfaces_total"] > 0
     assert payload["repository_write_classification_schema"] == (
-        "daedalus-gate0-repository-write-classification/1"
+        "daedalus-gate0-repository-write-classification/2"
     )
     assert sum(
         int(row.rsplit(":", 1)[1])

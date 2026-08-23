@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "daedalus/gates/repository_write_effect_lease.py"
 TEST_FILE = "tests/gates/test_repository_write_effect_lease.py"
 REVIEW_FILE = "tests/gates/test_repository_write_effect_lease_review.py"
+ADMISSION_FILE = "tests/gates/test_repository_write_non_runtime_conformity_admission.py"
+V2_FILE = "tests/gates/test_repository_write_effect_lease_non_runtime.py"
 MUTATIONS = {
     "allow-missing-start": (
         "if replay is None:\n        raise RepositoryWriteEffectLeaseBindingError(",
@@ -52,6 +54,48 @@ MUTATIONS = {
         '"closed": False,',
         '"closed": True,',
         "",
+    ),
+    # This stage alone never authenticates a surface: the effect-lease replay
+    # proves one stage ran, not that every applicable stage did.  The literal
+    # was unpinned until now, so a flip to ``True`` here would have travelled
+    # into the report with nothing noticing.
+    "forge-evidence-authentication": (
+        '"evidence_authenticated": False,',
+        '"evidence_authenticated": True,',
+        "",
+    ),
+    # --- the typed non-runtime replay ------------------------------------
+    # The check the classification row calls before it will admit a binding.
+    # Without this branch a runtime-bound authorization replays as a
+    # non-runtime one and buys its way out of the conformity stage.
+    "replay-a-runtime-subject-as-non-runtime": (
+        "    if subject.runtime_bound:\n"
+        "        raise RepositoryWriteEffectLeaseBindingError(\n"
+        '            "surface declared non-runtime replays as a runtime-bound authorization"\n'
+        "        )\n",
+        "    if False:\n"
+        "        raise RepositoryWriteEffectLeaseBindingError(\n"
+        '            "surface declared non-runtime replays as a runtime-bound authorization"\n'
+        "        )\n",
+        f"{ADMISSION_FILE}::test_binding_whose_execution_replays_as_runtime_is_refused",
+    ),
+    "ignore-the-binding-execution-identity": (
+        "    if subject.execution.execution_id != expected_execution_id:\n",
+        "    if False and subject.execution.execution_id != expected_execution_id:\n",
+        f"{ADMISSION_FILE}::test_a_signature_is_not_a_replay",
+    ),
+    # --- the /2 consumer --------------------------------------------------
+    # Demanding a conformance record for an excused surface is the /1 rule
+    # again, and it would make the relaxation unreachable.
+    "demand-a-conformance-record-for-an-excused-surface": (
+        "        if not excused and type(runtime_record) is not RuntimeConformanceReplayRecord:\n",
+        "        if type(runtime_record) is not RuntimeConformanceReplayRecord:\n",
+        f"{V2_FILE}::test_zero_receipts_with_a_binding_verifies_and_records_a_null_digest",
+    ),
+    "accept-a-mismatched-excused-surface-set": (
+        "    if declared_non_runtime != excused_surfaces:\n",
+        "    if False and declared_non_runtime != excused_surfaces:\n",
+        f"{V2_FILE}::test_a_row_without_an_admission_cannot_be_excused_by_the_predecessor",
     ),
 }
 
@@ -94,7 +138,14 @@ def main() -> int:
                 original.replace(needle, replacement, 1),
                 encoding="utf-8",
             )
-            selected = f"{TEST_FILE}::{test_name}" if test_name else REVIEW_FILE
+            # A node id that already names its file travels as written;
+            # the older anchors name only a test in TEST_FILE.
+            if not test_name:
+                selected = REVIEW_FILE
+            elif "::" in test_name:
+                selected = test_name
+            else:
+                selected = f"{TEST_FILE}::{test_name}"
             try:
                 completed = _run(selected)
             except subprocess.TimeoutExpired:

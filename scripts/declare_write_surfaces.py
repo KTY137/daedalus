@@ -73,6 +73,7 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -89,10 +90,13 @@ from daedalus.gates.repository_write_classification import (  # noqa: E402
     EvidenceBinding,
     EvidenceKind,
     GuardDisposition,
+    NonRuntimeConformityAdmission,
     SurfaceClassification,
     TargetDisposition,
+    issue_non_runtime_conformity_binding,
     project_repository_write_classifications,
     surface_binding_sha256,
+    surface_classification_verdict,
 )
 from daedalus.gates.repository_write_evidence_materialization import (  # noqa: E402
     evidence_subject_sha256,
@@ -114,6 +118,11 @@ DERIVATION_SCHEMA = "daedalus-gate0-write-surface-declaration-derivation/1"
 #: the sibling evidence locators (fault matrix, runtime conformance) are all
 #: run-artifact directories, so this follows that convention.
 DEFAULT_OUT_ROOT = "runs/gates/write-surface-classification"
+
+#: The collector this script signs as when it authenticates a replay.  One id,
+#: so a binding signed by a previous key fails verification loudly.
+COLLECTOR_ID = "daedalus.write-evidence-collector"
+COLLECTOR_KEY_ID = "daedalus.local.write-evidence-collector"
 
 #: Files another lane holds open at this head.  A declaration binds a
 #: ``source_sha256`` to exact file bytes, so a file being edited concurrently
@@ -485,6 +494,397 @@ def source_anchor_evidence(
 
 
 # ---------------------------------------------------------------------------
+# the retained write-evidence store
+# ---------------------------------------------------------------------------
+#
+# WHY THE PRODUCER IS HERE AND NOT IN A NEW MODULE.  This script is already the
+# one thing in the repository that produces ``SurfaceClassification`` rows and
+# the evidence objects they bind.  A second producer of the same artifact class
+# would be a second answer to "what is this surface", which is exactly the
+# invariant that says one contract has one producer.  What is new below is the
+# material it reads, not a second kind of row.
+#
+# WHY IT CANNOT BE A DOCUMENT.  A ``central`` row with no runtime-conformance
+# receipt is only legal while it carries a ``NonRuntimeConformityAdmission``,
+# and that admission has no wire shape at all (6be14dff): ``to_dict`` does not
+# emit it and ``from_dict`` has no key for it.  Constructing one runs a real
+# replay against the effect ledger.  So the rows below exist IN PROCESS only,
+# and :func:`declaration_document` refuses to serialise one -- a declaration
+# file that carried such a row would be a row whose own verifier refuses it.
+
+
+def collector_secret(path: Path) -> bytes:
+    """Load, or create on first use, this collector's local signing key.
+
+    The same construction as the Effect-Lease issuer key and for the same
+    reason: not from the environment, because an env-carried secret is
+    inherited by every child this process spawns, which includes a candidate's
+    worker.  A file outside the checkout is not a security boundary either; it
+    is simply not handed to children.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        material = path.read_bytes()
+    except FileNotFoundError:
+        material = b""
+    if len(material) < 32:
+        fresh = os.urandom(32)
+        try:
+            # O_BINARY for the reason measured in ``issuer_keyring``: without
+            # it Windows translates 0x0A to 0x0D 0x0A and the key on disk is
+            # not the key this process signed with.
+            handle = os.open(
+                str(path),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0),
+                0o600,
+            )
+        except FileExistsError:
+            material = path.read_bytes()
+        else:
+            try:
+                os.write(handle, fresh)
+            finally:
+                os.close(handle)
+            material = fresh
+    if len(material) < 32:
+        raise DeclarationError(f"the collector key at {path} is too short to sign with")
+    return material
+
+
+@dataclass(frozen=True)
+class RetainedWriteEvidence:
+    """Everything the kernel retained about one revision's granted leases."""
+
+    subjects: Mapping[str, Mapping[str, object]]
+    terminals: tuple[Mapping[str, object], ...]
+    disjointness: tuple[Mapping[str, object], ...]
+    refusals: tuple[str, ...]
+
+
+def _record_sha256(body: Mapping[str, object]) -> str:
+    subject = {key: value for key, value in body.items() if key != "record_sha256"}
+    return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
+
+
+def load_retained_write_evidence(
+    evidence_root: Path,
+    *,
+    source_revision: str,
+    control_root_sha256: str,
+) -> RetainedWriteEvidence:
+    """Read the store, and refuse every record that does not bind to this run.
+
+    Three refusals, all of them fail-closed and all of them NAMED rather than
+    skipped:
+
+    * a record whose ``record_sha256`` does not recompute -- a tampered or
+      truncated receipt is not evidence, and the digest covers the whole body;
+    * a record that names a different ``control_root_sha256`` than the store
+      being read (Momus F8) -- evidence produced under one control root and
+      verified under another is two machines' facts in one report;
+    * a record bound to a different ``source_revision``.
+    """
+
+    from daedalus.kernel.offload_lease import (
+        DISJOINTNESS_RECORD_SCHEMA,
+        LEASE_SUBJECT_RECORD_SCHEMA,
+        LEASE_TERMINAL_RECORD_SCHEMA,
+    )
+
+    expected = {
+        "lease-subject": LEASE_SUBJECT_RECORD_SCHEMA,
+        "lease-terminal": LEASE_TERMINAL_RECORD_SCHEMA,
+        "disjointness": DISJOINTNESS_RECORD_SCHEMA,
+    }
+    kept: dict[str, list[Mapping[str, object]]] = {kind: [] for kind in expected}
+    refusals: list[str] = []
+    for kind, schema in expected.items():
+        for path in sorted((Path(evidence_root) / kind).glob("*.json")):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                refusals.append(f"{kind}/{path.name}: unreadable: {exc}")
+                continue
+            if not isinstance(record, dict) or record.get("schema") != schema:
+                refusals.append(f"{kind}/{path.name}: not a {schema} record")
+                continue
+            if _record_sha256(record) != record.get("record_sha256"):
+                refusals.append(
+                    f"{kind}/{path.name}: record_sha256 does not bind the body"
+                )
+                continue
+            if record.get("control_root_sha256") != control_root_sha256:
+                refusals.append(
+                    f"{kind}/{path.name}: retained under control root "
+                    f"{record.get('control_root_sha256')}, read under "
+                    f"{control_root_sha256}"
+                )
+                continue
+            if record.get("source_revision") != source_revision:
+                refusals.append(
+                    f"{kind}/{path.name}: bound to revision "
+                    f"{record.get('source_revision')}"
+                )
+                continue
+            kept[kind].append(record)
+    return RetainedWriteEvidence(
+        subjects={
+            str(row["record_sha256"]): row for row in kept["lease-subject"]
+        },
+        terminals=tuple(kept["lease-terminal"]),
+        disjointness=tuple(kept["disjointness"]),
+        refusals=tuple(refusals),
+    )
+
+
+@dataclass(frozen=True)
+class AuthenticatedDoor:
+    """One door whose retained execution replayed as a terminal non-runtime one."""
+
+    door_id: str
+    execution_id: str
+    terminal: Mapping[str, object]
+    subject_record: Mapping[str, object]
+    replay_subject: object
+    guard_contracts: tuple[str, ...]
+    implementation_target: str
+    implementation_sha256: str
+
+
+def authenticated_doors(
+    root: Path,
+    evidence: RetainedWriteEvidence,
+    *,
+    keyring: Mapping[str, bytes],
+) -> tuple[dict[str, AuthenticatedDoor], tuple[str, ...]]:
+    """Replay every retained terminal record; keep the ones that come back non-runtime.
+
+    The replay is the Effect-Lease module's own typed check, not a field read:
+    ``replay_non_runtime_effect_subject`` pulls the execution back out of the
+    ledger, refuses a runtime-bound authorization, refuses one that never
+    terminalised, and refuses one naming another execution.  A door reaches the
+    map below only because that check passed for it.
+    """
+
+    from daedalus.gates.repository_write_effect_lease import (
+        EffectLeaseReplaySubject,
+        RepositoryWriteEffectLeaseError,
+        replay_non_runtime_effect_subject,
+    )
+    from daedalus.kernel.effects import EffectExecutionRequest, EffectLeaseError
+    from daedalus.kernel.offload_lease import rebuild_effect_lease_authorization
+
+    doors: dict[str, AuthenticatedDoor] = {}
+    refusals: list[str] = []
+    for terminal in evidence.terminals:
+        name = str(terminal["record_sha256"])[:12]
+        subject_record = evidence.subjects.get(str(terminal["subject_record_sha256"]))
+        if subject_record is None:
+            refusals.append(f"terminal {name}: no retained subject record")
+            continue
+        try:
+            authorization = rebuild_effect_lease_authorization(
+                subject_record, keyring=keyring
+            )
+            execution = EffectExecutionRequest(**dict(terminal["execution"]))
+            replay_subject = EffectLeaseReplaySubject(authorization, execution)
+            replay_non_runtime_effect_subject(
+                replay_subject, expected_execution_id=str(terminal["execution_id"])
+            )
+        except (
+            EffectLeaseError,
+            RepositoryWriteEffectLeaseError,
+            OSError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            refusals.append(f"terminal {name}: {type(exc).__name__}: {exc}")
+            continue
+        contracts = tuple(
+            sorted(
+                str(item["contract"])
+                for item in subject_record["guard_decisions"]
+                if item.get("allowed") is True
+            )
+        )
+        module_path = str(subject_record["issuer_module_path"])
+        try:
+            implementation_sha256 = hashlib.sha256(
+                (root / module_path).read_bytes()
+            ).hexdigest()
+        except OSError as exc:
+            refusals.append(f"terminal {name}: issuer module unreadable: {exc}")
+            continue
+        door_id = str(terminal["entrypoint_id"])
+        if door_id in doors:
+            # Two terminal executions for one door is the normal case; the row
+            # may only carry ONE Effect-Lease receipt, so the first replayed
+            # execution owns the door and the rest are named, not merged.
+            refusals.append(
+                f"terminal {name}: door {door_id} already authenticated by "
+                f"{doors[door_id].execution_id}"
+            )
+            continue
+        doors[door_id] = AuthenticatedDoor(
+            door_id=door_id,
+            execution_id=str(terminal["execution_id"]),
+            terminal=terminal,
+            subject_record=subject_record,
+            replay_subject=replay_subject,
+            guard_contracts=contracts,
+            implementation_target=str(subject_record["issuer_target"]),
+            implementation_sha256=implementation_sha256,
+        )
+    return doors, tuple(refusals)
+
+
+def _evidence_object(
+    kind: EvidenceKind,
+    source_revision: str,
+    surface_sha256: str,
+    payload: Mapping[str, object],
+    *,
+    guard_contract: str = "",
+) -> tuple[EvidenceBinding, bytes]:
+    """One canonical evidence envelope and the exact CAS bytes behind it."""
+
+    payload_bytes = canonical_json(dict(payload)).encode("ascii")
+    subject = evidence_subject_sha256(
+        EvidenceBinding(
+            kind=kind,
+            source_revision=source_revision,
+            surface_sha256=surface_sha256,
+            sha256="0" * 64,
+            locator=f"cas:sha256:{'0' * 64}",
+            guard_contract=guard_contract,
+        )
+    )
+    envelope = {
+        "schema": EVIDENCE_SCHEMA,
+        "kind": kind.value,
+        "source_revision": source_revision,
+        "surface_sha256": surface_sha256,
+        "guard_contract": guard_contract,
+        "subject_sha256": subject,
+        "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+        "payload": dict(payload),
+    }
+    raw = canonical_json(envelope).encode("ascii")
+    digest = hashlib.sha256(raw).hexdigest()
+    return (
+        EvidenceBinding(
+            kind=kind,
+            source_revision=source_revision,
+            surface_sha256=surface_sha256,
+            sha256=digest,
+            locator=f"cas:sha256:{digest}",
+            guard_contract=guard_contract,
+        ),
+        raw,
+    )
+
+
+def central_row(
+    door: AuthenticatedDoor,
+    surface: RepositoryWriteSurface,
+    source_anchor: tuple[EvidenceBinding, bytes],
+    disjointness: Mapping[str, object],
+    *,
+    source_revision: str,
+    collector_secret_bytes: bytes,
+    issued_at: str,
+) -> tuple[SurfaceClassification, dict[str, bytes]]:
+    """Build the one row shape a document cannot express, for one surface.
+
+    ``CHECKOUT_EXTERNAL`` rests on exactly one recorded fact: the
+    ``containment.worktree`` decision this lease was issued under, which
+    measured the attempt isolation root against the primary checkout with
+    ``primary_tree.planned_overlap_reason``.  That decision covers the ground
+    candidate checkouts land on -- NOT each individual write's resolved root --
+    and the row's notes say so, because a target disposition that claims more
+    than its receipt measured is the failure this whole chain exists to catch.
+    """
+
+    surface_sha256 = surface_binding_sha256(source_revision, surface)
+    bindings = [source_anchor[0]]
+    blobs = {source_anchor[0].locator: source_anchor[1]}
+    for contract in door.guard_contracts:
+        binding, raw = _evidence_object(
+            EvidenceKind.GUARD_CONTRACT,
+            source_revision,
+            surface_sha256,
+            {
+                "contract": contract,
+                "implementation_target": door.implementation_target,
+                "implementation_sha256": door.implementation_sha256,
+            },
+            guard_contract=contract,
+        )
+        bindings.append(binding)
+        blobs[binding.locator] = raw
+    lease_binding, lease_raw = _evidence_object(
+        EvidenceKind.EFFECT_LEASE_RECEIPT,
+        source_revision,
+        surface_sha256,
+        {
+            "receipt_schema": str(door.terminal["receipt_schema"]),
+            "receipt_sha256": str(door.terminal["receipt_sha256"]),
+            "entrypoint_id": str(door.terminal["entrypoint_id"]),
+            "terminal_state": str(door.terminal["terminal_state"]),
+        },
+    )
+    bindings.append(lease_binding)
+    blobs[lease_binding.locator] = lease_raw
+    disjoint_binding, disjoint_raw = _evidence_object(
+        EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT,
+        source_revision,
+        surface_sha256,
+        {
+            "receipt_schema": str(disjointness["receipt_schema"]),
+            "receipt_sha256": str(disjointness["record_sha256"]),
+            "primary_checkout_sha256": str(disjointness["primary_checkout_sha256"]),
+            "target_root_sha256": str(disjointness["target_root_sha256"]),
+            "disjoint": True,
+        },
+    )
+    bindings.append(disjoint_binding)
+    blobs[disjoint_binding.locator] = disjoint_raw
+
+    admission = NonRuntimeConformityAdmission(
+        binding=issue_non_runtime_conformity_binding(
+            source_revision=source_revision,
+            surface_sha256=surface_sha256,
+            execution_id=door.execution_id,
+            collector_id=COLLECTOR_ID,
+            collector_key_id=COLLECTOR_KEY_ID,
+            issued_at=issued_at,
+            secret=collector_secret_bytes,
+        ),
+        subject=door.replay_subject,
+        collector_secrets={COLLECTOR_KEY_ID: collector_secret_bytes},
+    )
+    row = SurfaceClassification(
+        source_revision=source_revision,
+        surface=surface,
+        target=TargetDisposition.CHECKOUT_EXTERNAL,
+        guard=GuardDisposition.CENTRAL,
+        production_reachable=True,
+        guard_contracts=door.guard_contracts,
+        evidence=tuple(sorted(bindings, key=EvidenceBinding.sort_key)),
+        notes=(
+            f"anchor-dominated by door {door.door_id}; execution "
+            f"{door.execution_id} replayed terminal and non-runtime; the "
+            "disjoint target rests on the containment.worktree decision this "
+            "lease was issued under, which measured the attempt isolation "
+            "root, not this write's resolved root"
+        ),
+        non_runtime_conformity=admission,
+    )
+    return row, blobs
+
+
+# ---------------------------------------------------------------------------
 # derivation
 # ---------------------------------------------------------------------------
 
@@ -499,9 +899,25 @@ class Derivation:
     per_door: tuple[Mapping[str, object], ...]
     skipped_doors: tuple[str, ...]
     undominated_in_door_modules: int
+    #: Rows that carry a ``NonRuntimeConformityAdmission``.  They are part of
+    #: ``rows`` and they are the reason ``declaration_document`` refuses to
+    #: serialise this derivation: the admission has no wire shape.
+    admitted_surfaces: tuple[str, ...] = ()
+    #: Every named reason a door or a retained record did not authenticate.
+    evidence_refusals: tuple[str, ...] = ()
+    authenticated_doors: tuple[str, ...] = ()
 
 
-def derive(root: Path, source_revision: str) -> Derivation:
+def derive(
+    root: Path,
+    source_revision: str,
+    *,
+    evidence_root: Path | None = None,
+    control_root_path: Path | None = None,
+    collector_key: Path | None = None,
+    issuer_keyring: Mapping[str, bytes] | None = None,
+    issued_at: str | None = None,
+) -> Derivation:
     inventory = scan_repository_write_surfaces_v2(
         root, source_revision=source_revision
     )
@@ -555,17 +971,74 @@ def derive(root: Path, source_revision: str) -> Derivation:
             }
         )
 
+    # What the kernel retained for this revision, if anything did.  Absent a
+    # store this is empty and every row below stays exactly what it was before
+    # commit 3b: anchor-dominated, target unknown, inventory-only.
+    doors_by_id: dict[str, AuthenticatedDoor] = {}
+    disjointness: Mapping[str, object] | None = None
+    evidence_refusals: list[str] = []
+    secret: bytes | None = None
+    if evidence_root is not None and control_root_path is not None:
+        from daedalus.kernel.offload_lease import write_root_identity_sha256
+
+        evidence = load_retained_write_evidence(
+            evidence_root,
+            source_revision=source_revision,
+            control_root_sha256=write_root_identity_sha256(control_root_path),
+        )
+        evidence_refusals.extend(evidence.refusals)
+        if issuer_keyring is None:
+            from daedalus.kernel.offload_lease import issuer_keyring as _issuer_keyring
+
+            issuer_keyring = _issuer_keyring(root)
+        doors_by_id, door_refusals = authenticated_doors(
+            root, evidence, keyring=issuer_keyring
+        )
+        evidence_refusals.extend(door_refusals)
+        if evidence.disjointness:
+            disjointness = evidence.disjointness[0]
+        elif doors_by_id:
+            evidence_refusals.append(
+                "no primary_checkout_disjointness record for this revision, so "
+                "no door can claim a disjoint target"
+            )
+        if doors_by_id and disjointness is not None:
+            key_path = (
+                collector_key
+                if collector_key is not None
+                else Path(control_root_path) / "write-evidence-collector.key"
+            )
+            secret = collector_secret(Path(key_path))
+
     source_digests: dict[str, str] = {}
     rows: list[SurfaceClassification] = []
     blobs: dict[str, bytes] = {}
+    admitted: list[str] = []
+    stamp = issued_at or _utc_stamp()
     for surface, door_id in sorted(claimed.items(), key=lambda item: item[0]):
         if surface.path not in source_digests:
             source_digests[surface.path] = hashlib.sha256(
                 (root / surface.path).read_bytes()
             ).hexdigest()
-        binding, raw = source_anchor_evidence(
+        anchor = source_anchor_evidence(
             source_revision, surface, source_digests[surface.path]
         )
+        door = doors_by_id.get(door_id)
+        if door is not None and disjointness is not None and secret is not None:
+            row, row_blobs = central_row(
+                door,
+                surface,
+                anchor,
+                disjointness,
+                source_revision=source_revision,
+                collector_secret_bytes=secret,
+                issued_at=stamp,
+            )
+            rows.append(row)
+            blobs.update(row_blobs)
+            admitted.append(f"{surface.path}:{surface.line}:{surface.column}")
+            continue
+        binding, raw = anchor
         blobs[binding.locator] = raw
         rows.append(
             SurfaceClassification(
@@ -599,7 +1072,16 @@ def derive(root: Path, source_revision: str) -> Derivation:
         per_door=tuple(per_door),
         skipped_doors=skipped,
         undominated_in_door_modules=undominated,
+        admitted_surfaces=tuple(admitted),
+        evidence_refusals=tuple(evidence_refusals),
+        authenticated_doors=tuple(sorted(doors_by_id)),
     )
+
+
+def _utc_stamp() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def _dominance(root: Path, door: DoorAnchor, index: NameIndex) -> ModuleDominance:
@@ -643,6 +1125,30 @@ def _dominance(root: Path, door: DoorAnchor, index: NameIndex) -> ModuleDominanc
 
 
 def declaration_document(derivation: Derivation) -> dict[str, object]:
+    """Serialise the derivation, or refuse when it cannot be serialised.
+
+    THE WIRE CANNOT CARRY AN ADMISSION and that is deliberate (6be14dff): a
+    ``central`` row with no runtime-conformance receipt is legal only while it
+    holds a ``NonRuntimeConformityAdmission``, whose construction runs a replay
+    against the effect ledger, and which ``to_dict`` does not emit.  Writing
+    such a row to a declaration file would drop exactly the thing that makes it
+    legal, and the file would then be refused by ``from_dict`` -- as a
+    ``central classification lacks required evidence kinds``, a message about
+    the shape rather than about the missing replay.  Refusing here says the
+    true thing: this row exists in process only.
+    """
+
+    admitted = tuple(
+        f"{row.surface.path}:{row.surface.line}:{row.surface.column}"
+        for row in derivation.rows
+        if row.non_runtime_conformity is not None
+    )
+    if admitted:
+        raise DeclarationError(
+            "these rows hold a NonRuntimeConformityAdmission, which has no "
+            "wire shape, so they cannot be written to a declaration file: "
+            + ", ".join(admitted)
+        )
     rows: list[dict[str, object]] = []
     for row in derivation.rows:
         item = row.to_dict()
@@ -654,6 +1160,127 @@ def declaration_document(derivation: Derivation) -> dict[str, object]:
         "source_revision": derivation.source_revision,
         "inventory_digest": derivation.inventory_digest,
         "classifications": rows,
+    }
+
+
+def in_process_census(
+    inventory, projection
+) -> dict[str, int]:
+    """The reporter's own verdict census, over rows the wire cannot carry.
+
+    ``daedalus.gates.report_v3`` reads a declaration FILE, and the rows this
+    producer builds cannot travel through one, so the census is composed here
+    from the same two public functions the reporter uses --
+    ``surface_classification_verdict`` for classified surfaces and
+    ``NON_BLOCKING_SURFACE_VERDICT``/``UNCLASSIFIED_SURFACE_VERDICT`` for the
+    rest.  Same vocabulary, same one-verdict-per-surface rule, so the two
+    censuses are comparable; it is not a second classifier.
+    """
+
+    from daedalus.gates.repository_write_classification import (
+        NON_BLOCKING_SURFACE_VERDICT,
+        UNCLASSIFIED_SURFACE_VERDICT,
+    )
+
+    classified = {row.surface: row for row in projection.classifications}
+    census: dict[str, int] = {}
+    for surface in inventory.surfaces:
+        if not surface.blocking:
+            verdict = NON_BLOCKING_SURFACE_VERDICT
+        else:
+            row = classified.get(surface)
+            verdict = (
+                UNCLASSIFIED_SURFACE_VERDICT
+                if row is None
+                else surface_classification_verdict(row)
+            )
+        census[verdict] = census.get(verdict, 0) + 1
+    return dict(sorted(census.items()))
+
+
+def authenticate_in_process(
+    root: Path,
+    projection,
+    blobs: Mapping[str, bytes],
+    *,
+    source_revision: str,
+    collector_secret_bytes: bytes,
+    effect_subjects: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Run the six verifiers over the material this producer can supply.
+
+    It supplies what it has: the CAS bytes it just minted, an origin
+    attestation it signs over the materialization of exactly those bytes, and
+    the replay subjects it authenticated, keyed by the terminal receipt digest
+    the chain looks them up under.  It does NOT supply a signed
+    guard-implementation manifest, runtime subjects, or a runtime trust ledger,
+    because nothing in this repository produces them at this revision.
+    Whichever verifier refuses first is reported verbatim -- that refusal is
+    the owed stage, and inventing an input to get past it would be the
+    fabrication the chain exists to prevent.
+    """
+
+    from datetime import datetime, timedelta, timezone
+
+    from daedalus.gates.repository_write_classification import (
+        RepositoryWriteAuthenticationInputs,
+        authenticate_repository_write_surfaces,
+    )
+    from daedalus.gates.repository_write_evidence_materialization import (
+        materialize_repository_write_evidence,
+    )
+    from daedalus.gates.repository_write_evidence_origin import (
+        issue_repository_write_evidence_origin_attestation,
+    )
+
+    now = datetime.now(timezone.utc)
+    materialization = materialize_repository_write_evidence(projection, dict(blobs))
+    attestation = issue_repository_write_evidence_origin_attestation(
+        materialization,
+        attestation_id="daedalus.write-evidence-origin",
+        collector_id=COLLECTOR_ID,
+        collector_key_id=COLLECTOR_KEY_ID,
+        collector_secret=collector_secret_bytes,
+        issued_at=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    inputs = RepositoryWriteAuthenticationInputs(
+        blobs=dict(blobs),
+        origin_attestation=attestation,
+        guard_manifest=None,
+        runtime_subjects={},
+        runtime_trust_ledgers={},
+        effect_subjects=dict(effect_subjects or {}),
+        collector_keyring={(COLLECTOR_ID, COLLECTOR_KEY_ID): collector_secret_bytes},
+        expected_collector_id=COLLECTOR_ID,
+        guard_keyring={},
+        expected_guard_authority_id="daedalus.guard-authority",
+        current_revision=source_revision,
+        now=now,
+        repository_root=root,
+    )
+    try:
+        authentications = authenticate_repository_write_surfaces(
+            projection, inputs=inputs
+        )
+    except Exception as exc:  # noqa: BLE001 - the refusal IS the measurement
+        return {
+            "composed": False,
+            "refused_by": type(exc).__name__,
+            "refusal": str(exc),
+            "surfaces": {},
+        }
+    return {
+        "composed": True,
+        "refused_by": None,
+        "refusal": "",
+        "surfaces": {
+            f"{surface.path}:{surface.line}:{surface.column}": {
+                "authenticated": record.authenticated,
+                "stages": {name: verdict for name, verdict in record.verdicts},
+            }
+            for surface, record in authentications.items()
+        },
     }
 
 
@@ -689,17 +1316,52 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="derive and print the accounting; write nothing",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--evidence-root",
+        type=Path,
+        default=None,
+        help=(
+            "the retained write-evidence store to authenticate against; "
+            "defaults to the control root's own store for --root"
+        ),
+    )
+    parser.add_argument("--control-root", type=Path, default=None)
+    parser.add_argument("--collector-key", type=Path, default=None)
+    parser.add_argument(
+        "--authenticate",
+        action="store_true",
+        help=(
+            "read the retained store, replay it, build the in-process central "
+            "rows and run the six verifiers over them; writes no declaration"
+        ),
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
     revision = args.source_revision or _head_revision(root)
-    derivation = derive(root, revision)
+    evidence_root = args.evidence_root
+    control_root_path = args.control_root
+    if args.authenticate:
+        from daedalus.kernel.offload_lease import control_root, write_evidence_root
+
+        if control_root_path is None:
+            control_root_path = control_root(root)
+        if evidence_root is None:
+            evidence_root = write_evidence_root(root, revision)
+    derivation = derive(
+        root,
+        revision,
+        evidence_root=evidence_root,
+        control_root_path=control_root_path,
+        collector_key=args.collector_key,
+    )
 
     # Self-check: the chain must accept every row against the same scan.  A
     # generator that emits a document its own verifier refuses is worse than
     # no generator, so the refusal happens here, before anything is written.
+    inventory = scan_repository_write_surfaces_v2(root, source_revision=revision)
     projection = project_repository_write_classifications(
-        scan_repository_write_surfaces_v2(root, source_revision=revision),
+        inventory,
         derivation.rows,
     )
     # Second self-check: every minted evidence object must survive the
@@ -710,7 +1372,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if materialization.missing_locators:
         raise DeclarationError("minted evidence is missing its own CAS bytes")
-    document = declaration_document(derivation)
 
     summary = {
         "schema": DERIVATION_SCHEMA,
@@ -724,8 +1385,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         "materialized_evidence_records": len(materialization.records),
         "per_door": list(derivation.per_door),
         "skipped_doors": list(derivation.skipped_doors),
+        "verdict_census": in_process_census(inventory, projection),
+        "authenticated_doors": list(derivation.authenticated_doors),
+        "admitted_surfaces": list(derivation.admitted_surfaces),
+        "evidence_refusals": list(derivation.evidence_refusals),
     }
+    if args.authenticate:
+        # In-process rows only, and nothing is written in this mode even when
+        # the store authenticated no door: the wire cannot carry an admitted
+        # row, so a run that MIGHT have produced one must not fall through to
+        # writing a declaration that silently says something weaker.
+        if derivation.admitted_surfaces:
+            key_path = (
+                args.collector_key
+                if args.collector_key is not None
+                else Path(control_root_path) / "write-evidence-collector.key"
+            )
+            summary["authentication"] = authenticate_in_process(
+                root,
+                projection,
+                derivation.blobs,
+                source_revision=revision,
+                collector_secret_bytes=collector_secret(Path(key_path)),
+            )
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        return 0
 
+    document = declaration_document(derivation)
     if not args.dry_run:
         out_dir = (
             Path(args.out_dir)
