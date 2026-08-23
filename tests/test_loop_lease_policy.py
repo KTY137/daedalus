@@ -213,9 +213,14 @@ def test_a_failed_derivation_denies_even_with_caller_evidence(switch, monkeypatc
     """The caller's mechanism cannot rescue an isolation root that overlaps."""
     import daedalus.kernel.offload_lease as module
 
+    # The stub takes the derivation's real shape -- subject root, the caller's
+    # planned worktree root, and the authority root it is also measured against
+    # -- so a signature change here fails as a signature change rather than
+    # silently stubbing a narrower contract than the issuer calls.
     monkeypatch.setattr(
         module, "derive_wave_containment",
-        lambda root: (False, "the attempt isolation root overlaps the checkout"))
+        lambda root, worktree_root=None, *, authority_root=None: (
+            False, "the attempt isolation root overlaps the checkout"))
     denied = _lease(switch, "w-f2derive")
     assert isinstance(denied, WaveLeaseDenied)
     assert "overlaps the checkout" in _reason(denied, "containment.attempt")

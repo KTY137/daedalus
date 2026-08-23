@@ -1097,23 +1097,54 @@ def resolve_write_policy(
     )
 
 
-def wave_containment_roots(repo_root: str | Path) -> tuple[str, str]:
+def wave_containment_roots(
+    repo_root: str | Path, worktree_root: str | Path | None = None
+) -> tuple[str, str]:
     """The two roots the containment predicate is about. It decides nothing.
 
     Split out so the decision below and the record that retains it name the
     same pair without either one resolving the pair for itself. Raises when the
     isolation root cannot be resolved at all; the caller turns that into a
     refusal, because unknown containment is no containment.
+
+    ``worktree_root`` is THE CALLER'S OWN PLANNED ROOT, and it exists because
+    asking :class:`GitWorktreeManager` for its default was a measurement
+    wearing the wrong name. A caller that injects its own manager -- every
+    ``TaskAttempt`` constructed with ``worktree_manager=`` -- writes under a
+    root this function never saw, so the ``containment.attempt`` allow named a
+    pair of directories those writes never touch, and that allow rode into the
+    retained disjointness record and out as a ``CHECKOUT_EXTERNAL`` target
+    disposition. Omitted, the default manager still answers, so the wave path
+    is unchanged.
     """
+
+    root = Path(repo_root).resolve()
+    if worktree_root is not None:
+        return str(root), str(Path(worktree_root).resolve())
 
     from daedalus.kairos.worktree import GitWorktreeManager
 
-    root = Path(repo_root).resolve()
     return str(root), str(GitWorktreeManager(root).worktree_root)
 
 
-def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
+def derive_wave_containment(
+    repo_root: str | Path,
+    worktree_root: str | Path | None = None,
+    *,
+    authority_root: str | Path | None = None,
+) -> tuple[bool, str]:
     """Does THIS checkout's isolation machinery really land outside it?
+
+    TWO ROOTS, BOTH CHECKED, AND THE SECOND ONE IS NOT OPTIONAL SAFETY THEATRE.
+    ``repo_root`` here is the SUBJECT -- the checkout these writes must not
+    mutate, which for a ``TaskAttempt`` is its own candidate tree, not the
+    installation. Measuring only that would open the hole the authority/subject
+    split would otherwise create: a caller naming a throwaway ``subject_root``
+    and a planned worktree INSIDE the installation's primary checkout passes a
+    subject-only test while writing into the operator's tree. So when
+    ``authority_root`` is given and is a different directory, the planned root
+    must be disjoint from it as well. ``planned_overlap_reason`` is
+    bidirectional, so a root that would CONTAIN either checkout fails too.
 
     WHY THE ISSUER DERIVES THIS (MEASURED, Odysseus F2). ``contained`` and
     ``containment_evidence`` are caller-supplied, and the caller was believed::
@@ -1149,7 +1180,7 @@ def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
 
     root = Path(repo_root).resolve()
     try:
-        _, worktree_root = wave_containment_roots(root)
+        _, planned = wave_containment_roots(root, worktree_root)
     except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
         return False, (
             f"the isolation root for {root} could not be resolved "
@@ -1158,15 +1189,35 @@ def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
     # A PLANNED directory: the manager creates it after the check, so it is
     # asked about the name it will land on, not about its existing ancestor
     # (which contains the checkout for every sibling root -- 57a2e7cb).
-    overlap = planned_overlap_reason(Path(worktree_root), root)
+    overlap = planned_overlap_reason(Path(planned), root)
     if overlap is not None:
         return False, (
-            f"the attempt isolation root {worktree_root} overlaps the primary "
+            f"the attempt isolation root {planned} overlaps the primary "
             f"checkout: {overlap}"
         )
+    authority = (
+        Path(authority_root).resolve() if authority_root is not None else None
+    )
+    if authority is not None and authority != root:
+        # THE OPERATOR'S TREE, checked separately and by name. Without this a
+        # caller could name any throwaway subject and still land its writes
+        # inside the installation.
+        authority_overlap = planned_overlap_reason(Path(planned), authority)
+        if authority_overlap is not None:
+            return False, (
+                f"the attempt isolation root {planned} is disjoint from the "
+                f"subject checkout {root} but overlaps the AUTHORITY checkout "
+                f"{authority}: {authority_overlap}"
+            )
+        return True, (
+            f"primary_tree.planned_overlap_reason({planned}, {root}) and "
+            f"({planned}, {authority}) are both None: worktrees allocated "
+            f"under {planned} land outside the subject checkout AND outside "
+            f"the authority checkout, in both directions"
+        )
     return True, (
-        f"primary_tree.planned_overlap_reason({worktree_root}, {root}) is "
-        f"None: TaskAttempt worktrees allocated under {worktree_root} land "
+        f"primary_tree.planned_overlap_reason({planned}, {root}) is "
+        f"None: TaskAttempt worktrees allocated under {planned} land "
         f"outside the primary checkout in both directions"
     )
 
@@ -1587,8 +1638,35 @@ def acquire_effect_lease(
     now: datetime | None = None,
     evidence_root: str | Path | None = None,
     effect_key: str | None = None,
+    subject_root: str | Path | None = None,
+    worktree_root: str | Path | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the guard contracts ONE registry row declares, then issue or deny.
+
+    TWO ROOTS, AND THE SEPARATION IS THE POINT. ``repo_root`` is the AUTHORITY:
+    the control root, the permit, the issuer key, the lease ledger, the
+    evidence store and the write fence all come from it, and every one of them
+    is the operator's. ``subject_root`` (defaulting to ``repo_root``) is what
+    the containment contracts MEASURE -- the checkout these writes must not
+    mutate. ``worktree_root`` is the caller's own planned isolation root.
+
+    WHY, MEASURED. Until this split, one ``repo_root`` decided all three. While
+    only ``python.offload`` was issuable its caller was always the installation
+    and the three coincided, so nothing showed. Parameterising the ROW (6cf056e2)
+    made the divergence reachable without splitting the ROOTS, and for any door
+    whose subject is not the installation -- every ``TaskAttempt``, whose repo
+    is a fresh candidate checkout -- the issuer derived a control root that had
+    never been armed::
+
+        installation  ~/.daedalus/control/e3d9b70ebd9c
+        candidate     ~/.daedalus/control/86b4335df625
+        kill_switch_generation(KillSwitch(repo_root=<candidate>))
+          -> WaveLeaseKillSwitchEngaged, "no permit file: the loop is not armed"
+
+    That is a :class:`~daedalus.spine.killswitch.LoopHalted` subclass, so the
+    issuer HALTED THE RUN instead of denying the request -- and a candidate
+    that chooses where it works would have been choosing which control root
+    judges it, which is the evidence boundary inverted.
 
     Returns a :class:`WaveOffloadLease` when every contract allows, and a
     :class:`WaveLeaseDenied` -- never an exception, never a partial grant --
@@ -1625,7 +1703,15 @@ def acquire_effect_lease(
     in as corroboration; it can only ever add a refusal, never remove one.
     """
     instant = now or _utc_now()
+    # THE AUTHORITY ROOT. Everything the operator owns and the candidate must
+    # never choose hangs off this name: the permit, the issuer key, the lease
+    # ledger, the evidence store, the write fence, the attempt ledger the
+    # intent contract reads. `subject` below can be anything the caller says;
+    # `root` cannot, and nothing derived from `subject` is allowed to reach it.
     root = str(Path(repo_root).resolve())
+    subject_checkout = (
+        str(Path(subject_root).resolve()) if subject_root is not None else root
+    )
     live_switch = switch if switch is not None else KillSwitch(repo_root=root)
     door = str(entrypoint_id)
     request_id = _issuer_request_id(door, mission_id, attempt_id)
@@ -1793,7 +1879,9 @@ def acquire_effect_lease(
         f"{spec.id} declares no containment contract, so this issuer derived none"
     )
     if "containment.attempt" in declared_contracts:
-        derived_ok, derived_evidence = derive_wave_containment(root)
+        derived_ok, derived_evidence = derive_wave_containment(
+            subject_checkout, worktree_root, authority_root=root
+        )
         containment_refusals: list[str] = []
         if not contained:
             containment_refusals.append("the caller could not establish containment")
@@ -1815,13 +1903,38 @@ def acquire_effect_lease(
         )
 
     if "containment.worktree" in declared_contracts:
-        # The same derivation the wave's containment rests on, under the name
-        # the python.attempt row declares: the manager's PLANNED root lands
-        # outside the primary checkout in both directions
-        # (primary_tree.planned_overlap_reason since 0f7f8187).
-        worktree_ok, worktree_evidence = derive_wave_containment(root)
+        # THE TOPOLOGY HALF, AND ONLY THAT. Same derivation as
+        # `containment.attempt` above, deliberately: both contracts are about
+        # the same planned root, and after the authority/subject split that one
+        # derivation measures it against BOTH checkouts, which is strictly
+        # stronger than giving each contract one root to watch.
+        #
+        # WHAT SEPARATES THEM, MEASURED. They are not one condition wearing two
+        # names: `containment.attempt` is this derivation AND the caller's
+        # `contained` flag AND a named mechanism, so it refuses where this one
+        # allows. With `containment_evidence=""` against the same pair of roots,
+        # `containment.attempt` is False ("the caller named no containment
+        # mechanism") while `containment.worktree` is True. The relation is
+        # SUBSUMPTION -- attempt implies worktree -- so for `python.attempt`,
+        # the only row declaring both, this decision adds no refusal the other
+        # cannot already make. It is not deletable: `worktree.reap`,
+        # `worktree.create`, `worktree.commit`, `worktree.cleanup` and
+        # `python.promote_candidates` declare it ALONE, and there it is the
+        # sole containment check.
+        #
+        # The prefix exists so a receipt reader sees which of the two this is.
+        # Two names quoting one evidence string read as two independent
+        # measurements, and only one of them is independent.
+        worktree_ok, worktree_evidence = derive_wave_containment(
+            subject_checkout, worktree_root, authority_root=root
+        )
         guards.append(
-            GuardDecision("containment.worktree", worktree_ok, worktree_evidence)
+            GuardDecision(
+                "containment.worktree",
+                worktree_ok,
+                f"topology only (no caller mechanism is required by this "
+                f"contract): {worktree_evidence}",
+            )
         )
 
     if "spine.intent_ledger" in declared_contracts:
@@ -2053,7 +2166,13 @@ def acquire_effect_lease(
         )
         return granted
     try:
-        primary_root, target_root = wave_containment_roots(root)
+        # THE PAIR THE CONTRACT MEASURED, not a second resolution of it. The
+        # recorder cannot re-decide, so it must be handed the same two roots
+        # `derive_wave_containment` just judged -- the subject and the caller's
+        # planned isolation root.
+        primary_root, target_root = wave_containment_roots(
+            subject_checkout, worktree_root
+        )
         record = record_primary_checkout_disjointness(
             GuardDecision(
                 WORKTREE_CONTAINMENT_CONTRACT, derived_ok, derived_evidence

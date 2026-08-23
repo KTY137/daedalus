@@ -55,6 +55,13 @@ MECHANISM = "test: the isolation root is the manager's own worktree root"
 #: edit that widens this row fails here instead of silently widening a lease.
 SECOND_DOOR = "cli.eval_ceiling"
 
+#: A row this issuer must never be able to run, used wherever the "contracts I
+#: cannot run" conjunct needs a subject. ``promotion.owner_approval`` is chosen
+#: rather than found: sealed promotion means no automatic path may mint that
+#: capability, so unlike every other unrunnable contract this one must stay
+#: unrunnable forever.
+UNRUNNABLE_ROW = "python.promote_candidates"
+
 #: The door the handoff aimed at, and the one the rule refuses for a reason
 #: that is NOT the one the handoff expected. See
 #: ``test_the_gate_door_is_refused_for_an_unfenced_write``.
@@ -129,21 +136,27 @@ def test_the_gate_door_is_refused_for_an_unfenced_write():
 
 
 def test_a_row_whose_contracts_this_issuer_cannot_run_is_refused_by_name():
-    """``python.attempt`` declares two contracts this module does not implement.
+    """``python.promote_candidates`` declares a contract this issuer must never run.
 
-    It declares ``spine.intent_ledger`` and ``containment.worktree``. This
-    module implements neither, and the only two ways past that are defects:
-    skip them (an unrun guard recorded as a passed one) or take the caller's
-    word for them (which ``WritePolicySource`` already measured). So the
-    refusal names them.
+    THE SUBJECT MOVED, and the move is the point. This test used to name
+    ``python.attempt`` for ``spine.intent_ledger`` and ``containment.worktree``;
+    11dc0195 implemented both in this issuer, so that row became issuable and
+    the assertion became false. The conjunct it tests did not change, only a
+    row that satisfies it -- which is what a rule looks like when it is a rule
+    and not a list.
+
+    ``promotion.owner_approval`` is the better subject anyway: sealed promotion
+    (plan invariant 5) means no automatic path may mint that capability, so
+    this is the one refusal that must never become implementable HERE. If some
+    future edit adds it to ``ISSUER_CONTRACTS``, this test is the tripwire.
     """
 
-    spec, reasons = issuable_row("python.attempt")
+    spec, reasons = issuable_row(UNRUNNABLE_ROW)
     assert spec is None
     contracts = [r for r in reasons if r.startswith("issuer.contracts")]
     assert len(contracts) == 1
-    assert "containment.worktree" in contracts[0]
-    assert "spine.intent_ledger" in contracts[0]
+    assert "promotion.owner_approval" in contracts[0]
+    assert "promotion.owner_approval" not in ISSUER_CONTRACTS
 
 
 def test_an_unregistered_row_is_refused_before_anything_else():
@@ -209,13 +222,13 @@ def test_a_row_whose_effects_the_scope_cannot_bound_is_refused():
 # what the refusal produces                                                    #
 # --------------------------------------------------------------------------- #
 def test_an_unissuable_row_denies_and_persists_nothing(switch, tmp_path):
-    denied = _acquire(switch, "python.attempt")
+    denied = _acquire(switch, UNRUNNABLE_ROW)
     assert isinstance(denied, WaveLeaseDenied)
     assert denied.granted is False
     assert denied.policy_decision.verdict == "deny"
     # The receipt names the row that was refused, not the row this module was
     # once hard-coded to.
-    assert denied.receipt()["entrypoint_id"] == "python.attempt"
+    assert denied.receipt()["entrypoint_id"] == UNRUNNABLE_ROW
     assert denied.receipt()["lease_id"] is None
     # Refused BEFORE any contract ran: no guard decision exists to report.
     assert denied.guard_decisions == ()
@@ -235,7 +248,7 @@ def test_the_refusal_happens_before_the_kill_switch_is_consulted(tmp_path, monke
     sw = KillSwitch(repo_root=REPO_ROOT)
     sw.arm(note="issuer rule test")
     sw.stop("stopped for this test")
-    denied = _acquire(sw, "python.attempt")
+    denied = _acquire(sw, UNRUNNABLE_ROW)
     assert isinstance(denied, WaveLeaseDenied)
     assert any("issuer.contracts" in reason for reason in denied.reasons)
 

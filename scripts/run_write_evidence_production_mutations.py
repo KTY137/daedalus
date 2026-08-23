@@ -30,6 +30,15 @@ PRODUCER_TESTS = "tests/gates/test_write_evidence_producer.py"
 #: guard disabled on either side produces the same lie.
 RULE_TESTS = "tests/kernel/test_effect_lease_issuer_rule.py"
 DOMINANCE_TESTS = "tests/gates/test_write_surface_lease_dominance.py"
+#: The authority/subject split. Same chain again: the predicate decides which
+#: doors can hold a lease, the guard decides which writes it covers, and this
+#: decides WHOSE control root judges the request and WHICH checkout the
+#: containment contracts measure. A guard disabled on any of the three
+#: produces a receipt about something nobody checked.
+SPLIT_TESTS = "tests/kernel/test_lease_authority_subject_split.py"
+#: The attempt door, landed by 11dc0195. Referenced so the guard its wrapper
+#: carries gets an anchor of its own instead of sharing the wave wrapper's.
+ATTEMPT_TESTS = "tests/kernel/test_attempt_lease.py"
 
 # name -> (target file, needle, replacement, test node id)
 MUTATIONS: dict[str, tuple[Path, str, str, str]] = {
@@ -181,11 +190,31 @@ MUTATIONS: dict[str, tuple[Path, str, str, str]] = {
         f"{RULE_TESTS}::"
         "test_a_row_with_no_containment_contract_retains_no_disjointness_record",
     ),
+    # AMBIGUOUS SINCE 11dc0195, and the runner caught it: `acquire_attempt_lease`
+    # landed with a guard whose first line is identical to the wave wrapper's,
+    # so the old one-line needle resolved twice. Two guards sharing one anchor
+    # means disabling one goes unnoticed, which is precisely what this runner
+    # refuses to allow -- so each needle now carries the message that names its
+    # own wrapper, and the second guard gets an anchor of its own.
     "let-the-wave-wrapper-be-told-which-row": (
         KERNEL,
-        '    if "entrypoint_id" in kwargs:\n',
-        '    if kwargs.pop("entrypoint_id", None) and False:\n',
+        '    if "entrypoint_id" in kwargs:\n'
+        "        raise TypeError(\n"
+        '            "acquire_wave_offload_lease() issues for python.offload only; call "\n',
+        '    if kwargs.pop("entrypoint_id", None) and False:\n'
+        "        raise TypeError(\n"
+        '            "acquire_wave_offload_lease() issues for python.offload only; call "\n',
         f"{RULE_TESTS}::test_the_wave_wrapper_refuses_to_be_told_which_row",
+    ),
+    "let-the-attempt-wrapper-be-told-which-row": (
+        KERNEL,
+        '    if "entrypoint_id" in kwargs:\n'
+        "        raise TypeError(\n"
+        '            "acquire_attempt_lease() issues for python.attempt only; call "\n',
+        '    if kwargs.pop("entrypoint_id", None) and False:\n'
+        "        raise TypeError(\n"
+        '            "acquire_attempt_lease() issues for python.attempt only; call "\n',
+        f"{ATTEMPT_TESTS}::test_the_wrapper_pins_the_row_and_demands_the_effect_key",
     ),
     # --- the lease-dominance guard ----------------------------------------
     # A door that HELD a lease is not a write that was UNDER one.
@@ -219,6 +248,37 @@ MUTATIONS: dict[str, tuple[Path, str, str, str]] = {
         f"{DOMINANCE_TESTS}::"
         "test_a_door_that_consumes_no_lease_has_an_empty_leased_region",
     ),
+    # --- the authority/subject split --------------------------------------
+    # Three guards, therefore three anchors. The count follows the guards, not
+    # a target: `repo_root` used to decide the control root, the write fence
+    # and the measured checkout all at once, and each of those is a separate
+    # way for a candidate to be judged by something it chose.
+    "let-the-subject-root-choose-the-authority": (
+        KERNEL,
+        "    subject_checkout = (\n"
+        "        str(Path(subject_root).resolve()) if subject_root is not None else root\n"
+        "    )\n",
+        "    subject_checkout = (\n"
+        "        str(Path(subject_root).resolve()) if subject_root is not None else root\n"
+        "    )\n"
+        "    root = subject_checkout\n",
+        f"{SPLIT_TESTS}::test_the_write_fence_stays_the_operators",
+    ),
+    "measure-containment-over-the-default-manager": (
+        KERNEL,
+        "    if worktree_root is not None:\n"
+        "        return str(root), str(Path(worktree_root).resolve())\n",
+        "    if False and worktree_root is not None:\n"
+        "        return str(root), str(Path(worktree_root).resolve())\n",
+        f"{SPLIT_TESTS}::test_the_roots_helper_returns_the_callers_pair",
+    ),
+    "ignore-the-authority-checkout-when-measuring-containment": (
+        KERNEL,
+        "    if authority is not None and authority != root:\n",
+        "    if False and authority is not None and authority != root:\n",
+        f"{SPLIT_TESTS}::"
+        "test_a_planned_root_inside_the_authority_checkout_is_refused",
+    ),
 }
 
 
@@ -237,7 +297,10 @@ def _run(*tests: str) -> subprocess.CompletedProcess[str]:
 def main() -> int:
     originals = {path: path.read_text(encoding="utf-8") for path in (KERNEL, PRODUCER)}
     try:
-        baseline = _run(KERNEL_TESTS, PRODUCER_TESTS, RULE_TESTS, DOMINANCE_TESTS)
+        baseline = _run(
+            KERNEL_TESTS, PRODUCER_TESTS, RULE_TESTS, DOMINANCE_TESTS,
+            SPLIT_TESTS, ATTEMPT_TESTS,
+        )
     except subprocess.TimeoutExpired:
         print("baseline timed out", file=sys.stderr)
         return 2
