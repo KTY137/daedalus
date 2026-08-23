@@ -75,7 +75,7 @@ These are hard blockers today. Effects are as the scanner infers them; the
 | --- | --- | --- | --- | --- |
 | A1 | `tools/audit_swarm.py:282` | `tools.audit_swarm:main` | `process_spawn` | **`spend`**, `network_egress`, **`secrets`**, `filesystem_write`, `process_spawn` |
 | A2 | `tools/funnel.py:587` | `tools.funnel:main` | `process_spawn` | **`spend`**, `network_egress`, **`secrets`**, `filesystem_write`, `process_spawn` |
-| A3 | `tools/iron_plan_guard.py:1999` | `tools.iron_plan_guard:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** (git plumbing, commit-msg/pre-commit hooks) |
+| A3 | `tools/iron_plan_guard.py:1999` | `tools.iron_plan_guard:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** (git plumbing, commit-msg/pre-commit hooks (removed 2026-08-22)) |
 | A4 | `tools/gui_check.py:441` | `tools.gui_check:main` | `filesystem_write`, `network_egress`, `process_control`, `process_spawn` | as discovered (spawns `node`/playwright, binds and kills a dev server) |
 | A5 | `tools/gate_discrimination.py:1087` | `tools.gate_discrimination:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** (mutates a tree, runs the corpus, writes a receipt) |
 | A6 | `tools/bootstrap_receipt.py:739` | `tools.bootstrap_receipt:main` | `filesystem_write`, `process_spawn` | + **`repository_mutation`** |
