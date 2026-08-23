@@ -251,6 +251,15 @@ class FaultScenarioSpec:
                 raise FaultMatrixShapeError(
                     f"fault scenario contains unsupported claim: {field}"
                 )
+        array_fields = (
+            "targeted_invariants",
+            "expected_durable_markers",
+            "forbidden_durable_markers",
+        )
+        if any(type(payload[field]) is not list for field in array_fields):
+            raise FaultMatrixShapeError(
+                "fault scenario arrays must be exact lists"
+            )
         try:
             return cls(
                 scenario_id=payload["scenario_id"],
@@ -766,6 +775,24 @@ class FaultMatrixVerificationReceipt:
         if any(type(payload[field]) is not list for field in list_fields):
             raise FaultMatrixShapeError(
                 "fault matrix verification arrays must be exact lists"
+            )
+        bool_fields = (
+            "fingerprints_verified",
+            "restart_policies_verified",
+            "process_termination_verified",
+            "exact_durable_states_verified",
+            "runtime_toolchain_verified",
+            "primary_checkout_unchanged",
+            "automatic_reexecution_absent",
+            "llm_evidence_absent",
+        )
+        if any(type(payload[field]) is not bool for field in bool_fields):
+            raise FaultMatrixShapeError(
+                "fault matrix verification claims must be exact bools"
+            )
+        if type(payload["failure_count"]) is not int:
+            raise FaultMatrixShapeError(
+                "fault matrix verification failure_count must be exact int"
             )
         result = cls(
             matrix_id=payload["matrix_id"],
