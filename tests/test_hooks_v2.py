@@ -539,6 +539,19 @@ def test_changed_detects_same_line_count_edits_after_a_test_run(repo: Path) -> N
     assert "CHANGED since last test run" in loud and "daedalus/a.py" in loud
 
 
+def test_turn_is_quiet_before_the_watchdog_has_health_evidence(repo: Path) -> None:
+    _, turn = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in turn
+    assert "last_watchdog" not in _common.load_state(repo, "sess-1")
+
+    health = repo / "runs" / "watchdog" / "health.json"
+    health.parent.mkdir(parents=True)
+    health.write_text(json.dumps({"anomalies": []}), encoding="utf-8")
+    _, first_valid_clear = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in first_valid_clear
+    assert _common.load_state(repo, "sess-1")["last_watchdog"] == []
+
+
 def test_turn_shows_watchdog_anomalies_only_when_they_change(repo: Path) -> None:
     health = repo / "runs" / "watchdog" / "health.json"
     health.parent.mkdir(parents=True)
@@ -547,6 +560,22 @@ def test_turn_shows_watchdog_anomalies_only_when_they_change(repo: Path) -> None
     assert "WATCHDOG: docs_sweep_stale (runs/watchdog/HEALTH.md)" in t1
     _, t2 = run("turn", payload(repo, "UserPromptSubmit"))
     assert "WATCHDOG" not in t2
+
+    health.unlink()
+    _, missing = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in missing
+    assert _common.load_state(repo, "sess-1")["last_watchdog"] == ["docs_sweep_stale"]
+
+    health.write_text("{invalid", encoding="utf-8")
+    _, invalid = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in invalid
+    assert _common.load_state(repo, "sess-1")["last_watchdog"] == ["docs_sweep_stale"]
+
+    health.write_bytes(b"{\"anomalies\":[\xff]}")
+    _, invalid_utf8 = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in invalid_utf8
+    assert _common.load_state(repo, "sess-1")["last_watchdog"] == ["docs_sweep_stale"]
+
     health.write_text(json.dumps({"anomalies": []}), encoding="utf-8")
     _, t3 = run("turn", payload(repo, "UserPromptSubmit"))
     assert "WATCHDOG: all clear" in t3
