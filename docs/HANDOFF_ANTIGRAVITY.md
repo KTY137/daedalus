@@ -370,7 +370,7 @@ A power loss killed six agents mid-flight on 2026-07-29. Their work is in the
 tree, uncommitted. MEASURED `git status` at handoff time:
 
 **Modified, tracked:** `daedalus/budget.py`, `daedalus/cli.py`,
-`daedalus/compaction.py` (a *deletion*), `daedalus/council/publish.py`,
+`daedalus/compaction.py (removed 2026-08-22)` (a *deletion*), `daedalus/council/publish.py`,
 `daedalus/file_bridge.py`, `daedalus/health.py`, `runs/council/room.py`,
 `tests/test_bridge_restart.py`, `tests/test_bridge_signals.py`,
 `tests/test_cascade.py`, `tests/test_hardening.py`,
@@ -412,10 +412,10 @@ stale evidence and had to be restored, so the bar is: show that nothing needs it
   to guarantee. They would be a safety *regression* if anyone ever wired them.
   Deleting `shadow_shell.py` also orphans `worktree.commit_candidate` /
   `has_changes`.
-- **`daedalus/memstore.py`** (615 lines). Its `DEFAULT_LEDGER_PATH` and
+- **`daedalus/memstore.py (removed 2026-08-22)`** (615 lines). Its `DEFAULT_LEDGER_PATH` and
   `state.local.json` **do not exist on disk**; it has never been written to.
   Superseded three times, one explicitly: `council/bus.py:13` says it
-  *"deliberately REIMPLEMENTS memstore.py"*.
+  *"deliberately REIMPLEMENTS memstore.py (removed 2026-08-22)"*.
 
 ---
 
@@ -494,7 +494,7 @@ surface that suggests otherwise is worse than none.
   unconditional return with no parameter and no override.
 - **There is no `--apply`.** Do not add one.
 - **The four regenerated artefacts are dirty on purpose** (T9).
-- **`daedalus/compaction.py` is deleted on purpose** (T9).
+- **`daedalus/compaction.py (removed 2026-08-22)` is deleted on purpose** (T9).
 - **`runs/spine/` is gitignored**, so receipts do not travel with the repo. Every
   machine measures for itself. Defensible given containment is win32-only, but
   know that you are choosing it.

@@ -18,7 +18,7 @@ projects the plan, not in the plan.
 ## Summary
 
 Three measured defects in `tools/iron_plan_guard.py` and
-`tests/test_iron_plan_guard.py`. All three are protected artifacts, so no
+`tests/test_iron_plan_guard.py (removed 2026-08-22)`. All three are protected artifacts, so no
 ordinary task can repair them; §15 makes this an amendment.
 
 | # | Defect | Effect today |
@@ -124,8 +124,8 @@ test fails loudly if it ever stops matching the ledger.
 emits, verbatim:
 
 ```
-.githooks/pre-commit is staged/tracked with mode 100644, not executable
-(run: git add --chmod=+x .githooks/pre-commit .githooks/commit-msg)
+.githooks/pre-commit (removed 2026-08-22) is staged/tracked with mode 100644, not executable
+(run: git add --chmod=+x .githooks/pre-commit (removed 2026-08-22) .githooks/commit-msg (removed 2026-08-22))
 ```
 
 That printed repair names two protected paths. `protected_targets()` therefore
@@ -147,9 +147,9 @@ the check exists to catch.
 ```
 verify() now reports 2 error(s), both about the mode.
 
-DENY (fail-closed: verification broken)   git add --chmod=+x .githooks/pre-commit .githooks/commit-msg
+DENY (fail-closed: verification broken)   git add --chmod=+x .githooks/pre-commit (removed 2026-08-22) .githooks/commit-msg (removed 2026-08-22)
 DENY (fail-closed: verification broken)   git config --local core.hooksPath .githooks
-DENY (fail-closed: verification broken)   git update-index --chmod=+x .githooks/pre-commit
+DENY (fail-closed: verification broken)   git update-index --chmod=+x .githooks/pre-commit (removed 2026-08-22)
 DENY (fail-closed: verification broken)   git commit -m "fix the mode"
 allow                                     python -m daedalus.arch_memory
 ```

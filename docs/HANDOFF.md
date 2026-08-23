@@ -143,7 +143,7 @@ From `vault/Sessions/2026-08-17.md:43-46` [INHERITED]:
 - [ ] K1–K13 rebase against the revision-4 text.
 - [ ] Run the `SETUP` steps (install Obsidian, open the vault).
 - [ ] Copy `docs/recovery/settings_beast.json` over user settings, restart the
-      session (enables statusline, serena-first, PreCompact audit, toasts).
+      session (enables statusline, serena-first (replaced by daedalus/hooks/, 2026-08-23), PreCompact audit, toasts).
 - [ ] Athena: remove the `wt_*` worktrees. (Full-suite balance: now recorded.)
 
 
@@ -2288,7 +2288,7 @@ measure recall gain vs compression cost on both axes); (3) only then wire slice�
 
 Wired into `daedalus/eval/harness.py` via `_is_focus_withheld()` / `_focus_withheld_row()`: these rows split from `by_provenance`/means, never fail the gate, never snapshot recall. `daedalus/eval/report.py` renders them one honest sentence: "the secret floor fail-closed on the focus file itself — not a recall miss, not a pass". **Tests: 14 new [M]** in `tests/test_mint_label_hygiene.py`.
 
-**Lane B1: Append-only memory ledger (dmem/1) [M].** `daedalus/memstore.py` (390 lines) + `tests/test_memstore.py` (15 tests). Hash-chained ledger at `memory/ledger.local.jsonl`:
+**Lane B1: Append-only memory ledger (dmem/1) [M].** `daedalus/memstore.py (removed 2026-08-22)` (390 lines) + `tests/test_memstore.py` (15 tests). Hash-chained ledger at `memory/ledger.local.jsonl`:
 
 - `append_entry`: forces `trust.minted_tier="quarantine"` at write (earned via fold, never asserted), runs secret floor BEFORE writing over text/detail/paths; refused entries store redacted `gate_outcome` only. Dedupe by `body_sha` returns existing id. Hash boundary: `body_sha` = SHA256(canonical_body, sort_keys, separators, ensure_ascii, excluding ts/prev/entry_sha/id/body_sha); `entry_sha` = SHA256(prev+"\0"+body_sha+"\0"+ts); genesis prev→"".
 - `append_confirm`/`append_flag`: control records on chain; `MEM_CONFIRM_THRESHOLD = 3` (cited to `MINT_CONFIRM_THRESHOLD`, not import-coupled).

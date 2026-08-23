@@ -276,7 +276,7 @@ holds 142 stale package copies that double every naive count).
 
 | # | item | narrative said (2026-07-28) | at HEAD `1e9d5dd` | evidence |
 |---|---|---|---|---|
-| 1 | `daedalus/memstore.py` | ISLAND, "zero non-test importers" (`:230`) | **STILL ISLAND** | 4 importers, all under `tests/`: `test_council_bus.py:31`, `test_council_session.py:605`, `test_memstore.py:27`; the fourth (`test_council_vendors.py:676`) is a *negative* assertion that the name is absent. Zero production importers. |
+| 1 | `daedalus/memstore.py (removed 2026-08-22)` | ISLAND, "zero non-test importers" (`:230`) | **STILL ISLAND** | 4 importers, all under `tests/`: `test_council_bus.py:31`, `test_council_session.py:605`, `test_memstore.py:27`; the fourth (`test_council_vendors.py:676`) is a *negative* assertion that the name is absent. Zero production importers. |
 | 2 | `kairos/worktree.py` `reap_branches` | ISLAND, "zero production callers" (`:231`) | **SINCE-WIRED** | 3 production callers: `eval/correctness.py:717`, `kairos/gated_writes.py:987`, `spine/attempt.py:1247` — all in cleanup paths. Also registered at `spine/effect_boundary.py:591` and `:846`. |
 | 3 | `daedalus/adapters/*` | ISLAND, "nothing in the CLI, API, core.py or offload imports any of them" (`:233`) | **SINCE-WIRED** | `memory/embeddings.py:93` imports `adapters.events`; importing any submodule executes `adapters/__init__.py:18-26`, which pulls in `base` and `subprocess_adapter`. Reached from entrypoints via `context_plan.py:29`, `health.py:894`, `web_api.py:1373`, `gui_catalogue.py:771`. |
 | 4 | `kairos/shadow_shell.py` | ISLAND (`:233`) | **STILL ISLAND** | Its only production importer is `kairos/evolution.py:8` — itself an island (row 5). Everything else is `tests/`. |
@@ -346,7 +346,7 @@ whoever picks it up):
 | dark_switches | 0 | 1 | `CI`, an off-by-default env gate at `tools/iron_plan_guard.py:799` |
 | index_extra_edges | 0 | 1 | `eval/graph_delta.py -> structcore/artifacts.py`: the structural index has the edge, the reachability walk refuses it |
 
-**27 blocking.** One is `daedalus/compaction.py`, VANISHED — in the snapshot, not
+**27 blocking.** One is `daedalus/compaction.py (removed 2026-08-22)`, VANISHED — in the snapshot, not
 on disk. Deciding what to re-baseline is a reviewed diff, not a chore: `--refresh`
 banks all 27 at once and the count moves silently. Deliberately not run here.
 
