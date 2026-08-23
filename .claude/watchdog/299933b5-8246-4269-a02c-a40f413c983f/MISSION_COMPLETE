@@ -1,0 +1,48 @@
+# Mission 4 complete: CENTRAL-Verdrahtung der 70 inventory_only-Türen
+
+Branch grind/watchdog-mission4 (Basis 35172501, HEAD 4d5d45ed). Nichts gemergt, nichts gepusht.
+
+## Ergebnis
+
+inventory_only_production_entrypoints: 70 -> 12. 58 Türen sind ECHT durch die
+kanonische Effekt-Grenze verdrahtet (begin_effect mit ausgeführten
+Guard-Entscheidungen — installiertes Spend-Netz via
+daedalus.budget.process_guard_boundary_decision(), Adapter-Profil-Provenienz,
+Crash-Journal-Verifikation, Secret-Floor über Outbound-Payload,
+_resolve_bind-Verdict, Containment-Entscheidungen), keine Zeile per
+Registry-Edit umdeklariert. Read-only-Inspektion bleibt überall fail-open.
+Die 12 Restzeilen tragen ausnahmslos REASONED-REMAINDER-Notizen in der
+Registry: 2 protected Plan-Guard-Artefakte, 3 runtimes-Kollektoren + der
+gate0-matrix-Verifier (parallele live-runtime-Lane grind/live-column),
+6 Provider-Lifecycle-Zeilen (zentral nur über die runtime-gebundene
+Lease/Broker-Kette).
+
+## Commits
+
+3716d4e9 adapter.subprocess (70->66) | 4a1ac40b 8 cli.* (66->58) |
+b9dfec91 8 cli.* (58->50) | 32eeaafe file_bridge+mapping+status (50->42) |
+6269c53e 8 tool-runner mains (42->34) | ddc4ad9b paid/git tool doors inkl.
+guarded_call (34->27) | 26a8ab5a council+A/B doors (27->17) | 251d350c web,
+command_gate, worktree.reap (17->12) | c8908a94 Status-Ledger |
+7cea2d24 Spend-Pin-Erweiterung | 4d5d45ed Abschluss-Triage.
+
+## Verifikation (RAW in WATCHDOG_STATUS.md und Commit-Messages)
+
+- Gate-Report bei 251d350c: blockers 73 -> 15 (58 gelöst, 0 NEUE),
+  unregistered/unguarded/missing_guard_contracts je 0.
+- Familien-Suiten grün: cli-boundary 49, effect_boundary 26, adapters 12,
+  bridge+mapping 197, web+worktree 72, spine attempt 40.
+- 8 Mutationsproben: Schleuse deaktiviert -> benannter Test rot,
+  restauriert -> grün (inkl. Bookkeeper-Mutant, der ungeschützt real
+  docs/architecture.html überschrieb).
+- Breite Regression: 7 failed / 6686 passed / 1992 subtests in 52:27.
+  Triage: 1 echt (Spend-Pin, bewusst erweitert in 7cea2d24, danach grün),
+  1 Last-Flake (killswitch, standalone grün), 5 VORBESTEHEND bei Basis
+  35172501 (3 Matrix-Läufe -> ambiguous-evidence:3; Producers-Ledger) —
+  Inputs byte-identisch zur Basis (git diff-Beweis), Territorium der
+  parallelen live-column-Lane, separat benannt.
+- Plan-Guard verify: Iron Plan OK, Revision 5, sha ce4335e1…
+
+Iron Plan: ALIGNED
+Iron Gate: 0
+Evidence: mission4-Gate-Report (blockers 73->15, 0 neue), Suiten- und Mutationsproben-RAW in WATCHDOG_STATUS.md, Regression-Triage mit git-diff-Beweis für die 5 Baseline-Fehler.

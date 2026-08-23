@@ -1,0 +1,334 @@
+........................................................................ [  1%]
+........................................................................ [  2%]
+..................................F....FF.F............................. [  3%]
+........................................................................ [  4%]
+........................................................................ [  5%]
+......ss................................................................ [  6%]
+........................................................................ [  7%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 10%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 14%]
+........................................................................ [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+....................s..........sssssss.................................. [ 20%]
+................................................ssssssssss.............. [ 21%]
+........................................................................ [ 22%]
+........................................................................ [ 23%]
+........................................................................ [ 24%]
+........................................................................ [ 25%]
+........................................................................ [ 26%]
+........................................................................ [ 27%]
+........................................................................ [ 28%]
+.........................................sssssss........................ [ 29%]
+ssssssssssss.....s..........................s........................... [ 30%]
+..................s............ssssss................................... [ 31%]
+........................................................................ [ 32%]
+.................................................................. [ 33%]
+........................................................................ [ 34%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 41%]
+........................................................................ [ 42%]
+........................................................................ [ 43%]
+........................................................................ [ 44%]
+........................................................................ [ 45%]
+...............................................................F........ [ 46%]
+........................................................................ [ 47%]
+.................................................. [ 48%]
+........................................................................ [ 49%]
+................................................................ssss.... [ 50%]
+s.sssssssssssssssssssssssssssss........sss.sssssssssss.s...ssssssssss... [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 53%]
+........................................................................ [ 54%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+.................................................................................................... [ 59%]
+.............................................................................................................. [ 60%]
+................................................... [ 61%]
+.................................................................. [ 62%]
+.........................F.......................................... [ 63%]
+........................................................................ [ 64%]
+........................................................................ [ 65%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+................................................................... [ 72%]
+............................................................ [ 72%]
+........................................................................ [ 73%]
+.................................................................... [ 74%]
+................................................................ [ 75%]
+........................................................................ [ 76%]
+..................................................................................................................... [ 78%]
+.................................................................... [ 79%]
+........................................................ [ 80%]
+.......................................................F................ [ 81%]
+........................................................................ [ 82%]
+..................................................x..................... [ 83%]
+........................................................................ [ 84%]
+........................................................................ [ 85%]
+.............................................. [ 86%]
+........................................................................ [ 87%]
+........................................................................ [ 88%]
+..................................................................... [ 89%]
+....................................................... [ 90%]
+....................................................................................................... [ 91%]
+........................................................................................................................................................................................... [ 94%]
+........... [ 94%]
+............................................................................... [ 96%]
+............................................................. [ 96%]
+.......................................................... [ 97%]
+........................................................................ [ 98%]
+........................................................................ [ 99%]
+.........                                                                [100%]
+================================== FAILURES ===================================
+_________ test_the_report_binds_the_landed_verdict_at_this_repository _________
+
+    def test_the_report_binds_the_landed_verdict_at_this_repository() -> None:
+        report = build_gate0_report(ROOT, source_revision=REVISION)
+>       assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
+E       AssertionError: assert False
+E        +  where False = <built-in method issubset of set object at 0x00000255B8BAB300>(('whole-matrix:unbound:ambiguous-evidence:3',))
+E        +    where <built-in method issubset of set object at 0x00000255B8BAB300> = {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'}.issubset
+E        +      where {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'} = set(('fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'))
+E        +    and   ('whole-matrix:unbound:ambiguous-evidence:3',) = GateReport(gate=0, source_revision='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', registry_sha256='b947fe55f15998fea05361...arded_call:main', 'review:entrypoint.not_rediscovered:tools.system_check:main', 'review:scan.static_scope:python-ast')).fault_injection_failures
+
+tests\gates\test_gate_report_matrix_binding.py:33: AssertionError
+___ test_legacy_fault_results_supplement_the_binding_and_cannot_replace_it ____
+
+    def test_legacy_fault_results_supplement_the_binding_and_cannot_replace_it() -> None:
+        report = build_gate0_report(
+            ROOT,
+            source_revision=REVISION,
+            fault_results={"approval-replay": True, "target-head-race": False},
+        )
+        assert "target-head-race" in report.fault_injection_failures
+>       assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
+E       AssertionError: assert False
+E        +  where False = <built-in method issubset of set object at 0x00000255B8BAB300>(('target-head-race', 'whole-matrix:unbound:ambiguous-evidence:3'))
+E        +    where <built-in method issubset of set object at 0x00000255B8BAB300> = {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'}.issubset
+E        +      where {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'} = set(('fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'))
+E        +    and   ('target-head-race', 'whole-matrix:unbound:ambiguous-evidence:3') = GateReport(gate=0, source_revision='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', registry_sha256='b947fe55f15998fea05361...arded_call:main', 'review:entrypoint.not_rediscovered:tools.system_check:main', 'review:scan.static_scope:python-ast')).fault_injection_failures
+
+tests\gates\test_gate_report_matrix_binding.py:99: AssertionError
+_______ test_an_empty_fault_results_map_cannot_launder_the_matrix_away ________
+
+    def test_an_empty_fault_results_map_cannot_launder_the_matrix_away() -> None:
+        report = build_gate0_report(ROOT, source_revision=REVISION, fault_results={})
+>       assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
+E       AssertionError: assert False
+E        +  where False = <built-in method issubset of set object at 0x00000255BB67FE60>(('whole-matrix:unbound:ambiguous-evidence:3',))
+E        +    where <built-in method issubset of set object at 0x00000255BB67FE60> = {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'}.issubset
+E        +      where {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'} = set(('fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'))
+E        +    and   ('whole-matrix:unbound:ambiguous-evidence:3',) = GateReport(gate=0, source_revision='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', registry_sha256='b947fe55f15998fea05361...arded_call:main', 'review:entrypoint.not_rediscovered:tools.system_check:main', 'review:scan.static_scope:python-ast')).fault_injection_failures
+
+tests\gates\test_gate_report_matrix_binding.py:104: AssertionError
+_________________ test_report_v3_carries_the_same_bound_rows __________________
+
+    def test_report_v3_carries_the_same_bound_rows() -> None:
+        report = build_gate0_report_v3(ROOT, source_revision=REVISION)
+>       assert set(MISSING_ROWS).issubset(report.fault_injection_failures)
+E       AssertionError: assert False
+E        +  where False = <built-in method issubset of set object at 0x00000255BB67FE60>(('whole-matrix:unbound:ambiguous-evidence:3',))
+E        +    where <built-in method issubset of set object at 0x00000255BB67FE60> = {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'}.issubset
+E        +      where {'fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'} = set(('fault.missing:runtime.live-envelope.binary-drift', 'fault.missing:runtime.live-envelope.expiry'))
+E        +    and   ('whole-matrix:unbound:ambiguous-evidence:3',) = GateReportV3(gate=0, source_revision='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', registry_sha256='b947fe55f15998fea053...icting-binding', 'daedalus/web_api.py:940:8:ambiguous_stdlib_binding:self.wfile.write:rebound-or-conflicting-binding')).fault_injection_failures
+
+tests\gates\test_gate_report_matrix_binding.py:123: AssertionError
+_____________ test_no_new_record_producer_has_appeared_undeclared _____________
+
+    def test_no_new_record_producer_has_appeared_undeclared():
+        """THE DRIFT DETECTOR.
+    
+        A new producer is a new island: its records carry ids that join to nothing,
+        and the way that gets discovered today is someone trying to follow a run
+        six months from now and finding a gap.
+        """
+        declared = set(envelope.CONVERTED_PRODUCERS) | set(
+            envelope.UNCONVERTED_PRODUCERS)
+        surprises = sorted(record_producers(ROOT) - declared)
+>       assert surprises == [], (
+            f"new record producer(s) declaring neither conversion nor a reason: "
+            f"{surprises}. Either thread envelope.current_trace_id() through it "
+            "and add it to envelope.CONVERTED_PRODUCERS, or add it to "
+            "UNCONVERTED_PRODUCERS WITH THE REASON and the conversion cost.")
+E       AssertionError: new record producer(s) declaring neither conversion nor a reason: ['runs/gate0-matrix-2026-08-17/verify_whole_matrix.py']. Either thread envelope.current_trace_id() through it and add it to envelope.CONVERTED_PRODUCERS, or add it to UNCONVERTED_PRODUCERS WITH THE REASON and the conversion cost.
+E       assert ['runs/gate0-...le_matrix.py'] == []
+E         
+E         Left contains one more item: 'runs/gate0-matrix-2026-08-17/verify_whole_matrix.py'
+E         Use -v to get more diff
+
+tests\test_envelope_coverage.py:110: AssertionError
+______________________ test_latency_gate_child_tree_dies ______________________
+
+tmp_path = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-1691/test_latency_gate_child_tree_d0')
+
+    def test_latency_gate_child_tree_dies(tmp_path):
+        """CHILD DEATH bound, on the REAL attempt.py gate path, measured.
+    
+        This is the test that decides whether the kill switch is a kill switch: a
+        halted loop that leaves a pytest subprocess tree behind has not stopped.
+        """
+        work = tmp_path / "wt"
+        work.mkdir()
+        (work / "test_slow.py").write_text(_INNER_TEST, encoding="utf-8")
+        (work / "grandchild.py").write_text(_GRANDCHILD, encoding="utf-8")
+        ready = work / "gate_ready"
+        pids_file = work / "pids.txt"
+    
+        switch = _switch(tmp_path, poll_s=0.1)
+        switch.arm()
+        ctx = RunnerContext(worktree=work, branch="b", base_revision="0" * 40,
+                            task=TaskSpec("t", "i"), is_cancelled=switch)
+    
+        stopper, stamp = _spawn_stopper(tmp_path, switch, ready)
+        try:
+            with switch.watch():
+                verdict = pytest_gate(poll_s=0.1, timeout_s=120)(ctx)
+                returned = time.time()
+        finally:
+            stopper.wait(timeout=60)
+    
+>       assert ready.exists(), "the gate child never reached its running state"
+E       AssertionError: the gate child never reached its running state
+E       assert False
+E        +  where False = exists()
+E        +    where exists = WindowsPath('C:/Users/nukei/AppData/Local/Temp/pytest-of-nukei/pytest-1691/test_latency_gate_child_tree_d0/wt/gate_ready').exists
+
+tests\test_killswitch.py:613: AssertionError
+---------------------------- Captured stdout call -----------------------------
+STOPPED C:\Users\nukei\AppData\Local\Temp\pytest-of-nukei\pytest-1691\test_latency_gate_child_tree_d0\control\killswitch: stop was requested
+_______ test_the_guard_is_installed_by_exactly_one_function_in_the_tree _______
+
+    def test_the_guard_is_installed_by_exactly_one_function_in_the_tree():
+        """The architectural fact this audit turned on, pinned so it cannot change
+        silently. If a second install site appears, the coverage story changed and
+        docs/SPEND_AND_EGRESS_COVERAGE.md needs rewriting."""
+        installers = set()
+        for path in Path(ROOT).rglob("*.py"):
+            if any(part in _SKIP_PARTS for part in path.parts):
+                continue
+            if path.name.startswith("test_") or path.parts[-2:][0] == "tests":
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            # A CALL, not the definition and not a mention in a docstring.
+            if re.search(r"^\s*(?:\w+\.)?install_process_guard\(\)", text, re.M):
+                installers.add(path.relative_to(ROOT).as_posix())
+>       assert installers == {
+            "daedalus/cli.py",
+            "tools/operability_drill.py",
+            # Widened 2026-07-29 from two sites to seven. The audit that created
+            # this test found the ceiling installed in exactly ONE function and
+            # named five directly-runnable spend entry points that bypassed it;
+            # those five now install it themselves. The pin is updated rather than
+            # relaxed to a `>=` so that the next addition still has to be a
+            # deliberate edit here -- an assertion that only ever grows stops
+            # being able to notice anything.
+            #
+            # NARROWED 2026-08-17, from seven sites to six: commit 448969d
+            # ("refactor(g0): seal direct Claude bridge bypass") removed
+            # `daedalus/claude_bridge.py` from this set. That is the one direction
+            # this pin must never be edited in casually, so state the check that
+            # was actually run: the guard was not deleted from a process that still
+            # spends, the SPEND was deleted. Its `__main__` now calls
+            # `parser.error(...)` and exits 2 before any effect (measured, both
+            # invocation forms -- see KNOWN_UNGUARDED_ENTRYPOINTS above), and its
+            # only vendor spawn moved behind the broker. A guard removal whose
+            # entry point can still reach a vendor belongs in review, not here.
+            "runs/ab/run_arm.py",
+            "runs/council/room.py",
+            "runs/council/room_server.py",
+            "runs/council/summarize.py",
+            # The loop driver: of every entry point in this tree, the one whose
+            # missing ceiling would cost the most, because it is the only one that
+            # spends REPEATEDLY by design. Its bounds (iterations, wall-clock,
+            # spend) are its own; the process guard is the floor under all three.
+            "daedalus/loop.py",
+        }, (
+            f"the set of processes that install the spend ceiling changed: "
+            f"{sorted(installers)}. That is the coverage story; update the "
+            "findings document.")
+E       AssertionError: the set of processes that install the spend ceiling changed: ['daedalus/budget.py', 'daedalus/cli.py', 'daedalus/loop.py', 'runs/ab/run_arm.py', 'runs/council/room.py', 'runs/council/room_server.py', 'runs/council/summarize.py', 'tools/operability_drill.py']. That is the coverage story; update the findings document.
+E       assert {'daedalus/bu...rver.py', ...} == {'daedalus/cl...rize.py', ...}
+E         
+E         Extra items in the left set:
+E         'daedalus/budget.py'
+E         Use -v to get more diff
+
+tests\test_spend_coverage.py:350: AssertionError
+============================== warnings summary ===============================
+tests/runtimes/test_runtime_provider_broker.py::test_exact_replay_is_inert_and_reuses_retained_binding
+  tests\runtimes\test_runtime_provider_broker.py:171: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_exact_replay_is_inert_and_reuses_retained_binding(
+
+tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_malformed_binding_refuses_before_effect[entrypoint]
+tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_malformed_binding_refuses_before_effect[noncentral]
+tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_malformed_binding_refuses_before_effect[runtime]
+tests/runtimes/test_runtime_provider_broker.py::test_foreign_noncentral_or_malformed_binding_refuses_before_effect[malformed]
+  tests\runtimes\test_runtime_provider_broker.py:261: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize("mutation", ["entrypoint", "noncentral", "runtime", "malformed"])
+
+tests/runtimes/test_runtime_provider_broker.py::test_provider_exception_is_terminalized_before_escape[error0-FAILED]
+tests/runtimes/test_runtime_provider_broker.py::test_provider_exception_is_terminalized_before_escape[error1-CANCELLED]
+  tests\runtimes\test_runtime_provider_broker.py:309: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_provider_withholds_evidence_and_cancels
+  tests\runtimes\test_runtime_provider_broker.py:334: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_runtime_trust_loss_after_provider_withholds_evidence_and_cancels(
+
+tests/runtimes/test_runtime_provider_broker.py::test_runtime_trust_loss_after_evidence_blocks_completion
+  tests\runtimes\test_runtime_provider_broker.py:363: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_runtime_trust_loss_after_evidence_blocks_completion(
+
+tests/runtimes/test_runtime_provider_broker.py::test_terminal_persistence_failure_is_broker_state_error_and_stays_started
+  tests\runtimes\test_runtime_provider_broker.py:429: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_terminal_persistence_failure_is_broker_state_error_and_stays_started(
+
+tests/runtimes/test_runtime_provider_broker.py::test_keyboard_interrupt_is_cancelled_and_withholds_output
+  tests\runtimes\test_runtime_provider_broker.py:463: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_keyboard_interrupt_is_cancelled_and_withholds_output(
+
+tests/runtimes/test_runtime_provider_broker.py::test_missing_malformed_or_duplicate_output_digests_withhold_completion
+  tests\runtimes\test_runtime_provider_broker.py:507: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_missing_malformed_or_duplicate_output_digests_withhold_completion(
+
+tests/runtimes/test_runtime_terminal_fence.py::test_runtime_trust_and_effect_ledgers_must_be_distinct
+  tests\runtimes\test_runtime_terminal_fence.py:183: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_runtime_trust_and_effect_ledgers_must_be_distinct(
+
+tests/runtimes/test_runtime_terminal_fence.py::test_quarantine_waits_until_completed_receipt_is_durable
+  tests\runtimes\test_runtime_terminal_fence.py:209: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_quarantine_waits_until_completed_receipt_is_durable(
+
+tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[quarantine]
+tests/runtimes/test_runtime_terminal_fence.py::test_trust_change_after_last_plain_verify_is_caught_by_terminal_fence[replace-record]
+  tests\runtimes\test_runtime_terminal_fence.py:309: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    @pytest.mark.parametrize(
+
+tests/runtimes/test_runtime_terminal_fence_release.py::test_read_only_trust_fence_does_not_commit_after_effect_completion
+  tests\runtimes\test_runtime_terminal_fence_release.py:333: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_read_only_trust_fence_does_not_commit_after_effect_completion(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/gates/test_gate_report_matrix_binding.py::test_the_report_binds_the_landed_verdict_at_this_repository
+FAILED tests/gates/test_gate_report_matrix_binding.py::test_legacy_fault_results_supplement_the_binding_and_cannot_replace_it
+FAILED tests/gates/test_gate_report_matrix_binding.py::test_an_empty_fault_results_map_cannot_launder_the_matrix_away
+FAILED tests/gates/test_gate_report_matrix_binding.py::test_report_v3_carries_the_same_bound_rows
+FAILED tests/test_envelope_coverage.py::test_no_new_record_producer_has_appeared_undeclared
+FAILED tests/test_killswitch.py::test_latency_gate_child_tree_dies - Assertio...
+FAILED tests/test_spend_coverage.py::test_the_guard_is_installed_by_exactly_one_function_in_the_tree
+7 failed, 6686 passed, 109 skipped, 1 xfailed, 17 warnings, 1992 subtests passed in 3147.86s (0:52:27)
