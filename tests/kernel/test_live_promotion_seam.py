@@ -160,6 +160,11 @@ def _promote(tmp_path, candidate, **changes):
     return gated_writes.promote_candidates(**values)
 
 
+@pytest.mark.xfail(strict=True, reason=(
+    "OWNER ACTION PENDING (D5, 7d7a919e, predicted 2026-08-22 10:31Z): the "
+    "signed-tag trust root needs .agentenv/promotion_allowed_signers, which "
+    "only the owner may land. strict=True: the day the owner acts, these "
+    "PASS and the marks must be removed in the same commit."))
 def test_capability_auth_precedes_effects_and_live_auth_precedes_integration(
     monkeypatch,
     tmp_path,

@@ -62,6 +62,11 @@ def _consumed(*, approval_id: str, promotion_id: str) -> ConsumedOwnerApproval:
     )
 
 
+@pytest.mark.xfail(strict=True, reason=(
+    "OWNER ACTION PENDING (D5, 7d7a919e, predicted 2026-08-22 10:31Z): the "
+    "signed-tag trust root needs .agentenv/promotion_allowed_signers, which "
+    "only the owner may land. strict=True: the day the owner acts, these "
+    "PASS and the marks must be removed in the same commit."))
 def test_review_refuses_ledger_that_substitutes_another_capability(
     tmp_path,
     monkeypatch,

@@ -180,11 +180,30 @@ def _authorization_payload(authorization: PromotionAuthorization) -> dict[str, s
             "approval_consumption_sha256",
         ),
     }
+    # D5's two additions ride along for the start record and the report
+    # binding; the DIGEST recompute below follows the shape the authorization
+    # itself declares, because D5 binds the trust table by its record sha,
+    # not by value (promotion.py:599-608), while the pre-root path digests
+    # the seven base fields alone (promotion.py:381-393). The shape is a
+    # function of the authorization's own fields -- a caller cannot pick the
+    # weaker one for a root-authorized promotion.
+    owner_approval_ref = str(getattr(authorization, "owner_approval_ref", "") or "")
+    trust = dict(getattr(authorization, "trust", {}) or {})
+    body["owner_approval_ref"] = owner_approval_ref
+    body["trust"] = trust
+    digest_body = {
+        key: value
+        for key, value in body.items()
+        if key not in ("owner_approval_ref", "trust")
+    }
+    if owner_approval_ref or trust:
+        digest_body["owner_approval_ref"] = owner_approval_ref
+        digest_body["trust_record_sha256"] = str(trust.get("record_sha256") or "")
     declared = _sha256(
         authorization.authorization_sha256,
         "authorization_sha256",
     )
-    if declared != canonical_sha(body):
+    if declared != canonical_sha(digest_body):
         raise PromotionExecutionBindingMismatch(
             "promotion authorization digest does not bind its fields"
         )
@@ -209,10 +228,29 @@ class PromotionExecutionStart(CanonicalContract):
     primary_checkout_before_sha256: str
     started_at: str
     provenance: ContractProvenance
+    # D5 (7d7a919e) widened the authorization by the owner-approval reference
+    # and the trust table; a start that does not persist them cannot bind
+    # them, and an execution that does not bind them refuses every real
+    # promotion as a mismatch (B8, MEASURED 2026-08-23: 13 red tests, every
+    # live report). ``trust`` is canonicalised to sorted (key, value) pairs so
+    # a JSON round-trip and a fresh capture compare equal.
+    owner_approval_ref: str = ""
+    trust: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         for name in ("start_id", "promotion_id", "target_ref"):
             object.__setattr__(self, name, _identifier(getattr(self, name), name))
+        raw_trust = self.trust
+        if isinstance(raw_trust, Mapping):
+            items = raw_trust.items()
+        else:
+            items = tuple(raw_trust or ())
+        object.__setattr__(
+            self,
+            "trust",
+            tuple(sorted((str(k), str(v)) for k, v in items)),
+        )
+        object.__setattr__(self, "owner_approval_ref", str(self.owner_approval_ref or ""))
         for name in (
             "authorization_sha256",
             "approval_consumption_sha256",
@@ -503,6 +541,11 @@ def _validate_report(
         "live_target_revision": start.authorized_target_revision,
         "approval_consumption_sha256": start.approval_consumption_sha256,
         "authorization_sha256": start.authorization_sha256,
+        # ALL TEN, not eight: D5's owner-approval reference and trust table
+        # are part of what was authorized, so a report that dropped or
+        # altered them must mismatch here rather than pass as bound (B8).
+        "owner_approval_ref": start.owner_approval_ref,
+        "trust": {k: v for k, v in start.trust},
     }
     if canonical.get("authorization") != expected_authorization:
         raise PromotionExecutionBindingMismatch(
@@ -858,6 +901,11 @@ class PromotionExecutionLedger:
             authorized_target_revision=authorization_fields[
                 "live_target_revision"
             ],
+            owner_approval_ref=authorization_fields["owner_approval_ref"],
+            trust=tuple(sorted(
+                (str(k), str(v))
+                for k, v in authorization_fields["trust"].items()
+            )),
             primary_checkout_before_sha256=primary_before,
             started_at=started_at,
             provenance=ContractProvenance(

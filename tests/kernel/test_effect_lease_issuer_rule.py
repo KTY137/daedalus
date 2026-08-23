@@ -55,6 +55,13 @@ MECHANISM = "test: the isolation root is the manager's own worktree root"
 #: edit that widens this row fails here instead of silently widening a lease.
 SECOND_DOOR = "cli.eval_ceiling"
 
+#: A row this issuer must never be able to run, used wherever the "contracts I
+#: cannot run" conjunct needs a subject. ``promotion.owner_approval`` is chosen
+#: rather than found: sealed promotion means no automatic path may mint that
+#: capability, so unlike every other unrunnable contract this one must stay
+#: unrunnable forever.
+UNRUNNABLE_ROW = "python.promote_candidates"
+
 #: The door the handoff aimed at, and the one the rule refuses for a reason
 #: that is NOT the one the handoff expected. See
 #: ``test_the_gate_door_is_refused_for_an_unfenced_write``.
@@ -194,6 +201,30 @@ def test_the_attempt_row_became_issuable_and_nothing_else_did():
         "tools.funnel_report",
         "tools.run_gate_checks",
     ), issuable
+
+
+def test_the_promotion_contract_must_never_become_implementable_here():
+    """``python.promote_candidates`` declares a contract this issuer must never run.
+
+    THE SUBJECT MOVED, and the move is the point. This test used to name
+    ``python.attempt`` for ``spine.intent_ledger`` and ``containment.worktree``;
+    11dc0195 implemented both in this issuer, so that row became issuable and
+    the assertion became false. The conjunct it tests did not change, only a
+    row that satisfies it -- which is what a rule looks like when it is a rule
+    and not a list.
+
+    ``promotion.owner_approval`` is the better subject anyway: sealed promotion
+    (plan invariant 5) means no automatic path may mint that capability, so
+    this is the one refusal that must never become implementable HERE. If some
+    future edit adds it to ``ISSUER_CONTRACTS``, this test is the tripwire.
+    """
+
+    spec, reasons = issuable_row(UNRUNNABLE_ROW)
+    assert spec is None
+    contracts = [r for r in reasons if r.startswith("issuer.contracts")]
+    assert len(contracts) == 1
+    assert "promotion.owner_approval" in contracts[0]
+    assert "promotion.owner_approval" not in ISSUER_CONTRACTS
 
 
 def test_an_unregistered_row_is_refused_before_anything_else():
