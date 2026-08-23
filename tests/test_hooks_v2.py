@@ -264,15 +264,40 @@ def test_changed_line_uses_fingerprints_not_edit_tracking(repo: Path) -> None:
     assert "daedalus/b.py" in t4
 
 
+@pytest.mark.parametrize("command", ["pytest -q", "uv run pytest -q"])
+def test_powershell_test_run_records_the_same_fingerprint_and_delta(repo: Path, command: str) -> None:
+    run("session", payload(repo, "SessionStart"))
+    (repo / "daedalus" / "a.py").write_text("x = 2\n", encoding="utf-8")
+    result, out = run(
+        "post_tool",
+        payload(repo, "PostToolUse", tool_name="PowerShell", tool_input={"command": command}),
+    )
+    assert out == "" and result.note == "test-run-recorded"
+    state = _common.load_state(repo, "sess-1")
+    assert state["last_test"]["cmd"] == command
+    assert state["last_test"]["fp"] == _tree.source_fingerprint(repo)
+
+    (repo / "daedalus" / "b.py").write_text("z = 3\n", encoding="utf-8")
+    _, turn = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "CHANGED since last test run" in turn
+    assert f"`{command}`" in turn and "daedalus/b.py" in turn
+
+
 @pytest.mark.parametrize(
     "command,is_test",
     [
         ("pytest -q", True),
         ("python -m pytest tests -q", True),
         ("python3 -m unittest discover", True),
+        ("uv run pytest -q", True),
+        ("uv.exe run python -m pytest tests -q", True),
         ("cd C:/x && python -m pytest", True),
+        ("cd C:/x; uv run pytest", True),
         ("echo pytest", False),
+        ("echo uv run pytest", False),
         ("grep -rn pytest tests", False),
+        ("uv runner pytest", False),
+        ("uv run pytestx", False),
         ("pytest || true", True),  # a partial/guarded run is recorded WITH its command text
         ("git commit -m 'pytest fixed'", False),
         ('cd "C:/path with spaces" && pytest -q', True),
@@ -285,13 +310,28 @@ def test_test_command_recognition(command: str, is_test: bool) -> None:
     assert bool(tools.TEST_COMMAND.search(command)) is is_test
 
 
-def test_commit_triggers_the_docs_drift_reminder_only_on_real_commits(repo: Path) -> None:
-    r, out = run("post_tool", payload(repo, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -F msg.txt"}))
+@pytest.mark.parametrize("tool_name", ["Bash", "PowerShell"])
+def test_commit_triggers_the_docs_drift_reminder_only_on_real_commits(repo: Path, tool_name: str) -> None:
+    def post(command: str) -> str:
+        _, stdout = run(
+            "post_tool",
+            payload(repo, "PostToolUse", tool_name=tool_name, tool_input={"command": command}),
+        )
+        return stdout
+
+    out = post("git commit -F msg.txt")
     assert json.loads(out)["hookSpecificOutput"]["additionalContext"].startswith("A commit just landed")
-    r, out = run("post_tool", payload(repo, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit --dry-run"}))
-    assert out == ""
-    r, out = run("post_tool", payload(repo, "PostToolUse", tool_name="Bash", tool_input={"command": "git log --oneline"}))
-    assert out == ""
+    assert post("git commit --dry-run") == ""
+    assert post("git log --oneline") == ""
+
+
+def test_post_tool_ignores_non_shell_tools_even_when_input_looks_like_a_test(repo: Path) -> None:
+    result, out = run(
+        "post_tool",
+        payload(repo, "PostToolUse", tool_name="Read", tool_input={"command": "pytest -q"}),
+    )
+    assert out == "" and result.note == ""
+    assert _common.load_state(repo, "sess-1") == {}
 
 
 def test_config_change_is_reported_on_the_next_turn_once(repo: Path) -> None:
@@ -536,6 +576,7 @@ def test_project_settings_register_the_dispatcher_repo_relative() -> None:
     assert not any("agent_env/" in c or "agent_env\\" in c for c in commands)
     for required in ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "SubagentStart", "SubagentStop"):
         assert required in hooks, required
+    assert [entry.get("matcher") for entry in hooks["PostToolUse"]] == ["Bash|PowerShell"]
     assert "Stop" not in hooks  # v2 never blocks a stop and has nothing to say there
 
 
