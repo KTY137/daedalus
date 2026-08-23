@@ -1,0 +1,122 @@
+{
+ "viewport": "1440x900",
+ "scheme": "dark",
+ "stamp": "[MEASURED]",
+ "metrics": {
+  "forge": {
+   "horizontal_overflow": 0,
+   "contrast_failures": 14,
+   "small_targets": 6,
+   "banned_faces": 0,
+   "console_errors": 1,
+   "visible_elements": 115,
+   "framed_panels": 15,
+   "distinct_radii": 0,
+   "panel_nesting_depth": 2,
+   "allcaps_text_share": 32.1,
+   "status_pills_visible": 0,
+   "largest_equal_tile_row": 7,
+   "accent_hue_families": 4,
+   "identifier_leaks": 0
+  },
+  "glass": {
+   "horizontal_overflow": 0,
+   "contrast_failures": 0,
+   "small_targets": 0,
+   "banned_faces": 1,
+   "console_errors": 7,
+   "visible_elements": 334,
+   "framed_panels": 2,
+   "distinct_radii": 1,
+   "panel_nesting_depth": 1,
+   "allcaps_text_share": 6.0,
+   "status_pills_visible": 0,
+   "largest_equal_tile_row": 7,
+   "accent_hue_families": 4,
+   "identifier_leaks": 0
+  },
+  "instrument": {
+   "horizontal_overflow": 0,
+   "contrast_failures": 0,
+   "small_targets": 4,
+   "banned_faces": 0,
+   "console_errors": 1,
+   "visible_elements": 262,
+   "framed_panels": 13,
+   "distinct_radii": 1,
+   "panel_nesting_depth": 2,
+   "allcaps_text_share": 10.7,
+   "status_pills_visible": 0,
+   "largest_equal_tile_row": 4,
+   "accent_hue_families": 3,
+   "identifier_leaks": 0
+  },
+  "scene": {
+   "horizontal_overflow": 0,
+   "contrast_failures": 0,
+   "small_targets": 0,
+   "banned_faces": 1,
+   "console_errors": 1,
+   "visible_elements": 43,
+   "framed_panels": 1,
+   "distinct_radii": 0,
+   "panel_nesting_depth": 1,
+   "allcaps_text_share": 50.0,
+   "status_pills_visible": 0,
+   "largest_equal_tile_row": 8,
+   "accent_hue_families": 0,
+   "identifier_leaks": 0
+  }
+ },
+ "units": {
+  "horizontal_overflow": "px",
+  "contrast_failures": "elements",
+  "small_targets": "elements",
+  "banned_faces": "families",
+  "console_errors": "errors",
+  "visible_elements": "elements",
+  "framed_panels": "panels",
+  "distinct_radii": "values",
+  "panel_nesting_depth": "levels",
+  "allcaps_text_share": "% of chars",
+  "status_pills_visible": "pills",
+  "largest_equal_tile_row": "tiles",
+  "accent_hue_families": "hues",
+  "identifier_leaks": "strings"
+ },
+ "kept": {
+  "forge": "115/117",
+  "glass": "334/384",
+  "instrument": "262/302",
+  "scene": "43/43"
+ },
+ "breaches": [
+  "glass.visible_elements = 334 (threshold <= 150) [MEASURED]",
+  "instrument.visible_elements = 262 (threshold <= 150) [MEASURED]"
+ ],
+ "other_deviations": [
+  "glass.banned_faces = 1 ('space grotesk'; forge 0) [MEASURED]",
+  "scene.banned_faces = 1 ('space grotesk'; forge 0) [MEASURED]",
+  "glass.console_errors = 7 (forge 1) [MEASURED]"
+ ],
+ "console_errors": {
+  "forge": [
+   "pageerror: Cannot read properties of null (reading 'appendChild')"
+  ],
+  "glass": [
+   "pageerror: Cannot read properties of null (reading 'appendChild')",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\".",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\".",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\".",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\".",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\".",
+   "Error: <feColorMatrix> attribute values: Expected number, \"0 0\\\\\\n  1\"."
+  ],
+  "instrument": [
+   "pageerror: Cannot read properties of null (reading 'appendChild')"
+  ],
+  "scene": [
+   "pageerror: Cannot read properties of null (reading 'appendChild')"
+  ]
+ }
+}
