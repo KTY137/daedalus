@@ -3307,14 +3307,41 @@ def check_conformance(
             - {effect.value for effect in spec.effects}
         )
         if extra_effects:
-            findings.append(
-                ConformanceFinding(
-                    "entrypoint.effect_drift",
-                    "blocker",
-                    row.target,
-                    "new undeclared effects: " + ", ".join(extra_effects),
-                )
+            # An "effectful-interface-contract" discovery with no observed
+            # sink is a DEFAULT the scanner applies out of admitted ignorance
+            # (a provider-surface method whose only call it could not resolve
+            # -- e.g. an inherited ``self._rollback_writes`` since the
+            # rollback single-sourcing). Measured 2026-08-23: that default
+            # out-voted the reviewed 2026-08-18 declaration on
+            # provider.ollama.rollback and blocked as "drift" although
+            # nothing was observed to drift. A default may question a
+            # declaration; it may not overrule one -- so ignorance is named
+            # as a review finding, and only an OBSERVED effect (a sink or a
+            # resolved delegate in the evidence) still blocks.
+            observed = any(
+                item.startswith("delegates:") or "@" in item
+                for item in row.evidence
             )
+            if "effectful-interface-contract" in row.evidence and not observed:
+                findings.append(
+                    ConformanceFinding(
+                        "entrypoint.effect_default_exceeds_declaration",
+                        "review",
+                        row.target,
+                        "the scanner's interface-default effects exceed the "
+                        "declaration and no sink was observed: "
+                        + ", ".join(extra_effects),
+                    )
+                )
+            else:
+                findings.append(
+                    ConformanceFinding(
+                        "entrypoint.effect_drift",
+                        "blocker",
+                        row.target,
+                        "new undeclared effects: " + ", ".join(extra_effects),
+                    )
+                )
     for target in sorted(targets - discovered_targets):
         # Registered delegated boundaries can be real even if the conservative
         # scanner does not infer their sink.  The AST existence check above is

@@ -737,4 +737,49 @@ UNCONVERTED_PRODUCERS = {
         "turn, dispatch and report is a typed intent on spine/ledger.py, which "
         "is already converted and stamps trace_id at record time -- so this "
         "module inherits the join instead of needing its own conversion.",
+    # -- landed 2026-08-22/23, declared 2026-08-23 (the ledger had fallen a
+    #    day behind the tree; every reason below was read off the code). ---- #
+    "daedalus/ignition/gate1.py":
+        "RUN RECORDS THAT ALREADY CARRY THE CANONICAL JOIN: the ignition "
+        "receipt and its evidence store rows name mission_id, work item ids, "
+        "attempt ids and the packet sha -- richer correlators than a bare "
+        "trace id. LOW: thread trace_id through compose() into the receipt "
+        "header next time the receipt schema moves (it is digest-pinned, so "
+        "an idle-time bump would re-baseline the discrimination gate).",
+    "daedalus/kairos/worktree.py":
+        "NOT A RUN RECORD, deliberately authority-free: .daedalus-alloc/*.json "
+        "allocation records are written into candidate-writable ground and are "
+        "therefore never read back for any decision (reap trusts only its "
+        "in-process registry; forged records were the measured attack). A "
+        "trace id on a record nothing may believe would imply a join that "
+        "must never be made.",
+    "daedalus/kernel/promotion_trust_root.py":
+        "RUN RECORD WITH ITS OWN STRONGER JOIN: the claim ledger is an "
+        "append-only hash chain keyed by replay_key(nonce, candidate_sha256) "
+        "and prev_sha256; spent markers are single-use. The chain position IS "
+        "the correlator, and the D5 owner-approval reference names the "
+        "promotion. MEDIUM: adding trace_id means a chain-format bump under "
+        "the sealed promotion path -- do it with B8, not casually.",
+    "daedalus/providers/ollama.py":
+        "NOT A RUN RECORD, rollback substrate: pre-write backups so "
+        "rollback() can restore originals byte-for-byte. They live exactly as "
+        "long as the write wave that made them and are consumed by the same "
+        "process; the wave's own receipts (converted) carry the run identity.",
+    "runs/gate0-matrix-2026-08-17/verify_whole_matrix.py":
+        "NOT A RUN RECORD, a frozen measurement artefact: re-verifies the signed 2026-08-17 fault "
+        "matrix and writes its verification note beside it. Archived evidence "
+        "under runs/, reproducible from the archive alone; converting it would "
+        "rewrite history's shape.",
+    "runs/higher_twin_nc/assay.py":
+        "NOT A RUN RECORD, research experiment artefact (higher-twin negative-control corpus): "
+        "frozen evidence of the 2026-08-21 runs, ported verbatim from the "
+        "checkpoint line. Negative evidence is retained unmodified by "
+        "constitution; no conversion.",
+    "runs/higher_twin_nc/cryptic.py":
+        "NOT A RUN RECORD, research experiment artefact, same corpus and same reason as "
+        "assay.py: retained negative evidence, not a production record.",
+    "runs/higher_twin_nc/tests/test_codex_round.py":
+        "NOT A RUN RECORD, research experiment fixture writing its own scratch corpus rows; "
+        "part of the frozen higher_twin_nc evidence, not a production "
+        "producer.",
 }

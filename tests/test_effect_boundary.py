@@ -846,3 +846,27 @@ def test_claude_seam_anchor_is_load_bearing_not_decoration() -> None:
         and finding.subject == "provider.claude"
         for finding in report.findings
     ), "an unenforced anchor is decoration; this one must be mechanical"
+
+
+def test_an_ignorance_default_questions_a_declaration_but_never_overrules_it() -> None:
+    """The 2026-08-23 inversion, pinned from both sides. OllamaProvider.rollback
+    delegates to the inherited Provider._rollback_writes, which the same-module
+    scanner cannot see, so its discovery is the interface-contract DEFAULT
+    (spawn+egress+write out of admitted ignorance). That default exceeded the
+    reviewed 2026-08-18 declaration (filesystem_write only) and blocked as
+    "drift" although nothing was observed. A default may question -- a review
+    finding by name -- but only an OBSERVED effect blocks (the observed twin is
+    test_registered_target_gaining_a_new_effect_is_a_blocker)."""
+    report = check_conformance(Path(__file__).resolve().parents[1])
+    rollback = "daedalus.providers.ollama:OllamaProvider.rollback"
+    assert not any(
+        row.code == "entrypoint.effect_drift" and row.subject == rollback
+        for row in report.findings
+    ), "an unobserved default overruled a reviewed declaration again"
+    assert any(
+        row.code == "entrypoint.effect_default_exceeds_declaration"
+        and row.subject == rollback
+        and row.severity == "review"
+        and "no sink was observed" in row.detail
+        for row in report.findings
+    ), "the ignorance behind the default is no longer named"
