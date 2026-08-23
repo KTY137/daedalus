@@ -10,10 +10,38 @@ something about ``daedalus``, not about type-plane construction.  Whether the
 machinery buys anything is a property of the corpus, so it has to be measured
 on corpora with different annotation postures.
 
+Continuation 4 (2026-08-18): the kernel row stopped being a moving target
+------------------------------------------------------------------------
+The kernel row used to be measured against the working tree and then pinned
+exactly.  Two unrelated kernel commits added one function, ``functions``
+became 4204, and a check that had nothing to do with those commits went red
+and stopped a port.  The guard was correct; the pin was not, because a
+reproducible number needs a fixed input and the working tree is not one.
+
+So the kernel is measured twice now and the two rows have different jobs:
+
+``kernel_at_pin``   the tree at ``revision_corpus.PINNED_REVISION``, read out
+                    of git history.  These are the numbers the write-up
+                    publishes and they are pinned exactly -- forever, because
+                    the input can no longer move.
+``kernel``          the live working tree.  Its counts are **reported**, not
+                    asserted.  What is asserted about it is the qualitative
+                    finding (see ``drift_vs_pin`` and the checks): a count
+                    that moves with every commit is an observation, not an
+                    assertion.
+
+``drift_vs_pin`` in the report says whether the live tree still is the pinned
+tree and, when it is not, exactly which values moved and by how much.  A moved
+tree now produces a reported difference instead of a red check.
+
 Frozen sub-spec (declared before the run)
 -----------------------------------------
 * Same frame as the rest of the slice: read-only AST, stdlib only, no imports
-  of the analysed code, no writes, no network, no subprocess, one JSON object.
+  of the analysed code, no writes, one JSON object.  Continuation 4 declares
+  one exception to "no subprocess": ``revision_corpus`` shells read-only git
+  plumbing behind a verb allowlist, because history is the only place a past
+  tree still exists.  It writes only into a temporary directory it creates and
+  removes, never into the repository.
 * Corpora are declared in ``CORPORA`` below and every declared corpus is
   reported, present or absent.  Nothing is dropped after its numbers are seen.
   The third-party set was chosen for spread of *typing posture* -- two
@@ -50,6 +78,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import revision_corpus as rc  # noqa: E402
 import type_plane as tp  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -87,8 +116,21 @@ def stdlib_packages() -> tuple[str, ...]:
 
 CORPORA: tuple[dict[str, Any], ...] = (
     {
+        "name": "kernel_at_pin",
+        "note": (
+            "the kernel package at the revision the published numbers were "
+            "measured against -- frozen input, so these are pinned exactly"
+        ),
+        "root": REPO_ROOT,
+        "packages": ("daedalus",),
+        "revision": rc.PINNED_REVISION,
+    },
+    {
         "name": "kernel",
-        "note": "this repository's kernel package -- the original headline",
+        "note": (
+            "the same package in the live working tree -- reported, never "
+            "pinned; see drift_vs_pin"
+        ),
         "root": REPO_ROOT,
         "packages": ("daedalus",),
     },
@@ -130,6 +172,27 @@ def measure(spec: dict[str, Any]) -> dict[str, Any]:
     packages = spec["packages"]
     if packages is None:
         packages = stdlib_packages()
+
+    revision = spec.get("revision")
+    if revision:
+        # Frozen input: the tree as it was at ``revision``, not as it is now.
+        # An unreachable anchor is reported as absent with a reason -- like
+        # any other missing corpus -- because it is a different failure from a
+        # moved tree and the checks distinguish the two.
+        started = time.perf_counter()
+        try:
+            report = rc.measure_at_revision(tuple(packages), revision, root)
+        except rc.RevisionUnavailable as exc:
+            return {
+                "name": spec["name"],
+                "note": spec["note"],
+                "present": False,
+                "pinned_revision": revision,
+                "reason": f"pinned revision {revision[:12]} unreadable: {exc}",
+            }
+        elapsed = round(time.perf_counter() - started, 2)
+        return _summarise(spec, report, list(packages), elapsed)
+
     present = [p for p in packages if (root / p).is_dir()]
     if not present:
         return {
@@ -142,7 +205,17 @@ def measure(spec: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
     report = tp.build_type_plane(root, tuple(present))
     elapsed = round(time.perf_counter() - started, 2)
+    return _summarise(spec, report, list(packages), elapsed)
 
+
+def _summarise(
+    spec: dict[str, Any],
+    report: dict[str, Any],
+    requested: list[str],
+    elapsed: float,
+) -> dict[str, Any]:
+    """One row of the comparison, whatever the input tree came from."""
+    present = list(report["packages"])
     totals = report["totals"]
     sites = report["type_name_sites_by_bucket"]
     internal = sites.get("repo", 0) + sites.get("repo_unverified", 0)
@@ -154,9 +227,11 @@ def measure(spec: dict[str, Any]) -> dict[str, Any]:
         "name": spec["name"],
         "note": spec["note"],
         "present": True,
-        "root": root.as_posix(),
-        "packages": list(present),
-        "packages_missing": [p for p in packages if p not in present],
+        "root": report["root"],
+        "revision": report.get("revision"),
+        "revision_is_pinned": bool(report.get("revision_is_pinned")),
+        "packages": present,
+        "packages_missing": [p for p in requested if p not in present],
         "corpus_pin": report["corpus_pin"],
         "files_parsed": totals["files_parsed"],
         "files_unparseable": totals["files_unparseable"],
@@ -181,11 +256,69 @@ def measure(spec: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: The values that move whenever the kernel package gains or loses a function.
+#: They are published against the pin and *reported* against the live tree.
+#: Anything not listed here is either qualitative or an arithmetic identity,
+#: and those are asserted on both rows.
+DRIFTING_FIELDS: tuple[str, ...] = (
+    "functions",
+    "annotation_only_pct",
+    "full_resolver_pct",
+    "marginal_pp",
+    "files_parsed",
+)
+
+
+def drift(pinned: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
+    """How far the live working tree has moved from the published measurement.
+
+    This is the replacement for pinning the live tree.  It answers "are the
+    write-up's kernel numbers still the numbers you would measure today", and
+    when the answer is no it says which ones moved -- as data, on stdout, not
+    as a failing check.  Only a moved *anchor* is a failure; a moved tree is
+    news.
+    """
+    if not pinned.get("present"):
+        return {
+            "comparable": False,
+            "reason": pinned.get("reason", "the pinned row was not measured"),
+        }
+    if not live.get("present"):
+        return {
+            "comparable": False,
+            "reason": live.get("reason", "the live row was not measured"),
+        }
+    pin_digest = pinned["corpus_pin"]["sha256"]
+    live_digest = live["corpus_pin"]["sha256"]
+    fields: dict[str, Any] = {}
+    for key in DRIFTING_FIELDS:
+        before, after = pinned.get(key), live.get(key)
+        if before != after:
+            entry = {"pinned": before, "live": after}
+            if isinstance(before, (int, float)) and isinstance(after, (int, float)):
+                entry["delta"] = round(after - before, 4)
+            fields[key] = entry
+    return {
+        "comparable": True,
+        "pinned_revision": pinned.get("revision"),
+        "pinned_digest": pin_digest,
+        "live_digest": live_digest,
+        "tree_unchanged": pin_digest == live_digest,
+        "drifted": fields,
+        "note": (
+            "the published kernel numbers are the pinned row; the live row is "
+            "an observation of today's tree and is never pinned"
+        ),
+    }
+
+
 def run() -> dict[str, Any]:
     measured = [measure(spec) for spec in CORPORA]
     present = [m for m in measured if m["present"]]
+    by_name = {m["name"]: m for m in measured}
     return {
-        "schema": "forest-v2-type-plane-corpora/1",
+        "schema": "forest-v2-type-plane-corpora/2",
+        "drift_vs_pin": drift(by_name["kernel_at_pin"], by_name["kernel"]),
         "read_only": True,
         "python": sys.version.split()[0],
         "stdlib_root": STDLIB.as_posix(),
@@ -220,7 +353,33 @@ def table(report: dict[str, Any]) -> str:
             f"{m['type_name_sites']:7d} {m['type_name_resolution_pct']:10.2f} "
             f"{m['verified_share_of_internal_pct']:11.2f}"
         )
+    lines.append("")
+    lines.append(_drift_lines(report["drift_vs_pin"]))
     return "\n".join(lines)
+
+
+def _drift_lines(block: dict[str, Any]) -> str:
+    if not block.get("comparable"):
+        return f"drift vs pin: NOT COMPARABLE -- {block.get('reason')}"
+    rev = (block.get("pinned_revision") or "?")[:12]
+    if block["tree_unchanged"]:
+        return (
+            f"drift vs pin ({rev}): none -- the live tree is the pinned tree "
+            f"(digest {block['pinned_digest'][:12]})"
+        )
+    out = [
+        f"drift vs pin ({rev}): the live tree has MOVED",
+        f"  pinned digest {block['pinned_digest'][:12]}  "
+        f"live digest {block['live_digest'][:12]}",
+    ]
+    if not block["drifted"]:
+        out.append("  no reported value changed; the movement is elsewhere in the tree")
+    for key, entry in sorted(block["drifted"].items()):
+        delta = entry.get("delta")
+        suffix = f"  ({delta:+})" if isinstance(delta, (int, float)) else ""
+        out.append(f"  {key:24s} pinned {entry['pinned']}  ->  live {entry['live']}{suffix}")
+    out.append("  the write-up publishes the pinned row; this is an observation.")
+    return "\n".join(out)
 
 
 def main(argv: list[str] | None = None) -> int:
