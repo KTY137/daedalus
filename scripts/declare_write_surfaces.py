@@ -127,9 +127,13 @@ COLLECTOR_KEY_ID = "daedalus.local.write-evidence-collector"
 #: Files another lane holds open at this head.  A declaration binds a
 #: ``source_sha256`` to exact file bytes, so a file being edited concurrently
 #: would produce a declaration that is stale the moment it is written.
+#: ``daedalus/spine/attempt.py`` left this set when its lane released it.  Both
+#: doors it holds are now derived: ``python.attempt`` declares 0 surfaces (the
+#: ``begin_effect`` sits inside a ``try`` whose ``else`` branch carries the
+#: whole attempt, and the dominance rule counts only the statements AFTER the
+#: holder) and ``python.command_gate`` declares 2.  Neither is lease-dominated.
 LIVE_LANE_EXCLUSIONS: frozenset[str] = frozenset(
     {
-        "daedalus/spine/attempt.py",
         "daedalus/spine/receipts.py",
     }
 )
@@ -257,7 +261,38 @@ def _is_begin_effect(node: ast.AST) -> bool:
     return False
 
 
-def _anchor_regions(func: ast.AST) -> tuple[list[ast.stmt], str]:
+def _is_leased_begin_effect(node: ast.AST) -> bool:
+    """The METHOD ``<authorization>.begin_effect(execution)``.
+
+    ``NonRuntimeEffectAuthorization.begin_effect`` is the one call that turns a
+    persisted lease into permission to act: it verifies the lease at a
+    facade-owned instant, commits a durable start receipt through the ledger,
+    and re-reads the kill-switch generation before returning ``execute=True``.
+    It is reachable only through an authorization object, so it is always an
+    attribute call -- which is exactly what separates it, mechanically, from
+    the free receipt function above.  ``daedalus/offload.py:777`` is the shape
+    this predicate is written against.
+
+    WHAT IT DOES NOT CHECK, said rather than claimed away: the RECEIVER.  A
+    method named ``begin_effect`` on any other object satisfies this predicate,
+    because an AST has no types.  That is a deliberate forgery in source, not
+    an accident -- and it still buys nothing on its own, because the row also
+    needs a retained, replayed, terminal execution under the real kernel
+    ledger.  This guard closes the accident (an optional authorization, a write
+    between the receipt and the lease); it is not a defence against a source
+    edit, and nothing here is a security boundary.
+    """
+
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "begin_effect"
+    )
+
+
+def _anchor_regions(
+    func: ast.AST, predicate=_is_begin_effect
+) -> tuple[list[ast.stmt], str]:
     """Statements provably executed after the anchor's ``begin_effect`` call."""
 
     body = getattr(func, "body", None)
@@ -267,14 +302,22 @@ def _anchor_regions(func: ast.AST) -> tuple[list[ast.stmt], str]:
     holder: ast.stmt | None = None
     call: ast.Call | None = None
     for position, statement in enumerate(body):
-        found = [n for n in ast.walk(statement) if _is_begin_effect(n)]
+        found = [n for n in ast.walk(statement) if predicate(n)]
         if found:
             index = position
             holder = statement
             call = min(found, key=lambda n: (n.lineno, n.col_offset))
             break
     if index is None or holder is None or call is None:
-        raise DeclarationError("anchor function contains no begin_effect call")
+        raise DeclarationError(
+            "anchor function contains no "
+            + (
+                "<authorization>.begin_effect(...) call, so nothing it does "
+                "happens inside a leased execution"
+                if predicate is _is_leased_begin_effect
+                else "begin_effect call"
+            )
+        )
 
     dominated: list[ast.stmt] = list(body[index + 1 :])
     shape = "statement"
@@ -386,6 +429,19 @@ class ModuleDominance:
     shape: str
     private_callees: tuple[str, ...]
     dominated_statements: int
+    #: THE SECOND REGION, and the one a ``central`` row rests on.  Same
+    #: dominance machinery, seeded from ``<authorization>.begin_effect(...)``
+    #: instead of from the free receipt function: these are the positions whose
+    #: execution PROVABLY happened inside a leased execution, because reaching
+    #: them required an authorization object whose method had already committed
+    #: a durable start receipt.  Empty when the anchor function consumes no
+    #: lease, which is the fail-closed default for every door in this tree but
+    #: ``python.offload``.
+    leased_positions: frozenset[tuple[int, int]] = frozenset()
+    #: Why ``leased_positions`` is empty, when it is.  Named rather than
+    #: silent: "this door consumes no lease" and "this door's leased region
+    #: holds no write surface" are different facts about Gate 0.
+    leased_refusal: str = ""
 
 
 class NameIndex:
@@ -931,6 +987,10 @@ def derive(
     claimed: dict[RepositoryWriteSurface, str] = {}
     per_door: list[Mapping[str, object]] = []
     door_module_paths: set[str] = set()
+    #: door id -> the positions inside that door's LEASED region, and the named
+    #: reason the region is empty when it is.
+    leased_by_door: dict[str, frozenset[tuple[int, int]]] = {}
+    leased_refusal_by_door: dict[str, str] = {}
 
     for door in doors:
         door_module_paths.add(door.rel_path)
@@ -946,7 +1006,11 @@ def derive(
                 }
             )
             continue
+        leased_by_door[door.door_id] = dominance.leased_positions
+        if dominance.leased_refusal:
+            leased_refusal_by_door[door.door_id] = dominance.leased_refusal
         declared = 0
+        leased = 0
         for surface in by_path.get(door.rel_path, ()):
             if not surface.blocking:
                 continue
@@ -956,6 +1020,8 @@ def derive(
                 continue
             claimed[surface] = door.door_id
             declared += 1
+            if (surface.line, surface.column) in dominance.leased_positions:
+                leased += 1
         per_door.append(
             {
                 "door": door.door_id,
@@ -968,6 +1034,10 @@ def derive(
                     1 for s in by_path.get(door.rel_path, ()) if s.blocking
                 ),
                 "declared": declared,
+                # How many of those declared surfaces are inside the door's
+                # LEASED region.  Only these may become ``central`` rows.
+                "lease_dominated": leased,
+                "lease_refusal": dominance.leased_refusal,
             }
         )
 
@@ -1024,7 +1094,28 @@ def derive(
             source_revision, surface, source_digests[surface.path]
         )
         door = doors_by_id.get(door_id)
-        if door is not None and disjointness is not None and secret is not None:
+        # THE LEASE-DOMINANCE GUARD, and it is the one that keeps this counter
+        # honest.  A retained terminal execution proves the DOOR held a lease;
+        # it says nothing about whether THIS write happened inside one.  Those
+        # two claims come apart exactly when the write is reachable from both a
+        # leased and an un-leased caller -- which is `python.offload`'s
+        # `_offload_impl` (the reason that door declares zero surfaces) and
+        # which any door with an OPTIONAL authorization reproduces.  The
+        # difference is that `_offload_impl` is caught by accident, because the
+        # private-callee fixpoint refuses a helper the un-leased path also
+        # names; a surface sitting directly in a `if auth is not None:` region
+        # would not be.  So the region is computed from the lease consumption
+        # itself, and a surface outside it stays a blocker with the reason
+        # named in `lease_refusal`.
+        lease_dominated = (surface.line, surface.column) in leased_by_door.get(
+            door_id, frozenset()
+        )
+        if (
+            door is not None
+            and disjointness is not None
+            and secret is not None
+            and lease_dominated
+        ):
             row, row_blobs = central_row(
                 door,
                 surface,
@@ -1054,6 +1145,43 @@ def derive(
                     "and no implemented guard contract certifies a filesystem write"
                 ),
             )
+        )
+
+    # NAME EVERY DOOR THE LEASE-DOMINANCE GUARD COST SOMETHING.  A door that
+    # replayed a terminal execution and still classified nothing is the
+    # measurement this guard exists to produce, and a silent zero would read as
+    # "there was nothing to classify".
+    for door_id in sorted(doors_by_id):
+        leased = leased_by_door.get(door_id, frozenset())
+        held = [s for s, owner in claimed.items() if owner == door_id]
+        if not held:
+            # MEASURED, and this is the state of the only door in this tree
+            # that consumes a lease at all: `python.offload` authenticates with
+            # zero refusals and its anchor dominates no blocking surface,
+            # because its writes sit in `_offload_impl`, which the un-leased
+            # `live=False` path also calls. A door that authenticated and
+            # classified nothing is the Gate-0 fact; a silent absence reads as
+            # "there was nothing to classify".
+            evidence_refusals.append(
+                f"door {door_id}: authenticated, and its anchor dominates no "
+                f"blocking write surface"
+                + (
+                    f" -- {leased_refusal_by_door[door_id]}"
+                    if door_id in leased_refusal_by_door
+                    else "; its leased region holds none either"
+                )
+            )
+            continue
+        refused = [s for s in held if (s.line, s.column) not in leased]
+        if not refused:
+            continue
+        reason = leased_refusal_by_door.get(door_id) or (
+            "its leased region holds none of them"
+        )
+        evidence_refusals.append(
+            f"door {door_id}: {len(refused)} of {len(held)} anchor-dominated "
+            f"surface(s) are not lease-dominated, so they stay blockers -- "
+            f"{reason}"
         )
 
     undominated = sum(
@@ -1095,32 +1223,72 @@ def _dominance(root: Path, door: DoorAnchor, index: NameIndex) -> ModuleDominanc
         raise DeclarationError(
             f"anchor symbol {'.'.join(door.symbol)} is not a module function"
         )
-    seed, shape = _anchor_regions(func)
     module_functions = {
         statement.name: statement
         for statement in tree.body
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    dominated, callees = _expand_private_callees(
-        tree,
-        seed,
-        module_functions=module_functions,
-        exported=_module_all(tree),
-        external_names=external,
-    )
-    positions: set[tuple[int, int]] = set()
-    for statement in dominated:
-        for node in ast.walk(statement):
-            lineno = getattr(node, "lineno", None)
-            col = getattr(node, "col_offset", None)
-            if isinstance(lineno, int) and isinstance(col, int):
-                positions.add((lineno, col))
+    exported = _module_all(tree)
+
+    def _region(predicate) -> tuple[frozenset[tuple[int, int]], str, tuple[str, ...], int]:
+        seed, shape = _anchor_regions(func, predicate)
+        dominated, callees = _expand_private_callees(
+            tree,
+            seed,
+            module_functions=module_functions,
+            exported=exported,
+            external_names=external,
+        )
+        found: set[tuple[int, int]] = set()
+        for statement in dominated:
+            for node in ast.walk(statement):
+                lineno = getattr(node, "lineno", None)
+                col = getattr(node, "col_offset", None)
+                if isinstance(lineno, int) and isinstance(col, int):
+                    found.add((lineno, col))
+        return frozenset(found), shape, callees, len(dominated)
+
+    # THE ANCHOR REGION IS UNCHANGED.  ``_is_begin_effect`` accepts both the
+    # free receipt function and the authorization method, because the registry
+    # anchor (``GuardAnchor(target, "begin_effect")``) does not distinguish
+    # them -- and ``daedalus.offload:offload``'s only ``begin_effect`` IS the
+    # attribute call, so narrowing this predicate would have refused that door
+    # outright.  The distinction below is an ADDITIONAL, stricter fact.
+    positions, shape, callees, statements = _region(_is_begin_effect)
+
+    # THE LEASED REGION, computed separately and allowed to be empty.  A
+    # ``DeclarationError`` here is the normal answer, not a failure: it means
+    # the anchor function never calls ``<authorization>.begin_effect``, so no
+    # write inside it happened under a lease and no surface it dominates may be
+    # classified ``central``.  See ``derive`` for what that costs a door.
+    if not any(_is_leased_begin_effect(node) for node in ast.walk(func)):
+        # The cheap half of the same answer, and the common one: no attribute
+        # call named ``begin_effect`` occurs anywhere in the anchor function, so
+        # the fixpoint below could only return the empty region.  Skipping it
+        # is what keeps this generator's cost the same as before the guard.
+        leased_positions = frozenset()
+        leased_refusal = (
+            "anchor function contains no <authorization>.begin_effect(...) call, "
+            "so nothing it does happens inside a leased execution"
+        )
+    else:
+        try:
+            leased_positions, _shape, _callees, _statements = _region(
+                _is_leased_begin_effect
+            )
+            leased_refusal = ""
+        except DeclarationError as exc:
+            leased_positions = frozenset()
+            leased_refusal = str(exc)
+
     return ModuleDominance(
         rel_path=door.rel_path,
-        positions=frozenset(positions),
+        positions=positions,
         shape=shape,
         private_callees=callees,
-        dominated_statements=len(dominated),
+        dominated_statements=statements,
+        leased_positions=leased_positions,
+        leased_refusal=leased_refusal,
     )
 
 

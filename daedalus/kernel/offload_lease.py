@@ -1,4 +1,25 @@
-"""One persisted ``python.offload`` Effect Lease per wave -- the issuer side.
+"""The Effect-Lease issuer: which registry rows it may issue for, and why.
+
+WHICH ROWS. Until :func:`issuable_row` existed this module refused every row
+but ``python.offload`` by construction -- ``spec = REGISTRY_BY_ID[ENTRYPOINT_ID]``
+with the id spelled once at module scope, and the reason "a helper that can
+issue for whichever entrypoint you name is a general-purpose capability minter".
+The reason holds and nothing here weakens it. What a constant cannot say is
+WHICH rows are unsafe, so 93 of 97 were refused with no statement of what was
+wrong with them, and the Gate-0 repository-write classification had exactly one
+door that could ever hold a lease. The predicate says the real requirement: this
+issuer may issue for a row only when it can run every contract that row
+declares, itself, in process, and draw every scope bound that row's effects need
+from a contract that row declares. See :data:`ISSUER_CONTRACTS`,
+:data:`ISSUER_EFFECTS` and :data:`EFFECT_BOUNDS`.
+
+:func:`acquire_wave_offload_lease` remains the wave's pinned door: it names
+``python.offload`` and REFUSES an ``entrypoint_id`` keyword, so no caller of the
+wave path chooses which capability it is asking for.
+
+WHAT FOLLOWS IS ABOUT THAT PINNED PATH, and it is unchanged.
+
+One persisted ``python.offload`` Effect Lease per wave -- the issuer side.
 
 WHY THIS MODULE EXISTS. ``daedalus/offload.py`` refuses every ``live=True``
 call that arrives without an already-issued, already-persisted authorization,
@@ -64,7 +85,10 @@ from daedalus.kernel.effects import (
 from daedalus.schemas import ContractProvenance, EffectScope, PolicyDecision
 from daedalus.spine.effect_boundary import (
     REGISTRY_BY_ID,
+    Effect,
+    EntrypointSpec,
     GuardDecision,
+    Wiring,
     registry_sha256,
 )
 from daedalus.spine.envelope import canonical_json, canonical_sha
@@ -73,10 +97,93 @@ from daedalus.spine.killswitch import KillSwitch, LoopHalted, profile_root_disag
 if TYPE_CHECKING:  # pragma: no cover - typing only, never an import cycle
     from daedalus.sensitivity import Policy
 
-#: The registry row this module issues for. Never parameterised: a helper that
-#: can issue for "whichever entrypoint you name" is a general-purpose capability
-#: minter, which is precisely what the boundary exists to prevent.
+#: The registry row :func:`acquire_wave_offload_lease` pins. The general issuer
+#: below is parameterised, but NOT by "whichever entrypoint you name" -- see
+#: :data:`ISSUER_CONTRACTS` and :func:`issuable_row` for the predicate that
+#: replaced this constant as the refusal.
 ENTRYPOINT_ID = "python.offload"
+
+#: THE RULE, PART ONE: the guard contracts this module runs ITSELF, in-process,
+#: as functions of subject material a caller supplies -- never of a verdict a
+#: caller supplies.
+#:
+#: Until this set existed the issuer refused every registry row but
+#: ``python.offload`` by construction ("a helper that can issue for whichever
+#: entrypoint you name is a general-purpose capability minter"). The worry was
+#: real and it is unchanged; what was wrong was the remedy. Hard-coding ONE id
+#: refuses 46 of the 47 central rows without saying what is wrong with them,
+#: and it refuses them no more safely than this predicate does: the thing that
+#: must not happen is a lease issued under contracts the issuer did not run,
+#: and THAT is what this set states.
+#:
+#: A row declaring a contract outside this set cannot be leased here, because
+#: the issuer would have exactly two choices and both are defects: skip the
+#: contract (recording an unrun guard as a passed one) or accept a decision the
+#: caller computed (which :class:`WritePolicySource` already measured -- a
+#: caller with no ``--project`` cleared every path under the UNCONFINED
+#: default and the receipt said so in the ALLOW column). Refusing by name is
+#: the only third answer.
+ISSUER_CONTRACTS: frozenset[str] = frozenset(
+    {
+        "budget.process_guard",
+        "provider.egress_policy",
+        "provider.write_policy",
+        "containment.attempt",
+    }
+)
+
+#: THE RULE, PART TWO: the effects the :class:`~daedalus.schemas.EffectScope`
+#: built below can actually bound. ``secrets`` and ``listen_socket`` are absent
+#: because this issuer names no ``secret_refs`` and no bind authority; a lease
+#: whose scope cannot express an effect is a lease that grants it unbounded,
+#: which is worse than no lease.
+ISSUER_EFFECTS: frozenset[str] = frozenset(
+    {
+        Effect.FILESYSTEM_WRITE.value,
+        Effect.PROCESS_SPAWN.value,
+        Effect.NETWORK_EGRESS.value,
+        Effect.SPEND.value,
+        Effect.REPOSITORY_MUTATION.value,
+    }
+)
+
+#: THE RULE, PART THREE: which contract produces the scope field that bounds
+#: each effect. Declaring an effect whose bound this issuer draws from a
+#: contract the row did NOT declare is a refusal, because the alternative is a
+#: scope field filled from somewhere no guard looked.
+#:
+#: MEASURED, and this is why the coupling exists rather than being reasoned to:
+#: ``cli.loop`` declares ``network_egress`` and only ``budget.process_guard``.
+#: Without this conjunct the issuer ran no egress contract, admitted no
+#: endpoint, and handed ``_scope_requirements`` a network lease with an empty
+#: ``egress_endpoints`` -- which raises ``EffectLeaseScopeError`` out of
+#: ``issue_effect_lease``, mid-wave, after the kill switch and every contract
+#: had already been evaluated. A predicate that cannot answer before the work
+#: starts is not the boundary; it is a crash with a boundary's name on it.
+EFFECT_BOUNDS: Mapping[str, str] = {
+    # the endpoint list, admitted by `ollama_endpoint_admission` and friends
+    Effect.NETWORK_EGRESS.value: "provider.egress_policy",
+    Effect.LISTEN_SOCKET.value: "provider.egress_policy",
+    # the declared roots, judged by `sensitivity.path_write_blocked`
+    Effect.FILESYSTEM_WRITE.value: "provider.write_policy",
+    Effect.REPOSITORY_MUTATION.value: "provider.write_policy",
+    # the tool list and the cost ceiling. The ceiling on a lease is
+    # DECLARATIVE -- `daedalus.budget.install_process_guard` is what actually
+    # stops the money and the spawn -- so a row that declares spend or spawn
+    # without that contract is asking for a bound this issuer only writes down.
+    Effect.PROCESS_SPAWN.value: "budget.process_guard",
+    Effect.PROCESS_CONTROL.value: "budget.process_guard",
+    Effect.SPEND.value: "budget.process_guard",
+}
+
+#: THE RULE, PART FOUR: a row may claim a disjoint write target only when it
+#: declared a containment contract, because the disjointness record this module
+#: retains IS that contract's decision. A row with no containment contract that
+#: nevertheless carried a ``CHECKOUT_EXTERNAL`` target would be resting on
+#: another lease's measurement of another pair of roots.
+CONTAINMENT_CONTRACTS: frozenset[str] = frozenset(
+    {"containment.attempt", "containment.worktree"}
+)
 
 #: Identifier of the local issuer key. One id, so a lease signed by a previous
 #: key file fails verification loudly instead of being silently re-signed.
@@ -199,7 +306,7 @@ WORKTREE_CONTAINMENT_CONTRACT = "containment.worktree"
 #: The function that takes every guard decision this module retains, and the
 #: repository-relative file it lives in. Named, not guessed: a retained record
 #: has to say which implementation decided, and a test resolves both.
-ISSUER_TARGET = "daedalus.kernel.offload_lease:acquire_wave_offload_lease"
+ISSUER_TARGET = "daedalus.kernel.offload_lease:acquire_effect_lease"
 ISSUER_MODULE_PATH = "daedalus/kernel/offload_lease.py"
 
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
@@ -1058,6 +1165,10 @@ class WaveLeaseDenied:
     #: hand-built denial in ``build_exec`` -- a missing source revision, decided
     #: before any policy is consulted -- keeps its exact shape.
     write_policy: WritePolicySource | None = None
+    #: WHICH row was refused. Defaulted to ``python.offload`` so the hand-built
+    #: denial above keeps its exact shape; a denial that named the wrong row
+    #: would be a receipt about a capability nobody asked for.
+    entrypoint_id: str = ENTRYPOINT_ID
 
     @property
     def granted(self) -> bool:
@@ -1066,7 +1177,7 @@ class WaveLeaseDenied:
     def receipt(self) -> dict[str, Any]:
         return {
             "verdict": "deny",
-            "entrypoint_id": ENTRYPOINT_ID,
+            "entrypoint_id": self.entrypoint_id,
             "policy_decision_id": self.policy_decision.decision_id,
             "policy_decision_sha256": self.policy_decision.digest,
             "policy_version": self.policy_decision.policy_version,
@@ -1213,6 +1324,87 @@ class WaveOffloadLease:
 # --------------------------------------------------------------------------- #
 # the issuer                                                                   #
 # --------------------------------------------------------------------------- #
+def issuable_row(entrypoint_id: str) -> tuple[EntrypointSpec | None, tuple[str, ...]]:
+    """The row this issuer may issue for, or every named reason it may not.
+
+    THE PREDICATE THAT REPLACED THE CONSTANT. Five conjuncts, each of which can
+    come back False against the real registry, and none of which the caller
+    supplies:
+
+    1. the id is registered -- an unknown row has no declared contracts at all,
+       so there is nothing to run and nothing to bound;
+    2. the row is ``CENTRAL`` -- :func:`issue_effect_lease` refuses anything
+       else anyway, and refusing here makes it a deny receipt instead of a
+       raise inside a wave;
+    3. the row is not runtime-bearing -- a ``runtime_id`` requires
+       :class:`~daedalus.kernel.runtime_effects.RuntimeBoundEffectAuthorization`
+       and its live trust rechecks, which this module does not perform;
+    4. every contract the row declares is in :data:`ISSUER_CONTRACTS`;
+    5. every effect the row declares is in :data:`ISSUER_EFFECTS`, and there is
+       at least one -- ``begin_effect`` refuses an effect start that declares
+       none.
+
+    Returns ``(spec, ())`` when the row is issuable and ``(None, reasons)``
+    when it is not. Never raises: a refusal is a verdict about a request, and
+    the caller turns it into the canonical deny receipt.
+    """
+
+    spec = REGISTRY_BY_ID.get(str(entrypoint_id))
+    if spec is None:
+        return None, (
+            f"registry.row: {entrypoint_id!r} is not a registered entrypoint, "
+            "so it declares no contracts to run and no effects to bound",
+        )
+    reasons: list[str] = []
+    if spec.wiring is not Wiring.CENTRAL:
+        reasons.append(
+            f"registry.wiring: {spec.id} is {spec.wiring.value}, not central; "
+            "migration is required before a capability can be issued for it"
+        )
+    if spec.runtime_id:
+        reasons.append(
+            f"registry.runtime: {spec.id} is runtime-bearing ({spec.runtime_id}), "
+            "so it requires RuntimeBoundEffectAuthorization and live runtime-trust "
+            "rechecks this issuer does not perform"
+        )
+    unrunnable = sorted(set(spec.guard_contracts) - ISSUER_CONTRACTS)
+    if unrunnable:
+        reasons.append(
+            f"issuer.contracts: {spec.id} declares {', '.join(unrunnable)}, which "
+            "this issuer has no in-process implementation of; skipping them would "
+            "record an unrun guard as a passed one and accepting them from the "
+            "caller is not a guard"
+        )
+    declared_effects = {effect.value for effect in spec.effects}
+    if not declared_effects:
+        reasons.append(
+            f"registry.effects: {spec.id} declares no effect, and an effect start "
+            "that declares none is refused at the boundary"
+        )
+    unboundable = sorted(declared_effects - ISSUER_EFFECTS)
+    if unboundable:
+        reasons.append(
+            f"issuer.effects: {spec.id} declares {', '.join(unboundable)}, which the "
+            "effect scope this issuer builds cannot bound; an unbounded grant in a "
+            "receipt reads as a bounded one"
+        )
+    unbounded = sorted(
+        f"{effect} (needs {EFFECT_BOUNDS[effect]})"
+        for effect in declared_effects & set(EFFECT_BOUNDS)
+        if EFFECT_BOUNDS[effect] not in spec.guard_contracts
+    )
+    if unbounded:
+        reasons.append(
+            f"issuer.effect_bounds: {spec.id} declares {', '.join(unbounded)}; this "
+            "issuer draws that scope field from the named contract, and the row does "
+            "not declare it, so the bound would be filled from somewhere no guard "
+            "looked"
+        )
+    if reasons:
+        return None, tuple(reasons)
+    return spec, ()
+
+
 def _deny(
     *,
     reasons: Sequence[str],
@@ -1224,6 +1416,7 @@ def _deny(
     policy_sha256: str,
     now: datetime,
     write_policy: WritePolicySource | None = None,
+    entrypoint_id: str = ENTRYPOINT_ID,
 ) -> WaveLeaseDenied:
     decision = PolicyDecision(
         decision_id=f"{subject_id}-deny",
@@ -1254,12 +1447,14 @@ def _deny(
         reasons=tuple(sorted(reasons)),
         guard_decisions=tuple(guard_decisions),
         write_policy=write_policy,
+        entrypoint_id=str(entrypoint_id),
     )
 
 
-def acquire_wave_offload_lease(
+def acquire_effect_lease(
     repo_root: str | Path,
     *,
+    entrypoint_id: str = ENTRYPOINT_ID,
     source_revision: str,
     mission_id: str,
     attempt_id: str,
@@ -1279,7 +1474,7 @@ def acquire_wave_offload_lease(
     now: datetime | None = None,
     evidence_root: str | Path | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
-    """Run the four ``python.offload`` guard contracts, then issue or deny.
+    """Run the guard contracts ONE registry row declares, then issue or deny.
 
     Returns a :class:`WaveOffloadLease` when every contract allows, and a
     :class:`WaveLeaseDenied` -- never an exception, never a partial grant --
@@ -1290,8 +1485,18 @@ def acquire_wave_offload_lease(
     The caller supplies what only it can know (which lanes this wave routes to,
     which paths the tasks declared, whether the attempts are contained). This
     module owns everything a caller must not be trusted with: the issuer key,
-    the generation, the ledger location, and the refusal to issue for any row
-    other than ``python.offload``.
+    the generation, the ledger location, and -- through :func:`issuable_row` --
+    the refusal to issue for any row whose contracts it cannot run itself.
+
+    WHICH CONTRACTS RUN IS THE ROW'S DECISION, NOT THIS FUNCTION'S. Only the
+    contracts ``spec.guard_contracts`` names are evaluated, and every one of
+    them is. That is not a convenience: ``begin_effect`` refuses BOTH a missing
+    decision and an undeclared one, so a lease carrying this module's four
+    offload decisions could never be started for a row that declares one
+    contract. The same rule decides the scope -- a row that does not declare
+    ``network_egress`` is granted no endpoint, and one that does not declare
+    ``spend`` is granted a ceiling of zero, because a scope that grants what
+    the row never declared is a widening nobody asked for.
 
     THE WRITE FENCE IS RUN HERE, NOT ACCEPTED FROM THE CALLER.
     ``write_policy_blocked`` used to BE the ``provider.write_policy`` contract:
@@ -1308,52 +1513,93 @@ def acquire_wave_offload_lease(
     instant = now or _utc_now()
     root = str(Path(repo_root).resolve())
     live_switch = switch if switch is not None else KillSwitch(repo_root=root)
-    spec = REGISTRY_BY_ID[ENTRYPOINT_ID]
+    door = str(entrypoint_id)
+    request_id = f"{mission_id}-wave-offload-{attempt_id}"
+
+    # -- 0. THE RULE. Before the kill switch, because a row this issuer may
+    # never issue for is not a question about this machine's permit state; it
+    # is a question about the registry, and the answer does not change.
+    spec, row_refusals = issuable_row(door)
+    if spec is None:
+        # No EffectLeaseRequest and no guard decisions exist on this path: the
+        # refusal happened before a single contract was consulted, so the
+        # subject digest is over the refusal material itself.
+        refusal_sha256 = canonical_sha(
+            {
+                "policy_version": POLICY_VERSION,
+                "entrypoint_id": door,
+                "registry_sha256": registry_sha256(),
+                "issuer_contracts": sorted(ISSUER_CONTRACTS),
+                "issuer_effects": sorted(ISSUER_EFFECTS),
+                "reasons": sorted(row_refusals),
+            }
+        )
+        return _deny(
+            reasons=row_refusals,
+            guard_decisions=(),
+            source_revision=source_revision,
+            trace_id=trace_id,
+            subject_id=request_id,
+            subject_sha256=refusal_sha256,
+            policy_sha256=refusal_sha256,
+            now=instant,
+            entrypoint_id=door,
+        )
     effects = tuple(sorted(effect.value for effect in spec.effects))
+    declared_contracts = frozenset(spec.guard_contracts)
+    declared_effects = frozenset(effects)
 
     # -- 1. the kill switch, before anything is computed for this wave ------ #
     # Raises. See WaveLeaseKillSwitchEngaged for why this one is not a verdict.
     generation = kill_switch_generation(live_switch)
 
-    # -- 2. the four declared guard contracts ------------------------------- #
-    from daedalus.budget import process_guard_boundary_decision
+    # -- 2. the guard contracts THIS ROW declares --------------------------- #
+    guards: list[GuardDecision] = []
+    if "budget.process_guard" in declared_contracts:
+        from daedalus.budget import process_guard_boundary_decision
 
-    guards: list[GuardDecision] = [process_guard_boundary_decision()]
+        guards.append(process_guard_boundary_decision())
 
     endpoints: list[str] = []
     egress_reasons: list[str] = []
     egress_ok = True
-    for lane in sorted({str(l) for l in lanes if str(l).strip()}):
-        endpoint = lane_endpoint(lane)
-        if not endpoint:
+    if "provider.egress_policy" in declared_contracts:
+        for lane in sorted({str(l) for l in lanes if str(l).strip()}):
+            endpoint = lane_endpoint(lane)
+            if not endpoint:
+                egress_ok = False
+                egress_reasons.append(
+                    f"lane {lane!r} declares no endpoint, so its egress cannot be leased"
+                )
+                continue
+            if lane == "ollama":
+                from daedalus.providers.ollama import ollama_endpoint_admission
+
+                allowed, _lane, evidence = ollama_endpoint_admission(endpoint)
+                egress_reasons.append(f"{lane}: {evidence}")
+                if not allowed:
+                    egress_ok = False
+                    continue
+            else:
+                egress_reasons.append(
+                    f"{lane}: declared endpoint {endpoint} (no admission contract "
+                    f"implements this lane yet, so it is leased only as a declaration)"
+                )
+            endpoints.append(endpoint)
+        if not endpoints:
             egress_ok = False
             egress_reasons.append(
-                f"lane {lane!r} declares no endpoint, so its egress cannot be leased"
+                "no admissible endpoint for this wave; a network-effect lease must "
+                "name at least one"
             )
-            continue
-        if lane == "ollama":
-            from daedalus.providers.ollama import ollama_endpoint_admission
-
-            allowed, _lane, evidence = ollama_endpoint_admission(endpoint)
-            egress_reasons.append(f"{lane}: {evidence}")
-            if not allowed:
-                egress_ok = False
-                continue
-        else:
-            egress_reasons.append(
-                f"{lane}: declared endpoint {endpoint} (no admission contract "
-                f"implements this lane yet, so it is leased only as a declaration)"
-            )
-        endpoints.append(endpoint)
-    if not endpoints:
-        egress_ok = False
-        egress_reasons.append(
-            "no admissible endpoint for this wave; a network-effect lease must "
-            "name at least one"
+        guards.append(
+            GuardDecision("provider.egress_policy", egress_ok, "; ".join(egress_reasons))
         )
-    guards.append(
-        GuardDecision("provider.egress_policy", egress_ok, "; ".join(egress_reasons))
-    )
+    else:
+        # NOT RUN, THEREFORE NOT GRANTED. The endpoints stay empty so the scope
+        # below carries none: a row that does not declare `provider.egress_policy`
+        # gets no leased endpoint, rather than an unadmitted one.
+        endpoints = []
 
     # The exact roots this lease would grant, computed BEFORE the write
     # contract so the contract judges the same strings the scope will carry.
@@ -1365,7 +1611,13 @@ def acquire_wave_offload_lease(
 
     policy_source = resolve_write_policy(root, write_policy)
     caller_blocked = tuple(str(p) for p in write_policy_blocked)
-    if not policy_source.usable:
+    if "provider.write_policy" not in declared_contracts:
+        # The fence is still RESOLVED (the receipt names which policy this
+        # grant was issued beside), but no decision is appended: a row that
+        # does not declare the contract must not carry a decision for it, and
+        # `begin_effect` refuses an undeclared decision by name.
+        blocked = ()
+    elif not policy_source.usable:
         # NEVER ALLOW BY ABSENCE. An issuer that cannot find the fence has not
         # cleared the paths; it failed to ask. Refusing is the only reading
         # that does not record an unrun guard as a passed one.
@@ -1420,38 +1672,59 @@ def acquire_wave_offload_lease(
     # and the only one the requester controls; see `derive_wave_containment`
     # for the measured grant this replaces.
     declared_mechanism = str(containment_evidence or "").strip()
-    derived_ok, derived_evidence = derive_wave_containment(root)
-    containment_refusals: list[str] = []
-    if not contained:
-        containment_refusals.append("the caller could not establish containment")
-    if not declared_mechanism:
-        containment_refusals.append(
-            "the caller named no containment mechanism; an unevidenced "
-            "assertion is not a containment boundary, so no capability is issued"
-        )
-    if not derived_ok:
-        containment_refusals.append(derived_evidence)
-    guards.append(
-        GuardDecision(
-            "containment.attempt",
-            not containment_refusals,
-            "; ".join(containment_refusals)
-            if containment_refusals
-            else f"{derived_evidence}; caller mechanism: {declared_mechanism}",
-        )
+    derived_ok = False
+    derived_evidence = (
+        f"{spec.id} declares no containment contract, so this issuer derived none"
     )
+    if "containment.attempt" in declared_contracts:
+        derived_ok, derived_evidence = derive_wave_containment(root)
+        containment_refusals: list[str] = []
+        if not contained:
+            containment_refusals.append("the caller could not establish containment")
+        if not declared_mechanism:
+            containment_refusals.append(
+                "the caller named no containment mechanism; an unevidenced "
+                "assertion is not a containment boundary, so no capability is issued"
+            )
+        if not derived_ok:
+            containment_refusals.append(derived_evidence)
+        guards.append(
+            GuardDecision(
+                "containment.attempt",
+                not containment_refusals,
+                "; ".join(containment_refusals)
+                if containment_refusals
+                else f"{derived_evidence}; caller mechanism: {declared_mechanism}",
+            )
+        )
 
     # -- 3. the request, and the policy digest over what decided ------------ #
-    request_id = f"{mission_id}-wave-offload-{attempt_id}"
+    # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
+    # refuses a scope that is too NARROW for the declared effects; nothing in
+    # the kernel refuses one that is too wide, so the narrowing happens here.
     cost_microusd = 0 if max_spend_usd is None else int(round(float(max_spend_usd) * 1e6))
     if cost_microusd < 0:
         cost_microusd = 0
+    if Effect.SPEND.value not in declared_effects:
+        cost_microusd = 0
     timeout = int(max(1, round(float(timeout_s)))) if timeout_s else 3600
-    declared_tools = tuple(
-        sorted(
-            {str(t) for t in (*BASE_TOOLS, *tools, *lanes) if str(t).strip()}
-        )
+    spawns = bool(
+        declared_effects
+        & {Effect.PROCESS_SPAWN.value, Effect.PROCESS_CONTROL.value}
     )
+    declared_tools = (
+        tuple(
+            sorted({str(t) for t in (*BASE_TOOLS, *tools, *lanes) if str(t).strip()})
+        )
+        if spawns
+        else ()
+    )
+    writes = bool(
+        declared_effects
+        & {Effect.FILESYSTEM_WRITE.value, Effect.REPOSITORY_MUTATION.value}
+    )
+    if not writes:
+        declared_paths = ()
 
     # The digest of the exact material this verdict was computed from. Not a
     # document hash of a policy file -- there is no such file for this decision
@@ -1460,7 +1733,7 @@ def acquire_wave_offload_lease(
     policy_sha256 = canonical_sha(
         {
             "policy_version": POLICY_VERSION,
-            "entrypoint_id": ENTRYPOINT_ID,
+            "entrypoint_id": spec.id,
             "registry_sha256": registry_sha256(),
             "effects": list(effects),
             "guard_decisions": [
@@ -1498,10 +1771,11 @@ def acquire_wave_offload_lease(
             policy_sha256=policy_sha256,
             now=instant,
             write_policy=policy_source,
+            entrypoint_id=spec.id,
         )
 
     scope = EffectScope(
-        read_only=False,
+        read_only=not writes,
         writable_paths=declared_paths,
         egress_endpoints=tuple(sorted(set(endpoints))),
         tools=declared_tools,
@@ -1520,7 +1794,7 @@ def acquire_wave_offload_lease(
         request_id=request_id,
         mission_id=mission_id,
         attempt_id=attempt_id,
-        entrypoint_id=ENTRYPOINT_ID,
+        entrypoint_id=spec.id,
         requested_effects=effects,
         effect_scope=scope,
         idempotency_namespace=f"{mission_id}-{attempt_id}",
@@ -1563,6 +1837,7 @@ def acquire_wave_offload_lease(
             policy_sha256=policy_sha256,
             now=instant,
             write_policy=policy_source,
+            entrypoint_id=spec.id,
         )
 
     keyring = issuer_keyring(root)
@@ -1631,6 +1906,19 @@ def acquire_wave_offload_lease(
     # verdict and evidence above, re-typed under the contract they are about,
     # never re-derived. `record_primary_checkout_disjointness` runs no
     # predicate; it cannot reach a different answer than this call site did.
+    #
+    # ONLY WHEN THIS ROW REALLY TOOK ONE. A row that declares no containment
+    # contract took no containment decision, so it retains no disjointness
+    # record: minting one would put THIS issuer's measurement of the attempt
+    # isolation root behind a door that never asked about it, and the write
+    # classification chain would then read a disjoint target off a pair of
+    # roots that row's writes never touch.
+    if not (declared_contracts & CONTAINMENT_CONTRACTS):
+        granted.evidence_errors.append(
+            f"disjointness: {spec.id} declares no containment contract, so this "
+            "grant retains no primary-checkout disjointness record"
+        )
+        return granted
     try:
         primary_root, target_root = wave_containment_roots(root)
         record = record_primary_checkout_disjointness(
@@ -1649,12 +1937,35 @@ def acquire_wave_offload_lease(
     return granted
 
 
+def acquire_wave_offload_lease(
+    repo_root: str | Path, **kwargs: Any
+) -> "WaveOffloadLease | WaveLeaseDenied":
+    """One wave's ``python.offload`` lease. The row is PINNED here, not passed.
+
+    The wave starter names no entrypoint, so no caller of this function can
+    choose which capability it is asking for -- exactly as before the issuer
+    became a rule. ``entrypoint_id`` is rejected rather than defaulted: a
+    keyword this wrapper silently ignored would read at the call site as a
+    request that had been honoured.
+    """
+
+    if "entrypoint_id" in kwargs:
+        raise TypeError(
+            "acquire_wave_offload_lease() issues for python.offload only; call "
+            "acquire_effect_lease(entrypoint_id=...) to ask for another row"
+        )
+    return acquire_effect_lease(repo_root, entrypoint_id=ENTRYPOINT_ID, **kwargs)
+
+
 __all__ = [
     "CALLER_POLICY_ORIGIN",
+    "CONTAINMENT_CONTRACTS",
     "DISJOINTNESS_RECEIPT_SCHEMA",
     "DISJOINTNESS_RECORD_SCHEMA",
     "EFFECT_LEASE_RECEIPT_SCHEMA",
     "ENTRYPOINT_ID",
+    "ISSUER_CONTRACTS",
+    "ISSUER_EFFECTS",
     "ISSUER_KEY_ID",
     "KILL_SWITCH_REF",
     "LEASE_EXECUTION_RECORD_SCHEMA",
@@ -1667,12 +1978,14 @@ __all__ = [
     "WaveLeaseKillSwitchEngaged",
     "WaveOffloadLease",
     "WritePolicySource",
+    "acquire_effect_lease",
     "acquire_wave_offload_lease",
     "control_root",
     "derive_wave_containment",
     "emit_effect_lease_terminal_record",
     "guard_decision_sha256",
     "harvest_effect_lease_terminal_records",
+    "issuable_row",
     "issuer_keyring",
     "kill_switch_generation",
     "lane_endpoint",
