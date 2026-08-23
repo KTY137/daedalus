@@ -57,21 +57,24 @@ def _minimal_repo(tmp_path: Path, source: str, *, module: str = "rogue") -> Path
     return tmp_path
 
 
-def test_inventory_covers_the_package_but_not_yet_the_tools_it_now_sees() -> None:
-    """The daedalus side is inventoried; tools/ is the gap the scan just found.
+def test_inventory_covers_the_package_and_the_tools_the_scan_reaches() -> None:
+    """Both the package and tools/ are inventoried; the coverage pin remains.
 
-    This test used to assert the inventory was COMPLETE, and that was true only
-    while the scan globbed ``root/"daedalus"`` and nothing else. MEASURED
-    2026-07-30 by adding an effectful entrypoint under tools/ and watching the
-    matrix not move: 18 of 19 python files there spawn processes, write files,
-    mutate the repository or spend money -- `audit_swarm.py`, which has billed
-    roughly 750 external calls, among them.
+    History matters here. The scan once globbed ``root/"daedalus"`` and nothing
+    else; MEASURED 2026-07-30 by adding an effectful entrypoint under tools/
+    and watching the matrix not move: 18 of 19 python files there spawn
+    processes, write files, mutate the repository or spend money --
+    `audit_swarm.py`, which has billed roughly 750 external calls, among them.
+    Widening the scan stopped hiding them, and this test then asserted the gap
+    by name so Gate 0 stayed red for a stated reason.
 
-    Widening the scan did not create these findings. It stopped hiding them,
-    and a test asserting completeness over a scope that excluded the gap was
-    reporting the scope, not the truth. So the assertion is split: the package
-    is covered, the tools are not, and Gate 0 stays red for a reason that is
-    now named rather than unseen.
+    2026-08-17: the 15 discovered ``tools.*:main`` starts now carry honest
+    registry rows (LOCAL_GUARDS only where a mechanically anchored guard path
+    exists -- fan_out's fail-closed budget guard, run_attempt's spine --
+    INVENTORY_ONLY everywhere else). The coverage pin therefore moves: it can
+    no longer live on "an unregistered blocker exists", so it lives on
+    discovery itself. If the scan scope quietly narrows again, the discovery
+    assertion below goes red BEFORE any row could rot unnoticed.
     """
     report = check_conformance(ROOT)
     blocker_codes = {(row.code, row.subject) for row in report.findings
@@ -90,15 +93,26 @@ def test_inventory_covers_the_package_but_not_yet_the_tools_it_now_sees() -> Non
     assert ("gate0.unguarded_entrypoint", "python.promote_candidates") not in blocker_codes
     assert next(row for row in ENTRYPOINTS if row.id == "python.offload").wiring is Wiring.CENTRAL
 
-    # and the newly visible gap is real, named, and not silently tolerated
-    unregistered_tools = {subject for code, subject in blocker_codes
-                          if code == "entrypoint.unregistered"
-                          and subject.startswith("tools.")}
-    assert unregistered_tools, (
+    # the scan still reaches tools/ -- discovery carries the pin now, so a
+    # quietly narrowed scope goes red here even with every row registered
+    discovered_tools = {row.target for row in report.discoveries
+                        if row.target.startswith("tools.")}
+    assert discovered_tools, (
         "the scan no longer reaches tools/; a directory of effectful "
         "entrypoints would be invisible to the drift detector again")
 
-    assert report.structurally_conformant is False
+    # and every discovered tools.* start has a registry owner
+    assert not any(code == "entrypoint.unregistered" and subject.startswith("tools.")
+                   for code, subject in blocker_codes), (
+        "a tools/ entrypoint lost its registry row")
+
+    # the tools rows are honestly non-central: each remaining gap is named
+    tool_gaps = {subject for row in report.findings
+                 if row.code == "gate0.not_central"
+                 for subject in [row.subject] if subject.startswith("tools.")}
+    assert tool_gaps, "the tools rows stopped being named as Gate-0 gaps"
+
+    assert report.structurally_conformant is True
     assert report.gate0_closed is False
     assert report.to_dict()["security_boundary_claimed"] is False
 
@@ -348,7 +362,7 @@ def test_broken_console_target_fails_closed(tmp_path: Path) -> None:
     assert any(row.code == "scan.console_target_missing" for row in findings)
 
 
-def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
+def test_cli_is_structurally_conformant_but_still_refuses_gate0_closure() -> None:
     completed = subprocess.run(
         [sys.executable, str(ROOT / "tools" / "effect_boundary_check.py"), "--json"],
         cwd=ROOT,
@@ -363,27 +377,43 @@ def test_cli_returns_nonzero_and_json_names_real_blockers() -> None:
         for row in payload["findings"]
         if row["severity"] == "blocker"
     }
-    assert completed.returncode == 2
-    # Promotion and offload are centrally wired; the CLI remains red for the
-    # still-unregistered tool entrypoints, not for either protected Python path.
-    assert "python.offload" not in blockers
-    assert "python.promote_candidates" not in blockers
-    assert any(subject.startswith("tools.") for subject in blockers)
+    # 2026-08-17: every discovered entrypoint -- including the 15 tools.*
+    # mains that kept this exit code at 2 -- now has a registry row, so the
+    # structural check passes and the exit code is 0. That is conformance of
+    # the INVENTORY, not closure of the gate: most rows are still
+    # inventory_only, and --require-gate0 below must keep failing until every
+    # row is centrally wired.
+    assert completed.returncode == 0
+    assert not blockers
     assert payload["gate0_closed"] is False
     assert payload["security_boundary_claimed"] is False
 
-    # And the scan now reaches tools/. MEASURED 2026-07-30: it globbed
+    # And the scan still reaches tools/. MEASURED 2026-07-30: it globbed
     # root/"daedalus" only, so a newly added effectful entrypoint under tools/
     # changed nothing in the matrix -- verified by adding one. 18 of 19 python
     # files there spawn processes, write files, mutate the repo or spend money,
-    # `audit_swarm.py` among them. The registry documents its blind spots
-    # (dynamic imports, native code, shell, external clients); this directory
-    # was not one of them, and an undocumented gap answers "no drift" for code
-    # it never read. Pinned so the scope cannot quietly narrow again.
-    subjects = {row["subject"] for row in payload["findings"]}
-    assert any(s.startswith("tools.") for s in subjects), (
-        "the discovery scan no longer reaches tools/; a whole directory of "
-        "effectful entrypoints would be invisible to the drift detector")
+    # `audit_swarm.py` among them. Pinned two ways so the scope cannot quietly
+    # narrow again: the tools rows appear in the matrix, and each one is still
+    # named as a not-central gap finding.
+    matrix_targets = {row["target"] for row in payload["matrix"]}
+    assert any(t.startswith("tools.") for t in matrix_targets)
+    gap_subjects = {row["subject"] for row in payload["findings"]
+                    if row["code"] == "gate0.not_central"}
+    assert any(s.startswith("tools.") for s in gap_subjects), (
+        "the tools entrypoints are no longer named as Gate-0 gaps; either the "
+        "scan scope narrowed or a wiring claim was silently upgraded")
+
+    # Gate 0 itself remains red: the strict mode must exit 3, not 0.
+    strict = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "effect_boundary_check.py"),
+         "--json", "--require-gate0"],
+        cwd=ROOT,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert strict.returncode == 3
 
 
 def test_promotion_row_is_owner_guarded_before_any_worktree() -> None:

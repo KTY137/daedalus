@@ -546,13 +546,12 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
         Wiring.INVENTORY_ONLY,
     ),
-    (
-        "cli.claude_bridge",
-        Surface.CLI,
-        "daedalus.claude_bridge:main",
-        (Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
-        Wiring.INVENTORY_ONLY,
-    ),
+    # ``cli.claude_bridge`` was removed 2026-08-17: ``daedalus.claude_bridge:main``
+    # is now a fail-closed argparse stub that performs no external effect (it
+    # parser.error()s before any subprocess), so it no longer belongs in an
+    # inventory of *effectful* starts.  The effectful Claude path is the
+    # brokered ``provider.claude`` row; the stale row here produced a phantom
+    # inventory_only blocker and an entrypoint.not_rediscovered review.
     (
         "cli.dctx",
         Surface.CLI,
@@ -696,6 +695,225 @@ ENTRYPOINTS += tuple(
     )
     for row_id, surface, target, effects, wiring in _LEGACY_ENTRYPOINT_ROWS
 )
+
+# Operator-tool entrypoints under ``tools/``, registered 2026-08-17 after the
+# widened scan (SCAN_PACKAGES) surfaced them as ``entrypoint.unregistered``
+# blockers.  Effects were determined by reading each module, not by trusting
+# the scanner: declared sets are a superset of the statically discovered ones
+# where a real child effect exists (paid model calls, spawned loopback
+# servers).  Wiring is honest: LOCAL_GUARDS only where the tool's effectful
+# path runs through a mechanically anchored guard that already exists
+# (``fan_out`` installs the budget process guard fail-closed and routes every
+# external call through the provider's sensitivity classification;
+# ``run_attempt`` is the spine path with intent ledger and containment).
+# Everything else is INVENTORY_ONLY: a named Gate-0 gap, not conformance.
+_TOOL_ENTRYPOINT_ROWS: tuple[EntrypointSpec, ...] = (
+    EntrypointSpec(
+        id="tools.agent_findings",
+        surface=Surface.CLI,
+        target="tools.agent_findings:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Consolidates review-lane reports; writes runs/eval findings artifacts.",
+    ),
+    EntrypointSpec(
+        id="tools.audit_swarm",
+        surface=Surface.CLI,
+        target="tools.audit_swarm:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard", "provider.egress_policy"),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(GuardAnchor("tools.audit_swarm:main", "fan_out"),),
+        notes=(
+            "Paid adversarial fan-out over the cheap external lane. All calls "
+            "go through daedalus.lanes.fanout.fan_out, which installs the "
+            "budget process guard fail-closed and routes every request through "
+            "the DeepSeek provider's classify_data/secret-floor checks. "
+            "Flight-recorder writes under runs/ are not centrally leased."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.audit_triage",
+        surface=Surface.CLI,
+        target="tools.audit_triage:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Local, free triage of swarm claims; writes one ranked-findings JSON.",
+    ),
+    EntrypointSpec(
+        id="tools.bootstrap_receipt",
+        surface=Surface.CLI,
+        target="tools.bootstrap_receipt:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.REPOSITORY_MUTATION,
+            Effect.SPEND,
+        ),
+        guard_contracts=(
+            "spine.intent_ledger",
+            "containment.attempt",
+            "containment.worktree",
+        ),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(GuardAnchor("tools.bootstrap_receipt:run_single", "run_attempt"),),
+        notes=(
+            "Drives one attempt to the gate through the canonical spine path "
+            "(run_attempt/command_gate, GitWorktreeManager, offload); its own "
+            "receipt and dependency writes are direct and not centrally leased."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.funnel",
+        surface=Surface.CLI,
+        target="tools.funnel:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+        ),
+        guard_contracts=("budget.process_guard", "provider.egress_policy"),
+        wiring=Wiring.LOCAL_GUARDS,
+        anchors=(GuardAnchor("tools.funnel:main", "fan_out"),),
+        notes=(
+            "Operator instrument: tiered paid DeepSeek fan-out via "
+            "daedalus.lanes.fanout.fan_out (fail-closed budget guard, per-call "
+            "sensitivity classification). Advisory output only; run-directory "
+            "writes are not centrally leased."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.funnel_report",
+        surface=Surface.CLI,
+        target="tools.funnel_report:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Reads a recorded funnel run back; spawns git ls-files only.",
+    ),
+    EntrypointSpec(
+        id="tools.gate_discrimination",
+        surface=Surface.CLI,
+        target="tools.gate_discrimination:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Measures gate rejection of seeded defects in a disposable clone; "
+            "writes the runs/spine/gate_discrimination.json receipt. The "
+            "primary checkout is read, never mutated."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.gate_host_preflight",
+        surface=Surface.CLI,
+        target="tools.gate_host_preflight:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Host fitness/identity checks via tool probes; writes one receipt block.",
+    ),
+    EntrypointSpec(
+        id="tools.gui_check",
+        surface=Surface.CLI,
+        target="tools.gui_check:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+            Effect.NETWORK_EGRESS,
+            Effect.LISTEN_SOCKET,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Browser acceptance drive: spawns the cockpit server (child listens "
+            "on 127.0.0.1 only) and Playwright, probes it over loopback HTTP, "
+            "and terminates the tree; temp-dir report writes."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.iron_plan_guard",
+        surface=Surface.CLI,
+        target="tools.iron_plan_guard:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "The plan drift guard itself: git subprocess reads plus atomic "
+            "temp-file writes. It is a workflow guard, not an effect boundary, "
+            "and gets no special standing in this registry."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.iron_plan_hook_runner",
+        surface=Surface.CLI,
+        target="tools.iron_plan_hook_runner:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Fail-closed process wrapper that spawns the Iron Plan lifecycle hook.",
+    ),
+    EntrypointSpec(
+        id="tools.lane_invariants",
+        surface=Surface.CLI,
+        target="tools.lane_invariants:main",
+        effects=(Effect.FILESYSTEM_WRITE,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Deterministic assertions over a recorded lane run; writes one JSON.",
+    ),
+    EntrypointSpec(
+        id="tools.mutation_score",
+        surface=Surface.CLI,
+        target="tools.mutation_score:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "Seeds defects into a disposable sandbox clone and runs pytest "
+            "there; writes a mutation report JSON. Primary checkout untouched."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.operability_drill",
+        surface=Surface.CLI,
+        target="tools.operability_drill:main",
+        effects=(
+            Effect.FILESYSTEM_WRITE,
+            Effect.PROCESS_SPAWN,
+            Effect.PROCESS_CONTROL,
+        ),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes=(
+            "End-to-end control drill that deliberately trips guards, including "
+            "uninstalling/reinstalling the budget process guard; paid-vendor "
+            "spawn is intercepted by a sentinel, so no spend is declared. "
+            "Cannot be LOCAL_GUARDS while its method is disabling guards."
+        ),
+    ),
+    EntrypointSpec(
+        id="tools.run_gate_checks",
+        surface=Surface.CLI,
+        target="tools.run_gate_checks:main",
+        effects=(Effect.PROCESS_SPAWN,),
+        guard_contracts=(),
+        wiring=Wiring.INVENTORY_ONLY,
+        notes="Runs canonical local/CI verification profiles as subprocesses.",
+    ),
+)
+
+ENTRYPOINTS += _TOOL_ENTRYPOINT_ROWS
 
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(
