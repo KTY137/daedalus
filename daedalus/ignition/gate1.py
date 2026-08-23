@@ -678,6 +678,22 @@ def run_gate1_ignition(
     store_root = _reset_evidence_store(receipt_dir / SESSION_MISSION_ID / "store")
     blockers: list[str] = []
     started_at = time.monotonic()
+    # BEFORE ANY ATTEMPT RUNS. The bundle describes the code that is about to
+    # judge; computing it afterwards described the code that was on disk when
+    # the run finished, which is not the same statement if anything replaced a
+    # module in between (Codex round 3, 2026-08-23). The window is now the
+    # import of this module rather than the whole run -- smaller, and honest
+    # about being a window rather than a proof.
+    evaluator_bundle = ignition_bundle.evaluator_bundle(
+        ROOT,
+        criterion_path=ignition_checks.CONFORMANCE_TEST_PATH,
+        criterion_source=ignition_checks.CONFORMANCE_TEST_SOURCE,
+        node_ids={
+            "code-type": ignition_checks.CODE_TYPE_NODE_IDS,
+            "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
+        },
+    )
+    blockers.extend(ignition_bundle.bundle_blockers(evaluator_bundle))
 
     scratch = Path(workspace) if workspace else Path(
         tempfile.mkdtemp(prefix="daedalus-ignition-")
@@ -843,6 +859,7 @@ def run_gate1_ignition(
                     fixture_digest=fixture_digest_before,
                     collected_at=collected_at,
                     blockers=blockers,
+                    evaluator_bundle=evaluator_bundle,
                 ),
                 receipt_dir,
             )
@@ -895,11 +912,11 @@ def run_gate1_ignition(
                     "check does not discriminate"
                 )
         blockers.extend(criterion_discrimination_blockers(anchored_node_roles))
-        # WHAT JUDGED, by identity. Computed against this repository (the
-        # evaluators live here), never against the candidate: a bundle
-        # describes the judge, and mixing the judged into it would give every
-        # candidate its own bundle and make the comparison meaningless.
-        evaluator_bundle = ignition_bundle.evaluator_bundle(
+        # THE BUNDLE IS RE-READ AFTER THE RUN and compared: a module replaced
+        # while the slice was running would otherwise be described by neither
+        # digest. A difference is a blocker, not a note -- it means the receipt
+        # cannot say what judged.
+        bundle_after = ignition_bundle.evaluator_bundle(
             ROOT,
             criterion_path=ignition_checks.CONFORMANCE_TEST_PATH,
             criterion_source=ignition_checks.CONFORMANCE_TEST_SOURCE,
@@ -908,7 +925,13 @@ def run_gate1_ignition(
                 "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
             },
         )
-        blockers.extend(ignition_bundle.bundle_blockers(evaluator_bundle))
+        if bundle_after["digest"] != evaluator_bundle["digest"]:
+            blockers.append(
+                "an evaluator changed while the slice was running: the bundle read "
+                f"{evaluator_bundle['digest'][:12]} before and "
+                f"{bundle_after['digest'][:12]} after, so this receipt cannot say "
+                "what judged"
+            )
         data_knowledge_subjects = tuple(
             path for item in planned if "data" in item.planes or "knowledge" in item.planes
             for path in item.paths
@@ -1659,6 +1682,7 @@ def _attempt_assurance_blocker(binding: Mapping[str, Any]) -> dict[str, Any] | N
 
 def _refused_receipt(
     *,
+    evaluator_bundle: Mapping[str, Any],
     mission: MissionContract,
     work_item_ids: Sequence[str],
     base_revision: str,
@@ -1683,6 +1707,7 @@ def _refused_receipt(
         "schema": "daedalus-gate1-ignition-receipt/1",
         "gate": 1,
         "iron_plan": "ALIGNED",
+        "evaluator_bundle": dict(evaluator_bundle),
         "collected_at": collected_at,
         "mission_id": mission.mission_id,
         "mission_sha256": mission.digest,
@@ -1989,6 +2014,13 @@ def write_receipt(
                 == (body.get("evidence_packet") or {}).get("packet_sha256")
             ),
             "check_reports_stable": _reports(previous) == _reports(body),
+            # "TWO COMPLETE RUNS", which the comparison did not require: a
+            # predecessor that ended in blockers, or produced no packet, is not
+            # a run this one can claim to have reproduced (Codex round 3).
+            "previous_run_complete": bool(
+                not (previous.get("blockers") or [])
+                and (previous.get("evidence_packet") or {}).get("packet_sha256")
+            ),
             # WHAT THE PREVIOUS RUN JUDGED WITH. A criterion change moves the
             # base revision (the suite is seeded into it), so the identity
             # fields legitimately differ between the last run under the old
@@ -2013,8 +2045,13 @@ def write_receipt(
             "previous_evaluator_bundle_digest": (
                 (previous.get("evaluator_bundle") or {}).get("digest")
             ),
-            "same_evaluator_bundle": (
+            # BOTH sides must name a bundle. Two receipts that each record
+            # none used to compare None == None and read as "same bundle"
+            # (Codex round 3) -- two refused receipts could claim a replay.
+            "same_evaluator_bundle": bool(
                 (previous.get("evaluator_bundle") or {}).get("digest")
+                and (body.get("evaluator_bundle") or {}).get("digest")
+                and (previous.get("evaluator_bundle") or {}).get("digest")
                 == (body.get("evaluator_bundle") or {}).get("digest")
             ),
             "previous_conformance_test_sha256": (
@@ -2043,6 +2080,9 @@ def write_receipt(
         replay.get("is_replay")
         and replay.get("same_fixture")
         and replay.get("same_evaluator_bundle")
+        and replay.get("previous_run_complete")
+        and not body.get("blockers")
+        and (body.get("evidence_packet") or {}).get("packet_sha256")
         and not replay.get("criterion_changed_since_previous")
         # `is True`, not `is not False`: a missing comparison is not a passing
         # one (Codex round 2).

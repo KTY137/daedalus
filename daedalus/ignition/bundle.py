@@ -46,6 +46,7 @@ edit this module; the bundle makes the edit loud, not impossible.
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import subprocess
 import sys
@@ -107,6 +108,108 @@ def _blob_shas(repo_root: Path, rel: str) -> tuple[str | None, str | None]:
     return working, committed
 
 
+def _module_to_rel(root: Path, module: str) -> str | None:
+    """The in-repo file a dotted module name refers to, or None when it is not
+    in this repository (stdlib, site-packages, a name that is not a module)."""
+
+    parts = module.split(".")
+    for candidate in (root.joinpath(*parts).with_suffix(".py"),
+                      root.joinpath(*parts, "__init__.py")):
+        if candidate.is_file():
+            try:
+                return candidate.relative_to(root).as_posix()
+            except ValueError:
+                return None
+    return None
+
+
+def _imports_of(root: Path, rel: str) -> set[str]:
+    """Dotted names imported by one file, read from its AST rather than by
+    importing it: hashing must not execute the code it is about to describe."""
+
+    try:
+        tree = ast.parse((root / rel).read_text(encoding="utf-8"), filename=rel)
+    except (OSError, SyntaxError, UnicodeError):
+        return set()
+    names: set[str] = set()
+    package = rel[: -len("/__init__.py")] if rel.endswith("__init__.py") else rel[: -len(".py")]
+    package_parts = package.split("/")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                # level 1 means "the package this file lives in". For a module
+                # that is parts minus the module itself; for an __init__ the
+                # package IS the file's directory, so one fewer is stripped.
+                # Measured 2026-08-23: the first version had these the wrong way
+                # round and silently dropped `from ._reference_claims import ...`
+                # -- the exact module Codex named as escaping the digest.
+                strip = node.level - (1 if rel.endswith("__init__.py") else 0)
+                base = package_parts[: len(package_parts) - strip] if strip >= 0 else package_parts
+                prefix = ".".join(base)
+            else:
+                prefix = ""
+            module = ".".join(part for part in (prefix, node.module or "") if part)
+            if module:
+                names.add(module)
+                # `from x import y` may name a submodule rather than an object
+                names.update(f"{module}.{alias.name}" for alias in node.names)
+    return names
+
+
+def import_closure(root: Path, roots: Sequence[str]) -> tuple[str, ...]:
+    """Every in-repo module reachable by import from the evaluator roots.
+
+    WHY THE CLOSURE AND NOT THE ROOTS. Codex round 3, 2026-08-23: the roots are
+    wrappers. ``reference_compiler`` delegates the actual cross-plane verdict to
+    ``_reference_claims.verify_claims``; changing THAT could accept an invalid
+    Fourfold while every root's digest stayed put. A judge is its transitive
+    code, so the identity has to be too.
+
+    MEASURED on this tree: the closure is 124 modules, essentially the daedalus
+    package. That is not a mistake in the measurement -- the evaluators really
+    do reach that far -- and it is why the closure is recorded as its own digest
+    beside the roots rather than replacing them: a reviewer reads the six roots,
+    and the digest still moves when anything they reach changes.
+    """
+
+    seen: set[str] = {rel for rel in roots if (root / rel).is_file()}
+    queue = list(seen)
+    while queue:
+        rel = queue.pop()
+        for module in _imports_of(root, rel):
+            target = _module_to_rel(root, module)
+            if target and target not in seen:
+                seen.add(target)
+                queue.append(target)
+    return tuple(sorted(seen))
+
+
+def _blob_shas_bulk(repo_root: Path, rels: Sequence[str]) -> dict[str, str | None]:
+    """``git hash-object`` for many paths in one call.
+
+    124 separate subprocesses cost more than the rest of the bundle put
+    together on this platform; --stdin-paths answers them all at once.
+    """
+
+    if not rels:
+        return {}
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "hash-object", "--stdin-paths"],
+            input="\n".join(rels) + "\n", capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {rel: None for rel in rels}
+    if proc.returncode != 0:
+        return {rel: None for rel in rels}
+    lines = proc.stdout.split()
+    if len(lines) != len(rels):
+        return {rel: None for rel in rels}
+    return dict(zip(rels, lines))
+
+
 def _toolchain() -> dict[str, str]:
     try:
         import pytest  # noqa: PLC0415 - read at bundle time on purpose
@@ -162,10 +265,24 @@ def evaluator_bundle(
             # uncommitted evaluator is normal; what is not normal is a receipt
             # that reads as pinned while the code that judged is not the code
             # anyone can fetch.
-            "uncommitted": bool(working and committed and working != committed),
+            # A MISSING COMMITTED SHA IS NOT A CLEAN ONE. Outside git, in an
+            # unborn repository, or for an untracked evaluator, `rev-parse
+            # HEAD:path` fails while `hash-object` still answers -- and the
+            # first version read that as committed (Codex round 3, 2026-08-23).
+            "uncommitted": bool(working and working != committed),
             "unreadable": raw is None or working is None,
         }
 
+    closure_rels = import_closure(root, tuple(modules))
+    closure_shas = _blob_shas_bulk(root, closure_rels)
+    closure = {
+        "count": len(closure_rels),
+        "modules": closure_shas,
+        "unreadable": sorted(rel for rel, sha in closure_shas.items() if sha is None),
+    }
+    closure["digest"] = canonical_sha(
+        {"schema": "daedalus-gate1-evaluator-closure/1", "modules": closure_shas}
+    )
     identity_evaluators = {
         rel: {"blob_sha1": row["blob_sha1"]} for rel, row in evaluators.items()
     }
@@ -181,6 +298,7 @@ def evaluator_bundle(
         },
         "nodes": {gate: list(ids) for gate, ids in sorted(node_ids.items())},
         "evaluators": evaluators,
+        "closure": closure,
         "toolchain": _toolchain(),
     }
     # THE DIGEST IS OVER CONTENT IDENTITY ONLY -- the criterion, the node
@@ -194,10 +312,12 @@ def evaluator_bundle(
         "criterion": body["criterion"],
         "nodes": body["nodes"],
         "evaluators": identity_evaluators,
+        "closure_digest": closure["digest"],
         "toolchain": body["toolchain"],
     })
-    body["fully_committed"] = not any(
-        row["uncommitted"] or row["unreadable"] for row in evaluators.values()
+    body["fully_committed"] = (
+        not any(row["uncommitted"] or row["unreadable"] for row in evaluators.values())
+        and not closure["unreadable"]
     )
     return body
 
@@ -215,7 +335,7 @@ def bundle_blockers(bundle: Mapping[str, Any]) -> list[str]:
     out: list[str] = []
     unreadable = sorted(
         rel for rel, row in (bundle.get("evaluators") or {}).items() if row.get("unreadable")
-    )
+    ) + list((bundle.get("closure") or {}).get("unreadable") or ())
     if unreadable:
         out.append(
             "the evaluator bundle could not read " + ", ".join(unreadable)
@@ -228,6 +348,7 @@ def bundle_blockers(bundle: Mapping[str, Any]) -> list[str]:
 
 __all__ = [
     "EVALUATOR_MODULES",
+    "import_closure",
     "SCHEMA",
     "bundle_blockers",
     "evaluator_bundle",

@@ -51,11 +51,32 @@ def test_the_bundle_names_the_criterion_the_nodes_the_evaluators_and_the_toolcha
     assert len(body["digest"]) == 64
 
 
-def test_the_digest_is_a_function_of_content_only():
-    """Called twice on an unchanged tree it must not move: an identity that
-    changes when nobody changed a judge is an identity nobody can compare."""
+def test_the_digest_is_a_function_of_content_and_not_of_the_path(tmp_path):
+    """Codex round 3 called the first version of this test weak, and it was: it
+    called one function twice on one tree, which proves determinism and nothing
+    about content. Two SEPARATE trees with identical content must agree, and a
+    tree whose content differs by one byte must not."""
 
-    assert _bundle()["digest"] == _bundle()["digest"]
+    import subprocess as sp
+
+    def repo_with(name: str, text: str) -> Path:
+        # named explicitly: deriving the directory from the content collided for
+        # the two trees this test needs to hold IDENTICAL content
+        repo = tmp_path / name
+        repo.mkdir()
+        sp.run(["git", "-C", str(repo), "init", "-q"], check=True)
+        sp.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
+        sp.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+        (repo / "judge.py").write_text(text, encoding="utf-8")
+        sp.run(["git", "-C", str(repo), "add", "judge.py"], check=True)
+        sp.run(["git", "-C", str(repo), "commit", "-q", "-m", "j"], check=True)
+        return repo
+
+    same_a = _bundle(root=repo_with("a", "def verdict():\n    return True\n"), modules=("judge.py",))
+    same_b = _bundle(root=repo_with("b", "def verdict():\n    return True\n"), modules=("judge.py",))
+    other = _bundle(root=repo_with("c", "def verdict():\n    return False\n"), modules=("judge.py",))
+    assert same_a["digest"] == same_b["digest"], "identical content in two trees must agree"
+    assert same_a["digest"] != other["digest"]
 
 
 def test_a_changed_criterion_changes_the_digest():
@@ -145,12 +166,89 @@ def test_an_unreadable_evaluator_is_refused(tmp_path):
 
 def test_the_bundle_describes_the_judge_and_never_the_judged():
     """Mixing the candidate into the bundle would give every candidate its own
-    bundle and make the comparison meaningless. Nothing here may name the
-    fixture, the candidate or a run."""
+    bundle and make the comparison meaningless.
 
-    body = json.dumps(_bundle())
-    for forbidden in ("fixture", "candidate", "attempt", "mission"):
-        assert forbidden not in body, forbidden
+    Asserted on the SHAPE, not on substrings: the first version forbade the word
+    "attempt" anywhere in the serialised bundle and then tripped over
+    ``daedalus/spine/attempt.py``, which the closure names legitimately -- a
+    module path is not a run. What must be absent is any key that identifies a
+    RUN, and any path that is a run artefact.
+    """
+
+    body = _bundle()
+    assert set(body) == {
+        "schema", "criterion", "nodes", "evaluators", "closure", "toolchain",
+        "digest", "fully_committed",
+    }
+    run_shaped = {"mission_id", "attempt_id", "attempt_ids", "candidate_revision",
+                  "base_revision", "fixture_tree_sha256", "work_item_ids", "collected_at"}
+    assert not (run_shaped & set(body))
+    for rel in list(body["evaluators"]) + list(body["closure"]["modules"]):
+        assert (ROOT / rel).is_file(), rel
+        assert not rel.startswith("runs/"), rel
+
+
+# --------------------------------------------------------------------------- #
+# the transitive closure (Codex round 3)                                       #
+# --------------------------------------------------------------------------- #
+def test_the_closure_reaches_the_module_that_actually_decides():
+    """The roots are wrappers. ``reference_compiler`` delegates the cross-plane
+    verdict to ``_reference_claims.verify_claims`` -- the module Codex named as
+    escaping the digest -- and reaches it through a RELATIVE import, which the
+    first closure implementation resolved with the sign the wrong way round and
+    silently dropped. This is the test that would have caught that."""
+
+    closure = ignition_bundle.import_closure(ROOT, ignition_bundle.EVALUATOR_MODULES)
+    assert "daedalus/twin/_reference_claims.py" in closure
+    assert "daedalus/twin/_reference_inventory.py" in closure
+    assert "daedalus/spine/receipts.py" in closure
+    assert set(ignition_bundle.EVALUATOR_MODULES) <= set(closure)
+    # and nothing outside the repository sneaks in
+    for rel in closure:
+        assert (ROOT / rel).is_file(), rel
+        assert not rel.startswith(".."), rel
+
+
+def test_a_change_below_the_roots_moves_the_digest(tmp_path):
+    """A judge is its transitive code. Editing a module the roots merely IMPORT
+    must move the identity, or the bundle names less than it looks."""
+
+    import subprocess as sp
+
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    sp.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    sp.run(["git", "-C", str(repo), "config", "user.email", "t@t"], check=True)
+    sp.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
+    (repo / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (repo / "pkg" / "deep.py").write_text("LIMIT = 1\n", encoding="utf-8")
+    (repo / "pkg" / "root.py").write_text("from .deep import LIMIT\n", encoding="utf-8")
+    sp.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    sp.run(["git", "-C", str(repo), "commit", "-q", "-m", "p"], check=True)
+
+    before = _bundle(root=repo, modules=("pkg/root.py",))
+    assert "pkg/deep.py" in before["closure"]["modules"], "the relative import must be followed"
+    (repo / "pkg" / "deep.py").write_text("LIMIT = 999\n", encoding="utf-8")
+    after = _bundle(root=repo, modules=("pkg/root.py",))
+    assert after["evaluators"]["pkg/root.py"]["blob_sha1"] == before["evaluators"]["pkg/root.py"]["blob_sha1"]
+    assert after["digest"] != before["digest"], "a change the roots only import must still move it"
+
+
+def test_an_untracked_evaluator_is_not_reported_as_committed(tmp_path):
+    """Outside git, in an unborn repository, or for an untracked evaluator,
+    `rev-parse HEAD:path` fails while `hash-object` still answers -- and the
+    first version read that as committed (Codex round 3)."""
+
+    import subprocess as sp
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    sp.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    (repo / "judge.py").write_text("x = 1\n", encoding="utf-8")   # never committed
+    body = _bundle(root=repo, modules=("judge.py",))
+    assert body["evaluators"]["judge.py"]["committed_blob_sha1"] is None
+    assert body["evaluators"]["judge.py"]["uncommitted"] is True
+    assert body["fully_committed"] is False
 
 
 # --------------------------------------------------------------------------- #
@@ -226,3 +324,51 @@ def test_a_predecessor_without_a_bundle_is_refused_and_told_apart(two_runs, tmp_
         **{name: True for name in gate1.REPLAY_REQUIRED_STABLE},
     })
     assert "different evaluator bundle" in other[0] and "dddddddddddd" in other[0]
+
+
+# --------------------------------------------------------------------------- #
+# a replay is two COMPLETE runs under one bundle (Codex round 3)                #
+# --------------------------------------------------------------------------- #
+def test_a_replay_needs_two_complete_runs(tmp_path):
+    """A predecessor that ended in blockers, or produced no packet, is not a run
+    this one can claim to have reproduced. The comparison used to require
+    neither."""
+
+    import json as _json
+
+    receipts = tmp_path / "incomplete"
+    first = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
+    body = _json.loads(path.read_text(encoding="utf-8"))
+    body["blockers"] = ["a blocker the previous run ended with"]
+    path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
+
+    second = gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    replay = second.receipt["replay"]
+    assert replay["same_evaluator_bundle"] is True      # the bundle did not move
+    assert replay["previous_run_complete"] is False
+    assert replay["replay_demonstrated"] is False       # ... and the claim does not survive it
+
+
+def test_two_receipts_without_a_bundle_do_not_read_as_the_same_bundle(tmp_path):
+    """None == None used to read as "same bundle", so two refused receipts could
+    claim a replay between them."""
+
+    import json as _json
+
+    receipts = tmp_path / "bundleless"
+    gate1.run_gate1_ignition(receipt_root=receipts, collected_at="2026-08-22T00:00:00Z")
+    path = receipts / "mission-gate1-voltage-ignition" / "receipt.json"
+    body = _json.loads(path.read_text(encoding="utf-8"))
+    del body["evaluator_bundle"]
+    path.write_text(_json.dumps(body, indent=2, sort_keys=True) + chr(10), encoding="utf-8")
+
+    # a body that also records no bundle, compared against it
+    from daedalus.ignition.gate1 import write_receipt
+
+    stripped = dict(body)
+    stripped["collected_at"] = "2026-08-22T00:00:01Z"
+    _path, written = write_receipt(stripped, receipts)
+    assert written["replay"]["same_evaluator_bundle"] is False
+    assert written["replay"]["replay_demonstrated"] is False
+    assert any("records no evaluator bundle" in b for b in written["blockers"])
