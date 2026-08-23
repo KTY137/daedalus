@@ -53,6 +53,15 @@ MUTATIONS = {
         '"closed": True,',
         "",
     ),
+    # This stage alone never authenticates a surface: the effect-lease replay
+    # proves one stage ran, not that every applicable stage did.  The literal
+    # was unpinned until now, so a flip to ``True`` here would have travelled
+    # into the report with nothing noticing.
+    "forge-evidence-authentication": (
+        '"evidence_authenticated": False,',
+        '"evidence_authenticated": True,',
+        "",
+    ),
 }
 
 
