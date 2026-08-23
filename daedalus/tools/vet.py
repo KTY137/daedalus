@@ -64,7 +64,7 @@ from ..sensitivity import lane_for_host
 
 # Bump when the MEANING of a verdict changes, so a stored verdict from an older
 # ruleset is detectable rather than silently trusted.
-VET_VERSION = "1"
+VET_VERSION = "2"
 
 CLEAR = "clear"                 # scanned in full, nothing matched
 REVIEW = "review"               # scanned, something a human must look at
@@ -441,7 +441,11 @@ def mcp_spec_digest(spec) -> str:
     Most env VALUES are excluded and only the KEYS are hashed. Including every
     value would make the digest churn each time a token rotated, which quietly
     invalidates every pinned allowance and teaches operators to write unpinned
-    ones instead -- the exact failure this function exists to prevent.
+    ones instead -- the exact failure this function exists to prevent. The one
+    additional projection is a URL-shaped value's secret-free egress endpoint:
+    scheme, host and explicit port. ``vet_mcp_server`` emits ``mcp.egress`` for
+    that endpoint, so a pin which omits it can acknowledge a destination nobody
+    reviewed.
 
     ADVERSARIAL REVIEW 2026-07-30 showed that "keys capture WHAT is being
     injected" is false for a specific and dangerous class of variable. Proven
@@ -457,10 +461,12 @@ def mcp_spec_digest(spec) -> str:
     * ``_EXEC_DIRECTING_ENV`` values are hashed in full. They select an
       interpreter, a preload, a module search path or a package registry, and
       two servers differing only there are not the same server.
-    * every other value is excluded, so token rotation still does not invalidate
-      a pin. That was the right instinct and it is preserved exactly.
+    * every other value is excluded, except for URL-shaped text already consumed
+      by the egress scanner. Only scheme, host and explicit port are bound;
+      userinfo, path, query and fragment stay out, so credentials and unrelated
+      token rotation still do not invalidate a destination acknowledgement.
 
-    Three further collisions from the same review, all closed here:
+    Four further collisions, all closed here:
 
     * ``cwd`` was in nothing. ``/home/me/reviewed`` and ``/tmp/attacker``
       hashed identically.
@@ -470,6 +476,8 @@ def mcp_spec_digest(spec) -> str:
     * a non-dict ``env`` (``[["API_KEY","x"]]``, ``"API_KEY=x"``) hashed the
       same as a MISSING env, so malformed config was indistinguishable from
       absent config. Its shape is now recorded instead.
+    * an Env URL's host was scanned into a BLOCK finding but omitted from this
+      digest, so a pin for one host acknowledged another host under the same key.
 
     Header VALUES stay excluded for the original reason: that is where bearer
     tokens live, and their keys already say what is being sent.
@@ -494,6 +502,8 @@ def mcp_spec_digest(spec) -> str:
         exec_env = sorted(
             (str(k), str(v)) for k, v in env.items()
             if str(k).upper() in _EXEC_DIRECTING_ENV)
+        env_egress_endpoints = _egress_endpoint_identities(
+            str(v) for v in env.values())
     else:
         env_keys = []
         # NOT "absent". A list-of-pairs or a "K=V" string is a configuration
@@ -501,6 +511,7 @@ def mcp_spec_digest(spec) -> str:
         # allowance silently covers.
         env_shape = "absent" if env is None else type(env).__name__
         exec_env = []
+        env_egress_endpoints = []
     canonical = {
         "command": str(spec.get("command") or ""),
         "args": [str(a) for a in (spec.get("args") or [])],
@@ -513,6 +524,10 @@ def mcp_spec_digest(spec) -> str:
         "env_shape": env_shape,
         "exec_directing_env": exec_env,
     }
+    # Keep unrelated specs byte-for-byte stable. Only a spec which actually
+    # carries an environment endpoint gains this identity component.
+    if env_egress_endpoints:
+        canonical["env_egress_endpoints"] = env_egress_endpoints
     blob = _json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -1046,9 +1061,61 @@ def vet_skill(skill, *, allowances=None) -> Verdict:
 #: review on 2026-07-30 this pattern matched ``https?`` only: a spec of
 #: ``{"type":"ws","url":"wss://evil.tld/mcp"}`` reached the egress check with
 #: nothing to check, so the one question this gate exists to ask about a remote
-#: server was never asked. The match is used WHOLE, never dissected -- see the
-#: egress block in :func:`vet_mcp_server`.
+#: server was never asked. The match is passed WHOLE to ``lane_for_host`` so
+#: this module never re-decides trust. Representation helpers below separately
+#: reduce it to a secret-free endpoint for pin identity and finding output.
 _URL_IN_ARG = re.compile(r"(?:https?|wss?)://[^/\s'\"]+", re.I)
+
+
+def _urls_in_sources(sources) -> list[str]:
+    """The exact URL-shaped strings inspected by the MCP egress lane."""
+    return sorted({m.group(0) for source in sources
+                   for m in _URL_IN_ARG.finditer(str(source))})
+
+
+def _egress_endpoint_identity(url: str) -> tuple[str, str, str]:
+    """Secret-free identity of one URL's destination.
+
+    This is a representation helper, not a trust decision: the whole original
+    URL still goes to ``sensitivity.lane_for_host``. Identity retains only
+    lower-cased scheme and host plus an explicit port. Userinfo and everything
+    after the authority are deliberately absent, so rotating credentials or a
+    path does not turn an endpoint acknowledgement into a secret digest.
+
+    A URL matched by the lexical scanner can still be malformed for
+    ``urlsplit`` (for example an invalid port). Such input remains distinct via
+    an opaque digest, but its raw bytes are never copied into identity output.
+    """
+    import hashlib
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = urlsplit(url)
+        scheme = parsed.scheme.strip().lower()
+        host = (parsed.hostname or "").strip().lower()
+        port = "" if parsed.port is None else str(parsed.port)
+    except (ValueError, UnicodeError):
+        scheme = host = port = ""
+    if scheme and host:
+        return scheme, host, port
+    opaque = hashlib.sha256(url.encode("utf-8", "surrogatepass")).hexdigest()
+    return "opaque-sha256", opaque, ""
+
+
+def _egress_endpoint_identities(sources) -> list[tuple[str, str, str]]:
+    """Sorted unique destination identities from URL-shaped source text."""
+    return sorted({_egress_endpoint_identity(url)
+                   for url in _urls_in_sources(sources)})
+
+
+def _egress_endpoint_excerpt(url: str) -> str:
+    """Human-readable destination without URL credentials or path material."""
+    scheme, host, port = _egress_endpoint_identity(url)
+    if scheme == "opaque-sha256":
+        return "<unparseable-url>"
+    display_host = f"[{host}]" if ":" in host else host
+    return f"{scheme}://{display_host}{':' + port if port else ''}"
+
 
 #: The floor, applied to every token whether or not a launcher was recognised.
 #: This is the pre-2026-07-30 rule and it is kept verbatim in effect so the
@@ -1470,8 +1537,8 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
     #
     # `lane_for_host` already parses with `urlsplit().hostname`, which strips
     # userinfo and unwraps brackets. Handing it the whole match deletes the
-    # second parser instead of repairing it, and the finding then quotes the
-    # URL that was actually written -- which is the evidence a human needs.
+    # second POLICY parser instead of repairing it. The finding renders the
+    # parsed destination without userinfo, so evidence does not echo a password.
     #
     # Odysseus 2026-08-21 F9 / Cerberus residual. A destination can hide in an
     # env VALUE (``WEBHOOK=https://evil.tld/x``) or in ``cwd`` as easily as on the
@@ -1490,20 +1557,21 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
     spec_env = spec.get("env")
     if isinstance(spec_env, dict):
         egress_sources.extend(str(v) for v in spec_env.values())
-    urls = sorted({m.group(0) for a in egress_sources
-                   for m in _URL_IN_ARG.finditer(a)})
+    urls = _urls_in_sources(egress_sources)
     for u in urls:
         lane = lane_for_host(u)
+        endpoint = _egress_endpoint_excerpt(u)
         if lane != "trusted":
             # BLOCK, not REVIEW: this branch is only reached for a non-trusted
             # lane, i.e. bytes that leave this machine. See _SYNTHETIC_RULE_
             # SEVERITY["mcp.egress"]. A body_sha256-pinned allowance can downgrade
             # it to REVIEW; nothing else can.
-            findings.append(Finding("mcp.egress", BLOCK, f"<mcp:{name}>", 0, u,
-                                    f"reaches {u}, which sensitivity.lane_for_host "
+            findings.append(Finding("mcp.egress", BLOCK, f"<mcp:{name}>", 0,
+                                    endpoint,
+                                    f"reaches {endpoint}, which sensitivity.lane_for_host "
                                     f"calls {lane}"))
         else:
-            notes.append(f"{u} is on the trusted lane (this machine)")
+            notes.append(f"{endpoint} is on the trusted lane (this machine)")
 
     env = spec.get("env")
     if isinstance(env, dict) and env:
