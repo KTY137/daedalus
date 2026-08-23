@@ -24,6 +24,12 @@ KERNEL = ROOT / "daedalus/kernel/offload_lease.py"
 PRODUCER = ROOT / "scripts/declare_write_surfaces.py"
 KERNEL_TESTS = "tests/kernel/test_write_evidence_records.py"
 PRODUCER_TESTS = "tests/gates/test_write_evidence_producer.py"
+#: The issuer's refusal predicate, and the producer's lease-dominance guard.
+#: Same two files, same chain: the predicate decides which doors can hold a
+#: lease at all and the guard decides which writes that lease covers, so a
+#: guard disabled on either side produces the same lie.
+RULE_TESTS = "tests/kernel/test_effect_lease_issuer_rule.py"
+DOMINANCE_TESTS = "tests/gates/test_write_surface_lease_dominance.py"
 
 # name -> (target file, needle, replacement, test node id)
 MUTATIONS: dict[str, tuple[Path, str, str, str]] = {
@@ -119,6 +125,100 @@ MUTATIONS: dict[str, tuple[Path, str, str, str]] = {
         "    if False and admitted:\n        raise DeclarationError(\n",
         f"{PRODUCER_TESTS}::test_the_declaration_file_refuses_to_carry_an_admitted_row",
     ),
+    # --- the issuer's refusal predicate -----------------------------------
+    # One mutation per conjunct of `issuable_row`. Disabling any of them turns
+    # the issuer back into what the hard-coded ENTRYPOINT_ID was protecting
+    # against: a helper that mints a capability for a row whose guards it did
+    # not run, or whose effects the scope it builds cannot bound.
+    "issue-for-a-row-whose-contracts-this-issuer-cannot-run": (
+        KERNEL,
+        "    unrunnable = sorted(set(spec.guard_contracts) - ISSUER_CONTRACTS)\n",
+        "    unrunnable = []\n",
+        f"{RULE_TESTS}::"
+        "test_a_row_whose_contracts_this_issuer_cannot_run_is_refused_by_name",
+    ),
+    "issue-for-a-runtime-bearing-row": (
+        KERNEL,
+        "    if spec.runtime_id:\n        reasons.append(\n",
+        "    if False and spec.runtime_id:\n        reasons.append(\n",
+        f"{RULE_TESTS}::test_a_runtime_bearing_row_is_refused",
+    ),
+    "issue-for-a-non-central-row": (
+        KERNEL,
+        "    if spec.wiring is not Wiring.CENTRAL:\n",
+        "    if False and spec.wiring is not Wiring.CENTRAL:\n",
+        f"{RULE_TESTS}::test_a_non_central_row_is_refused",
+    ),
+    "issue-for-a-row-whose-effects-the-scope-cannot-bound": (
+        KERNEL,
+        "    unboundable = sorted(declared_effects - ISSUER_EFFECTS)\n",
+        "    unboundable = []\n",
+        f"{RULE_TESTS}::test_a_row_whose_effects_the_scope_cannot_bound_is_refused",
+    ),
+    "bound-an-effect-with-a-contract-the-row-never-declared": (
+        KERNEL,
+        "        if EFFECT_BOUNDS[effect] not in spec.guard_contracts\n",
+        "        if False and EFFECT_BOUNDS[effect] not in spec.guard_contracts\n",
+        f"{RULE_TESTS}::test_the_gate_door_is_refused_for_an_unfenced_write",
+    ),
+    # --- what a grant for a row that is not python.offload may carry -------
+    "decide-a-contract-the-row-did-not-declare": (
+        KERNEL,
+        '    if "containment.attempt" in declared_contracts:\n',
+        "    if True:\n",
+        f"{RULE_TESTS}::test_the_grant_can_really_start_an_execution",
+    ),
+    "grant-a-write-root-to-a-row-that-declares-no-write": (
+        KERNEL,
+        "    if not writes:\n        declared_paths = ()\n",
+        "    if False and not writes:\n        declared_paths = ()\n",
+        f"{RULE_TESTS}::test_a_row_without_egress_or_spend_is_granted_neither",
+    ),
+    "retain-a-disjointness-record-for-a-row-that-took-no-decision": (
+        KERNEL,
+        "    if not (declared_contracts & CONTAINMENT_CONTRACTS):\n",
+        "    if False and not (declared_contracts & CONTAINMENT_CONTRACTS):\n",
+        f"{RULE_TESTS}::"
+        "test_a_row_with_no_containment_contract_retains_no_disjointness_record",
+    ),
+    "let-the-wave-wrapper-be-told-which-row": (
+        KERNEL,
+        '    if "entrypoint_id" in kwargs:\n',
+        '    if kwargs.pop("entrypoint_id", None) and False:\n',
+        f"{RULE_TESTS}::test_the_wave_wrapper_refuses_to_be_told_which_row",
+    ),
+    # --- the lease-dominance guard ----------------------------------------
+    # A door that HELD a lease is not a write that was UNDER one.
+    "classify-a-surface-the-lease-does-not-dominate-as-central": (
+        PRODUCER,
+        "            and lease_dominated\n",
+        "            and True\n",
+        f"{DOMINANCE_TESTS}::"
+        "test_a_write_between_the_receipt_and_the_lease_is_not_central",
+    ),
+    "seed-the-leased-region-from-the-free-receipt-call": (
+        PRODUCER,
+        "        and isinstance(node.func, ast.Attribute)\n"
+        '        and node.func.attr == "begin_effect"\n',
+        '        and getattr(node.func, "attr", getattr(node.func, "id", "")) '
+        '== "begin_effect"\n',
+        f"{DOMINANCE_TESTS}::"
+        "test_a_door_that_consumes_no_lease_has_an_empty_leased_region",
+    ),
+    "report-an-authenticated-door-that-classified-nothing-as-silence": (
+        PRODUCER,
+        "        if not held:\n",
+        "        if not held and False:\n",
+        f"{DOMINANCE_TESTS}::"
+        "test_an_authenticated_door_that_classifies_nothing_says_so",
+    ),
+    "reuse-the-anchor-region-as-the-leased-region": (
+        PRODUCER,
+        "        leased_positions = frozenset()\n        leased_refusal = (\n",
+        "        leased_positions = positions\n        leased_refusal = (\n",
+        f"{DOMINANCE_TESTS}::"
+        "test_a_door_that_consumes_no_lease_has_an_empty_leased_region",
+    ),
 }
 
 
@@ -137,7 +237,7 @@ def _run(*tests: str) -> subprocess.CompletedProcess[str]:
 def main() -> int:
     originals = {path: path.read_text(encoding="utf-8") for path in (KERNEL, PRODUCER)}
     try:
-        baseline = _run(KERNEL_TESTS, PRODUCER_TESTS)
+        baseline = _run(KERNEL_TESTS, PRODUCER_TESTS, RULE_TESTS, DOMINANCE_TESTS)
     except subprocess.TimeoutExpired:
         print("baseline timed out", file=sys.stderr)
         return 2
