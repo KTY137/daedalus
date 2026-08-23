@@ -275,7 +275,12 @@ class NoSecondKernelNoun(unittest.TestCase):
     """
 
     #: The complete internal vocabulary build.py is allowed to define.
-    ALLOWED_CLASSES = frozenset({"BuildTask", "Wave", "BuildSession"})
+    # WorkItemIdentityError (ab0c92ce) is an ERROR raised by bind_work_items
+    # when a re-plan would re-derive a bound id; it names the kernel noun to
+    # say what it protects and defines no second vocabulary for it. The
+    # reference rule below still holds for every other occurrence.
+    ALLOWED_CLASSES = frozenset({"BuildTask", "Wave", "BuildSession",
+                                 "WorkItemIdentityError"})
 
     #: Nouns that belong to the canonical kernel contracts.
     KERNEL_NOUNS = ("mission", "attempt", "evidence", "campaign", "receipt",
@@ -283,7 +288,8 @@ class NoSecondKernelNoun(unittest.TestCase):
 
     #: Defined names that may CONTAIN a kernel noun, because each is a
     #: reference to the canonical id rather than a new thing.
-    ALLOWED_REFERENCES = frozenset({"mission_id", "mission_id_for_session"})
+    ALLOWED_REFERENCES = frozenset({"mission_id", "mission_id_for_session",
+                                    "WorkItemIdentityError"})
 
     def setUp(self):
         self.tree = ast.parse(BUILD_PY.read_text(encoding="utf-8"))
@@ -318,6 +324,7 @@ class NoSecondKernelNoun(unittest.TestCase):
             for node in ast.walk(self.tree)
             if isinstance(node, ast.ClassDef)
             and any(noun in node.name.lower() for noun in self.KERNEL_NOUNS)
+            and node.name not in self.ALLOWED_CLASSES
         ]
         self.assertEqual(offenders, [], (
             "build.py defines a class named after a canonical kernel contract; "

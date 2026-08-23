@@ -518,6 +518,30 @@ def test_check_catches_a_tree_that_moved_under_the_file(repo, reports):
     assert any("pkg/newisland.py" in p for p in report["problems"])
 
 
+def test_a_linked_worktree_records_the_revision_from_the_common_dir(tmp_path):
+    """agent_env_g0 IS a linked worktree: its ``.git`` is a file pointing at
+    ``<main>/.git/worktrees/<name>``, which holds HEAD but not refs/heads --
+    those live in the main repository named by ``commondir``. Every inventory
+    regenerated there said ``head: unknown`` until the shared refs were read
+    from the common dir (MEASURED 2026-08-23)."""
+    main = tmp_path / "main"
+    fake_git(main)                                   # refs/heads live HERE
+    wt_gitdir = main / ".git" / "worktrees" / "g0"
+    wt_gitdir.mkdir(parents=True)
+    (wt_gitdir / "HEAD").write_text(f"ref: refs/heads/{FIXTURE_BRANCH}\n",
+                                    encoding="utf-8")
+    (wt_gitdir / "commondir").write_text("../.."+chr(10), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    (linked / ".git").write_text(f"gitdir: {wt_gitdir}\n", encoding="utf-8")
+
+    path = linked / "docs" / "inv.json"
+    inventory.refresh(linked, path, probe_dirty=False)
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    assert doc["repo_state"]["head"] == FIXTURE_SHA
+    assert doc["repo_state"]["branch"] == FIXTURE_BRANCH
+
+
 def test_the_generated_file_records_the_revision_it_was_generated_against(repo):
     fake_git(repo)
     path = repo / "docs" / "inv.json"

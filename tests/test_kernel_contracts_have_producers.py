@@ -58,10 +58,9 @@ UNCALLED_PRODUCERS = {
     # The only honest call site is the picker -- the one piece of live code that
     # decides what to work on next. That hunk is delivered as an unapplied diff
     # because the picker is outside this change's edit boundary.
-    # The build path's mission. Its only honest call site is build_exec's wave
-    # runner, which is outside the vocabulary change's edit boundary; the hunk
-    # is delivered as a diff (HUNK 1) instead of applied.
-    "mission_contract_for_build_session": "build_exec call site delivered as a diff, not applied",
+    # (mission_contract_for_build_session left this list on 2026-08-23: the
+    # Gate-1 slice calls it at daedalus/ignition/gate1.py:272, so it has a
+    # live producer and the "delivered as a diff" reason was stale.)
 }
 
 

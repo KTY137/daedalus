@@ -148,12 +148,17 @@ def test_an_unusable_declaration_refuses_the_patch_and_says_why(repo, tmp_path):
     could never equal it, so the operator was told the changed path was outside
     a boundary rather than that the boundary itself was unusable.
     """
-    result = _run(repo, tmp_path, "absolute", target_paths=("C:/evil",),
-                  runner=_writer("src/foo.py"))
+    # Since 7d67d305 TaskSpec validates its declaration at construction
+    # (TaskSpecInvalid), so the unusable boundary is refused BEFORE an attempt
+    # exists -- earlier than the gate, with the same words.
+    from daedalus.spine.attempt import TaskSpecInvalid
 
-    assert result.state == STATE_GATES_FAILED
-    assert "no normal form inside the tree" in result.error
-    assert "'C:/evil'" in result.error
+    with pytest.raises(TaskSpecInvalid) as refused:
+        _run(repo, tmp_path, "absolute", target_paths=("C:/evil",),
+             runner=_writer("src/foo.py"))
+
+    assert "no normal form inside the tree" in str(refused.value)
+    assert "'C:/evil'" in str(refused.value)
 
 
 def test_no_declaration_leaves_the_attempt_unconstrained(repo, tmp_path):

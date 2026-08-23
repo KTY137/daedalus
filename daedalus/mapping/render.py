@@ -263,24 +263,52 @@ def _git_dir(repo_root: Path) -> Path | None:
     return None
 
 
+def _common_dir(git_dir: Path) -> Path | None:
+    """The directory shared refs live in. Inside a LINKED worktree ``git_dir``
+    is ``<main>/.git/worktrees/<name>``, which holds only HEAD, the index and
+    worktree-local state; ``refs/heads/*`` and ``packed-refs`` live in the main
+    repository, named by the ``commondir`` file (relative to ``git_dir``).
+    MEASURED 2026-08-23: every inventory regenerated from the agent_env_g0
+    worktree recorded ``head: unknown`` because this was read from the wrong
+    directory, and the committed artifact could not say which tree it scanned.
+    """
+    try:
+        text = (git_dir / "commondir").read_text(encoding="utf-8",
+                                                 errors="replace").strip()
+    except OSError:
+        return None
+    if not text:
+        return None
+    common = Path(text)
+    if not common.is_absolute():
+        common = (git_dir / common).resolve()
+    return common if common.is_dir() else None
+
+
 def _resolve_ref(git_dir: Path, ref: str) -> str:
-    loose = git_dir / ref
-    try:
-        if loose.is_file():
-            return loose.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
-        pass
-    try:
-        packed = (git_dir / "packed-refs").read_text(encoding="utf-8",
-                                                     errors="replace")
-    except OSError:
-        return "unknown"
-    for line in packed.splitlines():
-        if line.startswith(("#", "^")):
+    places = [git_dir]
+    common = _common_dir(git_dir)
+    if common is not None and common != git_dir:
+        places.append(common)
+    for place in places:
+        loose = place / ref
+        try:
+            if loose.is_file():
+                return loose.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            pass
+    for place in places:
+        try:
+            packed = (place / "packed-refs").read_text(encoding="utf-8",
+                                                       errors="replace")
+        except OSError:
             continue
-        parts = line.split(None, 1)
-        if len(parts) == 2 and parts[1].strip() == ref:
-            return parts[0].strip()
+        for line in packed.splitlines():
+            if line.startswith(("#", "^")):
+                continue
+            parts = line.split(None, 1)
+            if len(parts) == 2 and parts[1].strip() == ref:
+                return parts[0].strip()
     return "unknown"
 
 
