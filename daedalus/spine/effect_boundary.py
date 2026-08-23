@@ -284,6 +284,13 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             "containment.worktree",
             "containment.attempt",
             "budget.process_guard",
+            # Declared 2026-08-23 so the effect-lease issuer can draw the
+            # FILESYSTEM_WRITE/REPOSITORY_MUTATION scope from a contract the
+            # row names (issuable_row conjunct 5). The attempt path has always
+            # run the primary-tree write fence; naming the policy contract is
+            # what lets a lease bound the same writes instead of refusing the
+            # row wholesale (the measured Gate-0 wall, B5 handoff).
+            "provider.write_policy",
         ),
         wiring=Wiring.CENTRAL,
         anchors=(

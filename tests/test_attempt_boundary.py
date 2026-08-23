@@ -83,6 +83,10 @@ def test_the_row_is_central_and_anchored():
     assert set(row.guard_contracts) == {
         "spine.intent_ledger", "containment.worktree",
         "containment.attempt", "budget.process_guard",
+        # Declared 2026-08-23: the effect-lease issuer draws the write scope
+        # from this contract (issuable_row conjunct 5); the boundary reports
+        # the attempt's real fences under this name.
+        "provider.write_policy",
     }
 
 

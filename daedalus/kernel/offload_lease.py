@@ -63,6 +63,7 @@ existing handler classifies it as ``killswitch`` rather than ``error``.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -129,6 +130,13 @@ ISSUER_CONTRACTS: frozenset[str] = frozenset(
         "provider.egress_policy",
         "provider.write_policy",
         "containment.attempt",
+        # Since 2026-08-23 the issuer can also run the two contracts the
+        # python.attempt row declares and no issuer implemented, which was
+        # the measured Gate-0 wall (B5 handoff: exactly one door could hold
+        # a lease). Both are functions of subject material a caller supplies,
+        # never of a verdict it supplies:
+        "containment.worktree",     # derive_wave_containment, in-module
+        "spine.intent_ledger",      # _intent_ledger_decision, in-module
     }
 )
 
@@ -193,6 +201,33 @@ ISSUER_KEY_ID = "daedalus.local.effect-issuer"
 KILL_SWITCH_REF = "daedalus.spine.killswitch"
 
 POLICY_VERSION = "daedalus.wave-offload-lease/1"
+
+
+def _issuer_origin(entrypoint_id: str) -> str:
+    """Provenance origin for a lease of ``entrypoint_id``.
+
+    Momus (2026-08-23): routed through the generic issuer, an attempt lease
+    carried ``kernel.wave-offload-lease`` into the signed digest and every
+    retained record -- wave provenance on a lease that never touched a wave.
+    Origin, request id and policy version all derive from the row now; the
+    historical wave spellings are preserved verbatim for ``python.offload`` so
+    no existing receipt, pin or replay changes shape.
+    """
+    if entrypoint_id == ENTRYPOINT_ID:
+        return "kernel.wave-offload-lease"
+    return f"kernel.effect-lease.{entrypoint_id}"
+
+
+def _issuer_policy_version(entrypoint_id: str) -> str:
+    if entrypoint_id == ENTRYPOINT_ID:
+        return POLICY_VERSION
+    return f"daedalus.effect-lease.{entrypoint_id}/1"
+
+
+def _issuer_request_id(entrypoint_id: str, mission_id: str, attempt_id: str) -> str:
+    if entrypoint_id == ENTRYPOINT_ID:
+        return f"{mission_id}-wave-offload-{attempt_id}"
+    return f"{mission_id}-{entrypoint_id}-{attempt_id}"
 
 #: Tools every offload attempt may spawn regardless of lane. `git` is the
 #: snapshot/diff machinery offload uses to measure what changed; `python` is
@@ -1324,6 +1359,82 @@ class WaveOffloadLease:
 # --------------------------------------------------------------------------- #
 # the issuer                                                                   #
 # --------------------------------------------------------------------------- #
+def _intent_ledger_decision(root: Path, effect_key: str | None) -> GuardDecision:
+    """``spine.intent_ledger``, run by the issuer itself.
+
+    The contract at issuance time: the effect key this lease would authorise
+    must already be an INTENDED row in the repository's own attempt ledger --
+    the durable record that precedes the worktree and the runner. A lease for
+    an effect nobody intends is a capability in search of an effect, and an
+    intent that is already resolved is an effect that already happened; both
+    are refusals, not defaults.
+
+    READ-ONLY BY CONSTRUCTION: the ledger is opened with sqlite's ``mode=ro``
+    URI, so this guard cannot create the database it claims to inspect, and a
+    missing ledger is a deny rather than a fresh file. The path comes from
+    :func:`daedalus.spine.picker.resolve_spine_db_path`, the repo-confined
+    resolver -- deliberately not ``DAEDALUS_SPINE_DB``, the process-global
+    surface (Codex, room turn 51: the two resolvers must not be unified).
+    The intent's state is the newest ``intent_events`` row, exactly as
+    :meth:`SpineLedger.get` derives it.
+    """
+    contract = "spine.intent_ledger"
+    if not effect_key:
+        return GuardDecision(
+            contract, False,
+            "the row declares spine.intent_ledger and the caller supplied no "
+            "effect_key; a lease for an attempt nobody intends cannot be "
+            "issued")
+    from daedalus.spine.picker import resolve_spine_db_path
+
+    path, err = resolve_spine_db_path(root)
+    if err or path is None:
+        return GuardDecision(
+            contract, False,
+            f"the attempt ledger path could not be resolved ({err}); an "
+            f"intent with nowhere durable to land is not an intent")
+    if not Path(path).exists():
+        return GuardDecision(
+            contract, False,
+            f"no attempt ledger exists at {path}; the INTENDED row this lease "
+            f"would authorise has nowhere to be")
+    import sqlite3
+
+    try:
+        uri = f"file:{Path(path).resolve().as_posix()}?mode=ro"
+        with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=5)) as conn:
+            row = conn.execute(
+                "SELECT i.id, ("
+                " SELECT e.state FROM intent_events e"
+                " WHERE e.intent_id = i.id ORDER BY e.id DESC LIMIT 1"
+                ") AS state FROM intents i WHERE i.effect_key = ?"
+                " ORDER BY i.id DESC LIMIT 1",
+                (str(effect_key),),
+            ).fetchone()
+    except sqlite3.Error as exc:
+        return GuardDecision(
+            contract, False,
+            f"the attempt ledger at {path} could not be read "
+            f"({type(exc).__name__}: {exc}); an unreadable intent record is "
+            f"no intent record")
+    if row is None:
+        return GuardDecision(
+            contract, False,
+            f"no intent in {path} names effect_key {effect_key!r}; the intent "
+            f"must be recorded before the capability that acts on it")
+    intent_id, state = int(row[0]), str(row[1] or "")
+    if state != "INTENDED":
+        return GuardDecision(
+            contract, False,
+            f"the newest intent for effect_key {effect_key!r} (id {intent_id}) "
+            f"is {state or 'stateless'}, not INTENDED: this lease would "
+            f"authorise an effect whose intent is already resolved")
+    return GuardDecision(
+        contract, True,
+        f"intent {intent_id} is INTENDED for effect_key {effect_key!r} in "
+        f"{path}, read-only; the durable record precedes the capability")
+
+
 def issuable_row(entrypoint_id: str) -> tuple[EntrypointSpec | None, tuple[str, ...]]:
     """The row this issuer may issue for, or every named reason it may not.
 
@@ -1409,6 +1520,8 @@ def _deny(
     *,
     reasons: Sequence[str],
     guard_decisions: Sequence[GuardDecision],
+    origin: str = "kernel.wave-offload-lease",
+    policy_version: str = POLICY_VERSION,
     source_revision: str,
     trace_id: str | None,
     subject_id: str,
@@ -1422,14 +1535,14 @@ def _deny(
         decision_id=f"{subject_id}-deny",
         subject_id=subject_id,
         subject_sha256=subject_sha256,
-        policy_version=POLICY_VERSION,
+        policy_version=policy_version,
         policy_sha256=policy_sha256,
         verdict="deny",
         reasons=tuple(reasons),
         # A deny decision may not carry grants -- the contract enforces it.
         effect_scope=EffectScope(),
         provenance=ContractProvenance(
-            origin="kernel.wave-offload-lease",
+            origin=origin,
             source_revision=source_revision,
             created_at=_timestamp(now),
             # DEDUPED. On this path the subject digest IS the policy digest
@@ -1473,6 +1586,7 @@ def acquire_effect_lease(
     lease_id: str | None = None,
     now: datetime | None = None,
     evidence_root: str | Path | None = None,
+    effect_key: str | None = None,
 ) -> WaveOffloadLease | WaveLeaseDenied:
     """Run the guard contracts ONE registry row declares, then issue or deny.
 
@@ -1514,7 +1628,7 @@ def acquire_effect_lease(
     root = str(Path(repo_root).resolve())
     live_switch = switch if switch is not None else KillSwitch(repo_root=root)
     door = str(entrypoint_id)
-    request_id = f"{mission_id}-wave-offload-{attempt_id}"
+    request_id = _issuer_request_id(door, mission_id, attempt_id)
 
     # -- 0. THE RULE. Before the kill switch, because a row this issuer may
     # never issue for is not a question about this machine's permit state; it
@@ -1535,6 +1649,8 @@ def acquire_effect_lease(
             }
         )
         return _deny(
+            origin=_issuer_origin(door),
+            policy_version=_issuer_policy_version(door),
             reasons=row_refusals,
             guard_decisions=(),
             source_revision=source_revision,
@@ -1698,6 +1814,19 @@ def acquire_effect_lease(
             )
         )
 
+    if "containment.worktree" in declared_contracts:
+        # The same derivation the wave's containment rests on, under the name
+        # the python.attempt row declares: the manager's PLANNED root lands
+        # outside the primary checkout in both directions
+        # (primary_tree.planned_overlap_reason since 0f7f8187).
+        worktree_ok, worktree_evidence = derive_wave_containment(root)
+        guards.append(
+            GuardDecision("containment.worktree", worktree_ok, worktree_evidence)
+        )
+
+    if "spine.intent_ledger" in declared_contracts:
+        guards.append(_intent_ledger_decision(root, effect_key))
+
     # -- 3. the request, and the policy digest over what decided ------------ #
     # WHAT THE ROW DID NOT DECLARE IS NOT GRANTED. `_scope_requirements`
     # refuses a scope that is too NARROW for the declared effects; nothing in
@@ -1759,6 +1888,8 @@ def acquire_effect_lease(
     )
     if refusals:
         return _deny(
+            origin=_issuer_origin(spec.id),
+            policy_version=_issuer_policy_version(spec.id),
             reasons=refusals,
             guard_decisions=guards,
             source_revision=source_revision,
@@ -1785,7 +1916,7 @@ def acquire_effect_lease(
         kill_switch_ref=KILL_SWITCH_REF,
     )
     provenance = ContractProvenance(
-        origin="kernel.wave-offload-lease",
+        origin=_issuer_origin(spec.id),
         source_revision=source_revision,
         created_at=_timestamp(instant),
         trace_id=trace_id,
@@ -1807,7 +1938,7 @@ def acquire_effect_lease(
         decision_id=f"{request_id}-allow",
         subject_id=request.request_id,
         subject_sha256=request.digest,
-        policy_version=POLICY_VERSION,
+        policy_version=_issuer_policy_version(spec.id),
         policy_sha256=policy_sha256,
         verdict="allow",
         reasons=tuple(
@@ -1815,7 +1946,7 @@ def acquire_effect_lease(
         ),
         effect_scope=scope,
         provenance=ContractProvenance(
-            origin="kernel.wave-offload-lease-policy",
+            origin=_issuer_origin(spec.id) + "-policy",
             source_revision=source_revision,
             created_at=_timestamp(instant),
             input_digests=(request.digest, policy_sha256),
@@ -1828,6 +1959,8 @@ def acquire_effect_lease(
     profile_disagreement = profile_root_disagreement()
     if profile_disagreement:
         return _deny(
+            origin=_issuer_origin(spec.id),
+            policy_version=_issuer_policy_version(spec.id),
             reasons=(f"profile.root_relocated: {profile_disagreement}",),
             guard_decisions=guards,
             source_revision=source_revision,
@@ -1955,6 +2088,40 @@ def acquire_wave_offload_lease(
             "acquire_effect_lease(entrypoint_id=...) to ask for another row"
         )
     return acquire_effect_lease(repo_root, entrypoint_id=ENTRYPOINT_ID, **kwargs)
+
+
+ATTEMPT_ENTRYPOINT_ID = "python.attempt"
+
+
+def acquire_attempt_lease(
+    repo_root: str | Path, **kwargs: Any
+) -> "WaveOffloadLease | WaveLeaseDenied":
+    """One attempt's ``python.attempt`` lease. The row is PINNED here, not passed.
+
+    The second narrow entry beside :func:`acquire_wave_offload_lease`, same
+    shape for the same reason: no caller of this function chooses which
+    capability it is asking for. The row's own contracts decide what runs --
+    for ``python.attempt`` that is the intent-ledger check (which is why
+    ``effect_key``, the attempt's branch name, is required here rather than
+    optional), the worktree containment derivation, the write fence over the
+    declared target paths, and the process spend net. ``positions`` is pinned
+    to 1: an attempt is one execution identity, and a retry is a NEW attempt
+    with a NEW effect_key, never a replay of this one.
+    """
+    if "entrypoint_id" in kwargs:
+        raise TypeError(
+            "acquire_attempt_lease() issues for python.attempt only; call "
+            "acquire_effect_lease(entrypoint_id=...) to ask for another row"
+        )
+    if not kwargs.get("effect_key"):
+        raise TypeError(
+            "acquire_attempt_lease() requires effect_key: the attempt's branch "
+            "name is the subject the spine.intent_ledger contract is run over"
+        )
+    kwargs["positions"] = 1
+    return acquire_effect_lease(
+        repo_root, entrypoint_id=ATTEMPT_ENTRYPOINT_ID, **kwargs
+    )
 
 
 __all__ = [

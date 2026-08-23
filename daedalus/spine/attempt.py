@@ -2501,10 +2501,35 @@ class TaskAttempt:
             ),
         )
 
+        # ``provider.write_policy`` -- declared on the row since 2026-08-23 so
+        # the effect-lease issuer can draw the FILESYSTEM_WRITE scope from a
+        # contract the row names. At THIS boundary the decision reports the
+        # fences the attempt actually runs, it does not re-run them: writes
+        # happen only inside the isolated worktree (containment.worktree
+        # above), the primary checkout is refused byte-for-byte at persist
+        # time by ``primary_tree.write_blocked_reason`` inside
+        # ``ArtifactStore``/``_persist``, and the repo-path scope is the
+        # TaskSpec's declared ``target_paths`` -- validated at construction
+        # (``TaskSpecInvalid``) and enforced against the diff by the
+        # containment gate before any patch is accepted.
+        declared_scope = tuple(self.task.target_paths or ())
+        write_policy_decision = GuardDecision(
+            "provider.write_policy",
+            True,
+            (
+                f"attempt-scoped write fence: writes land in the isolated "
+                f"worktree only; primary checkout refused at persist by "
+                f"primary_tree.write_blocked_reason; declared target_paths="
+                f"{list(declared_scope)!r} validated at construction and "
+                f"enforced by the containment gate on the captured diff"
+            ),
+        )
+
         return (
             ledger_decision,
             worktree_decision,
             attempt_decision,
+            write_policy_decision,
             process_guard_boundary_decision(),
         )
 
