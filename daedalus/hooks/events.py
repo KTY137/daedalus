@@ -133,16 +133,33 @@ def _changed_line(root: Path, state: dict) -> str:
     return ""
 
 
-def _watchdog_anomalies(root: Path) -> list[str]:
-    """Anomaly ids from the work watchdog's last health pass (tools/watchdog.py),
-    or [] when it has not run. Read-only; the hook never runs the watchdog."""
+def _watchdog_anomalies(root: Path) -> list[str] | None:
+    """Anomaly ids from the work watchdog's last valid health pass.
+
+    ``None`` means the evidence is unavailable or invalid; an empty list means
+    the watchdog explicitly reported no anomalies. Read-only; the hook never
+    runs the watchdog.
+    """
     try:
         import json
 
         data = json.loads((root / "runs" / "watchdog" / "health.json").read_text(encoding="utf-8"))
-        return sorted(str(a.get("id")) for a in data.get("anomalies", []) if isinstance(a, dict))
-    except (OSError, ValueError, AttributeError):
-        return []
+        if not isinstance(data, dict):
+            return None
+        anomalies = data.get("anomalies")
+        if not isinstance(anomalies, list):
+            return None
+        ids: list[str] = []
+        for anomaly in anomalies:
+            if not isinstance(anomaly, dict):
+                return None
+            anomaly_id = anomaly.get("id")
+            if not isinstance(anomaly_id, str) or not anomaly_id:
+                return None
+            ids.append(anomaly_id)
+        return sorted(ids)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
 
 
 def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
@@ -174,11 +191,12 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
             collected["config"] = "CONFIG changed during this session: " + "; ".join(changed_cfg[-3:])
         # the work watchdog's anomalies, shown when they CHANGE (delta, not wallpaper)
         wd_ids = _watchdog_anomalies(root)
-        if wd_ids != state.get("last_watchdog"):
+        previous_wd_ids = state.get("last_watchdog")
+        if wd_ids is not None and wd_ids != previous_wd_ids:
             state["last_watchdog"] = wd_ids
             if wd_ids:
                 collected["watchdog"] = "WATCHDOG: " + "; ".join(wd_ids) + " (runs/watchdog/HEALTH.md)"
-            elif state.get("last_watchdog") is not None:
+            elif isinstance(previous_wd_ids, list) and bool(previous_wd_ids):
                 collected["watchdog"] = "WATCHDOG: all clear"
         
 
