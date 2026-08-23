@@ -45,14 +45,17 @@ DEFINITION_PATTERN = re.compile(
 TRANSCRIPT_TAIL_BYTES = 2_000_000
 SERENA_CALL = re.compile(r'"name"\s*:\s*"mcp__serena__\w+"')
 ADVISED_CAP = 200
+SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 
 #: Commands that count as a test run. The head of the command (after an
-#: optional ``cd … &&`` / ``;``) must be one of these forms; ``echo pytest`` or
-#: ``grep pytest`` is not a test run.
+#: optional ``cd … &&`` / ``;`` and optional ``uv run``) must be one of these
+#: forms; ``echo pytest`` or ``grep pytest`` is not a test run.
 #: Quoted or bare path after ``cd``, then ``&&`` or ``;``.
 _CD_PREFIX = r'(?:cd\s+(?:"[^"]*"|' + chr(39) + '[^' + chr(39) + ']*' + chr(39) + r'|\S+)\s*(?:&&|;)\s*)?'
+_UV_RUN_PREFIX = r"(?:uv(?:\.exe)?\s+run\s+)?"
 TEST_COMMAND = re.compile(
     r"^\s*" + _CD_PREFIX
+    + _UV_RUN_PREFIX
     + r"(?:(?:python(?:3)?|py)(?:\.exe)?\s+(?:-u\s+)?-m\s+(?:pytest|unittest)\b|pytest\b|py\.test\b)",
     re.IGNORECASE,
 )
@@ -240,7 +243,7 @@ def post_tool(payload: dict, root: Path, sid: str) -> HookResult:
     masks its own status (``pytest || true``) reaches here too -- which is why
     the recorded line carries the exact command text, so the reader can judge
     what "last test run" meant."""
-    if str(payload.get("tool_name") or "") != "Bash":
+    if str(payload.get("tool_name") or "") not in SHELL_TOOLS:
         return HookResult()
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None

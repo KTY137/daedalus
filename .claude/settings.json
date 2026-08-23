@@ -81,7 +81,7 @@
             "timeout": 10
           }
         ],
-        "matcher": "Bash"
+        "matcher": "Bash|PowerShell"
       }
     ],
     "SubagentStart": [
