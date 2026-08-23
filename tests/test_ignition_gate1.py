@@ -514,22 +514,125 @@ def test_both_attempts_are_conclusive_and_the_receipt_carries_no_blocker(slice_r
     assert slice_result.receipt["blocker"] is None
 
 
-def test_the_data_knowledge_gate_names_its_criterion_and_runs_it(slice_result):
-    """Check 4 of the spine's seal: the gate that ran must NAME the criterion.
+def test_every_attempt_records_the_criterion_it_declared_and_the_command_that_ran(slice_result):
+    """Check 4 of the spine's seal, verifiable FROM THE RECEIPT.
 
-    A gate that declares a criterion path it never reads seals nothing, so the
-    recorded command has to carry the file, not just the evaluator names.
+    The seal grants "deterministic" only when the gate that ran actually named
+    the criterion. Until 2026-08-23 neither half of that was in the receipt --
+    the declared path sat in the task digest and the argv nowhere -- so a reader
+    had to take the assurance on trust (Codex round 1). Both are recorded now,
+    and this test reads them the way a reviewer would.
     """
 
-    binding = next(
-        item for item in slice_result.packet.items
-        if item.evidence_id == "gate1-attempt-binding"
-    )
-    rows = {row["work_item_id"]: row for row in binding.details["detail"]["attempts"]}
-    data_row = rows[[k for k in rows if k.startswith("wi-001")][0]]
+    for row in slice_result.receipt["attempts"]:
+        declared = list(row["gate_criterion_paths"])
+        assert declared == [ignition_checks.CONFORMANCE_TEST_PATH], row["work_item_id"]
+        command = " ".join(row["gate_command"])
+        assert ignition_checks.CONFORMANCE_TEST_PATH in command, row["work_item_id"]
+        # and the criterion is outside what that work item was allowed to write
+        assert ignition_checks.CONFORMANCE_TEST_PATH not in set(row["target_paths"])
+    data_row = next(r for r in slice_result.receipt["attempts"] if r["work_item_id"].startswith("wi-001"))
     assert data_row["gate_name"] == "ignition-data-knowledge"
-    # the criterion the attempt declared is the seeded suite, outside every scope
-    assert ignition_checks.CONFORMANCE_TEST_PATH not in set(data_row["target_paths"])
+    for node in ignition_checks.DATA_KNOWLEDGE_NODE_IDS:
+        assert node in " ".join(data_row["gate_command"])
+
+
+def test_a_gate_whose_anchored_nodes_only_guard_is_refused():
+    """The seal measures the criterion as a blob, so an operator who weakened
+    the seeded assertions would keep all six checks green. This is what such a
+    change cannot survive."""
+
+    discriminating = {
+        "n1": {"gate": "data-knowledge", "role": "fail_to_pass", "passed_on_base_revision": False},
+        "n2": {"gate": "data-knowledge", "role": "pass_to_pass_guard", "passed_on_base_revision": True},
+        "n3": {"gate": "code-type", "role": "fail_to_pass", "passed_on_base_revision": False},
+    }
+    assert gate1.criterion_discrimination_blockers(discriminating) == []
+
+    guards_only = dict(discriminating)
+    guards_only["n1"] = {"gate": "data-knowledge", "role": "pass_to_pass_guard",
+                         "passed_on_base_revision": True}
+    blockers = gate1.criterion_discrimination_blockers(guards_only)
+    assert len(blockers) == 1 and "data-knowledge" in blockers[0]
+    assert "guards but does not discriminate" in blockers[0]
+
+
+def test_a_vacuous_criterion_turns_every_node_into_a_guard(tmp_path):
+    """MEASURED end of the argument above: replace the seeded assertions with
+    tautologies and every data/knowledge node stops failing on the base
+    revision, which is exactly what criterion_discrimination_blockers refuses."""
+
+    vacuous = (
+        ignition_checks.CONFORMANCE_TEST_SOURCE
+        .replace("    assert FIELD in header", "    assert header is not None")
+        .replace("    assert RETIRED not in header", "    pass")
+        .replace("    assert FIELD in text", "    assert text is not None")
+        .replace('    assert not re.search(r"(?<![A-Za-z0-9_])" + RETIRED + r"(?![A-Za-z0-9_])", text)', "    pass")
+    )
+    tree = tmp_path / "project"
+    shutil.copytree(gate1.DEFAULT_FIXTURE, tree)
+    (tree / "tests").mkdir(exist_ok=True)
+    (tree / "tests" / "test_event_field.py").write_text(vacuous, encoding="utf-8")
+
+    roles = {}
+    for node in ignition_checks.DATA_KNOWLEDGE_NODE_IDS:
+        report = ignition_checks.pytest_check(tree, (node,), timeout_s=180.0, label="vacuous")
+        roles[node] = {
+            "gate": "data-knowledge",
+            "passed_on_base_revision": report.passed,
+            "role": "pass_to_pass_guard" if report.passed else "fail_to_pass",
+        }
+    assert all(row["role"] == "pass_to_pass_guard" for row in roles.values()), roles
+    assert gate1.criterion_discrimination_blockers(roles)
+
+
+@pytest.mark.parametrize(
+    "replay,expected",
+    [
+        ({"is_replay": False, "base_revision_stable": False}, 0),
+        ({"is_replay": True, "base_revision_stable": True, "graph_delta_stable": True,
+          "criterion_changed_since_previous": False}, 0),
+        ({"is_replay": True, "packet_sha256_stable": False,
+          "criterion_changed_since_previous": False}, 0),
+        ({"is_replay": True, "base_revision_stable": False, "graph_delta_stable": False,
+          "criterion_changed_since_previous": False}, 1),
+        ({"is_replay": True, "base_revision_stable": False,
+          "criterion_changed_since_previous": True,
+          "previous_conformance_test_sha256": "a" * 64}, 1),
+    ],
+)
+def test_replay_instability_is_a_blocker_unless_the_criterion_moved(replay, expected):
+    """Plan section 10 requires restart/replay to work. The receipt used to
+    merely REPORT the comparison: a run whose base revision or graph delta moved
+    between two identical invocations still came out with an empty blockers list
+    (Codex round 1, and the receipt committed in d3cdb73b was exactly that).
+
+    A criterion change moves the base revision by construction, so it is named
+    as the reason rather than tolerated silently -- and it is still a blocker,
+    because the comparison it produced is not a replay comparison.
+    """
+
+    blockers = gate1._replay_blockers(replay)
+    assert len(blockers) == expected
+    if expected and replay.get("criterion_changed_since_previous"):
+        assert "criterion change" in blockers[0]
+    elif expected:
+        assert "not stable across two runs of the same criterion" in blockers[0]
+
+
+def test_the_receipt_names_the_conjuncts_the_seal_does_not_cover(slice_result):
+    """The data/knowledge verdict is `anchored nodes AND schema AND links`, and
+    the seal qualifies the GateResult as a whole. The two module-authored
+    conjuncts are not sealed by a criterion path, and the receipt says so with
+    the concrete weakness of each rather than leaving a reader to find it."""
+
+    unsealed = slice_result.receipt["discrimination"]["unsealed_verdict_conjuncts"]
+    rows = unsealed["ignition-data-knowledge"]
+    assert {row["evaluator"] for row in rows} == {"ignition-schema-check", "ignition-link-check"}
+    for row in rows:
+        assert row["in_judged_tree"] is False
+        assert row["sealed_by_gate_criterion_paths"] is False
+        assert row["known_weakness"]
 
 
 def test_the_receipt_says_which_anchored_nodes_discriminate(slice_result):

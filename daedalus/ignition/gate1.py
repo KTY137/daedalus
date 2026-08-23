@@ -892,6 +892,7 @@ def run_gate1_ignition(
                     f"negative control {name} did not go red; the {name.split('.')[0]} "
                     "check does not discriminate"
                 )
+        blockers.extend(criterion_discrimination_blockers(anchored_node_roles))
 
         # -- one EvidencePacket ---------------------------------------------- #
         store = ArtifactStore(store_root)
@@ -1218,6 +1219,80 @@ def measure_anchored_node_roles(repo: Path, *, gate_timeout_s: float) -> dict[st
     return roles
 
 
+#: Replay fields that must hold between two runs of the SAME criterion. The
+#: packet digest is deliberately not among them (evidence items bind raw
+#: evaluator output, and pytest prints its own duration), and the mission digest
+#: is clock-bound, so both are reported without being required.
+REPLAY_REQUIRED_STABLE = (
+    "mission_id_stable",
+    "work_item_ids_stable",
+    "base_revision_stable",
+    "candidate_revision_stable",
+    "graph_delta_stable",
+    "check_reports_stable",
+)
+
+
+def criterion_discrimination_blockers(roles: Mapping[str, Any]) -> list[str]:
+    """A gate whose anchored nodes all pass on the base revision has no
+    criterion of its own.
+
+    THIS IS THE ANSWER TO "THE SEAL AUTHENTICATES A PATH, NOT A PROPOSITION"
+    (Codex round 1, 2026-08-23). Every one of the spine's six seal checks --
+    path outside the scope, present in the base revision, no writable execution
+    path, no in-tree import, named by the gate -- stays green if an operator
+    edits the seeded suite until it asserts nothing, because all six measure the
+    criterion as a blob. What such an edit cannot survive is the measurement
+    beside them: a node that no longer fails on the base revision is recorded as
+    a guard, and a gate left with only guards is refused here.
+
+    MEASURED while writing this: replacing the seeded assertions with
+    ``assert header is not None`` / ``pass`` turns all three data/knowledge
+    nodes into guards, and this function refuses.
+    """
+
+    out: list[str] = []
+    for gate_label in ("code-type", "data-knowledge"):
+        rows = [row for row in roles.values() if row.get("gate") == gate_label]
+        if rows and not any(row.get("role") == "fail_to_pass" for row in rows):
+            out.append(
+                f"the {gate_label} gate has no anchored node that fails on the base "
+                "revision; its criterion set guards but does not discriminate"
+            )
+    return out
+
+
+def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
+    """Replay instability is a Gate-1 result, not a footnote.
+
+    Plan section 10 requires restart/replay to work, and until now the receipt
+    merely REPORTED the comparison: a run whose base revision, candidate
+    revision or graph delta moved between two identical invocations still came
+    out with an empty ``blockers`` list (Codex round 1, 2026-08-23). It is a
+    blocker now -- unless the criterion itself changed since the previous run,
+    which moves the base revision by construction and is named as the reason
+    rather than silently tolerated.
+    """
+
+    if not replay.get("is_replay"):
+        return []
+    unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
+    if not unstable:
+        return []
+    if replay.get("criterion_changed_since_previous"):
+        return [
+            "replay comparison spans a criterion change ("
+            + ", ".join(unstable)
+            + " differ); the previous run judged with conformance suite "
+            + str(replay.get("previous_conformance_test_sha256"))[:12]
+            + ". Run the slice again to compare two runs of the SAME criterion."
+        ]
+    return [
+        "replay is not stable across two runs of the same criterion: "
+        + ", ".join(unstable)
+    ]
+
+
 def _packet_attempt_id(attempts: Sequence[Any]) -> str:
     """The Gate-1 packet's attempt id: the two attempts, named as one chain.
 
@@ -1282,6 +1357,20 @@ def _attempt_binding(
             "patch_locator": (result.artifact_locator or {}).get("locator_uri"),
             "worktree_removed": bool(result.worktree_removed),
             "gate_name": gate.name if gate is not None else None,
+            # THE COMMAND, because the seal's fourth check is "the gate that ran
+            # actually named the criterion" and until now nothing in the receipt
+            # let a reader verify it (Codex round 1, 2026-08-23). The declared
+            # criterion path sat in the task digest, the argv nowhere.
+            "gate_command": (
+                [str(part) for part in (getattr(gate, "command", ()) or ())]
+                if gate is not None else []
+            ),
+            # From the ATTEMPT's task, not the result: the spec is what declared
+            # the criterion, and the result carries only the gate's outcome.
+            "gate_criterion_paths": [
+                str(path)
+                for path in (getattr(getattr(attempt, "task", None), "gate_criterion_paths", ()) or ())
+            ],
             "gate_passed": bool(gate.passed) if gate is not None else False,
             "gate_ms": gate_ms,
             "gate_output_sha256": gate.output_sha256 if gate is not None else None,
@@ -1445,6 +1534,9 @@ def _refused_receipt(
                     "work_item_id", "attempt_id", "state", "target_paths",
                     "changed_paths", "patch_sha256", "patch_locator",
                     "gate_name", "gate_passed", "gate_output_sha256",
+                    # the seal's check 4 is "the gate that ran named the
+                    # criterion"; both halves of that belong in the receipt
+                    "gate_command", "gate_criterion_paths",
                     "attempt_contract_sha256", "policy_decision_sha256",
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
@@ -1534,6 +1626,9 @@ def _build_receipt(
                     "work_item_id", "attempt_id", "state", "target_paths",
                     "changed_paths", "patch_sha256", "patch_locator",
                     "gate_name", "gate_passed", "gate_output_sha256",
+                    # the seal's check 4 is "the gate that ran named the
+                    # criterion"; both halves of that belong in the receipt
+                    "gate_command", "gate_criterion_paths",
                     "attempt_contract_sha256", "policy_decision_sha256",
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
@@ -1584,6 +1679,43 @@ def _build_receipt(
             },
             "negative_controls": dict(discrimination),
             "anchored_nodes": dict(anchored_nodes),
+            # WHAT THE SEAL DOES NOT COVER, said in the record rather than left
+            # for a reader to derive. The data/knowledge verdict is
+            # `anchored nodes AND schema AND links`; the spine's seal is granted
+            # for the declared criterion PATH and the argv that named it, so it
+            # qualifies the GateResult as a whole. The schema and link conjuncts
+            # state their criterion in daedalus.ignition.checks, which is not in
+            # the judged tree at all -- no candidate can reach it -- but neither
+            # is it pinned by the seal, and schema_check compares field SETS, so
+            # a schema weakened to `{"properties": {"id": {}, "bias_voltage": {}},
+            # "required": []}` would satisfy it. Today's operator is a literal
+            # renamer and cannot author that; a more capable one could.
+            # (Codex round 1, 2026-08-23.)
+            "unsealed_verdict_conjuncts": {
+                "ignition-data-knowledge": [
+                    {
+                        "evaluator": "ignition-schema-check",
+                        "criterion_location": "daedalus.ignition.checks.schema_check",
+                        "in_judged_tree": False,
+                        "sealed_by_gate_criterion_paths": False,
+                        "known_weakness": (
+                            "compares CSV header and schema property SETS; a schema whose "
+                            "properties carry no types and whose required list is empty "
+                            "satisfies it, and per-row type checks are then vacuous"
+                        ),
+                    },
+                    {
+                        "evaluator": "ignition-link-check",
+                        "criterion_location": "daedalus.ignition.checks.link_check",
+                        "in_judged_tree": False,
+                        "sealed_by_gate_criterion_paths": False,
+                        "known_weakness": (
+                            "requires each relative link to resolve to an existing file; a "
+                            "link retargeted to another existing file still resolves"
+                        ),
+                    },
+                ]
+            },
         },
         "fourfold": {
             "base_source_bundle_sha256": base_compile.source_bundle_sha256,
@@ -1685,6 +1817,24 @@ def write_receipt(
                 == (body.get("evidence_packet") or {}).get("packet_sha256")
             ),
             "check_reports_stable": _reports(previous) == _reports(body),
+            # WHAT THE PREVIOUS RUN JUDGED WITH. A criterion change moves the
+            # base revision (the suite is seeded into it), so the identity
+            # fields legitimately differ between the last run under the old
+            # criterion and the first under the new one. Recording the previous
+            # digest is what lets a reader -- and _replay_blockers below -- tell
+            # that transition from a slice that is simply not deterministic.
+            # Codex round 1, 2026-08-23: the receipt committed in d3cdb73b said
+            # base_revision_stable false while the commit message claimed the
+            # opposite, and nothing in the machinery objected.
+            "previous_conformance_test_sha256": (
+                (previous.get("discrimination") or {}).get("before_state") or {}
+            ).get("conformance_test_sha256"),
+            "criterion_changed_since_previous": (
+                ((previous.get("discrimination") or {}).get("before_state") or {}).get(
+                    "conformance_test_sha256"
+                )
+                != ignition_checks.CONFORMANCE_TEST_SHA256
+            ),
             "previous_graph_delta_sha256": (previous.get("fourfold") or {}).get("graph_delta_sha256"),
             "graph_delta_stable": (
                 (previous.get("fourfold") or {}).get("graph_delta_sha256")
@@ -1694,6 +1844,7 @@ def write_receipt(
     else:
         replay["is_replay"] = False
     body["replay"] = replay
+    body["blockers"] = list(body.get("blockers") or []) + _replay_blockers(replay)
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path, body
 
