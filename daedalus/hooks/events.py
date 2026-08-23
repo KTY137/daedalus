@@ -57,6 +57,9 @@ def session_start(payload: dict, root: Path, sid: str) -> HookResult:
     if archived:
         lines.append(archived)
     lines.append("SHIFT: " + _shift_line(root))
+    plan = root / "docs" / "IKARUS_ARIADNE_MASTER_PLAN.md"
+    if plan.exists():
+        lines.append("PLAN: docs/IKARUS_ARIADNE_MASTER_PLAN.md -- design authority; read it before architecture/kernel work")
     sweep_sha, behind = last_sweep(root)
     if sweep_sha:
         tail = f" ({behind} commits since)" if behind and behind != "0" else ""
@@ -129,6 +132,18 @@ def _changed_line(root: Path, state: dict) -> str:
     return ""
 
 
+def _watchdog_anomalies(root: Path) -> list[str]:
+    """Anomaly ids from the work watchdog's last health pass (tools/watchdog.py),
+    or [] when it has not run. Read-only; the hook never runs the watchdog."""
+    try:
+        import json
+
+        data = json.loads((root / "runs" / "watchdog" / "health.json").read_text(encoding="utf-8"))
+        return sorted(str(a.get("id")) for a in data.get("anomalies", []) if isinstance(a, dict))
+    except (OSError, ValueError, AttributeError):
+        return []
+
+
 def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
     lines: list[str] = [_shift_line(root)]
 
@@ -156,6 +171,15 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
         changed_cfg = state.pop("config_changed", None)
         if changed_cfg:
             collected["config"] = "CONFIG changed during this session: " + "; ".join(changed_cfg[-3:])
+        # the work watchdog's anomalies, shown when they CHANGE (delta, not wallpaper)
+        wd_ids = _watchdog_anomalies(root)
+        if wd_ids != state.get("last_watchdog"):
+            state["last_watchdog"] = wd_ids
+            if wd_ids:
+                collected["watchdog"] = "WATCHDOG: " + "; ".join(wd_ids) + " (runs/watchdog/HEALTH.md)"
+            elif state.get("last_watchdog") is not None:
+                collected["watchdog"] = "WATCHDOG: all clear"
+        
 
     update_state(root, sid, mutate)
     lines += collected.get("crew", [])
@@ -163,6 +187,8 @@ def user_prompt(payload: dict, root: Path, sid: str) -> HookResult:
         lines.append(collected["changed"])
     if collected.get("config"):
         lines.append(collected["config"])
+    if collected.get("watchdog"):
+        lines.append(collected["watchdog"])
     text, trimmed = trim_to_budget(lines)
     return HookResult(text=text, note="trimmed" if trimmed else "")
 

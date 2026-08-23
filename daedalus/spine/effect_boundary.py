@@ -1674,6 +1674,28 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the daedalus.hooks entrypoint (2026-08-23)",
     ),
     EntrypointSpec(
+        id="tools.watchdog",
+        surface=Surface.CLI,
+        target="tools.watchdog:main",
+        effects=(
+            Effect.PROCESS_SPAWN,
+            Effect.FILESYSTEM_WRITE,
+            Effect.NETWORK_EGRESS,
+            Effect.SPEND,
+            Effect.REPOSITORY_MUTATION,
+        ),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("tools.watchdog:main", "begin_effect"),),
+        notes=(
+            "Background docs/work watchdog (Windows scheduled tasks): measures "
+            "drift and health mechanically, spawns `claude -p` (haiku) only on "
+            "evidence and through budget.guard, commits docs fixes with a "
+            "pathspec only. Never blocks anything."
+        ),
+        migration="complete for the tools.watchdog entrypoint (2026-08-23)",
+    ),
+    EntrypointSpec(
         id="runs.council.dead_letter_replay",
         surface=Surface.CLI,
         target="runs.council.dead_letter_replay:main",

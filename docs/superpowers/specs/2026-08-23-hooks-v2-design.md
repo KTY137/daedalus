@@ -233,6 +233,67 @@ Net after round 2: 62 tests green (`tests/test_hooks_v2.py` 53 + `tests/test_reg
 Still UNVERIFIED and said so: that the model reads the PreToolUse advise text;
 that `CwdChanged` reaches the model at all.
 
+## 11. Owner decisions (2026-08-23 afternoon) and the background watchdogs
+
+Owner: "nimm die most free general option, ich will unseren Workflow nicht
+einschränken" — and: a docs watchdog and a general work watchdog running in
+the background.
+
+| decision | outcome |
+| --- | --- |
+| R4 Serena read nudge | stays `advise` (allowed, one nudge per file per session); `deny` remains a switch |
+| R1 master plan in every prefix | the SessionStart card now names `docs/IKARUS_ARIADNE_MASTER_PLAN.md` as design authority; the `@docs/...` import line in `CLAUDE.md` is the owner's to remove (the harness classifier reserves instruction files for the human; the replacement text is in the handoff) |
+| R2 `room.md` tracking | unchanged — `.room/room.md` is deliberately committed by the kairos lane as a record; the dirty-every-turn symptom came from the archived tree's mirror, which is gone |
+
+### tools/watchdog.py — docs and work watchdogs (Windows scheduled tasks)
+
+`python tools/watchdog.py install` registers `Daedalus\DocsWatchdog` (every
+30 min) and `Daedalus\WorkWatchdog` (every 15 min) as per-user tasks
+(`/RL LIMITED`, `pythonw.exe`, no elevation, no session needed).
+`status`, `uninstall`, `--dry-run`; pause with `.claude/watchdog/PAUSE` or
+`DAEDALUS_WATCHDOG=off`.
+
+Mechanical first, model on evidence:
+
+- **docs**: measures drift in Python (architecture memory vs HEAD, map head,
+  top-level docs naming files deleted in the last 30 commits without a
+  "(replaced by …)"/"(archived: …)"/"(removed …)" mark, dead relative links —
+  a link must look like a path, so `spec["fn"](sb)` in prose is not one). Only
+  with findings does it spawn `claude -p --model claude-haiku-4-5` with the
+  findings listed (≤ 15 per pass), allowed tools Read/Grep/Glob/Edit/Write/Bash,
+  ≤ 80 turns, 15 min timeout. The sweep commits **by pathspec only**
+  (`git commit -F … -- <files>`), never the shared index; a pass is skipped
+  when `.git/index.lock` exists or HEAD moved < 3 min ago.
+- **work**: `runs/watchdog/HEALTH.md` + `health.json` every pass (HEAD and
+  age, dirty source files and the oldest one's age, index.lock age, last docs
+  sweep age, hook-ledger activity, declared shift, last recorded test run,
+  disk free, `%TEMP%/claude` entries). Anomaly rules: commit gap > 3 h during
+  a declared shift, shift expired, index.lock > 10 min, dirty source > 6 h,
+  docs sweep > 3 h, tests stale > 4 h with dirty source, disk < 10 GB, temp
+  > 400 entries. Each anomaly toasts once (re-notify after 3 h) and appends a
+  `[watchdog]` bullet to the vault daily note. A haiku **report**
+  (`runs/watchdog/REPORT.md`, history under `reports/`) only when HEAD moved
+  and ≥ 2 h since the last one, no tools, everything inline.
+- The turn hook shows `WATCHDOG: <ids>` only when the anomaly set changes.
+- Spend: every spawn is reserved on the shared budget ledger (flat worst-case
+  $3) and settled with the measured `total_cost_usd`; daily cap 12 model runs;
+  the watchdog sets itself a $15/day ceiling (`DAEDALUS_BUDGET_USD`).
+- Registry row `tools.watchdog` (PROCESS_SPAWN, FILESYSTEM_WRITE,
+  NETWORK_EGRESS, SPEND, REPOSITORY_MUTATION; `begin_effect` in `main`).
+- Never a guard: it reports and repairs docs; it blocks nothing.
+
+MEASURED on the first live runs (2026-08-23): work report $0.12 / 60 s / 1
+turn; docs sweep on 31 drifts (15 batched) $0.45 / 59 turns, commit
+`67ec9ebf` (6 docs, 16 appended removal notes, nothing else touched). A
+budget defect surfaced and was fixed on the spot: `budget.guard` settled the
+$3 estimate instead of the measured cost, so the shared ledger carries one
+$3.00 entry for a $0.12 call (today only; append-only, not hand-corrected).
+
+Tests: `tests/test_watchdog.py` (14: drift detection incl. the prose-link and
+short-history cases, skip conditions, daily cap, pause switches, anomaly
+rules, notify-once/re-notify, report gating, task commands, registry,
+dry-run never spawns) and `tests/test_hooks_v2.py` (+2).
+
 ## 8. Rollout
 
 One commit on `main` in `agent_env_g0` for the package + tests + registry +

@@ -93,7 +93,9 @@ def git(root: Path, *args: str, timeout: float = GIT_TIMEOUT_S) -> str:
         )
     except (OSError, subprocess.SubprocessError):
         return ""
-    return proc.stdout.strip() if proc.returncode == 0 else ""
+    # rstrip only: `git status --porcelain` lines START with a significant
+    # space (" M path"), and a full strip() ate it on the first line.
+    return proc.stdout.rstrip(chr(13) + chr(10)) if proc.returncode == 0 else ""
 
 
 def repo_root(payload: dict, env: dict | None = None) -> Path:

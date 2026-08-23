@@ -187,6 +187,14 @@ def test_session_card_is_deterministic_and_ascii(repo: Path) -> None:
     assert len(out_a) < 600
 
 
+def test_dirty_summary_keeps_the_first_lines_leading_space(repo: Path) -> None:
+    # " M daedalus/a.py" is the FIRST porcelain line; a strip() of the whole
+    # output once turned it into "M daedalus/a.py" and the top dir into "aedalus".
+    (repo / "daedalus" / "a.py").write_text("x = 2" + chr(10), encoding="utf-8")
+    count, dirs = _tree.dirty_summary(repo)
+    assert count == 1 and dirs == ("daedalus",)
+
+
 def test_session_card_names_an_archived_tree(repo: Path) -> None:
     _git(repo, "tag", "archive/old-line")
     _, out = run("session", payload(repo, "SessionStart"))
@@ -438,6 +446,21 @@ def test_changed_detects_same_line_count_edits_after_a_test_run(repo: Path) -> N
     (repo / "daedalus" / "a.py").write_text("x = 3" + chr(10), encoding="utf-8")  # same numstat, new bytes
     _, loud = run("turn", payload(repo, "UserPromptSubmit"))
     assert "CHANGED since last test run" in loud and "daedalus/a.py" in loud
+
+
+def test_turn_shows_watchdog_anomalies_only_when_they_change(repo: Path) -> None:
+    health = repo / "runs" / "watchdog" / "health.json"
+    health.parent.mkdir(parents=True)
+    health.write_text(json.dumps({"anomalies": [{"id": "docs_sweep_stale", "message": "m"}]}), encoding="utf-8")
+    _, t1 = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG: docs_sweep_stale (runs/watchdog/HEALTH.md)" in t1
+    _, t2 = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in t2
+    health.write_text(json.dumps({"anomalies": []}), encoding="utf-8")
+    _, t3 = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG: all clear" in t3
+    _, t4 = run("turn", payload(repo, "UserPromptSubmit"))
+    assert "WATCHDOG" not in t4
 
 
 def test_config_change_accepts_both_field_spellings(repo: Path) -> None:

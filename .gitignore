@@ -110,3 +110,13 @@ tests/_looptmp/
 # hooks v2 (2026-08-23): per-session hook state and the injection ledger
 runs/hooks/
 runs/arch_memory.shown
+
+# watchdog run state (tools/watchdog.py); the mission ledgers runs/watchdog/mission-*/ stay tracked
+runs/watchdog/state.json
+runs/watchdog/health.json
+runs/watchdog/HEALTH.md
+runs/watchdog/REPORT.md
+runs/watchdog/reports/
+runs/watchdog/watchdog.log*
+runs/watchdog/.pass.lock
+runs/watchdog/docs-commitmsg.txt

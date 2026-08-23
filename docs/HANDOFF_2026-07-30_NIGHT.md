@@ -384,7 +384,7 @@ All green, all tested, none committed.
 - `eval/graph_delta.py` — `--held-out` and `--specificity` branches, so both
   headline numbers have a command. `held_out()` is new.
 - `tools/agent_findings.py` — new; consolidates fan-out results by target file.
-- `daedalus/crew_hook.py` — new; the ≥4-parallel-agents hook, registered in
+- `daedalus/crew_hook.py` (replaced by daedalus/hooks/, 2026-08-23) — new; the ≥4-parallel-agents hook, registered in
   `~/.claude/settings.json`.
 - `tests/test_deepseek_substitution_guard.py` — new, 25 tests.
 

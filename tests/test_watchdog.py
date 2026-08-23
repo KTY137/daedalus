@@ -1,0 +1,216 @@
+"""Tests for tools/watchdog.py -- the background docs/work watchdogs.
+
+Every test uses a throwaway git repository; nothing spawns a model (the
+spawn is monkeypatched or dry-run) and nothing touches the scheduler.
+"""
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("watchdog", ROOT / "tools" / "watchdog.py")
+wd = importlib.util.module_from_spec(SPEC)
+sys.modules["watchdog"] = wd  # dataclasses under `from __future__ import annotations` need the module registered
+SPEC.loader.exec_module(wd)
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=True).stdout.strip()
+
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    r = tmp_path / "repo"
+    (r / "daedalus").mkdir(parents=True)
+    (r / "docs").mkdir()
+    _git(r, "init", "-q", "-b", "main")
+    _git(r, "config", "user.email", "t@t")
+    _git(r, "config", "user.name", "t")
+    (r / "daedalus" / "old_hook.py").write_text("x = 1\n", encoding="utf-8")
+    (r / "docs" / "guide.md").write_text("# guide\nsee [spec](spec.md) and daedalus/old_hook.py\n", encoding="utf-8")
+    (r / "docs" / "spec.md").write_text("# spec\n", encoding="utf-8")
+    (r / "README.md").write_text("readme `spec[\"fn\"](sb)` prose\n", encoding="utf-8")
+    _git(r, "add", ".")
+    _git(r, "commit", "-q", "-m", "init")
+    return r
+
+
+# --------------------------------------------------------------------------
+# docs drift
+# --------------------------------------------------------------------------
+
+
+def test_docs_drift_is_empty_on_a_consistent_tree(repo: Path) -> None:
+    assert wd.docs_drift(repo) == []
+
+
+def test_docs_drift_finds_deleted_file_mentions_and_dead_links(repo: Path) -> None:
+    _git(repo, "rm", "-q", "daedalus/old_hook.py", "docs/spec.md")
+    _git(repo, "commit", "-q", "-m", "remove")
+    kinds = {(d.kind, d.subject) for d in wd.docs_drift(repo)}
+    assert ("deleted_file_mentioned", "docs/guide.md:2") in kinds
+    assert ("dead_link", "docs/guide.md:2") in kinds
+    # a marked mention is not drift
+    (repo / "docs" / "guide.md").write_text(
+        "# guide\nsee [spec](spec.md) and daedalus/old_hook.py (replaced by daedalus/hooks/, 2026-08-23)\n", encoding="utf-8"
+    )
+    kinds = {d.kind for d in wd.docs_drift(repo)}
+    assert "deleted_file_mentioned" not in kinds and "dead_link" in kinds
+
+
+def test_prose_parentheses_are_not_links(repo: Path) -> None:
+    assert not [d for d in wd.docs_drift(repo) if d.kind == "dead_link"]
+
+
+def test_unknown_map_head_is_not_drift(repo: Path) -> None:
+    (repo / "docs" / "architecture-state.json").write_text(json.dumps({"repo_state": {"head": "unknown"}}), encoding="utf-8")
+    assert not [d for d in wd.docs_drift(repo) if d.kind == "architecture_state_stale"]
+    (repo / "docs" / "architecture-state.json").write_text(json.dumps({"repo_state": {"head": "deadbeef"}}), encoding="utf-8")
+    assert [d for d in wd.docs_drift(repo) if d.kind == "architecture_state_stale"]
+
+
+def test_docs_pass_skips_while_another_lane_commits(repo: Path, monkeypatch) -> None:
+    monkeypatch.setattr(wd, "run_claude", lambda *a, **k: pytest.fail("model must not be spawned"))
+    res = wd.docs_pass(repo, env={})
+    assert res["skipped"].startswith("HEAD moved")  # the fixture commit is seconds old
+    (repo / ".git" / "index.lock").write_text("x")
+    res = wd.docs_pass(repo, env={})
+    assert res["skipped"] == ".git/index.lock exists"
+
+
+def test_docs_pass_spawns_only_on_drift_and_respects_the_daily_cap(repo: Path, monkeypatch) -> None:
+    monkeypatch.setattr(wd, "head_quiet", lambda root, now=None: (True, ""))
+    calls = []
+    monkeypatch.setattr(wd, "run_claude", lambda root, prompt, **k: calls.append(prompt) or wd.ModelRun(True, "done", 0.01, 3, 1.0))
+    assert wd.docs_pass(repo, env={})["outcome"] == "no drift"
+    assert calls == []
+    _git(repo, "rm", "-q", "docs/spec.md")
+    _git(repo, "commit", "-q", "-m", "remove")
+    res = wd.docs_pass(repo, env={})
+    assert res["outcome"] == "sweep ran" and len(calls) == 1
+    assert "dead_link" in calls[0] and "git commit -F runs/watchdog/docs-commitmsg.txt --" in calls[0]
+    assert (repo / wd.SWEEPS_LOG_REL).read_text().strip().endswith("turns=3")
+    state = wd.load_json(repo / wd.STATE_REL)
+    assert wd.model_runs_today(state) == 1
+    state["model_runs"] = {time.strftime("%Y-%m-%d", time.gmtime()): wd.DAILY_MODEL_CAP}
+    wd.save_json(repo / wd.STATE_REL, state)
+    res = wd.docs_pass(repo, env={})
+    assert "daily model cap" in res["outcome"] and len(calls) == 1
+
+
+def test_pause_switches(repo: Path) -> None:
+    assert wd.paused(repo, env={}) == ""
+    assert wd.paused(repo, env={"DAEDALUS_WATCHDOG": "off"}) == "DAEDALUS_WATCHDOG=off"
+    (repo / wd.PAUSE_REL).parent.mkdir(parents=True, exist_ok=True)
+    (repo / wd.PAUSE_REL).write_text("")
+    assert wd.paused(repo, env={}).endswith("exists")
+    assert wd.docs_pass(repo, env={})["skipped"].endswith("exists")
+
+
+# --------------------------------------------------------------------------
+# work health and anomalies
+# --------------------------------------------------------------------------
+
+
+def test_health_facts_carry_ages_and_counts(repo: Path, tmp_path: Path) -> None:
+    (repo / "daedalus" / "new.py").write_text("y = 2\n", encoding="utf-8")
+    facts = wd.health(repo, temp_root=tmp_path / "nothing")
+    assert facts["branch"] == "main" and len(facts["head"]) == 8
+    assert facts["last_commit_age_s"] is not None and facts["last_commit_age_s"] < 300
+    assert facts["dirty_files"] == 1 and facts["dirty_source_files"] == 1
+    assert facts["index_lock_age_s"] is None
+    assert facts["last_docs_sweep_age_s"] is None
+    assert facts["temp_claude_entries"] is None
+
+
+def test_anomaly_rules() -> None:
+    base = {"shift": {"goal": "", "until": "", "expired": False}, "last_commit_age_s": 10,
+            "index_lock_age_s": None, "oldest_dirty_source_age_s": None, "dirty_source_files": 0,
+            "last_docs_sweep_age_s": 60, "last_recorded_test_age_s": None, "disk_free_gb": 100.0,
+            "temp_claude_entries": 10}
+    assert wd.anomalies(base) == []
+    ids = lambda f: [a.id for a in wd.anomalies({**base, **f})]  # noqa: E731
+    assert ids({"shift": {"goal": "g", "until": "", "expired": False}, "last_commit_age_s": 4 * 3600}) == ["commit_gap"]
+    assert ids({"last_commit_age_s": 4 * 3600}) == []  # no shift declared: a quiet tree is allowed
+    assert ids({"shift": {"goal": "g", "until": "12:00", "expired": True}}) == ["shift_expired"]
+    assert ids({"index_lock_age_s": 11 * 60}) == ["stale_index_lock"]
+    assert ids({"oldest_dirty_source_age_s": 7 * 3600, "dirty_source_files": 3}) == ["dirty_source_stale"]
+    assert ids({"last_docs_sweep_age_s": None}) == ["docs_sweep_stale"]
+    assert ids({"dirty_source_files": 1, "last_recorded_test_age_s": 5 * 3600}) == ["tests_stale"]
+    assert ids({"disk_free_gb": 2.0}) == ["disk_low"]
+    assert ids({"temp_claude_entries": 999}) == ["temp_bloat"]
+
+
+def test_work_pass_writes_health_notifies_once_and_reports_only_when_head_moved(repo: Path, monkeypatch, tmp_path: Path) -> None:
+    toasts, vault, spawns = [], [], []
+    monkeypatch.setattr(wd, "toast", lambda t, m: toasts.append(m))
+    monkeypatch.setattr(wd, "vault_append", lambda root, line, now=None: vault.append(line))
+    monkeypatch.setattr(wd, "run_claude", lambda root, prompt, **k: spawns.append(prompt) or wd.ModelRun(True, "report text", 0.002, 1, 2.0))
+    monkeypatch.setattr(wd, "health", lambda root, now=None, temp_root=None: {
+        "ts": "t", "branch": "main", "head": "abcd1234", "last_commit_age_s": 5, "last_commit_subject": "s",
+        "dirty_files": 0, "dirty_source_files": 0, "oldest_dirty_source_age_s": None, "index_lock_age_s": None,
+        "last_docs_sweep_age_s": None, "hook_ledger_age_s": None, "sessions_active_30m": 0,
+        "last_recorded_test_age_s": None, "shift": {"goal": "", "until": "", "expired": False},
+        "disk_free_gb": 50.0, "temp_claude_entries": 1})
+    t0 = 1_700_000_000.0
+    r1 = wd.work_pass(repo, env={}, now=t0)
+    assert r1["notified"] == ["docs_sweep_stale"] and toasts and vault
+    assert (repo / wd.HEALTH_MD_REL).read_text().count("docs_sweep_stale") == 1
+    assert len(spawns) == 1 and "use NO tools" in spawns[0]
+    assert (repo / wd.REPORT_MD_REL).read_text().endswith("report text\n")
+    r2 = wd.work_pass(repo, env={}, now=t0 + 600)
+    assert r2["notified"] == [] and len(toasts) == 1  # same anomaly: no re-toast
+    assert len(spawns) == 1  # HEAD unchanged, gap not reached: no second report
+    r3 = wd.work_pass(repo, env={}, now=t0 + 4 * 3600)
+    assert r3["notified"] == ["docs_sweep_stale"]  # re-notified after RENOTIFY_S
+    assert len(spawns) == 1  # still the same HEAD: no report
+
+
+def test_report_prompt_is_self_contained(repo: Path) -> None:
+    facts = wd.health(repo, temp_root=repo / "none")
+    prompt = wd.report_prompt(repo, facts, wd.anomalies(facts))
+    assert "use NO tools" in prompt and "git log -12" in prompt and facts["head"] in prompt
+
+
+# --------------------------------------------------------------------------
+# scheduling and registration
+# --------------------------------------------------------------------------
+
+
+def test_task_commands_are_per_user_minute_triggers_with_the_repo_script(repo: Path) -> None:
+    cmds = wd.task_commands(repo, "install")
+    assert [c[0] for c in cmds] == ["schtasks", "schtasks"]
+    joined = [" ".join(c) for c in cmds]
+    assert any("/MO 30" in j and "DocsWatchdog" in j and "watchdog.py\" docs" in j for j in joined)
+    assert any("/MO 15" in j and "WorkWatchdog" in j and "watchdog.py\" work" in j for j in joined)
+    assert all("/RL LIMITED" in j for j in joined)  # never elevated
+    assert all("dangerously" not in j for j in joined)
+    un = wd.task_commands(repo, "uninstall")
+    assert all("/Delete" in c for c in un)
+
+
+def test_watchdog_is_registered_with_spend_and_starts_centrally() -> None:
+    from daedalus.spine.effect_boundary import REGISTRY_BY_ID, Effect, Wiring
+
+    row = REGISTRY_BY_ID["tools.watchdog"]
+    assert Effect.SPEND in row.effects and Effect.REPOSITORY_MUTATION in row.effects
+    assert "budget.process_guard" in row.guard_contracts and row.wiring is Wiring.CENTRAL
+    proc = subprocess.run([sys.executable, "tools/watchdog.py", "status"], capture_output=True, text=True, cwd=str(ROOT))
+    assert proc.returncode == 0, proc.stderr
+    assert "model runs today" in proc.stdout
+
+
+def test_run_claude_refuses_without_the_cli_and_dry_runs_without_spawning(repo: Path, monkeypatch) -> None:
+    monkeypatch.setattr(wd.shutil, "which", lambda name: None)
+    assert wd.run_claude(repo, "x", label="t", allowed_tools="", max_turns=1).reason == "claude CLI not on PATH"
+    monkeypatch.setattr(wd.shutil, "which", lambda name: "C:/fake/claude")
+    monkeypatch.setattr(wd.subprocess, "run", lambda *a, **k: pytest.fail("dry run must not spawn"))
+    assert wd.run_claude(repo, "x", label="t", allowed_tools="", max_turns=1, dry=True).reason == "dry"
