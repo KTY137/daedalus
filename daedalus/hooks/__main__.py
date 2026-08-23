@@ -1,11 +1,11 @@
 """The one hook entrypoint: ``python -m daedalus.hooks <event>``.
 
 ``<event>`` is one of ``session``, ``turn``, ``pre_tool``, ``post_tool``,
-``subagent_start``, ``subagent_stop``, ``config_change``. The harness payload
-arrives on stdin as JSON; the answer goes to stdout (plain text for the
-context-carrying events, a JSON object for the tool/subagent events). Exit
-code is always 0: a hook that raises would cost the turn, and nothing here is
-worth a turn.
+``subagent_start``, ``subagent_stop``, ``config_change``, ``pre_compact``. The
+harness payload arrives on stdin as JSON; the answer goes to stdout (plain text
+for the context-carrying events, a JSON object for the tool/subagent events).
+Exit code is always 0: a hook that raises would cost the turn, and nothing here
+is worth a turn.
 
 Registered as ``daedalus.hooks`` in the effect-boundary registry; the first
 thing ``main`` does is ``begin_effect``. Every invocation appends one ledger
@@ -41,6 +41,7 @@ HANDLERS = {
     "subagent_start": events.subagent_start,
     "subagent_stop": events.subagent_stop,
     "config_change": events.config_change,
+    "pre_compact": events.pre_compact,
 }
 
 ENTRYPOINT_ID = "daedalus.hooks"

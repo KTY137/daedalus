@@ -4,10 +4,11 @@ SubagentStart/Stop, ConfigChange. Each handler is a pure function of
 a :class:`HookResult`. Tool events live in ``tools.py``."""
 from __future__ import annotations
 
+import datetime
 import time
 from pathlib import Path
 
-from ._common import HookResult, hooks_dir, trim_to_budget, update_state
+from ._common import HookResult, _Lock, hooks_dir, trim_to_budget, update_state
 from ._tree import (
     fingerprint_diff,
     last_sweep,
@@ -254,3 +255,74 @@ def config_change(payload: dict, root: Path, sid: str) -> HookResult:
 
     update_state(root, sid, mutate)
     return HookResult(note=f"{source}:{path}")
+
+
+# --------------------------------------------------------------------------
+# PreCompact
+# --------------------------------------------------------------------------
+
+
+def _local_now() -> datetime.datetime:
+    """A seam for deterministic marker tests; production uses local time so
+    the marker lands in the same daily note the operator sees in the vault."""
+    return datetime.datetime.now()
+
+
+def _one_line(value: object, limit: int) -> str:
+    """A bounded Markdown-inline field from a hook payload."""
+    text = " ".join(str(value).splitlines()).replace("`", "'").strip()
+    return text[:limit]
+
+
+def _append_compaction_marker(note: Path, header: str, line: str) -> None:
+    """Create a daily note once, or append one marker to the existing note.
+
+    Serialize the create-or-append decision. Exclusive creation alone is not
+    sufficient: another process can observe the empty file between ``open(x)``
+    and the creator's first write, append its marker, and have that marker
+    overwritten by the creator. The package's existing Windows-safe lock keeps
+    the frontmatter unique and every marker append-only.
+    """
+    note.parent.mkdir(parents=True, exist_ok=True)
+    lock = note.with_name(f".{note.name}.precompact.lock")
+    with _Lock(lock):
+        try:
+            with note.open("x", encoding="utf-8", newline="\n") as handle:
+                handle.write(header + line)
+        except FileExistsError:
+            with note.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(line)
+
+
+def pre_compact(payload: dict, root: Path, sid: str) -> HookResult:
+    """Record compaction through the already-governed hooks dispatcher.
+
+    Claude Code 2.1.x names the event field ``trigger`` (``manual`` or
+    ``auto``). ``compaction_trigger`` remains a compatibility fallback for the
+    older proposal this replaces. The hook never emits stdout and any diary
+    write failure remains fail-open, but the dispatcher still records the
+    outcome in ``runs/hooks/ledger.jsonl``.
+    """
+    vault = root / "vault"
+    if not vault.is_dir():
+        return HookResult(note="precompact:vault-unavailable")
+
+    now = _local_now()
+    raw_trigger = payload.get("trigger") or payload.get("compaction_trigger")
+    trigger = raw_trigger if raw_trigger in {"manual", "auto"} else "unknown"
+    transcript = _one_line(payload.get("transcript_path") or "", 500)
+    session = sid[:8]
+    note = vault / "Sessions" / f"{now:%Y-%m-%d}.md"
+    line = (
+        f"- {now:%H:%M} [compaction:{trigger}] Kontext kompaktiert "
+        f"(Session {session}) — Transkript: `{transcript}`\n"
+    )
+    header = (
+        f"---\ntags: [session]\ndate: {now:%Y-%m-%d}\n---\n\n"
+        f"# Session {now:%Y-%m-%d}\n\n## Kompaktierungen\n\n"
+    )
+    try:
+        _append_compaction_marker(note, header, line)
+    except OSError as exc:
+        return HookResult(note=f"precompact:write-failed:{type(exc).__name__}")
+    return HookResult(note=f"precompact:{trigger}")
