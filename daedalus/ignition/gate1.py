@@ -676,6 +676,7 @@ def run_gate1_ignition(
     # the receipt describing the same run.
     store_root = _reset_evidence_store(receipt_dir / SESSION_MISSION_ID / "store")
     blockers: list[str] = []
+    started_at = time.monotonic()
 
     scratch = Path(workspace) if workspace else Path(
         tempfile.mkdtemp(prefix="daedalus-ignition-")
@@ -893,6 +894,20 @@ def run_gate1_ignition(
                     "check does not discriminate"
                 )
         blockers.extend(criterion_discrimination_blockers(anchored_node_roles))
+        data_knowledge_subjects = tuple(
+            path for item in planned if "data" in item.planes or "knowledge" in item.planes
+            for path in item.paths
+        )
+        subject_coverage = measure_subject_coverage(
+            candidate_root, repo, data_knowledge_subjects, scratch / "coverage",
+            gate_timeout_s=float(gate_timeout_s),
+        )
+        unread = sorted(rel for rel, row in subject_coverage.items() if row.get("unread"))
+        if unread:
+            blockers.append(
+                "no data/knowledge evaluator reads " + ", ".join(unread)
+                + "; reverting it to the base revision changes no verdict"
+            )
 
         # -- one EvidencePacket ---------------------------------------------- #
         store = ArtifactStore(store_root)
@@ -1050,12 +1065,29 @@ def run_gate1_ignition(
             base_pytest=base_pytest,
             discrimination=discrimination,
             anchored_nodes=anchored_node_roles,
+            subject_coverage=subject_coverage,
             delta=delta,
             fixture_digest=fixture_digest_before,
             collected_at=collected_at,
             blockers=blockers,
         )
+        receipt["cost"] = {
+            # WHAT THE EVIDENCE COST, because a receipt that reports only the
+            # attempt gates hides the measurements taken around them (Codex
+            # round 2, 2026-08-23: the node roles and the coverage matrix run
+            # pytest and the reference compiler several times each).
+            "wall_clock_s": round(time.monotonic() - started_at, 1),
+            "anchored_node_measurements": len(anchored_node_roles),
+            "subject_coverage_measurements": len(subject_coverage),
+            "negative_controls": len(discrimination),
+        }
         receipt_path, receipt = write_receipt(receipt, receipt_dir)
+        # THE RECEIPT IS THE RESULT. write_receipt derives the replay blockers
+        # (it is the only place that can: it holds the previous receipt), so a
+        # caller reading the pre-write list saw an empty one while the receipt
+        # on disk carried a blocker -- and `python -m daedalus.ignition` exits
+        # on the caller's list, so an unstable replay exited 0 (Codex round 2,
+        # 2026-08-23). One list, read back from the body that was written.
         return IgnitionSliceResult(
             mission=mission,
             work_item_ids=work_item_ids,
@@ -1064,7 +1096,7 @@ def run_gate1_ignition(
             receipt=receipt,
             receipt_path=receipt_path,
             graph_delta=delta,
-            blockers=tuple(blockers),
+            blockers=tuple(receipt.get("blockers") or ()),
         )
     finally:
         if not keep_workspace and workspace is None:
@@ -1233,6 +1265,80 @@ REPLAY_REQUIRED_STABLE = (
 )
 
 
+def measure_subject_coverage(
+    candidate: Path,
+    repo: Path,
+    subjects: Sequence[str],
+    control_root: Path,
+    *,
+    gate_timeout_s: float,
+) -> dict[str, Any]:
+    """For each subject the work items rewrote: revert it alone in the composed
+    candidate, and record which evaluator notices.
+
+    WHY THIS AND NOT ANOTHER ASSERTION. Codex round 2 attacked the anchored
+    criterion with a node that fails on the base revision for the wrong reason
+    -- assert the file's SIZE and the literal rename flips it, so the node is
+    measured as FAIL_TO_PASS while testing nothing about the rename. No check
+    inside this tree can read a criterion's intent; that needs an owner-pinned
+    criterion, which is named as still open.
+
+    What this measures instead is coverage, which IS mechanical: an evaluator
+    that stays green when its subject is reverted never read that subject. The
+    matrix is recorded whole -- including the subjects nobody reads, which is
+    the honest half of the answer.
+    """
+
+    control_root.mkdir(parents=True, exist_ok=True)
+    coverage: dict[str, Any] = {}
+    for rel in subjects:
+        source = repo / rel
+        if not source.is_file():
+            coverage[rel] = {"reverted": False, "reason": "not a regular file in the base revision"}
+            continue
+        control = control_root / ("revert-" + rel.replace("/", "-").replace(".", "_"))
+        if control.exists():
+            shutil.rmtree(control, ignore_errors=True)
+        shutil.copytree(candidate, control)
+        shutil.copy2(source, control / rel)
+        nodes = ignition_checks.pytest_check(
+            control, ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
+            timeout_s=float(gate_timeout_s), label=f"coverage-{rel}",
+        )
+        schema = ignition_checks.schema_check(control)
+        links = ignition_checks.link_check(control)
+        noticed = sorted(
+            name for name, report in (
+                ("anchored-nodes", nodes), ("ignition-schema-check", schema),
+                ("ignition-link-check", links),
+            ) if not report.passed
+        )
+        # THE CROSS-PLANE COMPILER IS AN EVALUATOR TOO, and leaving it out of
+        # this matrix produced a false hole on the first run: fourfold.json is
+        # read by nobody among the three checks above, but ``verify_claims``
+        # refuses a manifest whose claims no longer match the planes -- which is
+        # exactly the half-finished rename this slice exists to catch.
+        try:
+            compile_reference_project(
+                control, source_revision=tree_digest(control),
+                created_at="1970-01-01T00:00:00Z", trace_id=f"gate1-coverage-{rel}",
+            )
+        except Exception as exc:  # noqa: BLE001 - a refusal IS the measurement
+            noticed.append("fourfold.compile")
+            coverage_detail = f"{type(exc).__name__}: {exc}"
+        else:
+            coverage_detail = ""
+        noticed = sorted(noticed)
+        coverage[rel] = {
+            "reverted": True,
+            "control": f"revert {rel} to the base revision, keep the rest of the candidate",
+            "noticed_by": noticed,
+            "unread": not noticed,
+            "fourfold_refusal": coverage_detail,
+        }
+    return coverage
+
+
 def criterion_discrimination_blockers(roles: Mapping[str, Any]) -> list[str]:
     """A gate whose anchored nodes all pass on the base revision has no
     criterion of its own.
@@ -1254,7 +1360,15 @@ def criterion_discrimination_blockers(roles: Mapping[str, Any]) -> list[str]:
     out: list[str] = []
     for gate_label in ("code-type", "data-knowledge"):
         rows = [row for row in roles.values() if row.get("gate") == gate_label]
-        if rows and not any(row.get("role") == "fail_to_pass" for row in rows):
+        if not rows:
+            # NOT "nothing to check": a gate with no measured node is a gate
+            # whose criterion nobody looked at (Codex round 2, 2026-08-23 --
+            # the first version skipped this case and returned green).
+            out.append(
+                f"the {gate_label} gate has no measured anchored node at all; its "
+                "criterion set was never classified"
+            )
+        elif not any(row.get("role") == "fail_to_pass" for row in rows):
             out.append(
                 f"the {gate_label} gate has no anchored node that fails on the base "
                 "revision; its criterion set guards but does not discriminate"
@@ -1276,6 +1390,22 @@ def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
 
     if not replay.get("is_replay"):
         return []
+    # A FIELD THAT IS NOT THERE IS NOT A PASS. The first version tested for
+    # literal False, so a replay dict missing every comparison -- a corrupt or
+    # truncated previous receipt, a future field rename -- returned no blockers
+    # at all (Codex round 2, 2026-08-23). Unknown is refused, and says so.
+    unknown = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is None]
+    if unknown:
+        return [
+            "replay comparison is incomplete: " + ", ".join(unknown)
+            + " could not be measured, so this run demonstrates no replay"
+        ]
+    if replay.get("same_fixture") is False:
+        return [
+            "the previous receipt was produced from a different fixture tree ("
+            + str(replay.get("previous_fixture_tree_sha256"))[:12]
+            + "); that comparison is not a replay comparison"
+        ]
     unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
     if not unstable:
         return []
@@ -1604,6 +1734,7 @@ def _build_receipt(
     base_pytest: ignition_checks.CheckReport,
     discrimination: Mapping[str, Any],
     anchored_nodes: Mapping[str, Any],
+    subject_coverage: Mapping[str, Any],
     delta: IgnitionGraphDelta,
     fixture_digest: str,
     collected_at: str,
@@ -1679,6 +1810,7 @@ def _build_receipt(
             },
             "negative_controls": dict(discrimination),
             "anchored_nodes": dict(anchored_nodes),
+            "subject_coverage": dict(subject_coverage),
             # WHAT THE SEAL DOES NOT COVER, said in the record rather than left
             # for a reader to derive. The data/knowledge verdict is
             # `anchored nodes AND schema AND links`; the spine's seal is granted
@@ -1778,6 +1910,12 @@ def write_receipt(
             previous = json.loads(path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 - a corrupt previous receipt is not fatal
             previous = {}
+        if not isinstance(previous, Mapping):
+            # Valid JSON that is not an object ("[]", "3", "null") used to reach
+            # .get() and raise, turning a corrupt predecessor into a crash
+            # instead of a refusal (Codex round 2). An unreadable previous
+            # receipt is the same as a missing comparison: refused below.
+            previous = {}
         previous_replay = dict(previous.get("replay") or {})
 
         def _reports(receipt_body: Mapping[str, Any]) -> dict[str, Any]:
@@ -1826,6 +1964,15 @@ def write_receipt(
             # Codex round 1, 2026-08-23: the receipt committed in d3cdb73b said
             # base_revision_stable false while the commit message claimed the
             # opposite, and nothing in the machinery objected.
+            # A PREVIOUS RECEIPT FROM ANOTHER FIXTURE IS NOT A REPLAY. Every
+            # identity in this block is a function of the fixture tree, so
+            # comparing across two fixtures would report "unstable" for a slice
+            # that is perfectly deterministic -- or, worse, "stable" for fields
+            # that happen to match. Recorded and required below.
+            "previous_fixture_tree_sha256": previous_replay.get("fixture_tree_sha256"),
+            "same_fixture": (
+                previous_replay.get("fixture_tree_sha256") == replay.get("fixture_tree_sha256")
+            ),
             "previous_conformance_test_sha256": (
                 (previous.get("discrimination") or {}).get("before_state") or {}
             ).get("conformance_test_sha256"),
@@ -1843,6 +1990,19 @@ def write_receipt(
         })
     else:
         replay["is_replay"] = False
+    # WHAT THIS RUN ACTUALLY DEMONSTRATED. Plan section 10 asks for restart and
+    # replay; a first run has nothing to compare against and legitimately shows
+    # neither, but an empty ``blockers`` list beside a null ``blocker`` reads as
+    # "Gate 1 demonstrated" unless the receipt says otherwise. Derived, so a
+    # single-run receipt cannot be mistaken for replay evidence.
+    replay["replay_demonstrated"] = bool(
+        replay.get("is_replay")
+        and replay.get("same_fixture")
+        and not replay.get("criterion_changed_since_previous")
+        # `is True`, not `is not False`: a missing comparison is not a passing
+        # one (Codex round 2).
+        and all(replay.get(name) is True for name in REPLAY_REQUIRED_STABLE)
+    )
     body["replay"] = replay
     body["blockers"] = list(body.get("blockers") or []) + _replay_blockers(replay)
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")

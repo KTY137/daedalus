@@ -586,38 +586,130 @@ def test_a_vacuous_criterion_turns_every_node_into_a_guard(tmp_path):
     assert gate1.criterion_discrimination_blockers(roles)
 
 
-@pytest.mark.parametrize(
-    "replay,expected",
-    [
-        ({"is_replay": False, "base_revision_stable": False}, 0),
-        ({"is_replay": True, "base_revision_stable": True, "graph_delta_stable": True,
-          "criterion_changed_since_previous": False}, 0),
-        ({"is_replay": True, "packet_sha256_stable": False,
-          "criterion_changed_since_previous": False}, 0),
-        ({"is_replay": True, "base_revision_stable": False, "graph_delta_stable": False,
-          "criterion_changed_since_previous": False}, 1),
-        ({"is_replay": True, "base_revision_stable": False,
-          "criterion_changed_since_previous": True,
-          "previous_conformance_test_sha256": "a" * 64}, 1),
-    ],
-)
-def test_replay_instability_is_a_blocker_unless_the_criterion_moved(replay, expected):
-    """Plan section 10 requires restart/replay to work. The receipt used to
-    merely REPORT the comparison: a run whose base revision or graph delta moved
-    between two identical invocations still came out with an empty blockers list
-    (Codex round 1, and the receipt committed in d3cdb73b was exactly that).
+#: A replay dict with every required comparison present and true. The tests
+#: below vary ONE field at a time from it, because a partial mapping is itself
+#: a refusal case and would otherwise mask what a case meant to test.
+COMPLETE_REPLAY = {
+    "is_replay": True,
+    "same_fixture": True,
+    "criterion_changed_since_previous": False,
+    "mission_id_stable": True,
+    "work_item_ids_stable": True,
+    "base_revision_stable": True,
+    "candidate_revision_stable": True,
+    "graph_delta_stable": True,
+    "check_reports_stable": True,
+}
 
-    A criterion change moves the base revision by construction, so it is named
-    as the reason rather than tolerated silently -- and it is still a blocker,
-    because the comparison it produced is not a replay comparison.
-    """
 
-    blockers = gate1._replay_blockers(replay)
-    assert len(blockers) == expected
-    if expected and replay.get("criterion_changed_since_previous"):
-        assert "criterion change" in blockers[0]
-    elif expected:
-        assert "not stable across two runs of the same criterion" in blockers[0]
+def test_replay_of_two_identical_runs_is_clean():
+    assert gate1._replay_blockers(COMPLETE_REPLAY) == []
+    # the packet digest is deliberately not required: evidence items bind raw
+    # evaluator output and pytest prints its own duration
+    assert gate1._replay_blockers({**COMPLETE_REPLAY, "packet_sha256_stable": False}) == []
+
+
+def test_a_first_run_has_nothing_to_compare_and_is_not_blocked():
+    assert gate1._replay_blockers({"is_replay": False, "base_revision_stable": False}) == []
+
+
+@pytest.mark.parametrize("unstable", ["base_revision_stable", "graph_delta_stable",
+                                      "check_reports_stable", "work_item_ids_stable"])
+def test_an_unstable_replay_is_a_blocker(unstable):
+    blockers = gate1._replay_blockers({**COMPLETE_REPLAY, unstable: False})
+    assert len(blockers) == 1
+    assert "not stable across two runs of the same criterion" in blockers[0]
+    assert unstable in blockers[0]
+
+
+def test_a_criterion_change_is_named_and_still_refused():
+    blockers = gate1._replay_blockers({
+        **COMPLETE_REPLAY, "base_revision_stable": False,
+        "criterion_changed_since_previous": True,
+        "previous_conformance_test_sha256": "a" * 64,
+    })
+    assert len(blockers) == 1 and "criterion change" in blockers[0]
+    assert "aaaaaaaaaaaa" in blockers[0]
+
+
+@pytest.mark.parametrize("missing", ["base_revision_stable", "graph_delta_stable",
+                                     "mission_id_stable", "check_reports_stable"])
+def test_a_comparison_that_could_not_be_measured_is_not_a_pass(missing):
+    """The first version tested for literal False, so a replay dict missing its
+    comparisons -- a corrupt or truncated predecessor, a renamed field -- came
+    back with no blockers at all (Codex round 2, 2026-08-23)."""
+
+    partial = {k: v for k, v in COMPLETE_REPLAY.items() if k != missing}
+    blockers = gate1._replay_blockers(partial)
+    assert len(blockers) == 1
+    assert "incomplete" in blockers[0] and missing in blockers[0]
+    assert gate1._replay_blockers({"is_replay": True}) != []
+
+
+def test_a_previous_receipt_from_another_fixture_is_not_a_replay():
+    """Every identity in the replay block is a function of the fixture tree.
+    Comparing across two fixtures would report a deterministic slice as
+    unstable, or -- worse -- report as stable the fields that happen to match."""
+
+    blockers = gate1._replay_blockers({**COMPLETE_REPLAY, "same_fixture": False,
+                                       "previous_fixture_tree_sha256": "b" * 64})
+    assert len(blockers) == 1 and "different fixture tree" in blockers[0]
+
+
+def test_a_single_run_receipt_does_not_claim_replay(replayed, tmp_path):
+    """An empty blockers list beside a null blocker reads as "Gate 1
+    demonstrated". A first run has nothing to compare against and must say so
+    rather than let silence stand in for evidence (plan section 10 asks for
+    restart/replay)."""
+
+    fresh = gate1.run_gate1_ignition(
+        receipt_root=tmp_path / "fresh-receipts", collected_at="2026-08-23T00:00:00Z"
+    )
+    assert fresh.receipt["replay"]["is_replay"] is False
+    assert fresh.receipt["replay"]["replay_demonstrated"] is False
+    assert fresh.receipt["blockers"] == []          # nothing is wrong with a first run
+    first, second = replayed
+    assert first.receipt["replay"]["replay_demonstrated"] is False
+    assert second.receipt["replay"]["replay_demonstrated"] is True
+    assert second.receipt["blockers"] == []
+
+
+def test_the_result_reports_the_blockers_the_receipt_carries(replayed):
+    """The receipt is the result. write_receipt derives the replay blockers --
+    it is the only place that can -- so a caller reading the pre-write list saw
+    an empty one while the file carried a blocker, and `python -m
+    daedalus.ignition` exits on the caller's list (Codex round 2, 2026-08-23)."""
+
+    for result in replayed:
+        assert list(result.blockers) == list(result.receipt["blockers"])
+
+
+def test_a_gate_with_no_measured_node_is_refused():
+    """A gate whose criterion nobody classified is not a gate that passed."""
+
+    assert gate1.criterion_discrimination_blockers({}) != []
+    only_code = {"n": {"gate": "code-type", "role": "fail_to_pass"}}
+    blockers = gate1.criterion_discrimination_blockers(only_code)
+    assert len(blockers) == 1 and "data-knowledge" in blockers[0]
+    assert "never classified" in blockers[0]
+
+
+def test_every_rewritten_subject_is_read_by_some_evaluator(slice_result):
+    """Reverting a subject that no evaluator reads changes no verdict, which is
+    indistinguishable from a rename nobody checked. Measured per subject, and
+    the matrix is recorded whole -- including which evaluator noticed."""
+
+    coverage = slice_result.receipt["discrimination"]["subject_coverage"]
+    assert set(coverage) >= {"data/events.csv", "schemas/event.schema.json", "wiki/Event.md"}
+    for rel, row in coverage.items():
+        assert row["reverted"] is True, rel
+        assert row["unread"] is False, (rel, row)
+        assert row["noticed_by"], rel
+    # measured 2026-08-23: the manifest is read by the cross-plane compiler
+    # alone -- the three data/knowledge checks never open it
+    assert coverage["fourfold.json"]["noticed_by"] == ["fourfold.compile"]
+    assert "anchored-nodes" in coverage["wiki/Event.md"]["noticed_by"]
+    assert "ignition-schema-check" in coverage["schemas/event.schema.json"]["noticed_by"]
 
 
 def test_the_receipt_names_the_conjuncts_the_seal_does_not_cover(slice_result):
