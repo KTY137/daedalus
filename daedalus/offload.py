@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -474,6 +475,101 @@ def _offload_impl(
     if decision.mode == "write" and pol is None:
         return _escalate("refusing live write: no project policy loaded (guards off) -- pass --project")
 
+    # PLANNING STOPS HERE, AND SO DOES THIS FUNCTION'S REACH.
+    #
+    # Everything past this point runs the bench and writes the checkout, and
+    # this function no longer contains any of it -- it returns a DESCRIPTION of
+    # the dispatch and never executes one. The executor is a module-private
+    # helper named exactly once in this module, inside the branch of
+    # :func:`offload` that has already consumed an Effect Lease. So a caller
+    # that reaches ``_offload_impl`` without a lease (the ``live=False``
+    # planning path, or any direct importer) gets a plan and cannot get a
+    # write: there is no code path from here to the provider run.
+    #
+    # That is the whole point. A write reachable from a leased AND an un-leased
+    # caller cannot be attributed to the lease, which is why
+    # ``scripts/declare_write_surfaces.py`` refused to count this door's only
+    # write surface while it sat in this function.
+    result[_LIVE_DISPATCH_KEY] = _LiveDispatch(
+        objective=objective, repo_root=repo_root, paths=paths,
+        run_tests=run_tests, isolate_paths=isolate_paths,
+        rewrite_windows=rewrite_windows, model=model,
+        agent=agent, decision=decision, pdata=pdata, pol=pol, result=result,
+    )
+    return result
+
+
+@dataclass(frozen=True)
+class _LiveDispatch:
+    """The planned bench run, handed from the planner to the leased executor.
+
+    Data only: every decision on it was already made and already refused-or-
+    allowed by :func:`_offload_impl`. It carries no callable, so it cannot be
+    turned back into a way to reach the executor from un-leased code.
+    """
+
+    objective: str
+    repo_root: str
+    paths: list[str] | None
+    run_tests: bool
+    isolate_paths: bool
+    rewrite_windows: dict[str, Any] | None
+    model: str | None
+    agent: dict
+    decision: Any
+    pdata: dict | None
+    pol: Any
+    #: The partially-built result dict the executor finishes and returns.
+    result: dict
+
+
+#: The private key a planned dispatch rides on. :func:`offload` pops it before
+#: doing anything else with the result, so it never reaches a caller, a receipt
+#: digest, or the wire.
+_LIVE_DISPATCH_KEY = "_live_dispatch"
+
+
+def _leased_bench_cascade(dispatch: _LiveDispatch) -> dict:
+    """Run the bench, verify it, and accept or roll it back. THE WRITE PATH.
+
+    Named exactly once in this module, from the statement in :func:`offload`
+    that follows ``effect_authorization.begin_effect(...)``. That single
+    reference is what lets the write-surface declaration attribute the
+    ``worker.run`` surface below to the lease instead of leaving it a blocker:
+    every path that reaches this function has already committed a durable start
+    receipt. Do not call it from anywhere else.
+
+    AND DO NOT WRITE ITS NAME IN ANOTHER PYTHON FILE -- which is a strange thing
+    to ask of production code, so here is why, stated as the known weakness it
+    is rather than as a house rule. The declaration's dominance analysis
+    resolves references by NAME ONLY; it cannot follow an attribute call or see
+    into a method body. Unable to ask "who can reach this helper", it asks the
+    stronger question it can answer -- "does this token occur anywhere else" --
+    and treats any occurrence as a possible un-leased caller. So a comment, a
+    docstring or a test that merely mentions this function drops
+    ``python.offload`` back to zero dominated write surfaces without changing a
+    line of behaviour. That is fail-closed and therefore safe, but it is a
+    tripwire, not a guarantee, and the real repair belongs in the analysis (see
+    "KNOWN FRAGILITY OF LEVEL 2" in ``scripts/declare_write_surfaces.py``).
+
+    Until then the regression is caught by a red test rather than by memory:
+    ``tests/gates/test_write_surface_lease_dominance.py::
+    test_the_offload_door_lease_dominates_its_bench_write``.
+    """
+
+    objective = dispatch.objective
+    repo_root = dispatch.repo_root
+    paths = dispatch.paths
+    run_tests = dispatch.run_tests
+    isolate_paths = dispatch.isolate_paths
+    rewrite_windows = dispatch.rewrite_windows
+    model = dispatch.model
+    agent = dispatch.agent
+    decision = dispatch.decision
+    pdata = dispatch.pdata
+    pol = dispatch.pol
+    result = dispatch.result
+
     # --- live cascade -------------------------------------------------
     from .providers import get_provider
     worker = get_provider(decision.provider)
@@ -790,6 +886,16 @@ def offload(
             objective, repo_root, paths, live, availability, run_tests, project,
             isolate_paths, rewrite_windows, model, _attempt_workspace
         )
+        # THE ONLY PLACE THE BENCH IS ACTUALLY RUN. ``_offload_impl`` plans and
+        # refuses; it never writes. When it returns a planned dispatch instead
+        # of a terminal verdict, the write happens HERE -- after
+        # ``begin_effect`` committed a durable start receipt, inside the try
+        # whose handlers terminalise the execution either way. The key is
+        # popped first so it can never ride out on the result or into
+        # ``canonical_sha`` below.
+        dispatch = result.pop(_LIVE_DISPATCH_KEY, None)
+        if dispatch is not None:
+            result = _leased_bench_cascade(dispatch)
     except (KeyboardInterrupt, SystemExit) as exc:
         detail_sha256 = hashlib.sha256(
             f"{type(exc).__name__}: {exc}".encode("utf-8", "replace")

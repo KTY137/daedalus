@@ -5,22 +5,40 @@ registry row really granted, started and terminalised an Effect Lease at this
 revision. The dominance analysis proves that every path to a write surface
 crosses that row's ``begin_effect`` anchor. Neither of those, nor both, proves
 that the write itself happened inside a leased execution -- and the two claims
-come apart exactly where ``python.offload`` already showed they do: its writes
-live in ``_offload_impl``, which the un-leased ``live=False`` planning path
-also calls.
+come apart exactly where ``python.offload`` showed they do: at merge 21f21f2a
+its only write, ``worker.run``, sat in ``_offload_impl``, which the un-leased
+``live=False`` planning path also called.
 
-That case is caught today by accident. The private-callee fixpoint refuses a
-helper the un-leased path also names, so ``_offload_impl`` never enters the
-dominated region. A surface sitting DIRECTLY in an ``if authorization is not
-None:`` region would not be refused by anything: the receipt anchor dominates
-it, the door authenticates, and the row comes out ``cleared:central`` on the
-strength of some other invocation's lease.
+That case was caught by accident. The private-callee fixpoint refuses a helper
+the un-leased path also names, so ``_offload_impl`` never entered the dominated
+region. A surface sitting DIRECTLY in an ``if authorization is not None:``
+region would not be refused by anything: the receipt anchor dominates it, the
+door authenticates, and the row comes out ``cleared:central`` on the strength
+of some other invocation's lease.
 
 So the region is computed from the lease consumption itself.
 ``<authorization>.begin_effect(execution)`` is an attribute call and the free
 ``begin_effect(entrypoint_id, effects, decisions)`` receipt function is not,
 which is the mechanical difference these tests pin. A surface outside the
 leased region stays a blocker with the reason named.
+
+WHAT CHANGED IN THE TREE UNDER IT. ``_offload_impl`` no longer executes
+anything: it plans, refuses, and returns a description of the dispatch, and the
+provider run moved into a module-private executor named exactly once in
+``daedalus/offload.py`` -- from the statement in ``offload`` that follows
+``authorization.begin_effect(...)``. ``test_the_offload_door_lease_dominates_
+its_bench_write`` is the measurement of that on the real tree.
+
+AND IT IS A TRIPWIRE OVER A KNOWN WEAKNESS, not a proof of one. The analysis
+resolves references by name only -- it cannot follow an attribute call or read
+a method body -- so it admits a helper on the strictly-stronger evidence it can
+actually collect: that the helper's token appears in no other Python source.
+That is fail-closed, and it also means a comment or a test that merely MENTIONS
+the executor drops this door back to zero dominated surfaces with no behavioural
+change at all. The test below exists so that regression is red instead of
+silent; the repair belongs upstream, in the analysis (see "KNOWN FRAGILITY OF
+LEVEL 2" in ``scripts/declare_write_surfaces.py``), not in everyone remembering
+not to type a word.
 """
 from __future__ import annotations
 
@@ -93,6 +111,57 @@ def offload(authorization, execution, receipted, leased, shared):
     with open(leased, "w") as handle:
         handle.write("leased")
     _shared_write(shared)
+    return start
+'''
+
+#: THE ``finally`` CASE. The lease is consumed INSIDE a ``try``, and a write
+#: sits in that ``try``'s ``finally``. The finaliser runs whether or not
+#: ``begin_effect`` ever returned, so its write is not under the lease -- and
+#: ``_anchor_regions`` seeds only the statements AFTER the holder, so it is not
+#: in the leased region either. The write below the ``try`` is, which is what
+#: makes this a discrimination rather than a blanket refusal.
+FINALLY_MODULE = '''"""Synthetic offload door whose finaliser writes."""
+
+
+def offload(authorization, execution, deferred, leased):
+    from daedalus.spine.effect_boundary import begin_effect
+
+    begin_effect("python.offload", (), ())
+    try:
+        start = authorization.begin_effect(execution)
+    finally:
+        with open(deferred, "w") as handle:
+            handle.write("deferred")
+    with open(leased, "w") as handle:
+        handle.write("leased")
+    return start
+'''
+
+#: THE CALLBACK CASE. The write helper is called from the leased region, and it
+#: is ALSO named at module level, where un-leased code can dispatch through the
+#: table and invoke it without ever holding an authorization. One un-dominated
+#: reference is enough for the fixpoint to refuse the helper, which is the
+#: property that makes "named nowhere else" a usable rule rather than a wish.
+CALLBACK_MODULE = '''"""Synthetic offload door that hands its writer out."""
+
+
+def _deferred_write(target):
+    with open(target, "w") as handle:
+        handle.write("callback")
+
+
+#: Un-leased code reaches the writer through this table.
+HOOKS = (_deferred_write,)
+
+
+def offload(authorization, execution, target, leased):
+    from daedalus.spine.effect_boundary import begin_effect
+
+    begin_effect("python.offload", (), ())
+    start = authorization.begin_effect(execution)
+    with open(leased, "w") as handle:
+        handle.write("leased")
+    _deferred_write(target)
     return start
 '''
 
@@ -210,6 +279,148 @@ def offload(target):
     assert dominance.positions
     assert dominance.leased_positions == frozenset()
     assert "no <authorization>.begin_effect" in dominance.leased_refusal
+
+
+def test_a_write_in_the_finally_of_the_lease_holder_is_not_leased(tmp_path):
+    """ADVERSARIAL: a finaliser is not a leased caller.
+
+    ``finally`` runs on the path where ``begin_effect`` raised, refused, or was
+    never reached, so a write there is exactly the un-attributable case. The
+    anchor region still covers it -- the free receipt call is above the whole
+    ``try`` -- and the leased region must not."""
+
+    root = tmp_path / "finally"
+    (root / "daedalus").mkdir(parents=True)
+    (root / "daedalus" / "offload.py").write_text(FINALLY_MODULE, encoding="utf-8")
+    door = next(
+        d for d in GEN.resolve_central_doors(root)[0] if d.door_id == "python.offload"
+    )
+    dominance = GEN._dominance(root, door, GEN.NameIndex.build(root))
+
+    deferred = _line(FINALLY_MODULE, 'with open(deferred, "w")')
+    leased = _line(FINALLY_MODULE, 'with open(leased, "w")')
+    anchored = {line for line, _column in dominance.positions}
+    under_lease = {line for line, _column in dominance.leased_positions}
+
+    assert deferred in anchored, "the receipt anchor covers the whole try"
+    assert deferred not in under_lease
+    # The positive control in the same fixture: a guard that refuses both
+    # writes proves nothing about the finaliser.
+    assert leased in under_lease
+
+
+def test_a_writer_handed_out_at_module_level_is_not_leased(tmp_path):
+    """ADVERSARIAL: a callback is not a leased caller either.
+
+    ``_deferred_write`` is invoked from the leased region, so a naive callee
+    walk would admit it. It is also named in a module-level table that
+    un-leased code can dispatch through, and one un-dominated reference is
+    enough to refuse it."""
+
+    root = tmp_path / "callback"
+    (root / "daedalus").mkdir(parents=True)
+    (root / "daedalus" / "offload.py").write_text(CALLBACK_MODULE, encoding="utf-8")
+    door = next(
+        d for d in GEN.resolve_central_doors(root)[0] if d.door_id == "python.offload"
+    )
+    dominance = GEN._dominance(root, door, GEN.NameIndex.build(root))
+
+    callback = _line(CALLBACK_MODULE, 'with open(target, "w")')
+    leased = _line(CALLBACK_MODULE, 'with open(leased, "w")')
+    under_lease = {line for line, _column in dominance.leased_positions}
+
+    assert callback not in under_lease
+    assert "_deferred_write" not in dominance.private_callees
+    assert leased in under_lease
+
+
+def test_the_offload_door_lease_dominates_its_bench_write():
+    """THE MEASUREMENT, on the real tree, and the reason this lane existed.
+
+    ``python.offload`` authenticated with zero refusals at merge 21f21f2a and
+    dominated no blocking write surface, because ``worker.run`` sat in
+    ``_offload_impl`` -- reachable from the leased entrypoint and from the
+    un-leased ``live=False`` planning path. The provider run now lives behind a
+    caller that cannot be reached without a lease, so the surface is attributed.
+
+    The negative control is in the same file and matters as much: the snapshot
+    helper's ``subprocess.run`` is reachable from ``_repo_snapshot``, which
+    other modules import and call, so it stays un-attributed. A rule that
+    admitted both would be admitting by file membership again.
+    """
+
+    from daedalus.gates.repository_write_inventory_v2 import (
+        scan_repository_write_surfaces_v2,
+    )
+
+    doors, _skipped = GEN.resolve_central_doors(REPO_ROOT)
+    door = next(d for d in doors if d.door_id == "python.offload")
+    dominance = GEN._dominance(REPO_ROOT, door, GEN.NameIndex.build(REPO_ROOT))
+    assert dominance.leased_refusal == ""
+
+    inventory = scan_repository_write_surfaces_v2(
+        REPO_ROOT, source_revision=REVISION
+    )
+    surfaces = [
+        surface
+        for surface in inventory.surfaces
+        if surface.path == "daedalus/offload.py" and surface.blocking
+    ]
+    bench = [surface for surface in surfaces if surface.callee == "worker.run"]
+    assert len(bench) == 1, [s.callee for s in surfaces]
+    position = (bench[0].line, bench[0].column)
+    assert position in dominance.positions
+    assert position in dominance.leased_positions, (
+        "the bench run is no longer attributed to python.offload's lease -- "
+        "either a second caller reached the executor, or its name appeared in "
+        "another Python source and the private-callee fixpoint refused it"
+    )
+
+    snapshot = [
+        surface for surface in surfaces if surface.callee == "subprocess.run"
+    ]
+    assert len(snapshot) == 1
+    assert (snapshot[0].line, snapshot[0].column) not in dominance.leased_positions
+
+
+# THE FULL DERIVATION OVER THE REAL TREE IS NOT A TEST HERE, and the omission
+# is deliberate rather than an oversight. ``derive`` runs the v2 scanner, which
+# composes generation 2 from a base scan taken twice and refuses with "base
+# inventory changed while composing generation 2" when a single byte of the
+# checkout moves between them. This repository is worked by several sessions at
+# once, so that refusal fires on other people's edits, not on this door. The
+# end-to-end derivation is asserted on synthetic roots above, and measured on
+# two isolated ``git archive`` snapshots of the SAME revision out of band --
+# one plain, one carrying this change -- each given one real grant -> begin ->
+# finish for ``python.offload``:
+#
+#   [MEASURED 2026-08-24, snapshot pair pinned to b07e1309; 435 surfaces in
+#    both arms, so this is an A/B and not two different trees]
+#     before: declared 0, lease_dominated 0, private_callees ()
+#             admitted_surfaces: []
+#             evidence_refusals: ["door python.offload: authenticated, and its
+#                                  anchor dominates no blocking write surface;
+#                                  its leased region holds none either"]
+#             in-process census: blocked:...inventory_only 31, unclassified 404
+#     after:  declared 1, lease_dominated 1, lease_refusal ""
+#             private_callees ('_auto_mint', <the executor>)
+#             admitted_surfaces: ["daedalus/offload.py:651:10"]  (worker.run)
+#             evidence_refusals: []
+#             in-process census: cleared:central 1,
+#                                blocked:...inventory_only 31, unclassified 403
+#
+# The reporter's own failure count does not move (435 both ways) and that is
+# not a disappointment: a ``central`` row carries a NonRuntimeConformityAdmission
+# that has no wire shape, so the declaration FILE the reporter reads can never
+# hold one. What moves in the report is the verdict histogram --
+# blocked 31/unclassified 404 becomes blocked 32/unclassified 403 -- because the
+# surface stopped being one nobody had looked at. The next owed stage is named
+# rather than papered over: the six verifiers refuse the admitted row at
+# GuardImplementationManifestError, because nothing in this tree signs a guard
+# implementation manifest.
+#
+# Only ``daedalus/`` is scanned for surfaces, so nothing in tests/ can move
+# these numbers -- which is why editing this comment does not invalidate it.
 
 
 def test_the_real_gate_door_consumes_no_lease(tmp_path):

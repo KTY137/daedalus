@@ -18,7 +18,9 @@ from daedalus import metrics
 from daedalus.kairos.scheduler import KairosScheduler, _paths_overlap
 from daedalus.offload import _offload_impl
 
-_AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
+from test_offload_lease_harness import live_offload
+
+_AVAIL ={"claude_cli": True, "ollama": True, "deepseek": False}
 
 
 #: Arguments the LEASE GATE owns and the seam below it has never seen.
@@ -30,24 +32,24 @@ _IMPL_PARAMS = frozenset(inspect.signature(_offload_impl).parameters)
 
 
 def _internal_offload(*args, **kwargs):
-    """Stand in for the PUBLIC ``offload()`` at the seam just below its lease.
+    """Stand in for the PUBLIC ``offload()``, WITH a real lease attached.
 
-    THE SEAM MOVED, and this is where it moved to. 18fc8b8a split the old
-    single ``offload()`` into a lease gate (still named ``offload``, still what
-    these tests patch) plus ``_offload_impl``, which is everything the gate
-    used to do once it decided to run. The gate grew two keyword-only
-    parameters, ``effect_authorization`` and ``effect_execution``; the impl
-    below it did not, and should not -- consuming a capability is the gate's
-    whole job. ``KairosScheduler._run_one`` passes both on every live call, so
-    forwarding ``**kwargs`` verbatim raised::
+    THE SEAM MOVED TWICE. 18fc8b8a split the old single ``offload()`` into a
+    lease gate (still named ``offload``, still what these tests patch) plus
+    ``_offload_impl``, which is everything the gate used to do once it decided
+    to run -- and this shim called that impl directly, so the live cascade ran
+    here with no lease at all. That un-leased caller is precisely why the
+    write-surface declaration could not attribute ``worker.run`` to
+    ``python.offload``'s lease: a write reachable from a leased AND an
+    un-leased caller is attributable to neither.
 
-        TypeError: _offload_impl() got an unexpected keyword argument
-                   'effect_authorization'
-
-    Consume exactly those two here (this unit is about scheduler concurrency,
-    which lives below the lease), and refuse anything else unrecognised, so the
-    NEXT signature move fails loudly here instead of being dropped on the floor
-    and mistaken for a scheduler bug.
+    So the impl no longer executes anything, and this shim no longer calls it.
+    It mints one real, persisted lease per dispatch (the same door production
+    takes) and calls the public entrypoint. What it still does is consume the
+    scheduler's two lease-carrying kwargs -- ``KairosScheduler._run_one``
+    passes ``None`` for both when it was handed nothing -- and refuse anything
+    else unrecognised, so the NEXT signature move fails loudly here instead of
+    being dropped on the floor and mistaken for a scheduler bug.
     """
     for name in _LEASE_ONLY_KWARGS:
         kwargs.pop(name, None)
@@ -58,11 +60,7 @@ def _internal_offload(*args, **kwargs):
             "take. Decide whether the new argument belongs to the lease gate "
             "(add it to _LEASE_ONLY_KWARGS) or below it (thread it through "
             "_offload_impl) -- do not let this shim swallow it.")
-    repo_root = kwargs.get("repo_root")
-    if repo_root is None and len(args) > 1:
-        repo_root = args[1]
-    kwargs.setdefault("_attempt_workspace", {"worktree": str(repo_root)})
-    return _offload_impl(*args, **kwargs)
+    return live_offload(*args, **kwargs)
 
 
 

@@ -62,6 +62,42 @@ resolved from data), which is why the cross-module name check demands *zero*
 mentions anywhere, including in strings: a collision excludes the helper, it
 never admits one.
 
+KNOWN FRAGILITY OF LEVEL 2 -- READ THIS BEFORE RELYING ON A ``central`` ROW
+--------------------------------------------------------------------------
+Level 2's admission test is UNIQUENESS OF A NAME doing the work REACHABILITY
+should be doing, and that is not a design choice, it is a consequence of what
+this analysis can see.  ``_referenced_names`` collects ``ast.Name`` nodes only,
+so the rule cannot follow an attribute call and cannot see into a method body
+(61f1ece3 measured the second half of that).  Having no way to ask "who can
+reach ``_f``", it asks the strictly-stronger question it CAN answer -- "does the
+token ``_f`` occur anywhere else at all" -- and treats any occurrence as a
+possible caller.
+
+That direction is fail-closed, which is why it ships.  It is also a tripwire
+rather than a guarantee, and the difference matters:
+
+* the property is breakable by a DOCUMENTATION commit.  A comment, a docstring,
+  a test that mentions the helper, a grep-and-annotate pass -- any of these
+  silently drops the door back to zero dominated surfaces.  Nothing about the
+  program changed; a word was typed in a second file.
+* it therefore forces production code into an unusual shape: the executor
+  behind ``python.offload``'s lease is a helper whose name may not be written
+  down anywhere else in the tree, and
+  ``scripts/run_offload_lease_dominance_mutations.py`` has to assemble that
+  name from two fragments so that the mutation runner does not disarm the very
+  surface its mutants protect.
+* the guard against that regression is a red test
+  (``tests/gates/test_write_surface_lease_dominance.py::
+  test_the_offload_door_lease_dominates_its_bench_write``), not a convention --
+  because a convention that everyone must remember not to break by typing a
+  word is not a control.
+
+THE FIX IS UPSTREAM, in the analysis, not in everyone's memory: resolve
+references (attribute calls and method bodies included) and admit a helper on
+demonstrated reachability rather than on lexical absence.  Until then, every
+``central`` row that rests on Level 2 rests on this, and it should be read that
+way.
+
 Usage::
 
     python scripts/declare_write_surfaces.py            # write the declaration
@@ -1098,15 +1134,24 @@ def derive(
         # honest.  A retained terminal execution proves the DOOR held a lease;
         # it says nothing about whether THIS write happened inside one.  Those
         # two claims come apart exactly when the write is reachable from both a
-        # leased and an un-leased caller -- which is `python.offload`'s
-        # `_offload_impl` (the reason that door declares zero surfaces) and
-        # which any door with an OPTIONAL authorization reproduces.  The
-        # difference is that `_offload_impl` is caught by accident, because the
+        # leased and an un-leased caller -- which is what `python.offload` was
+        # at 21f21f2a (its `worker.run` sat in `_offload_impl`, which the
+        # un-leased `live=False` path also called, so the door declared zero
+        # surfaces) and which any door with an OPTIONAL authorization
+        # reproduces.  That case was caught by accident, because the
         # private-callee fixpoint refuses a helper the un-leased path also
         # names; a surface sitting directly in a `if auth is not None:` region
         # would not be.  So the region is computed from the lease consumption
         # itself, and a surface outside it stays a blocker with the reason
         # named in `lease_refusal`.
+        #
+        # `daedalus/offload.py` since answered the refusal rather than routing
+        # around it: the planner returns a description of the dispatch and the
+        # provider run moved behind a caller the un-leased path cannot reach,
+        # so that one surface is now attributed.  The snapshot helper's
+        # `subprocess.run` in the same file still is not -- `_repo_snapshot` is
+        # imported and called by other modules -- which is the discrimination
+        # this guard is for.
         lease_dominated = (surface.line, surface.column) in leased_by_door.get(
             door_id, frozenset()
         )
@@ -1155,13 +1200,14 @@ def derive(
         leased = leased_by_door.get(door_id, frozenset())
         held = [s for s, owner in claimed.items() if owner == door_id]
         if not held:
-            # MEASURED, and this is the state of the only door in this tree
-            # that consumes a lease at all: `python.offload` authenticates with
-            # zero refusals and its anchor dominates no blocking surface,
-            # because its writes sit in `_offload_impl`, which the un-leased
-            # `live=False` path also calls. A door that authenticated and
-            # classified nothing is the Gate-0 fact; a silent absence reads as
-            # "there was nothing to classify".
+            # A door that authenticated and classified nothing is a Gate-0
+            # fact; a silent absence reads as "there was nothing to classify".
+            # MEASURED 21f21f2a: this was `python.offload`'s own state --
+            # authenticated with zero refusals, dominating no blocking surface,
+            # because its writes sat in `_offload_impl`, which the un-leased
+            # `live=False` path also called. It no longer is, and this branch
+            # stayed because the next door to consume a lease will land here
+            # before it lands anywhere else.
             evidence_refusals.append(
                 f"door {door_id}: authenticated, and its anchor dominates no "
                 f"blocking write surface"
