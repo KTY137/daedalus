@@ -1,195 +1,231 @@
+"""The terminal trust fence must release its SQLite authority read-only.
+
+After the effect completes, the broker re-reads the runtime trust record under
+``BEGIN IMMEDIATE`` so quarantine and record rotation are serialized out while
+``COMPLETED`` is made durable.  That transaction exists only to hold the lock:
+it must end in ``ROLLBACK``.  A ``COMMIT`` there would make fence-local reads
+durable and hand a read-only verification path a write it never earned.
+
+The fence connection is observed, not altered: the trust ledger also serves
+``require_active``, which legitimately commits its own read transaction, so a
+ledger-wide COMMIT refusal would break a correct path instead of measuring this
+one.  The fence connection is identified by its caller, and its statements are
+asserted positively -- a test that only checked "no COMMIT" would also pass on a
+fence that never ran at all.
+"""
 from __future__ import annotations
 
+import importlib.util
 import sqlite3
-from datetime import datetime, timedelta, timezone
+import sys
+from datetime import timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
-from daedalus.kernel.effects import (
-    EffectExecutionRequest,
-    EffectStartResult,
-    EffectTerminalReceipt,
-    LeasedEffectStartReceipt,
-)
+import pytest
+
+from daedalus.kernel.runtime_effects import RuntimeBoundEffectAuthorization
 from daedalus.runtimes.broker import run_runtime_provider
-from daedalus.spine.effect_boundary import Effect, EntrypointSpec, Surface, Wiring
-from daedalus.spine.envelope import canonical_sha
+from daedalus.runtimes.provider_observation import (
+    ProviderObservationBindingLedger,
+    issue_provider_observation_authority,
+)
 
-ENTRYPOINT = "provider.release-fence"
-RUNTIME = "release_fence_runtime"
+ROOT = Path(__file__).resolve().parents[2]
+AUTHORITY_FIXTURE = ROOT / "tests/kernel/test_runtime_effect_replay_projection.py"
+AUTHORITY_KEY_ID = "release-fence-authority-key"
+AUTHORITY_KEY = b"release-fence-authority-key-material-at-least-32-bytes"
+OBSERVATION_KEY_ID = "release-fence-observation-key"
+OBSERVATION_KEY = b"release-fence-observation-key-material-at-least-32-bytes"
+RECORD_KEY = b"release-fence-record-key-material-at-least-32-bytes"
 OUTPUT_SHA = "a" * 64
 
 
-class _NoCommitConnection:
-    """Connection proxy that kills an unnecessary terminal-fence COMMIT."""
+def _load_authority_fixture():
+    name = "daedalus_test_runtime_terminal_fence_release_fixture"
+    spec = importlib.util.spec_from_file_location(name, AUTHORITY_FIXTURE)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
-    def __init__(self, connection: sqlite3.Connection) -> None:
+
+fixture = _load_authority_fixture()
+
+
+FENCE_FRAME = "_finish_completed_under_runtime_fence"
+
+
+class _RecordingConnection:
+    """Pure observer over one trust-ledger connection.
+
+    It records statements and forwards everything unchanged, so the path under
+    test behaves exactly as it does in production.  ``sqlite3`` connections
+    also commit implicitly when used as a context manager, which no ``execute``
+    would reveal, so an implicit commit is recorded separately instead of being
+    allowed to hide.
+    """
+
+    def __init__(self, connection, *, fence: bool) -> None:
         self._connection = connection
+        self.fence = fence
+        self.statements: list[str] = []
+        self.context_committed = False
 
     def execute(self, statement: str, parameters=()):
-        if statement.strip().upper() == "COMMIT":
-            raise sqlite3.OperationalError("read-only fence COMMIT refused")
+        self.statements.append(" ".join(statement.split()).upper())
         return self._connection.execute(statement, parameters)
 
-    @property
-    def in_transaction(self) -> bool:
-        return self._connection.in_transaction
+    def __enter__(self):
+        self._connection.__enter__()
+        return self
 
-    def close(self) -> None:
-        self._connection.close()
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is None and self._connection.in_transaction:
+            self.context_committed = True
+        return self._connection.__exit__(exc_type, exc, traceback)
 
-
-class _NoCommitTrustLedger:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        raw = sqlite3.connect(str(path), isolation_level=None)
-        try:
-            raw.execute("PRAGMA journal_mode=WAL")
-            raw.execute(
-                """
-                CREATE TABLE runtime_trust_records (
-                    runtime_id TEXT NOT NULL,
-                    envelope_sha256 TEXT PRIMARY KEY,
-                    state TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    record_sha256 TEXT NOT NULL,
-                    runtime_manifest_sha256 TEXT NOT NULL,
-                    conformance_receipt_sha256 TEXT NOT NULL,
-                    source_revision TEXT NOT NULL
-                )
-                """
-            )
-            raw.execute(
-                "INSERT INTO runtime_trust_records VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    RUNTIME,
-                    "1" * 64,
-                    "ACTIVE",
-                    (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-                    "2" * 64,
-                    "3" * 64,
-                    "4" * 64,
-                    "5" * 40,
-                ),
-            )
-        finally:
-            raw.close()
-
-    def _connect(self) -> _NoCommitConnection:
-        raw = sqlite3.connect(str(self.path), isolation_level=None, timeout=5)
-        raw.row_factory = sqlite3.Row
-        raw.execute("PRAGMA journal_mode=WAL")
-        raw.execute("PRAGMA busy_timeout=5000")
-        return _NoCommitConnection(raw)
-
-    @staticmethod
-    def _from_row(row: sqlite3.Row):
-        return SimpleNamespace(**dict(row))
+    def __getattr__(self, name: str):
+        return getattr(self._connection, name)
 
 
-def _start_receipt() -> LeasedEffectStartReceipt:
-    body = {
-        "lease_sha256": "6" * 64,
-        "execution_id": "release-execution",
-        "idempotency_key": "release-idempotency",
-        "execution_request_sha256": "7" * 64,
-        "boundary_receipt_sha256": "8" * 64,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-    }
-    return LeasedEffectStartReceipt(receipt_sha256=canonical_sha(body), **body)
+def _opened_by_terminal_fence() -> bool:
+    """Report whether the terminal fence is the caller opening this connection.
+
+    The trust ledger serves several paths and ``require_active`` legitimately
+    commits its own read transaction, so the fence connection has to be
+    identified by its caller rather than by refusing COMMIT ledger-wide.
+    """
+
+    frame = sys._getframe(1)
+    while frame is not None:
+        if frame.f_code.co_name == FENCE_FRAME:
+            return True
+        frame = frame.f_back
+    return False
 
 
-class _Authorization:
-    def __init__(self, root: Path) -> None:
-        self.runtime_trust_ledger = _NoCommitTrustLedger(root / "trust.sqlite3")
-        self.effect_ledger = SimpleNamespace(path=root / "effects.sqlite3")
-        self.request = SimpleNamespace(entrypoint_id=ENTRYPOINT)
-        self.capability = SimpleNamespace(
-            lease=SimpleNamespace(entrypoint_id=ENTRYPOINT),
-            runtime_id=RUNTIME,
-            runtime_envelope_sha256="1" * 64,
-            runtime_trust_record_sha256="2" * 64,
-            runtime_manifest_sha256="3" * 64,
-            runtime_conformance_sha256="4" * 64,
-            source_revision="5" * 40,
-        )
-        spec = EntrypointSpec(
-            id=ENTRYPOINT,
-            surface=Surface.PYTHON,
-            target="tests.fake_release_provider:run",
-            effects=(Effect.PROCESS_SPAWN,),
-            guard_contracts=("runtime.adapter_profile",),
-            wiring=Wiring.CENTRAL,
-            runtime_id=RUNTIME,
-        )
-        self.registry = {spec.id: spec}
-        self.finished: list[str] = []
+def _watch_trust_connections(ledger) -> list[_RecordingConnection]:
+    """Wrap every connection the broker opens on the real trust ledger.
 
-    def grant(self) -> None:
-        return None
+    The ledger instance is test-local, so the wrapper is installed directly on
+    it rather than on the class; nothing outside this test can observe it.
+    """
 
-    def begin_effect(self, execution: EffectExecutionRequest) -> EffectStartResult:
-        return EffectStartResult(receipt=_start_receipt(), execute=True)
+    opened: list[_RecordingConnection] = []
+    original = ledger._connect
 
-    def verify(self, *, now: datetime) -> object:
-        assert now.tzinfo is not None
-        return object()
+    def connect():
+        proxy = _RecordingConnection(original(), fence=_opened_by_terminal_fence())
+        opened.append(proxy)
+        return proxy
 
-    def finish_effect(
-        self,
-        start_receipt: LeasedEffectStartReceipt,
-        *,
-        outcome: str,
-        output_digests=(),
-        detail_sha256: str | None = None,
-    ) -> EffectTerminalReceipt:
-        self.finished.append(outcome)
-        outputs = tuple(output_digests)
-        finished_at = datetime.now(timezone.utc).isoformat()
-        body = {
-            "lease_sha256": start_receipt.lease_sha256,
-            "execution_id": start_receipt.execution_id,
-            "start_receipt_sha256": start_receipt.receipt_sha256,
-            "outcome": outcome.upper(),
-            "output_digests": list(outputs),
-            "detail_sha256": detail_sha256,
-            "finished_at": finished_at,
-        }
-        return EffectTerminalReceipt(
-            lease_sha256=start_receipt.lease_sha256,
-            execution_id=start_receipt.execution_id,
-            start_receipt_sha256=start_receipt.receipt_sha256,
-            outcome=outcome.upper(),
-            output_digests=outputs,
+    ledger._connect = connect
+    return opened
+
+
+def _set_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "daedalus.kernel.runtime_effects._utc_now",
+        lambda: fixture.NOW,
+    )
+    monkeypatch.setattr(
+        "daedalus.kernel.effects._utc_now",
+        lambda: fixture.NOW + timedelta(seconds=3),
+    )
+    monkeypatch.setattr(
+        "daedalus.runtimes.broker._utc_now",
+        lambda: fixture.NOW + timedelta(seconds=2),
+    )
+
+
+def _authority_bundle(tmp_path: Path, authorization, execution):
+    ledger = ProviderObservationBindingLedger(
+        tmp_path / "release-fence-provider-observation.sqlite3",
+        authority_id="authority.runtime-provider-observation",
+        authority_keyring={AUTHORITY_KEY_ID: AUTHORITY_KEY},
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        record_secret=RECORD_KEY,
+    )
+    authority = issue_provider_observation_authority(
+        authority_id="authority.runtime-provider-observation",
+        authority_key_id=AUTHORITY_KEY_ID,
+        authority_secret=AUTHORITY_KEY,
+        binding_id="release-fence-exact-provider-binding",
+        provider_id="provider.external-runtime-fixture",
+        observation_keyring={OBSERVATION_KEY_ID: OBSERVATION_KEY},
+        entrypoint_id=fixture._request().entrypoint_id,
+        runtime_id=authorization.capability.runtime_id,
+        execution=execution,
+        lease_sha256=authorization.capability.lease.digest,
+        source_revision=authorization.capability.source_revision,
+        issued_at=fixture.NOW - timedelta(minutes=1),
+        expires_at=fixture.NOW + timedelta(hours=1),
+    )
+    return authority, ledger
+
+
+def _trace_terminals(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record every terminal outcome without altering terminal behaviour."""
+
+    original = RuntimeBoundEffectAuthorization.finish_effect
+    outcomes: list[str] = []
+
+    def traced(self, start_receipt, *, outcome, output_digests=(), detail_sha256=None):
+        outcomes.append(outcome)
+        return original(
+            self,
+            start_receipt,
+            outcome=outcome,
+            output_digests=output_digests,
             detail_sha256=detail_sha256,
-            finished_at=finished_at,
-            receipt_sha256=canonical_sha(body),
         )
+
+    monkeypatch.setattr(RuntimeBoundEffectAuthorization, "finish_effect", traced)
+    return outcomes
 
 
 def test_read_only_trust_fence_does_not_commit_after_effect_completion(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    authorization = _Authorization(tmp_path)
-    execution = EffectExecutionRequest(
-        execution_id="release-execution",
-        idempotency_key="release-idempotency",
-        requested_effects=(Effect.PROCESS_SPAWN.value,),
-        tools=("release_fence_runtime",),
-        kill_switch_ref="mission-kill",
-        kill_switch_generation=1,
+    authorization, _record = fixture._authorization(tmp_path, monkeypatch)
+    execution = fixture._execution()
+    authority, binding_ledger = _authority_bundle(
+        tmp_path,
+        authorization,
+        execution,
     )
+    _set_clocks(monkeypatch)
+    terminals = _trace_terminals(monkeypatch)
+    opened = _watch_trust_connections(authorization.runtime_trust_ledger)
 
     result = run_runtime_provider(
-        ENTRYPOINT,
-        authorization=authorization,  # type: ignore[arg-type]
+        fixture._request().entrypoint_id,
+        authorization=authorization,
         execution=execution,
         invoke=lambda: {"answer": 42},
         output_digests=lambda value: (OUTPUT_SHA,),
+        observation_authority=authority,
+        observation_binding_ledger=binding_ledger,
     )
 
     assert result.executed is True
     assert result.value == {"answer": 42}
     assert result.terminal_receipt is not None
     assert result.terminal_receipt.outcome == "COMPLETED"
-    assert authorization.finished == ["completed"]
+    assert result.terminal_receipt.output_digests == (OUTPUT_SHA,)
+    assert terminals == ["completed"]
+
+    # The fence actually opened its serialized transaction, so "no COMMIT"
+    # below cannot pass vacuously on a fence that never ran.
+    fenced = [connection for connection in opened if connection.fence]
+    assert fenced, "the terminal fence never opened a trust-ledger connection"
+    assert all("BEGIN IMMEDIATE" in c.statements for c in fenced)
+
+    # Every serialized fence transaction released read-only: an explicit
+    # ROLLBACK, no explicit COMMIT, and no implicit context-manager commit.
+    for connection in fenced:
+        assert "COMMIT" not in connection.statements
+        assert "ROLLBACK" in connection.statements
+        assert connection.context_committed is False
