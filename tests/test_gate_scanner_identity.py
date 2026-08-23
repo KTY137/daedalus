@@ -141,6 +141,11 @@ def test_reporter_counts_a_scanner_refusal_instead_of_dying(
         diagnostics,
         schema,
         scanner_error,
+        # since a3f20aa7 (B5) the evidence also returns the raw surface count,
+        # the classification schema and the per-surface verdicts
+        surfaces_total,
+        classification_schema,
+        verdicts,
     ) = report_v3._repository_write_evidence(root, source_revision=REVISION)
     assert scanner_error == 1
     assert schema is None
@@ -165,6 +170,11 @@ def test_decidable_fixture_declares_its_inventory_schema_and_no_error(
         diagnostics,
         schema,
         scanner_error,
+        # since a3f20aa7 (B5) the evidence also returns the raw surface count,
+        # the classification schema and the per-surface verdicts
+        surfaces_total,
+        classification_schema,
+        verdicts,
     ) = report_v3._repository_write_evidence(root, source_revision=REVISION)
     assert scanner_error == 0
     # Observed from the artifact the scanner produced, not asserted by the
@@ -175,7 +185,9 @@ def test_decidable_fixture_declares_its_inventory_schema_and_no_error(
     assert files_scanned == 2
     assert generation == 2
     assert failures
-    assert diagnostics == ()
+    # Since 2af73956 the diagnostics carry the raw syntactic blocker count
+    # verbatim (the chain verifies, never derives); the fixture has one.
+    assert diagnostics == ("repository_write_syntactic_blockers:1",)
 
 
 def test_the_conversion_that_keeps_a_refusal_inside_the_declared_taxonomy() -> None:

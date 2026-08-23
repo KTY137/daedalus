@@ -12,7 +12,11 @@ from daedalus.gates.report_v3 import GateReportV3, GateReportV3Error
 REVISION = "1" * 40
 SHA = "a" * 64
 ROOT = Path(__file__).resolve().parents[2]
-INVENTORY = ("b" * 64, "c" * 64, 1, 2, ("path.py:1:0:write",), ())
+# The 11-tuple _repository_write_evidence returns since a3f20aa7 (B5):
+# digest, scan_input, files_scanned, generation, failures, diagnostics,
+# schema, scanner_error, surfaces_total, classification_schema, verdicts.
+INVENTORY = ("b" * 64, "c" * 64, 1, 2, ("path.py:1:0:write",), (),
+             "daedalus.gates.repository-write-inventory/2", 0, 1, None, ())
 
 
 def _base(*, diagnostics=()) -> GateReport:
