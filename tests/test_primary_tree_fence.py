@@ -25,6 +25,7 @@ from daedalus.primary_tree import (            # noqa: E402
     assert_write_allowed,
     nearest_existing,
     overlap_reason,
+    planned_overlap_reason,
     write_blocked_reason,
 )
 from daedalus.spine import attempt as attempt_mod   # noqa: E402
@@ -225,6 +226,68 @@ def test_write_and_overlap_diverge_on_the_contains_direction(trees, tmp_path):
     assert write_blocked_reason(container / "sibling" / "x.py", repo) is None
 
 
+# --------------------------------------------------------------------------- #
+# question 3 -- a directory that does not exist yet                            #
+# --------------------------------------------------------------------------- #
+def test_a_planned_sibling_root_that_does_not_exist_yet_is_allowed(trees,
+                                                                    tmp_path):
+    """The 57a2e7cb regression, pinned. A worktree root is handed to the
+    boundary BEFORE the manager creates it. Grounding it on its nearest
+    existing ancestor and asking ``overlap_reason`` refused every fresh root
+    whose parent contains the checkout -- 17 attempt tests red, and in
+    production ``<desktop>/agent_env.worktrees`` refused for the same
+    non-reason. The planned question must say None here, and the old question
+    must still say what it always said, so nobody collapses them again."""
+    repo, _worktree = trees
+    planned = tmp_path / "fresh_roots" / "wt_root"
+    assert not planned.exists()
+
+    assert planned_overlap_reason(planned, repo) is None
+    assert overlap_reason(nearest_existing(planned), repo) == (
+        "it contains the primary checkout")
+
+
+def test_a_planned_root_inside_the_checkout_is_refused(trees):
+    """Forward direction survives the planned form: a root that would be
+    created under the checkout is inside it, existing or not."""
+    repo, _worktree = trees
+    planned = repo / "runs" / "worktrees"
+    assert not planned.exists()
+
+    reason = planned_overlap_reason(planned, repo)
+    assert reason is not None
+    assert "inside the primary checkout" in reason
+
+
+def test_a_planned_root_that_already_exists_is_the_overlap_question(trees,
+                                                                     tmp_path):
+    """An existing directory is simply ``overlap_reason``: the checkout's
+    parent is refused in the contains direction, and the checkout itself in
+    the forward direction, with the same prose the old question renders."""
+    repo, worktree = trees
+
+    assert planned_overlap_reason(tmp_path, repo) == overlap_reason(tmp_path, repo)
+    assert planned_overlap_reason(tmp_path, repo) == "it contains the primary checkout"
+    assert planned_overlap_reason(repo, repo) == "it is the primary checkout"
+    assert planned_overlap_reason(worktree, repo) is None
+
+
+def test_a_planned_name_that_would_contain_the_checkout_is_refused(tmp_path):
+    """The contains direction survives odd spellings. ``<tmp>/elsewhere/..``
+    names the checkout's parent through a component that does not exist;
+    Windows resolves it on ``stat`` and the question becomes the existing
+    ``overlap_reason`` with its alias prose, POSIX may not resolve it and the
+    planned branch answers lexically. Either way the answer starts with the
+    contains verdict, never None."""
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    spelled = tmp_path / "elsewhere" / ".." / "checkout"
+    assert planned_overlap_reason(spelled, repo) is not None
+    reason = planned_overlap_reason(tmp_path / "elsewhere" / "..", repo)
+    assert reason is not None
+    assert reason.startswith("it contains the primary checkout")
+
+
 def test_attempt_module_uses_the_shared_comparison_not_its_own(trees):
     """The anti-duplication pin. ``spine/attempt.py`` must not regrow a private
     copy of the overlap comparison -- that is how ``eval/correctness.py`` came
@@ -232,6 +295,7 @@ def test_attempt_module_uses_the_shared_comparison_not_its_own(trees):
     import daedalus.primary_tree as pt
 
     assert attempt_mod._overlap_reason is pt.overlap_reason
+    assert attempt_mod._planned_overlap_reason is pt.planned_overlap_reason
     assert attempt_mod._identity is pt._identity
     assert attempt_mod.PrimaryCheckoutWrite is pt.PrimaryCheckoutWrite
     assert attempt_mod._existing_ancestor is pt.nearest_existing

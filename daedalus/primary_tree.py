@@ -91,6 +91,7 @@ __all__ = [
     "assert_write_allowed",
     "nearest_existing",
     "overlap_reason",
+    "planned_overlap_reason",
     "write_blocked_reason",
 ]
 
@@ -313,20 +314,7 @@ def overlap_reason(cwd, repo_root) -> str | None:
 
     forward = _inside(cwd_path, repo_path, probe=False)
     if forward is not None:
-        if forward.code == _IS:
-            return "it is the primary checkout"
-        if forward.code == _IS_ALIASED:
-            return "it is the primary checkout under a different spelling"
-        if forward.code == _INSIDE:
-            return "it is inside the primary checkout"
-        if forward.code == _INSIDE_VIA:
-            return (f"it is inside the primary checkout, which it reaches "
-                    f"through {forward.via}")
-        if forward.code == _OUTER_UNEXAMINABLE:
-            return ("the primary checkout could not be examined, so overlap "
-                    "with it cannot be ruled out")
-        return ("this directory could not be examined, so overlap with the "
-                "primary checkout cannot be ruled out")
+        return _forward_reason(forward)
 
     # The contains direction. The forward call already established that both
     # ends are examinable, so only the geometric codes can come back here.
@@ -340,3 +328,100 @@ def overlap_reason(cwd, repo_root) -> str | None:
                 f"through {backward.via}")
     return ("overlap with the primary checkout could not be ruled out "
             "because one end of the comparison could not be examined")
+
+
+def _forward_reason(forward: _Verdict) -> str:
+    """Prose for a non-``None`` forward verdict. ONE copy, shared by
+    :func:`overlap_reason` and :func:`planned_overlap_reason`, so the two
+    renderers cannot drift into two wordings for one geometry."""
+    if forward.code == _IS:
+        return "it is the primary checkout"
+    if forward.code == _IS_ALIASED:
+        return "it is the primary checkout under a different spelling"
+    if forward.code == _INSIDE:
+        return "it is inside the primary checkout"
+    if forward.code == _INSIDE_VIA:
+        return (f"it is inside the primary checkout, which it reaches "
+                f"through {forward.via}")
+    if forward.code == _OUTER_UNEXAMINABLE:
+        return ("the primary checkout could not be examined, so overlap "
+                "with it cannot be ruled out")
+    return ("this directory could not be examined, so overlap with the "
+            "primary checkout cannot be ruled out")
+
+
+# --------------------------------------------------------------------------- #
+# question 3 -- may a directory that DOES NOT EXIST YET be created here?       #
+# --------------------------------------------------------------------------- #
+def planned_overlap_reason(planned_dir, repo_root) -> str | None:
+    """Why a directory that may not exist yet would overlap the primary
+    checkout once created, or ``None`` if it would not.
+
+    :func:`overlap_reason` is the question for a directory that EXISTS -- the
+    working directory a mutating command runs in. A worktree root is
+    different: the manager hands back the path and creates it only after the
+    containment checks, so at the boundary it usually does not exist. Grounding
+    it on its nearest existing ancestor and asking :func:`overlap_reason`
+    answers the wrong question: ``<desktop>/agent_env.worktrees`` grounds on
+    ``<desktop>``, which CONTAINS this checkout, and the refusal fences off
+    every fresh root without protecting anything (57a2e7cb did exactly that
+    and turned 17 attempt tests red). Fail-closed at the wrong place is still
+    the wrong place.
+
+    Forward direction: probed through the ancestor, exactly as the write fence
+    does -- if the ground is the checkout or inside it, the planned directory
+    will be too.
+
+    Contains direction: on the INTENDED path, not the ground. The ground joined
+    with the remaining segments is where the directory will land; it contains
+    the checkout only if the checkout sits at or below that name. Compared by
+    directory identity from the ground down, so an alias of the ground does
+    not slip past, and lexically on the resolved names as a second net.
+
+    A directory that already exists is simply :func:`overlap_reason`.
+    """
+    planned = Path(planned_dir)
+    try:
+        exists = planned.exists()
+    except (OSError, ValueError):
+        exists = False
+    if exists:
+        return overlap_reason(planned, repo_root)
+
+    root = _resolve(repo_root)
+    if root is None:
+        return ("the primary checkout path could not be resolved, so overlap "
+                "with it cannot be ruled out")
+    target = _resolve(planned)
+    if target is None:
+        return (f"the planned directory {planned_dir!r} could not be resolved "
+                f"to a real path, so overlap with the primary checkout cannot "
+                f"be ruled out")
+
+    forward = _inside(target, root, probe=True)
+    if forward is not None:
+        return _forward_reason(forward)
+
+    # The contains direction, on the intended name. Lexical net first.
+    if target == root or target in root.parents:
+        return "it would contain the primary checkout"
+    ground = nearest_existing(target)
+    try:
+        tail = target.relative_to(ground).parts
+    except ValueError:
+        return ("the planned directory and its ground disagree, so overlap "
+                "with the primary checkout cannot be ruled out")
+    ground_id = _identity(ground)
+    if ground_id is None:
+        return ("the ground the planned directory would land on could not be "
+                "examined, so overlap with the primary checkout cannot be "
+                "ruled out")
+    for ancestor in (root, *root.parents):
+        if _identity(ancestor) != ground_id:
+            continue
+        below = root.relative_to(ancestor).parts
+        if tail and Path(*below[:len(tail)]) == Path(*tail):
+            return (f"it would contain the primary checkout, which is reached "
+                    f"through {ancestor}")
+        break
+    return None

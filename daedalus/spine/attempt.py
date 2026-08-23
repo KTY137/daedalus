@@ -131,6 +131,7 @@ from daedalus.primary_tree import (
     assert_write_allowed,
     nearest_existing,
     overlap_reason as _overlap_reason,
+    planned_overlap_reason as _planned_overlap_reason,
 )
 from daedalus.schemas import ContractProvenance, ResourceBudget, ResourceUsage
 from daedalus.spine.durability import open_gate0_spine_writer
@@ -2178,15 +2179,20 @@ class TaskAttempt:
             "findable branch rather than an unrecorded effect",
         )
 
-        ground = nearest_existing(Path(self._manager.worktree_root))
-        overlap = _overlap_reason(ground, self.repo_root)
+        # The root is a PLANNED directory: the manager creates it after this
+        # check. Grounding it on its nearest existing ancestor and asking
+        # `overlap_reason` refused every fresh root whose parent contains the
+        # checkout (57a2e7cb); `planned_overlap_reason` asks about the name the
+        # root will land on, in both directions.
+        planned_root = Path(self._manager.worktree_root)
+        overlap = _planned_overlap_reason(planned_root, self.repo_root)
         worktree_decision = GuardDecision(
             "containment.worktree",
             overlap is None,
             (
-                f"primary_tree.overlap_reason({ground}, {self.repo_root}) is "
-                f"None: candidate checkouts land outside the primary checkout "
-                f"in both directions"
+                f"primary_tree.planned_overlap_reason({planned_root}, "
+                f"{self.repo_root}) is None: candidate checkouts land outside "
+                f"the primary checkout in both directions"
             )
             if overlap is None
             else f"worktree root overlaps the primary checkout: {overlap}",

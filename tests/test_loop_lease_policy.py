@@ -205,7 +205,7 @@ def test_named_isolation_is_granted_and_the_derivation_is_in_the_receipt(switch)
                     if r.startswith("containment.attempt:"))
     # The DERIVED half -- the issuer's own check -- leads; the caller's
     # mechanism is recorded after it, not instead of it.
-    assert "primary_tree.overlap_reason" in evidence
+    assert "primary_tree.planned_overlap_reason" in evidence
     assert MECHANISM in evidence
 
 

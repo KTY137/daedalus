@@ -356,9 +356,10 @@ def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
     :class:`daedalus.kairos.worktree.GitWorktreeManager`, whose ``worktree_root``
     is outside the checkout by construction -- unless it is not, on this
     machine, under this environment, which is exactly the fact worth checking.
-    :func:`daedalus.primary_tree.overlap_reason` is the one implementation of
-    that comparison and it is bidirectional, so a root that CONTAINS the
-    checkout fails too.
+    :func:`daedalus.primary_tree.planned_overlap_reason` is the one
+    implementation of that comparison for a directory that may not exist yet,
+    and it is bidirectional, so a root that would CONTAIN the checkout fails
+    too.
 
     This is a precondition, not the whole contract: it says candidate checkouts
     can land outside the primary tree, not that this particular wave routed
@@ -366,27 +367,29 @@ def derive_wave_containment(repo_root: str | Path) -> tuple[bool, str]:
     :func:`acquire_wave_offload_lease` now refuses an empty name.
     """
     from daedalus.kairos.worktree import GitWorktreeManager
-    from daedalus.primary_tree import nearest_existing, overlap_reason
+    from daedalus.primary_tree import planned_overlap_reason
 
     root = Path(repo_root).resolve()
     try:
         worktree_root = GitWorktreeManager(root).worktree_root
-        ground = nearest_existing(Path(worktree_root))
     except Exception as exc:  # noqa: BLE001 - unknown containment is no containment
         return False, (
             f"the isolation root for {root} could not be resolved "
             f"({type(exc).__name__}: {exc}), so containment cannot be derived"
         )
-    overlap = overlap_reason(ground, root)
+    # A PLANNED directory: the manager creates it after the check, so it is
+    # asked about the name it will land on, not about its existing ancestor
+    # (which contains the checkout for every sibling root -- 57a2e7cb).
+    overlap = planned_overlap_reason(Path(worktree_root), root)
     if overlap is not None:
         return False, (
             f"the attempt isolation root {worktree_root} overlaps the primary "
             f"checkout: {overlap}"
         )
     return True, (
-        f"primary_tree.overlap_reason({ground}, {root}) is None: TaskAttempt "
-        f"worktrees allocated under {worktree_root} land outside the primary "
-        f"checkout in both directions"
+        f"primary_tree.planned_overlap_reason({worktree_root}, {root}) is "
+        f"None: TaskAttempt worktrees allocated under {worktree_root} land "
+        f"outside the primary checkout in both directions"
     )
 
 

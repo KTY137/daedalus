@@ -222,7 +222,7 @@ def test_the_receipts_own_guard_evidence_is_in_the_decision(repo, tmp_path):
     assert any(r.startswith(f"effect boundary: begin_effect({ATTEMPT_ENTRYPOINT_ID})")
                for r in reasons)
     # Contract evidence the CONTRACT produced, not prose restating its name.
-    assert any("primary_tree.overlap_reason" in r for r in reasons)
+    assert any("primary_tree.planned_overlap_reason" in r for r in reasons)
     assert any("install_process_guard active" in r for r in reasons)
     assert any("gate-0 durable spine writer open at" in r for r in reasons)
     # The locally-derived list survives as corroboration.
