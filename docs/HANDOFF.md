@@ -25,6 +25,8 @@ Ledger: `runs/watchdog/mission-20260822/PROGRESS.md` (13 hours, 39 line items, l
 2. `control_root_migration.md` — the control-root migration; **loop refuses to arm until this runs**.
 3. `gated_writes_lease_handdown.patch` — sealed source pin bump for promotion seam.
 
+**Branch consolidation 2026-08-23:** [MEASURED 2026-08-23] `origin/main` was 1,525 commits behind the local trunk (last push 2026-07-13) and is now fast-forwarded. Forest-v2 slices s02/s07/s09 landed from their lanes (`6f3aae70`). 148 `archive/*` tags on origin freeze every other line, 27 of them `-wip` salvage commits of uncommitted lane work; 31 lane worktrees and 50 local branches removed. **Pending owner action 4:** delete the 125 archived remote branches — kit and verified list in `docs/recovery/cleanup_2026-08-23/README.md` (the agent's mass deletion was refused by the harness).
+
 **Status update 2026-08-23:** [MEASURED 2026-08-23, Mnemosyne: commit `0f7f8187`] `tests/test_spine_attempt.py` green again (17 red → 0 green); was red since `57a2e7cb` due to `nearest_existing` climbing to ancestor. Fixed by `daedalus/primary_tree.planned_overlap_reason()` with forward-direction probing and shared renderer, both callers (`spine/attempt.py`, `kernel/offload_lease.py`) switched. Control-root migration and sealed lease hand-down patch remain pending owner actions in `docs/decisions-pending/`.
 
 ---
