@@ -115,7 +115,17 @@ def test_the_attempt_anchor_dominates_the_attempt_it_starts():
         "the statement that carries the attempt is not below the begin_effect "
         "holder, so the anchor dominates nothing the attempt does"
     )
-    assert "_reap" in called
+    # DELIBERATELY NOT a second hard-coded method name. This line used to read
+    # `assert "_reap" in called`, and it went red the moment `run`'s exit was
+    # routed through `_released` to remove a duplicated anchor -- a correct
+    # change failing a test that had pinned the spelling of the exit rather
+    # than the fact. What must be true is that the attempt is not the LAST
+    # thing the region does, so the exit is dominated too; which method the
+    # exit is spelled as is not this test's business.
+    assert len(called - {"_run_with_ledger"}) >= 1, (
+        f"the anchor dominates only the attempt call itself ({sorted(called)}); "
+        "the exit path is outside the region"
+    )
 
 
 def test_the_attempt_anchor_region_is_not_a_single_trailing_statement():

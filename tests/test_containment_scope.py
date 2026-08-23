@@ -161,17 +161,39 @@ def test_an_unusable_declaration_refuses_the_patch_and_says_why(repo, tmp_path):
     assert "'C:/evil'" in str(refused.value)
 
 
-def test_no_declaration_leaves_the_attempt_unconstrained(repo, tmp_path):
-    """The legacy/manual harness, unchanged: an empty scope binds nothing here.
+def test_no_declaration_refuses_the_attempt(repo, tmp_path):
+    """An empty scope binds nothing, so it REFUSES. Inverted 2026-08-24.
 
-    ``receipts.canonicalise_attempt`` is what refuses to mint a contract set for
-    an unbounded scope; the containment gate itself must not start rejecting the
-    manual path that never declared one.
+    THIS TEST ASSERTED THE OPPOSITE, and its reasoning is kept because it was
+    not silly -- it was measured wrong. It read:
+
+        "The legacy/manual harness, unchanged: an empty scope binds nothing
+        here. ``receipts.canonicalise_attempt`` is what refuses to mint a
+        contract set for an unbounded scope; the containment gate itself must
+        not start rejecting the manual path that never declared one."
+
+    The downstream refusal it names is real -- ``receipts.py:2041`` does refuse
+    to mint a contract for an unbounded write scope. What makes it insufficient
+    is WHEN it happens. The target-scope comparison runs BEFORE ``_run_gates``,
+    and it is the only thing between a candidate and its own evaluator: the gate
+    runs ``python -m pytest`` with cwd set to the candidate worktree, so a
+    ``conftest.py`` the candidate wrote is loaded into the evaluator process
+    before any test body. MEASURED end to end
+    (docs/inventory/2026-08-24/DENY_FLOOR_CORPUS.md):
+
+        base, no conftest (must FAIL)      passed=False
+        candidate adds one conftest.py     passed=True
+
+    A contract set refused after a green gate is a record of a verdict that was
+    already subverted. So the gate must not be reached at all, and the refusal
+    moves to the containment check -- which is exactly what the old docstring
+    said must not happen.
     """
     result = _run(repo, tmp_path, "unbound", target_paths=(),
                   runner=_writer("anywhere.py"))
 
-    assert result.state == STATE_CLEAN, result.error
+    assert result.state == STATE_GATES_FAILED, result.error
+    assert "declared no target_paths at all" in (result.error or "")
 
 
 # --------------------------------------------------------------------------- #
