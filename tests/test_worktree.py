@@ -78,24 +78,69 @@ def test_placement_is_outside_repo(temp_git_repo, worktree_root):
     result = subprocess.run(['git', 'status', '--porcelain'], cwd=temp_git_repo, capture_output=True, text=True, check=True)
     assert result.stdout.strip() == ""
 
-def test_default_placement_uses_localappdata(temp_git_repo, tmp_path, monkeypatch):
+def test_default_placement_is_the_os_profile_not_localappdata(
+        temp_git_repo, tmp_path, monkeypatch):
+    """The root follows the kill switch's control root: the OS-reported profile
+    directory, which no environment variable can redirect. Setting
+    ``LOCALAPPDATA`` -- the old base, Store-virtualised and 15 characters
+    longer -- changes nothing (MEASURED 2026-08-23: the first armed loop run
+    died in ``git worktree add`` with ``Filename too long`` under it)."""
+    from daedalus.spine.killswitch import OS_PROFILE_DIR, control_root
+
     monkeypatch.delenv('DAEDALUS_WORKTREE_ROOT', raising=False)
-    fake_localappdata = tmp_path / "fake_localappdata"
-    monkeypatch.setenv('LOCALAPPDATA', str(fake_localappdata))
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / "fake_localappdata"))
 
     manager = GitWorktreeManager(temp_git_repo)
     root = manager.worktree_root
 
-    assert root.parent.parent == fake_localappdata / 'daedalus'
-    assert root.parent == fake_localappdata / 'daedalus' / 'worktrees'
+    assert root.parent == OS_PROFILE_DIR / '.daedalus' / 'worktrees'
+    assert str(tmp_path) not in str(root)
+    # one parent with the control root, a sibling of it, never inside it
+    assert root.parent.parent == control_root(temp_git_repo).parent.parent
+    assert control_root(temp_git_repo) not in root.parents
     # Repo digest namespaces distinct checkouts
     other = GitWorktreeManager(tmp_path)
     assert other.worktree_root != root
 
+
+def test_default_placement_creates_and_cleans_a_worktree(temp_git_repo, tmp_path,
+                                                          monkeypatch):
+    """The behavioural half of the placement test, kept under an override so
+    the suite never litters the real profile directory."""
+    monkeypatch.setenv('DAEDALUS_WORKTREE_ROOT', str(tmp_path / "wt"))
+    manager = GitWorktreeManager(temp_git_repo)
+    root = manager.worktree_root
     worktree_path = manager.create_worktree("HEAD", "test-branch")
     assert worktree_path == root / "test-branch"
     assert worktree_path.exists()
     manager.cleanup_worktree(worktree_path)
+
+
+def test_git_is_told_long_paths_on_windows(temp_git_repo, worktree_root,
+                                           monkeypatch):
+    """``-c core.longpaths=true`` rides on every git call on Windows and on
+    none elsewhere; it is a per-command flag, so no config file changes."""
+    seen = []
+    real_run = worktree_module.subprocess.run
+
+    def spy(cmd, **kwargs):
+        seen.append(list(cmd))
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(worktree_module.subprocess, "run", spy)
+    manager = GitWorktreeManager(temp_git_repo)
+    manager._run_git("rev-parse", "HEAD")
+    assert seen, "no git call was made"
+    cmd = seen[-1]
+    assert cmd[0] == "git"
+    if os.name == "nt":
+        assert cmd[1:3] == ["-c", "core.longpaths=true"]
+        assert cmd[3:] == ["rev-parse", "HEAD"]
+    else:
+        assert cmd[1:] == ["rev-parse", "HEAD"]
+    assert subprocess.run(["git", "config", "--get", "core.longpaths"],
+                          cwd=temp_git_repo, capture_output=True,
+                          text=True).stdout.strip() == ""
 
 def test_env_override_controls_placement(temp_git_repo, tmp_path, monkeypatch):
     override_root = tmp_path / "custom_root"

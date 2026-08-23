@@ -117,6 +117,15 @@ def _pin_latent_route_off(tmp_path_factory):
         os.environ["DAEDALUS_BUDGET_LEDGER"] = str(
             tmp_path_factory.mktemp("budget") / "ledger.json"
         )
+    # Since 2026-08-23 the default worktree root is <OS profile>/.daedalus/
+    # worktrees (it was %LOCALAPPDATA%, where suite runs had left 1,149
+    # digest directories of .daedalus-alloc litter, MEASURED). A test that
+    # wants the default derivation deletes this pin itself.
+    had_worktrees = "DAEDALUS_WORKTREE_ROOT" in os.environ
+    if not had_worktrees:
+        os.environ["DAEDALUS_WORKTREE_ROOT"] = str(
+            tmp_path_factory.mktemp("worktrees")
+        )
     yield
     try:
         from daedalus import budget as _budget
@@ -127,3 +136,5 @@ def _pin_latent_route_off(tmp_path_factory):
         os.environ.pop("DAEDALUS_SPINE_DB", None)
     if not had_ledger:
         os.environ.pop("DAEDALUS_BUDGET_LEDGER", None)
+    if not had_worktrees:
+        os.environ.pop("DAEDALUS_WORKTREE_ROOT", None)

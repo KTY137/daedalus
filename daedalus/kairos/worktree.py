@@ -138,19 +138,35 @@ def _worktree_root_for(repo_path: Path) -> Path:
     ``git status`` or whole-repo snapshot attribution. Placement, in order:
 
     1. ``DAEDALUS_WORKTREE_ROOT`` env override (still namespaced per repo).
-    2. ``%LOCALAPPDATA%/daedalus/worktrees``.
-    3. ``tempfile.gettempdir()/daedalus/worktrees`` when LOCALAPPDATA is unset.
+    2. ``<OS profile>/.daedalus/worktrees`` -- the same profile directory the
+       kill switch derives its control root from (``killswitch.OS_PROFILE_DIR``,
+       read from the OS, not from an environment variable), so the permit and
+       the candidate checkouts sit under one parent and neither can be
+       redirected by editing ``%LOCALAPPDATA%``.
 
     Each repo gets its own subdirectory keyed by a short digest of the
     resolved repo path so distinct checkouts never collide.
+
+    WHY NOT ``%LOCALAPPDATA%`` ANY MORE (2026-08-23, MEASURED). Two reasons,
+    both found by the first armed loop run after the lease hand-down landed:
+    the Microsoft-Store python virtualises ``%LOCALAPPDATA%`` into
+    ``Packages/PythonSoftwareFoundation.Python.3.10_.../LocalCache/Local``
+    (Odysseus F1 -- the control root left for the same reason), and the old
+    root was 62 characters before the attempt directory even began:
+    ``git worktree add`` then failed on this repository's own tracked paths
+    (``runs/gates/write-surface-classification/<40 hex>/cas/<64 hex>.json``,
+    154 characters) with Windows ``Filename too long`` -- every attempt ended
+    ``worktree_failed``. The profile root is 15 characters shorter; the git
+    side is additionally told ``core.longpaths=true`` (see ``_run_git``).
     """
     override = os.environ.get('DAEDALUS_WORKTREE_ROOT')
     if override:
         base = Path(override)
     else:
-        local_appdata = os.environ.get('LOCALAPPDATA')
-        base_dir = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
-        base = base_dir / 'daedalus' / 'worktrees'
+        # Lazy: killswitch is imported by the spine at a different layer, and
+        # this module must stay importable on its own.
+        from daedalus.spine.killswitch import OS_PROFILE_DIR
+        base = OS_PROFILE_DIR / '.daedalus' / 'worktrees'
     digest = hashlib.sha256(str(repo_path).encode('utf-8')).hexdigest()[:12]
     return base / digest
 
@@ -656,8 +672,19 @@ class GitWorktreeManager:
         return _worktree_root_for(self.repo_path)
 
     def _run_git(self, *args, cwd: Optional[Path] = None) -> str:
-        """Executes a git command in the specified directory."""
-        cmd = ['git'] + list(args)
+        """Executes a git command in the specified directory.
+
+        On Windows every call carries ``-c core.longpaths=true``: a candidate
+        checkout lands under a root plus a 57-character attempt name, and this
+        repository tracks paths 154 characters deep, so without it
+        ``worktree add`` fails with ``Filename too long`` and no attempt can
+        run (MEASURED 2026-08-23, loop-20260823-143755-a60bad). A per-command
+        ``-c`` changes nothing in the repository's or the user's git config.
+        """
+        cmd = ['git']
+        if os.name == 'nt':
+            cmd += ['-c', 'core.longpaths=true']
+        cmd += list(args)
         cwd_path = cwd or self.repo_path
         try:
             result = subprocess.run(

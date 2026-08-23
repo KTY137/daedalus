@@ -477,6 +477,7 @@ def test_stop_switch_path_is_frozen_at_construction(tmp_path, monkeypatch):
 def test_default_control_dir_is_a_sibling_of_the_worktree_root(monkeypatch):
     """A Low label on worktrees/ must not be able to reach the switch."""
     monkeypatch.delenv(ENV_SWITCH_PATH, raising=False)
+    monkeypatch.delenv("DAEDALUS_WORKTREE_ROOT", raising=False)   # conftest pin
     monkeypatch.setenv("LOCALAPPDATA", str(Path(tempfile.gettempdir()) / "la"))
     from daedalus.kairos.worktree import _worktree_root_for
 
