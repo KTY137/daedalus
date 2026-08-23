@@ -68,9 +68,21 @@ def payload_is_usable(payload: dict) -> bool:
 
 
 def read_payload(stream=None) -> dict:
+    """Read one hook payload, treating harness bytes as strict UTF-8.
+
+    Claude writes JSON as UTF-8, while Windows may expose ``sys.stdin`` with
+    a legacy console encoding. Prefer the underlying byte stream so that the
+    console codec cannot corrupt paths or text. ``StringIO`` and other text
+    injections intentionally keep their existing path through ``read()``.
+    """
     stream = stream if stream is not None else sys.stdin
     try:
-        raw = stream.read()
+        byte_stream = getattr(stream, "buffer", None)
+        raw = byte_stream.read() if byte_stream is not None else stream.read()
+        if isinstance(raw, (bytes, bytearray)):
+            raw = bytes(raw).decode("utf-8")
+        elif not isinstance(raw, str):
+            return {}
     except Exception:  # noqa: BLE001 - stdin may be closed or binary
         return {}
     try:

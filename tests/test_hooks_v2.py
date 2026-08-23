@@ -66,6 +66,57 @@ def run(event: str, data: dict) -> tuple[_common.HookResult, str]:
 
 
 # --------------------------------------------------------------------------
+# stdin decoding
+# --------------------------------------------------------------------------
+
+
+def test_read_payload_decodes_harness_bytes_as_utf8_not_console_encoding() -> None:
+    expected = {
+        "hook_event_name": "SessionStart",
+        "cwd": "C:/München🚀",
+        "session_id": "utf8",
+    }
+    wire = json.dumps(expected, ensure_ascii=False).encode("utf-8")
+    windows_stdin = io.TextIOWrapper(io.BytesIO(wire), encoding="cp1252")
+
+    assert _common.read_payload(windows_stdin) == expected
+    assert _common.read_payload(io.StringIO(json.dumps(expected, ensure_ascii=False))) == expected
+    assert _common.read_payload(io.BytesIO(wire)) == expected
+    assert _common.read_payload(io.StringIO("")) == {}
+    assert _common.read_payload(io.StringIO("[1, 2]")) == {}
+    assert _common.read_payload(io.BytesIO(b"\xff")) == {}
+    assert _common.read_payload(io.BytesIO(b"\xef\xbb\xbf" + wire)) == {}
+    assert _common.read_payload(io.StringIO("{not-json")) == {}
+
+
+def test_read_payload_utf8_subprocess_ignores_pythonioencoding() -> None:
+    expected = {
+        "hook_event_name": "SessionStart",
+        "cwd": "C:/München🚀",
+        "session_id": "utf8",
+    }
+    wire = json.dumps(expected, ensure_ascii=False).encode("utf-8")
+    script = (
+        "import json; "
+        "from daedalus.hooks._common import read_payload; "
+        "print(json.dumps(read_payload(), ensure_ascii=True, sort_keys=True))"
+    )
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "cp1252"
+
+    proc = subprocess.run(
+        [sys.executable, "-c", script],
+        input=wire,
+        capture_output=True,
+        cwd=ROOT,
+        env=env,
+    )
+
+    assert proc.returncode == 0, proc.stderr.decode("ascii", errors="replace")
+    assert json.loads(proc.stdout.decode("ascii")) == expected
+
+
+# --------------------------------------------------------------------------
 # repository root and session id
 # --------------------------------------------------------------------------
 
