@@ -107,7 +107,7 @@ def test_wiki_documents_the_renamed_field():
 
 def test_wiki_links_resolve():
     text = (ROOT / "wiki" / "Event.md").read_text(encoding="utf-8")
-    targets = re.findall(r"]\(([^)\s]+)\)", text)
+    targets = re.findall(r"]\\(([^)\\s]+)\\)", text)
     assert targets
     for target in targets:
         assert ((ROOT / "wiki") / target).resolve().exists(), target

@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from daedalus.build import BuildSession, BuildTask, Wave
+from daedalus.ignition import bundle as ignition_bundle
 from daedalus.ignition import checks as ignition_checks
 from daedalus.ignition.runner import (
     IgnitionError,
@@ -894,6 +895,20 @@ def run_gate1_ignition(
                     "check does not discriminate"
                 )
         blockers.extend(criterion_discrimination_blockers(anchored_node_roles))
+        # WHAT JUDGED, by identity. Computed against this repository (the
+        # evaluators live here), never against the candidate: a bundle
+        # describes the judge, and mixing the judged into it would give every
+        # candidate its own bundle and make the comparison meaningless.
+        evaluator_bundle = ignition_bundle.evaluator_bundle(
+            ROOT,
+            criterion_path=ignition_checks.CONFORMANCE_TEST_PATH,
+            criterion_source=ignition_checks.CONFORMANCE_TEST_SOURCE,
+            node_ids={
+                "code-type": ignition_checks.CODE_TYPE_NODE_IDS,
+                "data-knowledge": ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
+            },
+        )
+        blockers.extend(ignition_bundle.bundle_blockers(evaluator_bundle))
         data_knowledge_subjects = tuple(
             path for item in planned if "data" in item.planes or "knowledge" in item.planes
             for path in item.paths
@@ -1066,6 +1081,7 @@ def run_gate1_ignition(
             discrimination=discrimination,
             anchored_nodes=anchored_node_roles,
             subject_coverage=subject_coverage,
+            evaluator_bundle=evaluator_bundle,
             delta=delta,
             fixture_digest=fixture_digest_before,
             collected_at=collected_at,
@@ -1406,6 +1422,22 @@ def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
             + str(replay.get("previous_fixture_tree_sha256"))[:12]
             + "); that comparison is not a replay comparison"
         ]
+    if replay.get("same_evaluator_bundle") is False:
+        previous_bundle = replay.get("previous_evaluator_bundle_digest")
+        if previous_bundle is None:
+            # NOT "a different bundle": a receipt written before the bundle
+            # existed records none, and calling that a difference would send a
+            # reader looking for a change nobody made.
+            return [
+                "the previous receipt records no evaluator bundle, so what judged it "
+                "cannot be compared with what judged this run; re-run to compare two "
+                "runs under one bundle"
+            ]
+        return [
+            "the previous receipt was produced by a different evaluator bundle ("
+            + str(previous_bundle)[:12]
+            + "); two runs are a replay only under one bundle"
+        ]
     unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
     if not unstable:
         return []
@@ -1735,6 +1767,7 @@ def _build_receipt(
     discrimination: Mapping[str, Any],
     anchored_nodes: Mapping[str, Any],
     subject_coverage: Mapping[str, Any],
+    evaluator_bundle: Mapping[str, Any],
     delta: IgnitionGraphDelta,
     fixture_digest: str,
     collected_at: str,
@@ -1803,6 +1836,7 @@ def _build_receipt(
             for report in checks
         },
         "check_kinds": sorted({report.kind for report in checks}),
+        "evaluator_bundle": dict(evaluator_bundle),
         "discrimination": {
             "before_state": {
                 "conformance_suite_on_base_revision_passed": base_pytest.passed,
@@ -1973,6 +2007,16 @@ def write_receipt(
             "same_fixture": (
                 previous_replay.get("fixture_tree_sha256") == replay.get("fixture_tree_sha256")
             ),
+            # TWO RUNS ARE A REPLAY ONLY UNDER ONE BUNDLE. Without this the
+            # comparison could report "stable" across a run whose evaluators
+            # were replaced between the two -- the drift Codex named twice.
+            "previous_evaluator_bundle_digest": (
+                (previous.get("evaluator_bundle") or {}).get("digest")
+            ),
+            "same_evaluator_bundle": (
+                (previous.get("evaluator_bundle") or {}).get("digest")
+                == (body.get("evaluator_bundle") or {}).get("digest")
+            ),
             "previous_conformance_test_sha256": (
                 (previous.get("discrimination") or {}).get("before_state") or {}
             ).get("conformance_test_sha256"),
@@ -1998,6 +2042,7 @@ def write_receipt(
     replay["replay_demonstrated"] = bool(
         replay.get("is_replay")
         and replay.get("same_fixture")
+        and replay.get("same_evaluator_bundle")
         and not replay.get("criterion_changed_since_previous")
         # `is True`, not `is not False`: a missing comparison is not a passing
         # one (Codex round 2).
