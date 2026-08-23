@@ -239,10 +239,24 @@ def test_evidence_is_refused_rather_than_faked_when_nothing_can_hold_it(
 
 def test_unbounded_write_scope_cannot_masquerade_as_a_bounded_contract(
         repo, tmp_path):
+    """Now refused TWICE, and the order is the point.
+
+    This asserted ``state == "clean"``: the attempt ran to completion, the gate
+    ran, and only ``canonicalise_attempt`` refused afterwards. That refusal is
+    real and is still asserted below -- but a contract refused after a green
+    gate is a record of a verdict that may already have been subverted, because
+    the gate loads the candidate's own ``conftest.py`` into the evaluator
+    process (docs/inventory/2026-08-24/DENY_FLOOR_CORPUS.md). The attempt now
+    refuses at the target-scope check, BEFORE ``_run_gates``, and the contract
+    layer keeps refusing behind it. Both assertions belong here: this test's
+    claim is that an unbounded scope cannot become a bounded contract, and it is
+    now true at two layers instead of one.
+    """
     _attempt, result = _run(repo, tmp_path, spec=_spec(target_paths=()))
 
     contracts = result.contract_set()
-    assert result.state == "clean"
+    assert result.state == "gates_failed"
+    assert "declared no target_paths at all" in (result.error or "")
     assert contracts.attempt is None
     assert "no target_paths" in result.contracts_error
 

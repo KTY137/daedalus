@@ -100,7 +100,22 @@ def assert_primary_untouched(repo_path, head_before):
 
 
 def spec(**kw):
-    base = dict(task_id="demo-task", instruction="add a widget")
+    # THE DEFAULT SCOPE IS EXPLICIT SINCE THE UNDECLARED-SCOPE REFUSAL.
+    # `_run_with_ledger` used to SKIP the target-scope comparison when a task
+    # declared no `target_paths`, so this helper could leave it unset and every
+    # write passed. It now refuses instead (empty is not "declare nothing", it
+    # is "fence nothing" -- docs/inventory/2026-08-24/DENY_FLOOR_CORPUS.md), so
+    # the helper declares the paths its runners actually write. There is
+    # deliberately no "everything" spelling: `_normalise_tree_path` refuses
+    # `.`, `./` and `''`, so a scope cannot be waved away, only named.
+    # A test that wants a different scope still passes `target_paths=` and
+    # `base.update(kw)` lets it win.
+    base = dict(
+        task_id="demo-task",
+        instruction="add a widget",
+        target_paths=("a.txt", "widget.txt", "seed.txt", "where.txt",
+                      "half.txt", "pkg", "tests"),
+    )
     base.update(kw)
     return TaskSpec(**base)
 

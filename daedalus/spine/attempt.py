@@ -1421,12 +1421,25 @@ class TaskAttempt:
         # -- BELOW THE ANCHOR ---------------------------------------------- #
         # Every statement from here down runs only because `begin_effect`
         # returned a receipt, and the dominance analysis can now see that.
+        # 9. reap the candidate branch -- and ONLY here.
+        #
+        # THROUGH `_released`, LIKE EVERY OTHER EXIT. This used to close the
+        # ledger in a `finally:` and then `return self._reap(result)`, which is
+        # byte-for-byte the line `_released` already ends with -- so the file
+        # carried two identical exits and `tools/gate_discrimination.py`'s
+        # `attempt_reap_unwired` anchor resolved TWICE, which
+        # `validate_unique_anchor` correctly refuses to mutate on. The fix is to
+        # delete the duplicate rather than to perturb one of the two lines: one
+        # exit shape, one place that closes-then-reaps, and an anchor that is
+        # unique because there is only one thing for it to name.
         try:
             result = self._run_with_ledger(ledger, base_revision, finish)
-        finally:
+        except BaseException:
+            # `run` does not swallow -- `_run_with_ledger` returning is its
+            # contract, and a raise here is a bug worth seeing -- but the writer
+            # this attempt owns still closes before the exception travels.
             self._close_ledger(ledger)
-
-        # 9. reap the candidate branch -- and ONLY here.
+            raise
         #
         # `git worktree add -b` writes a ref into the SHARED .git that nothing
         # removed, so an overnight loop left one ref per attempt forever. This
@@ -1437,7 +1450,7 @@ class TaskAttempt:
         # after a crash is `git branch --list <effect_key>`, and cleanup runs
         # BEFORE resolution. That would open a window where an OPEN intent has
         # no findable effect.
-        return self._reap(result)
+        return self._released(ledger, result)
 
     def _close_ledger(self, ledger: SpineLedger) -> None:
         """Close the durable writer, but only when this attempt opened it.
@@ -1598,11 +1611,33 @@ class TaskAttempt:
                     # the receipt describes is the boundary that was enforced.
                     from daedalus.spine.receipts import containment_escapes
 
-                    escaped: tuple[str, ...] = ()
-                    scope_error: str | None = None
-                    if self.task.target_paths:
-                        escaped, scope_error = containment_escapes(
-                            artifact.changed_paths, self.task.target_paths)
+                    # EMPTY IS NOT "DECLARE NOTHING", IT IS "FENCE NOTHING".
+                    # This branch read `if self.task.target_paths:`, so a task
+                    # that declared no scope was compared against nothing and
+                    # every changed path passed unexamined.
+                    #
+                    # MEASURED (docs/inventory/2026-08-24/DENY_FLOOR_CORPUS.md):
+                    # this check is what stands between a candidate and its own
+                    # evaluator. It runs BEFORE `_run_gates`, and a planted
+                    # `conftest.py` -- a file the write fence admits -- flips a
+                    # real Gate-1 verdict from FAIL to PASS with
+                    # `pytest_sessionfinish`. Skipping the check for an
+                    # undeclared scope handed that path to any task that simply
+                    # named nothing.
+                    #
+                    # `containment_escapes` already returns EVERY changed path
+                    # for an empty declaration, so the refusal needs no second
+                    # comparison -- only its own name, so the receipt does not
+                    # read as "you wrote outside a scope" when the truth is
+                    # "there was no scope".
+                    declared = tuple(self.task.target_paths or ())
+                    escaped, scope_error = containment_escapes(
+                        artifact.changed_paths, declared)
+                    if escaped and not declared:
+                        scope_error = (
+                            "the task declared no target_paths at all, so no "
+                            "changed path can be shown to be contained by one; "
+                            "an undeclared scope is refused, never skipped")
                     if escaped:
                         state = STATE_GATES_FAILED
                         error = (

@@ -161,6 +161,58 @@ Surface counts move with the tree — 410 at `21f21f2a`, 432 at `684b7503`, 433 
 `11dc0195` — so a before/after is only meaningful within one revision. Both
 numbers above are from the same snapshot revision.
 
+## The family: three instrument defects in one night, all failing toward no coverage
+
+Added 2026-08-24. This document's finding is not an isolated one, and the shape
+it shares with its siblings is worth more than any of them alone.
+
+1. **Name-only dominance** (this document). `_referenced_names` collects
+   `ast.Name` and a method call is an `ast.Attribute`, so no method body can
+   enter a dominated region for any door. The instrument reports `declared 0`
+   and a reader hears "this door classifies nothing", not "this analysis cannot
+   see the shape your code is written in".
+2. **Ambiguous text anchors** (`tools/gate_discrimination.py`, twice this
+   night). A mutation names its target by a `find` string.
+   `validate_unique_anchor` correctly refuses to mutate on a duplicate — but a
+   *legitimate* edit elsewhere in the file can create that duplicate, and then
+   the mutation runner stops. `11dc0195` landed a guard whose first line was
+   byte-identical to the wave wrapper's and the runner refused to run at all;
+   `31f69dc2` added a `_released` helper ending in `return self._reap(result)`,
+   byte-identical to `run`'s tail, and `attempt_reap_unwired` resolved twice.
+   Neither edit was wrong. The anchor is position-independent and
+   content-addressed by a line of source, which is a coordinate that any
+   sibling edit can duplicate.
+3. **The undeclared-scope skip** (`attempt.py`, fixed alongside this note; see
+   `DENY_FLOOR_CORPUS.md`). `if self.task.target_paths:` meant a task that
+   declared nothing was compared against nothing and every changed path passed.
+
+The common shape: **each fails in the direction of less coverage, and each
+reports that failure as a clean result.** Zero declared surfaces reads like an
+answer. "Cannot run" reads like a skipped step. A skipped scope check reads like
+a passing attempt. None of them raises, none of them appears in a failure
+column, and in every case the safe-looking output is the dangerous one.
+
+That is the property to design against, and it is cheap to state as a rule for
+any future instrument here: **a measuring instrument must be able to say "I could
+not measure this", and that sentence must be distinguishable in its output from
+"I measured this and found nothing."** The declaration generator already does
+this well in one place and badly in another — it emits a per-door
+`lease_refusal` string naming why a leased region is empty (good), and emits
+`declared: 0` with no reason at all (bad). The difference is one field.
+
+The anchor problem specifically has two candidate repairs, neither attempted
+here because both are larger than the red test they would fix: give each
+mutation an explicit `symbol` (module path plus qualified name) and resolve the
+anchor inside that function's AST range only, so a duplicate elsewhere in the
+file is irrelevant; or keep the text needle and require an `occurrence` index,
+which is worse because it silently re-targets when a line is inserted above.
+The first is the right shape and belongs to whoever owns
+`tools/gate_discrimination.py`. The minimal repair actually made here was to
+delete the duplicated exit in `attempt.py` — one exit shape, one place that
+closes-then-reaps — so the anchor is unique because there is only one thing for
+it to name, not because a line was perturbed until the needle stopped matching
+twice.
+
 ## Guard
 
 `tests/gates/test_attempt_anchor_dominance.py` pins the shape `31f69dc2` fixed,
