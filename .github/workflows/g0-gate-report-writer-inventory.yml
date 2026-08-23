@@ -88,7 +88,17 @@ jobs:
             --source-revision "${GITHUB_SHA}" \
             > gate0-report-v2.json
           python -m json.tool gate0-report-v2.json >/dev/null
-          python tools/assert_gate_report.py --report gate0-report-v2.json
+          # configs/gates/gate0-blocker-baseline.json is a migration
+          # comparison anchor, not a status store: it freezes the reviewed
+          # blocker set of one source revision so later revisions may only
+          # shrink it. Current gate state lives only in the freshly
+          # generated report. The digest below pins the committed artifact;
+          # replacing the baseline requires updating both together in review.
+          python tools/assert_gate_report.py \
+            --report gate0-report-v2.json \
+            --baseline configs/gates/gate0-blocker-baseline.json \
+            --baseline-sha256 02e8e91d2eb9efe7d5a604878d94176e5b518c4512dfefb2745ddbec7d329fe4 \
+            --require-monotonic
       - uses: actions/upload-artifact@v4
         with:
           name: gate0-report-v2-${{ github.sha }}
