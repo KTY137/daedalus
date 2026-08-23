@@ -1,9 +1,9 @@
 {
   "attempts": [
     {
-      "attempt_contract_sha256": "b503ec2abe46db21cf0ac50a345bd406577a34af33ad176b33ff83e2b81c99e6",
-      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-86877a",
-      "attempt_receipt_sha256": "0aaae41ab5b460d4a46de3dd15f4d4baf0073b75783cfcbd83faf4459b0345fc",
+      "attempt_contract_sha256": "ab1c7d58b2fbe701d7374a02d772281b3ba25fd5baf927ca004f3aba9d0b8bfc",
+      "attempt_id": "daedalus-attempt-wi-000-c41495030c8f-b26ca597-f77e2d",
+      "attempt_receipt_sha256": "cacd08903629dfa046257a0b83d0543dc49d31477176a2bd356a8bbd5d032d1d",
       "changed_paths": [
         "src/ignition_app/models.py",
         "src/ignition_app/repository.py"
@@ -12,7 +12,7 @@
       "evidence_assurance": [
         "deterministic"
       ],
-      "evidence_packet_sha256": "53bda21bcd06e5bddd3a2b22167910bea53ec8a1e1e77fa47492e0d65d21df7a",
+      "evidence_packet_sha256": "a8f77eec258f7aed450a4bc6822c02be29afa494048c8bbd7b9859c57230fa57",
       "evidence_status": "passed",
       "gate_command": [
         "-m",
@@ -27,11 +27,11 @@
         "tests/test_event_field.py"
       ],
       "gate_name": "ignition-code-type",
-      "gate_output_sha256": "941fd927604956af95533710b95a4b5cfe32fe875376a69b8cd3d6db814e3c2b",
+      "gate_output_sha256": "106e2242acc92dbbe0317802bbe2046a9d0be71b46ef14dc833068c0a34e7939",
       "gate_passed": true,
-      "patch_locator": "artifact-locator:sha256:96caf1c5b18de9ba069bd8d11def624e9e8e522b18cc01f9cae145f489b0b20a",
+      "patch_locator": "artifact-locator:sha256:c5025f4f7edc70ca1800e70ee2f975bd290f729c1b66560d4d9f798b45075b5d",
       "patch_sha256": "cc040292b7ec9834adab83b9aa8423a19bde38338246106f58ff2a07e85b075d",
-      "policy_decision_sha256": "845f2d881fed578dcf98fbad2d21bfd8d89ea7b7ef8027c48f3077b6424ff97e",
+      "policy_decision_sha256": "ae69107858575e1f7742eb5cb51bc55bb57ed9a8a557c1ee8d6c2163a6fb823e",
       "policy_verdict": "allow",
       "state": "clean",
       "target_paths": [
@@ -41,9 +41,9 @@
       "work_item_id": "wi-000-c41495030c8f"
     },
     {
-      "attempt_contract_sha256": "5b03a9c65aec66cde59dddf049d128daef93b97636356b53fc71f3a0c4d3b4b7",
-      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-4d8c4f",
-      "attempt_receipt_sha256": "333782544dacb64ccdf902eb327d6677f552d09ec354f05571490b6d69e89106",
+      "attempt_contract_sha256": "f64cd2064669fa9fa6ca85663c0c85637ad4aa4f7b4d152ee6b0926788be299c",
+      "attempt_id": "daedalus-attempt-wi-001-c8c563f2c0da-ef521f60-e1f5b6",
+      "attempt_receipt_sha256": "fec34a763b3ff117c70c7f18cbf6a503b4b47fc4c15fff86ecf7f7b1c01e98d1",
       "changed_paths": [
         "data/events.csv",
         "fourfold.json",
@@ -54,7 +54,7 @@
       "evidence_assurance": [
         "deterministic"
       ],
-      "evidence_packet_sha256": "a29f3049fc79b36304ea01a75ae0f8eeb35778eb1bdede008ff45ec5342080bd",
+      "evidence_packet_sha256": "80caab6ca55faba2e4c3086ae2e6f09167efa0e4631fe76224f689536cf1ade0",
       "evidence_status": "passed",
       "gate_command": [
         "-m",
@@ -73,11 +73,11 @@
         "tests/test_event_field.py"
       ],
       "gate_name": "ignition-data-knowledge",
-      "gate_output_sha256": "b14b737454318c78811f7b93024dd5333cad4431325554b0458823f0ff4b3601",
+      "gate_output_sha256": "65c7f6e69a3cd49bffda3128de1a72da98d2a9685d2ac626d1a468a20978409e",
       "gate_passed": true,
-      "patch_locator": "artifact-locator:sha256:c6d7a4cce3f23535741da34cad2fb739c6a4ef246b1089521c10bb9a6d71c7af",
+      "patch_locator": "artifact-locator:sha256:a20663956c46cf636157d027716c847dd4036250ee0ce89859709516c2e0f41e",
       "patch_sha256": "85fad7cf86a3bf32099eb0eb65e38ae041ce531b06e25de540d28dd2d497bbc0",
-      "policy_decision_sha256": "6c4afc95a3d1800fc2678791019c39e6369c026aa30fbac32510a4bda52cd31f",
+      "policy_decision_sha256": "4a32e9f5eb2402a905483a2f7a95b57d30dfa23545a9f6ae890a4554aeffb819",
       "policy_verdict": "allow",
       "state": "clean",
       "target_paths": [
@@ -105,7 +105,7 @@
     },
     "pytest": {
       "evaluator": "ignition-pytest-composed",
-      "output_sha256": "b220d675ce0d762643d583a1880680a5969a022bfcc9c7db38ebbbefca20372a",
+      "output_sha256": "2456ff14beda5017fde75e54110d18d83fe6355248fc701b5d2966472152a6cb",
       "passed": true,
       "report_sha256": "403dd80170df191e22701e472dd1ef57f83579fc8038fe682e06cb3deee5b8ca"
     },
@@ -116,12 +116,12 @@
       "report_sha256": "f487bdb1b2073fe8e4b38623b34fa6d8306bb0ba3ba4409f234179f0fdc45804"
     }
   },
-  "collected_at": "2026-08-23T21:53:50Z",
+  "collected_at": "2026-08-23T22:19:50Z",
   "cost": {
     "anchored_node_measurements": 4,
     "negative_controls": 3,
     "subject_coverage_measurements": 4,
-    "wall_clock_s": 34.4
+    "wall_clock_s": 32.3
   },
   "discrimination": {
     "anchored_nodes": {
@@ -236,7 +236,7 @@
   "evaluator_bundle": {
     "closure": {
       "count": 124,
-      "digest": "4700fc51186b208b1367c90a5e74e5ff721cc97f9cbdae2998a796f117aaaa57",
+      "digest": "7f7e05cd8c42c6c9c3d12bd4e67fd8f9319f76996614b76bf21165068da7ad84",
       "modules": {
         "daedalus/__init__.py": "40ddf15d7613d96af084b06c5c48f0c98b9f6a83",
         "daedalus/adapters/events.py": "c11ec9747624d84be6c8f1dcfac2567f6ffc0d47",
@@ -293,7 +293,7 @@
         "daedalus/memory/__init__.py": "a002ca8dab8ec31c6dcf86f8a7d5ae0d92cb30a3",
         "daedalus/memory/embeddings.py": "1fe84fd7c18507cd33e9f6ca29ac753b562ddd2a",
         "daedalus/metrics.py": "5527a224c89d18716c841ec721b8f9cbc2a9970b",
-        "daedalus/offload.py": "c9855eaa1589106fda8f5f53ba75bb11c421b664",
+        "daedalus/offload.py": "cf30e2899abc7087bd78eaf53590633b043ad4eb",
         "daedalus/preservation.py": "8d0e8e2d586e61b2eab68563e22a70c98ae7ae8a",
         "daedalus/primary_tree.py": "01484a9b8cf61f0de43e738b4e1cb096b1118112",
         "daedalus/projects.py": "fac0659b28914bcd08821cf0350562a23067b1b9",
@@ -318,14 +318,14 @@
         "daedalus/semantic_route.py": "59bc45d508f657d1a6945b491e331a74d0bd0c72",
         "daedalus/sensitivity.py": "98dda1d990b4dde6865da0017b4d63b952fab646",
         "daedalus/spine/__init__.py": "f459bb00a5f03ff3f2d6512711d9afdce15f6c0a",
-        "daedalus/spine/attempt.py": "f59b3c7c200efae86beca10497c90cd0f74844f4",
+        "daedalus/spine/attempt.py": "9bd7e1232448c41bd7ce87d4a1d443f46872e2ac",
         "daedalus/spine/bootstrap.py": "6e0dc0c4cbbfb01d244bf271a135eacd08470f06",
         "daedalus/spine/cancel.py": "d67b163f7372d97401a539a2f8e3b66569365686",
         "daedalus/spine/containment.py": "7c2d5db6e1a7d97280a7be320f3e1d100a9203cf",
         "daedalus/spine/docrefs.py": "bafab0829fa70e1a3336abbe34d26880354c0392",
         "daedalus/spine/durability.py": "0ab23314d957084a2b176e5dd9910f205e75d8c3",
-        "daedalus/spine/effect_boundary.py": "0a20715300cb288f02f20faf4b2e44bf37a88da0",
-        "daedalus/spine/envelope.py": "a8147ce24f12214f794c1cccc0dfa2f59edad15d",
+        "daedalus/spine/effect_boundary.py": "f24f3196ca4e601d86f9b83a8d2c29709260f4e8",
+        "daedalus/spine/envelope.py": "fa6fe91669ca0e5c3fefbce67bfbbe39b06a75f3",
         "daedalus/spine/killswitch.py": "bbfbcf9d9d43be9d644a91af798e0c70d9fcecd3",
         "daedalus/spine/ledger.py": "733998ad535b16f83a7c4100e6440edc3ec68d89",
         "daedalus/spine/picker.py": "d57bf428f3b0cfdc2f370bea17e6afde69de5b71",
@@ -371,14 +371,14 @@
       "path": "tests/test_event_field.py",
       "sha256": "811c95fdadbf2d02ab30a4e49beb9a4923b99eeb8feb30bcbf8816f8e05f0c1e"
     },
-    "digest": "e8b8d354c751c26b914d7c87a2911f18758d2e531b4efb6680a23ca92fc4669d",
+    "digest": "bcc6f081d66abd9a30b94ce697afcf54200fa6bc8a0b4b994984f75a468e262a",
     "evaluators": {
       "daedalus/ignition/bundle.py": {
         "blob_sha1": "415f14abc37c2f403c3466cea82f2ece90338f27",
-        "committed_blob_sha1": "d245834b0312f404e1e66aeebe4922903a1ee1ae",
+        "committed_blob_sha1": "415f14abc37c2f403c3466cea82f2ece90338f27",
         "platform_dependent": true,
         "running_bytes_sha256": "ade9c9f8f9dab200ee2ba5b186632edd1f76882b62dd1272646f42b7a5bd8dc3",
-        "uncommitted": true,
+        "uncommitted": false,
         "unreadable": false
       },
       "daedalus/ignition/checks.py": {
@@ -391,10 +391,10 @@
       },
       "daedalus/ignition/gate1.py": {
         "blob_sha1": "145f940e3e90d3b837f6fb58f49c1408cb379137",
-        "committed_blob_sha1": "8facf1df1917a44732cd9addd961000875c49123",
+        "committed_blob_sha1": "145f940e3e90d3b837f6fb58f49c1408cb379137",
         "platform_dependent": true,
         "running_bytes_sha256": "a1f101feba9d4ddcee55f81c640d0d3b2cfa2fd0107bc903d88252b3f585d6ee",
-        "uncommitted": true,
+        "uncommitted": false,
         "unreadable": false
       },
       "daedalus/ignition/runner.py": {
@@ -417,12 +417,12 @@
         "blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
         "committed_blob_sha1": "75ed4c6edeb442d9a746aa17a491734370ebf759",
         "platform_dependent": true,
-        "running_bytes_sha256": "a6564998d65f8e20748f2b3289bd1f9f488227fd6cdeae6fe5bfb00c89d377e9",
+        "running_bytes_sha256": "e00588abb1da83cc294d332b07ef5e18c78411b22aea9d549e7fc3f24196fcb9",
         "uncommitted": false,
         "unreadable": false
       }
     },
-    "fully_committed": false,
+    "fully_committed": true,
     "nodes": {
       "code-type": [
         "tests/test_event_field.py::test_type_exposes_the_renamed_field"
@@ -441,7 +441,7 @@
     }
   },
   "evidence_packet": {
-    "attempt_id": "gate1-voltage-composed-49a85217a006",
+    "attempt_id": "gate1-voltage-composed-e188d995c413",
     "candidate_artifact_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
     "error": null,
     "evaluation_status": "passed",
@@ -450,15 +450,15 @@
         "assurance": "deterministic",
         "evaluator": "ignition-attempt-binding",
         "evidence_id": "gate1-attempt-binding",
-        "evidence_locator": "artifact-locator:sha256:28e360a5d8b084800182dc0cb22afd66fe7e951072c75131d48bebef55d136da",
-        "output_sha256": "6de93d870137569f22ae62c27e9ca1b3fb90cfa5b79375c341a908270ce697f9",
+        "evidence_locator": "artifact-locator:sha256:85a54dd9c1abc4e6f71f0d381be2f7a052fe24dfbbbf4c13dddf37e3699309ea",
+        "output_sha256": "76a33b5772ca97d4dea6dfc0d9c592a33919c44f85e0dcfad91d6779b648cacc",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "ignition-behavior",
         "evidence_id": "gate1-behavior",
-        "evidence_locator": "artifact-locator:sha256:e5b2a946583493b0f8fa6421bb654ef7bdde3845a467dc59b12e8373075e4816",
+        "evidence_locator": "artifact-locator:sha256:23473ff7de5f5b2d43064f21e258f540daccf4d168ec47087ec0b58e0cd37fda",
         "output_sha256": "0525e55aede160f1031bb068665cf8df1ffe565f17ba13e8f97ecec38db3b53b",
         "verdict": "passed"
       },
@@ -466,7 +466,7 @@
         "assurance": "deterministic",
         "evaluator": "ignition-link-check",
         "evidence_id": "gate1-check-links",
-        "evidence_locator": "artifact-locator:sha256:16053f4f116b8531fbe0668220958414b7a4af37ee13d43aedd3f5dd29cba82d",
+        "evidence_locator": "artifact-locator:sha256:48ed4bc82cec8d2b2bff3c1b67a302183de4219b51bc215e5d0f844cbc1a5334",
         "output_sha256": "641ce025fd271ad0bc6b53e2d0ec9626424442e7456ac126c691169791b171e5",
         "verdict": "passed"
       },
@@ -474,15 +474,15 @@
         "assurance": "deterministic",
         "evaluator": "ignition-pytest-composed",
         "evidence_id": "gate1-check-pytest",
-        "evidence_locator": "artifact-locator:sha256:933882b2dd781c2b2011a8eacf607f96d7bb3fe7562d957789aefa63dbfea6e6",
-        "output_sha256": "b220d675ce0d762643d583a1880680a5969a022bfcc9c7db38ebbbefca20372a",
+        "evidence_locator": "artifact-locator:sha256:b771eebf5a4e9963189c5775f5c037580df9ff86a17e61d2aff4d9da05ee14a6",
+        "output_sha256": "2456ff14beda5017fde75e54110d18d83fe6355248fc701b5d2966472152a6cb",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "ignition-schema-check",
         "evidence_id": "gate1-check-schema",
-        "evidence_locator": "artifact-locator:sha256:af4c518e9b5d6cd652efaf0b41112e1d486cda3f7fe72e120b5311dfec86bc27",
+        "evidence_locator": "artifact-locator:sha256:3fe582084ea2ed542c91ca66f254c5eed0c426ff3e691d11a49bc657ef9e0057",
         "output_sha256": "8eaa6eb6fbcbb434c210d9f8da13534860627dc621828a3b7f77d8e8dac4b8da",
         "verdict": "passed"
       },
@@ -490,27 +490,27 @@
         "assurance": "deterministic",
         "evaluator": "ignition-graph-delta",
         "evidence_id": "gate1-graph-delta",
-        "evidence_locator": "artifact-locator:sha256:85658c36dc29401fb6b6e84c26b0f0dbe0749d41ce3de6f0467476b620b365fb",
+        "evidence_locator": "artifact-locator:sha256:c78f6c343b67131e923abf629599a4c643e4d3550194082a624f86bcde8e1823",
         "output_sha256": "54a0735ada74f295ff05d4d16cab598dad7896e7d5d01e3aed18cad7ae14e3cc",
         "verdict": "passed"
       },
       {
         "assurance": "deterministic",
         "evaluator": "fourfold.snapshot-binding",
-        "evidence_id": "gate1-voltage-composed-49a85217a006:fourfold",
-        "evidence_locator": "artifact-locator:sha256:43bad7b8449289f4419cb521747ce3b2cf1a683d40cce265c742e3414776ca64",
-        "output_sha256": "d505c77ad17c41d64dde237fb3d1e4071f8d79c490d2cf24f02d36c4175dc77e",
+        "evidence_id": "gate1-voltage-composed-e188d995c413:fourfold",
+        "evidence_locator": "artifact-locator:sha256:e7d5474bd1f5d84260841e0355a1467f005ac665bfe10de36b0774b86f13d25b",
+        "output_sha256": "dde9d658a1030558394dd1470b1749e0e1eca7cc53fe677ed8d4c91f952ebdbd",
         "verdict": "passed"
       }
     ],
     "packet_id": "gate1-voltage-evidence",
-    "packet_sha256": "4af0cd8aaf4ec9f907a454a7cd9ecc0639207d71687eff0cc0127367e7309aa2",
+    "packet_sha256": "6179b283e321d1d48573f3d68dbca7fb70d9b3d4fa1128b74fe666eeb0abe1c5",
     "source_revision": "143b03596f0d77eddcf115089918e431b0d051f3a087a6d0def5f891315b02b1"
   },
   "fourfold": {
-    "base_snapshot_sha256": "ddaa2094957b9aa77813489da9c0b45b0fe020f8fa62e41b9390b5b1c3931694",
+    "base_snapshot_sha256": "84712f74aaa31c34323b11d392a86cc7ce5fda8f21763c28ac8087f29ca35429",
     "base_source_bundle_sha256": "bc77ee15665ce2784757bfdf3f52217982d6bf3a194f547bd592e75ad2e50536",
-    "candidate_snapshot_sha256": "d505c77ad17c41d64dde237fb3d1e4071f8d79c490d2cf24f02d36c4175dc77e",
+    "candidate_snapshot_sha256": "dde9d658a1030558394dd1470b1749e0e1eca7cc53fe677ed8d4c91f952ebdbd",
     "candidate_source_bundle_sha256": "97c61fa3e919f0d9126324c77ad4828a273b97cfd5b5ab9541293676e490e8a3",
     "graph_delta": {
       "added_bindings": [
@@ -554,7 +554,7 @@
   "iron_plan": "ALIGNED",
   "mission_id": "mission-gate1-voltage-ignition",
   "mission_objective": "propagate the Event.voltage -> Event.bias_voltage rename across the code, type, data and knowledge planes of the ignition target project",
-  "mission_sha256": "f82a702e4ba912afd529559f6fd0772f66b8b2bdaa484950dcf5117dac7c37dc",
+  "mission_sha256": "b46576e8a05d02b4e54e3c89f215847fb090dc7428ed9cd172596d3b4ebd8099",
   "mission_source_revision": "ebd198e90563554297ec644d2318496b52977ed5",
   "promotion": {
     "auto_merge": false,
@@ -576,13 +576,13 @@
     "mission_sha256_stable": null,
     "note": "mission_id, work_item_ids, base_revision and candidate_revision are functions of the fixture tree and the frozen git identity; attempt ids carry a per-run nonce by construction (the branch name IS the effect key) and are expected to differ between runs",
     "packet_sha256_stable": false,
-    "previous_collected_at": "2026-08-23T21:52:48Z",
+    "previous_collected_at": "2026-08-23T22:18:54Z",
     "previous_conformance_test_sha256": "d2c96a9858c12a1ce4d16ef4b95fa190df2c7911c8e39c20f3c78bf6bc659dbb",
-    "previous_evaluator_bundle_digest": "e8b8d354c751c26b914d7c87a2911f18758d2e531b4efb6680a23ca92fc4669d",
+    "previous_evaluator_bundle_digest": "bcc6f081d66abd9a30b94ce697afcf54200fa6bc8a0b4b994984f75a468e262a",
     "previous_fixture_tree_sha256": "33460ac359217c6a0fb97890a8a3dba75d7edb7b1223c05e80259a3b0c514cb9",
     "previous_graph_delta_sha256": "1bef5f55a1acfdfceb8a48b9fb1c80d2b4f2e17aa1102e14200e9bf492fb01a5",
-    "previous_mission_sha256": "e9dcc8da23d23de59c8162e613ad01158039d8b1d7a723b6efd514002e698074",
-    "previous_packet_sha256": "9b44e578ea4d4b07c78d00444bda046e61903bd684fc4eabcdd3f17d6b75be5a",
+    "previous_mission_sha256": "9d7472a7a47e798bfdac6e397c9eaeed2a62337cd6d725b128f35d4d6604acea",
+    "previous_packet_sha256": "926ea83a745780539049d027f6c9c5562191bed761e27678f632c14810205243",
     "previous_run_complete": true,
     "replay_demonstrated": true,
     "same_collected_at": false,
