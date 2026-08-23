@@ -398,21 +398,63 @@ def code_type_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: f
     return _gate
 
 
-def data_knowledge_gate(sink: dict[str, ignition_checks.CheckReport]):
-    """Attempt gate for the data/knowledge work item: schema plus links."""
+def data_knowledge_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: float = 120.0):
+    """Attempt gate for the data/knowledge work item: the conformance nodes it
+    owns, plus the schema and link measurements.
+
+    THE VERDICT COMES FROM THE ANCHORED NODES, THE OTHER TWO ARE MEASUREMENTS.
+    Until 2026-08-23 this gate returned schema-and-link, whose criterion is
+    code in :mod:`daedalus.ignition.checks` rather than a file in the judged
+    tree; the attempt could therefore declare no ``gate_criterion_paths`` and
+    ``evaluator_assurance`` refused to call it deterministic -- the receipt's
+    own ``remaining_gap``. Running :data:`~daedalus.ignition.checks.
+    DATA_KNOWLEDGE_NODE_IDS` puts a criterion the candidate may not write in
+    front of the verdict, and the pytest argv names the file, which is what the
+    spine's seal requires (check 4).
+
+    The schema and link reports still run and still land in the sink -- they are
+    the composed candidate's evidence and the cross-plane reading that catches a
+    half-finished rename the node ids do not model. They no longer decide this
+    attempt on their own: a gate whose criterion the candidate authors is
+    exactly what the evidence boundary refuses to call conclusive.
+    """
 
     def _gate(ctx: RunnerContext) -> GateResult:
         started = time.monotonic()
+        conformance = ignition_checks.pytest_check(
+            ctx.worktree, ignition_checks.DATA_KNOWLEDGE_NODE_IDS, timeout_s=timeout_s,
+            label="pytest-data-knowledge",
+        )
         schema = ignition_checks.schema_check(ctx.worktree)
         links = ignition_checks.link_check(ctx.worktree)
+        sink["data-knowledge"] = conformance
         sink["schema"] = schema
         sink["link"] = links
+        # ALL THREE, and the reason is measured: with the verdict resting on the
+        # conformance nodes alone, dropping schemas/event.schema.json from the
+        # work item's paths left the CSV renamed and the schema behind, the
+        # nodes still passed, and only the Fourfold compile downstream noticed
+        # (tests/test_ignition_gate1.py::test_a_half_finished_rename_is_refused
+        # went red). The node ids model the CSV header and the wiki page; they
+        # do not model the schema/CSV field-set equality, which is exactly the
+        # half-finished rename this slice exists to catch. The seal comes from
+        # the anchored nodes, the discrimination from all three.
         return GateResult(
-            passed=schema.passed and links.passed,
+            passed=conformance.passed and schema.passed and links.passed,
             name="ignition-data-knowledge",
-            command=("ignition-schema-check", "ignition-link-check"),
-            returncode=0 if (schema.passed and links.passed) else 1,
-            output=ignition_checks.render_reports((schema, links)),
+            # The argv NAMES the criterion file, which the spine's seal
+            # requires (check 4); the two module-authored checks ride along in
+            # the command so the record says what actually ran.
+            command=tuple(str(part) for part in conformance.detail.get("argv", ()))
+            + ("ignition-schema-check", "ignition-link-check"),
+            # pytest's own code when the anchored nodes decided it; 1 when they
+            # passed and a cross-plane reading did not.
+            returncode=(
+                conformance.detail.get("returncode")
+                if not conformance.passed
+                else 0 if (schema.passed and links.passed) else 1
+            ),
+            output=ignition_checks.render_reports((conformance, schema, links)),
             duration_s=time.monotonic() - started,
         )
 
@@ -634,6 +676,7 @@ def run_gate1_ignition(
     # the receipt describing the same run.
     store_root = _reset_evidence_store(receipt_dir / SESSION_MISSION_ID / "store")
     blockers: list[str] = []
+    started_at = time.monotonic()
 
     scratch = Path(workspace) if workspace else Path(
         tempfile.mkdtemp(prefix="daedalus-ignition-")
@@ -679,7 +722,7 @@ def run_gate1_ignition(
         # -- two attempts, each through the attempt spine -------------------- #
         reports: dict[str, ignition_checks.CheckReport] = {}
         gates = (code_type_gate(reports, timeout_s=float(gate_timeout_s)),
-                 data_knowledge_gate(reports))
+                 data_knowledge_gate(reports, timeout_s=float(gate_timeout_s)))
         attempts: list[Any] = []
         attempt_results: list[Any] = []
         for index, (planned_item, task, gate) in enumerate(zip(planned, tasks, gates)):
@@ -688,18 +731,15 @@ def run_gate1_ignition(
                 instruction=task.objective,
                 base_revision=base_revision,
                 target_paths=tuple(task.paths),
-                # Where each gate's criterion lives INSIDE the candidate tree.
-                # The code/type gate runs the seeded conformance test, which
-                # the work item may not write -- so its verdict is sealed from
-                # the candidate (93489855). The data/knowledge gate compares
-                # the schema against the CSV, and the rename edits both, so
-                # its criterion is inside the write scope and it declares none:
-                # that packet honestly stays inconclusive.
-                gate_criterion_paths=(
-                    (ignition_checks.CONFORMANCE_TEST_PATH,)
-                    if "code" in planned_item.planes or "type" in planned_item.planes
-                    else ()
-                ),
+                # Where each gate's criterion lives INSIDE the candidate
+                # tree. BOTH gates now run the seeded conformance suite, which
+                # no work item may write, so both verdicts are sealed from the
+                # candidate (93489855 for the API; the data/knowledge nodes
+                # landed 2026-08-23, closing this receipt's own remaining_gap).
+                # The schema and link checks still run under the data/knowledge
+                # gate, but as measurements: their criterion is module code, not
+                # a tree file, so naming them here would seal nothing.
+                gate_criterion_paths=(ignition_checks.CONFORMANCE_TEST_PATH,),
                 # DECLARED, BECAUSE IT IS TRUE AND WAS PREVIOUSLY UNSAID. The
                 # conformance suite inserts <root>/src on sys.path and imports
                 # ignition_app, whose package reaches src/ignition_app/models.py
@@ -712,6 +752,12 @@ def run_gate1_ignition(
                 # judged the candidate the candidate wrote. The criterion FILE
                 # and everything on its collection path stay outside the scope,
                 # so the candidate still cannot change what the gate ASKS.
+                # TRUE FOR THE CODE/TYPE ITEM ONLY, and measured rather
+                # than assumed for the other: the code/type nodes import
+                # ignition_app from src/, which that item writes. The
+                # data/knowledge nodes read the CSV and the wiki page through
+                # pathlib and never import the candidate's package, so nothing
+                # that item writes is on their execution path.
                 gate_reads_scope=bool(
                     "code" in planned_item.planes or "type" in planned_item.planes
                 ),
@@ -834,6 +880,9 @@ def run_gate1_ignition(
                     f"the {report.kind} check failed on the composed candidate: "
                     f"{report.detail.get('problems') or report.detail.get('output_tail')}"
                 )
+        anchored_node_roles = measure_anchored_node_roles(
+            repo, gate_timeout_s=float(gate_timeout_s)
+        )
         discrimination = _measure_discrimination(
             candidate_root, repo, base_pytest, scratch / "controls",
             gate_timeout_s=float(gate_timeout_s),
@@ -844,6 +893,21 @@ def run_gate1_ignition(
                     f"negative control {name} did not go red; the {name.split('.')[0]} "
                     "check does not discriminate"
                 )
+        blockers.extend(criterion_discrimination_blockers(anchored_node_roles))
+        data_knowledge_subjects = tuple(
+            path for item in planned if "data" in item.planes or "knowledge" in item.planes
+            for path in item.paths
+        )
+        subject_coverage = measure_subject_coverage(
+            candidate_root, repo, data_knowledge_subjects, scratch / "coverage",
+            gate_timeout_s=float(gate_timeout_s),
+        )
+        unread = sorted(rel for rel, row in subject_coverage.items() if row.get("unread"))
+        if unread:
+            blockers.append(
+                "no data/knowledge evaluator reads " + ", ".join(unread)
+                + "; reverting it to the base revision changes no verdict"
+            )
 
         # -- one EvidencePacket ---------------------------------------------- #
         store = ArtifactStore(store_root)
@@ -1000,12 +1064,30 @@ def run_gate1_ignition(
             checks=composed,
             base_pytest=base_pytest,
             discrimination=discrimination,
+            anchored_nodes=anchored_node_roles,
+            subject_coverage=subject_coverage,
             delta=delta,
             fixture_digest=fixture_digest_before,
             collected_at=collected_at,
             blockers=blockers,
         )
+        receipt["cost"] = {
+            # WHAT THE EVIDENCE COST, because a receipt that reports only the
+            # attempt gates hides the measurements taken around them (Codex
+            # round 2, 2026-08-23: the node roles and the coverage matrix run
+            # pytest and the reference compiler several times each).
+            "wall_clock_s": round(time.monotonic() - started_at, 1),
+            "anchored_node_measurements": len(anchored_node_roles),
+            "subject_coverage_measurements": len(subject_coverage),
+            "negative_controls": len(discrimination),
+        }
         receipt_path, receipt = write_receipt(receipt, receipt_dir)
+        # THE RECEIPT IS THE RESULT. write_receipt derives the replay blockers
+        # (it is the only place that can: it holds the previous receipt), so a
+        # caller reading the pre-write list saw an empty one while the receipt
+        # on disk carried a blocker -- and `python -m daedalus.ignition` exits
+        # on the caller's list, so an unstable replay exited 0 (Codex round 2,
+        # 2026-08-23). One list, read back from the body that was written.
         return IgnitionSliceResult(
             mission=mission,
             work_item_ids=work_item_ids,
@@ -1014,7 +1096,7 @@ def run_gate1_ignition(
             receipt=receipt,
             receipt_path=receipt_path,
             graph_delta=delta,
-            blockers=tuple(blockers),
+            blockers=tuple(receipt.get("blockers") or ()),
         )
     finally:
         if not keep_workspace and workspace is None:
@@ -1110,6 +1192,7 @@ def _measure_discrimination(
         }
     }
 
+
     half = control_root / "half-renamed"
     if half.exists():
         shutil.rmtree(half, ignore_errors=True)
@@ -1134,6 +1217,210 @@ def _measure_discrimination(
         "problems": broken_report.detail.get("problems"),
     }
     return observed
+
+
+def measure_anchored_node_roles(repo: Path, *, gate_timeout_s: float) -> dict[str, Any]:
+    """What each anchored node DID on the base revision, one node at a time.
+
+    "The suite fails on base" does not say which node moved. A node that already
+    passes on the base revision is a regression guard, not discrimination, and
+    counting it as discrimination is how a criterion set comes to look stronger
+    than it is. Measured here rather than declared: two of the three
+    data/knowledge nodes are FAIL_TO_PASS and ``test_wiki_links_resolve`` is a
+    guard (the base fixture's links already resolve), and the receipt says so.
+
+    This is NOT a negative control -- a control is an edit that must turn a
+    check red, and the receipt refuses one that stays green. These rows are a
+    classification of the criterion set, so they live beside the controls.
+    """
+
+    roles: dict[str, Any] = {}
+    for label, node_ids in (
+        ("code-type", ignition_checks.CODE_TYPE_NODE_IDS),
+        ("data-knowledge", ignition_checks.DATA_KNOWLEDGE_NODE_IDS),
+    ):
+        for node in node_ids:
+            report = ignition_checks.pytest_check(
+                repo, (node,), timeout_s=float(gate_timeout_s), label=f"base-{label}",
+            )
+            roles[node] = {
+                "gate": label,
+                "passed_on_base_revision": report.passed,
+                "role": "pass_to_pass_guard" if report.passed else "fail_to_pass",
+            }
+    return roles
+
+
+#: Replay fields that must hold between two runs of the SAME criterion. The
+#: packet digest is deliberately not among them (evidence items bind raw
+#: evaluator output, and pytest prints its own duration), and the mission digest
+#: is clock-bound, so both are reported without being required.
+REPLAY_REQUIRED_STABLE = (
+    "mission_id_stable",
+    "work_item_ids_stable",
+    "base_revision_stable",
+    "candidate_revision_stable",
+    "graph_delta_stable",
+    "check_reports_stable",
+)
+
+
+def measure_subject_coverage(
+    candidate: Path,
+    repo: Path,
+    subjects: Sequence[str],
+    control_root: Path,
+    *,
+    gate_timeout_s: float,
+) -> dict[str, Any]:
+    """For each subject the work items rewrote: revert it alone in the composed
+    candidate, and record which evaluator notices.
+
+    WHY THIS AND NOT ANOTHER ASSERTION. Codex round 2 attacked the anchored
+    criterion with a node that fails on the base revision for the wrong reason
+    -- assert the file's SIZE and the literal rename flips it, so the node is
+    measured as FAIL_TO_PASS while testing nothing about the rename. No check
+    inside this tree can read a criterion's intent; that needs an owner-pinned
+    criterion, which is named as still open.
+
+    What this measures instead is coverage, which IS mechanical: an evaluator
+    that stays green when its subject is reverted never read that subject. The
+    matrix is recorded whole -- including the subjects nobody reads, which is
+    the honest half of the answer.
+    """
+
+    control_root.mkdir(parents=True, exist_ok=True)
+    coverage: dict[str, Any] = {}
+    for rel in subjects:
+        source = repo / rel
+        if not source.is_file():
+            coverage[rel] = {"reverted": False, "reason": "not a regular file in the base revision"}
+            continue
+        control = control_root / ("revert-" + rel.replace("/", "-").replace(".", "_"))
+        if control.exists():
+            shutil.rmtree(control, ignore_errors=True)
+        shutil.copytree(candidate, control)
+        shutil.copy2(source, control / rel)
+        nodes = ignition_checks.pytest_check(
+            control, ignition_checks.DATA_KNOWLEDGE_NODE_IDS,
+            timeout_s=float(gate_timeout_s), label=f"coverage-{rel}",
+        )
+        schema = ignition_checks.schema_check(control)
+        links = ignition_checks.link_check(control)
+        noticed = sorted(
+            name for name, report in (
+                ("anchored-nodes", nodes), ("ignition-schema-check", schema),
+                ("ignition-link-check", links),
+            ) if not report.passed
+        )
+        # THE CROSS-PLANE COMPILER IS AN EVALUATOR TOO, and leaving it out of
+        # this matrix produced a false hole on the first run: fourfold.json is
+        # read by nobody among the three checks above, but ``verify_claims``
+        # refuses a manifest whose claims no longer match the planes -- which is
+        # exactly the half-finished rename this slice exists to catch.
+        try:
+            compile_reference_project(
+                control, source_revision=tree_digest(control),
+                created_at="1970-01-01T00:00:00Z", trace_id=f"gate1-coverage-{rel}",
+            )
+        except Exception as exc:  # noqa: BLE001 - a refusal IS the measurement
+            noticed.append("fourfold.compile")
+            coverage_detail = f"{type(exc).__name__}: {exc}"
+        else:
+            coverage_detail = ""
+        noticed = sorted(noticed)
+        coverage[rel] = {
+            "reverted": True,
+            "control": f"revert {rel} to the base revision, keep the rest of the candidate",
+            "noticed_by": noticed,
+            "unread": not noticed,
+            "fourfold_refusal": coverage_detail,
+        }
+    return coverage
+
+
+def criterion_discrimination_blockers(roles: Mapping[str, Any]) -> list[str]:
+    """A gate whose anchored nodes all pass on the base revision has no
+    criterion of its own.
+
+    THIS IS THE ANSWER TO "THE SEAL AUTHENTICATES A PATH, NOT A PROPOSITION"
+    (Codex round 1, 2026-08-23). Every one of the spine's six seal checks --
+    path outside the scope, present in the base revision, no writable execution
+    path, no in-tree import, named by the gate -- stays green if an operator
+    edits the seeded suite until it asserts nothing, because all six measure the
+    criterion as a blob. What such an edit cannot survive is the measurement
+    beside them: a node that no longer fails on the base revision is recorded as
+    a guard, and a gate left with only guards is refused here.
+
+    MEASURED while writing this: replacing the seeded assertions with
+    ``assert header is not None`` / ``pass`` turns all three data/knowledge
+    nodes into guards, and this function refuses.
+    """
+
+    out: list[str] = []
+    for gate_label in ("code-type", "data-knowledge"):
+        rows = [row for row in roles.values() if row.get("gate") == gate_label]
+        if not rows:
+            # NOT "nothing to check": a gate with no measured node is a gate
+            # whose criterion nobody looked at (Codex round 2, 2026-08-23 --
+            # the first version skipped this case and returned green).
+            out.append(
+                f"the {gate_label} gate has no measured anchored node at all; its "
+                "criterion set was never classified"
+            )
+        elif not any(row.get("role") == "fail_to_pass" for row in rows):
+            out.append(
+                f"the {gate_label} gate has no anchored node that fails on the base "
+                "revision; its criterion set guards but does not discriminate"
+            )
+    return out
+
+
+def _replay_blockers(replay: Mapping[str, Any]) -> list[str]:
+    """Replay instability is a Gate-1 result, not a footnote.
+
+    Plan section 10 requires restart/replay to work, and until now the receipt
+    merely REPORTED the comparison: a run whose base revision, candidate
+    revision or graph delta moved between two identical invocations still came
+    out with an empty ``blockers`` list (Codex round 1, 2026-08-23). It is a
+    blocker now -- unless the criterion itself changed since the previous run,
+    which moves the base revision by construction and is named as the reason
+    rather than silently tolerated.
+    """
+
+    if not replay.get("is_replay"):
+        return []
+    # A FIELD THAT IS NOT THERE IS NOT A PASS. The first version tested for
+    # literal False, so a replay dict missing every comparison -- a corrupt or
+    # truncated previous receipt, a future field rename -- returned no blockers
+    # at all (Codex round 2, 2026-08-23). Unknown is refused, and says so.
+    unknown = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is None]
+    if unknown:
+        return [
+            "replay comparison is incomplete: " + ", ".join(unknown)
+            + " could not be measured, so this run demonstrates no replay"
+        ]
+    if replay.get("same_fixture") is False:
+        return [
+            "the previous receipt was produced from a different fixture tree ("
+            + str(replay.get("previous_fixture_tree_sha256"))[:12]
+            + "); that comparison is not a replay comparison"
+        ]
+    unstable = [name for name in REPLAY_REQUIRED_STABLE if replay.get(name) is False]
+    if not unstable:
+        return []
+    if replay.get("criterion_changed_since_previous"):
+        return [
+            "replay comparison spans a criterion change ("
+            + ", ".join(unstable)
+            + " differ); the previous run judged with conformance suite "
+            + str(replay.get("previous_conformance_test_sha256"))[:12]
+            + ". Run the slice again to compare two runs of the SAME criterion."
+        ]
+    return [
+        "replay is not stable across two runs of the same criterion: "
+        + ", ".join(unstable)
+    ]
 
 
 def _packet_attempt_id(attempts: Sequence[Any]) -> str:
@@ -1200,6 +1487,20 @@ def _attempt_binding(
             "patch_locator": (result.artifact_locator or {}).get("locator_uri"),
             "worktree_removed": bool(result.worktree_removed),
             "gate_name": gate.name if gate is not None else None,
+            # THE COMMAND, because the seal's fourth check is "the gate that ran
+            # actually named the criterion" and until now nothing in the receipt
+            # let a reader verify it (Codex round 1, 2026-08-23). The declared
+            # criterion path sat in the task digest, the argv nowhere.
+            "gate_command": (
+                [str(part) for part in (getattr(gate, "command", ()) or ())]
+                if gate is not None else []
+            ),
+            # From the ATTEMPT's task, not the result: the spec is what declared
+            # the criterion, and the result carries only the gate's outcome.
+            "gate_criterion_paths": [
+                str(path)
+                for path in (getattr(getattr(attempt, "task", None), "gate_criterion_paths", ()) or ())
+            ],
             "gate_passed": bool(gate.passed) if gate is not None else False,
             "gate_ms": gate_ms,
             "gate_output_sha256": gate.output_sha256 if gate is not None else None,
@@ -1363,6 +1664,9 @@ def _refused_receipt(
                     "work_item_id", "attempt_id", "state", "target_paths",
                     "changed_paths", "patch_sha256", "patch_locator",
                     "gate_name", "gate_passed", "gate_output_sha256",
+                    # the seal's check 4 is "the gate that ran named the
+                    # criterion"; both halves of that belong in the receipt
+                    "gate_command", "gate_criterion_paths",
                     "attempt_contract_sha256", "policy_decision_sha256",
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
@@ -1429,6 +1733,8 @@ def _build_receipt(
     checks: Sequence[ignition_checks.CheckReport],
     base_pytest: ignition_checks.CheckReport,
     discrimination: Mapping[str, Any],
+    anchored_nodes: Mapping[str, Any],
+    subject_coverage: Mapping[str, Any],
     delta: IgnitionGraphDelta,
     fixture_digest: str,
     collected_at: str,
@@ -1451,6 +1757,9 @@ def _build_receipt(
                     "work_item_id", "attempt_id", "state", "target_paths",
                     "changed_paths", "patch_sha256", "patch_locator",
                     "gate_name", "gate_passed", "gate_output_sha256",
+                    # the seal's check 4 is "the gate that ran named the
+                    # criterion"; both halves of that belong in the receipt
+                    "gate_command", "gate_criterion_paths",
                     "attempt_contract_sha256", "policy_decision_sha256",
                     "policy_verdict", "evidence_packet_sha256",
                     "evidence_status", "evidence_assurance",
@@ -1500,6 +1809,45 @@ def _build_receipt(
                 "conformance_test_sha256": ignition_checks.CONFORMANCE_TEST_SHA256,
             },
             "negative_controls": dict(discrimination),
+            "anchored_nodes": dict(anchored_nodes),
+            "subject_coverage": dict(subject_coverage),
+            # WHAT THE SEAL DOES NOT COVER, said in the record rather than left
+            # for a reader to derive. The data/knowledge verdict is
+            # `anchored nodes AND schema AND links`; the spine's seal is granted
+            # for the declared criterion PATH and the argv that named it, so it
+            # qualifies the GateResult as a whole. The schema and link conjuncts
+            # state their criterion in daedalus.ignition.checks, which is not in
+            # the judged tree at all -- no candidate can reach it -- but neither
+            # is it pinned by the seal, and schema_check compares field SETS, so
+            # a schema weakened to `{"properties": {"id": {}, "bias_voltage": {}},
+            # "required": []}` would satisfy it. Today's operator is a literal
+            # renamer and cannot author that; a more capable one could.
+            # (Codex round 1, 2026-08-23.)
+            "unsealed_verdict_conjuncts": {
+                "ignition-data-knowledge": [
+                    {
+                        "evaluator": "ignition-schema-check",
+                        "criterion_location": "daedalus.ignition.checks.schema_check",
+                        "in_judged_tree": False,
+                        "sealed_by_gate_criterion_paths": False,
+                        "known_weakness": (
+                            "compares CSV header and schema property SETS; a schema whose "
+                            "properties carry no types and whose required list is empty "
+                            "satisfies it, and per-row type checks are then vacuous"
+                        ),
+                    },
+                    {
+                        "evaluator": "ignition-link-check",
+                        "criterion_location": "daedalus.ignition.checks.link_check",
+                        "in_judged_tree": False,
+                        "sealed_by_gate_criterion_paths": False,
+                        "known_weakness": (
+                            "requires each relative link to resolve to an existing file; a "
+                            "link retargeted to another existing file still resolves"
+                        ),
+                    },
+                ]
+            },
         },
         "fourfold": {
             "base_source_bundle_sha256": base_compile.source_bundle_sha256,
@@ -1562,6 +1910,12 @@ def write_receipt(
             previous = json.loads(path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 - a corrupt previous receipt is not fatal
             previous = {}
+        if not isinstance(previous, Mapping):
+            # Valid JSON that is not an object ("[]", "3", "null") used to reach
+            # .get() and raise, turning a corrupt predecessor into a crash
+            # instead of a refusal (Codex round 2). An unreadable previous
+            # receipt is the same as a missing comparison: refused below.
+            previous = {}
         previous_replay = dict(previous.get("replay") or {})
 
         def _reports(receipt_body: Mapping[str, Any]) -> dict[str, Any]:
@@ -1601,6 +1955,33 @@ def write_receipt(
                 == (body.get("evidence_packet") or {}).get("packet_sha256")
             ),
             "check_reports_stable": _reports(previous) == _reports(body),
+            # WHAT THE PREVIOUS RUN JUDGED WITH. A criterion change moves the
+            # base revision (the suite is seeded into it), so the identity
+            # fields legitimately differ between the last run under the old
+            # criterion and the first under the new one. Recording the previous
+            # digest is what lets a reader -- and _replay_blockers below -- tell
+            # that transition from a slice that is simply not deterministic.
+            # Codex round 1, 2026-08-23: the receipt committed in d3cdb73b said
+            # base_revision_stable false while the commit message claimed the
+            # opposite, and nothing in the machinery objected.
+            # A PREVIOUS RECEIPT FROM ANOTHER FIXTURE IS NOT A REPLAY. Every
+            # identity in this block is a function of the fixture tree, so
+            # comparing across two fixtures would report "unstable" for a slice
+            # that is perfectly deterministic -- or, worse, "stable" for fields
+            # that happen to match. Recorded and required below.
+            "previous_fixture_tree_sha256": previous_replay.get("fixture_tree_sha256"),
+            "same_fixture": (
+                previous_replay.get("fixture_tree_sha256") == replay.get("fixture_tree_sha256")
+            ),
+            "previous_conformance_test_sha256": (
+                (previous.get("discrimination") or {}).get("before_state") or {}
+            ).get("conformance_test_sha256"),
+            "criterion_changed_since_previous": (
+                ((previous.get("discrimination") or {}).get("before_state") or {}).get(
+                    "conformance_test_sha256"
+                )
+                != ignition_checks.CONFORMANCE_TEST_SHA256
+            ),
             "previous_graph_delta_sha256": (previous.get("fourfold") or {}).get("graph_delta_sha256"),
             "graph_delta_stable": (
                 (previous.get("fourfold") or {}).get("graph_delta_sha256")
@@ -1609,7 +1990,21 @@ def write_receipt(
         })
     else:
         replay["is_replay"] = False
+    # WHAT THIS RUN ACTUALLY DEMONSTRATED. Plan section 10 asks for restart and
+    # replay; a first run has nothing to compare against and legitimately shows
+    # neither, but an empty ``blockers`` list beside a null ``blocker`` reads as
+    # "Gate 1 demonstrated" unless the receipt says otherwise. Derived, so a
+    # single-run receipt cannot be mistaken for replay evidence.
+    replay["replay_demonstrated"] = bool(
+        replay.get("is_replay")
+        and replay.get("same_fixture")
+        and not replay.get("criterion_changed_since_previous")
+        # `is True`, not `is not False`: a missing comparison is not a passing
+        # one (Codex round 2).
+        and all(replay.get(name) is True for name in REPLAY_REQUIRED_STABLE)
+    )
     body["replay"] = replay
+    body["blockers"] = list(body.get("blockers") or []) + _replay_blockers(replay)
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path, body
 

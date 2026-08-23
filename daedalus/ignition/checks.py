@@ -62,6 +62,7 @@ runs, and never listed in a work item's target_paths, so no candidate edit can
 reach the criterion that judges it.
 """
 import csv
+import re
 import sys
 from pathlib import Path
 
@@ -96,14 +97,61 @@ def test_repository_parses_every_csv_row():
     assert rows
     for row in rows:
         assert getattr(parse_event(row), FIELD) == float(row[FIELD])
+
+
+def test_wiki_documents_the_renamed_field():
+    text = (ROOT / "wiki" / "Event.md").read_text(encoding="utf-8")
+    assert FIELD in text
+    assert not re.search(r"(?<![A-Za-z0-9_])" + RETIRED + r"(?![A-Za-z0-9_])", text)
+
+
+def test_wiki_links_resolve():
+    text = (ROOT / "wiki" / "Event.md").read_text(encoding="utf-8")
+    targets = re.findall(r"]\(([^)\s]+)\)", text)
+    assert targets
+    for target in targets:
+        assert ((ROOT / "wiki") / target).resolve().exists(), target
 '''
 
 CONFORMANCE_TEST_SHA256 = canonical_sha({"source": CONFORMANCE_TEST_SOURCE})
 
-#: The node the Code/Type work item alone is required to turn green. The other
-#: two nodes need the Data work item as well, so they are the composed
-#: candidate's criterion, not one attempt's.
+#: The node the Code/Type work item alone is required to turn green. The
+#: repository node needs BOTH work items, so it is the composed candidate's
+#: criterion, not one attempt's.
 CODE_TYPE_NODE_IDS = (f"{CONFORMANCE_TEST_PATH}::test_type_exposes_the_renamed_field",)
+
+#: The nodes the Data/Knowledge work item alone must turn green: the CSV header
+#: (data plane) and the wiki page with its links (knowledge plane). None of the
+#: three imports ``ignition_app``, so this work item's gate can run them on a
+#: tree where the code plane is still un-renamed.
+#:
+#: TWO OF THEM DISCRIMINATE, ONE GUARDS -- measured on the base revision, and
+#: recorded per node in the receipt's ``discrimination.anchored_nodes`` rather
+#: than left for a reader to assume:
+#:
+#:   ``test_csv_header_carries_the_renamed_field``   FAIL_TO_PASS
+#:   ``test_wiki_documents_the_renamed_field``       FAIL_TO_PASS
+#:   ``test_wiki_links_resolve``                     PASS_TO_PASS (regression guard)
+#:
+#: The guard is not discrimination and is not counted as such: the base fixture's
+#: links already resolve. It is here because the knowledge-plane edit is exactly
+#: the kind that silently breaks them, and a gate that only asked "does the page
+#: say bias_voltage" would accept a page whose links point nowhere.
+#:
+#: WHY THIS EXISTS (2026-08-23). Until now the data/knowledge gate ran only
+#: :func:`schema_check` and :func:`link_check`, whose criterion is code in THIS
+#: module rather than a file in the judged tree. The attempt therefore declared
+#: no ``gate_criterion_paths``, and ``evaluator_assurance`` correctly refused to
+#: call the verdict deterministic: nothing outside the candidate stated it. The
+#: seeded conformance suite is exactly that outside statement -- it lives at
+#: ``tests/test_event_field.py``, which no work item may write -- so the gate
+#: now EXECUTES it and names it. The schema and link checks stay, as the
+#: measurements they always were.
+DATA_KNOWLEDGE_NODE_IDS = (
+    f"{CONFORMANCE_TEST_PATH}::test_csv_header_carries_the_renamed_field",
+    f"{CONFORMANCE_TEST_PATH}::test_wiki_documents_the_renamed_field",
+    f"{CONFORMANCE_TEST_PATH}::test_wiki_links_resolve",
+)
 
 _MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
@@ -451,6 +499,7 @@ def render_reports(reports: Sequence[CheckReport]) -> str:
 
 __all__ = [
     "CODE_TYPE_NODE_IDS",
+    "DATA_KNOWLEDGE_NODE_IDS",
     "CONFORMANCE_TEST_PATH",
     "CONFORMANCE_TEST_SHA256",
     "CONFORMANCE_TEST_SOURCE",
