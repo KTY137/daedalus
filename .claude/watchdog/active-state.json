@@ -1,0 +1,16 @@
+﻿{
+    "schemaVersion":  1,
+    "projectPath":  "C:\\Users\\nukei\\Desktop\\gw_watchdog-mission",
+    "sessionId":  "8240d32d-05ab-40f5-a4c2-64b9bfa4c3b4",
+    "sessionInitialized":  true,
+    "runDirectory":  "C:\\Users\\nukei\\Desktop\\gw_watchdog-mission\\.claude\\watchdog\\8240d32d-05ab-40f5-a4c2-64b9bfa4c3b4",
+    "sourcePromptHash":  "413b898f4f7be4b9d58722b39a1c11765022d5d8ea956aaa6b44bf567d50a249",
+    "startedAtUtc":  "2026-08-17T17:48:13.7498713Z",
+    "deadlineUtc":  "2026-08-19T17:48:13.7498713Z",
+    "attempt":  3,
+    "consecutiveErrors":  0,
+    "lastExitCode":  0,
+    "lastFailureClass":  "normal",
+    "lastLogPath":  "C:\\Users\\nukei\\Desktop\\gw_watchdog-mission\\.claude\\watchdog\\8240d32d-05ab-40f5-a4c2-64b9bfa4c3b4\\attempt-0003-20260817-195834.log",
+    "updatedAtUtc":  "2026-08-17T18:02:14.5813385Z"
+}
