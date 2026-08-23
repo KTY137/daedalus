@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/offload-target-effect-commitment-v1.schema.json",
+  "title": "Daedalus OffloadTargetEffectCommitment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"},
+    "artifactLocator": {"type": "string", "pattern": "^artifact-locator:sha256:[0-9a-f]{64}$"},
+    "portableTargetPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "allOf": [
+        {"pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*[<>:\"|?*\\u0000-\\u001f])(?!.*[. ](?:/|$))[^/]+(?:/[^/]+)*$"},
+        {"not": {"pattern": "(?:^|/)(?:[Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9]|[Ll][Pp][Tt][1-9])(?:\\.[^/]*)?(?:/|$)"}},
+        {"not": {"pattern": "(?:^|/)[^/]*~[0-9]+(?:\\.[^/]*)?(?:/|$)"}}
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": [
+    "contract_type", "contract_version", "lease_sha256", "source_revision",
+    "execution_plan_sha256", "execution_request_sha256", "start_receipt_sha256",
+    "claim_receipt_sha256", "workspace_attestation_sha256",
+    "target_before_observation_sha256", "ollama_model_observation_sha256",
+    "ollama_chat_observation_sha256", "artifact_store_root_sha256",
+    "candidate_artifact_locator", "candidate_sha256", "candidate_size",
+    "target_path", "staging_path", "staging_path_sha256", "recovery_path",
+    "recovery_path_sha256", "target_before_content_sha256", "target_before_size",
+    "target_before_file_identity_sha256", "target_parent_chain_sha256",
+    "target_git_mode", "target_filesystem_mode", "metadata_profile_sha256",
+    "publication_strategy", "durability_profile", "kill_switch_ref",
+    "kill_switch_generation", "kill_switch_path_sha256", "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.offload-target-effect-commitment"},
+    "contract_version": {"const": "1.0.0"},
+    "lease_sha256": {"$ref": "#/$defs/sha256"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "execution_plan_sha256": {"$ref": "#/$defs/sha256"},
+    "execution_request_sha256": {"$ref": "#/$defs/sha256"},
+    "start_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_receipt_sha256": {"$ref": "#/$defs/sha256"},
+    "workspace_attestation_sha256": {"$ref": "#/$defs/sha256"},
+    "target_before_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "ollama_model_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "ollama_chat_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "artifact_store_root_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_artifact_locator": {"$ref": "#/$defs/artifactLocator"},
+    "candidate_sha256": {"$ref": "#/$defs/sha256"},
+    "candidate_size": {"type": "integer", "minimum": 0},
+    "target_path": {"$ref": "#/$defs/portableTargetPath"},
+    "staging_path": {"$ref": "#/$defs/portableTargetPath"},
+    "staging_path_sha256": {"$ref": "#/$defs/sha256"},
+    "recovery_path": {"$ref": "#/$defs/portableTargetPath"},
+    "recovery_path_sha256": {"$ref": "#/$defs/sha256"},
+    "target_before_content_sha256": {"$ref": "#/$defs/sha256"},
+    "target_before_size": {"type": "integer", "minimum": 0},
+    "target_before_file_identity_sha256": {"$ref": "#/$defs/sha256"},
+    "target_parent_chain_sha256": {"$ref": "#/$defs/sha256"},
+    "target_git_mode": {"enum": ["100644", "100755"]},
+    "target_filesystem_mode": {"enum": [420, 493]},
+    "metadata_profile_sha256": {"$ref": "#/$defs/sha256"},
+    "publication_strategy": {"const": "linux-renameat2-exchange-link-v1"},
+    "durability_profile": {"const": "file-fsync+directory-fsync-v1"},
+    "kill_switch_ref": {"type": "string", "pattern": "^kill-switch:[0-9a-f]{64}$"},
+    "kill_switch_generation": {"type": "integer", "minimum": 1},
+    "kill_switch_path_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}

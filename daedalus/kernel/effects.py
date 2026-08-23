@@ -429,6 +429,7 @@ class EffectPublicationOutcomeReceipt:
     claim_receipt_sha256: str
     publication_commit_receipt_sha256: str
     effect_commitment_sha256: str
+    publication_evidence_sha256: str
     finalization_capability_sha256: str
     published_at: str
     signature_sha256: str
@@ -445,6 +446,7 @@ class EffectPublicationOutcomeReceipt:
             "claim_receipt_sha256",
             "publication_commit_receipt_sha256",
             "effect_commitment_sha256",
+            "publication_evidence_sha256",
             "finalization_capability_sha256",
             "signature_sha256",
             "receipt_sha256",
@@ -641,6 +643,7 @@ class PublicationFinalizationAuthorization:
     _claim_receipt_sha256: str
     _publication_commit_receipt_sha256: str
     _publication_outcome_receipt_sha256: str
+    _publication_evidence_sha256: str
     _terminal_receipt_sha256: str
     _pid: int
     _thread_id: int
@@ -659,6 +662,7 @@ class PublicationFinalizationAuthorization:
         claim_receipt_sha256: str,
         publication_commit_receipt_sha256: str,
         publication_outcome_receipt_sha256: str,
+        publication_evidence_sha256: str,
         terminal_receipt_sha256: str,
         secret: bytes,
         publication_secret: bytes,
@@ -675,6 +679,7 @@ class PublicationFinalizationAuthorization:
             "publication_outcome_receipt_sha256": (
                 publication_outcome_receipt_sha256
             ),
+            "publication_evidence_sha256": publication_evidence_sha256,
             "terminal_receipt_sha256": terminal_receipt_sha256,
             "pid": os.getpid(),
             "thread_id": threading.get_ident(),
@@ -690,6 +695,7 @@ class PublicationFinalizationAuthorization:
             _publication_outcome_receipt_sha256=(
                 publication_outcome_receipt_sha256
             ),
+            _publication_evidence_sha256=publication_evidence_sha256,
             _terminal_receipt_sha256=terminal_receipt_sha256,
             _pid=os.getpid(),
             _thread_id=threading.get_ident(),
@@ -1369,6 +1375,7 @@ class PublicationCommitCapability:
         session_nonce: str,
         *,
         commit_receipt: EffectPublicationCommitReceipt,
+        publication_evidence_sha256: str,
         published_at: datetime | None,
     ) -> "EffectPublicationFinalization":
         with self._lock:
@@ -1393,6 +1400,10 @@ class PublicationCommitCapability:
                 raise EffectLeaseStateError(
                     "publication success predates its durable commit"
                 )
+            publication_evidence = _sha256(
+                publication_evidence_sha256,
+                "publication_evidence_sha256",
+            )
             finalization_secret = secrets.token_bytes(32)
             payload = {
                 "lease_sha256": self._lease_sha256,
@@ -1404,6 +1415,7 @@ class PublicationCommitCapability:
                     self._commit_receipt_sha256
                 ),
                 "effect_commitment_sha256": self._effect_commitment_sha256,
+                "publication_evidence_sha256": publication_evidence,
                 "finalization_capability_sha256": (
                     _finalization_capability_sha256(finalization_secret)
                 ),
@@ -1529,6 +1541,7 @@ class _TargetPublicationSession:
         self,
         *,
         commit_receipt: EffectPublicationCommitReceipt,
+        publication_evidence_sha256: str,
         published_at: datetime | None = None,
     ) -> "EffectPublicationFinalization":
         self._require_active_context()
@@ -1536,6 +1549,7 @@ class _TargetPublicationSession:
         return self._capability._declare_success(
             self._session_nonce,
             commit_receipt=commit_receipt,
+            publication_evidence_sha256=publication_evidence_sha256,
             published_at=published_at,
         )
 
@@ -1556,6 +1570,7 @@ class PublicationFinalizationCapability:
         "_claim_receipt_sha256",
         "_commit_receipt_sha256",
         "_outcome_receipt_sha256",
+        "_publication_evidence_sha256",
         "_publication_secret",
         "_outcome_audit_key",
         "_finalization_secret",
@@ -1598,6 +1613,11 @@ class PublicationFinalizationCapability:
         )
         object.__setattr__(
             self, "_outcome_receipt_sha256", outcome_receipt.receipt_sha256
+        )
+        object.__setattr__(
+            self,
+            "_publication_evidence_sha256",
+            outcome_receipt.publication_evidence_sha256,
         )
         object.__setattr__(self, "_publication_secret", bytes(publication_secret))
         object.__setattr__(self, "_outcome_audit_key", bytes(outcome_audit_key))
@@ -1676,6 +1696,11 @@ class PublicationFinalizationCapability:
                     outcome_receipt.receipt_sha256,
                 ),
                 (
+                    "publication_evidence_sha256",
+                    self._publication_evidence_sha256,
+                    outcome_receipt.publication_evidence_sha256,
+                ),
+                (
                     "effect_commitment_sha256",
                     outcome_receipt.effect_commitment_sha256,
                     commit_receipt.effect_commitment_sha256,
@@ -1730,6 +1755,11 @@ class PublicationFinalizationCapability:
             raise EffectLeaseStateError(
                 "a successful publication terminal receipt must be COMPLETED"
             )
+        if self._publication_evidence_sha256 not in receipt.output_digests:
+            raise EffectLeaseBindingMismatch(
+                "publication terminal receipt is missing its pre-frozen "
+                "publication evidence digest"
+            )
         published = _parse_utc(outcome_receipt.published_at, "outcome.published_at")
         finished = _parse_utc(receipt.finished_at, "receipt.finished_at")
         if finished < published:
@@ -1773,6 +1803,7 @@ class PublicationFinalizationCapability:
             claim_receipt_sha256=self._claim_receipt_sha256,
             publication_commit_receipt_sha256=self._commit_receipt_sha256,
             publication_outcome_receipt_sha256=self._outcome_receipt_sha256,
+            publication_evidence_sha256=self._publication_evidence_sha256,
             terminal_receipt_sha256=receipt.receipt_sha256,
             secret=self._finalization_secret,
             publication_secret=self._publication_secret,
@@ -2391,6 +2422,11 @@ def _authenticate_publication_finalization_authorization(
                 outcome_receipt.receipt_sha256,
             ),
             (
+                "publication_evidence_sha256",
+                authorization._publication_evidence_sha256,
+                outcome_receipt.publication_evidence_sha256,
+            ),
+            (
                 "terminal_receipt_sha256",
                 authorization._terminal_receipt_sha256,
                 receipt.receipt_sha256,
@@ -2410,6 +2446,8 @@ def _authenticate_publication_finalization_authorization(
     )
     if receipt.start_receipt_sha256 != start_receipt.receipt_sha256:
         mismatches.append("terminal_start_receipt_sha256")
+    if outcome_receipt.publication_evidence_sha256 not in receipt.output_digests:
+        mismatches.append("terminal_publication_evidence_sha256")
     if mismatches:
         raise EffectLeaseBindingMismatch(
             "publication finalization authorization binding mismatch: "
@@ -2425,6 +2463,9 @@ def _authenticate_publication_finalization_authorization(
         ),
         "publication_outcome_receipt_sha256": (
             authorization._publication_outcome_receipt_sha256
+        ),
+        "publication_evidence_sha256": (
+            authorization._publication_evidence_sha256
         ),
         "terminal_receipt_sha256": authorization._terminal_receipt_sha256,
         "pid": authorization._pid,

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daedalus.local/schemas/offload-target-metadata-profile-v1.schema.json",
+  "title": "Daedalus OffloadTargetMetadataProfile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "source_revision", "created_at", "input_digests", "trace_id"],
+      "properties": {
+        "origin": {"$ref": "#/$defs/identifier"},
+        "source_revision": {"$ref": "#/$defs/revision"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "input_digests": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "trace_id": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "required": [
+    "contract_type", "contract_version", "profile_id", "source_revision",
+    "target_before_observation_sha256", "filesystem_mode", "owner_uid",
+    "owner_gid", "target_link_count", "target_xattrs_sha256",
+    "parent_xattrs_sha256", "provenance"
+  ],
+  "properties": {
+    "contract_type": {"const": "daedalus.offload-target-metadata-profile"},
+    "contract_version": {"const": "1.0.0"},
+    "profile_id": {"const": "linux-owner-mode-no-xattrs-v1"},
+    "source_revision": {"$ref": "#/$defs/revision"},
+    "target_before_observation_sha256": {"$ref": "#/$defs/sha256"},
+    "filesystem_mode": {"enum": [420, 493]},
+    "owner_uid": {"type": "integer", "minimum": 0},
+    "owner_gid": {"type": "integer", "minimum": 0},
+    "target_link_count": {"const": 1},
+    "target_xattrs_sha256": {"$ref": "#/$defs/sha256"},
+    "parent_xattrs_sha256": {"$ref": "#/$defs/sha256"},
+    "provenance": {"$ref": "#/$defs/provenance"}
+  }
+}

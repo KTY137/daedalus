@@ -1,10 +1,39 @@
 # Fourfold v2 Execution Plan
 
-Status: active derived projection  
-Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 2  
-Active gate: Gate 0 — Canonical Kernel  
-Primary branch chain: `experimental` -> focused Work Packet branch -> draft PR  
+Status: active derived projection
+
+Canonical authority: `docs/IKARUS_ARIADNE_MASTER_PLAN.md` revision 3
+
+Active gate: Gate 0 — Canonical Kernel
+
+Audited integration candidate: `integration/g0-canonical-20260803`
+
 Rule: this document records execution status and evidence; it cannot override the Iron Plan.
+
+## Audited status — 2026-08-03
+
+This projection was reconciled against the local checkout, the remote branch
+topology, the Grand Summary, and the frozen PR #47 handoff. The active gate is
+still Gate 0. Later-gate code is useful input, not delivery evidence.
+
+| Packet | Honest implementation state | Current blocker |
+| --- | --- | --- |
+| WP-00 | Four-plane snapshot contracts and conservative legacy projection exist. | Independent exact-head closure and all Gate-0 prerequisites remain open. |
+| WP-01 | No production `GraphProposal`/operation verifier matching this packet exists on the canonical candidate. | Contract and adversarial verifier must be implemented after the effect kernel is honest. |
+| WP-02 | A deterministic bounded reference compiler exists for fixtures. | It is not yet a general atomic compiler with crash/restart and mixed-revision fault evidence. |
+| WP-03 | Python/wiki/CSV/JSON-schema reference extraction exists in bounded form. | Adapter coverage, evidence locators, and real corpus measurements are incomplete. |
+| WP-04 | Fourfold evidence and sealed approval contracts exist. | No complete source-candidate rebuild plus `RoundTripReport` production chain exists. |
+| WP-05 | The voltage rename is a deterministic rehearsal. | The current runner copies and edits a fixture directly, imports candidate code in-process, and fabricates timing/locator fields; it is not a real Mission → Attempt → CAS → Evidence chain. |
+| WP-06 | Gate-2 drafts contain corpus/motif and knowledge-correlation ideas. | Corpus review is declared rather than completed; PR #47 has seven reproduced implementation/test defects and remains excluded. |
+| WP-07 | Not implemented as a sealed Gate-3 slice. | Gate-3 baseline harness does not exist. |
+| WP-08 | Legacy evolution modules and synthetic estimates exist. | No production caller and no budget-equal, evaluator-isolated real evolution campaign. |
+
+The local effect registry contains 50 rows: one `CENTRAL`, eight
+`LOCAL_GUARDS`, forty `INVENTORY_ONLY`, and one `ABSENT`. Fifteen discovered
+tool entrypoints are unregistered. All 49 non-central rows and all unregistered
+effectful starts are explicit Gate-0 blockers. `python.offload` also still lacks
+a production lease issuer, so its direct live callers fail closed. Do not infer
+operability from its registry label.
 
 ## Operating model
 
@@ -12,9 +41,9 @@ Daedalus is developed through one active Work Packet at a time. Each packet has
 one major architectural axis, one acceptance matrix, one builder, one independent
 review pass, and one explicit owner decision. A packet may be split into smaller
 commits, but its PR must not mix unrelated feature work, broad cleanup, dependency
-migration, evaluator changes, or policy amendments. The owner-requested revision-2
-amendment in WP-00 is a one-time foundational exception, retained as its own atomic
-commit and review unit because it defines the Work-Packet chain itself.
+migration, evaluator changes, or policy amendments. The accepted revision-2 and
+revision-3 amendments remain separate ancestry and review units. Further
+protected plan or gate changes require another explicit owner-approved amendment.
 
 Every packet follows:
 
@@ -49,7 +78,8 @@ runtime probes, and owner decisions remain the evidence/promotion boundary.
 
 ## WP-00 — Fourfold snapshot foundation
 
-Status: implemented and builder-verified in PR #1; required CI is green; independent review and explicit owner decision remain open.
+Status: contracts and bounded projection are implemented; historical builder
+evidence exists, while current exact-head independent closure remains open.
 
 Scope:
 
@@ -234,16 +264,65 @@ boundary, failure mode, replacement path, and measured benefit.
 
 ## Current branch/PR evidence
 
-- Branch: `core/fourfold-v2`
-- Base: `experimental`
-- Draft PR: #1
-- Fourfold matrix: Python 3.10/3.12 x two hash seeds, all green.
-- Iron Plan history/contract workflow: green.
-- The revision-2 amendment transaction ran Iron Plan verification, the full
-  governance contract suite, and focused Fourfold/kernel tests before commit.
-- The historical adoption fixture now uses pinned Git history rather than
-  copying the current plan as its pre-adoption base.
-- Adversarial builder review found and fixed an assurance escalation: a legacy
-  cross-plane edge without retained evidence is now refused rather than marked
-  `verified`; regression tests run in the complete `tests/twin` package.
-- Independent architecture/security review and owner decision remain open.
+- Canonical local candidate: `integration/g0-canonical-20260803`, based on the
+  exact Gate-0 effect branch and retaining the fault-matrix branch through a
+  two-parent merge. No remote push, merge, promotion, or branch deletion has
+  been performed.
+- Gate-0 repairs on the candidate authenticate persisted promotion approvals,
+  preserve indeterminate effect starts for reconciliation, make every
+  non-central row block closure, persist enough authenticated lease material for
+  restart recovery, fingerprint bounded Git source observations (including
+  gitlinks/submodules), and remove the dry path's hidden metrics append.
+- `OffloadExecutionPlan` now freezes one Spine intent, one source/worktree
+  observation, one loopback Ollama model/runtime, one exact target, one model
+  call, exact tool/verifier argv, zero spend, and a kill-switch generation. It
+  is inert and grants nothing. Binding its digest through policy, lease,
+  `TaskAttempt`, runtime evidence, and the provider call remains open.
+- A precomputed-index routing leaf can run without cache construction, provider
+  probes, embeddings, process creation, network, or filesystem writes. The
+  legacy default router still uses ambient roster/policy/environment reads and
+  can enter StructCore cache/process paths; a globally frozen planning boundary
+  remains open.
+- Ollama write mode now requires an exact component allowlist and refuses
+  traversal, prefixes, symlink/reparse escapes, and cross-platform filename
+  aliases at both physical write sites. No production caller may derive this
+  allowlist from raw model input; the canonical plan/lease binding is not wired
+  yet.
+- Exact parent-head whole suite at `997f1c6`: 4,571 passed, 3 skipped, 1 xfailed,
+  1,982 subtests in 1,195.98 seconds. This is retained baseline evidence, not a
+  current-head pass.
+- Current candidate head is `cbb435c`. Focused receipts collected while building
+  this stack include: 61 plan/lease/offload contract tests; 134 Ollama/rewrite
+  tests with 2 skips and 14 subtests; 157 routing/StructCore tests with 2 skips
+  and 26 subtests; and 6 source-observation chain tests. These are proportional
+  packet receipts, not a current-head whole-suite or Gate-0 closure receipt.
+- The repository's `consolidated` test profile currently selects only 85 tests
+  and omits core EffectLease, leased-offload, fault-matrix, Attempt,
+  containment, cancellation, and artifact-store chains. It is a smoke profile,
+  not a Gate-0 receipt.
+- PR #47 (`g2/knowledge-correlation-bootstrap`) is frozen and excluded. Local
+  reproduction found seven failures involving path traversal, graph node
+  construction, missing source context, compressed-input identity, and a
+  non-proving prompt-injection test. Its additive code is also not connected to
+  the canonical runtime.
+- GitHub Actions job records that fail before Step 1 are infrastructure
+  evidence only; they are neither green nor red Python evidence.
+- Independent architecture/security review, current-head whole-suite/package
+  evidence, and explicit owner promotion remain open.
+
+## Gate-3 experiment fixture (frozen proposal)
+
+The first real external evolution experiment should use
+`python-poetry/tomlkit@d8ed1e3cdb024dfc2c6f12b45a0dfd4d4d91f727`, with
+`toml-test@08ed8697864548b3cdb4b8decbf496bef47e1c82` pinned. The baseline
+reproduces a real dotted-key parent-path serialization defect and can be judged
+by an independent `tomllib` parse after build/install. This remains an isolated
+`EXPERIMENT` while Gate 0 is active; it cannot close Gate 3 by itself.
+
+Required pilot arms are BM25, code-only graph, four separate plane indices, and
+verified Fourfold, plus no-change and simple-mutation sanity baselines. Freeze
+the model digest, seeds, context/output budgets, evaluator, hidden tests, and
+hardware receipt. If Fourfold performs poorly, first audit snapshot atomicity,
+plane coverage, provenance, retrieval output, token parity, and evaluator tree
+identity. A clean, replicated loss remains negative evidence and must not be
+relabelled as an implementation defect merely to protect the research prior.
