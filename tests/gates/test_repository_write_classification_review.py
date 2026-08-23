@@ -59,7 +59,7 @@ def test_report_hard_codes_non_authoritative_claims_false() -> None:
             if isinstance(key, ast.Constant) and isinstance(key.value, str):
                 if isinstance(value, ast.Constant):
                     material[key.value] = value.value
-    assert material["evidence_authenticated"] is False
+    assert "evidence_authenticated" not in material
     assert material["primary_checkout_target_proven"] is False
     assert material["gate_report_bound"] is False
     assert material["closed"] is False

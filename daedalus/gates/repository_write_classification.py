@@ -9,6 +9,8 @@ verifying the referenced evidence and binding it into the release GateReport.
 from __future__ import annotations
 
 import hashlib
+import hmac
+import importlib
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -29,7 +31,15 @@ _CONTRACT = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 # must read the id back out of the produced report and compare it with this
 # const rather than assume it: that way a drift in ``_payload`` surfaces at the
 # consumer as a declared mismatch instead of passing silently.
-CLASSIFICATION_SCHEMA = "daedalus-gate0-repository-write-classification/1"
+# Revision 2 removed ``evidence_authenticated`` from the payload.  The key was
+# a module-wide literal ``False`` that could never have carried a truthful
+# value: this module runs before the six verifiers whose agreement would have
+# to be reported, and one boolean per report cannot say which surface they
+# agreed about.  The per-surface verdict lives in
+# ``authenticate_repository_write_surfaces`` below, composed in process from
+# the six typed stage reports.  One id, one shape: the key is gone rather than
+# left behind meaning something else.
+CLASSIFICATION_SCHEMA = "daedalus-gate0-repository-write-classification/2"
 
 # The wire id a *declaration* must carry to be accepted by
 # ``project_classification_input``.  It is exported for producers -- a
@@ -401,6 +411,505 @@ def surface_classification_verdict(row: SurfaceClassification) -> str:
     return f"cleared:{row.guard.value}"
 
 
+# --------------------------------------------------------------------------
+# Per-surface evidence authentication
+# --------------------------------------------------------------------------
+#
+# A stage report says that ITS stage ran over the material it was given.  It
+# never says the other five ran, and it never says anything about one named
+# surface unless it carries a record for that surface.  Authentication is
+# therefore the strict conjunction, per surface, over the stages that apply to
+# that surface -- and an empty applicable set is false, never vacuously true.
+
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+_UTC_INSTANT = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?\+00:00$"
+)
+
+
+class AuthenticationStage(str, Enum):
+    """The six stages whose agreement authenticates one write surface."""
+
+    MATERIALIZATION = "materialization"
+    ORIGIN = "origin"
+    ANCHOR = "anchor"
+    GUARD = "guard"
+    CONFORMITY = "conformity"
+    LEASE = "lease"
+
+
+STAGE_VERDICT_VERIFIED = "verified"
+STAGE_VERDICT_NOT_APPLICABLE = "not_applicable"
+STAGE_VERDICT_ABSENT = "absent"
+
+# Applicable to every classified row without exception: every row carries at
+# least one source anchor, so its evidence bytes must materialize, that
+# materialization must be attested by a collector, and the anchor must resolve
+# against the exact source at this revision.
+ALWAYS_APPLICABLE_STAGES = frozenset(
+    {
+        AuthenticationStage.MATERIALIZATION,
+        AuthenticationStage.ORIGIN,
+        AuthenticationStage.ANCHOR,
+    }
+)
+
+# The evidence kinds the composition is willing to authenticate.  This used to
+# be the three receipt kinds alone, which silently excused a surface whose
+# claim rests on its source anchor, its guard contract, or its retirement
+# receipt.  All six kinds are named, so a row's own evidence must materialize
+# in full before the materialization stage will speak for it.
+AUTHENTICATED_EVIDENCE_KINDS = frozenset(EvidenceKind)
+
+# The one authorization class that can excuse the conformity stage.  Spelled
+# here rather than imported: ``daedalus.kernel.authorization`` is reachable
+# from this module, but the name is what a collector signs over, so it is a
+# wire constant and not an object reference.
+NON_RUNTIME_AUTHORIZATION_CLASS = "NonRuntimeEffectAuthorization"
+
+# Every verifier in this chain imports this module, so the composition cannot
+# import them back at module scope.  The exact class is resolved inside the
+# call and the stage report must BE that class: a mapping parsed from JSON, a
+# namedtuple, or any look-alike is refused.  Holding one of these objects means
+# the verifier that returns it ran in this process.
+_STAGE_REPORT_TYPES: dict[AuthenticationStage, tuple[str, str]] = {
+    AuthenticationStage.MATERIALIZATION: (
+        "daedalus.gates.repository_write_evidence_materialization",
+        "RepositoryWriteEvidenceMaterializationReport",
+    ),
+    AuthenticationStage.ORIGIN: (
+        "daedalus.gates.repository_write_evidence_origin",
+        "RepositoryWriteEvidenceOriginReport",
+    ),
+    AuthenticationStage.ANCHOR: (
+        "daedalus.gates.repository_write_source_anchor_semantics",
+        "RepositoryWriteSourceAnchorSemanticsReport",
+    ),
+    AuthenticationStage.GUARD: (
+        "daedalus.gates.repository_write_guard_structure",
+        "RepositoryWriteGuardStructureReport",
+    ),
+    AuthenticationStage.CONFORMITY: (
+        "daedalus.gates.repository_write_runtime_conformance",
+        "RepositoryWriteRuntimeConformanceReport",
+    ),
+    AuthenticationStage.LEASE: (
+        "daedalus.gates.repository_write_effect_lease",
+        "RepositoryWriteEffectLeaseReport",
+    ),
+}
+
+
+def stage_report_type(stage: AuthenticationStage) -> type:
+    """Resolve the exact report class one stage is allowed to be."""
+
+    if not isinstance(stage, AuthenticationStage):
+        raise RepositoryWriteClassificationError("authentication stage must be typed")
+    module_name, class_name = _STAGE_REPORT_TYPES[stage]
+    return getattr(importlib.import_module(module_name), class_name)
+
+
+def _collector_secret_bytes(secret: bytes | str) -> bytes:
+    if isinstance(secret, str):
+        value = secret.encode("utf-8")
+    elif type(secret) is bytes:
+        value = secret
+    else:
+        raise RepositoryWriteClassificationError(
+            "collector secret must be bytes or text"
+        )
+    if len(value) < 32:
+        raise RepositoryWriteClassificationError(
+            "collector secret must contain at least 32 bytes"
+        )
+    return value
+
+
+def _collector_signature(signing_digest: str, secret: bytes | str) -> str:
+    # Deliberately the same construction as the evidence-origin attestation:
+    # HMAC-SHA256 over the canonical signing digest.  It is spelled out again
+    # here because the origin module sits downstream of this one and cannot be
+    # imported at module scope.
+    return hmac.new(
+        _collector_secret_bytes(secret),
+        signing_digest.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@dataclass(frozen=True)
+class NonRuntimeConformityBinding:
+    """A collector's signed statement that one surface replayed non-runtime.
+
+    This is the ONLY thing that can turn the conformity stage into
+    ``not_applicable``.  It is a replay fact about a retained execution, so it
+    is signed by the collector that read the ledger -- exactly like every other
+    stage in the chain -- and it is never a field a caller may declare.
+    ``project_classification_input`` accepts four keys and a classification row
+    eight; none of them is a stage, an applicability, or a binding, so no JSON
+    document can mint one.
+    """
+
+    source_revision: str
+    surface_sha256: str
+    execution_id: str
+    authorization_class: str
+    collector_id: str
+    collector_key_id: str
+    issued_at: str
+    signature_sha256: str
+
+    def __post_init__(self) -> None:
+        if not _REVISION.fullmatch(self.source_revision):
+            raise ValueError("binding source_revision must be lowercase 40-hex")
+        if not _SHA256.fullmatch(self.surface_sha256):
+            raise ValueError("binding surface_sha256 must be lowercase 64-hex")
+        for name in ("execution_id", "collector_id", "collector_key_id"):
+            if not isinstance(getattr(self, name), str) or not _IDENTIFIER.fullmatch(
+                getattr(self, name)
+            ):
+                raise ValueError(f"binding {name} must be a bounded identifier")
+        if self.authorization_class != NON_RUNTIME_AUTHORIZATION_CLASS:
+            raise ValueError(
+                "conformity binding must name the non-runtime authorization class"
+            )
+        if not isinstance(self.issued_at, str) or not _UTC_INSTANT.fullmatch(
+            self.issued_at
+        ):
+            raise ValueError("binding issued_at must be canonical UTC ISO-8601")
+        if not _SHA256.fullmatch(self.signature_sha256):
+            raise ValueError("binding signature must be lowercase 64-hex")
+
+    def signing_payload(self) -> dict[str, str]:
+        return {
+            "schema": "daedalus-gate0-non-runtime-conformity-binding/1",
+            "source_revision": self.source_revision,
+            "surface_sha256": self.surface_sha256,
+            "execution_id": self.execution_id,
+            "authorization_class": self.authorization_class,
+            "collector_id": self.collector_id,
+            "collector_key_id": self.collector_key_id,
+            "issued_at": self.issued_at,
+        }
+
+    @property
+    def signing_digest(self) -> str:
+        return hashlib.sha256(
+            canonical_json(self.signing_payload()).encode("ascii")
+        ).hexdigest()
+
+    def to_dict(self) -> dict[str, str]:
+        return {**self.signing_payload(), "signature_sha256": self.signature_sha256}
+
+
+def issue_non_runtime_conformity_binding(
+    *,
+    source_revision: str,
+    surface_sha256: str,
+    execution_id: str,
+    collector_id: str,
+    collector_key_id: str,
+    issued_at: str,
+    secret: bytes | str,
+) -> NonRuntimeConformityBinding:
+    """Sign one replay fact.  Only a holder of the collector secret can."""
+
+    draft = NonRuntimeConformityBinding(
+        source_revision=source_revision,
+        surface_sha256=surface_sha256,
+        execution_id=execution_id,
+        authorization_class=NON_RUNTIME_AUTHORIZATION_CLASS,
+        collector_id=collector_id,
+        collector_key_id=collector_key_id,
+        issued_at=issued_at,
+        signature_sha256="0" * 64,
+    )
+    return NonRuntimeConformityBinding(
+        source_revision=draft.source_revision,
+        surface_sha256=draft.surface_sha256,
+        execution_id=draft.execution_id,
+        authorization_class=draft.authorization_class,
+        collector_id=draft.collector_id,
+        collector_key_id=draft.collector_key_id,
+        issued_at=draft.issued_at,
+        signature_sha256=_collector_signature(draft.signing_digest, secret),
+    )
+
+
+def verify_non_runtime_conformity_binding(
+    binding: NonRuntimeConformityBinding,
+    *,
+    collector_secrets: Mapping[str, bytes | str],
+) -> None:
+    """Refuse an unsigned, foreign-signed, or unknown-collector binding."""
+
+    if type(binding) is not NonRuntimeConformityBinding:
+        raise RepositoryWriteClassificationError(
+            "conformity binding must be an exact typed binding"
+        )
+    if not isinstance(collector_secrets, Mapping):
+        raise RepositoryWriteClassificationError(
+            "collector secrets must be a mapping"
+        )
+    secret = collector_secrets.get(binding.collector_key_id)
+    if secret is None:
+        raise RepositoryWriteClassificationError(
+            "conformity binding names an unknown collector key"
+        )
+    expected = _collector_signature(binding.signing_digest, secret)
+    if not hmac.compare_digest(expected, binding.signature_sha256):
+        raise RepositoryWriteClassificationError(
+            "conformity binding signature does not verify"
+        )
+
+
+def applicable_authentication_stages(
+    row: SurfaceClassification,
+    *,
+    non_runtime_conformity_surfaces: frozenset[str] = frozenset(),
+) -> frozenset[AuthenticationStage]:
+    """Name the stages that must agree before THIS row is authenticated.
+
+    Applicability is read off the typed row and off one signed replay fact,
+    never off a declaration.  ``project_classification_input`` accepts exactly
+    ``{schema, source_revision, inventory_digest, classifications}`` and a row
+    exactly the eight keys of ``SurfaceClassification``; none of them names a
+    stage.  There is no JSON path that can add or remove one.
+    """
+
+    if not isinstance(row, SurfaceClassification):
+        raise RepositoryWriteClassificationError(
+            "applicability subject must be a typed surface classification"
+        )
+    if not isinstance(non_runtime_conformity_surfaces, frozenset):
+        raise RepositoryWriteClassificationError(
+            "non-runtime conformity surfaces must be an immutable set"
+        )
+    stages = set(ALWAYS_APPLICABLE_STAGES)
+    if row.guard_contracts:
+        stages.add(AuthenticationStage.GUARD)
+    if row.production_reachable:
+        stages.add(AuthenticationStage.LEASE)
+    if (
+        surface_binding_sha256(row.source_revision, row.surface)
+        not in non_runtime_conformity_surfaces
+    ):
+        stages.add(AuthenticationStage.CONFORMITY)
+    return frozenset(stages)
+
+
+def authenticated_over_stages(
+    applicable: frozenset[AuthenticationStage],
+    verdicts: Mapping[AuthenticationStage, str],
+) -> bool:
+    """Strict conjunction over the applicable stages."""
+
+    if not applicable:
+        # ``all(())`` is True in Python, and a surface no stage applies to is
+        # exactly the overclaim this guard exists to refuse.  An empty
+        # applicable set is unauthenticated, never vacuously authenticated.
+        return False
+    return all(
+        verdicts.get(stage) == STAGE_VERDICT_VERIFIED for stage in applicable
+    )
+
+
+@dataclass(frozen=True)
+class SurfaceEvidenceAuthentication:
+    """One surface's stage verdicts and the conjunction over them."""
+
+    source_revision: str
+    surface_sha256: str
+    path: str
+    line: int
+    column: int
+    origin: str
+    applicable: frozenset[AuthenticationStage]
+    verdicts: tuple[tuple[str, str], ...]
+    authenticated: bool
+    not_applicable_binding: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "source_revision": self.source_revision,
+            "surface_sha256": self.surface_sha256,
+            "path": self.path,
+            "line": self.line,
+            "column": self.column,
+            "origin": self.origin,
+            "applicable": sorted(stage.value for stage in self.applicable),
+            "stages": {name: verdict for name, verdict in self.verdicts},
+            "authenticated": self.authenticated,
+            "not_applicable_binding": self.not_applicable_binding,
+        }
+
+
+def _surface_records(report: object, surface_sha256: str) -> tuple[object, ...]:
+    return tuple(
+        record
+        for record in getattr(report, "records", ())
+        if getattr(record, "surface_sha256", None) == surface_sha256
+    )
+
+
+def _stage_verdict(
+    stage: AuthenticationStage,
+    row: SurfaceClassification,
+    surface_sha256: str,
+    reports: Mapping[AuthenticationStage, object],
+) -> str:
+    report = reports.get(stage)
+    if report is None:
+        return STAGE_VERDICT_ABSENT
+    if stage is AuthenticationStage.MATERIALIZATION:
+        if not report.materialization_complete:
+            return STAGE_VERDICT_ABSENT
+        kinds = {
+            record.kind for record in _surface_records(report, surface_sha256)
+        }
+        required = {item.kind for item in row.evidence}
+        if not required or not required.issubset(kinds):
+            return STAGE_VERDICT_ABSENT
+        if not required.issubset(AUTHENTICATED_EVIDENCE_KINDS):
+            return STAGE_VERDICT_ABSENT
+        return STAGE_VERDICT_VERIFIED
+    if stage is AuthenticationStage.ORIGIN:
+        # The attestation signs one complete materialization, not one surface.
+        # It can therefore only speak for a surface the materialization stage
+        # already verified, and only while it names that exact materialization.
+        materialization = reports.get(AuthenticationStage.MATERIALIZATION)
+        if materialization is None:
+            return STAGE_VERDICT_ABSENT
+        if report.materialization_digest != materialization.digest:
+            return STAGE_VERDICT_ABSENT
+        if (
+            _stage_verdict(
+                AuthenticationStage.MATERIALIZATION, row, surface_sha256, reports
+            )
+            != STAGE_VERDICT_VERIFIED
+        ):
+            return STAGE_VERDICT_ABSENT
+        return STAGE_VERDICT_VERIFIED
+    records = _surface_records(report, surface_sha256)
+    if not records:
+        return STAGE_VERDICT_ABSENT
+    if stage is AuthenticationStage.GUARD:
+        contracts = {record.contract for record in records}
+        if not contracts or contracts != set(row.guard_contracts):
+            return STAGE_VERDICT_ABSENT
+    return STAGE_VERDICT_VERIFIED
+
+
+def authenticate_repository_write_surfaces(
+    report: "RepositoryWriteClassificationReport",
+    *,
+    stage_reports: Mapping[AuthenticationStage, object] | None = None,
+    non_runtime_bindings: Iterable[NonRuntimeConformityBinding] = (),
+    collector_secrets: Mapping[str, bytes | str] | None = None,
+) -> dict[RepositoryWriteSurface, SurfaceEvidenceAuthentication]:
+    """Compose the six stage reports into one verdict per classified surface.
+
+    The composition is in process and takes typed objects: there is no wire id
+    a consumer could hand a document to instead.  Every stage report must be
+    the exact class its verifier returns and must name this exact
+    classification, so the only way to hold one is to have run the verifier.
+    """
+
+    if type(report) is not RepositoryWriteClassificationReport:
+        raise RepositoryWriteClassificationError(
+            "authentication subject must be a typed classification report"
+        )
+    reports: dict[AuthenticationStage, object] = {}
+    for stage, value in dict(stage_reports or {}).items():
+        if not isinstance(stage, AuthenticationStage):
+            raise RepositoryWriteClassificationError(
+                "stage report key must be a typed authentication stage"
+            )
+        if type(value) is not stage_report_type(stage):
+            raise RepositoryWriteClassificationError(
+                "stage report must be the exact typed report its verifier returns"
+            )
+        if value.source_revision != report.source_revision:
+            raise RepositoryWriteClassificationError(
+                "stage report source revision differs from the classification"
+            )
+        if value.classification_digest != report.digest:
+            raise RepositoryWriteClassificationError(
+                "stage report is bound to a different classification"
+            )
+        reports[stage] = value
+
+    secrets = dict(collector_secrets or {})
+    excused: dict[str, str] = {}
+    for binding in tuple(non_runtime_bindings):
+        verify_non_runtime_conformity_binding(binding, collector_secrets=secrets)
+        if binding.source_revision != report.source_revision:
+            raise RepositoryWriteClassificationError(
+                "conformity binding revision differs from the classification"
+            )
+        if binding.surface_sha256 in excused:
+            raise RepositoryWriteClassificationError(
+                "conformity binding is duplicated for one surface"
+            )
+        conformity = reports.get(AuthenticationStage.CONFORMITY)
+        if conformity is not None and _surface_records(
+            conformity, binding.surface_sha256
+        ):
+            # The other direction of the fail-closed rule: a surface declared
+            # non-runtime whose conformity stage retained a runtime replay is
+            # runtime work wearing a non-runtime label, and the excuse is
+            # refused rather than the record ignored.
+            raise RepositoryWriteClassificationError(
+                "surface declared non-runtime retains a runtime conformance replay"
+            )
+        lease = reports.get(AuthenticationStage.LEASE)
+        for record in _surface_records(lease, binding.surface_sha256):
+            # The replay fact itself, as the lease stage re-derived it from the
+            # retained execution.  A record that came back runtime-bound
+            # refutes the signature, and one naming another execution is not
+            # about this write at all.  A signed field is not a replay.
+            if (
+                record.runtime_bound is not False
+                or record.runtime_id is not None
+                or record.execution_id != binding.execution_id
+            ):
+                raise RepositoryWriteClassificationError(
+                    "non-runtime conformity binding contradicts the retained replay"
+                )
+        excused[binding.surface_sha256] = binding.execution_id
+
+    excused_surfaces = frozenset(excused)
+    result: dict[RepositoryWriteSurface, SurfaceEvidenceAuthentication] = {}
+    for row in report.classifications:
+        surface_sha256 = surface_binding_sha256(row.source_revision, row.surface)
+        applicable = applicable_authentication_stages(
+            row, non_runtime_conformity_surfaces=excused_surfaces
+        )
+        verdicts = {
+            stage: (
+                _stage_verdict(stage, row, surface_sha256, reports)
+                if stage in applicable
+                else STAGE_VERDICT_NOT_APPLICABLE
+            )
+            for stage in AuthenticationStage
+        }
+        result[row.surface] = SurfaceEvidenceAuthentication(
+            source_revision=row.source_revision,
+            surface_sha256=surface_sha256,
+            path=row.surface.path,
+            line=row.surface.line,
+            column=row.surface.column,
+            origin=row.surface.origin,
+            applicable=applicable,
+            verdicts=tuple(
+                sorted((stage.value, verdict) for stage, verdict in verdicts.items())
+            ),
+            authenticated=authenticated_over_stages(applicable, verdicts),
+            not_applicable_binding=excused.get(surface_sha256, ""),
+        )
+    return result
+
+
 @dataclass(frozen=True)
 class RepositoryWriteClassificationReport:
     source_revision: str
@@ -465,7 +974,7 @@ class RepositoryWriteClassificationReport:
             ]
         )
         return {
-            "schema": "daedalus-gate0-repository-write-classification/1",
+            "schema": "daedalus-gate0-repository-write-classification/2",
             "source_revision": self.source_revision,
             "inventory_digest": self.inventory_digest,
             "scan_input_sha256": self.scan_input_sha256,
@@ -474,7 +983,9 @@ class RepositoryWriteClassificationReport:
             "classifications": [row.to_dict() for row in self.classifications],
             "missing_surfaces": [row.to_dict() for row in self.missing_surfaces],
             "classification_ready": self.classification_ready,
-            "evidence_authenticated": False,
+            # No ``evidence_authenticated`` key.  See CLASSIFICATION_SCHEMA:
+            # authentication is per surface and is not a property of this
+            # report, so this wire does not carry a name for it at all.
             "primary_checkout_target_proven": False,
             "gate_report_bound": False,
             "closed": False,

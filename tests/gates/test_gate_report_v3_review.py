@@ -62,8 +62,29 @@ def test_counters_are_classified_and_never_paint_an_unproven_clearance() -> None
     assert "classification:input-unreadable" in classifier
     # Clearing can never empty the list: the chain's own unauthenticated
     # evidence is carried into the report as an aggregate blocker.
-    assert 'payload.get("evidence_authenticated") is not True' in classifier
+    # Per surface, composed in process; no module-wide flag and no second
+    # document the reporter would trust.
+    assert "authenticate_repository_write_surfaces(projection)" in classifier
+    assert "unauth = cleared - authenticated_cleared" in classifier
     assert "classification:evidence-unauthenticated:" in classifier
+    assert 'payload.get("evidence_authenticated")' not in classifier
+    # No caller-supplied stage object may reach the report path: the reporter
+    # calls the composition with the projection alone and no keyword at all.
+    composition = [
+        node
+        for node in ast.walk(ast.parse(textwrap.dedent(classifier)))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "authenticate_repository_write_surfaces"
+    ]
+    assert len(composition) == 1
+    assert composition[0].keywords == []
+    assert len(composition[0].args) == 1
+    # The aggregate count never travels alone.
+    assert "failures.extend(unauthenticated_rows)" in classifier
+    assert "classification:surface-unauthenticated:" in inspect.getsource(
+        report_v3._surface_authentication_failure_row
+    )
     assert 'payload.get("gate_report_bound") is not True' in classifier
     # The reporter never mints a verdict of its own: no string constant it
     # builds may name a chain verdict, so `cleared:`/`blocked:` can only ever
