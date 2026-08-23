@@ -50,10 +50,14 @@ class FakeExecutor:
         self.script = list(script or [])
         self.on_call = on_call
 
-    def run_wave(self, scheduler, wave, repo_root, *, dry_run=True,
-                 parallel=True, cancel=None):
+    def run_wave(self, scheduler, wave, repo_root, *, session=None,
+                 dry_run=True, parallel=True, cancel=None, curated_gates=None):
+        # Mirrors WaveExecutor.run_wave's keyword surface (build_exec.py); the
+        # driver passes `session=` since ab0c92ce and this fake went red on it
+        # as TypeError -> stop_reason "error" in 17 tests (FINAL queue).
         self.calls.append({"dry_run": dry_run, "parallel": parallel,
-                           "cancel": cancel, "wave": wave})
+                           "cancel": cancel, "wave": wave, "session": session,
+                           "curated_gates": curated_gates})
         if self.on_call is not None:
             self.on_call(len(self.calls))
         result = (self.script.pop(0) if self.script else
@@ -89,7 +93,12 @@ def patch_env(driver, *, promotion_allowed=False, spend=0.0):
     """Patch the three external reads the loop makes: governance, picker, spend."""
     gov = {"promotion_allowed": promotion_allowed,
            "state": "working" if promotion_allowed else "degraded",
-           "verdict": "discrimination receipt is stale"}
+           "verdict": "discrimination receipt is stale",
+           # Since 5f586455 a green verdict unlocks promotion only when it was
+           # measured in THIS checkout at THIS revision (Odysseus F8); a stub
+           # without these two fields is locked, correctly.
+           "repo_root": driver.repo_root,
+           "head": driver.source_revision}
     queue = mock.MagicMock(candidates=driver._pick_queue)
     return (
         mock.patch("daedalus.core.get_governance", return_value=gov),
@@ -337,9 +346,27 @@ class TestGovernance(_TempRootTests):
 
     def test_green_governance_reports_nominating_mode(self):
         d, _ = make_driver(self.tmp, bounds=LoopBounds(max_iterations=1))
+        # The temp root is not a git checkout, so the driver read "" as its
+        # revision, and "" never matches (5f586455: unknown locks). Give it
+        # one; patch_env hands the same one to the governance stub.
+        d.source_revision = "0123456789abcdef0123456789abcdef01234567"
         d.switch.arm(force=True)
         report = run_driver(d, promotion_allowed=True)
         self.assertEqual(report.mode, "nominating")
+
+    def test_green_governance_at_another_revision_stays_locked(self):
+        """The other half of the same pin: a verdict measured at a different
+        HEAD of this very checkout unlocks nothing."""
+        d, _ = make_driver(self.tmp, bounds=LoopBounds(max_iterations=1))
+        d.source_revision = "0123456789abcdef0123456789abcdef01234567"
+        d.switch.arm(force=True)
+        a, b, c, e = patch_env(d, promotion_allowed=True)
+        gov = a.kwargs["return_value"]
+        gov["head"] = "fedcba9876543210fedcba9876543210fedcba98"
+        with a, b, c, e:
+            report = d.run()
+        self.assertEqual(report.mode, "nominating_locked")
+        self.assertFalse(report.promotion_allowed)
 
 
 # --------------------------------------------------------------------------- #
