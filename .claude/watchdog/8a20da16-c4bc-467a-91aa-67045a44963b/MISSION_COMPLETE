@@ -1,0 +1,54 @@
+# Mission 3 complete — 2026-08-18
+
+Branch grind/watchdog-mission3 (base 4fb2251), 7 commits, nothing merged or
+pushed, no branch/worktree operations, protected artifacts untouched.
+
+## Phases
+
+1. **Conformance-receipt persistence (a515bf7).** persist_conformance_receipt
+   writes each receipt as a content-addressed <digest>.json (idempotent,
+   collision-refusing); the gate binding refuses any bundle file whose bytes
+   no longer hash to their own name; an exec-mutant probe proves the digest
+   check is load-bearing; report-level test shows produce→persist→bind clears
+   the unbound blocker. Contract sharpened: bundle files must be digest-named.
+2. **FaultMatrixEvidence bridge (9937e33).** fault_matrix_evidence_from_verdict
+   maps the whole-matrix verdict into the existing release-path row (no new
+   subsystem): catalog-digest mismatch refuses; matrix_sha256 from the verdict
+   contract feeds trusted_fault_matrix_sha256s exactly; dev-key verdicts are
+   origin-marked and mapped to failed — mechanically no closure claim.
+3. **Live-runtime decision memo (7e950d44).** docs/GATE0_LIVE_RUNTIME_DECISION.md:
+   what a live-envelope collector needs (live host, owner key ceremony,
+   two probe drivers, third column), Option A/B with wording per the Docker
+   precedent, recommendation, rollback. Nothing decided, nothing built.
+4. **G1 activation preflight (7e950d44, 8e5b3023).** Missing mid-write crash
+   probe added (mixed candidate never evaluable, source untouched, fresh-root
+   replay digest-identical). Remaining checklist items measured as order-bound
+   (need AttemptContract + CAS = checklist steps 1–2 once unblocked) and
+   annotated, not skipped silently.
+5. **Forest-v2 experiment continuation (e4734dd7).** Read-only import-binding
+   probe under the frozen frame: attribution 15.5% → 30.3% on 44,115 sites;
+   all three measured invisibility classes mechanically detectable, including
+   the corrected finding that guarded_call's sink imports are function-level
+   (pre-study "statically invisible" claim narrowed, correction retained).
+
+## Verification (RAW)
+
+- Focused: binding 16 passed; bridge 6 passed; ignition 10 passed;
+  matrix-binding suites 35 passed in 448.98s.
+- Broad regression: tests/gates + tests/kernel + conformance profiles →
+  1221 passed, 2 skipped in 1030.91s (0:17:10), exit 0.
+- Effect boundary after experiments/ addition: 26 passed in 115.65s.
+- Plan guard verify: Iron Plan OK, revision 5, sha ce4335e1…, exit 0.
+
+## Incident, repaired
+
+The first status-ledger commit overwrote the mission-2 WATCHDOG_STATUS.md
+history (append-only violation, 182 deleted lines). Restored byte-identical
+from the parent commit and appended mission-3 sections (353b3a4f); the
+violation is named in the ledger itself.
+
+Iron Plan: ALIGNED (Phase 5 slice: EXPERIMENT within its declared frame)
+Iron Gate: 0
+Evidence: commits a515bf7, 9937e33, 7e950d44, 8e5b3023, 353b3a4f, e4734dd7,
+c21fd6a0; RAW suite lines above; WATCHDOG_STATUS.md; Serena memory
+long_horizon_work_state.
