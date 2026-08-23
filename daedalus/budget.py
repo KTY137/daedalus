@@ -1518,7 +1518,19 @@ def _guarded_popen(original: type) -> type:
 
     A subclass keeps isinstance, subclassing, and every classmethod intact
     while still reserving before the process starts.
+
+    NOT A CLASS, NOT WRAPPED. A test's ``mock.patch("subprocess.Popen")``
+    leaves a MagicMock INSTANCE in the slot; subclassing it "works" and then
+    ``original.__name__`` raises ``AttributeError: __name__`` out of
+    ``install_process_guard`` -- which ``ikarus_os`` reports, correctly, as
+    "the spend net could not be installed", refusing every vendor call in the
+    test (MEASURED 2026-08-23: 3 red in test_ikarus_stream, 74 such lines in
+    the full suite). A mock is not a process spawn; it is returned as found
+    and uninstall's identity check then leaves it alone as well.
     """
+    if not isinstance(original, type):
+        return original
+
     class GuardedPopen(original):                     # type: ignore[misc,valid-type]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             argv = kwargs.get("args", args[0] if args else None)

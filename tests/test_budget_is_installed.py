@@ -203,3 +203,23 @@ def test_uninstall_never_resurrects_a_mock_that_was_active_during_install():
     assert subprocess.run is not real_run
     assert budget.uninstall_process_guard() == []
     assert subprocess.run is real_run
+
+
+def test_installing_over_a_mocked_popen_neither_breaks_nor_wraps_the_mock():
+    """``mock.patch("subprocess.Popen")`` leaves a MagicMock instance in the
+    slot. Installing the net over it used to raise ``AttributeError: __name__``
+    (subclassing a mock, then reading its ``__name__``), which ikarus_os turned
+    into a refusal of every vendor call in the test. Now the mock is left as
+    found, install succeeds, and uninstall hands the slot back unchanged."""
+    from unittest import mock
+
+    budget.uninstall_process_guard()
+    with mock.patch("subprocess.Popen") as fake:
+        budget.install_process_guard()
+        assert subprocess.Popen is fake
+        assert subprocess.run is not budget._INSTALLED["subprocess.run"][0]
+        # unwrapped means (mock, mock): uninstall finds its own record and
+        # has nothing to report -- the slot is handed back as it was found
+        assert budget.uninstall_process_guard() == []
+        assert subprocess.Popen is fake
+    assert budget._INSTALLED == {}

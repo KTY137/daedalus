@@ -152,7 +152,7 @@ def test_A12_a_spent_approval_cannot_be_spent_again(tmp_path: Path) -> None:
     second, second_reason = claim_approval(tmp_path, verdict)
     assert first is True, first_reason
     assert second is False
-    assert "already spent" in second_reason
+    assert "spent" in second_reason          # "ledger says spent" since 5bc43d42
 
 
 def test_A12_only_the_sealed_stage_spends_the_approval(tmp_path: Path) -> None:
@@ -180,7 +180,7 @@ def test_A12_only_the_sealed_stage_spends_the_approval(tmp_path: Path) -> None:
 
     replay = decide("sealed")
     assert replay.promote is False
-    assert "already spent" in replay.deny_reason
+    assert "spent" in replay.deny_reason     # "ledger says spent" since 5bc43d42
 
 
 # --------------------------------------------------------------------------- #

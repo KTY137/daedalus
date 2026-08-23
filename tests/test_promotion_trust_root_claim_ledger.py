@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -94,25 +95,29 @@ def _verdict(nonce: str = NONCE, candidate: str = CAND) -> ApprovalVerdict:
 
 
 class _RootedInATempControlRoot(unittest.TestCase):
-    """Every test gets its own control root, under its own USERPROFILE.
+    """Every test gets its own control root, keyed by its own repo identity.
 
     The state root is DERIVED and takes no parameter -- that is the A12 fix and
-    it must stay -- so the only honest way to isolate a test is to move the
-    environment the derivation reads.
+    it must stay. This fixture used to isolate by moving ``USERPROFILE``; since
+    e23d342d the promotion root folds ``profile_root_disagreement`` into every
+    claim, and an environment that disagrees with the OS-reported profile is
+    refused with ``profile.root_relocated`` (MEASURED 2026-08-23: all eight
+    tests here red on exactly that reason). That refusal is the product being
+    right, so the honest isolation is the one ``tests/test_loop.py`` uses: a
+    fresh temp REPO per test hashes to a digest nothing was ever written under,
+    so the control root beneath the real profile is fresh too. The directory
+    it creates is removed on cleanup.
     """
 
     def setUp(self):
-        self._home = tempfile.TemporaryDirectory()
-        self._la = tempfile.TemporaryDirectory()
-        self._env = mock.patch.dict(
-            os.environ,
-            {"USERPROFILE": self._home.name, "LOCALAPPDATA": self._la.name})
-        self._env.start()
-        self.repo = Path(self._home.name) / "repo"
+        from daedalus.spine.killswitch import control_root
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name) / "repo"
         self.repo.mkdir()
-        self.addCleanup(self._home.cleanup)
-        self.addCleanup(self._la.cleanup)
-        self.addCleanup(self._env.stop)
+        root = control_root(self.repo)
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        self.addCleanup(self._tmp.cleanup)
 
     def marker(self, verdict: ApprovalVerdict) -> Path:
         key = replay_key(verdict.nonce, verdict.candidate_sha256)
@@ -227,7 +232,16 @@ class TheChainIsEvidenceNotABoundaryTests(_RootedInATempControlRoot):
             "deleting it, and say where the head is anchored now")
 
     def test_pre_migration_promotion_state_is_refused(self):
-        legacy = (Path(self._la.name) / "daedalus-kernel" / "promotion"
+        # Only %LOCALAPPDATA% is relocated here: that is where the legacy root
+        # is read from, and it is not the profile directory the disagreement
+        # check guards, so the claim is refused for the legacy state and
+        # nothing else.
+        la = tempfile.TemporaryDirectory()
+        self.addCleanup(la.cleanup)
+        env = mock.patch.dict(os.environ, {"LOCALAPPDATA": la.name})
+        env.start()
+        self.addCleanup(env.stop)
+        legacy = (Path(la.name) / "daedalus-kernel" / "promotion"
                   / _digest(self.repo))
         (legacy / "spent").mkdir(parents=True)
         claimed, reason = claim_approval(self.repo, _verdict())
