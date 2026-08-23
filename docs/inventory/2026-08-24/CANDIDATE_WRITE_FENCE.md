@@ -253,7 +253,79 @@ before any attempt — so it is **not a live exploit today**. It becomes one the
 moment a candidate tree is carried forward, which is exactly what the Ariadne
 loop does (plan section 8: candidate tree, candidate Forest, next generation).
 
-## 7. Recommendation
+## 7. Recommendation — SUPERSEDED, and the original is kept below
+
+> **SUPERSEDED by `DENY_FLOOR_CORPUS.md` (same directory), 2026-08-24.**
+> The recommendation this section originally made — (c′), "the declaration
+> ceiling is the deny floor" — was **refuted by its own kill criterion #1** in
+> section 8. Do not implement what is written under "The original
+> recommendation" below. It is retained because negative evidence is retained
+> here, not deleted, and because the reasoning that survives the refutation is
+> marked inline.
+>
+> The refutation is executed, not argued. A candidate patch adding **one file
+> the deny floor admits** turns the Gate-1 evaluator's verdict from FAIL to PASS
+> without touching a single file under test:
+>
+> ```
+> deny floor admits conftest.py: True
+> base, no conftest (must FAIL)      passed=False
+> candidate adds one conftest.py     passed=True
+> ```
+>
+> The whole patch is `def pytest_sessionfinish(session, exitstatus):
+> session.exitstatus = 0`. The corpus behind it is 152 paths, of which the floor
+> **admits 94**, including all fourteen surfaces that execute code inside the
+> evaluator process.
+
+### 7a. The replacement recommendation
+
+**The ceiling is not the deny floor, and it is not any file-kind predicate. The
+ceiling is an authority-declared allowlist of what may be DECLARED, and the
+declaration is the fence.**
+
+1. **The operator declares, in the installation's own `.agentenv`, what a
+   candidate task may declare.** An allowlist with the root-anchored prefix
+   semantics `_within_write_allow` already implements, evaluated against
+   `target_paths` — not against discovered paths — positively declared, and
+   digested in the receipt. **Never `DEFAULT_POLICY` reached by absence**;
+   `Policy()` and "no policy found" are the same object and opposite facts, and
+   the issuer already refuses the second by name. This warning is the one part
+   of the original recommendation that measurement strengthened.
+2. **The deny floor stays underneath, as what it is: a hazmat list.** It
+   contributes a few real refusals (`.env`, `secrets/`, `id_rsa`,
+   `.git/config`) and it must never be described as the fence. Measured, its
+   verdicts are arbitrary with respect to this door: it refuses
+   `daedalus/sensitivity.py` and **admits `daedalus/spine/killswitch.py`**;
+   refuses `tools/watchdog.py` and admits `runs/budget/ledger.json`.
+3. **An empty `target_paths` must REFUSE the attempt, not skip the check.**
+   `attempt.py:1603` reads `if self.task.target_paths:`, so a task that declares
+   nothing is fenced by nothing. Empty is not "declare nothing"; it is "fence
+   nothing". This is a defect rather than a design question and is the cheapest
+   item here.
+4. **The evaluator's loader set is excluded from any declaration, whatever the
+   ceiling admits** — `conftest.py`, `pytest.ini`, `pyproject.toml`,
+   `setup.cfg`, `tox.ini`, `sitecustomize.py`, `usercustomize.py`, `*.pth`, and
+   `__init__.py` on the criterion's import path. This belongs beside
+   `gate_criterion_paths`, which already answers "may the candidate write what
+   judges it": that seal covers the criterion **file**, and does not cover the
+   files that decide **whether and how the criterion runs**. Note this does not
+   fully close hole 2 in `DENY_FLOOR_CORPUS.md` section 5 — a declared directory
+   containing a loader is still a design question, deliberately left open.
+5. **Parts 3 and 4 of the original recommendation are unaffected and still
+   required** — the subject/authority split, and binding `target_paths` and the
+   intent ledger to the authority. They are restated verbatim below and survive
+   the refutation intact.
+
+The finding gains a fourth instance: the candidate must not supply the material
+against which it is judged — not the ledger, not the policy, not the
+declaration, **and not the loader that runs its evaluator**.
+
+### 7b. The original recommendation (REFUTED — retained as negative evidence)
+
+> Everything in this subsection is what was recommended before the corpus was
+> run. Item 1's warning about `DEFAULT_POLICY` and items 3 and 4 survive; item 2
+> and the framing of the ceiling as the deny floor are the refuted part.
 
 **Adopt (c′): the fence at the `python.attempt` door is an authority-declared
 candidate policy applied to the DECLARED `target_paths`, and the declaration must
@@ -271,14 +343,20 @@ not already true.
    same values arrived at by absence are the exact defect `WritePolicySource` was
    written to record. **This recommendation is worthless if it is implemented as
    "fall back to `DEFAULT_POLICY`".**
+   *[SURVIVES, except that "positively declared to be the deny floor" is exactly
+   the part the corpus refuted: a positively declared deny floor still admits
+   `conftest.py`.]*
 2. **The fence judges the declaration, not discovered paths.** `target_paths` is
    what may be written; `path_write_blocked` under the candidate policy decides
    whether that declaration is admissible. The deny floor still runs on top, as
    under any confinement.
+   *[REFUTED in its instrument, not its shape. Judging the declaration is right;
+   `path_write_blocked` is the wrong judge. See 7a.1.]*
 3. **Separate the lease's subject root from its authority root** (the split
    lease-wall is already building), so `containment.worktree` measures the pair of
    roots this attempt actually uses, and the fence is *chosen by* the authority
    while being *about* the subject.
+   *[SURVIVES. Landed as `910e76dc`.]*
 4. **`target_paths` and the intent ledger must be authority-bound.** For the
    Gate-1 slice that means the mission compiler's manifest read becomes a read of
    a *pinned* revision recorded in the MissionContract, so the declaration is a
@@ -286,6 +364,8 @@ not already true.
    the tree now — and `TaskAttempt`'s `ledger_path` stops being a free constructor
    parameter. Until part 4, (c′) does not yet have the property (c) is supposed to
    buy: the declaration is still candidate-supplied.
+   *[SURVIVES, and the corpus raises its priority: with the ceiling now resting
+   entirely on the declaration, an unbound declaration is the whole fence.]*
 
 The corollary, because it is the finding and not the fix: **an installation path
 allowlist is the wrong instrument at this door.** Not set too narrowly — wrong.
@@ -295,13 +375,21 @@ policy is the *kind* question, and the kind question is tree-independent, which 
 exactly what the deny floor is. The coordinator's prior is **confirmed in shape
 and refuted in instrument**: the ceiling belongs on the declaration, and the
 ceiling is not `write_allow`.
+*[The first two sentences SURVIVE. The last three are the refuted step: the kind
+question being tree-independent is true, and it does not follow that the
+tree-independent predicate is a sufficient ceiling. It is not one at all.]*
 
 ## 8. Kill criteria
 
 The recommendation is wrong, and must be withdrawn rather than patched, if any of
 these is measured:
 
-1. **The deny floor admits something a candidate must never write.** The probes in
+1. **FIRED, 2026-08-24 — see `DENY_FLOOR_CORPUS.md`. The deny floor admits
+   something a candidate must never write.** Measured: 152-path corpus, 94
+   admitted, including all fourteen evaluator-loader surfaces; one admitted
+   `conftest.py` flipped a real Gate-1 verdict from FAIL to PASS. (c′) is
+   withdrawn and section 7a is the replacement. The original criterion follows.
+   The probes in
    section 4 are not a proof. Run the floor over a real corpus of candidate-tree
    paths — CI configs, lockfiles, `.github/workflows/`, git hooks, `setup.py`,
    `conftest.py`, anything on an evaluator's import path — and if it admits a file
