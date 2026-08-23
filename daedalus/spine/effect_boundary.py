@@ -69,6 +69,23 @@ class GuardAnchor:
 
 
 @dataclass(frozen=True)
+class SecretEvidence:
+    """One measured, re-checkable pointer to secret material behind a row.
+
+    ``module`` names a scanned module whose source contains ``marker``, the
+    literal text that was measured to load, verify, or transmit the named
+    ``material`` (an env var, key file, keyring, or credential-consuming
+    spawn).  The marker is a staleness canary, not a proof: when the text
+    disappears the measurement must be redone, and while it is present the
+    owning row must declare :attr:`Effect.SECRETS`.
+    """
+
+    module: str
+    marker: str
+    material: str
+
+
+@dataclass(frozen=True)
 class EntrypointSpec:
     id: str
     surface: Surface
@@ -172,6 +189,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.NETWORK_EGRESS,
             Effect.REPOSITORY_MUTATION,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard",),
         wiring=Wiring.LOCAL_GUARDS,
@@ -182,7 +200,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         id="web.server",
         surface=Surface.WEB_API,
         target="daedalus.web_api:run",
-        effects=(Effect.LISTEN_SOCKET,),
+        effects=(Effect.LISTEN_SOCKET, Effect.SECRETS),
         guard_contracts=("web.authenticated_bind",),
         wiring=Wiring.LOCAL_GUARDS,
         anchors=(GuardAnchor("daedalus.web_api:run", "_resolve_bind"),),
@@ -197,6 +215,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("web.authenticated_bind",),
         wiring=Wiring.INVENTORY_ONLY,
@@ -221,6 +240,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("file_bridge.crash_journal",),
         wiring=Wiring.INVENTORY_ONLY,
@@ -235,6 +255,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("file_bridge.crash_journal", "budget.process_guard"),
         wiring=Wiring.INVENTORY_ONLY,
@@ -328,6 +349,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.PROCESS_SPAWN,
             Effect.NETWORK_EGRESS,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=(
             "provider.egress_policy",
@@ -354,6 +376,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.FILESYSTEM_WRITE,
             Effect.PROCESS_SPAWN,
             Effect.REPOSITORY_MUTATION,
+            Effect.SECRETS,
         ),
         guard_contracts=(
             "spine.intent_ledger",
@@ -400,6 +423,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.NETWORK_EGRESS,
             Effect.FILESYSTEM_WRITE,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("budget.process_guard", "provider.write_policy"),
         wiring=Wiring.INVENTORY_ONLY,
@@ -415,6 +439,7 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
             Effect.NETWORK_EGRESS,
             Effect.FILESYSTEM_WRITE,
             Effect.SPEND,
+            Effect.SECRETS,
         ),
         guard_contracts=("provider.egress_policy", "provider.write_policy", "budget.process_guard"),
         wiring=Wiring.INVENTORY_ONLY,
@@ -632,12 +657,18 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         (Effect.FILESYSTEM_WRITE,),
         Wiring.INVENTORY_ONLY,
     ),
-    ("cli.web_api", Surface.CLI, "daedalus.web_api:main", (Effect.LISTEN_SOCKET,), Wiring.INVENTORY_ONLY),
+    (
+        "cli.web_api",
+        Surface.CLI,
+        "daedalus.web_api:main",
+        (Effect.LISTEN_SOCKET, Effect.SECRETS),
+        Wiring.INVENTORY_ONLY,
+    ),
     (
         "provider.deepseek",
         Surface.PYTHON,
         "daedalus.providers.deepseek:DeepSeekProvider.run",
-        (Effect.FILESYSTEM_WRITE,),
+        (Effect.FILESYSTEM_WRITE, Effect.SECRETS),
         Wiring.INVENTORY_ONLY,
     ),
     (
@@ -665,7 +696,7 @@ _LEGACY_ENTRYPOINT_ROWS: tuple[
         "web.mutations_put",
         Surface.WEB_API,
         "daedalus.web_api:DaedalusHandler.do_PUT",
-        (Effect.FILESYSTEM_WRITE,),
+        (Effect.FILESYSTEM_WRITE, Effect.SECRETS),
         Wiring.INVENTORY_ONLY,
     ),
     (
@@ -700,6 +731,128 @@ ENTRYPOINTS += tuple(
 
 REGISTRY_BY_ID: Mapping[str, EntrypointSpec] = MappingProxyType(
     {row.id: row for row in ENTRYPOINTS}
+)
+
+
+# MEASURED 2026-08-17: secret material behind registry rows.  The static
+# discovery pass cannot see a secret the way it sees a subprocess or socket
+# sink -- reading an env var is byte-identical to reading any configuration --
+# so ``Effect.SECRETS`` claims are anchored to this measured inventory instead
+# of inference.  Every entry names the module and the literal source text that
+# was read at measurement time; ``check_conformance`` re-verifies the marker
+# and refuses to trust a claim whose anchor has vanished.  Rows measured and
+# deliberately NOT claimed: ``cli.doctor`` and ``provider.deepseek.rollback``
+# (presence-check / constructor-load only, no secret value used on the path),
+# the ollama rows (host/model configuration, no credential), and
+# ``cli.claude_bridge`` (a fail-closed stub that refuses to execute).  Ambient
+# environment inheritance by generic process spawns (attempt, worktree,
+# adapter rows) is an isolation gap for env scrubbing at the effect boundary,
+# not a per-row secrets contract; claiming it everywhere would erase the
+# effect's meaning.
+SECRET_MATERIAL_EVIDENCE: Mapping[str, tuple[SecretEvidence, ...]] = (
+    MappingProxyType(
+        {
+            "cli.daedalus": (
+                SecretEvidence(
+                    "daedalus.cli",
+                    "_load_dotenv",
+                    "file:.env provider API keys via daedalus.dotenv.load",
+                ),
+                SecretEvidence(
+                    "daedalus.accelerators",
+                    "DAEDALUS_RTX_OLLAMA_TOKEN",
+                    "env:DAEDALUS_RTX_OLLAMA_TOKEN bearer on --probe-remote",
+                ),
+            ),
+            "cli.web_api": (
+                SecretEvidence(
+                    "daedalus.web_api",
+                    "DAEDALUS_WEB_TOKEN",
+                    "env:DAEDALUS_WEB_TOKEN bind-time auth secret",
+                ),
+            ),
+            "file_bridge.process": (
+                SecretEvidence(
+                    "daedalus.core",
+                    "ask_claude",
+                    "dispatch:credential-consuming claude/codex/offload lanes",
+                ),
+            ),
+            "file_bridge.watch": (
+                SecretEvidence(
+                    "daedalus.core",
+                    "ask_claude",
+                    "dispatch:credential-consuming claude/codex/offload lanes",
+                ),
+            ),
+            "provider.claude": (
+                SecretEvidence(
+                    "daedalus.claude_bridge",
+                    "subprocess.run(",
+                    "inherit:full env and vendor credential store (claude CLI)",
+                ),
+            ),
+            "provider.codex": (
+                SecretEvidence(
+                    "daedalus.providers.codex_cli",
+                    "subprocess.run(",
+                    "inherit:full env and ~/.codex auth store (codex CLI)",
+                ),
+            ),
+            "provider.deepseek": (
+                SecretEvidence(
+                    "daedalus.providers.deepseek",
+                    "DEEPSEEK_API_KEY",
+                    "env:DEEPSEEK_API_KEY",
+                ),
+                SecretEvidence(
+                    "daedalus.providers._openai_compat",
+                    "Authorization",
+                    "header:Authorization Bearer transmission",
+                ),
+            ),
+            "python.offload": (
+                SecretEvidence(
+                    "daedalus.offload",
+                    "deepseek_key",
+                    "routing:DEEPSEEK_API_KEY lane via get_provider",
+                ),
+            ),
+            "python.promote_candidates": (
+                SecretEvidence(
+                    "daedalus.kairos.gated_writes",
+                    "owner_keyring",
+                    "keyring:owner approval HMAC keys",
+                ),
+            ),
+            "web.mutations": (
+                SecretEvidence(
+                    "daedalus.web_api",
+                    "compare_digest",
+                    "verify:bearer token against DAEDALUS_WEB_TOKEN",
+                ),
+                SecretEvidence(
+                    "daedalus.ikarus_os",
+                    "DEEPSEEK_API_KEY",
+                    "env:DEEPSEEK_API_KEY via ikarus_os ask lanes",
+                ),
+            ),
+            "web.mutations_put": (
+                SecretEvidence(
+                    "daedalus.web_api",
+                    "compare_digest",
+                    "verify:bearer token against DAEDALUS_WEB_TOKEN",
+                ),
+            ),
+            "web.server": (
+                SecretEvidence(
+                    "daedalus.web_api",
+                    "DAEDALUS_WEB_TOKEN",
+                    "env:DAEDALUS_WEB_TOKEN bind-time auth secret",
+                ),
+            ),
+        }
+    )
 )
 
 
@@ -1551,6 +1704,72 @@ def check_conformance(
             )
         )
 
+    # Effect.SECRETS is not statically discoverable the way process/network
+    # sinks are, so its modeling is checked against the measured inventory in
+    # ``SECRET_MATERIAL_EVIDENCE``.  Three failure directions, all visible:
+    # a vanished marker means the measurement is stale (blocker -- the claim
+    # can no longer be trusted either way); confirmed secret material without
+    # a SECRETS claim is an unmodeled surface (gap, escalated to blocker on a
+    # CENTRAL row because central declarations are the lease-scope ceiling);
+    # a SECRETS claim with no measured evidence is flagged for review rather
+    # than trusted.  Rows absent from the supplied registry impose nothing:
+    # a deleted or renamed row is caught by the target/staleness checks above.
+    module_text: dict[str, str | None] = {}
+    for row in registry:
+        evidence_rows = SECRET_MATERIAL_EVIDENCE.get(row.id, ())
+        confirmed: list[SecretEvidence] = []
+        for evidence in evidence_rows:
+            if evidence.module not in module_text:
+                model = models.get(evidence.module)
+                if model is None:
+                    module_text[evidence.module] = None
+                else:
+                    try:
+                        module_text[evidence.module] = model.path.read_text(
+                            encoding="utf-8"
+                        )
+                    except (OSError, UnicodeError):
+                        module_text[evidence.module] = None
+            text = module_text[evidence.module]
+            if text is None or evidence.marker not in text:
+                findings.append(
+                    ConformanceFinding(
+                        "registry.secrets_evidence_stale",
+                        "blocker",
+                        row.id,
+                        (
+                            f"measured secret-material marker {evidence.marker!r} "
+                            f"is no longer present in {evidence.module}; re-measure "
+                            f"before trusting the {evidence.material} claim"
+                        ),
+                    )
+                )
+            else:
+                confirmed.append(evidence)
+        if confirmed and Effect.SECRETS not in row.effects:
+            findings.append(
+                ConformanceFinding(
+                    "registry.secrets_unmodeled",
+                    "blocker" if row.wiring is Wiring.CENTRAL else "gap",
+                    row.id,
+                    "row handles measured secret material without declaring the "
+                    "secrets effect: "
+                    + ", ".join(
+                        sorted({evidence.material for evidence in confirmed})
+                    ),
+                )
+            )
+        if Effect.SECRETS in row.effects and not evidence_rows:
+            findings.append(
+                ConformanceFinding(
+                    "registry.secrets_unevidenced",
+                    "review",
+                    row.id,
+                    "row declares the secrets effect without a measured "
+                    "secret-material evidence entry",
+                )
+            )
+
     present_surfaces = {row.surface for row in registry}
     for surface in Surface:
         if surface not in present_surfaces:
@@ -1648,6 +1867,8 @@ __all__ = [
     "GUARD_CONTRACT_IMPLEMENTED",
     "POLICY_CONTRACTS",
     "REGISTRY_BY_ID",
+    "SECRET_MATERIAL_EVIDENCE",
+    "SecretEvidence",
     "Surface",
     "UnregisteredEntrypoint",
     "Wiring",

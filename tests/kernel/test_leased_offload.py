@@ -30,6 +30,10 @@ def authorization(tmp_path, *, suffix: str = "1"):
         writable_paths=("workspace",),
         egress_endpoints=("https://provider.example.test",),
         tools=("python",),
+        # python.offload declares Effect.SECRETS (it may route work to the
+        # DEEPSEEK_API_KEY lane), so a lease binding the complete declared
+        # effect set must name the exact secret it may consume.
+        secret_refs=("deepseek_api_key",),
         max_cost_microusd=1000,
         max_concurrency=1,
         timeout_s=60,
@@ -111,6 +115,7 @@ def authorization(tmp_path, *, suffix: str = "1"):
         writable_paths=("workspace",),
         egress_endpoints=("https://provider.example.test",),
         tools=("python",),
+        secret_refs=("deepseek_api_key",),
         max_cost_microusd=1000,
         kill_switch_ref="global-kill",
         kill_switch_generation=3,
