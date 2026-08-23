@@ -3872,3 +3872,23 @@ further effectful entrypoint here inherits the same gap.
 parsed, never imported and never executed. It deliberately contains a wildcard
 import, a dangling annotation name and a never-taken fallback import. Nothing
 in the repository imports it, and nothing should.
+
+## Consolidation note (2026-08-23)
+
+Slices s02, s07 and s09 landed on `main` from their `grind/f2-*` lanes on
+2026-08-23, five days after they were measured. Their files are byte-identical
+to the lanes. Three of their 259 tests fail on the consolidated tree because
+they pin the *repository itself* as corpus at the 2026-08-18 snapshot:
+
+| test | pinned | measured 2026-08-23 |
+| --- | --- | --- |
+| `s02_types/test_external_corpora.py::test_kernel_row_is_the_retracted_headline_restated` | 4203 kernel functions | 4416 |
+| `s07_bm25/test_bm25_index.py::test_known_hits_rank_first_in_a_real_subtree[tools-iron plan guard…]` | `tools/iron_plan_guard.py` ranks first under `tools/` | the file no longer exists on main (unify commit 79825b57, 2026-08-22) |
+| `s07_bm25/test_bm25_index.py::test_confusable_neighbour_is_a_retained_known_miss` | a specific known miss | corpus moved |
+
+The numbers are left as published; rewriting a pinned measurement to match a
+later tree would be exactly the drift the slices warn against. Anyone
+re-running these slices re-measures against the current tree and records a
+new row — they do not edit the old one. [MEASURED 2026-08-23, consolidation
+worktree: `pytest experiments/forest_v2/{s02_types,s07_bm25,s09_eval}` →
+256 passed, 3 failed, 20.44s.]
