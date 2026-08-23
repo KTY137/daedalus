@@ -879,6 +879,9 @@ def run_gate1_ignition(
                     f"the {report.kind} check failed on the composed candidate: "
                     f"{report.detail.get('problems') or report.detail.get('output_tail')}"
                 )
+        anchored_node_roles = measure_anchored_node_roles(
+            repo, gate_timeout_s=float(gate_timeout_s)
+        )
         discrimination = _measure_discrimination(
             candidate_root, repo, base_pytest, scratch / "controls",
             gate_timeout_s=float(gate_timeout_s),
@@ -1045,6 +1048,7 @@ def run_gate1_ignition(
             checks=composed,
             base_pytest=base_pytest,
             discrimination=discrimination,
+            anchored_nodes=anchored_node_roles,
             delta=delta,
             fixture_digest=fixture_digest_before,
             collected_at=collected_at,
@@ -1155,6 +1159,7 @@ def _measure_discrimination(
         }
     }
 
+
     half = control_root / "half-renamed"
     if half.exists():
         shutil.rmtree(half, ignore_errors=True)
@@ -1179,6 +1184,38 @@ def _measure_discrimination(
         "problems": broken_report.detail.get("problems"),
     }
     return observed
+
+
+def measure_anchored_node_roles(repo: Path, *, gate_timeout_s: float) -> dict[str, Any]:
+    """What each anchored node DID on the base revision, one node at a time.
+
+    "The suite fails on base" does not say which node moved. A node that already
+    passes on the base revision is a regression guard, not discrimination, and
+    counting it as discrimination is how a criterion set comes to look stronger
+    than it is. Measured here rather than declared: two of the three
+    data/knowledge nodes are FAIL_TO_PASS and ``test_wiki_links_resolve`` is a
+    guard (the base fixture's links already resolve), and the receipt says so.
+
+    This is NOT a negative control -- a control is an edit that must turn a
+    check red, and the receipt refuses one that stays green. These rows are a
+    classification of the criterion set, so they live beside the controls.
+    """
+
+    roles: dict[str, Any] = {}
+    for label, node_ids in (
+        ("code-type", ignition_checks.CODE_TYPE_NODE_IDS),
+        ("data-knowledge", ignition_checks.DATA_KNOWLEDGE_NODE_IDS),
+    ):
+        for node in node_ids:
+            report = ignition_checks.pytest_check(
+                repo, (node,), timeout_s=float(gate_timeout_s), label=f"base-{label}",
+            )
+            roles[node] = {
+                "gate": label,
+                "passed_on_base_revision": report.passed,
+                "role": "pass_to_pass_guard" if report.passed else "fail_to_pass",
+            }
+    return roles
 
 
 def _packet_attempt_id(attempts: Sequence[Any]) -> str:
@@ -1474,6 +1511,7 @@ def _build_receipt(
     checks: Sequence[ignition_checks.CheckReport],
     base_pytest: ignition_checks.CheckReport,
     discrimination: Mapping[str, Any],
+    anchored_nodes: Mapping[str, Any],
     delta: IgnitionGraphDelta,
     fixture_digest: str,
     collected_at: str,
@@ -1545,6 +1583,7 @@ def _build_receipt(
                 "conformance_test_sha256": ignition_checks.CONFORMANCE_TEST_SHA256,
             },
             "negative_controls": dict(discrimination),
+            "anchored_nodes": dict(anchored_nodes),
         },
         "fourfold": {
             "base_source_bundle_sha256": base_compile.source_bundle_sha256,

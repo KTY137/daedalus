@@ -532,6 +532,33 @@ def test_the_data_knowledge_gate_names_its_criterion_and_runs_it(slice_result):
     assert ignition_checks.CONFORMANCE_TEST_PATH not in set(data_row["target_paths"])
 
 
+def test_the_receipt_says_which_anchored_nodes_discriminate(slice_result):
+    """A criterion set that counts its regression guards as discrimination looks
+    stronger than it is. The receipt classifies every anchored node by what it
+    MEASURED on the base revision, so a reader never has to assume."""
+
+    roles = slice_result.receipt["discrimination"]["anchored_nodes"]
+    assert set(roles) == set(ignition_checks.CODE_TYPE_NODE_IDS) | set(
+        ignition_checks.DATA_KNOWLEDGE_NODE_IDS
+    )
+    by_role: dict[str, set[str]] = {}
+    for node, row in roles.items():
+        assert row["role"] == ("pass_to_pass_guard" if row["passed_on_base_revision"] else "fail_to_pass")
+        by_role.setdefault(row["role"], set()).add(node.split("::")[1])
+    # measured 2026-08-23: the links already resolve in the base fixture, so
+    # that node guards, it does not discriminate. The other three move.
+    assert by_role["pass_to_pass_guard"] == {"test_wiki_links_resolve"}
+    assert by_role["fail_to_pass"] == {
+        "test_type_exposes_the_renamed_field",
+        "test_csv_header_carries_the_renamed_field",
+        "test_wiki_documents_the_renamed_field",
+    }
+    # and each work item's gate keeps at least one node that actually moves
+    for gate in ("code-type", "data-knowledge"):
+        moving = {n for n, r in roles.items() if r["gate"] == gate and r["role"] == "fail_to_pass"}
+        assert moving, gate
+
+
 @pytest.mark.parametrize(
     "renamed,expect_pass",
     [

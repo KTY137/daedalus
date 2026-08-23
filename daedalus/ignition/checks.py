@@ -122,8 +122,21 @@ CODE_TYPE_NODE_IDS = (f"{CONFORMANCE_TEST_PATH}::test_type_exposes_the_renamed_f
 
 #: The nodes the Data/Knowledge work item alone must turn green: the CSV header
 #: (data plane) and the wiki page with its links (knowledge plane). None of the
-#: three imports ``ignition_app`` at module level, so this work item's gate can
-#: run them on a tree where the code plane is still un-renamed.
+#: three imports ``ignition_app``, so this work item's gate can run them on a
+#: tree where the code plane is still un-renamed.
+#:
+#: TWO OF THEM DISCRIMINATE, ONE GUARDS -- measured on the base revision, and
+#: recorded per node in the receipt's ``discrimination.anchored_nodes`` rather
+#: than left for a reader to assume:
+#:
+#:   ``test_csv_header_carries_the_renamed_field``   FAIL_TO_PASS
+#:   ``test_wiki_documents_the_renamed_field``       FAIL_TO_PASS
+#:   ``test_wiki_links_resolve``                     PASS_TO_PASS (regression guard)
+#:
+#: The guard is not discrimination and is not counted as such: the base fixture's
+#: links already resolve. It is here because the knowledge-plane edit is exactly
+#: the kind that silently breaks them, and a gate that only asked "does the page
+#: say bias_voltage" would accept a page whose links point nowhere.
 #:
 #: WHY THIS EXISTS (2026-08-23). Until now the data/knowledge gate ran only
 #: :func:`schema_check` and :func:`link_check`, whose criterion is code in THIS
