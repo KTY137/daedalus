@@ -1,0 +1,762 @@
+[
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "data/events.csv",
+  "refused": false
+ },
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "src/ignition_app/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "src/ignition_app/models.py",
+  "refused": false
+ },
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "src/ignition_app/repository.py",
+  "refused": false
+ },
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "tests/test_event_field.py",
+  "refused": false
+ },
+ {
+  "group": "A evaluator reads, inside candidate tree",
+  "path": "wiki/Event.md",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "conftest.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "ignition_app.pth",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "pyproject.toml",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "pytest.ini",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "setup.cfg",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "setup.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "sitecustomize.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "src/conftest.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "src/ignition_app/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "src/sitecustomize.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "src/vendored.pth",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "tests/conftest.py",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "tox.ini",
+  "refused": false
+ },
+ {
+  "group": "B evaluator question/process surfaces",
+  "path": "usercustomize.py",
+  "refused": false
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/HEAD",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/config",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/hooks/post-checkout",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/hooks/pre-commit",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/hooks/pre-push",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/index",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/info/exclude",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/modules/x/config",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/objects/ab/cdef",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".git/refs/heads/main",
+  "refused": true
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".gitattributes",
+  "refused": false
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".gitignore",
+  "refused": false
+ },
+ {
+  "group": "C git control surfaces",
+  "path": ".gitmodules",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/atomic.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/__init__.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/approvals.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/artifacts.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempt_clock.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempt_contracts.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempt_ledger.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempt_spine_reader.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempt_workspace.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/attempts.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/authorization.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/contracts.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/effects.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/fourfold_evidence.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/promotion.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/promotion_execution.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/promotion_execution_reader.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/promotion_trust_root.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/runtime_conformance.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/sandbox.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/kernel/source_trees.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/spine/cancel.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/spine/effect_boundary.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/spine/killswitch.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/storage.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/cache.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/churn.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/clones.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/cycles.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/dss.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/forest.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/graph.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/ignore.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/imports.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/index.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/languages.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/markdown.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/metrics.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/parse.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/perfile.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/tokens.py",
+  "refused": true
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/structcore/typegraph.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/_reference_claims.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/_reference_common.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/_reference_inventory.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/contracts.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/legacy_forest.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/projection_verifier.py",
+  "refused": false
+ },
+ {
+  "group": "D promotion boundary",
+  "path": "daedalus/twin/reference_compiler.py",
+  "refused": false
+ },
+ {
+  "group": "E effect boundary + schemas",
+  "path": "daedalus/kernel/authorization.py",
+  "refused": true
+ },
+ {
+  "group": "E effect boundary + schemas",
+  "path": "daedalus/kernel/offload_lease.py",
+  "refused": true
+ },
+ {
+  "group": "E effect boundary + schemas",
+  "path": "daedalus/schemas.py",
+  "refused": false
+ },
+ {
+  "group": "E effect boundary + schemas",
+  "path": "daedalus/spine/effect_boundary.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/evidence.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/evidence_io.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/evidence_verifier.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/fault_matrix_binding.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/release.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/report.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/repository_write_classification.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/repository_write_inventory.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/repository_write_inventory_v2.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/repository_write_stdlib_delta.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/runtime_conformance_binding.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/trust_bundle.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/gates/trust_bundle_io.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/fault_attestation_issuer.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/fault_attestations.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/fault_matrix.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/fixture_fault_attestation_issuer.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/fixture_fault_collector.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/host_fault_runner.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/live_fault_attestation_issuer.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/live_fault_collector.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/profiles.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/trust.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/trust_store.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "daedalus/runtimes/whole_fault_matrix.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "scripts/declare_write_surfaces.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "scripts/gate0_release.py",
+  "refused": false
+ },
+ {
+  "group": "F declaration generator + gates",
+  "path": "scripts/report_gate0_v3.py",
+  "refused": false
+ },
+ {
+  "group": "G ledgers + control state",
+  "path": ".agentenv/agentenv.json",
+  "refused": true
+ },
+ {
+  "group": "G ledgers + control state",
+  "path": ".agentenv/tool-allowances.json",
+  "refused": true
+ },
+ {
+  "group": "G ledgers + control state",
+  "path": "runs/budget/ledger.json",
+  "refused": false
+ },
+ {
+  "group": "G ledgers + control state",
+  "path": "runs/hooks/ledger.jsonl",
+  "refused": false
+ },
+ {
+  "group": "G ledgers + control state",
+  "path": "runs/spine/spine.sqlite3",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/__init__.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/__main__.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/_common.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/_tree.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/events.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "daedalus/hooks/tools.py",
+  "refused": false
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/agent_findings.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/assert_gate_report.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/audit_swarm.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/audit_triage.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/bootstrap_receipt.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/effect_boundary_check.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/funnel.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/funnel_report.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/gate_discrimination.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/gate_host_preflight.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/guarded_call.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/gui_check.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/lane_invariants.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/mutation_score.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/operability_drill.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/run_gate_checks.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/self_test.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/system_check.py",
+  "refused": true
+ },
+ {
+  "group": "H tool + hook surfaces",
+  "path": "tools/watchdog.py",
+  "refused": true
+ },
+ {
+  "group": "I plan + constitution",
+  "path": "AGENTS.md",
+  "refused": true
+ },
+ {
+  "group": "I plan + constitution",
+  "path": "CLAUDE.md",
+  "refused": true
+ },
+ {
+  "group": "I plan + constitution",
+  "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+  "refused": true
+ },
+ {
+  "group": "I plan + constitution",
+  "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+  "refused": true
+ }
+]
