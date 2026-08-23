@@ -1,0 +1,47 @@
+Mission complete 2026-08-17, branch grind/watchdog-mission2 @ 2dd93a1.
+
+Phase 1 (effect-boundary grind): COMPLETE in 5 verified batches
+(ab078b3, 812ca60, f04e46c, 41c3cf3, 74c10b0). Widened counter 115 -> 91
+classified / 0 silent; all 15 tool targets + both invisible doors + all 10
+run-dir entrypoints registered; SCAN_PACKAGES widened to the run dir;
+provider.deepseek corrected; stale cli.claude_bridge row deleted;
+HARNESS_PACKAGES classification added (91 review findings, never blockers).
+Narrow scan structurally conformant: 0 blockers; --require-gate0 still exits
+3 by design. No parallel registration scheme introduced; no assertion
+weakened (two red-state pins rewritten to pin the improved state via
+discoveries + review findings).
+
+Phase 2 (Gate-0 rest list): COMPLETE as measurement + classification.
+pytest kernel/gates/runtimes: 22 failed / 1868 passed / 48 skipped (RAW in
+WATCHDOG_STATUS.md slice 7). Every failure classified with sampled diagnoses
+into the four owner-parked clusters (v3 family, blob-pin/review-pin drift,
+CENTRAL/K1-K13 wording rebase, amendment-005 attempt/spine wave). Zero
+non-lane failures to fix; owner-blocked points untouched.
+
+Phase 3 (G1 activation prep): COMPLETE @ 05d5ba3.
+docs/work-packets/G1_ACTIVATION_CHECKLIST.md (rehearsal->authoritative gaps,
+EvidencePacket evidence needs, restart/replay unproven spots, activation
+preconditions) + 5 new fault tests pinning refusal semantics (ignition suite
+9/9; g1 profile 45 passed). No activation performed.
+
+Phase 4 (Gate-2 pre-study): COMPLETE @ 2dd93a1 as labeled read-only
+EXPERIMENT under experiments/forest_v2/ (frozen hypothesis, budget, expiry,
+no production promotion). Baseline MEASURED: 42,725 call sites, 15.5%
+same-module resolvable, 84.5% gap upper bound.
+
+Verification: iron_plan_guard verify OK (revision 4); run_gate_checks g0 ->
+79 passed; run_gate_checks g1 -> 45 passed; effect-boundary suite 25 passed;
+ignition suite 9 passed. Serena memory long_horizon_work_state maintained at
+.serena/memories/long_horizon_work_state.md (Serena MCP tools were absent
+this session - known startup race; file-based fallback used).
+
+Handoff notes for the coordinator: 4 owner decisions remain parked in
+docs/GATE0_OWNER_DECISIONS_20260817.md; 78 gate0.not_central wiring gaps are
+the next real Gate-0 grind (per-row EffectLease migrations); g0 profile now
+~254s (price of the harness scan, stated in the slice log); the shell guard
+also blocks freestanding "daedalus"/"tests"/"tools" and bare "tools/ " /
+"tests/ " in commit texts.
+
+Iron Plan: ALIGNED (Phase 4 artifact is a declared EXPERIMENT)
+Iron Gate: 0
+Evidence: WATCHDOG_STATUS.md slices 1-8 with RAW test lines and commit SHAs.
