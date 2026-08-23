@@ -408,6 +408,52 @@ def test_worktree_failure_is_a_state_and_marks_intent_failed(
     assert_primary_untouched(repo, head)
 
 
+def test_a_half_done_worktree_add_is_a_state_and_its_ref_is_reaped_after_the_ledger(
+        repo, worktree_root, ledger, monkeypatch):
+    """End to end: the ref written by a failed ``git worktree add -b`` is still
+    findable WHILE the intent is open (crash-recovery contract), the intent
+    closes as failed, and only then is the ref reaped -- reported on the
+    result, not hidden (Codex, room 56; measured leak: loop run 1 of
+    2026-08-23 left daedalus-attempt-kairos-ollama-...-abbfe1 behind)."""
+    from daedalus.kairos.worktree import GitWorktreeManager
+
+    head = head_of(repo)
+    manager = GitWorktreeManager(repo)
+    real_run_git = manager._run_git
+    seen_while_open: dict = {}
+
+    def run_git(*args, cwd=None):
+        if args[:2] == ("worktree", "add"):
+            branch, path, base = args[3], Path(args[4]), args[5]
+            real_run_git("branch", branch, base)
+            path.mkdir(parents=True, exist_ok=True)
+            (path / "half.txt").write_text("partial", encoding="utf-8")
+            # the crash-recovery contract, observed from inside the window
+            seen_while_open["open"] = [i.effect_key for i in ledger.open_intents()]
+            seen_while_open["ref"] = _git_out(repo, "branch", "--list", branch)
+            raise RuntimeError("git worktree add: Filename too long")
+        return real_run_git(*args, cwd=cwd)
+
+    manager._run_git = run_git
+    runner = writing_runner({"a.txt": "a\n"})
+    attempt = TaskAttempt(spec(), runner=runner, gate=passing_gate(),
+                          repo_root=repo, ledger=ledger, worktree_manager=manager)
+    result = attempt.run()
+
+    assert result.state == STATE_WORKTREE_FAILED
+    assert "Filename too long" in result.error
+    assert runner.calls == []
+    assert seen_while_open["open"] == [attempt.effect_key]
+    assert attempt.branch in seen_while_open["ref"]
+    assert ledger.get(result.intent_id).state == STATE_FAILED
+    assert ledger.open_intents() == []
+    reaped = [r for r in result.reaped if r.get("branch") == attempt.branch]
+    assert reaped and reaped[0]["action"] == "deleted", result.reaped
+    assert attempt.branch not in _git_out(repo, "branch", "--list", attempt.branch)
+    assert not (manager.worktree_root / attempt.branch).exists()
+    assert_primary_untouched(repo, head)
+
+
 def test_no_change_is_not_reported_as_clean(repo, worktree_root, ledger):
     head = head_of(repo)
     gate = passing_gate()

@@ -1049,7 +1049,26 @@ class GitWorktreeManager:
         self._record_allocation(worktree_path, branch_name)
 
         # Create a new branch and worktree
-        self._run_git('worktree', 'add', '-b', branch_name, str(worktree_path), base_commit)
+        try:
+            self._run_git('worktree', 'add', '-b', branch_name, str(worktree_path), base_commit)
+        except RuntimeError:
+            # A PARTIAL create. `git worktree add -b` writes the ref into the
+            # shared .git first and populates the directory second, so a
+            # checkout that dies half-way (MEASURED 2026-08-23: Windows
+            # "Filename too long" at 70% of 2,764 files) leaves a ref, a
+            # registration and a half-filled directory behind. The directory
+            # and the registration are cleaned HERE, because nothing else will
+            # ever be handed this path. The ref is deliberately NOT deleted
+            # here (Codex, room 56): the attempt's intent was recorded before
+            # this call and is resolved only after the exception reaches the
+            # caller, so a synchronous delete would reopen the crash window in
+            # which an OPEN intent has no findable effect key. Instead the
+            # partial allocation is registered in memory exactly as a cleaned
+            # worktree would be, and the ref falls to `reap_branches` after the
+            # terminal ledger write, under the same two proofs as every other
+            # branch (tip unchanged since allocation, still reachable).
+            self._abandon_partial_create(worktree_path, branch_name)
+            raise
 
         # Pin the branch tip as created. Later this is the ONLY thing that can
         # prove a candidate branch holds no work -- a sha comparison, not a
@@ -1070,6 +1089,45 @@ class GitWorktreeManager:
         }
 
         return worktree_path
+
+    def _abandon_partial_create(self, worktree_path: Path, branch_name: str) -> None:
+        """Tidy what a failed ``git worktree add`` left, keeping the ref.
+
+        Never raises: the caller is already propagating the creation error and
+        a second error here would hide the first. What could not be cleaned is
+        left for ``reap_branches`` to report.
+        """
+        tip = None
+        try:
+            tip = self._run_git('rev-parse', '--verify', f'refs/heads/{branch_name}')
+        except RuntimeError:
+            tip = None          # the ref was never written; nothing to reap
+        try:
+            if worktree_path.exists():
+                _remove_tree_no_follow(
+                    worktree_path,
+                    guarded_ancestors=self._reach_chain(worktree_path)[:-1])
+        except (OSError, RuntimeError):
+            pass
+        try:
+            self._run_git('worktree', 'prune')
+        except RuntimeError:
+            pass
+        record = {
+            "path": worktree_path,
+            "branch": branch_name,
+            "branch_tip_at_creation": tip,
+            # Through cleanup in the only sense that matters to reap: nothing
+            # of this allocation is in use, and nothing on disk remains.
+            "worktree_removed": True,
+            "partial_create": True,
+        }
+        self._allocations[_key(worktree_path)] = record
+        try:
+            self._record_allocation(worktree_path, branch_name,
+                                    branch_tip_at_creation=tip)
+        except Exception:  # noqa: BLE001 - the on-disk twin is diagnostic only
+            pass
 
     def cleanup_worktree(self, path: str | Path) -> None:
         """

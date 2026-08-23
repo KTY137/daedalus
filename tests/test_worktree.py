@@ -116,6 +116,72 @@ def test_default_placement_creates_and_cleans_a_worktree(temp_git_repo, tmp_path
     manager.cleanup_worktree(worktree_path)
 
 
+def _half_done_worktree_add(manager, repo_path):
+    """Make ``git worktree add -b`` fail the way it failed on 2026-08-23: the
+    ref is written, the directory is half-populated, then git gives up
+    (``Filename too long`` at 70% of the checkout)."""
+    real_run_git = manager._run_git
+
+    def run_git(*args, cwd=None):
+        if args[:2] == ('worktree', 'add'):
+            branch, path, base = args[3], Path(args[4]), args[5]
+            real_run_git('branch', branch, base)             # ref first ...
+            path.mkdir(parents=True, exist_ok=True)          # ... dir second
+            (path / "half.txt").write_text("partial", encoding="utf-8")
+            raise RuntimeError("git worktree add: Filename too long")
+        return real_run_git(*args, cwd=cwd)
+
+    manager._run_git = run_git
+
+
+def test_a_failed_worktree_add_keeps_its_ref_until_reap(temp_git_repo,
+                                                        worktree_root):
+    """The 2026-08-23 leak, pinned the way Codex ruled it (room 56). A
+    half-done ``git worktree add -b`` leaves a ref, a registration and a
+    partial directory. Directory and registration are cleaned at once; the
+    REF survives the exception -- it is the attempt's effect key and the
+    intent that names it is resolved only after the caller sees the error --
+    and falls to ``reap_branches`` afterwards under the usual two proofs."""
+    manager = GitWorktreeManager(temp_git_repo)
+    _half_done_worktree_add(manager, temp_git_repo)
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=temp_git_repo,
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+    with pytest.raises(RuntimeError, match="Filename too long"):
+        manager.create_worktree("HEAD", "partial-branch")
+
+    path = manager.worktree_root / "partial-branch"
+    assert not path.exists(), "the half-filled directory must not survive"
+    listed = subprocess.run(['git', 'worktree', 'list', '--porcelain'],
+                            cwd=temp_git_repo, capture_output=True, text=True).stdout
+    assert "partial-branch" not in listed, "the registration must be pruned"
+    branches = subprocess.run(['git', 'branch', '--list', 'partial-branch'],
+                              cwd=temp_git_repo, capture_output=True, text=True).stdout
+    assert "partial-branch" in branches, "the ref is kept until the ledger is terminal"
+
+    report = manager.reap_branches()
+    mine = [r for r in report if r["branch"] == "partial-branch"]
+    assert mine and mine[0]["action"] == "deleted", report
+    branches = subprocess.run(['git', 'branch', '--list', 'partial-branch'],
+                              cwd=temp_git_repo, capture_output=True, text=True).stdout
+    assert "partial-branch" not in branches
+    assert subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=temp_git_repo,
+                          capture_output=True, text=True).stdout.strip() == head
+
+
+def test_a_failed_worktree_add_that_never_wrote_the_ref_reaps_nothing(
+        temp_git_repo, worktree_root):
+    """git can also fail BEFORE the ref exists (bad base, refused path). Then
+    there is nothing to reap and the report must say ``absent``, never
+    ``deleted``."""
+    manager = GitWorktreeManager(temp_git_repo)
+    with pytest.raises(RuntimeError):
+        manager.create_worktree("not-a-revision", "never-born")
+    report = manager.reap_branches()
+    mine = [r for r in report if r["branch"] == "never-born"]
+    assert mine and mine[0]["action"] == "absent", report
+
+
 def test_git_is_told_long_paths_on_windows(temp_git_repo, worktree_root,
                                            monkeypatch):
     """``-c core.longpaths=true`` rides on every git call on Windows and on
