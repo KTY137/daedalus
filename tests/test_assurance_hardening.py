@@ -64,6 +64,13 @@ def repo(tmp_path):
     _git(root, "config", "user.email", "assurance@example.com")
     _git(root, "config", "user.name", "assurance")
     (root / "src" / "foo.py").write_text("def answer():\n    return 0\n")
+    # A second subject, in the same directory, that NOTHING on the criterion's
+    # import surface reaches. It exists because ``src/foo.py`` is not a
+    # genuinely disjoint write scope and never was: ``tests/test_gate.py``
+    # imports it through the ``sys.path`` insertion below, and until the import
+    # resolver could see through that insertion the tests here read "disjoint"
+    # off a blind spot instead of off the tree.
+    (root / "src" / "other.py").write_text("NOTE = 'not on any import path'\n")
     (root / "tests" / "test_gate.py").write_text(
         "import pathlib, sys\n"
         "sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'src'))\n"
@@ -112,16 +119,30 @@ def _honest(ctx):
     return {"note": "fixed the code"}
 
 
+def _honest_other(ctx):
+    """Write the subject the criterion does NOT import."""
+    (ctx.worktree / "src" / "other.py").write_text("NOTE = 'edited'\n")
+    return {"note": "edited a file no criterion imports"}
+
+
 def _green_gate(ctx):
     return GateResult(passed=True, name="probe-gate", command=GATE_COMMAND,
                       returncode=0, output="green\n", duration_s=0.1)
 
 
+def tmp_path_for(repo):
+    """A scratch directory beside the fixture repo, for tests without tmp_path."""
+    scratch = Path(repo).parent / "scratch"
+    scratch.mkdir(exist_ok=True)
+    return scratch
+
+
 def _run(repo, tmp_path, label, *, target_paths, criterion,
-         runner=_cheat, gate=_green_gate, **kwargs):
+         runner=_cheat, gate=_green_gate, gate_reads_scope=False, **kwargs):
     spec = TaskSpec(task_id=f"assurance-{label}", instruction="make it green",
                     base_revision=_base(repo), target_paths=target_paths,
-                    gate_criterion_paths=criterion, gate_timeout_s=60.0)
+                    gate_criterion_paths=criterion, gate_timeout_s=60.0,
+                    gate_reads_scope=gate_reads_scope)
     attempt = TaskAttempt(spec, runner=runner, gate=gate, repo_root=repo,
                           ledger_path=tmp_path / f"spine-{label}.sqlite3",
                           artifact_dir=tmp_path / f"store-{label}",
@@ -257,12 +278,12 @@ def test_an_execution_influencing_file_in_scope_breaks_the_seal(
         repo, tmp_path, label, in_scope):
     """The write scope reaches the criterion's execution, not its bytes."""
     _, result, contracts = _run(
-        repo, tmp_path, f"influence-{label}", runner=_honest,
-        target_paths=("src/foo.py", in_scope),
+        repo, tmp_path, f"influence-{label}", runner=_honest_other,
+        target_paths=("src/other.py", in_scope),
         criterion=("tests/test_gate.py",))
 
     assert result.state == "clean", result.error
-    assert list(result.artifact.changed_paths) == ["src/foo.py"]
+    assert list(result.artifact.changed_paths) == ["src/other.py"]
     assert _assurance(contracts) == "unverified"
     # The reason NAMES the file, because a receipt whose refusal cannot be
     # triaged back to one declaration is a refusal nobody can act on.
@@ -280,8 +301,8 @@ def test_a_sibling_that_influences_nothing_still_seals(repo, tmp_path):
     a guard that closes the hole by breaking the feature.
     """
     _, _, contracts = _run(
-        repo, tmp_path, "sibling-neutral", runner=_honest,
-        target_paths=("src/foo.py", "tests/test_other.py"),
+        repo, tmp_path, "sibling-neutral", runner=_honest_other,
+        target_paths=("src/other.py", "tests/test_other.py"),
         criterion=("tests/test_gate.py",))
 
     assert _assurance(contracts) == "deterministic"
@@ -317,32 +338,47 @@ def test_an_in_tree_module_the_criterion_imports_breaks_the_seal(
     assert "INSIDE the declared write scope" in why
 
 
-def test_an_import_that_resolves_to_nothing_in_the_tree_does_not_refuse(
+def test_a_sys_path_insertion_no_longer_hides_an_import_of_the_scope(
         repo, tmp_path):
-    """The measurement is an over-read CONFIRMED against the base tree.
+    """THE TEST THIS CHANGE REVERSES, and the finding it records.
 
-    ``tests/test_gate.py`` reaches ``src/foo.py`` -- the file the task declares
-    -- through a runtime ``sys.path`` insertion, which is exactly how the Gate-1
-    conformance suite reaches ``ignition_app``. A resolver that guessed instead
-    of confirming would call every repair task's own subject an import inside
-    the scope and take the seal away from the one production producer of
-    ``gate_criterion_paths``.
+    It used to read ``test_an_import_that_resolves_to_nothing_in_the_tree_does_
+    not_refuse`` and it asserted ``deterministic``: ``tests/test_gate.py``
+    reaches ``src/foo.py`` -- the file the task declares as its write scope --
+    through ``sys.path.insert(0, ROOT / 'src')``, the line regex could not
+    resolve it, and "resolved to nothing" was scored as "imports nothing inside
+    the scope". The criterion's assertion runs ``answer()``, which the candidate
+    wrote, so that ``deterministic`` was a false grant produced by not looking.
+
+    The same fixture, the same declaration, and now the refusal names the file.
     """
-    from daedalus.spine.receipts import criterion_import_probe_paths
-
-    source = (repo / "tests" / "test_gate.py").read_text(encoding="utf-8")
-    candidates = [path for _, path in
-                  criterion_import_probe_paths(source, "tests/test_gate.py")]
-    # `foo` is looked for at the root and beside the criterion, never under
-    # `src/`, so nothing it names exists and nothing is reported.
-    assert "foo.py" in candidates and "tests/foo.py" in candidates
-    assert "src/foo.py" not in candidates
-
     _, _, contracts = _run(
-        repo, tmp_path, "import-unresolved", runner=_honest,
+        repo, tmp_path, "import-via-syspath", runner=_honest,
         target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
 
+    assert _assurance(contracts) == "unverified"
+    why = _why(contracts)
+    assert "imports 'src/foo.py'" in why
+    assert "INSIDE the declared write scope" in why
+
+
+def test_the_same_import_seals_when_the_task_declares_it_a_conformance_test(
+        repo, tmp_path):
+    """A FAIL_TO_PASS test imports the code under test BY DESIGN.
+
+    Refusing every criterion that reaches its own subject would leave the seal
+    available only to criteria that judge nothing, so the import of the scope is
+    allowed -- when the task SAYS SO, in a field inside its own digest. The
+    reason then records how much of what judged the candidate the candidate
+    wrote, instead of a sentence that cannot tell the two situations apart.
+    """
+    _, _, contracts = _run(
+        repo, tmp_path, "import-declared", runner=_honest,
+        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",),
+        gate_reads_scope=True)
+
     assert _assurance(contracts) == "deterministic"
+    assert "conformance test reads its own scope by declaration" in _why(contracts)
 
 
 def test_unmeasured_imports_do_not_grant_the_seal():
@@ -366,27 +402,59 @@ def test_unmeasured_imports_do_not_grant_the_seal():
     ("from . import helpers\n", "tests/helpers.py"),
     ("from .helpers import check\n", "tests/helpers.py"),
     ("from tests.helpers import check\n", "tests/helpers.py"),
-    # the prefix chain executes too: `import a.b` runs `a/__init__.py`
-    ("import pkg.mod\n", "pkg/__init__.py"),
-    ("from pkg.mod import x\n", "pkg/mod/x.py"),
+    # the src/ layout, which the line regex this replaced could not see at all
+    ("from foo import answer\n", "src/foo.py"),
+    # and the same module reached by a dynamic call with a literal name
+    ("import importlib\nimportlib.import_module('foo')\n", "src/foo.py"),
 ])
 def test_the_import_reader_names_the_files_an_import_would_execute(
-        source, expected):
-    from daedalus.spine.receipts import criterion_import_probe_paths
+        repo, source, expected):
+    """The resolver reads the tree, so the fixture repo is the input.
 
-    paths = [path for _, path in
-             criterion_import_probe_paths(source, "tests/test_gate.py")]
+    The predecessor of this test asserted over a pure ``(source, criterion)``
+    function and therefore could only ever check the two roots that function
+    guessed. Everything below resolves against the real base revision, which is
+    what makes ``src/foo.py`` an answer at all.
+    """
+    from daedalus.spine.attempt import GateResult, TaskAttempt, TaskSpec
+    from daedalus.spine.receipts import import_surface_plan, resolve_import_plan
 
-    assert expected in paths
+    base = _base(repo)
+    criterion = "tests/test_gate.py"
+    spec = TaskSpec(task_id="reader", instruction="i", base_revision=base,
+                    target_paths=("src/foo.py",),
+                    gate_criterion_paths=(criterion,))
+    attempt = TaskAttempt(
+        spec, runner=lambda ctx: None,
+        gate=lambda ctx: GateResult(passed=True, name="g", command=()),
+        repo_root=repo, ledger_path=tmp_path_for(repo) / "reader.sqlite3",
+        artifact_dir=tmp_path_for(repo) / "reader-store",
+        mission_id="reader", reap=False)
+    listings = {}
+    roots, _reasons = attempt._import_roots(base, criterion, source, listings)
+    plan = import_surface_plan(source, criterion, roots=roots,
+                               package_root=attempt._owning_root(criterion, roots),
+                               package="")
+    surface = resolve_import_plan(
+        plan, attempt._tree_kinds(base, plan.probes, listings))
+
+    assert expected in [path for _key, path, _root in surface.files]
 
 
 # --------------------------------------------------------------------------- #
 # 2. the seal still works when it is honestly earned                           #
 # --------------------------------------------------------------------------- #
 def test_a_genuinely_disjoint_criterion_still_reads_deterministic(repo, tmp_path):
+    """GENUINELY disjoint, which ``src/foo.py`` never was.
+
+    ``src/other.py`` is on no import path of ``tests/test_gate.py``, so the
+    resolver walks the criterion's whole surface -- ``src/foo.py`` included --
+    and still finds nothing inside the scope. That is the seal earned by
+    measurement rather than by a gap in the measurement.
+    """
     _, result, contracts = _run(
-        repo, tmp_path, "honest", runner=_honest,
-        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
+        repo, tmp_path, "honest", runner=_honest_other,
+        target_paths=("src/other.py",), criterion=("tests/test_gate.py",))
 
     assert result.state == "clean"
     assert _assurance(contracts) == "deterministic"
@@ -411,8 +479,8 @@ def test_the_gate1_node_id_shape_still_reads_deterministic(repo, tmp_path):
             returncode=0, output="1 passed\n", duration_s=0.1)
 
     _, _, contracts = _run(
-        repo, tmp_path, "nodeid", runner=_honest, gate=node_id_gate,
-        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
+        repo, tmp_path, "nodeid", runner=_honest_other, gate=node_id_gate,
+        target_paths=("src/other.py",), criterion=("tests/test_gate.py",))
 
     assert _assurance(contracts) == "deterministic"
 
@@ -424,8 +492,8 @@ def test_a_gate_that_never_names_the_criterion_seals_nothing(repo, tmp_path):
                           returncode=0, output="green\n", duration_s=0.1)
 
     _, _, contracts = _run(
-        repo, tmp_path, "unread", runner=_honest, gate=elsewhere_gate,
-        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
+        repo, tmp_path, "unread", runner=_honest_other, gate=elsewhere_gate,
+        target_paths=("src/other.py",), criterion=("tests/test_gate.py",))
 
     assert _assurance(contracts) == "unverified"
     assert "never names" in _why(contracts)
@@ -437,8 +505,8 @@ def test_an_unknowable_gate_command_does_not_grant_the_seal(repo, tmp_path):
                           returncode=0, output="green\n", duration_s=0.1)
 
     _, _, contracts = _run(
-        repo, tmp_path, "silent", runner=_honest, gate=silent_gate,
-        target_paths=("src/foo.py",), criterion=("tests/test_gate.py",))
+        repo, tmp_path, "silent", runner=_honest_other, gate=silent_gate,
+        target_paths=("src/other.py",), criterion=("tests/test_gate.py",))
 
     assert _assurance(contracts) == "unverified"
     assert "not knowable" in _why(contracts)
@@ -466,9 +534,26 @@ def test_the_gate_command_is_matched_on_path_boundaries(
 @pytest.mark.parametrize("criterion", ["../outside.py", "C:/tmp/test_gate.py",
                                        "/etc/passwd"])
 def test_a_criterion_that_escapes_the_tree_is_refused_outright(criterion):
-    task = TaskSpec(task_id="escape", instruction="i", base_revision="0" * 40,
-                    target_paths=("src/foo.py",),
-                    gate_criterion_paths=(criterion,))
+    """TWO guards now, and the outer one fires first.
+
+    The declaration is refused where it is WRITTEN (``TaskSpec.__post_init__``),
+    so no such spec reaches the seal, the digest, the picker's pre-check, or a
+    runner's ``paths`` argument at all. The seal keeps its own refusal for the
+    duck-typed task objects it is documented to accept, asserted below -- a
+    guard that only holds because another guard holds is a guard that
+    disappears the first time the outer one moves.
+    """
+    from daedalus.spine.attempt import TaskSpecInvalid
+
+    with pytest.raises(TaskSpecInvalid) as refusal:
+        TaskSpec(task_id="escape", instruction="i", base_revision="0" * 40,
+                 target_paths=("src/foo.py",), gate_criterion_paths=(criterion,))
+    assert repr(criterion) in str(refusal.value)
+
+    task = type("T", (), {"gate_criterion_paths": (criterion,),
+                          "target_paths": ("src/foo.py",),
+                          "gate_argv": (), "fail_to_pass": (),
+                          "pass_to_pass": (), "gate_reads_scope": False})()
     result = type("R", (), {"gates": GateResult(passed=True, name="g",
                                                 command=GATE_COMMAND)})()
 

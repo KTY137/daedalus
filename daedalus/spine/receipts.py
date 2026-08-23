@@ -36,6 +36,7 @@ never papered over with a placeholder digest.
 """
 from __future__ import annotations
 
+import ast
 import os
 import posixpath
 import re
@@ -465,6 +466,99 @@ def criterion_probe_paths(task: Any) -> tuple[tuple[str, str], ...]:
     return tuple(probes)
 
 
+def tree_probes(paths: Sequence[Any]) -> tuple[tuple[str, str], ...]:
+    """``(comparison key, git-facing path)`` for arbitrary repo-relative paths.
+
+    The same two-spelling seam as :func:`criterion_probe_paths`, for the probes
+    that are not criteria: import roots, ``conftest.py`` files, project config.
+    One producer of both spellings, so the key a tree answer is filed under
+    cannot drift from the key the resolver looks it up by.
+    """
+
+    probes: dict[str, str] = {}
+    for raw in paths:
+        collapsed = _collapse_tree_path(raw)
+        if collapsed is None:
+            continue
+        probes.setdefault(_fold_case(collapsed), collapsed)
+    return tuple(sorted(probes.items()))
+
+
+def chain_directories(criterion: str) -> tuple[str, ...]:
+    """Repo root down to the criterion's own directory. See :func:`_chain_dirs`."""
+
+    return _chain_dirs(criterion)
+
+
+def module_dotted_name(path: str, root: str) -> tuple[str, str]:
+    """``(module dotted name, containing package)`` for an in-tree file."""
+
+    return _module_dotted(path, root)
+
+
+def path_config_files() -> tuple[str, ...]:
+    """Root config files that can put a directory on the import path."""
+
+    return _PATH_CONFIG_FILES
+
+
+def conventional_import_roots() -> tuple[str, ...]:
+    """Layout roots probed before they are believed (``src/``)."""
+
+    return _CONVENTIONAL_ROOTS
+
+
+def stdlib_top_level(name: str) -> bool:
+    """Whether a top-level module name is provided by the standard library."""
+
+    return str(name) in _STDLIB_NAMES
+
+
+def normalise_declared_paths(values: Sequence[Any], *, field: str) -> tuple[str, ...]:
+    """ONE canonical spelling for a declared path tuple, or refuse the declaration.
+
+    WHY THE REFUSAL BELONGS AT CONSTRUCTION AND NOT AT THE BOUNDARY. A declared
+    write scope is read by at least four things before any patch exists: the
+    picker's policy pre-check, the runner's ``paths`` argument, the receipt's
+    ``writable_paths``, and the containment gate. Only the last of those refused
+    an unusable declaration, so ``C:/evil`` and ``../outside`` were shown to an
+    operator, digested into the task identity, and handed to a runner as a real
+    write target -- and only the fourth reader turned them away. Refusing here
+    means every reader sees the same normal form or no TaskSpec at all.
+
+    Directories survive: ``tests`` is a legitimate declaration covering
+    ``tests/test_gate.py``, and :func:`containment_escapes` and
+    :func:`_inside_scope` both already read it that way.
+    """
+
+    normalised: list[str] = []
+    seen: dict[str, str] = {}
+    for raw in values or ():
+        text = str(raw)
+        if not text.strip():
+            raise ValueError(
+                f"declared {field} entry {text!r} is empty, so it names no "
+                "location in the tree"
+            )
+        collapsed = _collapse_tree_path(text)
+        if collapsed is None:
+            raise ValueError(
+                f"declared {field} entry {text!r} has no normal form inside the "
+                "tree (absolute, drive-lettered, or root-escaping); a boundary "
+                "that cannot be compared against the tree bounds nothing"
+            )
+        key = _fold_case(collapsed)
+        if key in seen:
+            raise ValueError(
+                f"declared {field} entries {seen[key]!r} and {text!r} are the "
+                f"same location {collapsed!r} spelled twice; one declaration "
+                "must have one meaning"
+            )
+        seen[key] = text
+        normalised.append(collapsed)
+    return tuple(normalised)
+
+
 def _inside_scope(path: str, scope: Sequence[str]) -> bool:
     """True when ``path`` is a declared write target or lives under one.
 
@@ -610,110 +704,697 @@ def _scope_reaches_criterion_execution(
     return None
 
 
-#: One import statement, cheaply. Deliberately a regex over lines and not an
-#: ``ast`` parse: the criterion is untrusted-adjacent text read out of a git
-#: blob, this runs on the receipt path of every attempt that declares one, and
-#: the answer is only ever used to ADD a refusal -- so a line this misses leaves
-#: the seal exactly as strong as it was before the check existed, while a parse
-#: that raised on an unparseable blob would destroy a finished projection.
-_IMPORT_LINE_RE = re.compile(
-    r"^[ \t]*(?:"
-    r"from[ \t]+(?P<pkg>\.*[A-Za-z_][A-Za-z0-9_.]*|\.+)[ \t]+import[ \t]+"
-    r"(?P<names>[^#\n]*)"
-    r"|import[ \t]+(?P<mods>[^#\n]*)"
-    r")",
-    re.MULTILINE,
+#: Every top-level module name this interpreter's standard library provides.
+#: Used in ONE direction only: to decide that an import which resolved to
+#: nothing in the tree is not a candidate for an in-tree file. It is never used
+#: to decide that an import IS in-tree -- a tree module that shadows a stdlib
+#: name resolves normally and wins, exactly as it would at run time.
+_STDLIB_NAMES = frozenset(getattr(sys, "stdlib_module_names", ())) | {"__future__"}
+
+#: Files that can put a directory on ``sys.path`` for a test run without any
+#: code in the criterion saying so.
+_PATH_CONFIG_FILES: tuple[str, ...] = (
+    "pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini",
 )
+
+#: The layout this repository (and most Python projects) actually uses, probed
+#: as a directory before it is believed. Named as a constant rather than
+#: hard-coded at the use site so a project with another convention has one
+#: place to state it.
+_CONVENTIONAL_ROOTS: tuple[str, ...] = ("src",)
+
+#: Ceiling on how many in-tree files one criterion's import surface may reach
+#: before the resolver stops walking. Hitting it is reported as UNKNOWABLE, not
+#: silently truncated: a surface that stopped being read halfway is exactly the
+#: shape of a vacuous pass.
+MAX_IMPORT_SURFACE_FILES = 256
+
+#: The import machinery whose target cannot be read off the syntax tree. A
+#: literal ``importlib.import_module("pkg.mod")`` IS read (below); everything
+#: else here makes the surface unknowable rather than empty.
+_OPAQUE_IMPORT_CALLS = frozenset({
+    "importlib.util.spec_from_file_location",
+    "spec_from_file_location",
+    "importlib.machinery.SourceFileLoader",
+    "machinery.SourceFileLoader",
+    "SourceFileLoader",
+    "imp.load_source",
+    "imp.load_module",
+    "runpy.run_path",
+    "runpy.run_module",
+    "pkgutil.iter_modules",
+})
+
+_DYNAMIC_IMPORT_CALLS = frozenset({
+    "importlib.import_module", "import_module", "__import__",
+})
+
+
+class _Unevaluable(Exception):
+    """A path expression this resolver refuses to guess at."""
 
 
 def _tree_join(root: str, rel: str) -> str:
     return rel if not root else f"{root}/{rel}"
 
 
-def _module_tree_paths(root: str, dotted: str) -> list[str]:
-    """Every in-tree file importing ``dotted`` from ``root`` would EXECUTE.
+def _tree_up(path: str, levels: int) -> str:
+    """``levels`` directories up from ``path``, or refuse to leave the tree."""
 
-    ``import a.b.c`` runs ``a/__init__.py`` and ``a/b/__init__.py`` on the way,
-    so the whole prefix chain is named, not just the leaf. The leaf gets both
-    spellings a module can have (``a/b/c.py`` and ``a/b/c/__init__.py``).
+    current = path
+    for _ in range(int(levels)):
+        if not current:
+            raise _Unevaluable
+        current = current.rpartition("/")[0]
+    return current
+
+
+def _dir_from_text(value: Any) -> str:
+    """A literal string read as a repo-relative directory, or refuse.
+
+    ``"."`` and ``""`` ARE the repository root and normalise to it;
+    :func:`_collapse_tree_path` refuses both because an empty *declaration* has
+    no meaning, while an empty *path expression* is the root and does.
     """
 
-    parts = [part for part in dotted.split(".") if part]
-    if not parts:
+    text = str(value).strip().replace("\\", "/")
+    if text in ("", ".", "./"):
+        return ""
+    settled = _collapse_tree_path(text)
+    if settled is None:
+        raise _Unevaluable
+    return settled
+
+
+def _call_name(node: Any) -> str:
+    """``os.path.dirname`` for the dotted callee of a call, or ``""``."""
+
+    parts: list[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if isinstance(current, ast.Name):
+        parts.append(current.id)
+    elif parts:
+        return ""
+    return ".".join(reversed(parts))
+
+
+def _static_tree_dir(node: Any, *, module_path: str, env: Mapping[str, str]) -> str:
+    """The repo-relative location an AST path expression names, or refuse.
+
+    A DELIBERATELY SMALL INTERPRETER, and the smallness is the safety. It knows
+    the handful of spellings a test file actually uses to put a directory on
+    ``sys.path`` -- ``Path(__file__).resolve().parents[1] / "src"``,
+    ``os.path.join(os.path.dirname(__file__), "..", "src")``, a bare literal --
+    and raises :class:`_Unevaluable` on everything else. Raising is the safe
+    direction: an unevaluable ``sys.path`` mutation is reported as an
+    UNKNOWABLE import surface, which refuses the seal, whereas guessing a root
+    would silently decide which files the criterion can reach.
+    """
+
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, str):
+            raise _Unevaluable
+        return _dir_from_text(node.value)
+    if isinstance(node, ast.Name):
+        if node.id == "__file__":
+            return module_path
+        if node.id in env:
+            return env[node.id]
+        raise _Unevaluable
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left = _static_tree_dir(node.left, module_path=module_path, env=env)
+        right = _static_tree_dir(node.right, module_path=module_path, env=env)
+        return _tree_join(left, right) if right else left
+    if isinstance(node, ast.Attribute):
+        if node.attr == "parent":
+            return _tree_up(
+                _static_tree_dir(node.value, module_path=module_path, env=env), 1)
+        raise _Unevaluable
+    if isinstance(node, ast.Subscript):
+        holder = node.value
+        # NOT ``getattr(node.slice, "value", node.slice)``. On 3.9+ the slice IS
+        # the expression, so reading ``.value`` off a Constant yields the python
+        # int rather than the node, and the isinstance check below then fails on
+        # every ``parents[1]`` there is -- measured: it made the Gate-1 shape's
+        # own sys.path insertion unevaluable.
+        index = node.slice
+        if index.__class__.__name__ == "Index":  # pragma: no cover - py<3.9
+            index = index.value
+        if (isinstance(holder, ast.Attribute) and holder.attr == "parents"
+                and isinstance(index, ast.Constant)
+                and isinstance(index.value, int) and index.value >= 0):
+            return _tree_up(
+                _static_tree_dir(holder.value, module_path=module_path, env=env),
+                index.value + 1)
+        raise _Unevaluable
+    if isinstance(node, ast.Call):
+        name = _call_name(node.func)
+        # The METHOD name, taken off the attribute rather than off the dotted
+        # callee: `Path(__file__).resolve()` has a Call as its receiver, so
+        # _call_name() cannot name it at all and a dotted-tail read would miss
+        # every chained `.resolve()` -- which is the single most common way a
+        # test file spells its own root. Measured: it made the Gate-1 shape's
+        # sys.path insertion unevaluable and therefore unknowable.
+        tail = (node.func.attr if isinstance(node.func, ast.Attribute)
+                else name.rpartition(".")[2])
+        args = list(node.args)
+        if tail in ("resolve", "absolute", "expanduser") and not args:
+            return _static_tree_dir(
+                node.func.value, module_path=module_path, env=env)
+        if tail == "joinpath" and args:
+            base = _static_tree_dir(
+                node.func.value, module_path=module_path, env=env)
+            for arg in args:
+                piece = _static_tree_dir(arg, module_path=module_path, env=env)
+                base = _tree_join(base, piece) if piece else base
+            return _collapse_or_root(base)
+        if tail in ("Path", "PurePath", "PosixPath", "str", "fspath") and len(args) == 1:
+            return _static_tree_dir(args[0], module_path=module_path, env=env)
+        if name in ("os.path.dirname", "path.dirname", "dirname") and len(args) == 1:
+            return _tree_up(
+                _static_tree_dir(args[0], module_path=module_path, env=env), 1)
+        if name in ("os.path.abspath", "os.path.realpath", "os.path.normpath",
+                    "path.abspath", "path.realpath", "path.normpath",
+                    "abspath", "realpath", "normpath") and len(args) == 1:
+            return _collapse_or_root(
+                _static_tree_dir(args[0], module_path=module_path, env=env))
+        if name in ("os.path.join", "path.join", "join") and args:
+            base = _static_tree_dir(args[0], module_path=module_path, env=env)
+            for arg in args[1:]:
+                piece = str(getattr(arg, "value", "")) if isinstance(
+                    arg, ast.Constant) else None
+                if piece is None:
+                    piece = _static_tree_dir(arg, module_path=module_path, env=env)
+                base = f"{base}/{piece}" if base else piece
+            return _collapse_or_root(base)
+    raise _Unevaluable
+
+
+def _collapse_or_root(text: str) -> str:
+    """``_dir_from_text`` that keeps the root spelled as the empty string."""
+
+    return _dir_from_text(text) if text else ""
+
+
+def _static_env(tree: Any, *, module_path: str) -> dict[str, str]:
+    """Simple-name bindings whose value is a statically readable location.
+
+    Document order over the WHOLE tree rather than the module body alone: a
+    ``ROOT = ...`` inside the fixture function that then inserts it is the same
+    binding, and reading it costs nothing a later unevaluable expression does
+    not already refuse.
+    """
+
+    env: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        try:
+            env[target.id] = _static_tree_dir(
+                node.value, module_path=module_path, env=env)
+        except (_Unevaluable, RecursionError):
+            env.pop(target.id, None)
+    return env
+
+
+def _sys_path_names(tree: Any) -> tuple[set[str], set[str]]:
+    """``(names bound to the sys module, names bound to sys.path itself)``."""
+
+    modules = {"sys"}
+    paths: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "sys":
+                    modules.add(alias.asname or "sys")
+        elif isinstance(node, ast.ImportFrom) and node.module == "sys" and not node.level:
+            for alias in node.names:
+                if alias.name == "path":
+                    paths.add(alias.asname or "path")
+    return modules, paths
+
+
+def sys_path_roots(
+    source: str, module_path: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """``(roots this file puts on sys.path, reasons it could not be read)``.
+
+    THE FIRST OF THE FIVE DECLARED BLIND SPOTS, CLOSED IN BOTH DIRECTIONS. A
+    ``sys.path`` insertion this can evaluate becomes a real import root, so an
+    import reached through it resolves and is judged. A ``sys.path`` mutation it
+    cannot evaluate becomes a REASON, so the criterion's surface reads
+    unknowable and the seal refuses -- instead of the previous behaviour, where
+    an unmodelled insertion simply made every import through it invisible and
+    the check passed over an empty set.
+
+    Reads of ``sys.path`` (``if str(d) not in sys.path``) are not mutations and
+    are ignored.
+    """
+
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError, RecursionError) as exc:
+        return (), (
+            f"{module_path!r} does not parse ({type(exc).__name__}), so what it "
+            "imports is not knowable",
+        )
+    modules, path_aliases = _sys_path_names(tree)
+
+    def is_sys_path(node: Any) -> bool:
+        if isinstance(node, ast.Attribute) and node.attr == "path":
+            return isinstance(node.value, ast.Name) and node.value.id in modules
+        return isinstance(node, ast.Name) and node.id in path_aliases
+
+    env = _static_env(tree, module_path=module_path)
+    roots: list[str] = []
+    reasons: list[str] = []
+
+    def refuse(node: Any, what: str) -> None:
+        reasons.append(
+            f"{module_path!r} line {getattr(node, 'lineno', 0)} {what}, so the "
+            "directories it puts on sys.path -- and therefore what the "
+            "criterion imports -- are not knowable"
+        )
+
+    def take(node: Any) -> None:
+        try:
+            roots.append(_static_tree_dir(node, module_path=module_path, env=env))
+        except (_Unevaluable, RecursionError):
+            refuse(node, "inserts an expression this resolver cannot evaluate "
+                         "onto sys.path")
+
+    def elements(node: Any) -> list[Any] | None:
+        return list(node.elts) if isinstance(node, (ast.List, ast.Tuple)) else None
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and is_sys_path(node.func.value):
+            attr, args = node.func.attr, list(node.args)
+            if attr == "insert" and len(args) == 2:
+                take(args[1])
+            elif attr == "append" and len(args) == 1:
+                take(args[0])
+            elif attr == "extend" and len(args) == 1:
+                items = elements(args[0])
+                if items is None:
+                    refuse(node, "extends sys.path from a non-literal sequence")
+                else:
+                    for item in items:
+                        take(item)
+            elif attr in ("remove", "pop", "clear", "sort", "reverse", "index",
+                          "count", "copy"):
+                continue
+            else:
+                refuse(node, f"calls sys.path.{attr}()")
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                subscript = (isinstance(target, ast.Subscript)
+                             and is_sys_path(target.value))
+                if not (is_sys_path(target) or subscript):
+                    continue
+                items = elements(node.value)
+                if items is None:
+                    refuse(node, "assigns a non-literal sequence to sys.path")
+                else:
+                    for item in items:
+                        take(item)
+        elif isinstance(node, ast.AugAssign) and is_sys_path(node.target):
+            items = elements(node.value)
+            if items is None:
+                refuse(node, "extends sys.path from a non-literal sequence")
+            else:
+                for item in items:
+                    take(item)
+    return tuple(dict.fromkeys(roots)), tuple(dict.fromkeys(reasons))
+
+
+#: ``pythonpath = ["src", "."]`` / ``pythonpath = src .`` in any of the config
+#: files pytest reads, plus setuptools' ``where``/``package-dir``. Parsed with a
+#: line reader rather than a TOML/INI parser because this module must run on the
+#: interpreter the spine runs on (3.10, no ``tomllib``) and because the answer
+#: only ever ADDS roots or a reason.
+_CONFIG_ROOT_KEYS = re.compile(
+    r"^[ \t]*(?P<key>pythonpath|where|package-dir|package_dir)[ \t]*=[ \t]*"
+    r"(?P<value>.*)$",
+    re.MULTILINE,
+)
+_CONFIG_LITERAL = re.compile(r"""['"]([^'"]*)['"]""")
+
+
+def _config_literals(raw: str) -> list[str]:
+    """The path literals a config value states, or ``[]`` if it states none.
+
+    ``[]`` MUST mean "this value names roots I cannot read", so a value that
+    computes its entry -- ``pythonpath = [os.environ["X"]]`` -- has to come back
+    empty rather than yielding the ``"X"`` a naive quoted-string scan finds
+    inside it. That is the whole reason this is not one regex: the regex read
+    the inner literal of an expression and turned an unknowable declaration into
+    a confident wrong root.
+
+    A TOML inline table (``package-dir = {"" = "src"}``) is the one shape read
+    permissively, by taking its quoted strings: an extra root that does not
+    exist resolves nothing, whereas refusing every ``src``-layout ``pyproject``
+    would make the whole surface unknowable for the commonest layout there is.
+    """
+
+    if not raw:
         return []
-    out = [
-        _tree_join(root, "/".join(parts[: i + 1]) + "/__init__.py")
-        for i in range(len(parts))
-    ]
-    out.append(_tree_join(root, "/".join(parts) + ".py"))
-    return out
+    if raw.startswith("{"):
+        return [piece for piece in _CONFIG_LITERAL.findall(raw) if piece.strip()]
+    try:
+        parsed = ast.literal_eval(raw)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        parsed = None
+    if isinstance(parsed, str):
+        return [parsed]
+    if isinstance(parsed, (list, tuple)):
+        return [piece for piece in parsed if isinstance(piece, str)]
+    if parsed is not None:
+        return []
+    # INI spelling: `pythonpath = src lib`. Accepted only when every character
+    # is one a path or a separator can be made of, so an expression falls
+    # through to "unreadable" instead of being split into tokens.
+    if re.fullmatch(r"[\w./\ 	,-]*", raw):
+        return [piece for piece in re.split(r"[\s,]+", raw) if piece]
+    return []
 
 
-def criterion_import_probe_paths(
-    source: str, criterion: str
-) -> tuple[tuple[str, str], ...]:
-    """``(comparison key, git-facing path)`` for what the criterion imports.
+def config_import_roots(path: str, text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """``(roots, reasons)`` a project config file puts on the import path.
 
-    Resolved against TWO roots -- the repository root and the criterion's own
-    directory -- plus explicit relative imports, which are the three routes an
-    in-tree helper module is reached by in practice. It does NOT model
-    ``sys.path`` manipulation, ``src/`` layouts, installed distributions, or
-    namespace packages, and saying so is the point: this is a cheap over-read
-    whose hits the caller still has to confirm against the base tree, and whose
-    misses cost nothing because a miss is simply the seal as it stood before.
+    A key that names roots but yields no readable literal is a REASON, not an
+    empty answer: ``pythonpath = {os.environ["X"]}`` genuinely means the
+    criterion's import surface cannot be read off the tree.
+    """
 
-    Same ``(key, path)`` seam as :func:`criterion_probe_paths`, for the same
-    reason -- the caller asks git in the tree's spelling and the seal compares
-    in this host's case semantics, and those two must not drift apart.
+    roots: list[str] = []
+    reasons: list[str] = []
+    for match in _CONFIG_ROOT_KEYS.finditer(text):
+        raw = match.group("value").split("#", 1)[0].strip()
+        literals = _config_literals(raw)
+        found = False
+        for literal in literals:
+            try:
+                roots.append(_dir_from_text(literal))
+            except _Unevaluable:
+                continue
+            found = True
+        if not found and raw:
+            reasons.append(
+                f"{path!r} sets {match.group('key')!r} to {raw!r}, which names "
+                "import roots this resolver cannot read, so the criterion's "
+                "import surface is not knowable"
+            )
+    return tuple(dict.fromkeys(roots)), tuple(dict.fromkeys(reasons))
+
+
+@dataclass(frozen=True)
+class ImportSite:
+    """One import statement, resolved to an absolute dotted name and its roots."""
+
+    statement: str
+    dotted: str
+    roots: tuple[str, ...]
+    names: tuple[str, ...] = ()
+    lineno: int = 0
+
+    @property
+    def top_level(self) -> str:
+        return self.dotted.partition(".")[0]
+
+
+@dataclass(frozen=True)
+class ImportPlan:
+    """What to ask the base tree about, for one module's imports."""
+
+    module_path: str
+    sites: tuple[ImportSite, ...] = ()
+    probes: tuple[tuple[str, str], ...] = ()
+    errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ImportSurface:
+    """What one module's imports resolved to, once the tree answered."""
+
+    files: tuple[tuple[str, str, str], ...] = ()
+    unresolved: tuple[tuple[str, str], ...] = ()
+    errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class CriterionImportSurface:
+    """The criterion's whole import surface, as the seal needs to read it.
+
+    ``paths`` are comparison keys (:func:`_normalise_tree_path` form) for the
+    in-tree files the criterion's imports -- and their imports -- would execute.
+    ``unknowable`` is the list of reasons the surface could NOT be read; a
+    non-empty one refuses the seal, which is the difference between this and
+    the line-regex it replaces.
+    """
+
+    paths: tuple[str, ...] = ()
+    unknowable: tuple[str, ...] = ()
+
+
+def _import_surface(value: Any) -> CriterionImportSurface:
+    """Read any of the three shapes a caller may hand the seal.
+
+    A bare sequence of paths is the LEGACY shape and is read as "resolved, with
+    nothing unknowable" -- callers that predate the unknowable half (and the
+    tests that pin the seal's other five checks) keep working unchanged.
+    """
+
+    if isinstance(value, CriterionImportSurface):
+        return value
+    if isinstance(value, Mapping):
+        return CriterionImportSurface(
+            paths=tuple(str(p) for p in value.get("paths", ()) or ()),
+            unknowable=tuple(str(r) for r in value.get("unknowable", ()) or ()),
+        )
+    return CriterionImportSurface(paths=tuple(str(p) for p in value or ()))
+
+
+def _module_dotted(path: str, root: str) -> tuple[str, str]:
+    """``(module dotted name, containing package dotted name)`` under ``root``."""
+
+    rel = path[len(root) + 1:] if root else path
+    stem = rel[:-3] if rel.endswith(".py") else rel
+    parts = [part for part in stem.split("/") if part]
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+        return ".".join(parts), ".".join(parts)
+    return ".".join(parts), ".".join(parts[:-1])
+
+
+def import_surface_plan(
+    source: str,
+    module_path: str,
+    *,
+    roots: Sequence[str],
+    package_root: str = "",
+    package: str = "",
+) -> ImportPlan:
+    """Parse one module and name every file each import COULD execute.
+
+    ``ast.parse``, not a line regex, and the difference is the whole point of
+    this seam. The regex it replaces could not see a ``src/`` layout, a
+    ``sys.path`` insertion, a relative import inside a package, a namespace
+    package, or ``importlib.import_module``; each of those made an import
+    INVISIBLE, and an invisible import is a check that passes over an empty set.
+    Here a construct that cannot be read becomes an ``errors`` entry instead,
+    and the seal refuses on it.
+
+    A parse failure is likewise an error rather than an exception: the caller is
+    projecting a finished attempt and must not lose the projection, but it must
+    also not call an unreadable criterion sealed.
+    """
+
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError, RecursionError) as exc:
+        return ImportPlan(module_path=module_path, errors=(
+            f"{module_path!r} does not parse ({type(exc).__name__}: {exc}), so "
+            "the code its gate executes is not knowable",
+        ))
+
+    roots = tuple(dict.fromkeys(str(r) for r in roots))
+    sites: list[ImportSite] = []
+    errors: list[str] = []
+    package_parts = [part for part in package.split(".") if part]
+
+    def absolute(dotted: str, names: Sequence[str], node: Any, statement: str) -> None:
+        sites.append(ImportSite(statement=statement, dotted=dotted, roots=roots,
+                                names=tuple(names), lineno=getattr(node, "lineno", 0)))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                absolute(alias.name, (), node, f"import {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            stem = node.module or ""
+            names = tuple(alias.name for alias in node.names if alias.name != "*")
+            statement = (f"from {'.' * (node.level or 0)}{stem} import "
+                         f"{', '.join(a.name for a in node.names)}")
+            if not node.level:
+                absolute(stem, names, node, statement)
+                continue
+            climb = node.level - 1
+            if climb > len(package_parts):
+                errors.append(
+                    f"{module_path!r} line {node.lineno}: {statement!r} climbs "
+                    "above the package root this resolver placed it in, so what "
+                    "it imports is not knowable"
+                )
+                continue
+            base = package_parts[:len(package_parts) - climb] if climb else list(package_parts)
+            dotted = ".".join(base + [p for p in stem.split(".") if p])
+            sites.append(ImportSite(statement=statement, dotted=dotted,
+                                    roots=(package_root,), names=names,
+                                    lineno=node.lineno))
+        elif isinstance(node, ast.Call):
+            name = _call_name(node.func)
+            if name in _OPAQUE_IMPORT_CALLS:
+                errors.append(
+                    f"{module_path!r} line {node.lineno} calls {name}(), which "
+                    "loads code from a location no syntax tree names, so the "
+                    "criterion's import surface is not knowable"
+                )
+            elif name in _DYNAMIC_IMPORT_CALLS:
+                first = node.args[0] if node.args else None
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    absolute(first.value, (), node, f"{name}({first.value!r})")
+                else:
+                    errors.append(
+                        f"{module_path!r} line {node.lineno} calls {name}() with "
+                        "a module name this resolver cannot read, so the "
+                        "criterion's import surface is not knowable"
+                    )
+
+    probes: dict[str, str] = {}
+
+    def probe(path: str) -> None:
+        if path:
+            probes.setdefault(_fold_case(path), path)
+
+    for root in roots:
+        probe(root)
+    for site in sites:
+        parts = [part for part in site.dotted.split(".") if part]
+        for root in site.roots:
+            probe(root)
+            current = root
+            for index, part in enumerate(parts):
+                current = _tree_join(current, part)
+                probe(current)
+                probe(f"{current}/__init__.py")
+                if index == len(parts) - 1:
+                    probe(f"{current}.py")
+            for name in site.names:
+                leaf = _tree_join(current, name)
+                probe(leaf)
+                probe(f"{leaf}.py")
+                probe(f"{leaf}/__init__.py")
+    return ImportPlan(
+        module_path=module_path,
+        sites=tuple(sites),
+        probes=tuple(sorted(probes.items())),
+        errors=tuple(dict.fromkeys(errors)),
+    )
+
+
+def _resolve_under_root(
+    root: str, parts: Sequence[str], names: Sequence[str],
+    kinds: Mapping[str, str],
+) -> list[str] | None:
+    """Files ``import <parts>`` from ``root`` executes, or ``None`` if it cannot.
+
+    ``[]`` and ``None`` are different answers and the difference is load-bearing:
+    ``[]`` is "this root DOES provide the module and no in-tree file runs"
+    (a namespace package), ``None`` is "this root does not provide it at all"
+    -- only the second lets the name fall through to the unresolved list.
+    """
+
+    if root and kinds.get(_fold_case(root)) != "tree":
+        return None
+    found: list[str] = []
+    current = root
+    for index, part in enumerate(parts):
+        current = _tree_join(current, part)
+        last = index == len(parts) - 1
+        if kinds.get(_fold_case(current)) == "tree":
+            init = f"{current}/__init__.py"
+            if kinds.get(_fold_case(init)) == "blob":
+                found.append(init)
+            if last:
+                # A directory and a module file can both exist; the finder
+                # prefers the package, but naming both is the safe over-read.
+                sibling = f"{current}.py"
+                if kinds.get(_fold_case(sibling)) == "blob":
+                    found.append(sibling)
+            continue
+        if last:
+            module = f"{current}.py"
+            if kinds.get(_fold_case(module)) == "blob":
+                found.append(module)
+                return found
+        return None
+    for name in names:
+        leaf = _tree_join(current, name)
+        for spelling in (f"{leaf}.py", f"{leaf}/__init__.py"):
+            if kinds.get(_fold_case(spelling)) == "blob":
+                found.append(spelling)
+    return found
+
+
+def resolve_import_plan(plan: ImportPlan, kinds: Mapping[str, str]) -> ImportSurface:
+    """Turn a plan plus the base tree's answers into files, gaps, and reasons."""
+
+    files: dict[str, tuple[str, str, str]] = {}
+    unresolved: list[tuple[str, str]] = []
+    for site in plan.sites:
+        parts = [part for part in site.dotted.split(".") if part]
+        resolved = False
+        for root in site.roots:
+            found = _resolve_under_root(root, parts, site.names, kinds)
+            if found is None:
+                continue
+            resolved = True
+            for path in found:
+                files.setdefault(_fold_case(path), (_fold_case(path), path, root))
+        if not resolved:
+            unresolved.append((site.statement, site.top_level or site.dotted))
+    return ImportSurface(
+        files=tuple(files[key] for key in sorted(files)),
+        unresolved=tuple(dict.fromkeys(unresolved)),
+        errors=plan.errors,
+    )
+
+
+def pytest_basedir(criterion: str, kinds: Mapping[str, str]) -> str:
+    """The directory pytest's ``prepend`` import mode puts on ``sys.path``.
+
+    The first ancestor of the criterion WITHOUT an ``__init__.py``: with no
+    package the test's own directory goes on the path, and inside a package the
+    package's parent does. Modelling only the first case would miss every
+    criterion that lives in a real test package.
     """
 
     directory = criterion.rpartition("/")[0]
-    candidates: list[str] = []
-    for match in _IMPORT_LINE_RE.finditer(source):
-        pkg, names, mods = match.group("pkg"), match.group("names"), match.group("mods")
-        if mods is not None:
-            for piece in mods.split(","):
-                dotted = piece.strip().split(" as ")[0].strip()
-                if not dotted or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", dotted):
-                    continue
-                for root in ("", directory):
-                    candidates.extend(_module_tree_paths(root, dotted))
-            continue
-        dots = len(pkg) - len(pkg.lstrip("."))
-        stem = pkg[dots:]
-        if dots:
-            # `from . import x` is this directory; every extra dot climbs one.
-            climbed = directory
-            for _ in range(dots - 1):
-                if not climbed:
-                    climbed = None
-                    break
-                climbed = climbed.rpartition("/")[0]
-            if climbed is None:
-                continue
-            roots = (climbed,)
-        else:
-            roots = ("", directory)
-        imported = []
-        for piece in (names or "").replace("(", " ").replace(")", " ").split(","):
-            name = piece.strip().split(" as ")[0].strip()
-            if name and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-                imported.append(name)
-        for root in roots:
-            base = _tree_join(root, stem.replace(".", "/")) if stem else root
-            if stem:
-                candidates.extend(_module_tree_paths(root, stem))
-            for name in imported:
-                candidates.extend(_module_tree_paths(base, name))
-    probes: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for raw in candidates:
-        collapsed = _collapse_tree_path(raw)
-        if collapsed is None or collapsed in seen:
-            continue
-        seen.add(collapsed)
-        probes.append((_fold_case(collapsed), collapsed))
-    return tuple(probes)
+    while directory:
+        if kinds.get(_fold_case(f"{directory}/__init__.py")) != "blob":
+            return directory
+        parent = directory.rpartition("/")[0]
+        if parent == directory:
+            break
+        directory = parent
+    return directory
 
 
 def _gate_mentions(criterion: str, args: Sequence[Any]) -> bool:
@@ -822,11 +1503,21 @@ def evaluator_assurance_detail(
     contained = bool(getattr(containment, "contained", False))
 
     if criterion_raw:
-        why = _criterion_seal(
+        why, reads_scope = _criterion_seal(
             criterion_raw, task, gate,
             criterion_present=criterion_present,
             criterion_imports=criterion_imports,
         )
+        if why is None and reads_scope:
+            return (
+                "deterministic",
+                "declared gate criterion is outside the armed write scope, "
+                "present in the base revision tree, reached by no "
+                "execution-influencing file the scope covers, and named by the "
+                "gate that ran; the in-tree modules it imports DO lie inside "
+                "that scope, which the task declares -- conformance test reads "
+                "its own scope by declaration",
+            )
         if why is None:
             return (
                 "deterministic",
@@ -863,13 +1554,18 @@ def _criterion_seal(
     gate: Any,
     *,
     criterion_present: Mapping[str, bool] | None,
-    criterion_imports: Mapping[str, Sequence[str]] | None = None,
-) -> str | None:
-    """``None`` when the declared criterion seals the verdict, else the reason.
+    criterion_imports: Mapping[str, Any] | None = None,
+) -> tuple[str | None, bool]:
+    """``(None, reads_scope)`` when the criterion seals the verdict, else the reason.
 
     Split out of :func:`evaluator_assurance_detail` so each refusal returns a
     sentence naming the exact fact that was missing. A seal that fails silently
     into a boolean is a seal whose failures cannot be triaged from a receipt.
+
+    The second element is ``True`` when the seal held ONLY because the task
+    declared this gate a conformance test of its own write scope. It travels
+    back so the granted reason can say so, rather than letting one sentence
+    stand for two materially different situations.
 
     THE CRITERION FILE IS NOT THE CRITERION. Checks 1-4 all measured the
     criterion as a BLOB: normal form, disjointness from the scope, presence in
@@ -885,17 +1581,30 @@ def _criterion_seal(
     5. no scope entry is, contains, or names an execution-influencing file on
        the chain from the repository root down to the criterion's directory
        (:func:`_scope_reaches_criterion_execution`);
-    6. no in-tree module the criterion imports lies inside the scope.
+    6. no in-tree module the criterion imports lies inside the scope, AND the
+       whole import surface was readable.
 
-    Check 6 is deliberately conservative and deliberately incomplete. The
-    caller resolves the import lines against the BASE TREE and passes only the
-    files that really exist there, so a subject reached through a runtime
-    ``sys.path`` insertion or a ``src/`` layout -- which is how the Gate-1
-    conformance suite reaches ``ignition_app``, measured -- is not named and not
-    refused. Where it DOES fire, it fires on a repair task whose criterion
-    imports its own subject by an in-tree path; that is a downgrade to
-    ``unverified``, never a false grant, and the honest reading of a gate whose
-    judging code is partly candidate-authored.
+    CHECK 6 USED TO PASS BY NOT LOOKING. It read the criterion's imports with a
+    line regex against two roots, so a ``src/`` layout, a ``sys.path``
+    insertion, a relative import inside a package, a namespace package and
+    ``importlib.import_module`` each resolved to nothing -- and "resolved to
+    nothing" was scored as "imports nothing inside the scope". The Gate-1
+    ignition slice sealed through exactly that gap: its conformance suite
+    inserts ``<root>/src`` on ``sys.path`` and imports ``ignition_app``, whose
+    package reaches the very files the code/type work item writes. The check now
+    resolves the surface for real (:func:`import_surface_plan`) and a surface it
+    cannot read is a REFUSAL naming the import, never an empty set.
+
+    THE ONE DECLARED EXCEPTION. A FAIL_TO_PASS conformance test imports the
+    code the candidate writes -- that is what it is FOR, and refusing every such
+    gate would leave the seal reachable only by criteria that judge nothing. So
+    an import of the scope is allowed when, and only when, the task DECLARES
+    this gate a conformance test of that scope (``TaskSpec.gate_reads_scope``,
+    or a ``fail_to_pass`` node id naming the criterion). Undeclared, it still
+    refuses. The declaration does not soften checks 1-5: the criterion file
+    itself, and everything on its collection path, must still be outside the
+    scope, so the candidate can change what the gate MEASURES and never what
+    the gate ASKS.
     """
 
     scope_raw = tuple(getattr(task, "target_paths", ()) or ())
@@ -904,7 +1613,7 @@ def _criterion_seal(
             "the task declares a gate criterion but NO target_paths, so "
             "containment was never armed and the criterion is not outside any "
             "boundary"
-        )
+        ), False
     scope: list[str] = []
     for raw in scope_raw:
         normalised = _normalise_tree_path(raw)
@@ -913,65 +1622,106 @@ def _criterion_seal(
                 f"declared target path {str(raw)!r} has no normal form inside "
                 "the tree (absolute or root-escaping), so the write scope "
                 "cannot be compared against the criterion"
-            )
+            ), False
         scope.append(normalised)
 
     argv = tuple(getattr(task, "gate_argv", ()) or ())
     command = tuple(getattr(gate, "command", ()) or ())
     mentions = (*argv, *command)
 
+    reads_scope = False
     for raw in criterion_raw:
         criterion = _normalise_tree_path(raw)
         if criterion is None:
             return (
                 f"declared gate criterion {str(raw)!r} has no normal form "
                 "inside the tree (absolute or root-escaping)"
-            )
+            ), False
         if _inside_scope(criterion, scope):
             return (
                 f"declared gate criterion {criterion!r} is INSIDE the declared "
                 "write scope, so the candidate was allowed to edit the thing "
                 "that judged it"
-            )
+            ), False
         reached = _scope_reaches_criterion_execution(criterion, scope)
         if reached is not None:
-            return reached
+            return reached, False
         if criterion_present is None:
             return (
                 "the criterion's presence in the base revision tree was not "
                 "measured, so it cannot be shown the candidate had no reach "
                 "over it"
-            )
+            ), False
         if not criterion_present.get(criterion, False):
             return (
                 f"declared gate criterion {criterion!r} is not a regular file "
                 "in the base revision tree, so it sealed nothing"
-            )
+            ), False
         if criterion_imports is None:
             return (
                 f"the modules {criterion!r} imports were not resolved against "
                 "the base revision tree, so it cannot be shown the candidate "
                 "had no reach over the code that judges with it"
-            )
-        for imported in criterion_imports.get(criterion, ()) or ():
-            if _inside_scope(str(imported), scope):
-                return (
-                    f"{criterion!r} imports {str(imported)!r}, which is INSIDE "
-                    "the declared write scope, so the candidate was allowed to "
-                    "author code the criterion executes"
-                )
+            ), False
+        surface = _import_surface(criterion_imports.get(criterion) or ())
+        declared = _declares_conformance(task, criterion)
+        for imported in surface.paths:
+            if not _inside_scope(str(imported), scope):
+                continue
+            if declared:
+                # The one declared exception, recorded as such rather than
+                # waved through: a FAIL_TO_PASS conformance gate imports the
+                # code under test BY DESIGN. See this function's docstring.
+                reads_scope = True
+                continue
+            return (
+                f"{criterion!r} imports {str(imported)!r}, which is INSIDE "
+                "the declared write scope, so the candidate was allowed to "
+                "author code the criterion executes"
+            ), False
+        if surface.unknowable:
+            # NOT KNOWABLE IS NOT A PASS. The line regex this replaced answered
+            # "nothing" for every import it could not model, and "nothing"
+            # scored as "nothing inside the scope" -- a vacuous grant.
+            return (
+                f"{criterion!r}'s import surface could not be read against the "
+                f"base revision tree: {surface.unknowable[0]}"
+            ), False
         if not mentions:
             return (
                 "the gate recorded no command and the task declares no "
                 "gate_argv, so whether the gate read the criterion is not "
                 "knowable from this record"
-            )
+            ), False
         if not _gate_mentions(criterion, mentions):
             return (
                 f"the gate that ran never names {criterion!r} in its command, "
                 "so the declared criterion is not what produced this verdict"
-            )
-    return None
+            ), False
+    return None, reads_scope
+
+
+def _declares_conformance(task: Any, criterion: str) -> bool:
+    """Whether the task DECLARES this gate a conformance test of its own scope.
+
+    Two spellings, both explicit and both inside the task digest, because a
+    permission that could be added after the fact would be no permission:
+
+    * ``TaskSpec.gate_reads_scope``, for a gate the spine itself wires (the
+      Gate-1 ignition slice);
+    * a ``fail_to_pass`` node id whose file part IS this criterion, which is
+      SWE-bench's own way of saying "this test must go from failing to passing
+      because of the patch" -- a statement that only means anything if the test
+      executes the patched code.
+    """
+
+    if bool(getattr(task, "gate_reads_scope", False)):
+        return True
+    for node in tuple(getattr(task, "fail_to_pass", ()) or ()):
+        head = str(node).replace("\\", "/").split("::", 1)[0]
+        if _normalise_tree_path(head) == criterion:
+            return True
+    return False
 
 
 def evaluator_assurance(
@@ -1648,7 +2398,23 @@ __all__ = [
     "read_contract_set",
     "canonicalise_attempt",
     "containment_escapes",
-    "criterion_import_probe_paths",
+    "CriterionImportSurface",
+    "ImportPlan",
+    "ImportSite",
+    "ImportSurface",
+    "MAX_IMPORT_SURFACE_FILES",
+    "chain_directories",
+    "config_import_roots",
+    "conventional_import_roots",
+    "import_surface_plan",
+    "module_dotted_name",
+    "normalise_declared_paths",
+    "path_config_files",
+    "pytest_basedir",
+    "resolve_import_plan",
+    "stdlib_top_level",
+    "sys_path_roots",
+    "tree_probes",
     "criterion_probe_paths",
     "evaluator_assurance",
     "evaluator_assurance_detail",

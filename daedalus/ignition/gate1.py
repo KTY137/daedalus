@@ -700,6 +700,21 @@ def run_gate1_ignition(
                     if "code" in planned_item.planes or "type" in planned_item.planes
                     else ()
                 ),
+                # DECLARED, BECAUSE IT IS TRUE AND WAS PREVIOUSLY UNSAID. The
+                # conformance suite inserts <root>/src on sys.path and imports
+                # ignition_app, whose package reaches src/ignition_app/models.py
+                # and repository.py -- the very files this work item writes.
+                # That is what a FAIL_TO_PASS conformance test DOES, and the
+                # slice used to seal only because the seal's import reader could
+                # not see through the sys.path insertion. Saying it here keeps
+                # the seal and moves the fact into the task digest and the
+                # receipt's reason, where a reader can see how much of what
+                # judged the candidate the candidate wrote. The criterion FILE
+                # and everything on its collection path stay outside the scope,
+                # so the candidate still cannot change what the gate ASKS.
+                gate_reads_scope=bool(
+                    "code" in planned_item.planes or "type" in planned_item.planes
+                ),
                 gate_timeout_s=float(gate_timeout_s),
                 metadata={
                     "mission_id": mission.mission_id,

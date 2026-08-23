@@ -1,0 +1,662 @@
+diff --git a/configs/schemas/repository-write-classification.schema.json b/configs/schemas/repository-write-classification.schema.json
+index 6128ef24..a4d9546b 100644
+--- a/configs/schemas/repository-write-classification.schema.json
++++ b/configs/schemas/repository-write-classification.schema.json
+@@ -276,7 +276,7 @@
+       "type": "boolean"
+     },
+     "evidence_authenticated": {
+-      "const": false
++      "type": "boolean"
+     },
+     "primary_checkout_target_proven": {
+       "const": false
+@@ -293,7 +293,7 @@
+     "blockers": {
+       "type": "array",
+       "uniqueItems": true,
+-      "minItems": 2,
++      "minItems": 1,
+       "items": {
+         "enum": [
+           "unclassified-production-write-surfaces",
+@@ -308,11 +308,6 @@
+         ]
+       },
+       "allOf": [
+-        {
+-          "contains": {
+-            "const": "authenticated-evidence-verification-missing"
+-          }
+-        },
+         {
+           "contains": {
+             "const": "gate-report-binding-missing"
+diff --git a/daedalus/gates/repository_write_classification.py b/daedalus/gates/repository_write_classification.py
+index 8f01ffb7..056d4982 100644
+--- a/daedalus/gates/repository_write_classification.py
++++ b/daedalus/gates/repository_write_classification.py
+@@ -401,6 +401,172 @@ def surface_classification_verdict(row: SurfaceClassification) -> str:
+     return f"cleared:{row.guard.value}"
+ 
+ 
++# The three evidence kinds whose truth is a *receipt*, not a measurement this
++# module can repeat.  A ``source_anchor`` is re-derivable from the tree by
++# anyone (path, line, column, file digest) and a ``guard_contract`` names an
++# implementation the guard-structure verifier reads back out of the source; a
++# lease, a runtime-conformance and a disjointness receipt each assert something
++# that happened *outside* this projection and can only be authenticated by the
++# chain verifier that owns it.  Those are the kinds ``evidence_authenticated``
++# is about.
++AUTHENTICATED_EVIDENCE_KINDS = (
++    EvidenceKind.EFFECT_LEASE_RECEIPT,
++    EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT,
++    EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT,
++)
++
++
++@dataclass(frozen=True)
++class SurfaceEvidenceAuthentication:
++    """One chain verifier's statement that it authenticated one evidence object.
++
++    This record is a *result*, never a declaration.  It cannot enter the
++    projection through ``project_classification_input`` -- the input schema has
++    no field for it -- so a JSON file can never authenticate anything.  It is
++    minted by the verifier that actually replayed the receipt (today:
++    ``daedalus.gates.repository_write_effect_lease.authenticate_surface_evidence``,
++    which mints only the kinds ``verify_repository_write_effect_leases``
++    genuinely replayed) and carries that verifier report's digest, so a reader
++    can trace which run authenticated what.
++
++    It binds ``(surface, kind, locator, evidence sha256)``: authenticating one
++    object at one surface says nothing about the same locator at another
++    surface, and a byte change to the evidence invalidates the record because
++    the sha256 no longer matches the retained binding.
++    """
++
++    surface_sha256: str
++    kind: EvidenceKind
++    locator: str
++    evidence_sha256: str
++    verifier_report_digest: str
++
++    def __post_init__(self) -> None:
++        if not isinstance(self.kind, EvidenceKind):
++            raise ValueError("authentication kind must be typed")
++        if self.kind not in AUTHENTICATED_EVIDENCE_KINDS:
++            raise ValueError("authentication kind is not receipt evidence")
++        if not _SHA256.fullmatch(self.surface_sha256):
++            raise ValueError("authentication surface_sha256 must be lowercase 64-hex")
++        if not _SHA256.fullmatch(self.evidence_sha256):
++            raise ValueError("authentication evidence_sha256 must be lowercase 64-hex")
++        if not _SHA256.fullmatch(self.verifier_report_digest):
++            raise ValueError(
++                "authentication verifier_report_digest must be lowercase 64-hex"
++            )
++        if (
++            not isinstance(self.locator, str)
++            or not self.locator.strip()
++            or any(ch in self.locator for ch in "\r\n")
++        ):
++            raise ValueError("authentication locator must be a non-empty single line")
++
++    def sort_key(self) -> tuple[str, str, str, str, str]:
++        return (
++            self.surface_sha256,
++            self.kind.value,
++            self.locator,
++            self.evidence_sha256,
++            self.verifier_report_digest,
++        )
++
++    @property
++    def binding_key(self) -> tuple[str, str, str, str]:
++        return (self.surface_sha256, self.kind.value, self.locator, self.evidence_sha256)
++
++    def to_dict(self) -> dict[str, str]:
++        return {
++            "surface_sha256": self.surface_sha256,
++            "kind": self.kind.value,
++            "locator": self.locator,
++            "evidence_sha256": self.evidence_sha256,
++            "verifier_report_digest": self.verifier_report_digest,
++        }
++
++
++def required_authenticated_kinds(
++    row: SurfaceClassification,
++) -> tuple[EvidenceKind, ...]:
++    """The receipt kinds one classification must have verified to authenticate.
++
++    Derived from the row's own dispositions, so it is per surface and never a
++    module-wide set:
++
++    * an Effect-Lease receipt and a runtime-conformance receipt are required of
++      every row, because the flag's whole job is to say that the *effect* this
++      surface performs was leased and observed under a conforming runtime;
++    * a Primary-Checkout disjointness receipt is required in addition whenever
++      the row claims a disjoint target or a CENTRAL guard -- the two claims
++      that assert the write does not land in the primary checkout.  A row that
++      claims neither is still refused above for a different reason (it keeps
++      its ``candidate_blockers``), so this is not a way to authenticate a weaker
++      claim more cheaply.
++    """
++
++    if not isinstance(row, SurfaceClassification):
++        raise RepositoryWriteClassificationError(
++            "authentication subject must be a typed surface classification"
++        )
++    required = {
++        EvidenceKind.EFFECT_LEASE_RECEIPT,
++        EvidenceKind.RUNTIME_CONFORMANCE_RECEIPT,
++    }
++    if row.guard is GuardDisposition.CENTRAL or row.target in {
++        TargetDisposition.CHECKOUT_EXTERNAL,
++        TargetDisposition.NON_REPOSITORY,
++    }:
++        required.add(EvidenceKind.PRIMARY_CHECKOUT_DISJOINTNESS_RECEIPT)
++    return tuple(sorted(required, key=lambda kind: kind.value))
++
++
++def surface_evidence_authenticated(
++    row: SurfaceClassification,
++    authentications: Iterable[SurfaceEvidenceAuthentication],
++) -> bool:
++    """Decide, for exactly one surface, whether its receipt evidence is verified.
++
++    Three conditions, all of them per surface:
++
++    1. every kind :func:`required_authenticated_kinds` names for this row is
++       actually retained by the row -- a receipt nobody produced cannot be
++       authenticated by omitting it;
++    2. every retained binding of a required kind carries a matching
++       authentication record for *this* surface;
++    3. no retained receipt-kind binding is left unauthenticated, so a row cannot
++       become authenticated by carrying extra unverified receipts alongside the
++       verified ones.
++    """
++
++    if not isinstance(row, SurfaceClassification):
++        raise RepositoryWriteClassificationError(
++            "authentication subject must be a typed surface classification"
++        )
++    surface_sha256 = surface_binding_sha256(row.source_revision, row.surface)
++    verified = {
++        record.binding_key
++        for record in authentications
++        if record.surface_sha256 == surface_sha256
++    }
++    retained_by_kind: dict[EvidenceKind, list[EvidenceBinding]] = {}
++    for binding in row.evidence:
++        if binding.kind in AUTHENTICATED_EVIDENCE_KINDS:
++            retained_by_kind.setdefault(binding.kind, []).append(binding)
++    for kind in required_authenticated_kinds(row):
++        if not retained_by_kind.get(kind):
++            return False
++    for bindings in retained_by_kind.values():
++        for binding in bindings:
++            key = (
++                surface_sha256,
++                binding.kind.value,
++                binding.locator,
++                binding.sha256,
++            )
++            if key not in verified:
++                return False
++    return True
++
++
+ @dataclass(frozen=True)
+ class RepositoryWriteClassificationReport:
+     source_revision: str
+@@ -409,6 +575,10 @@ class RepositoryWriteClassificationReport:
+     inventory_surface_count: int
+     classifications: tuple[SurfaceClassification, ...]
+     missing_surfaces: tuple[RepositoryWriteSurface, ...]
++    #: Verifier results, defaulted empty so every existing construction keeps
++    #: its exact digest.  Absent authentications mean "no chain verifier ran",
++    #: which is the fail-closed state and the state of this repository.
++    authentications: tuple[SurfaceEvidenceAuthentication, ...] = ()
+ 
+     def __post_init__(self) -> None:
+         if not _REVISION.fullmatch(self.source_revision):
+@@ -442,6 +612,40 @@ class RepositoryWriteClassificationReport:
+             raise ValueError("classification revision differs from report revision")
+         if self.inventory_surface_count != len(classified) + len(self.missing_surfaces):
+             raise ValueError("inventory surface count does not match report projection")
++        if not isinstance(self.authentications, tuple):
++            raise ValueError("authentications must be an immutable tuple")
++        if any(
++            not isinstance(record, SurfaceEvidenceAuthentication)
++            for record in self.authentications
++        ):
++            raise ValueError("authentication record type is invalid")
++        if (
++            tuple(sorted(self.authentications, key=SurfaceEvidenceAuthentication.sort_key))
++            != self.authentications
++        ):
++            raise ValueError("authentications must be canonically sorted")
++        if len(set(self.authentications)) != len(self.authentications):
++            raise ValueError("authentications must be unique")
++        # Fail closed on an authentication that names evidence no classified row
++        # retains: a verifier result about a surface this report does not carry
++        # is either stale or foreign, and silently ignoring it would let a
++        # near-miss look like a verification.
++        retained_keys = set()
++        for row in self.classifications:
++            row_surface_sha256 = surface_binding_sha256(row.source_revision, row.surface)
++            for binding in row.evidence:
++                retained_keys.add(
++                    (
++                        row_surface_sha256,
++                        binding.kind.value,
++                        binding.locator,
++                        binding.sha256,
++                    )
++                )
++        if any(
++            record.binding_key not in retained_keys for record in self.authentications
++        ):
++            raise ValueError("authentication does not bind retained evidence")
+ 
+     @property
+     def candidate_blockers(self) -> tuple[str, ...]:
+@@ -456,14 +660,43 @@ class RepositoryWriteClassificationReport:
+     def classification_ready(self) -> bool:
+         return not self.missing_surfaces and not self.candidate_blockers
+ 
++    @property
++    def surface_authentication(self) -> tuple[tuple[str, bool], ...]:
++        """``(surface_sha256, authenticated)`` for every classified surface.
++
++        Per surface, in report order.  A consumer that needs to know *which*
++        surfaces are verified reads this instead of the aggregate flag.
++        """
++
++        return tuple(
++            (
++                surface_binding_sha256(row.source_revision, row.surface),
++                surface_evidence_authenticated(row, self.authentications),
++            )
++            for row in self.classifications
++        )
++
++    @property
++    def evidence_authenticated(self) -> bool:
++        """Composed, never declared: every classified surface must be verified.
++
++        A conjunction over :attr:`surface_authentication`, and vacuously false
++        on an empty projection -- "nothing was classified" is not the same
++        statement as "everything classified is authenticated", and the flag
++        feeds a gate that must not read the first as the second.
++        """
++
++        authentication = self.surface_authentication
++        if not authentication:
++            return False
++        return all(flag for _, flag in authentication)
++
+     def _payload(self) -> dict[str, object]:
++        authenticated = self.evidence_authenticated
+         blockers = list(self.candidate_blockers)
+-        blockers.extend(
+-            [
+-                "authenticated-evidence-verification-missing",
+-                "gate-report-binding-missing",
+-            ]
+-        )
++        if not authenticated:
++            blockers.append("authenticated-evidence-verification-missing")
++        blockers.append("gate-report-binding-missing")
+         return {
+             "schema": "daedalus-gate0-repository-write-classification/1",
+             "source_revision": self.source_revision,
+@@ -474,7 +707,7 @@ class RepositoryWriteClassificationReport:
+             "classifications": [row.to_dict() for row in self.classifications],
+             "missing_surfaces": [row.to_dict() for row in self.missing_surfaces],
+             "classification_ready": self.classification_ready,
+-            "evidence_authenticated": False,
++            "evidence_authenticated": authenticated,
+             "primary_checkout_target_proven": False,
+             "gate_report_bound": False,
+             "closed": False,
+@@ -495,6 +728,8 @@ class RepositoryWriteClassificationReport:
+ def project_repository_write_classifications(
+     inventory: RepositoryWriteInventoryV2,
+     classifications: Iterable[SurfaceClassification],
++    *,
++    authentications: Iterable[SurfaceEvidenceAuthentication] = (),
+ ) -> RepositoryWriteClassificationReport:
+     if not isinstance(inventory, RepositoryWriteInventoryV2):
+         raise RepositoryWriteClassificationError("inventory type is invalid")
+@@ -524,6 +759,17 @@ def project_repository_write_classifications(
+             )
+         by_surface[row.surface] = row
+     missing = tuple(sorted(inventory_surfaces - set(by_surface)))
++    try:
++        authentication_rows = tuple(authentications)
++    except TypeError as exc:
++        raise RepositoryWriteClassificationError(
++            "authentications must be iterable"
++        ) from exc
++    if any(
++        not isinstance(record, SurfaceEvidenceAuthentication)
++        for record in authentication_rows
++    ):
++        raise RepositoryWriteClassificationError("authentication type is invalid")
+     return RepositoryWriteClassificationReport(
+         source_revision=inventory.source_revision,
+         inventory_digest=inventory.digest,
+@@ -531,6 +777,12 @@ def project_repository_write_classifications(
+         inventory_surface_count=len(inventory.surfaces),
+         classifications=rows,
+         missing_surfaces=missing,
++        authentications=tuple(
++            sorted(
++                dict.fromkeys(authentication_rows),
++                key=SurfaceEvidenceAuthentication.sort_key,
++            )
++        ),
+     )
+ 
+ 
+@@ -595,7 +847,18 @@ def parse_inventory_v2(value: Mapping[str, object]) -> RepositoryWriteInventoryV
+ def project_classification_input(
+     inventory: RepositoryWriteInventoryV2,
+     value: Mapping[str, object],
++    *,
++    authentications: Iterable[SurfaceEvidenceAuthentication] = (),
+ ) -> RepositoryWriteClassificationReport:
++    """Project a *declared* document.
++
++    ``authentications`` is deliberately a keyword argument of this function and
++    not a field of the input document: a declaration is a locator passed by a
++    caller, and if a JSON file could carry authentication records then writing
++    one would authenticate itself.  The records may only come from a verifier
++    the caller ran.
++    """
++
+     _require_exact_keys(
+         value,
+         {"schema", "source_revision", "inventory_digest", "classifications"},
+@@ -619,7 +882,11 @@ def project_classification_input(
+         )
+         for item in _strict_list(value["classifications"], "classifications")
+     )
+-    return project_repository_write_classifications(inventory, rows)
++    return project_repository_write_classifications(
++        inventory,
++        rows,
++        authentications=authentications,
++    )
+ 
+ 
+ def _surface_from_dict(value: Mapping[str, object]) -> RepositoryWriteSurface:
+diff --git a/daedalus/kernel/offload_lease.py b/daedalus/kernel/offload_lease.py
+index b0a672cf..101cf056 100644
+--- a/daedalus/kernel/offload_lease.py
++++ b/daedalus/kernel/offload_lease.py
+@@ -144,6 +144,102 @@ def lease_ledger_path(repo_root: str | Path | None) -> Path:
+     return control_root(repo_root) / "effect-leases.sqlite3"
+ 
+ 
++# --------------------------------------------------------------------------- #
++# the grant receipt                                                            #
++# --------------------------------------------------------------------------- #
++#: Wire id of the record this module mints at grant time.  Deliberately NOT the
++#: same id as ``daedalus-effect-lease-receipt/1``: that one is the *chain
++#: evidence payload* verified by
++#: ``daedalus.gates.repository_write_effect_lease``, which names a terminal
++#: receipt that by definition does not exist yet when a lease is granted.  This
++#: record is the grant itself, and the gates layer builds the chain evidence
++#: from it once the execution it authorised has terminated.
++GRANT_RECEIPT_SCHEMA = "daedalus-effect-lease-grant-receipt/1"
++
++
++def lease_grant_record(
++    lease: "WaveOffloadLease",
++    *,
++    positions: int,
++    granted_at: datetime | None = None,
++) -> dict[str, Any]:
++    """The durable record of one granted wave lease, digest included.
++
++    Everything in it is read off the lease that was actually issued -- lease id
++    and digest, the effect set, the bounds (writable roots, egress endpoints,
++    tools, spend ceiling, concurrency, timeout), the kill-switch reference and
++    the exact generation the lease was bound to, the issuer key id, the registry
++    sha256, and the execution ids derived so far -- so the record cannot claim a
++    bound the lease does not carry.  ``positions`` is the wave width the grant
++    was requested for; the execution ids fill in as ``execution_for`` derives
++    them, and the record is minted again at that point if a caller wants them.
++
++    ``record_sha256`` binds the whole body, so a later reader can tell a
++    retained receipt from an edited one.
++    """
++
++    if type(lease) is not WaveOffloadLease:
++        raise TypeError("lease grant record requires a granted WaveOffloadLease")
++    if isinstance(positions, bool) or not isinstance(positions, int) or positions < 0:
++        raise ValueError("positions must be a non-negative integer")
++    body = dict(lease.receipt())
++    body["schema"] = GRANT_RECEIPT_SCHEMA
++    body["source_revision"] = lease.request.provenance.source_revision
++    body["mission_id"] = lease.request.mission_id
++    body["attempt_id"] = lease.request.attempt_id
++    body["request_sha256"] = lease.request.digest
++    body["positions"] = int(positions)
++    body["granted_at"] = _timestamp(granted_at or _utc_now())
++    body["record_sha256"] = _record_sha256(body)
++    return body
++
++
++def _record_sha256(body: Mapping[str, Any]) -> str:
++    from daedalus.spine.envelope import canonical_json
++
++    subject = {key: value for key, value in body.items() if key != "record_sha256"}
++    return hashlib.sha256(canonical_json(subject).encode("ascii")).hexdigest()
++
++
++def grant_receipt_root(repo_root: str | Path | None, source_revision: str) -> Path:
++    """Where grant receipts live: beside the ledger, never inside the checkout.
++
++    The candidate this lease authorises may hold a writable checkout.  Evidence
++    about a lease must not be reachable by the thing the lease bounds, which is
++    the isolation invariant, so the receipts sit under the same
++    checkout-external control root as the ledger they point into.
++    """
++
++    return control_root(repo_root) / "effect-lease-receipts" / str(source_revision)
++
++
++def emit_lease_grant_receipt(
++    lease: "WaveOffloadLease",
++    *,
++    repo_root: str | Path | None,
++    positions: int,
++) -> tuple[str, Path]:
++    """Persist one grant record content-addressed; return ``(sha256, path)``.
++
++    Content-addressed and published once: the same grant re-emitted is a no-op
++    rather than a rewrite, so a receipt can never be silently replaced with
++    different bytes under the same name.  The write goes through
++    ``daedalus.atomic.publish_bytes_once`` rather than an ``open`` here, because
++    this module is inside the scanned package and a new raw write surface in the
++    kernel is a new Gate-0 blocker.
++    """
++
++    from daedalus.atomic import publish_bytes_once
++    from daedalus.spine.envelope import canonical_json
++
++    record = lease_grant_record(lease, positions=positions)
++    digest = str(record["record_sha256"])
++    root = grant_receipt_root(repo_root, str(record["source_revision"]))
++    path = root / f"{digest}.json"
++    publish_bytes_once(path, canonical_json(record).encode("ascii"))
++    return digest, path
++
++
+ def issuer_keyring(repo_root: str | Path | None) -> dict[str, bytes]:
+     """Load, or create on first use, the local lease-signing key.
+ 
+@@ -465,6 +561,11 @@ class WaveOffloadLease:
+     _executions: dict[int, EffectExecutionRequest] = field(
+         default_factory=dict, repr=False
+     )
++    #: Why the grant receipt could not be persisted, when it could not be.  An
++    #: empty list is the normal case and means the receipt is on disk.  It is a
++    #: list, not a raise, because receipt emission is evidence-keeping and must
++    #: never be able to deny an already-granted capability.
++    receipt_error: list[str] = field(default_factory=list, repr=False)
+ 
+     @property
+     def granted(self) -> bool:
+@@ -941,7 +1042,7 @@ def acquire_wave_offload_lease(
+     # a lease it has never seen ("effect lease was not persisted before start"),
+     # so this is the line that makes the capability real.
+     authorization.grant()
+-    return WaveOffloadLease(
++    granted = WaveOffloadLease(
+         authorization=authorization,
+         lease=lease,
+         request=request,
+@@ -950,11 +1051,25 @@ def acquire_wave_offload_lease(
+         ledger_path=str(ledger_path),
+         write_policy=policy_source,
+     )
++    # The grant receipt is emitted here, at grant time, because this is the only
++    # moment at which the lease is known to be real: `grant()` has returned, so
++    # the ledger holds it and an execution may start.  A receipt written before
++    # that would describe a capability that might never have been persisted.
++    # Emission never decides the grant: a receipt store that cannot be written
++    # (read-only control root, a racing wave) must not revoke a capability the
++    # ledger already accepted, so the failure is recorded on the lease and the
++    # wave proceeds under the lease it legitimately holds.
++    try:
++        emit_lease_grant_receipt(granted, repo_root=root, positions=int(positions))
++    except (OSError, ValueError, TypeError, ImportError) as exc:
++        granted.receipt_error.append(f"{type(exc).__name__}: {exc}")
++    return granted
+ 
+ 
+ __all__ = [
+     "CALLER_POLICY_ORIGIN",
+     "ENTRYPOINT_ID",
++    "GRANT_RECEIPT_SCHEMA",
+     "ISSUER_KEY_ID",
+     "KILL_SWITCH_REF",
+     "POLICY_VERSION",
+@@ -965,7 +1080,10 @@ __all__ = [
+     "acquire_wave_offload_lease",
+     "control_root",
+     "derive_wave_containment",
++    "emit_lease_grant_receipt",
++    "grant_receipt_root",
+     "issuer_keyring",
++    "lease_grant_record",
+     "kill_switch_generation",
+     "lane_endpoint",
+     "lease_ledger_path",
+diff --git a/scripts/run_repository_write_classification_mutations.py b/scripts/run_repository_write_classification_mutations.py
+index 1bb1e6b5..985b380d 100644
+--- a/scripts/run_repository_write_classification_mutations.py
++++ b/scripts/run_repository_write_classification_mutations.py
+@@ -16,17 +16,46 @@ TESTS = (
+ )
+ MUTATIONS = {
+     "force-closed": ('"closed": False', '"closed": True'),
++    # The flag is derived now, so the mutation that forges it has to short the
++    # derivation rather than flip a literal.  Same guard, new anchor.
+     "forge-evidence-authentication": (
+-        '"evidence_authenticated": False',
+-        '"evidence_authenticated": True',
++        '"evidence_authenticated": authenticated,',
++        '"evidence_authenticated": True,',
++    ),
++    "short-circuit-authentication-composition": (
++        "        authentication = self.surface_authentication\n"
++        "        if not authentication:\n"
++        "            return False\n"
++        "        return all(flag for _, flag in authentication)",
++        "        return True",
++    ),
++    "authenticate-without-required-receipt-kinds": (
++        "    for kind in required_authenticated_kinds(row):\n"
++        "        if not retained_by_kind.get(kind):\n"
++        "            return False",
++        "    for kind in required_authenticated_kinds(row):\n"
++        "        pass",
++    ),
++    "accept-unbound-authentication": (
++        "        if any(\n"
++        "            record.binding_key not in retained_keys "
++        "for record in self.authentications\n"
++        "        ):\n"
++        '            raise ValueError("authentication does not bind retained evidence")',
++        "        if False:\n"
++        '            raise ValueError("authentication does not bind retained evidence")',
+     ),
+     "forge-primary-checkout-proof": (
+         '"primary_checkout_target_proven": False',
+         '"primary_checkout_target_proven": True',
+     ),
++    # Narrowed to the CENTRAL ``required`` set inside ``__post_init__`` (16
++    # spaces of indentation).  The bare name now also appears in the
++    # authentication rule, and an anchor that resolves more than once is not an
++    # anchor.
+     "drop-effect-lease-evidence": (
+-        "EvidenceKind.EFFECT_LEASE_RECEIPT,\n",
+-        "# mutated: effect lease evidence omitted\n",
++        "                EvidenceKind.EFFECT_LEASE_RECEIPT,\n",
++        "                # mutated: effect lease evidence omitted\n",
+     ),
+     "accept-stale-inventory-digest": (
+         'if value["inventory_digest"] != inventory.digest:',
+diff --git a/tests/gates/test_repository_write_classification.py b/tests/gates/test_repository_write_classification.py
+index ee7cdc85..b7284757 100644
+--- a/tests/gates/test_repository_write_classification.py
++++ b/tests/gates/test_repository_write_classification.py
+@@ -344,7 +344,12 @@ def test_schema_required_fields_match_report() -> None:
+     assert set(schema["required"]) == set(material)
+     assert schema["properties"]["schema"]["const"] == material["schema"]
+     assert schema["properties"]["closed"]["const"] is False
+-    assert schema["properties"]["evidence_authenticated"]["const"] is False
++    # Derived, so the wire may carry either boolean.  What the schema must NOT
++    # do is pin it to a constant again: that is how the flag stopped meaning
++    # anything the first time.
++    assert "const" not in schema["properties"]["evidence_authenticated"]
++    assert schema["properties"]["evidence_authenticated"]["type"] == "boolean"
++    assert material["evidence_authenticated"] is False
+     assert schema["properties"]["primary_checkout_target_proven"]["const"] is False
+     assert schema["properties"]["gate_report_bound"]["const"] is False
+ 
+diff --git a/tests/gates/test_repository_write_classification_review.py b/tests/gates/test_repository_write_classification_review.py
+index 0850ec17..773cecc5 100644
+--- a/tests/gates/test_repository_write_classification_review.py
++++ b/tests/gates/test_repository_write_classification_review.py
+@@ -54,15 +54,24 @@ def test_report_hard_codes_non_authoritative_claims_false() -> None:
+     tree = ast.parse(textwrap.dedent(source))
+     dict_nodes = [node for node in ast.walk(tree) if isinstance(node, ast.Dict)]
+     material: dict[str, object] = {}
++    derived: set[str] = set()
+     for node in dict_nodes:
+         for key, value in zip(node.keys, node.values):
+             if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                 if isinstance(value, ast.Constant):
+                     material[key.value] = value.value
+-    assert material["evidence_authenticated"] is False
++                else:
++                    derived.add(key.value)
+     assert material["primary_checkout_target_proven"] is False
+     assert material["gate_report_bound"] is False
+     assert material["closed"] is False
++    # ``evidence_authenticated`` is the one claim that is *composed* rather than
++    # declared: it must not be a literal in either direction.  Hard-coding it
++    # False is the drift this guard was written against; hard-coding it True is
++    # the forgery the mutation runner exercises.  Both are constants, and this
++    # assertion refuses both.
++    assert "evidence_authenticated" not in material
++    assert "evidence_authenticated" in derived
+ 
+ 
+ def test_central_candidate_requires_all_four_mechanical_evidence_families() -> None:

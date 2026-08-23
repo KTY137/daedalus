@@ -220,6 +220,16 @@ class GitCommandError(RuntimeError):
     """A git command run by this module exited non-zero."""
 
 
+class TaskSpecInvalid(ValueError):
+    """A declared path in a :class:`TaskSpec` names no location in the tree.
+
+    A ``ValueError`` on purpose: the picker builds specs out of JSON payloads
+    and already treats ``ValueError`` as "this candidate is not usable", so an
+    unusable declaration is refused where it is written instead of travelling
+    as far as the containment gate.
+    """
+
+
 # --------------------------------------------------------------------------- #
 # helpers                                                                      #
 # --------------------------------------------------------------------------- #
@@ -570,7 +580,38 @@ class TaskSpec:
     #: digest -- a criterion that could be widened after the fact would be no
     #: criterion. Empty keeps today's behaviour exactly.
     gate_criterion_paths: tuple[str, ...] = ()
+    #: This gate is DECLARED to be a conformance test of the task's own write
+    #: scope -- a FAIL_TO_PASS test that imports the code the candidate writes,
+    #: which is what such a test is for. It relaxes exactly one of the six
+    #: criterion-seal checks (an in-tree import that lands inside the scope);
+    #: the criterion file itself and everything on its collection path must
+    #: still be outside the scope. Joined to body() when set, so the permission
+    #: is inside the task digest and cannot be granted after the fact.
+    gate_reads_scope: bool = False
     correctness_before_state: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Settle the declared paths into one normal form, or refuse the task.
+
+        THE DECLARATION HAD MORE READERS THAN THE REFUSAL. ``target_paths`` was
+        accepted as any string at construction and only checked at the
+        containment boundary, so the picker's policy pre-check, the runner's
+        ``paths`` argument, ``writable_paths`` on the receipt, and the task
+        digest all saw the raw spelling while only the gate turned it away.
+        Normalising here gives every one of those readers the same answer, and
+        makes the digest a function of the LOCATION rather than of how it
+        happened to be typed.
+        """
+
+        from daedalus.spine.receipts import normalise_declared_paths
+
+        for field_name in ("target_paths", "gate_criterion_paths"):
+            try:
+                settled = normalise_declared_paths(
+                    getattr(self, field_name) or (), field=field_name)
+            except ValueError as exc:
+                raise TaskSpecInvalid(f"task {self.task_id!r}: {exc}") from None
+            object.__setattr__(self, field_name, settled)
 
     def body(self) -> dict:
         """The canonical, JSON-safe view -- the thing that gets digested."""
@@ -600,6 +641,8 @@ class TaskSpec:
             }
         if self.gate_criterion_paths:
             body["gate_criterion_paths"] = [str(p) for p in self.gate_criterion_paths]
+        if self.gate_reads_scope:
+            body["gate_reads_scope"] = True
         return body
 
     @property
@@ -1837,13 +1880,22 @@ class TaskAttempt:
             return None, (
                 f"gate output could not be persisted: {type(e).__name__}: {e}")
 
-    #: Git tree entry modes that make a criterion path a REGULAR file. A
-    #: symlink (``120000``) is a blob whose content is a path, so its bytes can
-    #: be changed by writing the file it points at -- which the candidate may be
-    #: allowed to do. A gitlink (``160000``) is a commit id in another
-    #: repository, whose content this tree does not pin at all. Neither seals
-    #: anything, and both would pass a bare "does the path exist" check.
-    _REGULAR_BLOB_MODES = (b"100644", b"100755")
+    #: What a git tree entry's mode means to the criterion seal. ``"blob"`` is a
+    #: REGULAR file: a symlink (``120000``) is a blob whose content is a path,
+    #: so its bytes change when the file it points at is written -- which the
+    #: candidate may be allowed to do -- and a gitlink (``160000``) is a commit
+    #: id in another repository whose content this tree does not pin at all.
+    #: Neither seals anything, and both would pass a bare "does the path exist"
+    #: check. ``"tree"`` is a directory, and it earns a name of its own because
+    #: a package IS a directory and a NAMESPACE package is a directory with no
+    #: ``__init__.py``: a probe that could only answer "is a regular file"
+    #: reported every namespace package as absent and every import through one
+    #: as unresolvable.
+    _TREE_ENTRY_KINDS = {
+        b"100644": "blob", b"100755": "blob", b"040000": "tree", b"40000": "tree",
+    }
+    _REGULAR_BLOB_MODES = tuple(
+        mode for mode, kind in _TREE_ENTRY_KINDS.items() if kind == "blob")
 
     def _criterion_presence(
             self, base_revision: str | None) -> dict[str, bool] | None:
@@ -1886,21 +1938,23 @@ class TaskAttempt:
             return None
         return self._tree_presence(base_revision, probes, {})
 
-    def _tree_presence(
+    def _tree_kinds(
             self,
             base_revision: str,
             probes: Sequence[tuple[str, str]],
             listings: dict[str, dict[bytes, bytes]],
-    ) -> dict[str, bool]:
-        """``{key: is a regular file in <base_revision>}`` for each probe.
+    ) -> dict[str, str]:
+        """``{key: "blob" | "tree" | ""}`` for each probe, read from the tree.
 
         The directory listing cache is passed IN rather than owned here, so one
-        projection's criterion probe and its import probes read each shared
-        parent directory once. See :meth:`_criterion_presence` for why the tree
-        is read instead of the filesystem, and why the admin dir is not pinned.
+        projection's criterion probe and its whole import surface read each
+        shared parent directory once. See :meth:`_criterion_presence` for why
+        the tree is read instead of the filesystem, and why the admin dir is not
+        pinned. A symlink (``120000``) and a submodule (``160000``) fall through
+        to ``""``: neither is a file whose bytes this tree authoritatively holds.
         """
 
-        presence: dict[str, bool] = {}
+        kinds: dict[str, str] = {}
         for key, path in probes:
             parent, _, name = path.rpartition("/")
             if parent not in listings:
@@ -1923,12 +1977,136 @@ class TaskAttempt:
                             entries[entry] = mode
                     listings[parent] = entries
             mode = listings[parent].get(name.encode("utf-8", "replace"))
-            presence[key] = mode in self._REGULAR_BLOB_MODES
-        return presence
+            kinds[key] = self._TREE_ENTRY_KINDS.get(mode or b"", "")
+        return kinds
 
-    def _criterion_imports(
-            self, base_revision: str | None) -> dict[str, tuple[str, ...]] | None:
-        """Which IN-TREE files each declared criterion imports, per the base tree.
+    def _tree_presence(
+            self,
+            base_revision: str,
+            probes: Sequence[tuple[str, str]],
+            listings: dict[str, dict[bytes, bytes]],
+    ) -> dict[str, bool]:
+        """``{key: is a regular file in <base_revision>}`` for each probe."""
+
+        return {key: kind == "blob" for key, kind in
+                self._tree_kinds(base_revision, probes, listings).items()}
+
+    def _blob(self, base_revision: str, path: str) -> str | None:
+        """One file's text out of the frozen base revision, or ``None``."""
+
+        try:
+            out = _git(["cat-file", "-p", f"{base_revision}:{path}"],
+                       cwd=self.repo_root, repo_root=self.repo_root).stdout
+        except Exception:
+            return None
+        return out.decode("utf-8", "replace")
+
+    def _tree_top_level_names(self, base_revision: str) -> set[str] | None:
+        """Every name in the tree a ``sys.path`` entry COULD make importable.
+
+        Asked once per attempt, and only about an import that resolved nowhere
+        under the roots this resolver modelled. It answers the one remaining
+        question: could the tree satisfy this name AT ALL? If nothing is called
+        ``<name>.py`` and no directory is called ``<name>``, then no ``sys.path``
+        entry can make it in-tree, the import comes from an installed
+        distribution, and the candidate cannot reach it -- so ``import pytest``
+        does not cost every declared criterion its seal. If something IS called
+        that, the surface is unknowable and the seal refuses.
+        """
+
+        cached = getattr(self, "_top_level_cache", None)
+        if cached is not None and cached[0] == base_revision:
+            return cached[1]
+        try:
+            # ls-files --with-tree, not ls-tree: `ls-files` is already inside
+            # READ_ONLY_REPO_VERBS and `--with-tree` makes it report the named
+            # revision's paths. Widening that allowlist to add a second listing
+            # verb would be a guard change made for a convenience, and the
+            # difference (index entries the revision does not have) can only
+            # make MORE names look in-tree, which is the fail-closed direction.
+            out = _git(["ls-files", "-z", f"--with-tree={base_revision}"],
+                       cwd=self.repo_root, repo_root=self.repo_root).stdout
+        except Exception:
+            names = None
+        else:
+            names = set()
+            for raw in out.split(b"\x00"):
+                if not raw:
+                    continue
+                parts = raw.decode("utf-8", "replace").replace("\\", "/").split("/")
+                names.update(parts[:-1])
+                if parts[-1].endswith(".py"):
+                    names.add(parts[-1][:-3])
+        self._top_level_cache = (base_revision, names)
+        return names
+
+    def _import_roots(
+            self,
+            base_revision: str,
+            criterion: str,
+            source: str,
+            listings: dict[str, dict[bytes, bytes]],
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """``(import roots, reasons a root could not be read)`` for one criterion.
+
+        THE LAYOUTS THE PROJECT ACTUALLY USES, not the two the old regex
+        assumed. The repository root; the directory pytest's ``prepend`` import
+        mode puts on the path (the criterion's first ancestor without an
+        ``__init__.py``, so a criterion inside a real test package resolves
+        too); ``src/`` when the tree has one; whatever the criterion's own
+        ``sys.path`` statements put there; whatever a ``conftest.py`` on its
+        collection chain puts there; and whatever ``pythonpath`` / ``where`` /
+        ``package-dir`` in the project config declares.
+
+        Each of those sources answers in two ways -- roots, or a reason it could
+        not be read -- and a reason travels all the way to the seal as an
+        UNKNOWABLE surface. That is the whole difference from the previous
+        measurement, which could only ever answer with silence.
+        """
+
+        from daedalus.spine.receipts import (
+            chain_directories, config_import_roots, conventional_import_roots,
+            path_config_files, pytest_basedir, sys_path_roots, tree_probes)
+
+        chain = chain_directories(criterion)
+        conftests = [f"{directory}/conftest.py" if directory else "conftest.py"
+                     for directory in chain]
+        configs = list(path_config_files())
+        inits = [f"{directory}/__init__.py" for directory in chain if directory]
+        conventional = list(conventional_import_roots())
+        pairs = tree_probes(conftests + configs + inits + conventional)
+        key_of = {path: key for key, path in pairs}
+        kinds = self._tree_kinds(base_revision, pairs, listings)
+
+        roots: list[str] = ["", criterion.rpartition("/")[0],
+                            pytest_basedir(criterion, kinds)]
+        reasons: list[str] = []
+        for root in conventional:
+            if kinds.get(key_of.get(root, ""), "") == "tree":
+                roots.append(root)
+        for declaring in conftests + configs:
+            if kinds.get(key_of.get(declaring, ""), "") != "blob":
+                continue
+            text = self._blob(base_revision, declaring)
+            if text is None:
+                reasons.append(
+                    f"{declaring!r} is in the base revision tree but could not "
+                    "be read, so the import roots it declares are not knowable"
+                )
+                continue
+            if declaring.endswith("conftest.py"):
+                found, why = sys_path_roots(text, declaring)
+            else:
+                found, why = config_import_roots(declaring, text)
+            roots.extend(found)
+            reasons.extend(why)
+        found, why = sys_path_roots(source, criterion)
+        roots.extend(found)
+        reasons.extend(why)
+        return tuple(dict.fromkeys(roots)), tuple(dict.fromkeys(reasons))
+
+    def _criterion_imports(self, base_revision: str | None):
+        """The in-tree code each declared criterion EXECUTES, per the base tree.
 
         The second half of the same measurement/judgement seam as
         :meth:`_criterion_presence`: only this class can read the frozen base,
@@ -1941,18 +2119,34 @@ class TaskAttempt:
         was sealed from. ``cat-file -p <rev>:<path>`` answers exactly that, is
         already inside :data:`READ_ONLY_REPO_VERBS`, and runs no filter.
 
-        RESOLVED, THEN CONFIRMED. ``criterion_import_probe_paths`` over-reads --
-        it names every file an import line COULD reach from the repository root
-        or the criterion's own directory -- and each candidate is then confirmed
-        as a regular blob in the base tree before it is reported. An import that
-        resolves through a runtime ``sys.path`` insertion or a ``src/`` layout
-        therefore resolves to nothing and is not reported, which is a MISS and
-        not a false grant: the seal is then exactly as strong as it was before
-        this measurement existed. ``None`` means the question could not be
-        asked at all, which the seal refuses on rather than passes.
+        RESOLVED FOR REAL, AND UNREADABLE IS NOT EMPTY. The previous version read
+        the import surface with a line regex against two roots and declared five
+        blind spots -- ``sys.path`` insertion, ``src/`` layouts, namespace
+        packages, dynamic ``importlib``, relative imports inside a package. Each
+        blind spot made an import INVISIBLE, and the seal scored invisible as
+        "imports nothing inside the write scope". The Gate-1 ignition slice
+        sealed through exactly that: measured, its conformance suite inserts
+        ``<root>/src`` on ``sys.path`` and imports ``ignition_app``, whose
+        package reaches the two files the code/type work item writes. The
+        criterion is now parsed
+        (:func:`~daedalus.spine.receipts.import_surface_plan`), every import is
+        resolved against the roots the project really uses, and a construct that
+        cannot be resolved becomes a REASON the seal refuses on.
+
+        TWO ROUNDS, NOT ALL OF THEM. The criterion's own imports and THEIR
+        in-tree imports are walked; files reached deeper are recorded as part of
+        the surface but not re-parsed. That is a bounded read rather than a
+        transitive closure of the repository, and the bound is stated in
+        :data:`~daedalus.spine.receipts.MAX_IMPORT_SURFACE_FILES`, whose breach
+        is reported as unknowable rather than quietly truncated.
+
+        ``None`` means the question could not be asked at all, which the seal
+        refuses on rather than passes.
         """
         from daedalus.spine.receipts import (
-            criterion_import_probe_paths, criterion_probe_paths)
+            MAX_IMPORT_SURFACE_FILES, CriterionImportSurface,
+            criterion_probe_paths, import_surface_plan, module_dotted_name,
+            resolve_import_plan)
 
         probes = criterion_probe_paths(self.task)
         if not probes:
@@ -1960,26 +2154,112 @@ class TaskAttempt:
         if not base_revision:
             return None
         listings: dict[str, dict[bytes, bytes]] = {}
-        imports: dict[str, tuple[str, ...]] = {}
-        for key, path in probes:
-            try:
-                blob = _git(["cat-file", "-p", f"{base_revision}:{path}"],
-                            cwd=self.repo_root, repo_root=self.repo_root).stdout
-            except Exception:
+        surfaces: dict[str, CriterionImportSurface] = {}
+        for key, criterion in probes:
+            source = self._blob(base_revision, criterion)
+            if source is None:
                 # An unreadable criterion is already refused by the presence
-                # check; reporting "no imports" here keeps that refusal the one
-                # the receipt names instead of stacking a second, vaguer one.
-                imports[key] = ()
+                # check; an empty surface here keeps that refusal the one the
+                # receipt names instead of stacking a second, vaguer one.
+                surfaces[key] = CriterionImportSurface()
                 continue
-            candidates = criterion_import_probe_paths(
-                blob.decode("utf-8", "replace"), path)
-            if not candidates:
-                imports[key] = ()
-                continue
-            present = self._tree_presence(base_revision, candidates, listings)
-            imports[key] = tuple(
-                sorted(probe for probe, _ in candidates if present.get(probe)))
-        return imports
+            roots, root_reasons = self._import_roots(
+                base_revision, criterion, source, listings)
+            reasons: list[str] = list(root_reasons)
+            seen: dict[str, str] = {}
+            own_root = self._owning_root(criterion, roots)
+            _, own_package = module_dotted_name(criterion, own_root)
+            frontier = [(criterion, source, own_root, own_package)]
+            for round_index in range(2):
+                reached: list[tuple[str, str, str]] = []
+                for path, text, root, package in frontier:
+                    plan = import_surface_plan(
+                        text, path, roots=roots,
+                        package_root=root, package=package)
+                    kinds = self._tree_kinds(base_revision, plan.probes, listings)
+                    surface = resolve_import_plan(plan, kinds)
+                    reasons.extend(surface.errors)
+                    for statement, top in surface.unresolved:
+                        why = self._unresolvable_reason(
+                            base_revision, path, statement, top)
+                        if why:
+                            reasons.append(why)
+                    for found_key, found_path, found_root in surface.files:
+                        if found_key in seen or found_path == criterion:
+                            continue
+                        if len(seen) >= MAX_IMPORT_SURFACE_FILES:
+                            reasons.append(
+                                f"{criterion!r} reaches more than "
+                                f"{MAX_IMPORT_SURFACE_FILES} in-tree files, so "
+                                "this resolver stopped walking and the rest of "
+                                "its import surface is not knowable"
+                            )
+                            break
+                        seen[found_key] = found_path
+                        _, found_package = module_dotted_name(
+                            found_path, found_root)
+                        reached.append((found_path, found_root, found_package))
+                if round_index or not reached:
+                    break
+                frontier = []
+                for path, root, package in reached:
+                    text = self._blob(base_revision, path)
+                    if text is None:
+                        reasons.append(
+                            f"{path!r} is on {criterion!r}'s import surface but "
+                            "could not be read out of the base revision, so what "
+                            "the criterion executes is not knowable"
+                        )
+                        continue
+                    frontier.append((path, text, root, package))
+            surfaces[key] = CriterionImportSurface(
+                paths=tuple(sorted(seen)),
+                unknowable=tuple(dict.fromkeys(reasons)),
+            )
+        return surfaces
+
+    @staticmethod
+    def _owning_root(path: str, roots: Sequence[str]) -> str:
+        """The longest declared root that contains ``path``.
+
+        A file's relative imports resolve inside the package it was FOUND in, so
+        the criterion's own package has to be read against the root the resolver
+        would have reached it by -- the deepest one, because a file under
+        ``src/pkg/`` is ``pkg.mod`` from ``src`` and ``src.pkg.mod`` from the
+        repository root, and only the first spelling puts ``from .x`` where
+        Python would.
+        """
+
+        best = ""
+        for root in roots:
+            if root and path.startswith(root + "/") and len(root) > len(best):
+                best = root
+        return best
+
+    def _unresolvable_reason(
+            self, base_revision: str, path: str, statement: str, top: str
+    ) -> str | None:
+        """Why an unresolved import is unknowable, or ``None`` if it is external."""
+
+        from daedalus.spine.receipts import stdlib_top_level
+
+        if not top or stdlib_top_level(top):
+            return None
+        names = self._tree_top_level_names(base_revision)
+        if names is None:
+            return (
+                f"{path!r} states {statement!r} and the base revision's file "
+                "list could not be read, so whether that module is in-tree is "
+                "not knowable"
+            )
+        if top not in names:
+            return None
+        return (
+            f"{path!r} states {statement!r}: it resolves to no file under the "
+            "import roots this resolver modelled, yet the base revision does "
+            f"contain something named {top!r}, so which code the criterion "
+            "executes is not knowable"
+        )
 
     @staticmethod
     def _shed_telemetry_from(runner_detail: Any) -> Any:
