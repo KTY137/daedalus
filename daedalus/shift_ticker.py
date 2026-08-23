@@ -10,7 +10,8 @@ WHAT IT IS FOR, AND WHAT IT IS NOT
 This is the HUMAN's view. It prints the time, the declared goal, how much of the
 window is left, and the checkpoints the agent has written. It cannot reach the
 agent -- a model only ever sees tool results and hook output -- so it is the
-companion to ``shift_hook.py``, never a replacement. Building only this would
+companion to the hooks package (``daedalus/hooks``, whose turn event carries
+the clock; ``shift_hook.py`` until 2026-08-23), never a replacement. Building only this would
 look like a fix and change nothing about the agent's blindness.
 
 It also does not enforce anything. When the window passes it says so, loudly,

@@ -1658,6 +1658,22 @@ ENTRYPOINTS: tuple[EntrypointSpec, ...] = (
         migration="complete for the runs.council.stream_hook entrypoint",
     ),
     EntrypointSpec(
+        id="daedalus.hooks",
+        surface=Surface.CLI,
+        target="daedalus.hooks.__main__:main",
+        effects=(Effect.FILESYSTEM_WRITE, Effect.PROCESS_SPAWN, Effect.NETWORK_EGRESS),
+        guard_contracts=("budget.process_guard",),
+        wiring=Wiring.CENTRAL,
+        anchors=(GuardAnchor("daedalus.hooks.__main__:main", "begin_effect"),),
+        notes=(
+            "Claude Code hooks dispatcher (python -m daedalus.hooks <event>): "
+            "writes runs/hooks/ state and ledger, spawns git for tree facts, "
+            "probes Serena's loopback dashboard port. Starts centrally; a "
+            "boundary refusal prints to stderr and exits 0 (hook protocol)."
+        ),
+        migration="complete for the daedalus.hooks entrypoint (2026-08-23)",
+    ),
+    EntrypointSpec(
         id="runs.council.dead_letter_replay",
         surface=Surface.CLI,
         target="runs.council.dead_letter_replay:main",

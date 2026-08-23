@@ -636,6 +636,15 @@ UNCONVERTED_PRODUCERS = {
         "runs/arch_memory.shown cursor. Regenerated from the tree on commit; "
         "reproducible from a revision with no run involved, so the honest "
         "correlator is the head it was built at, which the file already carries.",
+    "daedalus/hooks/_common.py":
+        "HARNESS INSTRUMENTATION, NOT A RUN RECORD. runs/hooks/ledger.jsonl (one "
+        "row per Claude Code hook invocation: event, chars injected, ms) and "
+        "runs/hooks/state-<session>.json (per-session cursor: live subagents, "
+        "last test fingerprint). Both are keyed by the harness session id "
+        "(the ledger also carries the harness prompt id) -- no mission, attempt "
+        "or trace exists at the moment a prompt is submitted. Gitignored, "
+        "rotated, reproducible from nothing (they are the measurement of the "
+        "hooks themselves). Revisit if a hook ever runs inside a loop iteration.",
     "daedalus/eval/graph_delta.py":
         "MEASUREMENT ARTEFACT, NOT A RUN RECORD. runs/eval/graph_delta.json, keyed "
         "by mutation id "

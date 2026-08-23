@@ -36,28 +36,95 @@
   },
   "teammateMode": "in-process",
   "hooks": {
-    "PostToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/docs-drift-reminder.py\"",
-            "timeout": 10,
-            "statusMessage": "Checking docs drift..."
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" session",
+            "timeout": 15,
+            "statusMessage": "Orienting in this tree..."
+          }
+        ],
+        "matcher": "startup|resume|clear|compact|fork"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" turn",
+            "timeout": 10
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Read|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/serena-first.py\"",
-            "timeout": 10,
-            "statusMessage": "Routing symbol work through Serena..."
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" pre_tool",
+            "timeout": 10
+          }
+        ],
+        "matcher": "Read|Grep|mcp__serena__.*"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" post_tool",
+            "timeout": 10
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" subagent_start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" subagent_stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/daedalus/hooks/__main__.py\" config_change",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/proposals/hook_precompact_vault.py\"",
+            "timeout": 15,
+            "statusMessage": "Saving context audit to the vault..."
           }
         ]
       }

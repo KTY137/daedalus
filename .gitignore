@@ -106,3 +106,7 @@ tests/_looptmp/
 # no-op the moment the tracked prompt is added again on a fresh clone.
 .claude/watchdog/*
 !.claude/watchdog/docs-sweep-prompt.md
+
+# hooks v2 (2026-08-23): per-session hook state and the injection ledger
+runs/hooks/
+runs/arch_memory.shown

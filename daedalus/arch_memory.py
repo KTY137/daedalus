@@ -235,26 +235,41 @@ LAST_SHOWN_REL_PATH = "runs/arch_memory.shown"
 NEWLINE = chr(10)
 
 
-def _last_shown(root: Path) -> list[str]:
+def _last_shown(root: Path, shown_path: Path | None = None) -> list[str]:
     try:
-        return (root / LAST_SHOWN_REL_PATH).read_text(encoding="utf-8").splitlines()
+        return (shown_path or root / LAST_SHOWN_REL_PATH).read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
 
 
-def _remember_shown(root: Path, lines) -> None:
-    write_text_atomic(root / LAST_SHOWN_REL_PATH, NEWLINE.join(lines))
+def _remember_shown(root: Path, lines, shown_path: Path | None = None) -> None:
+    write_text_atomic(shown_path or root / LAST_SHOWN_REL_PATH, NEWLINE.join(lines))
 
 
-def render_delta(repo_root=".") -> str:
+def render_delta(repo_root=".", shown_path: Path | None = None, *, silent_when_unchanged: bool = False) -> str:
     """What changed since this was last shown — or one line saying nothing did.
 
     The FIRST call in a session shows everything, because a fresh agent knows
     nothing. Afterwards it shows only what moved, so an unchanged repository
     costs one line instead of fourteen and a changed one is impossible to miss
     among the noise it no longer has to compete with.
+
+    ``shown_path`` relocates the "last shown" cursor (the hooks package keeps
+    one per session under ``runs/hooks/``, so two sessions on one tree do not
+    share a cursor and the tracked default file stays clean).
+    ``silent_when_unchanged`` returns "" instead of the one-line "unchanged"
+    notice; the caller that sets it announces once that silence means
+    unchanged (hooks v2, 2026-08-23), so the silence stays readable.
     """
     root = Path(repo_root).resolve()
+    if shown_path is not None:
+        # The cursor may be relocated, but only inside this repository: this
+        # function writes it, and a caller must not turn that into a write
+        # anywhere on disk (Codex round 2, 2026-08-23).
+        target = Path(shown_path).resolve()
+        if root not in target.parents:
+            raise ValueError(f"shown_path {target} is outside the repository {root}")
+        shown_path = target
     mem = load(root)
     if not mem.lines:
         return ""
@@ -264,14 +279,16 @@ def render_delta(repo_root=".") -> str:
         now.insert(0, f"ARCH MEMORY IS STALE: built at {mem.head[:8]}, HEAD is now "
                       f"{live[:8]} -- rebuild: python -m daedalus.arch_memory")
 
-    before = _last_shown(root)
+    before = _last_shown(root, shown_path)
     if not before:
-        _remember_shown(root, now)
+        _remember_shown(root, now, shown_path)
         return NEWLINE.join(now)
     if before == now:
-        # Deliberately not silent: "nothing changed" is itself information, and
-        # a hook that prints nothing is indistinguishable from a hook that broke.
-        return "ARCHITECTURE: unchanged since the last turn"
+        # Deliberately not silent by default: "nothing changed" is itself
+        # information, and a hook that prints nothing is indistinguishable
+        # from a hook that broke. A caller that has made silence readable
+        # (a SessionStart legend) opts out.
+        return "" if silent_when_unchanged else "ARCHITECTURE: unchanged since the last turn"
 
     gone = [l for l in before if l not in now]
     new = [l for l in now if l not in before]
@@ -281,7 +298,7 @@ def render_delta(repo_root=".") -> str:
     if len(gone) > 6 or len(new) > 6:
         out.append(f"  ... {max(0, len(gone) - 6) + max(0, len(new) - 6)} more line(s); "
                    "full picture: python -m daedalus.arch_memory --show")
-    _remember_shown(root, now)
+    _remember_shown(root, now, shown_path)
     return NEWLINE.join(out)
 
 
