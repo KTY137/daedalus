@@ -191,7 +191,13 @@ def test_packet_records_the_attempt_packets_real_status(slice_result):
     )
     for row in binding.details["detail"]["attempts"]:
         assert row["evidence_status"] in {"passed", "inconclusive"}
-        assert isinstance(row["evidence_assurance"], list)
+        # A SEQUENCE, not a list: EvidenceItem.__post_init__ runs _freeze_json
+        # over details, so every nested list arrives here as a tuple. This
+        # assertion said `list` and was red at main (measured 2026-08-23 at
+        # b4e4721c, before the data/knowledge criterion landed); the record is
+        # immutable by design and the test now says what the record is.
+        assert isinstance(row["evidence_assurance"], (list, tuple))
+        assert all(isinstance(value, str) for value in row["evidence_assurance"])
 
 
 # --------------------------------------------------------------------------- #
@@ -479,6 +485,121 @@ def test_a_half_finished_rename_is_refused_and_still_writes_a_receipt(
     assert any("does not compile" in blocker for blocker in result.blockers)
     assert any("did not produce a gated candidate" in b for b in result.blockers)
     assert result.receipt["promotion"]["status"] == "nominated, not promoted"
+
+
+# --------------------------------------------------------------------------- #
+# the data/knowledge criterion (2026-08-23)                                     #
+# --------------------------------------------------------------------------- #
+def test_both_attempts_are_conclusive_and_the_receipt_carries_no_blocker(slice_result):
+    """The gap the receipt itself named is closed, and closed by measurement.
+
+    Until 2026-08-23 the data/knowledge gate ran only the schema and link
+    checks, whose criterion is code in ``daedalus.ignition.checks`` rather than
+    a file in the judged tree; the attempt could declare no
+    ``gate_criterion_paths`` and ``evaluator_assurance`` refused to call the
+    verdict deterministic. The gate now also executes
+    ``DATA_KNOWLEDGE_NODE_IDS`` from the seeded conformance suite, which no work
+    item may write, so both attempts are sealed the same way.
+    """
+
+    binding = next(
+        item for item in slice_result.packet.items
+        if item.evidence_id == "gate1-attempt-binding"
+    )
+    rows = {row["work_item_id"]: row for row in binding.details["detail"]["attempts"]}
+    assert len(rows) == 2
+    for row in rows.values():
+        assert row["evidence_status"] == "passed", row
+        assert list(row["evidence_assurance"]) == ["deterministic"], row
+    assert slice_result.receipt["blocker"] is None
+
+
+def test_the_data_knowledge_gate_names_its_criterion_and_runs_it(slice_result):
+    """Check 4 of the spine's seal: the gate that ran must NAME the criterion.
+
+    A gate that declares a criterion path it never reads seals nothing, so the
+    recorded command has to carry the file, not just the evaluator names.
+    """
+
+    binding = next(
+        item for item in slice_result.packet.items
+        if item.evidence_id == "gate1-attempt-binding"
+    )
+    rows = {row["work_item_id"]: row for row in binding.details["detail"]["attempts"]}
+    data_row = rows[[k for k in rows if k.startswith("wi-001")][0]]
+    assert data_row["gate_name"] == "ignition-data-knowledge"
+    # the criterion the attempt declared is the seeded suite, outside every scope
+    assert ignition_checks.CONFORMANCE_TEST_PATH not in set(data_row["target_paths"])
+
+
+@pytest.mark.parametrize(
+    "renamed,expect_pass",
+    [
+        ((), False),                                        # base revision
+        (("data",), False),                                 # data only: wiki left behind
+        (("knowledge",), False),                            # knowledge only: CSV left behind
+        (("data", "knowledge"), True),                      # the whole work item
+    ],
+)
+def test_the_data_knowledge_nodes_discriminate(tmp_path, renamed, expect_pass):
+    """FAIL_TO_PASS, measured: the nodes fail on the base revision and on every
+    half-finished rename of this work item's own planes."""
+
+    tree = tmp_path / "project"
+    shutil.copytree(gate1.DEFAULT_FIXTURE, tree)
+    (tree / "tests").mkdir(exist_ok=True)
+    (tree / "tests" / ignition_checks.CONFORMANCE_TEST_PATH.split("/")[-1]).write_text(
+        ignition_checks.CONFORMANCE_TEST_SOURCE, encoding="utf-8"
+    )
+    groups = {
+        "data": ("data/events.csv", "schemas/event.schema.json"),
+        "knowledge": ("wiki/Event.md",),
+    }
+    for group in renamed:
+        for rel in groups[group]:
+            path = tree / rel
+            path.write_text(path.read_text(encoding="utf-8").replace("voltage", "bias_voltage"),
+                            encoding="utf-8")
+    report = ignition_checks.pytest_check(
+        tree, ignition_checks.DATA_KNOWLEDGE_NODE_IDS, timeout_s=180.0, label="dk-discrimination",
+    )
+    assert report.passed is expect_pass, report.output[-800:]
+    assert report.criterion_paths == (ignition_checks.CONFORMANCE_TEST_PATH,)
+
+
+def test_the_data_knowledge_gate_still_fails_a_half_renamed_schema(tmp_path):
+    """The anchored nodes do not model schema-against-CSV, so the gate keeps
+    both cross-plane readings in its verdict.
+
+    Measured while building this: with the verdict resting on the node ids
+    alone, a candidate that renamed the CSV and left the schema behind passed
+    the gate and was caught only by the Fourfold compile downstream.
+    """
+
+    tree = tmp_path / "project"
+    shutil.copytree(gate1.DEFAULT_FIXTURE, tree)
+    (tree / "tests").mkdir(exist_ok=True)
+    (tree / "tests" / ignition_checks.CONFORMANCE_TEST_PATH.split("/")[-1]).write_text(
+        ignition_checks.CONFORMANCE_TEST_SOURCE, encoding="utf-8"
+    )
+    for rel in ("data/events.csv", "wiki/Event.md"):  # schema deliberately left behind
+        path = tree / rel
+        path.write_text(path.read_text(encoding="utf-8").replace("voltage", "bias_voltage"),
+                        encoding="utf-8")
+
+    from daedalus.spine.attempt import RunnerContext, TaskSpec
+
+    sink: dict = {}
+    gate = gate1.data_knowledge_gate(sink, timeout_s=180.0)
+    result = gate(RunnerContext(
+        worktree=tree, branch="b", base_revision="0" * 40,
+        task=TaskSpec(task_id="t", instruction="i"), is_cancelled=lambda: False,
+    ))
+    assert sink["data-knowledge"].passed is True, "the node ids alone do not see the schema"
+    assert sink["schema"].passed is False
+    assert result.passed is False
+    assert result.returncode == 1
+    assert ignition_checks.CONFORMANCE_TEST_PATH in " ".join(result.command)
 
 
 # --------------------------------------------------------------------------- #

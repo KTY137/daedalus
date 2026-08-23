@@ -398,21 +398,63 @@ def code_type_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: f
     return _gate
 
 
-def data_knowledge_gate(sink: dict[str, ignition_checks.CheckReport]):
-    """Attempt gate for the data/knowledge work item: schema plus links."""
+def data_knowledge_gate(sink: dict[str, ignition_checks.CheckReport], *, timeout_s: float = 120.0):
+    """Attempt gate for the data/knowledge work item: the conformance nodes it
+    owns, plus the schema and link measurements.
+
+    THE VERDICT COMES FROM THE ANCHORED NODES, THE OTHER TWO ARE MEASUREMENTS.
+    Until 2026-08-23 this gate returned schema-and-link, whose criterion is
+    code in :mod:`daedalus.ignition.checks` rather than a file in the judged
+    tree; the attempt could therefore declare no ``gate_criterion_paths`` and
+    ``evaluator_assurance`` refused to call it deterministic -- the receipt's
+    own ``remaining_gap``. Running :data:`~daedalus.ignition.checks.
+    DATA_KNOWLEDGE_NODE_IDS` puts a criterion the candidate may not write in
+    front of the verdict, and the pytest argv names the file, which is what the
+    spine's seal requires (check 4).
+
+    The schema and link reports still run and still land in the sink -- they are
+    the composed candidate's evidence and the cross-plane reading that catches a
+    half-finished rename the node ids do not model. They no longer decide this
+    attempt on their own: a gate whose criterion the candidate authors is
+    exactly what the evidence boundary refuses to call conclusive.
+    """
 
     def _gate(ctx: RunnerContext) -> GateResult:
         started = time.monotonic()
+        conformance = ignition_checks.pytest_check(
+            ctx.worktree, ignition_checks.DATA_KNOWLEDGE_NODE_IDS, timeout_s=timeout_s,
+            label="pytest-data-knowledge",
+        )
         schema = ignition_checks.schema_check(ctx.worktree)
         links = ignition_checks.link_check(ctx.worktree)
+        sink["data-knowledge"] = conformance
         sink["schema"] = schema
         sink["link"] = links
+        # ALL THREE, and the reason is measured: with the verdict resting on the
+        # conformance nodes alone, dropping schemas/event.schema.json from the
+        # work item's paths left the CSV renamed and the schema behind, the
+        # nodes still passed, and only the Fourfold compile downstream noticed
+        # (tests/test_ignition_gate1.py::test_a_half_finished_rename_is_refused
+        # went red). The node ids model the CSV header and the wiki page; they
+        # do not model the schema/CSV field-set equality, which is exactly the
+        # half-finished rename this slice exists to catch. The seal comes from
+        # the anchored nodes, the discrimination from all three.
         return GateResult(
-            passed=schema.passed and links.passed,
+            passed=conformance.passed and schema.passed and links.passed,
             name="ignition-data-knowledge",
-            command=("ignition-schema-check", "ignition-link-check"),
-            returncode=0 if (schema.passed and links.passed) else 1,
-            output=ignition_checks.render_reports((schema, links)),
+            # The argv NAMES the criterion file, which the spine's seal
+            # requires (check 4); the two module-authored checks ride along in
+            # the command so the record says what actually ran.
+            command=tuple(str(part) for part in conformance.detail.get("argv", ()))
+            + ("ignition-schema-check", "ignition-link-check"),
+            # pytest's own code when the anchored nodes decided it; 1 when they
+            # passed and a cross-plane reading did not.
+            returncode=(
+                conformance.detail.get("returncode")
+                if not conformance.passed
+                else 0 if (schema.passed and links.passed) else 1
+            ),
+            output=ignition_checks.render_reports((conformance, schema, links)),
             duration_s=time.monotonic() - started,
         )
 
@@ -679,7 +721,7 @@ def run_gate1_ignition(
         # -- two attempts, each through the attempt spine -------------------- #
         reports: dict[str, ignition_checks.CheckReport] = {}
         gates = (code_type_gate(reports, timeout_s=float(gate_timeout_s)),
-                 data_knowledge_gate(reports))
+                 data_knowledge_gate(reports, timeout_s=float(gate_timeout_s)))
         attempts: list[Any] = []
         attempt_results: list[Any] = []
         for index, (planned_item, task, gate) in enumerate(zip(planned, tasks, gates)):
@@ -688,18 +730,15 @@ def run_gate1_ignition(
                 instruction=task.objective,
                 base_revision=base_revision,
                 target_paths=tuple(task.paths),
-                # Where each gate's criterion lives INSIDE the candidate tree.
-                # The code/type gate runs the seeded conformance test, which
-                # the work item may not write -- so its verdict is sealed from
-                # the candidate (93489855). The data/knowledge gate compares
-                # the schema against the CSV, and the rename edits both, so
-                # its criterion is inside the write scope and it declares none:
-                # that packet honestly stays inconclusive.
-                gate_criterion_paths=(
-                    (ignition_checks.CONFORMANCE_TEST_PATH,)
-                    if "code" in planned_item.planes or "type" in planned_item.planes
-                    else ()
-                ),
+                # Where each gate's criterion lives INSIDE the candidate
+                # tree. BOTH gates now run the seeded conformance suite, which
+                # no work item may write, so both verdicts are sealed from the
+                # candidate (93489855 for the API; the data/knowledge nodes
+                # landed 2026-08-23, closing this receipt's own remaining_gap).
+                # The schema and link checks still run under the data/knowledge
+                # gate, but as measurements: their criterion is module code, not
+                # a tree file, so naming them here would seal nothing.
+                gate_criterion_paths=(ignition_checks.CONFORMANCE_TEST_PATH,),
                 # DECLARED, BECAUSE IT IS TRUE AND WAS PREVIOUSLY UNSAID. The
                 # conformance suite inserts <root>/src on sys.path and imports
                 # ignition_app, whose package reaches src/ignition_app/models.py
@@ -712,6 +751,12 @@ def run_gate1_ignition(
                 # judged the candidate the candidate wrote. The criterion FILE
                 # and everything on its collection path stay outside the scope,
                 # so the candidate still cannot change what the gate ASKS.
+                # TRUE FOR THE CODE/TYPE ITEM ONLY, and measured rather
+                # than assumed for the other: the code/type nodes import
+                # ignition_app from src/, which that item writes. The
+                # data/knowledge nodes read the CSV and the wiki page through
+                # pathlib and never import the candidate's package, so nothing
+                # that item writes is on their execution path.
                 gate_reads_scope=bool(
                     "code" in planned_item.planes or "type" in planned_item.planes
                 ),
